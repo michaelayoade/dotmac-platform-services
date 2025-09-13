@@ -39,12 +39,13 @@ qrcode = {extras = ["pil"], version = ">=7.4.0"}
 aiosqlite = ">=0.19.0"
 psycopg2-binary = "^2.9.10"
 asyncpg = "^0.30.0"
+protobuf = "^4.25.8"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
 pytest-asyncio = "^0.21.1"
 pytest-cov = "^4.1.0"
-black = "^23.11.0"
+black = "^24.3.0"
 ruff = ">=0.1.0"
 mypy = ">=1.7.0"
 bandit = {extras = ["toml"], version = ">=1.7.0"}
