@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dotmac-postgres
+    environment:
+      POSTGRES_DB: dotmac
+      POSTGRES_USER: dotmac
+      POSTGRES_PASSWORD: dotmac_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dotmac"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dotmac-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  openbao:
+    image: quay.io/openbao/openbao:latest
+    container_name: dotmac-openbao
+    cap_add:
+      - IPC_LOCK
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: root-token
+      BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    command: server -dev
+
+  # Simple OTLP collector for receiving telemetry
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: dotmac-otel-collector
+    command: ["--config=/etc/otel-collector.yaml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+    volumes:
+      - ./scripts/otel-collector-simple.yaml:/etc/otel-collector.yaml
+
+volumes:
+  postgres_data:
