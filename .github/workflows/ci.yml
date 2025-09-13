@@ -20,9 +20,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
-    defaults:
-      run:
-        working-directory: dotmac-platform-services
     env:
       POETRY_VIRTUALENVS_IN_PROJECT: "true"
 
@@ -42,7 +39,7 @@ jobs:
         with:
           path: |
             ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('dotmac-platform-services/poetry.lock') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
@@ -64,8 +61,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            dotmac-platform-services/.venv
-          key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('dotmac-platform-services/poetry.lock') }}
+            .venv
+          key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-venv-${{ matrix.python-version }}-
 
@@ -75,7 +72,7 @@ jobs:
 
       - name: Run unit tests with coverage (green baseline)
         env:
-          PYTHONPATH: "${{ github.workspace }}/dotmac-platform-services/src"
+          PYTHONPATH: "${{ github.workspace }}/src"
           # Run only tests explicitly marked as unit; set a low fail-under initially
           PYTEST_ADDOPTS: "-m unit -k 'not test_secrets_manager and not test_auth_init_exports and not test_platform_init and not test_logging_core and not test_session_manager_unit' --cov-fail-under=${{ env.COV_FAIL_UNDER }}"
         run: |
@@ -107,15 +104,12 @@ jobs:
         with:
           name: coverage-reports-${{ matrix.python-version }}
           path: |
-            dotmac-platform-services/coverage.xml
-            dotmac-platform-services/htmlcov/
+            coverage.xml
+            htmlcov/
 
   mutation:
     name: Mutation tests (on demand)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dotmac-platform-services
     if: >-
       contains(github.event.head_commit.message, '[mutation]') ||
       (github.event_name == 'pull_request' &&
@@ -144,7 +138,7 @@ jobs:
 
       - name: Run mutation tests (auth/secrets)
         env:
-          PYTHONPATH: "${{ github.workspace }}/dotmac-platform-services/src"
+          PYTHONPATH: "${{ github.workspace }}/src"
         run: |
           poetry run mutmut run
 
