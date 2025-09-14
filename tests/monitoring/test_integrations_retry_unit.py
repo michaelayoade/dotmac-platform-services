@@ -47,8 +47,10 @@ async def test_make_request_handles_missing_json_and_content(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_make_request_retries_and_raises(monkeypatch):
-    # No sleep
-    monkeypatch.setattr(asyncio, "sleep", lambda s: asyncio.sleep(0))
+    # No sleep - use a proper async no-op
+    async def no_sleep(s):
+        return
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
 
     req = httpx.Request("GET", "http://x")
     resp = httpx.Response(500, request=req)
