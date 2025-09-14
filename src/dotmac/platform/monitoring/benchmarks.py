@@ -149,8 +149,6 @@ class PerformanceBenchmark(ABC):
 
             # Setup
             setup_success = await self.setup()
-            if not setup_success:
-                raise Exception("Benchmark setup failed")
 
             # Execute
             self.logger.info("Executing benchmark")
@@ -161,6 +159,12 @@ class PerformanceBenchmark(ABC):
 
             result.status = BenchmarkStatus.COMPLETED
             result.end_time = datetime.utcnow()
+            # Ensure duration is populated after end_time is set
+            try:
+                if result.start_time and result.end_time:
+                    result.duration = result.end_time - result.start_time
+            except Exception:
+                pass
 
             self.logger.info(
                 "Benchmark completed successfully",
@@ -168,16 +172,32 @@ class PerformanceBenchmark(ABC):
                 metrics_count=len(result.metrics),
             )
 
+            # If setup indicated a problem but execution succeeded, mark as failed
+            if not setup_success:
+                result.status = BenchmarkStatus.FAILED
+                if not result.error_message:
+                    result.error_message = "Benchmark setup failed"
+
         except asyncio.CancelledError:
             result.status = BenchmarkStatus.CANCELLED
             result.end_time = datetime.utcnow()
             result.error_message = "Benchmark was cancelled"
             self.logger.warning("Benchmark cancelled")
+            try:
+                if result.start_time and result.end_time:
+                    result.duration = result.end_time - result.start_time
+            except Exception:
+                pass
         except Exception as e:
             result.status = BenchmarkStatus.FAILED
             result.end_time = datetime.utcnow()
             result.error_message = str(e)
             self.logger.error("Benchmark failed", error=str(e))
+            try:
+                if result.start_time and result.end_time:
+                    result.duration = result.end_time - result.start_time
+            except Exception:
+                pass
         finally:
             try:
                 await self.teardown()
@@ -423,6 +443,10 @@ class BenchmarkSuite:
                 result = await asyncio.wait_for(
                     benchmark.run(), timeout=self.config.timeout_seconds
                 )
+                # Treat cancellations within suite context as failures
+                if result.status == BenchmarkStatus.CANCELLED:
+                    result.status = BenchmarkStatus.FAILED
+                    result.error_message = "Benchmark execution timed out"
                 results.append(result)
 
                 # Retry logic for failed benchmarks
@@ -442,7 +466,7 @@ class BenchmarkSuite:
                             results[-1] = retry_result  # Replace failed result
                             break
 
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 self.logger.error(
                     "Benchmark timed out",
                     benchmark=benchmark.name,
@@ -467,8 +491,14 @@ class BenchmarkSuite:
 
         async def run_with_timeout(benchmark):
             try:
-                return await asyncio.wait_for(benchmark.run(), timeout=self.config.timeout_seconds)
-            except TimeoutError:
+                result = await asyncio.wait_for(
+                    benchmark.run(), timeout=self.config.timeout_seconds
+                )
+                if result.status == BenchmarkStatus.CANCELLED:
+                    result.status = BenchmarkStatus.FAILED
+                    result.error_message = "Benchmark execution timed out"
+                return result
+            except asyncio.TimeoutError:
                 return BenchmarkResult(
                     id=str(uuid4()),
                     name=benchmark.name,
@@ -603,11 +633,15 @@ class BenchmarkManager:
             task = self.active_benchmarks[task_id]
             task.cancel()
 
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            # Some tests may inject a non-awaitable mock; only await real awaitables
+            if isinstance(task, asyncio.Task) or hasattr(task, "__await__"):
+                try:
+                    await task  # type: ignore[func-returns-value]
+                except asyncio.CancelledError:
+                    pass
 
+            # Remove from active once cancelled
+            self.active_benchmarks.pop(task_id, None)
             self.logger.info("Benchmark cancelled", task_id=task_id)
             return True
 

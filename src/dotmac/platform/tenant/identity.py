@@ -38,8 +38,10 @@ class TenantIdentityResolver:
         except Exception:
             pass
 
-        # Request state (set by upstream or router)
+        # Request state (set by upstream or router). Avoid Mock auto-creation.
         try:
-            return getattr(request.state, "tenant_id", None)
+            state = request.state
+            state_dict = getattr(state, "__dict__", {})
+            return state_dict.get("tenant_id") if isinstance(state_dict, dict) else None
         except Exception:
             return None

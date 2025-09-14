@@ -5,6 +5,7 @@ Simple task management for background operations, sagas, and workflows.
 This is a minimal implementation for backward compatibility.
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Callable
@@ -155,7 +156,9 @@ class BackgroundOperationsMiddleware:
     async def __call__(self, scope, receive, send):
         """Middleware call."""
         # Simple pass-through for now
-        await self.app(scope, receive, send)
+        result = self.app(scope, receive, send)
+        if asyncio.iscoroutine(result):
+            await result
 
 
 def add_background_operations_middleware(app, manager: BackgroundOperationsManager | None = None):

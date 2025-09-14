@@ -2,6 +2,7 @@
 Test real services connectivity.
 """
 
+import os
 import hvac
 import pytest
 import redis
@@ -12,7 +13,10 @@ from sqlalchemy import create_engine, text
 from dotmac.platform.observability import ObservabilityManager
 
 # Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(os.getenv("DOTMAC_LIVE") != "1", reason="Live integration disabled (set DOTMAC_LIVE=1)"),
+]
 
 
 def test_postgres_connection():

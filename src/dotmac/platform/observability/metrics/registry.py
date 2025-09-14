@@ -93,29 +93,19 @@ class MetricsRegistry:
     def __init__(
         self,
         service_name: str,
-        enable_prometheus: bool = False,
-        prometheus_registry: Optional["CollectorRegistry"] = None,
     ) -> None:
         self.service_name = service_name
         self.enable_prometheus = False
         self._metrics: dict[str, MetricInstrument] = {}
         self._otel_meter: Meter | None = None
-
-        # Prometheus registry removed
-        self._prometheus_registry = None
-
-        logger.info(f"Metrics registry initialized for {service_name}")
-
-    def set_otel_meter(self, meter: Meter | None) -> None:
-        """Set the OpenTelemetry meter for this registry."""
-        self._otel_meter = meter
-
+        if _otel_available:
+            self._otel_meter = otel_metrics.get_meter(service_name)  # type: ignore[call-arg]
         # Re-register all metrics with the new meter
-        if meter and _otel_available:
+        if self._otel_meter and _otel_available:
             for metric_name, metric_instrument in self._metrics.items():
                 try:
                     otel_instrument = self._create_otel_instrument(
-                        metric_instrument.definition, meter
+                        metric_instrument.definition, self._otel_meter
                     )
                     metric_instrument.otel_instrument = otel_instrument
                 except Exception as e:

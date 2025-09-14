@@ -143,114 +143,52 @@ class SessionBackend(ABC):
         """Clean up expired sessions. Returns count of cleaned sessions."""
 
 
-class _AwaitableResult:
-    """A small wrapper that behaves as a value but is also awaitable."""
-
-    def __init__(self, value):
-        self._value = value
-
-    def __await__(self):  # pragma: no cover - trivial shim
-        async def _coro():
-            return self._value
-
-        return _coro().__await__()
-
-    def __getattr__(self, name):  # Delegate attribute access to value
-        return getattr(self._value, name)
-
-    def __bool__(self):  # Truthiness of underlying value
-        return bool(self._value)
+# Removed _AwaitableResult test-only wrapper
 
 
 class MemorySessionBackend(SessionBackend):
-    """In-memory session backend supporting both async and sync usage."""
+    """In-memory session backend (async)."""
 
     def __init__(self) -> None:
-        # Async-oriented storage
         self.sessions: dict[str, SessionData] = {}
         self.user_sessions: dict[str, set[str]] = {}
-        # Sync-oriented storage
-        self.sessions_sync: dict[str, Session] = {}
 
     # Async-compatible API (also usable synchronously via returned wrapper)
-    def get_session(self, session_id: str):  # type: ignore[override]
+    async def get_session(self, session_id: str) -> SessionData | None:  # type: ignore[override]
         session_sd = self.sessions.get(session_id)
         if session_sd and session_sd.is_expired():
-            self.delete_session(session_id)
-            return _AwaitableResult(None)
-        if session_sd:
-            return _AwaitableResult(session_sd)
+            await self.delete_session(session_id)
+            return None
+        return session_sd
 
-        session_sync = self.sessions_sync.get(session_id)
-        if session_sync and session_sync.is_expired():
-            self.delete_session(session_id)
-            return _AwaitableResult(None)
-        return _AwaitableResult(session_sync)
+    async def store_session(self, session: SessionData) -> bool:  # type: ignore[override]
+        self.sessions[session.session_id] = session
+        self.user_sessions.setdefault(session.user_id, set()).add(session.session_id)
+        return True
 
-    def store_session(self, session):  # type: ignore[override]
-        # Accept both SessionData (async) and Session (sync)
-        if isinstance(session, SessionData):
-            self.sessions[session.session_id] = session
-            self.user_sessions.setdefault(session.user_id, set()).add(session.session_id)
-            return _AwaitableResult(True)
-
-        if isinstance(session, Session):
-            self.sessions_sync[session.id] = session
-            self.user_sessions.setdefault(session.user_id, set()).add(session.id)
-            return _AwaitableResult(True)
-
-        return _AwaitableResult(False)
-
-    def delete_session(self, session_id: str):  # type: ignore[override]
+    async def delete_session(self, session_id: str) -> bool:  # type: ignore[override]
         session_sd = self.sessions.pop(session_id, None)
         if session_sd:
             user_sessions = self.user_sessions.get(session_sd.user_id, set())
             user_sessions.discard(session_id)
             if not user_sessions:
                 self.user_sessions.pop(session_sd.user_id, None)
-            return _AwaitableResult(True)
+            return True
+        return False
 
-        session_sync = self.sessions_sync.pop(session_id, None)
-        if session_sync:
-            user_sessions = self.user_sessions.get(session_sync.user_id, set())
-            user_sessions.discard(session_id)
-            if not user_sessions:
-                self.user_sessions.pop(session_sync.user_id, None)
-            return _AwaitableResult(True)
+    async def get_user_sessions(self, user_id: str) -> set[str]:  # type: ignore[override]
+        return set(self.user_sessions.get(user_id, set()))
 
-        return _AwaitableResult(False)
-
-    def get_user_sessions(self, user_id: str):  # type: ignore[override]
-        return _AwaitableResult(self.user_sessions.get(user_id, set()).copy())
-
-    def cleanup_expired_sessions(self):  # type: ignore[override]
+    async def cleanup_expired_sessions(self) -> int:  # type: ignore[override]
         expired = []
         for sid, s in list(self.sessions.items()):
             if s.is_expired():
                 expired.append(sid)
-                self.delete_session(sid)
-        for sid, s in list(self.sessions_sync.items()):
-            if s.is_expired():
-                expired.append(sid)
-                self.delete_session(sid)
-        return _AwaitableResult(len(expired))
+                await self.delete_session(sid)
+        return len(expired)
 
 
-class MemorySessionBackendSync:
-    """Purely synchronous wrapper around MemorySessionBackend for tests that use sync calls."""
-
-    def __init__(self) -> None:
-        self._backend = MemorySessionBackend()
-
-    def get_session(self, session_id: str) -> Session | None:
-        result = self._backend.get_session(session_id)
-        return result._value  # unwrap
-
-    def store_session(self, session: Session) -> bool:
-        return bool(self._backend.store_session(session))
-
-    def delete_session(self, session_id: str) -> bool:
-        return bool(self._backend.delete_session(session_id))
+# Removed synchronous MemorySessionBackendSync test-only wrapper
 
 
 class RedisSessionBackend(SessionBackend):
@@ -277,9 +215,7 @@ class RedisSessionBackend(SessionBackend):
         return self._redis
 
     # Compatibility alias for tests expecting `.client`
-    @property
-    def client(self):  # pragma: no cover - trivial alias
-        return self.redis
+    # Removed test-only `.client` alias
 
     def _session_key(self, session_id: str) -> str:
         """Generate Redis key for session."""
@@ -430,18 +366,7 @@ class SessionManager:
         return session
 
     # Synchronous compatibility API used in tests
-    def create_session(self, user_id: str, data: dict[str, Any]) -> Session:
-        if not self._store:
-            # Minimal fallback using in-memory construct
-            created = Session(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                data=data,
-                created_at=datetime.utcnow(),
-                expires_at=datetime.utcnow() + timedelta(seconds=self.default_ttl),
-            )
-            return created
-        return self._store.create(user_id=user_id, data=data)
+    # Removed legacy synchronous create_session used only by tests
 
     async def get_session_async(self, session_id: str) -> SessionData | None:
         """Get session and update last accessed time."""
@@ -456,7 +381,7 @@ class SessionManager:
 
         return session
 
-    # Backward-compatible async names expected by tests
+    # Public async API
     async def create_session(
         self,
         user_id: str,
@@ -469,12 +394,7 @@ class SessionManager:
     async def get_session(self, session_id: str) -> SessionData | None:
         return await self.get_session_async(session_id)
 
-    def get_session(self, session_id: str):
-        """Synchronous compatibility method that uses provided store if available."""
-        if self._store:
-            return self._store.get(session_id)
-        # Fallback: not available without event loop; return None
-        return None
+    # Removed synchronous get_session test-only shim
 
     async def invalidate_session(self, session_id: str) -> bool:
         """Invalidate a session."""
@@ -534,11 +454,13 @@ class SessionManager:
 
         return sessions
 
-    # Compatibility validator used by tests
-    def validate_session(self, session: Session | SessionData) -> bool:
-        if isinstance(session, Session):
-            return not session.is_expired()
-        return session.is_active()
+    # Removed test-only validate_session shim
+    async def validate_session(self, session_id: str) -> SessionData | None:
+        """Validate and return session if active, else None."""
+        session = await self.backend.get_session(session_id)
+        if session and session.is_active():
+            return session
+        return None
 
     async def _enforce_session_limit(self, user_id: str) -> None:
         """Enforce maximum sessions per user."""
@@ -580,6 +502,9 @@ def create_memory_session_manager(**kwargs) -> SessionManager:
     """Create session manager with memory backend."""
     backend = MemorySessionBackend()
     return SessionManager(backend, **kwargs)
+
+# Compatibility alias expected by some tests
+InMemorySessionBackend = MemorySessionBackend
 
 
 def create_redis_session_manager(redis_url: str, **kwargs) -> SessionManager:

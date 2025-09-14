@@ -133,8 +133,8 @@ class TestModuleStructure:
         # Test that it only contains the expected exports
         module_attributes = [attr for attr in dir(service_tokens) if not attr.startswith("_")]
 
-        # Should only have the re-exported items and __all__
-        expected_attrs = set(["ServiceAuthMiddleware", "create_service_token_manager", "__all__"])
+        # Should include the re-exported items
+        expected_attrs = set(["ServiceAuthMiddleware", "create_service_token_manager"])
         actual_attrs = set(module_attributes)
 
         # The actual attributes should be a superset of expected (may have __all__, etc.)

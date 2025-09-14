@@ -19,8 +19,15 @@ logger = logging.getLogger(__name__)
 
 try:  # Optional retry support
     from tenacity import retry as _retry
+    from tenacity import stop_after_attempt as _stop_after_attempt
 
     def retry(*r_args: Any, **r_kwargs: Any):  # type: ignore[misc]
+        # Normalize primitive stop values to a proper tenacity strategy
+        stop = r_kwargs.get("stop")
+        if isinstance(stop, int):
+            r_kwargs["stop"] = _stop_after_attempt(stop)
+        # Ensure original exception is re-raised after retries to match tests
+        r_kwargs.setdefault("reraise", True)
         return _retry(*r_args, **r_kwargs)
 
 except Exception:  # pragma: no cover - fallback

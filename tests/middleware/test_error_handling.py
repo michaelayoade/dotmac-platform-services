@@ -436,7 +436,7 @@ class TestMiddlewareAndErrorHandling:
     # Authentication Middleware Tests
 
     @pytest.mark.asyncio
-    async def test_auth_middleware_valid_api_key(request: Request, self, auth_middleware):
+    async def test_auth_middleware_valid_api_key(self, auth_middleware):
         """Test authentication middleware with valid API key"""
         request = MockRequest(headers={"X-API-Key": "valid_api_key_123"})
 
@@ -457,7 +457,7 @@ class TestMiddlewareAndErrorHandling:
         assert response.content["code"] == "INVALID_API_KEY"
 
     @pytest.mark.asyncio
-    async def test_auth_middleware_valid_jwt_token(request: Request, self, auth_middleware):
+    async def test_auth_middleware_valid_jwt_token(self, auth_middleware):
         """Test authentication middleware with valid JWT token"""
         request = MockRequest(headers={"Authorization": "Bearer valid_jwt_token"})
 
@@ -499,7 +499,7 @@ class TestMiddlewareAndErrorHandling:
         assert request.state["user_id"] == "user_456"
 
     @pytest.mark.asyncio
-    async def test_auth_middleware_health_check_bypass(request: Request, self, auth_middleware):
+    async def test_auth_middleware_health_check_bypass(self, auth_middleware):
         """Test authentication middleware bypasses health check endpoints"""
         request = MockRequest(url="/health/status")
 

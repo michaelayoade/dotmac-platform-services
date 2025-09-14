@@ -9,10 +9,14 @@ Requires the following environment variable (or defaults to localhost):
 import os
 
 import pytest
+import os
 
 from dotmac.platform.observability import ObservabilityManager
 
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(os.getenv("DOTMAC_LIVE") != "1", reason="Live integration disabled (set DOTMAC_LIVE=1)"),
+]
 
 
 def test_observability_manager_with_otlp() -> None:

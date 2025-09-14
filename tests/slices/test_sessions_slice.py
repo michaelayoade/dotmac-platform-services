@@ -1,34 +1,35 @@
 """
-Session slice tests using the synchronous in-memory backend (no mocks).
+Session slice tests using the async in-memory backend (no mocks).
 """
 
 from datetime import datetime, timedelta
 
-from dotmac.platform.auth.session_manager import (
-    MemorySessionBackendSync,
-    Session,
-)
+import pytest
+from dotmac.platform.auth.session_manager import MemorySessionBackend, SessionData, SessionStatus
 
 
-def test_memory_session_backend_sync_store_get_delete():
-    backend = MemorySessionBackendSync()
+@pytest.mark.asyncio
+async def test_memory_session_backend_store_get_delete():
+    backend = MemorySessionBackend()
 
-    s = Session(
-        id="s1",
+    s = SessionData(
+        session_id="s1",
         user_id="u1",
+        tenant_id=None,
         created_at=datetime.utcnow(),
+        last_accessed=datetime.utcnow(),
         expires_at=datetime.utcnow() + timedelta(minutes=5),
-        data={"k": "v"},
+        status=SessionStatus.ACTIVE,
+        metadata={"k": "v"},
     )
 
-    assert backend.store_session(s) is True
+    assert await backend.store_session(s) is True
 
-    got = backend.get_session("s1")
+    got = await backend.get_session("s1")
     assert got is not None
-    assert got.id == "s1"
+    assert got.session_id == "s1"
     assert got.user_id == "u1"
-    assert got.is_valid is True
+    assert got.is_active() is True
 
-    assert backend.delete_session("s1") is True
-    assert backend.get_session("s1") is None
-
+    assert await backend.delete_session("s1") is True
+    assert await backend.get_session("s1") is None

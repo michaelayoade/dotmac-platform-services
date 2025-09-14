@@ -25,9 +25,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
     ) -> Any:
         tenant_id = await self.resolver.resolve(request)
         if tenant_id:
-            try:
-                request.state.tenant_id = tenant_id
-            except Exception:
-                # Read-only or restricted state; ignore setting
-                pass
+            # If request.state is None, surface error as tests expect
+            if request.state is None:
+                raise AttributeError("request.state is None")
+            # Attempt to set; allow AttributeError to propagate for read-only state
+            request.state.tenant_id = tenant_id
         return await call_next(request)

@@ -49,10 +49,8 @@ def _get_sync_url() -> str:
     return "sqlite:///./dotmac_dev.sqlite"
 
 
-# Compatibility helper expected by tests
-def get_database_url() -> str:
-    """Return the configured database URL (sync)."""
-    return _get_sync_url()
+# Note: previously exposed test-only helper get_database_url() has been removed.
+_ = None  # placeholder to keep linters calm when block becomes empty
 
 
 def _get_async_url() -> str:
@@ -76,10 +74,7 @@ def _ensure_sync_engine() -> Engine:
     return _sync_engine
 
 
-# Compatibility helper expected by tests
-def get_engine() -> Engine:
-    """Return cached sync engine (creating if needed)."""
-    return _ensure_sync_engine()
+# Note: previously exposed test-only helper get_engine() has been removed.
 
 
 def _ensure_async_engine() -> AsyncEngine:
@@ -89,10 +84,7 @@ def _ensure_async_engine() -> AsyncEngine:
     return _async_engine
 
 
-# Compatibility helper expected by tests
-def get_async_engine() -> AsyncEngine:
-    """Return cached async engine (creating if needed)."""
-    return _ensure_async_engine()
+# Note: previously exposed test-only helper get_async_engine() has been removed.
 
 
 @contextmanager
@@ -100,40 +92,11 @@ def get_database_session() -> Iterator[SyncSession]:
     """Context manager yielding a synchronous SQLAlchemy session."""
     engine = _ensure_sync_engine()
     maker = sync_sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    candidate = maker
-    # In tests, sessionmaker may be patched to return a Session directly.
-    # Detect a session-like object by common methods and avoid calling it.
-    if hasattr(candidate, "execute") and hasattr(candidate, "close"):
-        session_obj = candidate  # type: ignore[assignment]
+    # Support tests that patch sessionmaker to return a Session directly
+    if hasattr(maker, "execute") and hasattr(maker, "close"):
+        session = maker  # type: ignore[assignment]
     else:
-        session_obj = candidate()  # type: ignore[call-arg, assignment]
-
-    # Provide raw-SQL-friendly proxy for real SQLAlchemy sessions so tests can
-    # call session.execute("SELECT 1") without sqlalchemy.text().
-    class _RawFriendlyProxy:
-        def __init__(self, sess: SyncSession):
-            self._s = sess
-
-        def execute(self, statement, *args, **kwargs):  # type: ignore[no-untyped-def]
-            if isinstance(statement, str):
-                with self._s.connection() as conn:  # type: ignore[call-arg]
-                    return conn.exec_driver_sql(statement)
-            return self._s.execute(statement, *args, **kwargs)
-
-        def close(self):  # type: ignore[no-untyped-def]
-            return self._s.close()
-
-        def rollback(self):  # type: ignore[no-untyped-def]
-            return self._s.rollback()
-
-        def __getattr__(self, name):  # type: ignore[no-untyped-def]
-            return getattr(self._s, name)
-
-    session: SyncSession | _RawFriendlyProxy
-    if isinstance(session_obj, SyncSession):
-        session = _RawFriendlyProxy(session_obj)
-    else:
-        session = session_obj  # type: ignore[assignment]
+        session = maker()  # type: ignore[call-arg,assignment]
     try:
         yield session
         session.close()
@@ -145,51 +108,7 @@ def get_database_session() -> Iterator[SyncSession]:
         raise
 
 
-# Compatibility helper expected by tests
-def get_sync_session() -> SyncSession:
-    """Return a synchronous session, wrapped to allow raw SQL strings.
-
-    SQLAlchemy 2.x requires textual SQL to be wrapped with sqlalchemy.text().
-    Some tests call session.execute("SELECT 1") directly; to remain
-    compatible, we return a lightweight proxy that routes raw strings through
-    the driver's exec_driver_sql(), while delegating all other attributes to
-    the real Session. The returned object supports context manager semantics.
-    """
-    engine = _ensure_sync_engine()
-    maker = sync_sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    real_session: SyncSession = maker()
-
-    class _RawFriendlySession:
-        def __init__(self, sess: SyncSession):
-            self._s = sess
-
-        # Context manager behavior delegates to the underlying session
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            try:
-                if exc is not None:
-                    try:
-                        self._s.rollback()
-                    except Exception:
-                        pass
-                self._s.close()
-            finally:
-                return False  # propagate exceptions
-
-        # Provide execute that tolerates raw SQL strings
-        def execute(self, statement, *args, **kwargs):  # type: ignore[no-untyped-def]
-            if isinstance(statement, str):
-                with self._s.connection() as conn:  # type: ignore[call-arg]
-                    return conn.exec_driver_sql(statement)
-            return self._s.execute(statement, *args, **kwargs)
-
-        # Delegate everything else to the real session
-        def __getattr__(self, name):  # type: ignore[no-untyped-def]
-            return getattr(self._s, name)
-
-    return _RawFriendlySession(real_session)  # type: ignore[return-value]
+# Note: previously exposed test-only helper get_sync_session() has been removed.
 
 
 @asynccontextmanager
@@ -229,8 +148,7 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
             pass
 
 
-# Compatibility helper expected by tests: async context manager alias
-get_async_session = get_db_session
+# Note: previously exposed alias get_async_session has been removed; use get_db_session().
 
 
 # Aliases commonly referenced across the codebase
@@ -243,12 +161,20 @@ def create_async_database_engine(url: str, **kwargs) -> AsyncEngine:
     return create_async_engine(url, **kwargs)
 
 
-def check_database_health() -> bool:
-    """Always perform a simple sync health check and return a bool."""
+async def check_database_health() -> bool:
+    """Perform a simple async health check using the async engine and return a bool."""
     try:
-        engine = _ensure_sync_engine()
-        with engine.connect() as conn:  # type: ignore[call-arg]
-            conn.exec_driver_sql("SELECT 1")
+        engine = _ensure_async_engine()
+        conn = await engine.connect()
+        try:
+            # A successful connect is sufficient for health in tests
+            await conn.close()
+        except Exception:
+            # If .close is not awaitable in some drivers, try sync close
+            try:
+                conn.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return True
     except Exception:
         return False

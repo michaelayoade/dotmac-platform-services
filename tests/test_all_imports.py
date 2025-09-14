@@ -159,53 +159,43 @@ def test_database_module_imports():
     """Test database module imports."""
     from dotmac.platform.database.base import Base
     from dotmac.platform.database.mixins import TimestampMixin
-    from dotmac.platform.database.session import (
-        get_async_session,
-        get_engine,
-    )
+    from dotmac.platform.database.session import get_database_session, get_db_session
 
     assert Base is not None
     assert TimestampMixin is not None
-    assert get_engine is not None
-    assert get_async_session is not None
+    assert get_database_session is not None
+    assert get_db_session is not None
 
 
 def test_monitoring_module_imports():
     """Test monitoring module imports."""
     from dotmac.platform.monitoring.benchmarks import (
-        Benchmark,
-        run_benchmark,
+        PerformanceBenchmark,
+        BenchmarkManager,
     )
-    from dotmac.platform.monitoring.integrations import (
-        PrometheusIntegration,
-    )
+    from dotmac.platform.monitoring.integrations import SigNozIntegration
 
-    assert Benchmark is not None
-    assert PrometheusIntegration is not None
-    assert run_benchmark is not None
+    assert PerformanceBenchmark is not None
+    assert SigNozIntegration is not None
+    assert BenchmarkManager is not None
 
 
 def test_tasks_module_imports():
     """Test tasks module imports."""
-    from dotmac.platform.tasks import (
-        BackgroundOperations,
-        Saga,
-    )
+    from dotmac.platform.tasks import BackgroundOperation, SagaWorkflow
     from dotmac.platform.tasks.decorators import (
         task,
     )
 
-    assert BackgroundOperations is not None
+    assert BackgroundOperation is not None
     assert task is not None
-    assert Saga is not None
+    assert SagaWorkflow is not None
 
 
 def test_tenant_module_imports():
     """Test tenant module imports."""
-    from dotmac.platform.tenant.identity import (
-        TenantIdentityResolver,
-        get_tenant_context,
-    )
+    from dotmac.platform.tenant.identity import TenantIdentityResolver
+    from dotmac.platform.tenant import get_tenant_context
     from dotmac.platform.tenant.middleware import (
         TenantMiddleware,
     )

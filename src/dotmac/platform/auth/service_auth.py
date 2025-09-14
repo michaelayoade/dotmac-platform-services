@@ -44,9 +44,9 @@ class ServiceIdentity:
     ) -> None:
         self.service_name = service_name
         self.service_info = service_info
-        # Preserve declared order; use simple list membership checks
-        self.allowed_targets = list(allowed_targets)
-        self.allowed_operations = list(allowed_operations)
+        # Store as sets for efficient membership and consistent semantics
+        self.allowed_targets = set(allowed_targets)
+        self.allowed_operations = set(allowed_operations)
         self.metadata = metadata or {}
         self.created_at = datetime.now(UTC)
         self.identity_id = str(uuid.uuid4())

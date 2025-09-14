@@ -138,7 +138,8 @@ class LogFilter:
         """Determine if log entry should be processed."""
         # Level check
         log_levels = {"debug": 10, "info": 20, "warning": 30, "error": 40, "critical": 50}
-        min_level_value = log_levels.get(self.min_level.value, 10)
+        # Normalize to lowercase to match keys in log_levels
+        min_level_value = log_levels.get(self.min_level.value.lower(), 10)
         current_level_value = log_levels.get(level.lower(), 10)
 
         if current_level_value < min_level_value:
@@ -589,6 +590,11 @@ class StructuredLogger:
         )
         new_logger.logger = self.logger.bind(**kwargs)
         return new_logger
+
+    @property
+    def name(self) -> str:
+        """Provide a stdlib-compatible name attribute for tests and integrations."""
+        return self.service_name
 
 
 class AuditLogger:

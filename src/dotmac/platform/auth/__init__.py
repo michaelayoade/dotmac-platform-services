@@ -16,7 +16,6 @@ Design Principles:
 - Extensible with plugin architecture
 - Multi-tenant aware
 - Security-first approach
-- DRY leveraging dotmac-core utilities
 """
 
 import contextlib
@@ -25,7 +24,6 @@ from typing import Any, Protocol, runtime_checkable
 import base64
 import hashlib
 import hmac
-import json
 import secrets
 
 from .cache_config import CacheConfig
@@ -645,66 +643,14 @@ def verify_password(password: str, hashed: str) -> bool:
     return constant_time_compare(hash_password(password, salt=salt), hashed)
 
 
-# Minimal middleware stubs expected by tests
-class AuthMiddleware:  # pragma: no cover - simple stub
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
-
-
-class RBACMiddleware:  # pragma: no cover - simple stub
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
-
-
-class SessionMiddleware:  # pragma: no cover - simple stub
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
-
-
-def create_auth_middleware_stack() -> list[type]:  # pragma: no cover - simple stub
-    return [AuthMiddleware, SessionMiddleware, RBACMiddleware]
-
-
-# Config helpers and basic error utilities
-def create_default_auth_config() -> dict[str, Any]:
-    return {
-        "jwt": {"algorithm": "HS256", "access_token_expire_minutes": 15, "refresh_token_expire_days": 7},
-        "session": {"backend": "memory", "expire_minutes": 1440},
-        "rbac": {"cache_enabled": True},
-    }
-
-
-def merge_auth_configs(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    def merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
-        out = dict(a)
-        for k, v in b.items():
-            if isinstance(v, dict) and isinstance(out.get(k), dict):
-                out[k] = merge(out[k], v)  # type: ignore[index]
-            else:
-                out[k] = v
-        return out
-
-    return merge(base, override)
-
-
-def validate_auth_config(cfg: dict[str, Any]) -> bool:
-    if not isinstance(cfg, dict):
-        return False
-    if "jwt" in cfg and not isinstance(cfg["jwt"], dict):
-        return False
-    if "session" in cfg and not isinstance(cfg["session"], dict):
-        return False
-    return True
-
-
-def create_error_response(message: str, status_code: int = 400) -> dict[str, Any]:
-    return {"status": status_code, "error": message}
-
-
-def handle_auth_error(exc: Exception) -> dict[str, Any]:
-    msg = str(exc)
-    return create_error_response(f"auth_error: {msg}", status_code=401)
-
-
-def log_security_event(event: str, **details: Any) -> str:
-    return json.dumps({"event": event, **details})
+"""
+Note: Previously, test-only stubs and config helpers lived here (e.g.,
+AuthMiddleware/RBACMiddleware/SessionMiddleware and create_* helpers).
+They have been removed to keep the public API focused on real features.
+Tests should exercise documented functions like add_auth_middleware,
+create_complete_auth_system, get_platform_config, and the exception
+helpers in dotmac.platform.auth.exceptions.
+"""
 
 # Add available components to exports
 if _jwt_available:
@@ -864,7 +810,7 @@ if _current_user_available and get_current_user is not None:
 else:
     get_current_user_with_tenant = None
 
-# Export new helpers added above
+# Export helpers
 __all__.extend(
     [
         "constant_time_compare",
@@ -874,15 +820,5 @@ __all__.extend(
         "generate_secure_token",
         "hash_password",
         "verify_password",
-        "AuthMiddleware",
-        "RBACMiddleware",
-        "SessionMiddleware",
-        "create_auth_middleware_stack",
-        "create_default_auth_config",
-        "merge_auth_configs",
-        "validate_auth_config",
-        "create_error_response",
-        "handle_auth_error",
-        "log_security_event",
     ]
 )

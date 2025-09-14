@@ -9,8 +9,12 @@ import os
 import uuid
 
 import pytest
+import os
 
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(os.getenv("DOTMAC_LIVE") != "1", reason="Live integration disabled (set DOTMAC_LIVE=1)"),
+]
 
 
 @pytest.mark.asyncio

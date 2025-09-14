@@ -99,8 +99,10 @@ class Permission:
         self.action = self.action.lower()
         self.resource = self.resource.lower()
 
-    def matches(self, required_action: str, required_resource: str) -> bool:
+    def matches(self, required_action: str | None, required_resource: str | None) -> bool:
         """Check if this permission matches the required permission."""
+        if required_action is None or required_resource is None:
+            return False
         # Normalize synonyms (write/update treated equivalently) only when not using regex patterns
         required_action_l = required_action.lower()
         action_self = self.action.lower()
@@ -120,7 +122,7 @@ class Permission:
                 return True
 
         if self.resource in ("*", "all"):
-            if action_self == required_action or action_self == "*":
+            if action_self == required_action_l or action_self == "*":
                 return True
 
         # Pattern-based matching (regex)
@@ -194,9 +196,16 @@ class Role:
         # Normalize role name
         self.name = self.name.lower().strip()
 
+        # If permissions field was accidentally used for description via positional args
+        if isinstance(self.permissions, str):
+            # Treat the provided string as description and reset permissions list
+            if not self.description:
+                self.description = self.permissions
+            self.permissions = []
+
         # Normalize permissions to list and ensure uniqueness while preserving order
-        if isinstance(self.permissions, set | tuple):
-            self.permissions = list(self.permissions)
+        if isinstance(self.permissions, (set, tuple)):
+            self.permissions = list(self.permissions)  # type: ignore[list-item]
         # Deduplicate while preserving order
         seen: set[Permission] = set()
         unique: list[Permission] = []
@@ -540,19 +549,27 @@ class RBACEngine:
     def check_permission(
         self,
         subject: str | list[str] | set[str],
-        action: str | Action,
-        resource: str | Resource,
+        action: str | Action | None,
+        resource: str | Resource | None,
         use_cache: bool = True,
     ) -> bool:
         """Check if user has permission for action on resource."""
         # Normalize types and build role set from subject
-        resource = getattr(resource, "value", resource)
-        action = getattr(action, "value", action)
+        resource = getattr(resource, "value", resource) if resource is not None else None
+        action = getattr(action, "value", action) if action is not None else None
         # Support callers that pass (roles, resource, action) order
         resource_values = {r.value for r in Resource}
         action_values = {a.value for a in Action}
-        if isinstance(action, str) and action in resource_values and isinstance(resource, str) and resource in action_values:
+        if (
+            isinstance(action, str)
+            and action in resource_values
+            and isinstance(resource, str)
+            and resource in action_values
+        ):
             action, resource = resource, action
+        # If either is missing, cannot authorize
+        if action is None or resource is None:
+            return False
         if subject is None:
             return False
         # Handle empty lists/sets
@@ -588,13 +605,17 @@ class RBACEngine:
                 all_roles.update(self._get_inherited_roles(role_name))
             user_roles = all_roles
 
-        # Check permissions
-        has_permission = False
-        for role_name in user_roles:
-            role = self.roles.get(role_name)
-            if role and role.has_permission(action, resource):
-                has_permission = True
-                break
+        # Check permissions (try given order, then fallback to swapped order for flexibility)
+        def _check(a: str, r: str) -> bool:
+            for role_name in user_roles:
+                role = self.roles.get(role_name)
+                if role and role.has_permission(a, r):
+                    return True
+            return False
+
+        has_permission = _check(action, resource)
+        if not has_permission:
+            has_permission = _check(resource, action)
 
         # Cache result
         if use_cache and self.cache:
@@ -653,6 +674,15 @@ class RBACEngine:
                 permissions.update(role.permissions)
 
         return permissions
+
+    # Backwards-compatible aliases -------------------------------------------------
+    def assign_role_to_user(self, user_id: str, role_name: str) -> bool:
+        """Alias for assign_user_role for compatibility with older tests."""
+        return self.assign_user_role(user_id, role_name)
+
+    def remove_role_from_user(self, user_id: str, role_name: str) -> bool:
+        """Alias for remove_user_role."""
+        return self.remove_user_role(user_id, role_name)
 
     def _get_inherited_roles(self, role_name: str, visited: set[str] | None = None) -> set[str]:
         """Get all inherited roles recursively."""

@@ -233,6 +233,56 @@ dotmac/platform/
     └── health.py   # Health checks
 ```
 
+## Public API
+
+- Core (`dotmac.platform`)
+  - `get_version()`, `config` (global `PlatformConfig`), `initialize_platform_services(...)`
+  - Factories: `create_jwt_service(...)`, `create_secrets_manager(...)`, `create_observability_manager(...)`
+  - Registry: `register_service(name, service)`, `get_service(name)`, `get_initialized_services()`
+
+- Auth (`dotmac.platform.auth`)
+  - Services: `JWTService`, `create_complete_auth_system(config)`, `add_auth_middleware(app, config=..., service_name=...)`
+  - Config: `get_platform_config(config)`
+  - Availability helpers: `is_jwt_available()`, `is_rbac_available()`, `is_session_available()`, `is_mfa_available()`, `is_api_keys_available()`, `is_edge_validation_available()`, `is_service_auth_available()`
+  - Exceptions (import from `dotmac.platform.auth.exceptions`):
+    - Classes: `AuthenticationError`, `AuthorizationError`, `TokenExpired`, `InvalidToken`, etc.
+    - Mapping: `EXCEPTION_STATUS_MAP`, helper: `get_http_status(exc)`
+  - Notes: Edge validation, service-to-service auth, OAuth, MFA, and API keys are optional and require the corresponding extras installed.
+
+- Secrets (`dotmac.platform.secrets`)
+  - Manager: `SecretsManager`
+  - Providers: `OpenBaoProvider` (alias: `VaultProvider`), factories: `create_openbao_provider(...)`
+  - Config helpers: `SecretsConfig`, `create_default_config(...)`, `create_openbao_config(...)`, `create_production_config(...)`
+  - Encryption & rotation (optional): `SymmetricEncryptionService`, `EncryptedField`, `RotationScheduler`, rules and policies
+
+- Observability (`dotmac.platform.observability`)
+  - Manager: `ObservabilityManager`, `add_observability_middleware(app)`
+  - Logging/tracing/metrics helpers: `get_logger(...)`, `get_tracer(...)`, `initialize_metrics_registry(...)`
+  - Health: `check_otel_health()`, `check_metrics_registry_health()`
+
+- Database helpers (`dotmac.platform.database.session`)
+  - Sessions: `get_database_session()` (sync), `get_db_session()` (async)
+  - Engine: `create_async_database_engine(url, **kwargs)`
+  - Health: `check_database_health()`
+
+### Optional Extras
+
+Install optional features via extras:
+
+- `server`: Uvicorn server integrations
+- `vault`: OpenBao/Vault client (`hvac`)
+- `mfa`: TOTP/QR support (`pyotp`, `qrcode`)
+- `sqlite`: Async SQLite driver (`aiosqlite`)
+- `postgres`: Async PostgreSQL drivers (`asyncpg`, `psycopg2-binary`)
+
+Examples:
+
+```bash
+pip install "dotmac-platform-services[server]"
+pip install "dotmac-platform-services[mfa]"
+pip install "dotmac-platform-services[postgres]"
+```
+
 ### Integration with DotMac Core
 
 Platform Services integrates seamlessly with other DotMac packages:

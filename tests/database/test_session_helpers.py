@@ -37,10 +37,11 @@ async def test_async_session_context_manager(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-def test_check_database_health_sqlite(monkeypatch, tmp_path):
+@pytest.mark.asyncio
+async def test_check_database_health_sqlite(monkeypatch, tmp_path):
     url = f"sqlite:///{tmp_path}/health.sqlite"
     monkeypatch.setenv("DOTMAC_DATABASE_URL", url)
-    healthy = check_database_health()
+    healthy = await check_database_health()
     assert isinstance(healthy, bool)
 
 

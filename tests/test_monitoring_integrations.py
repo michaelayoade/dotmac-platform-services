@@ -113,7 +113,7 @@ class TestMonitoringIntegration:
 
         async def initialize(self) -> bool:
             # Use a simple fake client that never performs network IO
-            self.client = FakeAsyncClient()
+            self.client = TestMonitoringIntegration.FakeAsyncClient()
             ok = await self.health_check()
             self.status = IntegrationStatus.ACTIVE if ok else IntegrationStatus.ERROR
             return ok

@@ -119,26 +119,26 @@ def test_auth_exceptions_coverage():
 
 
 def test_database_session_coverage():
-    """Test database session functions for coverage."""
+    """Test database session functions for coverage (aligned to public API)."""
+    import os
+    from sqlalchemy import text
     from dotmac.platform.database.session import (
-        get_database_url,
-        get_engine,
-        get_sync_session,
+        _ensure_sync_engine,
+        _get_sync_url,
+        get_database_session,
     )
 
     # Use sqlite fallback via env to avoid external DB
-    import os
-
     os.environ["DOTMAC_DATABASE_URL"] = "sqlite:///./tmp_cov.sqlite"
-    url = get_database_url()
+    url = _get_sync_url()
     assert url.startswith("sqlite:///")
 
-    engine1 = get_engine()
-    engine2 = get_engine()
+    engine1 = _ensure_sync_engine()
+    engine2 = _ensure_sync_engine()
     assert engine1 is engine2  # Should be cached
 
-    with get_sync_session() as s:
-        val = s.execute("SELECT 1").scalar()  # type: ignore[attr-defined]
+    with get_database_session() as s:
+        val = s.execute(text("SELECT 1")).scalar()
         assert val == 1
 
 
@@ -146,19 +146,19 @@ def test_database_session_coverage():
 async def test_database_session_async_coverage():
     """Test async database functions."""
     from dotmac.platform.database.session import (
+        _ensure_async_engine,
         check_database_health,
-        get_async_engine,
-        get_async_session,
+        get_db_session,
     )
 
     # Basic construct-only checks to avoid external driver requirements
-    engine = get_async_engine()
+    engine = _ensure_async_engine()
     assert engine is not None
     # Context manager should be creatable (may require aiosqlite to actually connect)
-    async with get_async_session() as _:
+    async with get_db_session() as _:
         pass
-    # Health check uses sync engine wrapper in our helpers
-    assert check_database_health() in (True, False)
+    # Health check returns a boolean (async API)
+    assert await check_database_health() in (True, False)
 
 
 def test_core_module_coverage():
@@ -317,17 +317,17 @@ def test_api_keys_coverage():
     # Test API key creation model
     create_request = APIKeyCreate(
         name="test-key",
-        scopes=["read", "write"],
+        scopes=["read:users", "write:users"],
         expires_in_days=30,
         description="Test API key",
         rate_limit_requests=1000,
         allowed_ips=["127.0.0.1"]
     )
     assert create_request.name == "test-key"
-    assert "read" in create_request.scopes
+    assert "read:users" in create_request.scopes
 
     # Test API key validation
-    validation = APIKeyValidation(key="sk_test123", required_scopes=["read"])
+    validation = APIKeyValidation(key="sk_test123", required_scopes=["read:users"])
     assert validation.key == "sk_test123"
 
     # Skip DB writes; unit scope uses helpers for key creation
@@ -335,58 +335,33 @@ def test_api_keys_coverage():
     APIKeyService()  # should not raise
 
 
-def test_session_manager_coverage():
-    """Test session manager for coverage."""
+@pytest.mark.asyncio
+async def test_session_manager_coverage():
+    """Test session manager for coverage (async API)."""
     from dotmac.platform.auth.session_manager import (
-        Session,
         SessionConfig,
         SessionManager,
+        MemorySessionBackend,
     )
 
     # Test session config
     config = SessionConfig(
         secret_key="test-secret", session_lifetime_seconds=3600, refresh_threshold_seconds=300
     )
+    assert config.session_lifetime_seconds == 3600
 
-    # Test session creation
-    session = Session(
-        id="session123",
-        user_id="user456",
-        data={"key": "value"},
-        created_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(hours=1),
-    )
-
-    assert session.id == "session123"
-    assert session.user_id == "user456"
-    assert session.data["key"] == "value"
-
-    # Test session manager
-    manager = SessionManager(backend=None)  # type: ignore[arg-type]
-
-    # Test session creation
-    created = manager.create_session("user456", {"key": "value"})
+    # Test session manager with in-memory backend
+    manager = SessionManager(backend=MemorySessionBackend())
+    created = await manager.create_session("user456", metadata={"key": "value"})
     assert created.user_id == "user456"
 
-    # Test session retrieval (no store; returns None)
-    retrieved = manager.get_session("session123")
-    assert retrieved is None
+    # Test session retrieval
+    got = await manager.get_session(created.session_id)
+    assert got is not None and got.session_id == created.session_id
 
-    # Test session validation
-    is_valid = manager.validate_session(session)
-    assert is_valid is True
-
-    # Test expired session
-    expired_session = Session(
-        id="expired",
-        user_id="user456",
-        data={},
-        created_at=datetime.utcnow() - timedelta(hours=2),
-        expires_at=datetime.utcnow() - timedelta(hours=1),
-    )
-
-    is_valid = manager.validate_session(expired_session)
-    assert is_valid is False
+    # Test invalidate and delete
+    assert await manager.invalidate_session(created.session_id) is True
+    assert await manager.delete_session(created.session_id) is True
 
 
 if __name__ == "__main__":

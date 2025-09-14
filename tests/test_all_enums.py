@@ -279,11 +279,7 @@ def test_constants():
         DEFAULT_ALGORITHM,
         DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS,
     )
-    from dotmac.platform.auth.mfa_service import (
-        DEFAULT_BACKUP_CODES_COUNT,
-        DEFAULT_TOTP_DIGITS,
-        DEFAULT_TOTP_PERIOD,
-    )
+    from dotmac.platform.auth.mfa_service import MFAServiceConfig
 
     # Test version constant
     assert __version__ is not None
@@ -294,10 +290,11 @@ def test_constants():
     assert DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS == 7
     assert DEFAULT_ALGORITHM == "HS256"
 
-    # Test MFA constants
-    assert DEFAULT_TOTP_DIGITS == 6
-    assert DEFAULT_TOTP_PERIOD == 30
-    assert DEFAULT_BACKUP_CODES_COUNT == 10
+    # Test MFA defaults via config
+    cfg = MFAServiceConfig()
+    assert cfg.totp_digits == 6
+    assert cfg.totp_period == 30
+    assert cfg.backup_codes_count == 10
 
 
 def test_http_status_constants():
