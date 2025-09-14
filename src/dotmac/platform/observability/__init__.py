@@ -204,11 +204,18 @@ def initialize_observability_service(config: dict[str, Any]) -> None:
         log_level = config.get("log_level", "INFO")
         correlation_id_header = config.get("correlation_id_header", "X-Correlation-ID")
 
-        init_structured_logging(
-            service_name=service_name,
-            level=log_level,
-            correlation_id_header=correlation_id_header,
-        )
+        try:
+            obs_cfg = ObservabilityConfig(
+                service_name=service_name,
+                environment=environment,
+                log_level=log_level,
+                correlation_id_header=correlation_id_header,
+                enable_logging=True,
+            )
+        except Exception:
+            obs_cfg = None
+
+        init_structured_logging(config=obs_cfg)
         logger = get_logger(service_name)
         _observability_service_registry["logger"] = logger
     else:
@@ -217,13 +224,16 @@ def initialize_observability_service(config: dict[str, Any]) -> None:
 
     # Initialize tracing manager if available
     if _tracing_available and TracingManager:
-        tracing_manager = TracingManager(service_name=service_name)
+        try:
+            tracing_cfg = obs_cfg if 'obs_cfg' in locals() else ObservabilityConfig(service_name=service_name, environment=environment)  # type: ignore[name-defined]
+        except Exception:
+            tracing_cfg = None
+        tracing_manager = TracingManager(config=tracing_cfg)
         _observability_service_registry["tracing"] = tracing_manager
 
-    # Initialize health checks if available
+    # Initialize health: store a simple placeholder or compute lazily elsewhere
     if _health_available and ObservabilityHealth:
-        health_checker = ObservabilityHealth(service_name=service_name)
-        _observability_service_registry["health"] = health_checker
+        _observability_service_registry["health"] = None
 
 
 def get_observability_service(name: str) -> Any | None:

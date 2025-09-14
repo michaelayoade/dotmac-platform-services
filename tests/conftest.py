@@ -244,6 +244,27 @@ else:
         return Mock()
 
 
+# Async cleanup fixture
+@pytest.fixture
+async def async_cleanup():
+    """Fixture to track and cleanup async tasks."""
+    tasks = []
+
+    def track_task(task):
+        tasks.append(task)
+
+    yield track_task
+
+    # Cleanup all tracked tasks
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
 # Test environment setup
 @pytest.fixture(autouse=True)
 def test_environment():
@@ -273,12 +294,18 @@ def pytest_configure(config):
 
 
 # Event loop fixture for asyncio tests
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
+    """Create a fresh event loop per test for isolation."""
     loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+    try:
+        yield loop
+    finally:
+        try:
+            loop.run_until_complete(asyncio.sleep(0))
+        except Exception:
+            pass
+        loop.close()
 
 
 # Skip tests that require unavailable dependencies

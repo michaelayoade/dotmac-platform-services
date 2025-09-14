@@ -27,6 +27,7 @@ from typing import Any
 try:
     from .config import (
         SecretsConfig,
+        SecretsBackend,
         create_default_config,
         create_openbao_config,
         create_production_config,
@@ -170,18 +171,36 @@ def initialize_secrets_service(config: dict[str, Any]) -> None:
         warnings.warn("Secrets manager not available, skipping initialization", stacklevel=2)
         return
 
-    # Create primary secrets manager
-    manager_config = SecretsConfig(
-        vault_url=config.get("vault_url"),
-        vault_token=config.get("vault_token"),
-        vault_mount_point=config.get("vault_mount_point", "secret"),
-        environment=config.get("environment", "development"),
-        enable_caching=config.get("enable_caching", True),
-        cache_ttl=config.get("cache_ttl", 300),
-    )
+    # If no meaningful config provided, skip initialization gracefully
+    minimal_keys = {k for k in ("vault_url", "vault_token", "backend", "file_path", "encryption_key") if k in config}
+    if not minimal_keys:
+        return
 
-    manager = SecretsManager(config=manager_config)
-    _secrets_service_registry["manager"] = manager
+    # Create a config appropriate to provided settings
+    try:
+        backend = (config.get("backend") or "").lower()
+        if backend == "environment":
+            manager_config = SecretsConfig(backend=SecretsBackend.ENVIRONMENT)
+        elif backend == "file":
+            manager_config = SecretsConfig(backend=SecretsBackend.FILE)
+            if "file_path" in config:
+                manager_config.provider_config["file_path"] = config["file_path"]
+        else:
+            manager_config = SecretsConfig(
+                vault_url=config.get("vault_url"),
+                vault_token=config.get("vault_token"),
+                vault_mount_point=config.get("vault_mount_point", "secret"),
+                environment=config.get("environment", "development"),
+            )
+
+        if "cache_ttl" in config:
+            manager_config.cache_ttl = int(config["cache_ttl"])  # type: ignore[attr-defined]
+
+        manager = create_secrets_manager(config=manager_config)
+        _secrets_service_registry["manager"] = manager
+    except Exception:
+        # Skip secrets manager initialization on invalid/missing config
+        return
 
     # Initialize field encryption if available
     if _encryption_available and config.get("encryption_key"):

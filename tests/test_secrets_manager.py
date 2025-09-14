@@ -510,9 +510,8 @@ class TestSymmetricSecretRetrieval:
         manager = SecretsManager(provider)
 
         # This should raise an error in real implementation
-        # Mock implementation handles length automatically
-        secret = await manager.get_symmetric_secret("short-key", min_length=32)
-        assert isinstance(secret, str)
+        with pytest.raises(SecretValidationError):
+            await manager.get_symmetric_secret("short-key", min_length=32)
 
 
 @pytest.mark.unit
