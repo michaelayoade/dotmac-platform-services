@@ -445,10 +445,12 @@ class JWTService:
 
             return claims
 
-        except jwt.ExpiredSignatureError:
-            # Allow raw ExpiredSignatureError to propagate to satisfy tests that
-            # expect the PyJWT exception, while other suites accept generic Exception.
-            raise
+        except jwt.ExpiredSignatureError as e:
+            # Map to platform-specific TokenExpired while remaining compatible
+            # with tests that expect PyJWT's ExpiredSignatureError (via inheritance).
+            from .exceptions import TokenExpired
+
+            raise TokenExpired() from e
 
         except jwt.InvalidSignatureError:
             raise InvalidSignature

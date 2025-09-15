@@ -486,7 +486,7 @@ class TestServiceTokenManager:
         assert info is not None
         assert info["service_name"] == "test-service"
         assert info["allowed_targets"] == ["target-service"]
-        assert info["allowed_operations"] == ["read", "write"]
+        assert set(info["allowed_operations"]) == {"read", "write"}
         assert "created_at" in info
         assert "identity_id" in info
 

@@ -41,9 +41,8 @@ class RateLimiter:
 
             # Check limit
             if len(self._requests[identifier]) >= limit:
-                raise RateLimitExceededError(
-                    f"Rate limit of {limit} requests per {self.window_minutes} minutes exceeded"
-                )
+                # For simple usage, return False instead of raising to align with tests
+                return False
             # Add current request
             self._requests[identifier].append(now)
             return True

@@ -188,6 +188,9 @@ class MemorySessionBackend(SessionBackend):
                 await self.delete_session(sid)
         return len(expired)
 
+# Backwards-compatibility alias expected by some tests
+InMemorySessionBackend = MemorySessionBackend
+
 
 # Removed synchronous MemorySessionBackendSync test-only wrapper
 

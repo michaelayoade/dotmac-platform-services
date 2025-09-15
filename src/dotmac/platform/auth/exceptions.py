@@ -39,7 +39,10 @@ class TokenError(AuthError):
         super().__init__(message, error_code, details)
 
 
-class TokenExpired(TokenError):
+from jwt import ExpiredSignatureError
+
+
+class TokenExpired(TokenError, ExpiredSignatureError):
     """Token has expired"""
 
     def __init__(self, message: str = "Token has expired", expired_at: str | None = None) -> None:

@@ -140,9 +140,10 @@ class ServiceCall:
 class CircuitBreakerState:
     """Circuit breaker for service calls."""
 
-    def __init__(self, failure_threshold: int = 5, timeout_seconds: int = 60):
+    def __init__(self, failure_threshold: int = 5, timeout_seconds: int = 60, service_name: str | None = None):
         self.failure_threshold = failure_threshold
         self.timeout_seconds = timeout_seconds
+        self.service_name = service_name or ""
         self.failure_count = 0
         self.last_failure_time: float | None = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
@@ -175,6 +176,10 @@ class CircuitBreakerState:
             return False
         else:  # HALF_OPEN
             return True
+
+    @property
+    def is_open(self) -> bool:
+        return self.state == "OPEN"
 
 
 class ServiceRegistry:

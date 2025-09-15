@@ -165,7 +165,7 @@ class ABTestConfig(BaseModel):
     control_variant: str = "control"
 
     @field_validator("variants")
-    def validate_variants_sum_to_100(self, v):
+    def validate_variants_sum_to_100(cls, v):
         total = sum(variant.percentage for variant in v)
         if abs(total - 100.0) > 0.01:  # Allow small floating point errors
             raise ValueError(f"Variant percentages must sum to 100%, got {total}%")
