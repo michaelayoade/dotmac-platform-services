@@ -224,18 +224,22 @@ class BenchmarkRunner:
             return {}
 
         baseline = results[0]
-        comparison = {
+        comparison: dict[str, Any] = {
             "baseline": baseline.summary(),
             "results": [],
         }
+        # Also map results by name for convenience in consumers/tests
+        comparison[baseline.name] = comparison["baseline"]
 
         for result in results[1:]:
             speedup = baseline.mean / result.mean if result.mean > 0 else 0
-            comparison["results"].append({
+            entry = {
                 **result.summary(),
                 "speedup": speedup,
                 "speedup_pct": (speedup - 1) * 100,
-            })
+            }
+            comparison["results"].append(entry)
+            comparison[result.name] = entry
 
         return comparison
 

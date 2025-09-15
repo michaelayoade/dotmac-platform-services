@@ -2,6 +2,7 @@
 Production-ready session management with Redis and memory backends.
 """
 
+import asyncio
 import json
 import time
 import uuid
@@ -331,6 +332,30 @@ class SessionManager:
         # Accept a config object for compatibility (not used internally)
         self._config = config
 
+        # If a typed/config object is provided, adopt its limits to honor tests
+        if config is not None:
+            # Support both attribute and dict-style configs
+            try:
+                if hasattr(config, "max_sessions_per_user") and getattr(config, "max_sessions_per_user"):
+                    self.max_sessions_per_user = int(getattr(config, "max_sessions_per_user"))
+                if hasattr(config, "session_lifetime_seconds") and getattr(
+                    config, "session_lifetime_seconds"
+                ):
+                    self.default_ttl = int(getattr(config, "session_lifetime_seconds"))
+            except Exception:
+                # Best-effort config mapping; ignore if malformed
+                pass
+
+        # Per-user locks to enforce concurrent create limits safely
+        self._user_locks: dict[str, asyncio.Lock] = {}
+
+    def _get_user_lock(self, user_id: str) -> asyncio.Lock:
+        lock = self._user_locks.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._user_locks[user_id] = lock
+        return lock
+
     async def create_session_async(
         self,
         user_id: str,
@@ -354,16 +379,28 @@ class SessionManager:
             metadata=metadata or {},
         )
 
-        # Enforce max sessions per user
-        await self._enforce_session_limit(user_id)
+        # Enforce max sessions limit under a per-user lock to avoid races
+        lock = self._get_user_lock(user_id)
+        async with lock:
+            await self._enforce_session_limit(user_id)
 
-        # Store session
-        success = await self.backend.store_session(session)
-        if not success:
-            raise RuntimeError("Failed to store session")
+            # Store session
+            success = await self.backend.store_session(session)
+            if not success:
+                raise RuntimeError("Failed to store session")
 
         logger.info("Session created", session_id=session_id, user_id=user_id)
         return session
+
+    # Compatibility alias expected by some tests
+    async def create_session(
+        self,
+        user_id: str,
+        tenant_id: str | None = None,
+        ttl: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> SessionData:
+        return await self.create_session_async(user_id=user_id, tenant_id=tenant_id, ttl=ttl, metadata=metadata)
 
     # Synchronous compatibility API used in tests
     # Removed legacy synchronous create_session used only by tests

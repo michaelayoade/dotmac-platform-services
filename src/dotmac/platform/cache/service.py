@@ -98,6 +98,13 @@ class CacheService:
             Cached value or None if not found
         """
         full_key = self._make_key(key, tenant_id)
+        # Ensure backend is connected if it supports connectivity checks
+        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+            try:
+                if not self.backend.is_connected():  # type: ignore[attr-defined]
+                    await self.backend.connect()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return await self.backend.get(full_key)
 
     async def set(
@@ -120,6 +127,12 @@ class CacheService:
             True if successful
         """
         full_key = self._make_key(key, tenant_id)
+        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+            try:
+                if not self.backend.is_connected():  # type: ignore[attr-defined]
+                    await self.backend.connect()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return await self.backend.set(full_key, value, ttl)
 
     async def delete(self, key: str, tenant_id: str | None = None) -> bool:
@@ -134,6 +147,12 @@ class CacheService:
             True if key was deleted
         """
         full_key = self._make_key(key, tenant_id)
+        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+            try:
+                if not self.backend.is_connected():  # type: ignore[attr-defined]
+                    await self.backend.connect()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return await self.backend.delete(full_key)
 
     async def exists(self, key: str, tenant_id: str | None = None) -> bool:
@@ -148,6 +167,12 @@ class CacheService:
             True if key exists
         """
         full_key = self._make_key(key, tenant_id)
+        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+            try:
+                if not self.backend.is_connected():  # type: ignore[attr-defined]
+                    await self.backend.connect()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return await self.backend.exists(full_key)
 
     async def clear(self, tenant_id: str | None = None) -> bool:
@@ -166,11 +191,22 @@ class CacheService:
             # In production, you'd want to use SCAN with pattern matching
             logger.warning("Tenant-specific clear not fully implemented")
             return True
+        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+            try:
+                if not self.backend.is_connected():  # type: ignore[attr-defined]
+                    await self.backend.connect()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return await self.backend.clear()
 
     async def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
-        stats = await self.backend.get_stats()
+        # Support both sync and async backend get_stats implementations
+        stats_raw = self.backend.get_stats()  # type: ignore[attr-defined]
+        if inspect.isawaitable(stats_raw):
+            stats = await stats_raw
+        else:
+            stats = stats_raw
         stats["tenant_aware"] = self.tenant_aware
         return stats
 

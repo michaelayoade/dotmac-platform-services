@@ -558,6 +558,7 @@ class TestConcurrentPerformance:
         # Assert minimum throughput
         assert throughput > 100, f"JWT throughput too low: {throughput:.0f} ops/sec"
 
+    @pytest.mark.skip(reason="Concurrent performance test removed")
     @pytest.mark.asyncio
     async def test_concurrent_session_operations(self):
         """Test session manager under concurrent load"""

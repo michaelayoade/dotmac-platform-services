@@ -364,6 +364,15 @@ class WebSocketManager:
             else:
                 await self._broadcast_all_local(message, exclude_connection)
 
+    async def broadcast_to_channel(self, channel: str, message: dict | WebSocketMessage):
+        """Compatibility wrapper to broadcast to a specific channel.
+
+        Accepts either a WebSocketMessage or a plain dict payload.
+        """
+        if not isinstance(message, WebSocketMessage):
+            message = WebSocketMessage(type=message.get("type", "event"), channel=channel, data=message)  # type: ignore[arg-type]
+        await self.broadcast(message, channel=channel)
+
     async def _broadcast_local(
         self,
         message: WebSocketMessage,

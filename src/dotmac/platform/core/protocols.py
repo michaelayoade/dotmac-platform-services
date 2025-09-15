@@ -65,6 +65,10 @@ class TenantAwareRepository(RepositoryProtocol[T, CreateT, UpdateT]):
         """Get entities for a specific tenant."""
         ...
 
+    async def get_all_by_tenant(self, tenant_id: str) -> list[T]:
+        """Get all entities for a specific tenant."""
+        ...
+
     async def count_by_tenant(self, tenant_id: str) -> int:
         """Count entities for a specific tenant."""
         ...
@@ -81,6 +85,10 @@ class CacheableRepository(RepositoryProtocol[T, CreateT, UpdateT]):
         """Pre-load entities into cache."""
         ...
 
+    async def get_cached(self, id: ID) -> T | None:
+        """Get entity from cache if available."""
+        ...
+
 
 class ServiceProtocol(Protocol):
     """
@@ -90,7 +98,14 @@ class ServiceProtocol(Protocol):
     between repositories and other services.
     """
 
-    pass
+    async def initialize(self) -> None:
+        ...
+
+    async def shutdown(self) -> None:
+        ...
+
+    async def health_check(self) -> dict[str, Any]:
+        ...
 
 
 class UnitOfWork(Protocol):
@@ -108,6 +123,13 @@ class UnitOfWork(Protocol):
         """End unit of work."""
         ...
 
+    # Tests also expect sync context manager methods to exist on the protocol
+    def __enter__(self):
+        ...
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
+
     async def commit(self) -> None:
         """Commit all changes."""
         ...
@@ -122,6 +144,10 @@ class EventPublisher(Protocol):
 
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """Publish a domain event."""
+        ...
+
+    async def publish_batch(self, events: list[tuple[str, dict[str, Any]]]) -> None:
+        """Publish a batch of events."""
         ...
 
 
@@ -154,4 +180,8 @@ class QueryBuilder(Protocol[T]):
 
     async def count(self) -> int:
         """Count matching results."""
+        ...
+
+    def build(self) -> Any:
+        """Build the query structure."""
         ...

@@ -62,7 +62,7 @@ class CacheConfig(BaseModel):
         description="Default TTL in seconds",
     )
     key_prefix: str = Field(
-        default="cache:",
+        default="",
         description="Global key prefix for all cache keys",
     )
 

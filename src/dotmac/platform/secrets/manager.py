@@ -137,7 +137,8 @@ class SecretsManager:
             # Validate secret if validator is configured
             if self.validator and self.validate_secrets:
                 try:
-                    if not self.validator.validate(secret_data):
+                    # Pass kind to validator for context
+                    if not self.validator.validate(secret_data, kind):
                         errors = self.validator.get_validation_errors(secret_data, kind)
                         error_msg = f"Secret validation failed for {path}: {'; '.join(errors)}"
 
@@ -151,6 +152,7 @@ class SecretsManager:
                     raise
                 except Exception as e:
                     logger.warning(f"Secret validation error for {path}: {e}")
+                    self._stats["validation_failures"] += 1
                     if self.observability_hook:
                         self.observability_hook.record_validation_failure(kind, str(e), path)
 

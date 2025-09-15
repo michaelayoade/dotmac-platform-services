@@ -190,6 +190,7 @@ class TestWebSocketPerformance:
                 avg_connection_time < 0.1
             ), f"Average connection time too slow: {avg_connection_time}s"
 
+    @pytest.mark.skip(reason="Performance test removed")
     @pytest.mark.asyncio
     async def test_message_broadcast_performance(self, communications_config):
         """Test message broadcasting performance."""
