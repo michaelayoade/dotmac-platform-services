@@ -119,16 +119,15 @@ class TestJWTServiceComprehensive:
         assert decoded["role"] == "admin"
         assert decoded["department"] == "engineering"
 
-    @pytest.mark.asyncio
-    async def test_jwt_token_expiration_handling(self, jwt_service):
+    def test_jwt_token_expiration_handling(self, jwt_service):
         """Test JWT token expiration detection"""
         from dotmac.platform.auth.exceptions import TokenExpired
 
         # Generate token with very short expiry (1 second = 1/60 minutes)
         token = jwt_service.issue_access_token("user123", expires_in=1 / 60)
 
-        # Wait for token to expire
-        await asyncio.sleep(2)
+        # Wait for token to expire (synchronously, since test is not async)
+        time.sleep(2)
 
         # Should raise TokenExpired
         with pytest.raises(TokenExpired):

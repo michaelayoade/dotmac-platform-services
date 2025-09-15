@@ -26,6 +26,7 @@ aiohttp = ">=3.9.0"
 structlog = ">=23.0.0"
 psutil = ">=5.9.0"
 protobuf = "^4.25.8"
+pyyaml = ">=6.0.0"
 # OpenTelemetry
 opentelemetry-api = ">=1.21.0"
 opentelemetry-sdk = ">=1.21.0"
@@ -43,6 +44,7 @@ aiosqlite = {version = ">=0.19.0", optional = true}
 psycopg2-binary = {version = "^2.9.10", optional = true}
 asyncpg = {version = "^0.30.0", optional = true}
 passlib = {extras = ["bcrypt"], version = "^1.7.4", optional = true}
+gitpython = {version = "^3.1.40", optional = true}
 
 [tool.poetry.extras]
 server = ["uvicorn"]
@@ -51,7 +53,8 @@ mfa = ["pyotp", "qrcode"]
 sqlite = ["aiosqlite"]
 postgres = ["asyncpg", "psycopg2-binary"]
 password = ["passlib"]
-all = ["uvicorn", "hvac", "pyotp", "qrcode", "aiosqlite", "asyncpg", "psycopg2-binary", "passlib"]
+dashboard = ["gitpython"]
+all = ["uvicorn", "hvac", "pyotp", "qrcode", "aiosqlite", "asyncpg", "psycopg2-binary", "passlib", "gitpython"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -101,6 +104,7 @@ markers = [
     "observability: Observability related tests",
     "secrets: Secrets management tests",
     "benchmark: Performance benchmark tests",
+    "performance: Performance tests",
     "chaos: Chaos engineering tests",
     "contract: API contract tests"
 ]

@@ -182,6 +182,23 @@ def set_operation_result(operation_id: str, result: Any) -> None:
     logger.info(f"Setting result for operation {operation_id}: {result}")
 
 
+# Import new utilities
+from .idempotency import (
+    IdempotencyError,
+    IdempotencyManager,
+    generate_idempotency_key,
+    idempotent,
+    idempotent_sync,
+)
+from .retry import (
+    AsyncRetryManager,
+    RetryError,
+    calculate_backoff,
+    retry_async,
+    retry_sync,
+    retry_with_manager,
+)
+
 # For backward compatibility, export everything
 __all__ = [
     "TaskConfig",
@@ -198,6 +215,19 @@ __all__ = [
     "get_idempotency_key",
     "is_idempotent_request",
     "set_operation_result",
+    # Retry utilities
+    "retry_async",
+    "retry_sync",
+    "RetryError",
+    "calculate_backoff",
+    "AsyncRetryManager",
+    "retry_with_manager",
+    # Idempotency utilities
+    "idempotent",
+    "idempotent_sync",
+    "IdempotencyError",
+    "IdempotencyManager",
+    "generate_idempotency_key",
 ]
 
 # Enums expected by tests

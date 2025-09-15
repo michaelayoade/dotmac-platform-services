@@ -137,6 +137,7 @@ class SecretsManager:
             # Validate secret if validator is configured
             if self.validator and self.validate_secrets:
                 try:
+                    # Pass kind to validator for context
                     if not self.validator.validate(secret_data, kind):
                         errors = self.validator.get_validation_errors(secret_data, kind)
                         error_msg = f"Secret validation failed for {path}: {'; '.join(errors)}"
@@ -151,6 +152,7 @@ class SecretsManager:
                     raise
                 except Exception as e:
                     logger.warning(f"Secret validation error for {path}: {e}")
+                    self._stats["validation_failures"] += 1
                     if self.observability_hook:
                         self.observability_hook.record_validation_failure(kind, str(e), path)
 
@@ -333,16 +335,25 @@ class SecretsManager:
                     f"Encryption key '{key_name}' too short: {len(key)} < {min_length} bytes"
                 )
         elif isinstance(key, str):
-            # Try to detect encoding and validate length
-            key_bytes = len(key.encode("utf-8"))
+            # Default behavior: treat as raw bytes of the string unless prefixed
+            # Explicit encodings supported via prefixes to avoid false positives
+            # for arbitrary strings that happen to be valid base64/hex.
+            key_bytes = len(key)
 
-            # Check if it's base64 or hex encoded
-            if self._is_base64(key):
+            if key.startswith("base64:"):
                 import base64
 
-                key_bytes = len(base64.b64decode(key))
-            elif self._is_hex(key):
-                key_bytes = len(key) // 2
+                payload = key[len("base64:") :]
+                try:
+                    key_bytes = len(base64.b64decode(payload, validate=True))
+                except Exception:
+                    key_bytes = len(payload)
+            elif key.startswith("hex:"):
+                payload = key[len("hex:") :]
+                try:
+                    key_bytes = len(bytes.fromhex(payload))
+                except Exception:
+                    key_bytes = len(payload)
 
             if key_bytes < min_length:
                 raise SecretValidationError(
@@ -454,7 +465,7 @@ class SecretsManager:
         return stats
 
     def _is_base64(self, s: str) -> bool:
-        """Check if string looks like base64"""
+        """Check if string looks like base64 (legacy helper, unused by default)."""
         try:
             import base64
 

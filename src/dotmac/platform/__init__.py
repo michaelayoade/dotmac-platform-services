@@ -164,7 +164,24 @@ def _initialize_available_services() -> None:
     try:
         from .auth import initialize_auth_service
 
-        initialize_auth_service(config.get("auth", {}))
+        # Normalize flat auth config into nested structure if needed
+        auth_conf = dict(config.get("auth", {}) or {})
+        if "jwt" not in auth_conf and any(
+            k in auth_conf for k in ("jwt_secret_key", "jwt_algorithm", "access_token_expire_minutes")
+        ):
+            nested_jwt = {}
+            if "jwt_secret_key" in auth_conf:
+                nested_jwt["secret_key"] = auth_conf["jwt_secret_key"]
+            if "jwt_algorithm" in auth_conf:
+                nested_jwt["algorithm"] = auth_conf["jwt_algorithm"]
+            if "access_token_expire_minutes" in auth_conf:
+                nested_jwt["access_token_expire_minutes"] = auth_conf["access_token_expire_minutes"]
+            if "refresh_token_expire_days" in auth_conf:
+                nested_jwt["refresh_token_expire_days"] = auth_conf["refresh_token_expire_days"]
+            # Place into expected nested shape
+            auth_conf = {"jwt": nested_jwt}
+
+        initialize_auth_service(auth_conf)
         _initialized_services.add("auth")
     except ImportError:
         pass
@@ -172,7 +189,11 @@ def _initialize_available_services() -> None:
     try:
         from .secrets import initialize_secrets_service
 
-        initialize_secrets_service(config.get("secrets", {}))
+        try:
+            initialize_secrets_service(config.get("secrets", {}))
+        except Exception:
+            # Secrets initialization is optional; continue without blocking platform init
+            pass
         _initialized_services.add("secrets")
     except ImportError:
         pass
@@ -241,7 +262,9 @@ def create_jwt_service(**kwargs):
         return JWTService()
     except ImportError:
         raise ImportError(
-            "Auth service not available. Install with: pip install 'dotmac-platform-services[auth]'"
+            "Auth service not available. Ensure core dependencies are installed. "
+            "For running a server, optionally install extras: "
+            "pip install 'dotmac-platform-services[server]' or use '[all]'"
         )
 
 
@@ -255,7 +278,8 @@ def create_secrets_manager(**kwargs):
         return SecretsManager(**secrets_config)
     except ImportError:
         raise ImportError(
-            "Secrets service not available. Install with: pip install 'dotmac-platform-services[secrets]'"
+            "Secrets service not available. If you need Vault/OpenBao support, install extras: "
+            "pip install 'dotmac-platform-services[vault]' (or use '[all]')"
         )
 
 
@@ -269,7 +293,9 @@ def create_observability_manager(**kwargs):
         return ObservabilityManager(**obs_config)
     except ImportError:
         raise ImportError(
-            "Observability service not available. Install with: pip install 'dotmac-platform-services[observability]'"
+            "Observability service not available. Ensure OpenTelemetry deps are installed (core). "
+            "For server middleware and local serving, optionally install: "
+            "pip install 'dotmac-platform-services[server]' (or use '[all]')"
         )
 
 
