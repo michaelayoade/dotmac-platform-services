@@ -7,12 +7,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from dotmac_shared.core.logging import get_logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .models import FeatureFlag, FeatureFlagStatus, RolloutStrategy
 from .storage import FeatureFlagStorage, RedisStorage
 
-logger = get_logger(__name__)
+
 
 
 class FeatureFlagManager:

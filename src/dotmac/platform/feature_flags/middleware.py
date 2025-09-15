@@ -27,11 +27,12 @@ except ImportError:
         pass
 
 
-from dotmac_shared.core.logging import get_logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .manager import FeatureFlagManager
 
-logger = get_logger(__name__)
+
 
 
 class FeatureFlagMiddleware(BaseHTTPMiddleware):

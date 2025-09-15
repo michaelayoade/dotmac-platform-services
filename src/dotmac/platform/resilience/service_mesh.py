@@ -26,9 +26,14 @@ import aiohttp
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.exceptions import EntityNotFoundError
-from ..services.performance_optimization import PerformanceOptimizationService
-from ..services.service_marketplace import ServiceMarketplace
+# Removed non-existent imports - these services are not in platform
+# from ..core.exceptions import EntityNotFoundError
+# from ..services.performance_optimization import PerformanceOptimizationService
+# from ..services.service_marketplace import ServiceMarketplace
+
+class EntityNotFoundError(Exception):
+    """Entity not found error."""
+    pass
 
 logger = logging.getLogger(__name__)
 

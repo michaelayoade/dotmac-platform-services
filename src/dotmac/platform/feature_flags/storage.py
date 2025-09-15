@@ -8,11 +8,12 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
 
-from dotmac_shared.core.logging import get_logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .models import FeatureFlag
 
-logger = get_logger(__name__)
+
 
 
 class FeatureFlagStorage(ABC):

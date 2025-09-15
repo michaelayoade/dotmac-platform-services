@@ -8,12 +8,13 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from dotmac_shared.core.logging import get_logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .client import FeatureFlagClient
 from .models import FeatureFlag, FeatureFlagStatus, RolloutStrategy
 
-logger = get_logger(__name__)
+
 
 
 class CreateFlagRequest(BaseModel):

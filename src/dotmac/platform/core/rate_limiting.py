@@ -5,16 +5,25 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from dotmac_isp.core.exceptions import RateLimitExceededError
+class RateLimitExceededError(Exception):
+    """Raised when rate limit is exceeded."""
+    pass
 
 
 class RateLimiter:
     """Rate limiter for API endpoints."""
 
-    def __init__(self, default_limit: int = 100, window_minutes: int = 1, timezone=None):
-        """Init   operation."""
-        self.default_limit = default_limit
-        self.window_minutes = window_minutes
+    def __init__(self, max_requests: int = 100, window_seconds: int = 60):
+        """Initialize rate limiter.
+
+        Args:
+            max_requests: Maximum number of requests allowed
+            window_seconds: Time window in seconds
+        """
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.default_limit = max_requests
+        self.window_minutes = window_seconds / 60
         self._requests: dict[str, list] = defaultdict(list)
         self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 

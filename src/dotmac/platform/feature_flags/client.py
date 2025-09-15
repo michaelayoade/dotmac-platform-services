@@ -6,7 +6,8 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Optional, Union
 
-from dotmac_shared.core.logging import get_logger
+import logging
+logger = logging.getLogger(__name__)
 
 from .manager import FeatureFlagManager
 from .models import (
@@ -20,7 +21,7 @@ from .models import (
 )
 from .storage import DatabaseStorage, InMemoryStorage, RedisStorage
 
-logger = get_logger(__name__)
+
 
 
 class FeatureFlagClient:
