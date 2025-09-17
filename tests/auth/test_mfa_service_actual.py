@@ -49,18 +49,14 @@ class TestMFAModels:
 
     def test_mfa_enrollment_request(self):
         """Test MFA enrollment request model."""
-        request = MFAEnrollmentRequest(
-            method=MFAMethod.TOTP, device_name="iPhone 15"
-        )
+        request = MFAEnrollmentRequest(method=MFAMethod.TOTP, device_name="iPhone 15")
 
         assert request.method == MFAMethod.TOTP
         assert request.device_name == "iPhone 15"
 
     def test_mfa_verification_request(self):
         """Test MFA verification request model."""
-        request = MFAVerificationRequest(
-            challenge_token="challenge-abc", code="123456"
-        )
+        request = MFAVerificationRequest(challenge_token="challenge-abc", code="123456")
 
         assert request.challenge_token == "challenge-abc"
         assert request.code == "123456"
@@ -121,9 +117,7 @@ class TestMFAService:
     async def test_enroll_totp(self, mfa_service, mock_db_session):
         """Test TOTP enrollment."""
         user_id = str(uuid4())
-        enrollment_request = MFAEnrollmentRequest(
-            method=MFAMethod.TOTP, device_name="Test Device"
-        )
+        enrollment_request = MFAEnrollmentRequest(method=MFAMethod.TOTP, device_name="Test Device")
 
         # Mock database queries
         mock_db_session.query().filter().first.return_value = None  # No existing device

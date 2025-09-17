@@ -1,0 +1,52 @@
+{
+  "name": "@dotmac/base-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DotMac base Next.js application pre-integrated with platform services.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "clean": "rm -rf .next dist out"
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "next-themes": "^0.3.0",
+    "@tanstack/react-query": "^5.59.20",
+    "@dotmac/ui": "workspace:*",
+    "@dotmac/design-system": "workspace:*",
+    "@dotmac/providers": "workspace:*",
+    "@dotmac/auth": "workspace:*",
+    "@dotmac/http-client": "workspace:*",
+    "@dotmac/headless": "workspace:*",
+    "@dotmac/notifications": "workspace:*",
+    "@dotmac/primitives": "workspace:*",
+    "react-hook-form": "^7.51.3",
+    "@hookform/resolvers": "^3.3.4",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.5",
+    "typescript": "^5.4.5",
+    "tailwindcss": "^3.4.3",
+    "postcss": "^8.4.35",
+    "autoprefixer": "^10.4.18",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/user-event": "^14.5.1"
+  }
+}

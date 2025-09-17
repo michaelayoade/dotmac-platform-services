@@ -19,7 +19,7 @@ class TestInMemoryBackend:
         backend = InMemoryCache(config)
         await backend.connect()
         yield backend
-        if hasattr(backend, 'close'):
+        if hasattr(backend, "close"):
             await backend.close()
 
     @pytest.mark.asyncio
@@ -139,10 +139,12 @@ class TestInMemoryBackend:
     async def test_set_many(self, backend):
         """Test set_many operation."""
         # Set many values
-        await backend.set_many({
-            "key1": "value1",
-            "key2": "value2",
-        })
+        await backend.set_many(
+            {
+                "key1": "value1",
+                "key2": "value2",
+            }
+        )
 
         # Verify they exist
         assert await backend.get("key1") == "value1"
@@ -173,7 +175,7 @@ class TestNullBackend:
         backend = NullCache(config)
         await backend.connect()
         yield backend
-        if hasattr(backend, 'close'):
+        if hasattr(backend, "close"):
             await backend.close()
 
     @pytest.mark.asyncio
@@ -236,7 +238,7 @@ class TestRedisBackend:
             backend.client = mock_redis
             await backend.connect()
             yield backend
-            if hasattr(backend, 'close'):
+            if hasattr(backend, "close"):
                 await backend.close()
 
     @pytest.mark.asyncio
@@ -299,10 +301,13 @@ class TestRedisBackend:
     @pytest.mark.asyncio
     async def test_set_many(self, backend, mock_redis):
         """Test set_many operation."""
-        await backend.set_many({
-            "key1": "value1",
-            "key2": {"data": "value2"},
-        }, ttl=60)
+        await backend.set_many(
+            {
+                "key1": "value1",
+                "key2": {"data": "value2"},
+            },
+            ttl=60,
+        )
 
         # Should call pipeline
         assert mock_redis.pipeline.called

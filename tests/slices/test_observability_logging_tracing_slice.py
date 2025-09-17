@@ -18,4 +18,3 @@ def test_trace_operation_decorator():
         return a + b
 
     assert add(2, 3) == 5
-

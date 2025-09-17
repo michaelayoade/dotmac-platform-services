@@ -181,12 +181,7 @@ class TestPaginationIntegration:
         repo = AsyncRepository(session, TestModel, dict, dict)
 
         # Create paginated result
-        page = Page.create(
-            items=test_items,
-            total=15,
-            page=2,
-            size=5
-        )
+        page = Page.create(items=test_items, total=15, page=2, size=5)
 
         assert len(page.items) == 5
         assert page.total == 15

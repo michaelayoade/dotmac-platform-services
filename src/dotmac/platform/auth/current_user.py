@@ -422,29 +422,39 @@ These are designed to be used as `Depends(RequireX)` in route signatures.
 """
 
 
-def RequireAuthenticated(current_user: UserClaims = Depends(get_current_user)) -> None:  # noqa: N802
+def RequireAuthenticated(
+    current_user: UserClaims = Depends(get_current_user),
+) -> None:  # noqa: N802
     _ = current_user
     return None
 
 
-def RequireReadAccess(current_user: UserClaims = Depends(require_scopes(["read"]))) -> None:  # noqa: N802
+def RequireReadAccess(
+    current_user: UserClaims = Depends(require_scopes(["read"])),
+) -> None:  # noqa: N802
     _ = current_user
     return None
 
 
-def RequireWriteAccess(current_user: UserClaims = Depends(require_scopes(["write"]))) -> None:  # noqa: N802
+def RequireWriteAccess(
+    current_user: UserClaims = Depends(require_scopes(["write"])),
+) -> None:  # noqa: N802
     _ = current_user
     return None
 
 
 def RequireAdminAccess(  # noqa: N802
-    current_user: UserClaims = Depends(require_scopes(["admin:read", "admin:write"], require_all=False))
+    current_user: UserClaims = Depends(
+        require_scopes(["admin:read", "admin:write"], require_all=False)
+    )
 ) -> None:
     _ = current_user
     return None
 
 
-def RequireUserRole(current_user: UserClaims = Depends(require_roles(["user"]))) -> None:  # noqa: N802
+def RequireUserRole(
+    current_user: UserClaims = Depends(require_roles(["user"])),
+) -> None:  # noqa: N802
     _ = current_user
     return None
 

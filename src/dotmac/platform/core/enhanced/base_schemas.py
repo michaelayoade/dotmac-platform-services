@@ -51,6 +51,49 @@ class SoftDeleteMixin(BaseSchema):
     deleted_at: Optional[datetime] = Field(None, description="Deletion timestamp")
 
 
+class EmailMixin(BaseSchema):
+    """Mixin that adds normalized e-mail fields."""
+
+    email: str = Field(..., description="Primary email address")
+    secondary_email: Optional[str] = Field(None, description="Secondary email address")
+
+    @field_validator("email", "secondary_email")
+    @classmethod
+    def _normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return value
+        normalized = value.strip().lower()
+        if "@" not in normalized:
+            raise ValueError("Email address must contain '@'")
+        return normalized
+
+
+class PhoneMixin(BaseSchema):
+    """Mixin that provides normalized phone number fields."""
+
+    phone: Optional[str] = Field(None, description="Primary phone number")
+    phone_country_code: Optional[str] = Field(
+        None, description="ISO country code for the phone number"
+    )
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return value
+        digits = [c for c in value if c.isdigit()]
+        if len(digits) < 7:
+            raise ValueError("Phone number must contain at least 7 digits")
+        return value.strip()
+
+
+class StatusMixin(BaseSchema):
+    """Mixin for common active/status fields."""
+
+    is_active: bool = Field(True, description="Whether the entity is active")
+    status: Optional[str] = Field(None, description="Application-defined status value")
+
+
 class BaseCreateSchema(BaseSchema):
     """Base schema for entity creation requests."""
 
@@ -183,6 +226,26 @@ class SuccessResponseSchema(BaseSchema):
     success: bool = Field(True, description="Success flag")
     message: str = Field(..., description="Success message")
     data: Optional[Any] = Field(None, description="Response data")
+
+
+class SearchSchema(BaseSchema):
+    """Base schema for search endpoints with pagination and sorting."""
+
+    query: Optional[str] = Field(None, description="Free-text search query")
+    page: int = Field(1, ge=1, description="Page number (1-based)")
+    size: int = Field(20, ge=1, le=100, description="Items per page")
+    sort_by: Optional[str] = Field(None, description="Field to sort by")
+    sort_order: str = Field("asc", pattern=r"^(asc|desc)$", description="Sort order")
+    include_inactive: bool = Field(False, description="Include inactive records")
+
+    @field_validator("query")
+    @classmethod
+    def _normalize_query(cls, value: Optional[str]) -> Optional[str]:
+        if value:
+            value = value.strip()
+            if len(value) < 2:
+                raise ValueError("Query must be at least 2 characters long")
+        return value or None
 
 
 class BulkOperationSchema(BaseSchema):

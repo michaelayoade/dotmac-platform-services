@@ -3,7 +3,6 @@ Unit tests for bootstrap behaviors when OTEL is not available.
 We monkeypatch the module variable to simulate missing extras.
 """
 
-
 import pytest
 
 from dotmac.platform.observability.bootstrap import (

@@ -2,13 +2,14 @@
 OpenTelemetry bootstrap and initialization.
 """
 
-import logging
+
 import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
 from .config import ExporterConfig, ExporterType, OTelConfig
 
+from dotmac.platform.observability.unified_logging import get_logger
 if TYPE_CHECKING:
     from opentelemetry import metrics, trace
     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
@@ -76,8 +77,7 @@ except ImportError:
     trace = Any  # type: ignore[misc,assignment]
     metrics = Any  # type: ignore[misc,assignment]
 
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 @dataclass
 class OTelBootstrap:
@@ -94,7 +94,6 @@ class OTelBootstrap:
     def is_initialized(self) -> bool:
         """Check if OpenTelemetry was successfully initialized."""
         return self.tracer_provider is not None and self.meter_provider is not None
-
 
 def initialize_otel(config: OTelConfig) -> OTelBootstrap:
     """
@@ -162,7 +161,6 @@ def initialize_otel(config: OTelConfig) -> OTelBootstrap:
     logger.info(f"OpenTelemetry initialized successfully for {config.service_name}")
     return bootstrap
 
-
 def _initialize_tracing(config: OTelConfig) -> tuple["TracerProvider", list[Any]]:
     """Initialize tracing with configured exporters."""
     if not _otel_available:
@@ -199,7 +197,6 @@ def _initialize_tracing(config: OTelConfig) -> tuple["TracerProvider", list[Any]
 
     return tracer_provider, exporters
 
-
 def _initialize_metrics(config: OTelConfig) -> tuple["MeterProvider", list[Any]]:
     """Initialize metrics with configured exporters."""
     if not _otel_available:
@@ -233,7 +230,6 @@ def _initialize_metrics(config: OTelConfig) -> tuple["MeterProvider", list[Any]]
 
     return meter_provider, exporters
 
-
 def _create_trace_exporter(config: ExporterConfig) -> "SpanExporter":
     """Create a trace exporter from configuration."""
     if not _otel_available:
@@ -259,7 +255,6 @@ def _create_trace_exporter(config: ExporterConfig) -> "SpanExporter":
         )
 
     raise ValueError(f"Unsupported trace exporter type: {config.type}")
-
 
 def _create_metric_exporter(config: ExporterConfig) -> Any:
     """Create a metric exporter from configuration."""
@@ -287,7 +282,6 @@ def _create_metric_exporter(config: ExporterConfig) -> Any:
 
     raise ValueError(f"Unsupported metric exporter type: {config.type}")
 
-
 def shutdown_otel(bootstrap: OTelBootstrap) -> None:
     """
     Shutdown OpenTelemetry providers and flush remaining data.
@@ -314,7 +308,6 @@ def shutdown_otel(bootstrap: OTelBootstrap) -> None:
         except Exception as e:
             logger.error(f"Error shutting down meter provider: {e}")
 
-
 def get_current_span_context() -> dict[str, str] | None:
     """
     Get current span context for correlation.
@@ -338,7 +331,6 @@ def get_current_span_context() -> dict[str, str] | None:
         logger.debug(f"Failed to get span context: {e}")
 
     return None
-
 
 def create_child_span(name: str, attributes: dict[str, Any] | None = None) -> Any:
     """

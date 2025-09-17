@@ -7,14 +7,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-import logging
-logger = logging.getLogger(__name__)
+
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 from .models import FeatureFlag, FeatureFlagStatus, RolloutStrategy
 from .storage import FeatureFlagStorage, RedisStorage
-
-
-
 
 class FeatureFlagManager:
     """
@@ -297,13 +295,16 @@ class FeatureFlagManager:
             end_percentage=end_percentage,
             start_date=start_date,
             end_date=end_date,
-            increment_percentage=(end_percentage - start_percentage) / (duration_hours // increment_hours),
+            increment_percentage=(end_percentage - start_percentage)
+            / (duration_hours // increment_hours),
             increment_interval_hours=increment_hours,
         )
 
         return await self.update_flag(flag)
 
-    async def stop_gradual_rollout(self, flag_key: str, final_percentage: Optional[float] = None) -> bool:
+    async def stop_gradual_rollout(
+        self, flag_key: str, final_percentage: Optional[float] = None
+    ) -> bool:
         """Stop gradual rollout and set final percentage"""
         flag = await self._get_flag(flag_key)
         if not flag or flag.strategy != RolloutStrategy.GRADUAL:

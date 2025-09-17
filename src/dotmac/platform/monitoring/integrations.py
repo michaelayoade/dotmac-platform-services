@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 """
 Monitoring service integrations for platform observability.
 
@@ -16,8 +18,7 @@ from urllib.parse import urljoin
 import httpx
 import structlog
 
-logger = structlog.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class IntegrationStatus(str, Enum):
     """Integration status enumeration."""
@@ -27,15 +28,14 @@ class IntegrationStatus(str, Enum):
     ERROR = "error"
     PENDING = "pending"
 
-
 class IntegrationType(str, Enum):
     """Supported integration types (for enums import tests)."""
+
     PROMETHEUS = "prometheus"
     DATADOG = "datadog"
     NEWRELIC = "newrelic"
     GRAFANA = "grafana"
     CUSTOM = "custom"
-
 
 @dataclass
 class IntegrationConfig:
@@ -52,7 +52,6 @@ class IntegrationConfig:
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
-
 
 @dataclass
 class MetricData:
@@ -71,7 +70,6 @@ class MetricData:
             self.labels = {}
         if self.metadata is None:
             self.metadata = {}
-
 
 class MonitoringIntegration(ABC):
     """Abstract base class for monitoring service integrations."""
@@ -175,7 +173,6 @@ class MonitoringIntegration(ABC):
 
         return None
 
-
 class SigNozIntegration(MonitoringIntegration):
     """SigNoz monitoring integration."""
 
@@ -219,7 +216,6 @@ class SigNozIntegration(MonitoringIntegration):
         except Exception as e:
             self.logger.error("Failed to send alert to SigNoz", error=str(e))
             return False
-
 
 class IntegrationManager:
     """Manages multiple monitoring integrations."""

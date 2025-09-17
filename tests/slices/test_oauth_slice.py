@@ -52,4 +52,3 @@ def test_oauth_config_and_helpers_mapping():
     assert validate_oauth_state(s1, s2) is False
     parsed = parse_oauth_callback({"code": "k", "state": s1})
     assert parsed["code"] == "k" and parsed["state"] == s1
-

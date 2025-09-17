@@ -7,6 +7,7 @@ import functools
 from collections.abc import Callable
 from typing import Optional
 
+from dotmac.platform.observability.unified_logging import get_logger
 try:
     from fastapi import HTTPException, Request
 
@@ -25,13 +26,9 @@ except ImportError:
         pass
 
 
-import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 from .manager import FeatureFlagManager
-
-
-
 
 def feature_flag(
     flag_key: str,
@@ -67,7 +64,11 @@ def feature_flag(
             if not flag_manager:
                 logger.warning(f"No FeatureFlagManager available for {flag_key}")
                 if fallback_enabled:
-                    return await func(*args, **kwargs) if asyncio.iscoroutinefunction(func) else func(*args, **kwargs)
+                    return (
+                        await func(*args, **kwargs)
+                        if asyncio.iscoroutinefunction(func)
+                        else func(*args, **kwargs)
+                    )
                 else:
                     if on_disabled:
                         return (
@@ -123,7 +124,6 @@ def feature_flag(
             return sync_wrapper
 
     return decorator
-
 
 def requires_feature(
     flag_key: str,
@@ -185,7 +185,6 @@ def requires_feature(
 
     return decorator
 
-
 def ab_test(
     flag_key: str,
     variants: dict[str, Callable],
@@ -245,7 +244,9 @@ def ab_test(
 
                 # Execute variant function
                 variant_func = variants.get(variant_name, variants.get(default_variant, func))
-                logger.debug(f"A/B test {flag_key}: using variant {variant_name} for context {context}")
+                logger.debug(
+                    f"A/B test {flag_key}: using variant {variant_name} for context {context}"
+                )
 
                 return (
                     await variant_func(*args, **kwargs)
@@ -280,7 +281,6 @@ def ab_test(
             return sync_wrapper
 
     return decorator
-
 
 def feature_variant(
     flag_key: str,
@@ -337,7 +337,6 @@ def feature_variant(
 
     return decorator
 
-
 # Context extractors for common patterns
 def fastapi_context_extractor(*args, **kwargs):
     """Extract context from FastAPI request"""
@@ -373,7 +372,6 @@ def fastapi_context_extractor(*args, **kwargs):
 
     return context
 
-
 def django_context_extractor(*args, **kwargs):
     """Extract context from Django request"""
     request = args[0] if args else None
@@ -394,16 +392,13 @@ def django_context_extractor(*args, **kwargs):
 
     return context
 
-
 # Global manager instance (set by application)
 _global_manager: Optional[FeatureFlagManager] = None
-
 
 def set_global_manager(manager: FeatureFlagManager):
     """Set the global feature flag manager instance"""
     global _global_manager
     _global_manager = manager
-
 
 def _get_global_manager() -> Optional[FeatureFlagManager]:
     """Get the global feature flag manager instance"""

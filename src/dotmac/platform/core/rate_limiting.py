@@ -5,8 +5,10 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+
 class RateLimitExceededError(Exception):
     """Raised when rate limit is exceeded."""
+
     pass
 
 
@@ -54,7 +56,9 @@ class RateLimiter:
         window_start = now - timedelta(minutes=self.window_minutes)
 
         # Clean old requests
-        self._requests[identifier] = [req_time for req_time in self._requests[identifier] if req_time > window_start]
+        self._requests[identifier] = [
+            req_time for req_time in self._requests[identifier] if req_time > window_start
+        ]
 
         return max(0, limit - len(self._requests[identifier]))
 

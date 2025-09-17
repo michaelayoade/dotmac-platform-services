@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 """
 Production-ready OpenBao (HashiCorp Vault) provider for secrets management.
 
@@ -29,8 +31,7 @@ from .exceptions import (
 )
 from .interfaces import WritableSecretsProvider
 
-logger = structlog.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class OpenBaoProvider(WritableSecretsProvider):
     """
@@ -447,7 +448,6 @@ class OpenBaoProvider(WritableSecretsProvider):
         """String representation."""
         return f"OpenBaoProvider(url={self.url}, mount_point={self.mount_point}, kv_version={self.kv_version})"
 
-
 # Factory functions
 def create_openbao_provider(url: str, token: str, **kwargs) -> OpenBaoProvider:
     """Create OpenBao provider with configuration."""
@@ -457,7 +457,6 @@ def create_openbao_provider(url: str, token: str, **kwargs) -> OpenBaoProvider:
     if "api_version" in kwargs and "kv_version" not in kwargs:
         kwargs["kv_version"] = kwargs.pop("api_version")
     return OpenBaoProvider(url=url, token=token, **kwargs)
-
 
 def create_vault_provider(url: str, token: str, **kwargs) -> OpenBaoProvider:
     """Alias for create_openbao_provider for backward compatibility."""

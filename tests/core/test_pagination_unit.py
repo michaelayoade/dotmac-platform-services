@@ -40,4 +40,3 @@ def test_create_page_and_bounds_helper():
 
     start, end = get_pagination_bounds(params, total=42)
     assert (start, end) == (0, 20)
-

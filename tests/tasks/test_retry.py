@@ -45,9 +45,7 @@ class TestCalculateBackoff:
         # Run multiple times to test jitter variation
         delays = []
         for _ in range(10):
-            delay = calculate_backoff(
-                2, base_delay=1.0, backoff_factor=2.0, jitter=True
-            )
+            delay = calculate_backoff(2, base_delay=1.0, backoff_factor=2.0, jitter=True)
             delays.append(delay)
 
         # Base delay for attempt 2 is 4.0

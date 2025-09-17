@@ -1,0 +1,16 @@
+{
+  "extends": "@dotmac/typescript-config/react-library.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@dotmac/headless": ["../headless/src"],
+      "@dotmac/primitives": ["../primitives/src"],
+      "@dotmac/providers": ["../providers/src"],
+      "@dotmac/dashboard": ["../dashboard/src"]
+    }
+  },
+  "include": ["src/**/*", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+}

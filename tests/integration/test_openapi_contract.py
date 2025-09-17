@@ -25,7 +25,9 @@ class ContractTestBase:
     @staticmethod
     def load_openapi_spec() -> Dict[str, Any]:
         """Load and validate OpenAPI specification"""
-        spec_path = Path(__file__).parent.parent.parent / "src/dotmac/platform/api/openapi_spec.yaml"
+        spec_path = (
+            Path(__file__).parent.parent.parent / "src/dotmac/platform/api/openapi_spec.yaml"
+        )
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
 
@@ -47,7 +49,7 @@ class ContractTestBase:
         json_schema = {
             "type": openapi_schema.get("type", "object"),
             "properties": openapi_schema.get("properties", {}),
-            "required": openapi_schema.get("required", [])
+            "required": openapi_schema.get("required", []),
         }
 
         # Handle nested properties
@@ -57,13 +59,17 @@ class ContractTestBase:
                     # Handle array types
                     json_schema["properties"][prop_name] = {
                         "type": "array",
-                        "items": ContractTestBase._openapi_to_json_schema(prop_schema["items"])
-                        if "$ref" not in prop_schema["items"]
-                        else prop_schema["items"]
+                        "items": (
+                            ContractTestBase._openapi_to_json_schema(prop_schema["items"])
+                            if "$ref" not in prop_schema["items"]
+                            else prop_schema["items"]
+                        ),
                     }
                 elif prop_schema["type"] == "object" and "properties" in prop_schema:
                     # Handle nested objects
-                    json_schema["properties"][prop_name] = ContractTestBase._openapi_to_json_schema(prop_schema)
+                    json_schema["properties"][prop_name] = ContractTestBase._openapi_to_json_schema(
+                        prop_schema
+                    )
 
         return json_schema
 
@@ -83,7 +89,7 @@ class TestAuthenticationContract(ContractTestBase):
             algorithm="HS256",
             secret="test-secret",
             issuer="test-issuer",
-            default_audience="test-audience"
+            default_audience="test-audience",
         )
 
         class TokenRequest(BaseModel):
@@ -105,13 +111,13 @@ class TestAuthenticationContract(ContractTestBase):
                 token = jwt_service.issue_access_token(
                     request.username,
                     tenant_id=request.tenant_id,
-                    extra_claims={"scopes": request.scopes}
+                    extra_claims={"scopes": request.scopes},
                 )
                 return TokenResponse(
                     access_token=token,
                     refresh_token=f"refresh_{token[:20]}",
                     token_type="Bearer",
-                    expires_in=3600
+                    expires_in=3600,
                 )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -150,8 +156,8 @@ class TestAuthenticationContract(ContractTestBase):
                 "username": "test",
                 "password": "password",
                 "tenant_id": "tenant123",
-                "scopes": ["read", "write"]
-            }
+                "scopes": ["read", "write"],
+            },
         )
 
         # Validate response
@@ -172,13 +178,7 @@ class TestAuthenticationContract(ContractTestBase):
         # Get error schema
         error_schema = openapi_spec["components"]["schemas"]["ErrorResponse"]
 
-        response = client.post(
-            "/auth/token",
-            json={
-                "username": "invalid",
-                "password": "wrong"
-            }
-        )
+        response = client.post("/auth/token", json={"username": "invalid", "password": "wrong"})
 
         # Validate error response
         assert response.status_code == 401
@@ -190,11 +190,7 @@ class TestAuthenticationContract(ContractTestBase):
     def test_token_creation_validation_error_contract(self, client, openapi_spec):
         """Test token creation validation error matches contract"""
         response = client.post(
-            "/auth/token",
-            json={
-                "username": "",  # Invalid: empty username
-                "password": "password"
-            }
+            "/auth/token", json={"username": "", "password": "password"}  # Invalid: empty username
         )
 
         # Our implementation returns 401 for empty credentials
@@ -214,19 +210,12 @@ class TestAuthenticationContract(ContractTestBase):
         """Test token verification success matches contract"""
         # First create a token
         token_response = client.post(
-            "/auth/token",
-            json={
-                "username": "test",
-                "password": "password"
-            }
+            "/auth/token", json={"username": "test", "password": "password"}
         )
         token = token_response.json()["access_token"]
 
         # Verify the token
-        verify_response = client.post(
-            "/auth/token/verify",
-            json={"token": token}
-        )
+        verify_response = client.post("/auth/token/verify", json={"token": token})
 
         assert verify_response.status_code == 200
         claims = verify_response.json()
@@ -240,10 +229,7 @@ class TestAuthenticationContract(ContractTestBase):
 
     def test_token_verify_invalid_contract(self, client, openapi_spec):
         """Test token verification with invalid token matches error contract"""
-        verify_response = client.post(
-            "/auth/token/verify",
-            json={"token": "invalid.token.here"}
-        )
+        verify_response = client.post("/auth/token/verify", json={"token": "invalid.token.here"})
 
         assert verify_response.status_code == 401
         error_data = verify_response.json()
@@ -293,7 +279,7 @@ class TestSessionContract(ContractTestBase):
                 last_accessed=now.isoformat(),
                 expires_at=(now + timedelta(hours=1)).isoformat(),
                 status="active",
-                metadata=request.metadata
+                metadata=request.metadata,
             )
 
             sessions[session_id] = session
@@ -322,10 +308,7 @@ class TestSessionContract(ContractTestBase):
             if active_only:
                 filtered_sessions = [s for s in filtered_sessions if s.status == "active"]
 
-            return {
-                "sessions": filtered_sessions,
-                "total": len(filtered_sessions)
-            }
+            return {"sessions": filtered_sessions, "total": len(filtered_sessions)}
 
         return app
 
@@ -343,8 +326,8 @@ class TestSessionContract(ContractTestBase):
             json={
                 "user_id": "user123",
                 "tenant_id": "tenant456",
-                "metadata": {"ip": "192.168.1.1"}
-            }
+                "metadata": {"ip": "192.168.1.1"},
+            },
         )
 
         assert response.status_code == 201
@@ -371,10 +354,7 @@ class TestSessionContract(ContractTestBase):
     def test_delete_session_contract(self, client):
         """Test session deletion matches contract"""
         # Create a session first
-        create_response = client.post(
-            "/auth/sessions",
-            json={"user_id": "user123"}
-        )
+        create_response = client.post("/auth/sessions", json={"user_id": "user123"})
         session_id = create_response.json()["session_id"]
 
         # Delete the session
@@ -424,20 +404,11 @@ class TestHealthEndpointContract(ContractTestBase):
                 "status": "healthy",
                 "timestamp": datetime.utcnow().isoformat(),
                 "checks": {
-                    "database": {
-                        "status": "healthy",
-                        "response_time": 0.012
-                    },
-                    "cache": {
-                        "status": "healthy",
-                        "response_time": 0.003
-                    },
-                    "secrets": {
-                        "status": "healthy",
-                        "response_time": 0.025
-                    }
+                    "database": {"status": "healthy", "response_time": 0.012},
+                    "cache": {"status": "healthy", "response_time": 0.003},
+                    "secrets": {"status": "healthy", "response_time": 0.025},
                 },
-                "version": "1.0.0"
+                "version": "1.0.0",
             }
 
         return app
@@ -510,7 +481,7 @@ class TestAPIKeyContract(ContractTestBase):
                 name=request.name,
                 scopes=request.scopes,
                 created_at=datetime.utcnow().isoformat(),
-                expires_at=request.expires_at
+                expires_at=request.expires_at,
             )
 
             api_keys[key_id] = key_data
@@ -528,17 +499,16 @@ class TestAPIKeyContract(ContractTestBase):
             # Return list without actual key values
             keys_list = []
             for key_id, key_data in api_keys.items():
-                keys_list.append({
-                    "key_id": key_data.key_id,
-                    "name": key_data.name,
-                    "created_at": key_data.created_at,
-                    "expires_at": key_data.expires_at
-                })
+                keys_list.append(
+                    {
+                        "key_id": key_data.key_id,
+                        "name": key_data.name,
+                        "created_at": key_data.created_at,
+                        "expires_at": key_data.expires_at,
+                    }
+                )
 
-            return {
-                "api_keys": keys_list,
-                "total": len(keys_list)
-            }
+            return {"api_keys": keys_list, "total": len(keys_list)}
 
         return app
 
@@ -556,8 +526,8 @@ class TestAPIKeyContract(ContractTestBase):
             json={
                 "name": "Test API Key",
                 "scopes": ["read", "write"],
-                "expires_at": "2025-12-31T23:59:59Z"
-            }
+                "expires_at": "2025-12-31T23:59:59Z",
+            },
         )
 
         assert response.status_code == 201
@@ -579,10 +549,7 @@ class TestAPIKeyContract(ContractTestBase):
     def test_revoke_api_key_contract(self, client):
         """Test API key revocation matches contract"""
         # Create an API key first
-        create_response = client.post(
-            "/auth/api-keys",
-            json={"name": "Test Key"}
-        )
+        create_response = client.post("/auth/api-keys", json={"name": "Test Key"})
         key_id = create_response.json()["key_id"]
 
         # Revoke the key

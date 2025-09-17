@@ -8,7 +8,7 @@ from typing import Any, Optional
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 
-from dotmac.database.base import BaseModel
+from dotmac.platform.database.base import BaseModel
 
 from .models import FeatureFlag, FeatureFlagStatus, RolloutStrategy
 

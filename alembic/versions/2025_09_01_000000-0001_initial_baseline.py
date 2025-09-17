@@ -5,7 +5,6 @@ This creates an empty baseline so that Alembic can stamp the database and
 subsequent migrations can be applied safely via the migration job.
 """
 
-
 # revision identifiers, used by Alembic.
 revision = "0001_initial_baseline"
 down_revision = None
@@ -23,4 +22,3 @@ def downgrade() -> None:
     """Baseline rollback does nothing."""
     # Intentionally empty
     pass
-

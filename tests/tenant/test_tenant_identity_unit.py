@@ -30,7 +30,9 @@ async def test_resolve_prefers_header_then_query_then_state():
     r = TenantIdentityResolver()
 
     # Header wins
-    req = make_request(headers={"X-Tenant-ID": "H"}, query={"tenant_id": "Q"}, state_dict={"tenant_id": "S"})
+    req = make_request(
+        headers={"X-Tenant-ID": "H"}, query={"tenant_id": "Q"}, state_dict={"tenant_id": "S"}
+    )
     assert await r.resolve(req) == "H"
 
     # Query used when header missing

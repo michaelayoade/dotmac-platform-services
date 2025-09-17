@@ -167,7 +167,8 @@ def _initialize_available_services() -> None:
         # Normalize flat auth config into nested structure if needed
         auth_conf = dict(config.get("auth", {}) or {})
         if "jwt" not in auth_conf and any(
-            k in auth_conf for k in ("jwt_secret_key", "jwt_algorithm", "access_token_expire_minutes")
+            k in auth_conf
+            for k in ("jwt_secret_key", "jwt_algorithm", "access_token_expire_minutes")
         ):
             nested_jwt = {}
             if "jwt_secret_key" in auth_conf:
@@ -221,6 +222,7 @@ def create_jwt_service(**kwargs):
     """
     try:
         import sys as _sys
+
         if "dotmac.platform.auth" not in _sys.modules:
             # Simulate optional extra missing
             raise ImportError("Auth module not available")

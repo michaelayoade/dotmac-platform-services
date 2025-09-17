@@ -48,9 +48,7 @@ class IRepository(ABC, Generic[ModelType]):
         pass
 
     @abstractmethod
-    async def get_all(
-        self, skip: int = 0, limit: int = 100
-    ) -> list[ModelType]:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> list[ModelType]:
         """Get all entities with pagination."""
         pass
 
@@ -84,7 +82,13 @@ class AsyncRepository(
     Provides standard CRUD operations for SQLAlchemy models.
     """
 
-    def __init__(self, session: AsyncSession, model: type[ModelType], create_type: Any | None = None, update_type: Any | None = None):
+    def __init__(
+        self,
+        session: AsyncSession,
+        model: type[ModelType],
+        create_type: Any | None = None,
+        update_type: Any | None = None,
+    ):
         """
         Initialize repository.
 
@@ -115,9 +119,7 @@ class AsyncRepository(
         result = await self.session.execute(stmt)
         return result.unique().scalar_one_or_none()
 
-    async def get_all(
-        self, skip: int = 0, limit: int = 100
-    ) -> list[ModelType]:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> list[ModelType]:
         """
         Get all entities with pagination.
 
@@ -135,9 +137,7 @@ class AsyncRepository(
         result = await self.session.execute(stmt)
         return list(result.unique().scalars().all())
 
-    async def get_by_field(
-        self, field_name: str, field_value: Any
-    ) -> ModelType | None:
+    async def get_by_field(self, field_name: str, field_value: Any) -> ModelType | None:
         """
         Get entity by field value.
 
@@ -148,9 +148,7 @@ class AsyncRepository(
         Returns:
             Entity or None if not found
         """
-        stmt = select(self.model).where(
-            getattr(self.model, field_name) == field_value
-        )
+        stmt = select(self.model).where(getattr(self.model, field_name) == field_value)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -200,9 +198,7 @@ class AsyncRepository(
         await self.session.flush()
         return db_obj
 
-    async def update(
-        self, id: Any, obj_in: Any
-    ) -> ModelType | None:
+    async def update(self, id: Any, obj_in: Any) -> ModelType | None:
         """
         Update existing entity.
 
@@ -324,7 +320,13 @@ class SyncRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     Provides standard CRUD operations for SQLAlchemy models in sync context.
     """
 
-    def __init__(self, session: Session, model: type[ModelType], create_type: Any | None = None, update_type: Any | None = None):
+    def __init__(
+        self,
+        session: Session,
+        model: type[ModelType],
+        create_type: Any | None = None,
+        update_type: Any | None = None,
+    ):
         """
         Initialize repository.
 
@@ -386,9 +388,7 @@ class SyncRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.session.flush()
         return db_obj
 
-    def update(
-        self, id: Any, obj_in: UpdateSchemaType
-    ) -> ModelType | None:
+    def update(self, id: Any, obj_in: UpdateSchemaType) -> ModelType | None:
         """
         Update existing entity.
 
@@ -514,9 +514,7 @@ class AsyncUnitOfWork(IUnitOfWork):
         if self.session:
             await self.session.rollback()
 
-    def get_repository(
-        self, model: type[ModelType]
-    ) -> AsyncRepository[ModelType, Any, Any]:
+    def get_repository(self, model: type[ModelType]) -> AsyncRepository[ModelType, Any, Any]:
         """
         Get repository for model.
 

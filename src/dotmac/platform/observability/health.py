@@ -2,15 +2,15 @@
 Health integration helpers for observability components.
 """
 
-import logging
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 class HealthStatus(str, Enum):
     """Health status values."""
@@ -19,7 +19,6 @@ class HealthStatus(str, Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 @dataclass
 class HealthCheck:
@@ -31,7 +30,6 @@ class HealthCheck:
     timestamp: datetime
     details: Mapping[str, Any] | None = None
     duration_ms: float | None = None
-
 
 @dataclass
 class ObservabilityHealth:
@@ -60,7 +58,6 @@ class ObservabilityHealth:
             "status_breakdown": status_counts,
             "timestamp": self.timestamp.isoformat(),
         }
-
 
 def check_otel_health(bootstrap: Any) -> HealthCheck:
     """
@@ -134,7 +131,6 @@ def check_otel_health(bootstrap: Any) -> HealthCheck:
             timestamp=start_time,
         )
 
-
 def check_metrics_registry_health(registry: Any) -> HealthCheck:
     """
     Check metrics registry health status.
@@ -201,7 +197,6 @@ def check_metrics_registry_health(registry: Any) -> HealthCheck:
             timestamp=start_time,
         )
 
-
 def check_tenant_metrics_health(tenant_metrics: Any) -> HealthCheck:
     """
     Check tenant metrics health status.
@@ -262,7 +257,6 @@ def check_tenant_metrics_health(tenant_metrics: Any) -> HealthCheck:
             timestamp=start_time,
         )
 
-
 def get_observability_health(
     otel_bootstrap: Any | None = None,
     metrics_registry: Any | None = None,
@@ -311,7 +305,6 @@ def get_observability_health(
         checks=checks,
         timestamp=datetime.utcnow(),
     )
-
 
 def create_health_endpoint_handler(
     otel_bootstrap: Any | None = None,

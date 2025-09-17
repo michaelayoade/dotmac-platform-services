@@ -35,6 +35,28 @@ opentelemetry-exporter-otlp = ">=1.21.0"
 opentelemetry-instrumentation-requests = ">=0.42b0"
 opentelemetry-instrumentation-sqlalchemy = ">=0.42b0"
 
+# Task Queue & Messaging
+celery = {extras = ["redis", "amqp"], version = "^5.3.0"}
+flower = "^2.0.1"
+kombu = "^5.3.0"
+
+# Database Migrations
+alembic = "^1.13.0"
+
+# Cloud Storage
+boto3 = "^1.34.0"
+minio = "^7.2.0"
+
+# Search Engine
+meilisearch = "^0.31.0"
+
+# Email Services
+sendgrid = "^6.11.0"
+python-multipart = "^0.0.6"  # For email attachments
+
+# GraphQL
+strawberry-graphql = {extras = ["fastapi"], version = "^0.219.0", optional = true}
+
 # Optional dependencies (extras)
 uvicorn = {extras = ["standard"], version = ">=0.25.0", optional = true}
 hvac = {version = "^2.0.0", optional = true}
@@ -45,6 +67,20 @@ psycopg2-binary = {version = "^2.9.10", optional = true}
 asyncpg = {version = "^0.30.0", optional = true}
 passlib = {extras = ["bcrypt"], version = "^1.7.4", optional = true}
 gitpython = {version = "^3.1.40", optional = true}
+# File Processing & I/O
+aiofiles = "^24.1.0"
+pypdf2 = "^3.0.1"
+pillow = "^10.2.0"  # Image processing
+python-docx = "^1.1.0"  # Word document processing
+openpyxl = "^3.1.2"  # Excel processing
+python-pptx = "^0.6.23"  # PowerPoint processing
+ffmpeg-python = "^0.2.0"  # Video processing
+pandas = "^2.2.0"  # Data processing and analysis
+# pyyaml already included above in core dependencies
+# xml.etree is part of Python stdlib, no need to install
+pydantic-settings = "^2.10.1"
+jinja2 = "^3.1.6"
+greenlet = "^3.2.4"
 
 [tool.poetry.extras]
 server = ["uvicorn"]
@@ -54,7 +90,8 @@ sqlite = ["aiosqlite"]
 postgres = ["asyncpg", "psycopg2-binary"]
 password = ["passlib"]
 dashboard = ["gitpython"]
-all = ["uvicorn", "hvac", "pyotp", "qrcode", "aiosqlite", "asyncpg", "psycopg2-binary", "passlib", "gitpython"]
+graphql = ["strawberry-graphql"]
+all = ["uvicorn", "hvac", "pyotp", "qrcode", "aiosqlite", "asyncpg", "psycopg2-binary", "passlib", "gitpython", "strawberry-graphql"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

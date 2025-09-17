@@ -223,14 +223,10 @@ class CommonValidators:
         length = len(value)
 
         if min_length is not None and length < min_length:
-            raise ValidationError(
-                f"{field_name} must be at least {min_length} characters long"
-            )
+            raise ValidationError(f"{field_name} must be at least {min_length} characters long")
 
         if max_length is not None and length > max_length:
-            raise ValidationError(
-                f"{field_name} cannot exceed {max_length} characters"
-            )
+            raise ValidationError(f"{field_name} cannot exceed {max_length} characters")
 
         return value
 
@@ -266,9 +262,7 @@ class CommonValidators:
             if error_message:
                 raise ValidationError(error_message)
             else:
-                raise ValidationError(
-                    f"{field_name} does not match required pattern"
-                )
+                raise ValidationError(f"{field_name} does not match required pattern")
 
         return value
 

@@ -19,6 +19,7 @@ from .metrics import (
     initialize_metrics_registry,
     initialize_tenant_metrics,
 )
+from dotmac.platform.observability.unified_logging import get_logger
 from .middleware import (
     LoggingMiddleware,
     MetricsMiddleware,
@@ -27,7 +28,6 @@ from .middleware import (
     TracingMiddleware,
 )
 from .tracing import TracingManager
-
 
 class ObservabilityManager:
     """
@@ -194,9 +194,9 @@ class ObservabilityManager:
                 logging.info(f"Structured logging initialized for {self.service_name}")
             except Exception as e:
                 logging.error(f"Failed to initialize structured logging: {e}")
-                self._logger = logging.getLogger(self.service_name)
+                self._logger = get_logger(self.service_name)
         else:
-            self._logger = logging.getLogger(self.service_name)
+            self._logger = get_logger(self.service_name)
 
         # Initialize metrics registry
         if self.enable_metrics:

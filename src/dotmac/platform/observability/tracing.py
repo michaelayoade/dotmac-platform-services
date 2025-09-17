@@ -10,7 +10,7 @@ Supports:
 """
 
 import json
-import logging
+
 import random
 import threading
 import time
@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import uuid4
 
+from dotmac.platform.observability.unified_logging import get_logger
 try:
     from opentelemetry import trace
 
@@ -45,14 +46,12 @@ except ImportError:
 
 from .config import ObservabilityConfig
 
-
 class SamplingDecision(Enum):
     """Sampling decision enumeration."""
 
     NOT_RECORD = "not_record"
     RECORD = "record"
     RECORD_AND_SAMPLED = "record_and_sampled"
-
 
 class SpanKind(str, Enum):
     """Minimal span kind enum for tests."""
@@ -63,13 +62,12 @@ class SpanKind(str, Enum):
     PRODUCER = "producer"
     CONSUMER = "consumer"
 
-
 class SpanStatus(str, Enum):
     """Minimal span status enum for tests."""
+
     UNSET = "unset"
     OK = "ok"
     ERROR = "error"
-
 
 @dataclass
 class SamplingResult:
@@ -78,7 +76,6 @@ class SamplingResult:
     decision: SamplingDecision
     attributes: dict[str, Any] | None = None
     trace_state: str | None = None
-
 
 class SamplingStrategy(ABC):
     """Abstract base class for sampling strategies."""
@@ -93,7 +90,6 @@ class SamplingStrategy(ABC):
     ) -> SamplingResult:
         """Determine if span should be sampled."""
 
-
 class AlwaysSampleStrategy(SamplingStrategy):
     """Always sample all traces."""
 
@@ -106,7 +102,6 @@ class AlwaysSampleStrategy(SamplingStrategy):
     ) -> SamplingResult:
         return SamplingResult(SamplingDecision.RECORD_AND_SAMPLED)
 
-
 class NeverSampleStrategy(SamplingStrategy):
     """Never sample any traces."""
 
@@ -118,7 +113,6 @@ class NeverSampleStrategy(SamplingStrategy):
         attributes: dict[str, Any] | None = None,
     ) -> SamplingResult:
         return SamplingResult(SamplingDecision.NOT_RECORD)
-
 
 class ProbabilitySampleStrategy(SamplingStrategy):
     """Probability-based sampling strategy."""
@@ -140,7 +134,6 @@ class ProbabilitySampleStrategy(SamplingStrategy):
         if trace_hash < threshold:
             return SamplingResult(SamplingDecision.RECORD_AND_SAMPLED)
         return SamplingResult(SamplingDecision.NOT_RECORD)
-
 
 class RateLimitingSampleStrategy(SamplingStrategy):
     """Rate-limiting sampling strategy."""
@@ -173,7 +166,6 @@ class RateLimitingSampleStrategy(SamplingStrategy):
                 return SamplingResult(SamplingDecision.RECORD_AND_SAMPLED)
 
             return SamplingResult(SamplingDecision.NOT_RECORD)
-
 
 class AdaptiveSampleStrategy(SamplingStrategy):
     """Adaptive sampling based on span attributes."""
@@ -229,7 +221,6 @@ class AdaptiveSampleStrategy(SamplingStrategy):
 
         return SamplingResult(SamplingDecision.NOT_RECORD)
 
-
 # ---------------------------------------------------------------------------
 # Minimal decorator for unit tests
 # ---------------------------------------------------------------------------
@@ -250,7 +241,6 @@ def trace_operation(operation_name: str):
 
     return decorator
 
-
 class SpanProcessor(ABC):
     """Abstract span processor for custom span processing."""
 
@@ -264,7 +254,6 @@ class SpanProcessor(ABC):
 
     def shutdown(self) -> None:
         """Shutdown the processor."""
-
 
 class BatchSpanProcessor(SpanProcessor):
     """Batch span processor for efficient span processing."""
@@ -323,7 +312,7 @@ class BatchSpanProcessor(SpanProcessor):
                 self._shutdown_event.wait(self.schedule_delay_millis / 1000.0)
 
             except Exception as e:
-                logger = logging.getLogger(__name__)
+                logger = get_logger(__name__)
                 logger.error(
                     "Error in span processor worker: %s",
                     e,
@@ -345,7 +334,6 @@ class BatchSpanProcessor(SpanProcessor):
             self._worker_thread.join(timeout=5.0)
 
         self.span_exporter.shutdown()
-
 
 class FilteringSpanProcessor(SpanProcessor):
     """Span processor that filters spans based on criteria."""
@@ -370,7 +358,6 @@ class FilteringSpanProcessor(SpanProcessor):
         """Shutdown the processor."""
         self.downstream_processor.shutdown()
 
-
 class SpanExporter(ABC):
     """Abstract span exporter."""
 
@@ -382,13 +369,12 @@ class SpanExporter(ABC):
         """Shutdown the exporter (no-op by default)."""
         return None
 
-
 class ConsoleSpanExporter(SpanExporter):
     """Console span exporter for debugging."""
 
     def export(self, spans: list["Span"]) -> bool:
         """Export spans to console."""
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         for span in spans:
             logger.info(
                 "Span exported: %s [%s:%s] - %.2fms",
@@ -407,7 +393,6 @@ class ConsoleSpanExporter(SpanExporter):
                 },
             )
         return True
-
 
 class CustomJSONSpanExporter(SpanExporter):
     """Custom JSON span exporter."""
@@ -436,7 +421,7 @@ class CustomJSONSpanExporter(SpanExporter):
                     f.write(json.dumps(span_data) + "\n")
             return True
         except Exception as e:
-            logger = logging.getLogger(__name__)
+            logger = get_logger(__name__)
             logger.error(
                 "Failed to export spans to JSON file: %s",
                 e,
@@ -444,7 +429,6 @@ class CustomJSONSpanExporter(SpanExporter):
                 extra={"component": "json_exporter", "file_path": self.file_path},
             )
             return False
-
 
 class TraceCorrelator:
     """
@@ -544,7 +528,6 @@ class TraceCorrelator:
             for trace_id in to_remove:
                 del self._trace_contexts[trace_id]
 
-
 class Span:
     """
     Tracing span wrapper with fallback implementation.
@@ -615,7 +598,7 @@ class Span:
                 try:
                     processor.on_end(self)
                 except Exception as e:
-                    logger = logging.getLogger(__name__)
+                    logger = get_logger(__name__)
                     logger.error(
                         "Error in span processor on_end: %s",
                         e,
@@ -637,7 +620,6 @@ class Span:
         """Get span duration in milliseconds."""
         end_time = self.end_time or time.time()
         return (end_time - self.start_time) * 1000
-
 
 class Tracer:
     """
@@ -739,7 +721,7 @@ class Tracer:
             try:
                 processor.on_start(span)
             except Exception as e:
-                logger = logging.getLogger(__name__)
+                logger = get_logger(__name__)
                 logger.error(
                     "Error in span processor on_start: %s",
                     e,
@@ -760,7 +742,6 @@ class Tracer:
             raise
         finally:
             span.finish()
-
 
 class TracingManager:
     """
@@ -895,7 +876,6 @@ class TracingManager:
 
         return span
 
-
 class PerformanceTracer:
     """
     Specialized tracer for performance monitoring.
@@ -931,44 +911,36 @@ class PerformanceTracer:
             span.set_attribute("cache.hit", hit)
             span.set_attribute("cache.operation", operation)
 
-
 # Factory functions
 def create_tracer(service_name: str, **kwargs) -> Tracer:
     """Create a tracer."""
     return Tracer(service_name, **kwargs)
 
-
 def create_tracing_manager(**kwargs) -> TracingManager:
     """Create a tracing manager."""
     return TracingManager(**kwargs)
 
-
 def create_performance_tracer(manager: TracingManager) -> PerformanceTracer:
     """Create a performance tracer."""
     return PerformanceTracer(manager)
-
 
 # Sampling strategy factories
 def create_probability_sampler(sample_rate: float = 0.1) -> ProbabilitySampleStrategy:
     """Create probability sampling strategy."""
     return ProbabilitySampleStrategy(sample_rate)
 
-
 def create_rate_limiting_sampler(max_traces_per_second: int = 100) -> RateLimitingSampleStrategy:
     """Create rate limiting sampling strategy."""
     return RateLimitingSampleStrategy(max_traces_per_second)
-
 
 def create_adaptive_sampler(**kwargs) -> AdaptiveSampleStrategy:
     """Create adaptive sampling strategy."""
     return AdaptiveSampleStrategy(**kwargs)
 
-
 # Span processor factories
 def create_batch_processor(span_exporter: SpanExporter, **kwargs) -> BatchSpanProcessor:
     """Create batch span processor."""
     return BatchSpanProcessor(span_exporter, **kwargs)
-
 
 def create_filtering_processor(
     downstream_processor: SpanProcessor, filter_func: Callable[[Span], bool]
@@ -976,23 +948,19 @@ def create_filtering_processor(
     """Create filtering span processor."""
     return FilteringSpanProcessor(downstream_processor, filter_func)
 
-
 # Span exporter factories
 def create_console_exporter() -> ConsoleSpanExporter:
     """Create console span exporter."""
     return ConsoleSpanExporter()
 
-
 def create_json_file_exporter(file_path: str) -> CustomJSONSpanExporter:
     """Create JSON file span exporter."""
     return CustomJSONSpanExporter(file_path)
-
 
 # Trace correlator factory
 def create_trace_correlator() -> TraceCorrelator:
     """Create trace correlator."""
     return TraceCorrelator()
-
 
 # Decorator for automatic tracing
 def trace_method(operation_name: str | None = None):
@@ -1024,7 +992,6 @@ def trace_method(operation_name: str | None = None):
         return wrapper
 
     return decorator
-
 
 class TraceExporter:
     """
@@ -1075,13 +1042,11 @@ class TraceExporter:
         if hasattr(self._exporter, "export"):
             self._exporter.export(spans)
 
-
 class NoOpTraceExporter:
     """No-op trace exporter for fallback scenarios."""
 
     def export(self, spans: list[Any]) -> None:
         """No-op export method."""
-
 
 # Stub functions for architectural validation
 def get_tracer(name="default") -> None:

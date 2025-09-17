@@ -204,7 +204,9 @@ class FileProvider(WritableSecretsProvider):
         if secret_path:
             prefix = secret_path.strip("/")
             # Include only paths under the prefix, excluding the prefix itself
-            filtered_paths = [path for path in all_paths if path.startswith(prefix) and path != prefix]
+            filtered_paths = [
+                path for path in all_paths if path.startswith(prefix) and path != prefix
+            ]
             return sorted(filtered_paths)
 
         return sorted(all_paths)

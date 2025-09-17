@@ -1,0 +1,40 @@
+{
+  "extends": "@dotmac/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationDir": "./dist",
+    "emitDeclarationOnly": false,
+    "jsx": "react-jsx",
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@dotmac/ui": ["../ui/src/index.ts"],
+      "@dotmac/primitives": ["../primitives/src/index.ts"],
+      "@dotmac/headless": ["../headless/src/index.ts"],
+      "@dotmac/notifications": ["../notifications/src/index.ts"],
+      "@dotmac/testing": ["../testing/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "build", "**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"],
+  "references": [
+    {
+      "path": "../ui"
+    },
+    {
+      "path": "../typescript-config"
+    }
+  ]
+}

@@ -8,6 +8,10 @@ from .client import FeatureFlagClient
 from .decorators import ab_test, feature_flag, requires_feature
 from .middleware import FeatureFlagMiddleware
 from .models import RolloutStrategy, TargetingRule
+from dotmac.platform.observability.unified_logging import get_logger
+
+logger = get_logger(__name__)
+
 
 # Lightweight compatibility classes for simplified tests
 class FeatureFlag:  # type: ignore[override]
@@ -19,9 +23,9 @@ class FeatureFlag:  # type: ignore[override]
 
 class FeatureFlagManager:  # type: ignore[override]
     def __init__(self):
-        import logging
-
-        logging.getLogger(__name__).info("FeatureFlagManager initialized for development environment")
+        logger.info(
+            "FeatureFlagManager initialized for development environment"
+        )
         self._flags: dict[str, bool] = {}
 
     def register_flag(self, name: str, enabled: bool = False) -> None:
@@ -29,6 +33,7 @@ class FeatureFlagManager:  # type: ignore[override]
 
     def is_enabled(self, name: str) -> bool:
         return bool(self._flags.get(name, False))
+
 
 __all__ = [
     "FeatureFlagManager",

@@ -259,7 +259,9 @@ class TestMonitoringIntegration:
         config = IntegrationConfig(name="test", endpoint="http://test.com", retry_count=2)
         integration = self.MockIntegration(config)
 
-        integration.client = self.FakeAsyncClient(sequence=[RuntimeError("boom"), RuntimeError("boom")])
+        integration.client = self.FakeAsyncClient(
+            sequence=[RuntimeError("boom"), RuntimeError("boom")]
+        )
         with pytest.raises(RuntimeError):
             await integration._make_request("GET", "/api")
 
@@ -292,7 +294,9 @@ class TestSigNozIntegration:
         config = IntegrationConfig(name="signoz", endpoint="http://signoz.com")
         integration = SigNozIntegration(config)
 
-        integration.client = TestMonitoringIntegration.FakeAsyncClient(sequence=[{"status": "error"}])
+        integration.client = TestMonitoringIntegration.FakeAsyncClient(
+            sequence=[{"status": "error"}]
+        )
         result = await integration.health_check()
         assert result is False
 

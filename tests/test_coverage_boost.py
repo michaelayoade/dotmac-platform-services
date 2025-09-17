@@ -34,7 +34,7 @@ def test_jwt_service_coverage():
         secret=config.secret_key,
         issuer="test-issuer",
         default_audience="test-audience",
-        leeway=10
+        leeway=10,
     )
 
     # Test token creation
@@ -321,7 +321,7 @@ def test_api_keys_coverage():
         expires_in_days=30,
         description="Test API key",
         rate_limit_requests=1000,
-        allowed_ips=["127.0.0.1"]
+        allowed_ips=["127.0.0.1"],
     )
     assert create_request.name == "test-key"
     assert "read:users" in create_request.scopes

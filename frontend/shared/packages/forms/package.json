@@ -1,0 +1,37 @@
+{
+  "name": "@dotmac/forms",
+  "version": "1.0.0",
+  "description": "Universal form validation and components for DotMac ISP platform",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "forms",
+    "validation",
+    "react",
+    "typescript"
+  ],
+  "author": "DotMac Team",
+  "license": "MIT",
+  "dependencies": {
+    "react-hook-form": "^7.47.0",
+    "zod": "^3.22.0",
+    "@hookform/resolvers": "^3.3.0",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.400.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0",
+    "tsup": "^8.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

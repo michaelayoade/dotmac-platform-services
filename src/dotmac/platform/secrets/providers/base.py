@@ -5,7 +5,7 @@ Base provider implementation with common functionality
 from __future__ import annotations
 
 import asyncio
-import logging
+
 import time
 from typing import Any
 from urllib.parse import urljoin
@@ -13,17 +13,19 @@ from urllib.parse import urljoin
 import httpx
 
 from ..exceptions import (
+
     ProviderAuthenticationError,
     ProviderAuthorizationError,
     ProviderConnectionError,
     SecretNotFoundError,
     SecretsProviderError,
 )
+from dotmac.platform.observability.unified_logging import get_logger
+
 from ..interfaces import SecretsProvider
 from ..types import SecretData
 
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class BaseProvider(SecretsProvider):
     """Enhanced base provider with retry logic and error handling"""
@@ -201,7 +203,6 @@ class BaseProvider(SecretsProvider):
             self._healthy = False
             return False
 
-
 class HTTPProviderMixin:
     """Mixin for HTTP-based providers"""
 
@@ -239,10 +240,8 @@ class HTTPProviderMixin:
 
         return headers
 
-
 class RetryableError(Exception):
     """Exception that should trigger retry logic"""
-
 
 class NonRetryableError(Exception):
     """Exception that should not trigger retry logic"""

@@ -221,7 +221,9 @@ class FeatureFlag(BaseModel):
     # Metadata
     tags: list[str] = Field(default_factory=list)
     owner: Optional[str] = None
-    environments: list[str] = Field(default_factory=lambda: ["development", "staging", "production"])
+    environments: list[str] = Field(
+        default_factory=lambda: ["development", "staging", "production"]
+    )
 
     # Dates
     created_at: datetime = Field(default_factory=datetime.utcnow)

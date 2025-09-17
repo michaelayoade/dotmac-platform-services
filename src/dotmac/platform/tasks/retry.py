@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import logging
+
 import random
 import time
 from contextlib import suppress
 from typing import Any, Callable, TypeVar
 
-logger = logging.getLogger(__name__)
+from dotmac.platform.observability.unified_logging import get_logger
+
+logger = get_logger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 AsyncF = TypeVar("AsyncF", bound=Callable[..., Any])
-
 
 class RetryError(Exception):
     """Raised when all retry attempts are exhausted."""
@@ -22,10 +23,7 @@ class RetryError(Exception):
     def __init__(self, attempts: int, last_exception: Exception | None):
         self.attempts = attempts
         self.last_exception = last_exception
-        super().__init__(
-            f"Failed after {attempts} attempts. Last error: {last_exception}"
-        )
-
+        super().__init__(f"Failed after {attempts} attempts. Last error: {last_exception}")
 
 def calculate_backoff(
     attempt: int,
@@ -57,7 +55,6 @@ def calculate_backoff(
         delay = max(0, delay)  # Ensure non-negative
 
     return delay
-
 
 def retry_async(
     max_attempts: int = 3,
@@ -153,7 +150,6 @@ def retry_async(
 
     return decorator
 
-
 def retry_sync(
     max_attempts: int = 3,
     base_delay: float = 1.0,
@@ -248,7 +244,6 @@ def retry_sync(
 
     return decorator
 
-
 class AsyncRetryManager:
     """Context manager for async retry operations."""
 
@@ -325,10 +320,7 @@ class AsyncRetryManager:
         await asyncio.sleep(delay)
         return True  # Suppress the exception and retry
 
-
-async def retry_with_manager(
-    operation: Callable[[], Any], **kwargs: Any
-) -> Any:
+async def retry_with_manager(operation: Callable[[], Any], **kwargs: Any) -> Any:
     """
     Retry an async operation using AsyncRetryManager.
 

@@ -68,6 +68,7 @@ async def test_integration_manager_add_broadcast_status_shutdown(monkeypatch):
 
     cfg = IntegrationConfig(name="dummy", endpoint="https://dummy")
     d = Dummy(cfg)
+
     # Inject fake client and healthy init
     class NoopClient:
         async def aclose(self):

@@ -1,0 +1,87 @@
+{
+  "name": "@dotmac/primitives",
+  "version": "1.0.0",
+  "description": "Unstyled, composable UI primitives for DotMac platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "prebuild": "tsc -p tsconfig.json --emitDeclarationOnly",
+    "build": "tsup",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "biome check src/",
+    "type-check": "echo 'Type checking disabled for experimental package'",
+    "clean": "rm -rf dist",
+    "test": "jest",
+    "lint:fix": "biome check src/ --write",
+    "format": "biome format src/ --write"
+  },
+  "dependencies": {
+    "@radix-ui/react-accordion": "^1.1.2",
+    "@radix-ui/react-alert-dialog": "^1.0.5",
+    "@radix-ui/react-avatar": "^1.0.4",
+    "@radix-ui/react-checkbox": "^1.0.4",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-form": "^0.0.3",
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-popover": "^1.0.7",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-separator": "^1.0.3",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-toast": "^1.1.5",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "dompurify": "^3.0.5",
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.363.0",
+    "react-hook-form": "^7.51.1",
+    "recharts": "^2.12.2",
+    "tailwind-merge": "^2.0.0",
+    "zod": "^4.1.3"
+  },
+  "devDependencies": {
+    "@dotmac/typescript-config": "workspace:*",
+    "@types/dompurify": "^3.0.3",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "governance": {
+    "complexity": {
+      "dataComponents": [
+        "**/*DataTable*.{ts,tsx}",
+        "**/*Chart*.{ts,tsx}"
+      ],
+      "uiComponents": [
+        "**/*Dashboard*.{ts,tsx}",
+        "**/*Form*.{ts,tsx}"
+      ],
+      "frameworkComponents": [
+        "**/app/**/*.{ts,tsx}",
+        "**/pages/**/*.{ts,tsx}"
+      ]
+    },
+    "linting": {
+      "framework": "nextjs",
+      "lastUpdated": "2025-08-19T03:21:20.455Z"
+    }
+  }
+}

@@ -97,10 +97,7 @@ class PerformanceBaseline:
 
     def save_baseline(self) -> None:
         """Save current metrics as new baseline"""
-        baseline_data = {
-            name: metrics.to_dict()
-            for name, metrics in self.current_metrics.items()
-        }
+        baseline_data = {name: metrics.to_dict() for name, metrics in self.current_metrics.items()}
         with open(self.baseline_file, "w") as f:
             json.dump(baseline_data, f, indent=2)
 
@@ -111,7 +108,7 @@ class PerformanceBaseline:
         *args,
         iterations: int = 100,
         warmup: int = 10,
-        **kwargs
+        **kwargs,
     ) -> PerformanceMetrics:
         """Measure performance of a synchronous operation"""
         # Warmup
@@ -137,7 +134,7 @@ class PerformanceBaseline:
         *args,
         iterations: int = 100,
         warmup: int = 10,
-        **kwargs
+        **kwargs,
     ) -> PerformanceMetrics:
         """Measure performance of an async operation"""
         # Warmup
@@ -156,11 +153,7 @@ class PerformanceBaseline:
         self.current_metrics[operation] = metrics
         return metrics
 
-    def check_regression(
-        self,
-        operation: str,
-        threshold_percent: float = 20.0
-    ) -> Optional[str]:
+    def check_regression(self, operation: str, threshold_percent: float = 20.0) -> Optional[str]:
         """Check if performance has regressed compared to baseline"""
         if operation not in self.current_metrics:
             return None
@@ -221,7 +214,7 @@ class TestJWTPerformance:
             algorithm="HS256",
             secret="test-secret-key-for-performance",
             issuer="perf-test",
-            default_audience="perf-test"
+            default_audience="perf-test",
         )
 
     @pytest.fixture
@@ -235,14 +228,11 @@ class TestJWTPerformance:
             return jwt_service.issue_access_token(
                 "user123",
                 tenant_id="tenant456",
-                extra_claims={"role": "admin", "permissions": ["read", "write"]}
+                extra_claims={"role": "admin", "permissions": ["read", "write"]},
             )
 
         metrics = baseline.measure(
-            "jwt_token_generation",
-            generate_token,
-            iterations=1000,
-            warmup=100
+            "jwt_token_generation", generate_token, iterations=1000, warmup=100
         )
 
         # Assert performance requirements
@@ -257,10 +247,7 @@ class TestJWTPerformance:
     def test_jwt_token_verification_performance(self, jwt_service, baseline):
         """Benchmark JWT token verification"""
         # Pre-generate tokens
-        tokens = [
-            jwt_service.issue_access_token(f"user{i}")
-            for i in range(100)
-        ]
+        tokens = [jwt_service.issue_access_token(f"user{i}") for i in range(100)]
 
         token_index = 0
 
@@ -270,10 +257,7 @@ class TestJWTPerformance:
             token_index += 1
 
         metrics = baseline.measure(
-            "jwt_token_verification",
-            verify_token,
-            iterations=1000,
-            warmup=100
+            "jwt_token_verification", verify_token, iterations=1000, warmup=100
         )
 
         # Assert performance requirements
@@ -311,17 +295,10 @@ class TestRBACPerformance:
         user_roles = ["role_0", "role_1", "role_2"]
 
         def check_permission():
-            return rbac_engine.check_permission(
-                user_roles,
-                "resource_5",
-                "action_1"
-            )
+            return rbac_engine.check_permission(user_roles, "resource_5", "action_1")
 
         metrics = baseline.measure(
-            "rbac_permission_check",
-            check_permission,
-            iterations=10000,
-            warmup=1000
+            "rbac_permission_check", check_permission, iterations=10000, warmup=1000
         )
 
         # Assert performance requirements
@@ -339,12 +316,7 @@ class TestRBACPerformance:
             rbac_engine.assign_role_to_user(user_id, "role_0")
             user_index += 1
 
-        metrics = baseline.measure(
-            "rbac_role_assignment",
-            assign_role,
-            iterations=1000,
-            warmup=100
-        )
+        metrics = baseline.measure("rbac_role_assignment", assign_role, iterations=1000, warmup=100)
 
         # Assert performance requirements
         assert metrics.median_time < 1.0, f"Role assignment too slow: {metrics.median_time:.3f}ms"
@@ -358,10 +330,7 @@ class TestSessionPerformance:
 
     @pytest.fixture
     def session_manager(self):
-        config = SessionConfig(
-            session_lifetime_seconds=3600,
-            max_sessions_per_user=10
-        )
+        config = SessionConfig(session_lifetime_seconds=3600, max_sessions_per_user=10)
         backend = MemorySessionBackend()
         return SessionManager(config=config, backend=backend)
 
@@ -378,17 +347,13 @@ class TestSessionPerformance:
         async def create_session():
             nonlocal user_index
             session = await session_manager.create_session(
-                user_id=f"user_{user_index}",
-                metadata={"ip": "192.168.1.1", "user_agent": "test"}
+                user_id=f"user_{user_index}", metadata={"ip": "192.168.1.1", "user_agent": "test"}
             )
             user_index += 1
             return session
 
         metrics = await baseline.measure_async(
-            "session_creation",
-            create_session,
-            iterations=1000,
-            warmup=100
+            "session_creation", create_session, iterations=1000, warmup=100
         )
 
         # Assert performance requirements
@@ -402,10 +367,7 @@ class TestSessionPerformance:
         # Pre-create sessions
         sessions = []
         for i in range(100):
-            session = await session_manager.create_session(
-                user_id=f"user_{i}",
-                metadata={}
-            )
+            session = await session_manager.create_session(user_id=f"user_{i}", metadata={})
             sessions.append(session.session_id)
 
         session_index = 0
@@ -418,14 +380,13 @@ class TestSessionPerformance:
             return result
 
         metrics = await baseline.measure_async(
-            "session_validation",
-            validate_session,
-            iterations=10000,
-            warmup=1000
+            "session_validation", validate_session, iterations=10000, warmup=1000
         )
 
         # Assert performance requirements
-        assert metrics.median_time < 0.5, f"Session validation too slow: {metrics.median_time:.3f}ms"
+        assert (
+            metrics.median_time < 0.5
+        ), f"Session validation too slow: {metrics.median_time:.3f}ms"
         assert metrics.p95 < 1.0, f"Session validation p95 too slow: {metrics.p95:.3f}ms"
 
 
@@ -439,16 +400,10 @@ class TestEndToEndPerformance:
         """Setup all services for end-to-end testing"""
         return {
             "jwt": JWTService(
-                algorithm="HS256",
-                secret="test-secret",
-                issuer="test",
-                default_audience="test"
+                algorithm="HS256", secret="test-secret", issuer="test", default_audience="test"
             ),
             "rbac": RBACEngine(),
-            "session": SessionManager(
-                config=SessionConfig(),
-                backend=MemorySessionBackend()
-            )
+            "session": SessionManager(config=SessionConfig(), backend=MemorySessionBackend()),
         }
 
     @pytest.fixture
@@ -471,25 +426,17 @@ class TestEndToEndPerformance:
             user_id = f"user_{user_index}"
 
             # 1. Generate JWT token
-            token = services["jwt"].issue_access_token(
-                user_id,
-                extra_claims={"roles": ["admin"]}
-            )
+            token = services["jwt"].issue_access_token(user_id, extra_claims={"roles": ["admin"]})
 
             # 2. Verify token
             claims = services["jwt"].verify_token(token)
 
             # 3. Check permissions
-            has_perm = services["rbac"].check_permission(
-                ["admin"],
-                "users",
-                "read"
-            )
+            has_perm = services["rbac"].check_permission(["admin"], "users", "read")
 
             # 4. Create session
             session = await services["session"].create_session(
-                user_id=user_id,
-                metadata={"token_jti": claims.get("jti")}
+                user_id=user_id, metadata={"token_jti": claims.get("jti")}
             )
 
             # 5. Validate session
@@ -499,10 +446,7 @@ class TestEndToEndPerformance:
             return valid
 
         metrics = await baseline.measure_async(
-            "full_auth_flow",
-            full_auth_flow,
-            iterations=500,
-            warmup=50
+            "full_auth_flow", full_auth_flow, iterations=500, warmup=50
         )
 
         # Assert end-to-end performance requirements
@@ -526,10 +470,7 @@ class TestConcurrentPerformance:
     async def test_concurrent_jwt_operations(self):
         """Test JWT service under concurrent load"""
         jwt_service = JWTService(
-            algorithm="HS256",
-            secret="test-secret",
-            issuer="test",
-            default_audience="test"
+            algorithm="HS256", secret="test-secret", issuer="test", default_audience="test"
         )
 
         async def jwt_operation(index: int):
@@ -563,16 +504,14 @@ class TestConcurrentPerformance:
     async def test_concurrent_session_operations(self):
         """Test session manager under concurrent load"""
         session_manager = SessionManager(
-            config=SessionConfig(max_sessions_per_user=100),
-            backend=MemorySessionBackend()
+            config=SessionConfig(max_sessions_per_user=100), backend=MemorySessionBackend()
         )
 
         async def session_operation(index: int):
             user_id = f"user_{index % 10}"  # 10 unique users
             # Create session
             session = await session_manager.create_session(
-                user_id=user_id,
-                metadata={"request_id": index}
+                user_id=user_id, metadata={"request_id": index}
             )
             # Validate session
             valid = await session_manager.validate_session(session.session_id)

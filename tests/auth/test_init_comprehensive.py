@@ -24,7 +24,7 @@ class TestAuthImports:
         all_exports = auth_module.__all__
         assert isinstance(all_exports, list)
         assert len(all_exports) > 0
-        
+
         # Common expected exports
         expected = [
             "JWTService",
@@ -39,7 +39,7 @@ class TestAuthImports:
             "AuthorizationError",
             "InvalidTokenError",
         ]
-        
+
         for export in expected:
             if export in all_exports:
                 # Check that the export is actually available
@@ -50,11 +50,12 @@ class TestAuthImports:
         # Capture warnings during import
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            
+
             # Re-import to check for warnings
             import importlib
+
             importlib.reload(auth_module)
-            
+
             # Check if there are import warnings (expected for missing optional deps)
             import_warnings = [warning for warning in w if "not available" in str(warning.message)]
             # This is OK - some services might not be available
@@ -64,7 +65,7 @@ class TestAuthImports:
         # Check that certain heavy components use lazy loading
         assert hasattr(auth_module, "_jwt_available") or True  # May not expose this
         assert hasattr(auth_module, "_rbac_available") or True  # May not expose this
-        
+
         # Test that services can be conditionally imported
         if hasattr(auth_module, "JWTService"):
             assert auth_module.JWTService is not None or auth_module.JWTService is None
@@ -78,7 +79,7 @@ class TestPublicAPIReExports:
         if hasattr(auth_module, "JWTService"):
             # Should be re-exported from jwt_service module
             from dotmac.platform.auth.jwt_service import JWTService as DirectImport
-            
+
             if auth_module.JWTService is not None:
                 assert auth_module.JWTService is DirectImport
 
@@ -86,13 +87,13 @@ class TestPublicAPIReExports:
         """Test RBAC engine re-exports."""
         if hasattr(auth_module, "RBACEngine"):
             from dotmac.platform.auth.rbac_engine import RBACEngine as DirectImport
-            
+
             if auth_module.RBACEngine is not None:
                 assert auth_module.RBACEngine is DirectImport
-                
+
         if hasattr(auth_module, "Role"):
             from dotmac.platform.auth.rbac_engine import Role as DirectImport
-            
+
             if auth_module.Role is not None:
                 assert auth_module.Role is DirectImport
 
@@ -102,7 +103,7 @@ class TestPublicAPIReExports:
         """Test SessionManager re-export."""
         if hasattr(auth_module, "SessionManager"):
             from dotmac.platform.auth.session_manager import SessionManager as DirectImport
-            
+
             if auth_module.SessionManager is not None:
                 assert auth_module.SessionManager is DirectImport
 
@@ -110,7 +111,7 @@ class TestPublicAPIReExports:
         """Test MFAService re-export."""
         if hasattr(auth_module, "MFAService"):
             from dotmac.platform.auth.mfa_service import MFAService as DirectImport
-            
+
             if auth_module.MFAService is not None:
                 assert auth_module.MFAService is DirectImport
 
@@ -122,28 +123,28 @@ class TestHelperFunctions:
         """Test create_jwt_service helper function."""
         if hasattr(auth_module, "create_jwt_service"):
             # Function should exist even if it returns None when JWT not available
-            assert callable(auth_module.create_jwt_service) or auth_module.create_jwt_service is None
+            assert (
+                callable(auth_module.create_jwt_service) or auth_module.create_jwt_service is None
+            )
 
     def test_create_rbac_engine(self):
         """Test create_rbac_engine helper function."""
         if hasattr(auth_module, "create_rbac_engine"):
-            assert callable(auth_module.create_rbac_engine) or auth_module.create_rbac_engine is None
+            assert (
+                callable(auth_module.create_rbac_engine) or auth_module.create_rbac_engine is None
+            )
 
     def test_initialize_auth_service(self):
         """Test initialize_auth_service function."""
         if hasattr(auth_module, "initialize_auth_service"):
             assert callable(auth_module.initialize_auth_service)
-            
+
             # Test with minimal config
             with patch("dotmac.platform.auth.JWTService") as mock_jwt:
                 mock_jwt.return_value = MagicMock()
-                
-                config = {
-                    "auth": {
-                        "jwt": {"secret_key": "test-secret", "algorithm": "HS256"}
-                    }
-                }
-                
+
+                config = {"auth": {"jwt": {"secret_key": "test-secret", "algorithm": "HS256"}}}
+
                 try:
                     result = auth_module.initialize_auth_service(config)
                     # May return a service or None depending on availability
@@ -174,6 +175,7 @@ class TestModuleAttributes:
         """Test CacheConfig is available."""
         assert hasattr(auth_module, "CacheConfig")
         from dotmac.platform.auth.cache_config import CacheConfig
+
         assert auth_module.CacheConfig is CacheConfig
 
 
@@ -186,17 +188,17 @@ class TestConditionalImports:
         # Force reload to trigger import failure
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            
+
             # This tests the try/except block for JWT imports
             import importlib
-            
+
             # Remove from cache if exists
             if "dotmac.platform.auth" in sys.modules:
                 del sys.modules["dotmac.platform.auth"]
-            
+
             # Re-import should handle missing JWT gracefully
             from dotmac.platform import auth
-            
+
             # Should have warned about missing JWT
             jwt_warnings = [warning for warning in w if "JWT" in str(warning.message)]
             # This is expected behavior
@@ -209,7 +211,7 @@ class TestConditionalImports:
             "MFAService",
             "SessionManager",
         ]
-        
+
         for attr in optional_attrs:
             # Should either exist or be None, but not raise AttributeError
             value = getattr(auth_module, attr, None)
@@ -224,11 +226,12 @@ class TestFactoryFunctions:
         if hasattr(auth_module, "create_jwt_service_from_config"):
             if auth_module.create_jwt_service_from_config is not None:
                 assert callable(auth_module.create_jwt_service_from_config)
-                
+
                 # Test with basic config
                 from dotmac.platform.auth.jwt_service import JWTConfig
+
                 config = JWTConfig(secret_key="test-key", algorithm="HS256")
-                
+
                 try:
                     service = auth_module.create_jwt_service_from_config(config)
                     if service is not None:
@@ -242,7 +245,7 @@ class TestFactoryFunctions:
         if hasattr(auth_module, "create_rbac_engine"):
             if auth_module.create_rbac_engine is not None:
                 assert callable(auth_module.create_rbac_engine)
-                
+
                 try:
                     engine = auth_module.create_rbac_engine()
                     if engine is not None:
@@ -262,19 +265,18 @@ class TestBackwardCompatibility:
             # Add any deprecated mappings here
             # "old_function": "new_function",
         }
-        
+
         for old_name, new_name in deprecated_mappings.items():
             if hasattr(auth_module, old_name):
                 with warnings.catch_warnings(record=True) as w:
                     warnings.simplefilter("always")
-                    
+
                     # Access deprecated attribute
                     value = getattr(auth_module, old_name)
-                    
+
                     # Should warn about deprecation
                     deprecation_warnings = [
-                        warning for warning in w 
-                        if "deprecated" in str(warning.message).lower()
+                        warning for warning in w if "deprecated" in str(warning.message).lower()
                     ]
                     # Expect deprecation warning
 
@@ -283,6 +285,7 @@ class TestBackwardCompatibility:
         # These should still work for backward compatibility
         try:
             from dotmac.platform.auth import AuthenticationError
+
             assert AuthenticationError is not None
         except ImportError:
             # OK if new structure doesn't support this
@@ -298,7 +301,7 @@ class TestModuleInitialization:
         if hasattr(auth_module, "CacheConfig"):
             # CacheConfig should be available early
             assert auth_module.CacheConfig is not None
-        
+
         # Check initialization flags if exposed
         if hasattr(auth_module, "_initialized"):
             assert isinstance(auth_module._initialized, bool)
@@ -306,13 +309,13 @@ class TestModuleInitialization:
     def test_module_cleanup(self):
         """Test module cleanup on reload."""
         import importlib
-        
+
         # Get initial state
         initial_modules = set(sys.modules.keys())
-        
+
         # Reload module
         importlib.reload(auth_module)
-        
+
         # Check no orphaned modules
         final_modules = set(sys.modules.keys())
         # Should not leak module references
@@ -322,7 +325,7 @@ class TestModuleInitialization:
         # This should not cause circular import
         from dotmac.platform import auth
         from dotmac.platform.auth import exceptions
-        
+
         # Both should be importable without issues
         assert auth is not None
         assert exceptions is not None

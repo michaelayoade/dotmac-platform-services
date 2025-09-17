@@ -3,12 +3,13 @@ Dashboard provisioning and management for observability platforms.
 """
 
 import json
-import logging
+
 import os
 import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from dotmac.platform.observability.unified_logging import get_logger
 if TYPE_CHECKING:
     import httpx
 
@@ -21,10 +22,9 @@ try:
 except ImportError:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 PlatformType = Literal["signoz"]
-
 
 @dataclass
 class DashboardConfig:
@@ -50,7 +50,6 @@ class DashboardConfig:
                 return {"Authorization": f"Basic {credentials}"}
 
         return {}
-
 
 @dataclass
 class DashboardTemplate:
@@ -80,7 +79,6 @@ class DashboardTemplate:
             content_str = content_str.replace(f"${{{key}}}", str(value))
 
         return json.loads(content_str)
-
 
 @dataclass
 class DashboardProvisioningResult:
@@ -113,7 +111,6 @@ class DashboardProvisioningResult:
     def add_warning(self, warning: str) -> None:
         """Add a warning message."""
         self.warnings.append(warning)
-
 
 class DashboardManager:
     """Manager for dashboard provisioning across different platforms."""
@@ -299,7 +296,6 @@ class DashboardManager:
 
     # Datasource creation handled by platform defaults
 
-
 def get_default_dashboard_templates() -> list[DashboardTemplate]:
     """Get default dashboard templates for DotMac services."""
     # SigNoz-compatible template placeholders. SigNoz will interpret
@@ -392,7 +388,6 @@ def get_default_dashboard_templates() -> list[DashboardTemplate]:
             variables={"tenant_id": "${tenant_id}"},
         ),
     ]
-
 
 def provision_platform_dashboards(
     platform_type: PlatformType,

@@ -10,6 +10,7 @@ from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict
 
 from .config import ApplicationConfig
+from .decorators import rate_limit, retry_on_failure, standard_exception_handler
 
 
 class DotMacError(Exception):
@@ -26,6 +27,10 @@ class AuthorizationError(DotMacError):
 
 class ConfigurationError(DotMacError):
     """Configuration error."""
+
+
+class BusinessRuleError(DotMacError):
+    """Business rule violation."""
 
 
 class BaseModel(PydanticBaseModel):
@@ -118,7 +123,11 @@ __all__ = [
     "ApplicationConfig",
     "Application",
     "AuthorizationError",
+    "BusinessRuleError",
     "BaseModel",
+    "rate_limit",
+    "retry_on_failure",
+    "standard_exception_handler",
     "ConfigurationError",
     "DatabaseManager",
     "DotMacError",

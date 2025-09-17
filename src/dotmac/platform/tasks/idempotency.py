@@ -5,21 +5,20 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
-import logging
+
 from typing import Any, Callable, TypeVar
 import asyncio
 
 from ..cache import CacheService
+from dotmac.platform.observability.unified_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 AsyncF = TypeVar("AsyncF", bound=Callable[..., Any])
 
-
 class IdempotencyError(Exception):
     """Raised when idempotency operations fail."""
-
 
 def generate_idempotency_key(*args: Any, **kwargs: Any) -> str:
     """
@@ -46,7 +45,6 @@ def generate_idempotency_key(*args: Any, **kwargs: Any) -> str:
         # Fallback for non-JSON serializable arguments
         fallback = f"args:{len(args)}_kwargs:{len(kwargs)}_{hash(str(args))}_{hash(str(kwargs))}"
         return hashlib.sha256(fallback.encode()).hexdigest()
-
 
 def idempotent(
     cache_service: CacheService | None = None,
@@ -84,6 +82,7 @@ def idempotent(
     def decorator(func: AsyncF) -> AsyncF:
         # If decorating a sync function, preserve sync behavior per tests
         if not asyncio.iscoroutinefunction(func):  # type: ignore[arg-type]
+
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return func(*args, **kwargs)  # type: ignore[misc]
@@ -129,8 +128,7 @@ def idempotent(
                     cached_result = await _cache.get(full_key)
                     if cached_result is not None:
                         logger.debug(
-                            "Idempotent operation %s already performed, "
-                            "returning cached result",
+                            "Idempotent operation %s already performed, " "returning cached result",
                             func.__name__,
                         )
                         # Accept raw cached values, wrapped dicts, or JSON strings
@@ -180,7 +178,6 @@ def idempotent(
 
     return decorator
 
-
 def idempotent_sync(
     cache_service: Any | None = None,
     key: str | Callable[..., str] | None = None,
@@ -220,7 +217,6 @@ def idempotent_sync(
         return wrapper  # type: ignore
 
     return decorator
-
 
 class IdempotencyManager:
     """

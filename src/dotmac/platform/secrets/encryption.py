@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 from pydantic import BaseModel, ConfigDict, Field
 
 """
@@ -14,14 +16,9 @@ from enum import Enum
 from functools import wraps
 from typing import Any, TypeVar
 
-try:
-    import structlog
+from dotmac.platform.observability.unified_logging import get_logger
 
-    logger = structlog.get_logger(__name__)
-except ImportError:
-    import logging
-
-    logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 try:
     from pydantic import field_validator
@@ -37,7 +34,6 @@ try:
 except ImportError:
     CRYPTOGRAPHY_AVAILABLE = False
 
-
 # Import DataClassification from the main module
 class DataClassification(str, Enum):
     """Data classification levels for encryption policies"""
@@ -48,7 +44,6 @@ class DataClassification(str, Enum):
     RESTRICTED = "restricted"
     TOP_SECRET = "top_secret"
 
-
 class EncryptionAlgorithm(str, Enum):
     """Encryption algorithms enum for tests/imports."""
 
@@ -57,13 +52,11 @@ class EncryptionAlgorithm(str, Enum):
     AES_256_CBC = "AES-256-CBC"
     FERNET = "Fernet"
 
-
 from datetime import UTC
 
 UTC = UTC  # Replacement for the imported UTC
 
 T = TypeVar("T", bound=BaseModel)
-
 
 class EncryptedField(BaseModel):
     """Represents an encrypted field with metadata"""
@@ -84,7 +77,6 @@ class EncryptedField(BaseModel):
             return v
         except Exception:
             raise ValueError("encrypted_data must be valid base64")
-
 
 def encrypted_field(
     classification: DataClassification = DataClassification.CONFIDENTIAL, **kwargs
@@ -110,7 +102,6 @@ def encrypted_field(
     }
 
     return Field(**kwargs)
-
 
 class FieldEncryption:
     """Field-level encryption utilities"""
@@ -230,7 +221,6 @@ class FieldEncryption:
 
         return encrypted_fields
 
-
 # ---------------------------------------------------------------------------
 # Simple secret encryption helpers used by tests
 # ---------------------------------------------------------------------------
@@ -242,7 +232,6 @@ def generate_encryption_key() -> str:
         return base64.urlsafe_b64encode(b"fallback-secret-key-32bytes!!!!").decode()
     return Fernet.generate_key().decode()
 
-
 def encrypt_secret(value: str, key: str) -> str:
     """Encrypt a secret string using Fernet. Returns base64 string."""
     if not CRYPTOGRAPHY_AVAILABLE:
@@ -250,7 +239,6 @@ def encrypt_secret(value: str, key: str) -> str:
         return "b64:" + base64.urlsafe_b64encode(value.encode()).decode()
     f = Fernet(key.encode() if not isinstance(key, bytes) else key)
     return f.encrypt(value.encode()).decode()
-
 
 def decrypt_secret(token: str, key: str) -> str:
     """Decrypt a secret string using Fernet or fallback decoding."""
@@ -264,7 +252,6 @@ def decrypt_secret(token: str, key: str) -> str:
             return token
     f = Fernet(key.encode() if not isinstance(key, bytes) else key)
     return f.decrypt(token.encode()).decode()
-
 
 class SymmetricEncryptionService:
     """
@@ -335,7 +322,6 @@ class SymmetricEncryptionService:
         except Exception as e:
             raise ValueError(f"Unable to decrypt data: {e}")
 
-
 class SecureDataModel(BaseModel):
     """Base model with encryption capabilities"""
 
@@ -381,7 +367,6 @@ class SecureDataModel(BaseModel):
                 return field_encryptor.get_encrypted_fields(self)
 
         return EncryptedModel
-
 
 def encrypt_sensitive_data(
     classification: DataClassification = DataClassification.CONFIDENTIAL,
@@ -444,7 +429,6 @@ def encrypt_sensitive_data(
 
     return decorator
 
-
 def selective_encryption(field_mapping: dict[str, DataClassification]):
     """
     Decorator for encrypting specific fields with different classification levels.
@@ -487,7 +471,6 @@ def selective_encryption(field_mapping: dict[str, DataClassification]):
         return cls
 
     return decorator
-
 
 __all__ = [
     "EncryptedField",

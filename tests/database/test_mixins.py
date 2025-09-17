@@ -35,5 +35,15 @@ def test_mixins_attributes_and_helpers():
     # to_dict should include declared columns
     d = t.to_dict()
     assert set(
-        ["id", "name", "count", "created_at", "updated_at", "tenant_id", "status", "is_active", "description"]
+        [
+            "id",
+            "name",
+            "count",
+            "created_at",
+            "updated_at",
+            "tenant_id",
+            "status",
+            "is_active",
+            "description",
+        ]
     ).issuperset(d.keys())

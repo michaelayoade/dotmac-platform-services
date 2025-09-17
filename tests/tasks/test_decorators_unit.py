@@ -37,4 +37,3 @@ def test_retry_decorator_with_stop_attempts_and_reraise():
         flaky()
     # Should have attempted twice
     assert calls["n"] == 2
-

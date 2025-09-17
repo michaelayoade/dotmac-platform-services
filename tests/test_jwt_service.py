@@ -34,7 +34,7 @@ else:
             JWTService,
             create_jwt_service_from_config,
         )
-        
+
         # Successfully imported, so we'll use the real implementations
         imports_available = True
     except ImportError:

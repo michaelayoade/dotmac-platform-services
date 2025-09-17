@@ -260,6 +260,7 @@ class TestCachedDecorator:
     @pytest.mark.asyncio
     async def test_cached_decorator_custom_key(self, cache_service):
         """Test cached decorator with custom key function."""
+
         def custom_key_func(user_id: str, *args, **kwargs) -> str:
             return f"user_{user_id}"
 

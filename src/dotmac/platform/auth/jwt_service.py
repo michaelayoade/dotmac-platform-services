@@ -35,6 +35,7 @@ class TokenType(str, Enum):
     ID = "id"
     SERVICE = "service"
 
+
 # Defaults expected by tests
 DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -192,6 +193,7 @@ class JWTService:
                 )
                 # Type narrowing for RSA key
                 from cryptography.hazmat.primitives.asymmetric import rsa
+
                 if not isinstance(loaded_key, rsa.RSAPrivateKey):
                     raise ConfigurationError("Only RSA private keys are supported")
                 self.private_key = loaded_key
@@ -208,6 +210,7 @@ class JWTService:
                 )
                 # Type narrowing for RSA key
                 from cryptography.hazmat.primitives.asymmetric import rsa
+
                 if not isinstance(loaded_key, rsa.RSAPublicKey):
                     raise ConfigurationError("Only RSA public keys are supported")
                 self.public_key = loaded_key
@@ -422,7 +425,9 @@ class JWTService:
             # re-sign the decoded claims and ensure token matches (best-effort)
             if verify_signature:
                 try:
-                    reencoded = jwt.encode(claims, self._get_verification_key(), algorithm=self.algorithm)
+                    reencoded = jwt.encode(
+                        claims, self._get_verification_key(), algorithm=self.algorithm
+                    )
                     # If tokens differ in signature segment, consider invalid
                     if isinstance(reencoded, str) and isinstance(token, str) and reencoded != token:
                         # Force a signature error to align with test expectations

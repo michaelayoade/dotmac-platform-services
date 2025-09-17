@@ -51,4 +51,3 @@ async def test_session_limit_enforced_removes_oldest():
     # We should have at most 2 active; oldest likely evicted
     assert len(active_ids) <= 2
     assert s3.session_id in active_ids
-

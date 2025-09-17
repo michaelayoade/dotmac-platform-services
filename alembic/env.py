@@ -32,56 +32,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-"""
-Model discovery for Alembic autogenerate
+from dotmac.platform.database import model_registry
 
-Many packages define their own `Base = declarative_base()`. We aggregate
-all discovered SQLAlchemy metadata into a list so Alembic autogenerate can
-compare across modules.
-"""
-from importlib import import_module
-from typing import List
-
-metadata_list: List = []
-
-def _try_collect(module_name: str, base_attr: str = "Base") -> None:
-    try:
-        m = import_module(module_name)
-        base = getattr(m, base_attr, None)
-        if base is not None and hasattr(base, "metadata"):
-            md = base.metadata
-            if md not in metadata_list:
-                metadata_list.append(md)
-    except Exception as e:
-        print(f"[alembic] Skipping metadata from {module_name}: {e}")
-
-# Choose which models to collect based on SERVICE_TYPE environment variable
-service_type = os.getenv("SERVICE_TYPE", "management")
-
-if service_type == "isp":
-    # ISP framework models and key ISP modules
-    _try_collect("dotmac_isp.models")
-    _try_collect("dotmac_isp.modules.portal_management.models")
-    _try_collect("dotmac_isp.modules.services.models")
-    _try_collect("dotmac_isp.modules.billing.models")
-    _try_collect("dotmac_isp.modules.analytics.models")
-    _try_collect("dotmac_isp.modules.captive_portal.models")
-else:
-    # Management platform models (default)
-    _try_collect("dotmac_management.models")
-
-# Shared and cross-cutting domain models across both flavors
-_try_collect("dotmac_shared.feature_flags.db_models")
-_try_collect("dotmac_shared.captive_portal.dotmac_captive_portal.models")
-_try_collect("dotmac_shared.service_assurance.core.models")
-_try_collect("dotmac_shared.inventory_management.core.models")
-_try_collect("dotmac_shared.project_management.core.models")
-_try_collect("dotmac_shared.knowledge.models")
-_try_collect("dotmac_shared.ticketing.core.models")
-_try_collect("dotmac_shared.field_operations.models")
-_try_collect("dotmac_shared.workflows.models")
-
-# Fallback to None if nothing found
+# Import platform model modules and capture metadata used for autogeneration
+metadata_list = model_registry.get_metadata()
 target_metadata = metadata_list if metadata_list else None
 
 # other values from the config, defined by the needs of env.py,
@@ -92,10 +46,10 @@ target_metadata = metadata_list if metadata_list else None
 
 def get_database_url():
     """Get database URL from environment variable or config."""
-    database_url = os.getenv('DATABASE_URL')
+    database_url = os.getenv("DATABASE_URL")
     if database_url:
         return database_url
-    
+
     # Fallback to config
     return config.get_main_option("sqlalchemy.url")
 
@@ -135,7 +89,7 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     database_url = get_database_url()
     if database_url:
-        configuration['sqlalchemy.url'] = database_url
+        configuration["sqlalchemy.url"] = database_url
 
     connectable = engine_from_config(
         configuration,
@@ -167,12 +121,14 @@ def run_migrations_online() -> None:
                 # Try to import and run scripts/setup_rls.apply_rls()
                 import asyncio
                 from pathlib import Path
+
                 # Ensure project root is on sys.path for 'scripts' import
                 project_root = Path(__file__).resolve().parent.parent  # noqa: B008
                 if str(project_root) not in sys.path:
                     sys.path.insert(0, str(project_root))
                 try:
                     from scripts.setup_rls import apply_rls as _apply_rls
+
                     print("[alembic] Applying RLS policies after migration...")
                     asyncio.run(_apply_rls())
                     print("[alembic] RLS policies applied.")

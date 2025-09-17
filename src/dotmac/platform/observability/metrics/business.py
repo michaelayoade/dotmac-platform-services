@@ -2,7 +2,7 @@
 Business metrics and SLO monitoring for tenant-scoped operations.
 """
 
-import logging
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -10,8 +10,8 @@ from typing import Any
 
 from .registry import MetricDefinition, MetricsRegistry, MetricType
 
-logger = logging.getLogger(__name__)
-
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 class BusinessMetricType(str, Enum):
     """Types of business metrics."""
@@ -22,7 +22,6 @@ class BusinessMetricType(str, Enum):
     ERROR_RATE = "error_rate"
     AVAILABILITY = "availability"
     CUSTOM = "custom"
-
 
 @dataclass
 class BusinessMetricSpec:
@@ -80,7 +79,6 @@ class BusinessMetricSpec:
             if self.alert_threshold <= self.critical_threshold:
                 raise ValueError("Alert threshold must be higher than critical threshold")
 
-
 @dataclass
 class TenantContext:
     """Context information for tenant-scoped metrics."""
@@ -107,7 +105,6 @@ class TenantContext:
 
         return labels
 
-
 @dataclass
 class SLOEvaluation:
     """Result of SLO evaluation for a business metric."""
@@ -132,7 +129,6 @@ class SLOEvaluation:
     evaluation_window: int
     sample_count: int
     evaluation_time: datetime = field(default_factory=datetime.utcnow)
-
 
 class TenantMetrics:
     """
@@ -571,7 +567,6 @@ class TenantMetrics:
             evaluation_window=spec.evaluation_window,
             sample_count=100,  # Mock sample count
         )
-
 
 def initialize_tenant_metrics(
     service_name: str,

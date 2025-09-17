@@ -317,6 +317,7 @@ PROVIDER_CONFIGS = {
     },
 }
 
+
 class OAuthService:
     """
     Comprehensive OAuth 2.0/OpenID Connect Service.
@@ -360,7 +361,9 @@ class OAuthService:
             else:
                 self.service_config = None
                 # Session config (used in DB-backed flows)
-                self.config = config if isinstance(config, OAuthSessionConfig) else OAuthSessionConfig()
+                self.config = (
+                    config if isinstance(config, OAuthSessionConfig) else OAuthSessionConfig()
+                )
                 self.session_config = self.config
         # Fold compatibility fields into canonical ones
         if getattr(self.config, "state_ttl_seconds", None) is not None:
@@ -370,7 +373,9 @@ class OAuthService:
 
         # In-memory providers mapping from service config when used without DB
         self.providers: dict[Any, dict[str, Any]] = {}
-        if getattr(self, "service_config", None) and getattr(self.service_config, "providers", None):
+        if getattr(self, "service_config", None) and getattr(
+            self.service_config, "providers", None
+        ):
             self.providers = self.service_config.providers
 
         self.http_client = http_client or httpx.AsyncClient()
@@ -389,6 +394,7 @@ class OAuthService:
         - If called with provider/redirect_uri, returns sync (url, state) using in-memory providers.
         """
         if request is not None:
+
             async def _runner():
                 return await self._get_authorization_url_async(request)
 
@@ -397,7 +403,9 @@ class OAuthService:
         if not provider or not redirect_uri:
             raise ConfigurationError("Missing provider or redirect_uri")
 
-        prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+        prov = self.providers.get(provider) or self.providers.get(
+            getattr(provider, "value", str(provider))
+        )
         if not prov:
             raise ConfigurationError(f"Provider {provider} not configured")
 
@@ -520,7 +528,9 @@ class OAuthService:
         scopes: list[str] | None = None,
     ) -> tuple[str, str, str]:
         """Generate authorization URL with PKCE; returns (url, state, code_verifier)."""
-        prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+        prov = self.providers.get(provider) or self.providers.get(
+            getattr(provider, "value", str(provider))
+        )
         if not prov:
             raise ConfigurationError(f"Provider {provider} not configured")
         authorize_url = prov.get("authorize_url") or prov.get("authorization_url")
@@ -549,7 +559,9 @@ class OAuthService:
         redirect_uri: str,
     ) -> OAuthTokenResponse:
         """Exchange authorization code for tokens using in-memory provider config."""
-        prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+        prov = self.providers.get(provider) or self.providers.get(
+            getattr(provider, "value", str(provider))
+        )
         if not prov:
             raise AuthenticationError(f"Provider {provider} not configured")
         token_url = prov.get("token_url")
@@ -563,7 +575,9 @@ class OAuthService:
             "client_secret": prov.get("client_secret"),
         }
         try:
-            resp = await self.http_client.post(token_url, data=data, headers={"Accept": "application/json"})
+            resp = await self.http_client.post(
+                token_url, data=data, headers={"Accept": "application/json"}
+            )
             resp.raise_for_status()
             payload = resp.json()
             return OAuthTokenResponse(**payload)
@@ -654,7 +668,9 @@ class OAuthService:
         if len(args) == 2 and not kwargs and isinstance(args[1], str):
             provider = args[0]
             refresh_token_value = args[1]
-            prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+            prov = self.providers.get(provider) or self.providers.get(
+                getattr(provider, "value", str(provider))
+            )
             if not prov:
                 raise AuthenticationError(f"Provider {provider} not configured")
             token_url = prov.get("token_url")
@@ -667,7 +683,9 @@ class OAuthService:
                 "client_secret": prov.get("client_secret"),
             }
             try:
-                resp = await self.http_client.post(token_url, data=data, headers={"Accept": "application/json"})
+                resp = await self.http_client.post(
+                    token_url, data=data, headers={"Accept": "application/json"}
+                )
                 resp.raise_for_status()
                 payload = resp.json()
                 return OAuthTokenResponse(**payload)
@@ -814,9 +832,9 @@ class OAuthService:
                     "provider": token.provider,
                     "token_type": token.token_type,
                     "scopes": token.scopes,
-                    "expires_at": token.expires_at.isoformat()
-                    if token.expires_at is not None
-                    else None,
+                    "expires_at": (
+                        token.expires_at.isoformat() if token.expires_at is not None else None
+                    ),
                     "needs_refresh": needs_refresh,
                     "created_at": token.created_at.isoformat(),
                     "updated_at": token.updated_at.isoformat(),
@@ -844,7 +862,9 @@ class OAuthService:
 
     async def revoke_token(self, provider: OAuthProvider, token: str) -> bool:
         """Best-effort token revocation using provider revoke URL if available."""
-        prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+        prov = self.providers.get(provider) or self.providers.get(
+            getattr(provider, "value", str(provider))
+        )
         if not prov:
             return False
         revoke_url = prov.get("revoke_url", "https://example.com/revoke")
@@ -1008,7 +1028,9 @@ class OAuthService:
 
     async def get_user_info(self, provider: OAuthProvider, access_token: str) -> OAuthUserInfo:
         """Fetch user info using provider userinfo URL from service config."""
-        prov = self.providers.get(provider) or self.providers.get(getattr(provider, "value", str(provider)))
+        prov = self.providers.get(provider) or self.providers.get(
+            getattr(provider, "value", str(provider))
+        )
         if not prov:
             raise AuthenticationError(f"Provider {provider} not configured")
         userinfo_url = prov.get("userinfo_url")

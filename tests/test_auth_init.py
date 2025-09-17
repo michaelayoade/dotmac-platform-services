@@ -275,7 +275,11 @@ def test_auth_protocol_definitions():
 
 def test_auth_public_api_factories():
     """Test key public factory/utility functions that exist in the module."""
-    from dotmac.platform.auth import add_auth_middleware, create_complete_auth_system, get_platform_config
+    from dotmac.platform.auth import (
+        add_auth_middleware,
+        create_complete_auth_system,
+        get_platform_config,
+    )
 
     assert callable(add_auth_middleware)
     assert callable(create_complete_auth_system)
@@ -365,10 +369,11 @@ def test_auth_exception_mapping():
 def test_module_import_and_version_info():
     """Smoke-test importability and version info."""
     from dotmac.platform import auth as auth_module
+
     assert hasattr(auth_module, "__version__")
 
-
     from dotmac.platform.auth import __author__, __version__
+
     assert isinstance(__version__, str)
     assert isinstance(__author__, str)
 

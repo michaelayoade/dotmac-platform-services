@@ -3,7 +3,6 @@ Unit tests for database session helper utilities.
 Uses SQLite URLs to avoid external services.
 """
 
-
 import pytest
 
 from dotmac.platform.database.session import (

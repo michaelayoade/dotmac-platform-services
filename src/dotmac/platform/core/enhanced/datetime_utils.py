@@ -5,13 +5,13 @@ Eliminates timezone import duplication and provides consistent datetime handling
 across all middleware and services.
 """
 
-import logging
+
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 class DateTimeUtils:
     """Centralized datetime utilities to eliminate duplication."""
@@ -125,7 +125,9 @@ class DateTimeUtils:
             raise
 
     @staticmethod
-    def time_until_expiry(expiry_time: datetime, current_time: Optional[datetime] = None) -> timedelta:
+    def time_until_expiry(
+        expiry_time: datetime, current_time: Optional[datetime] = None
+    ) -> timedelta:
         """Get time remaining until expiry.
 
         Args:
@@ -152,7 +154,6 @@ class DateTimeUtils:
         base = base_time or DateTimeUtils.utc_now()
         return DateTimeUtils.utc_datetime(base) + timedelta(seconds=ttl_seconds)
 
-
 # Convenience functions for common operations
 utc_now = DateTimeUtils.utc_now
 utc_datetime = DateTimeUtils.utc_datetime
@@ -160,7 +161,6 @@ utc_timestamp = DateTimeUtils.utc_timestamp
 format_iso = DateTimeUtils.format_iso
 parse_iso = DateTimeUtils.parse_iso
 is_expired = DateTimeUtils.is_expired
-
 
 # Common timedelta constants
 class TimeDeltas:
@@ -187,7 +187,6 @@ class TimeDeltas:
     # API versioning
     DEPRECATION_WARNING = timedelta(days=90)
     SUNSET_PERIOD = timedelta(days=180)
-
 
 def get_common_expiry(expiry_type: str) -> datetime:
     """Get common expiry times.

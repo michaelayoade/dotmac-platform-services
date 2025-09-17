@@ -18,4 +18,3 @@ async def test_inmemory_cache_lru_eviction():
         assert await backend.get("k2") == 2
     finally:
         await backend.disconnect()
-

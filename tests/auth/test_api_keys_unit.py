@@ -23,12 +23,12 @@ class DummyDB:
 def test_create_request_invalid_scopes_raises():
     with pytest.raises(ValidationError):
         APIKeyCreateRequest(
-            name="k", 
+            name="k",
             description="Test API key",
             scopes=["not:a:real:scope"],  # invalid scope
             expires_in_days=30,
             rate_limit_requests=1000,
-            allowed_ips=["*"]
+            allowed_ips=["*"],
         )
 
 
@@ -37,10 +37,10 @@ def test_update_request_invalid_scopes_raises():
     with pytest.raises(ValidationError):
         APIKeyUpdateRequest(
             name="Updated key",
-            description="Updated description", 
+            description="Updated description",
             scopes=["still:not:real"],  # invalid scope
             rate_limit_requests=2000,
-            allowed_ips=["127.0.0.1"]
+            allowed_ips=["127.0.0.1"],
         )
 
 

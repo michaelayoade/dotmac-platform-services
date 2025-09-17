@@ -30,7 +30,9 @@ def upgrade() -> None:
     ctx = op.get_context()
     pg = ctx.dialect.name == "postgresql"
 
-    def add_fk_not_valid(table: str, cname: str, col: str, ref_table: str, ref_col: str, ondelete: str | None = None):
+    def add_fk_not_valid(
+        table: str, cname: str, col: str, ref_table: str, ref_col: str, ondelete: str | None = None
+    ):
         clause = f"ALTER TABLE {table} ADD CONSTRAINT {cname} FOREIGN KEY ({col}) REFERENCES {ref_table}({ref_col})"
         if ondelete:
             clause += f" ON DELETE {ondelete}"
@@ -139,4 +141,3 @@ def downgrade() -> None:
     drop_fk("bl_incident_escalations", "fk_bl_incident_escalations_incident")
     # Optional customer FK
     drop_fk("bl_provisioning_requests", "fk_bl_provisioning_requests_customer")
-

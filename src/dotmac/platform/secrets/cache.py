@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import logging
+
 import time
 from typing import Any
 
@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field
 from .interfaces import SecretCache
 from .types import SecretMetadata, SecretValue
 
-logger = logging.getLogger(__name__)
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 # Try to import Redis for optional Redis cache support
 try:
@@ -26,7 +27,6 @@ try:
 except ImportError:
     HAS_REDIS = False
     redis = None
-
 
 class InMemoryCache:
     """
@@ -191,7 +191,6 @@ class InMemoryCache:
 
         await self.clear()
 
-
 class RedisCache:
     """
     Redis-based cache for secrets with TTL support
@@ -339,7 +338,6 @@ class RedisCache:
             await self._redis.close()
             self._redis = None
 
-
 class NullCache:
     """
     Null cache implementation that doesn't cache anything
@@ -373,7 +371,6 @@ class NullCache:
     async def close(self) -> None:
         """No-op close"""
 
-
 def create_cache(
     cache_type: str = "memory", **config: Any
 ) -> InMemoryCache | RedisCache | NullCache:
@@ -398,12 +395,10 @@ def create_cache(
         return NullCache()
     raise ValueError(f"Unsupported cache type: {cache_type}")
 
-
 # Register cache classes with SecretCache protocol
 SecretCache.register(InMemoryCache)
 SecretCache.register(RedisCache)
 SecretCache.register(NullCache)
-
 
 class CacheConfig(BaseModel):
     """Simple cache configuration used in tests."""

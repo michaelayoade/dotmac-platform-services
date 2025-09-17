@@ -25,6 +25,7 @@ from .exceptions import (
     UnauthorizedService,
     get_http_status,
 )
+
 try:
     from .jwt_service import JWTService  # for test patching
 except Exception:  # pragma: no cover

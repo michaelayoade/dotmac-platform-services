@@ -172,7 +172,11 @@ def initialize_secrets_service(config: dict[str, Any]) -> None:
         return
 
     # If no meaningful config provided, skip initialization gracefully
-    minimal_keys = {k for k in ("vault_url", "vault_token", "backend", "file_path", "encryption_key") if k in config}
+    minimal_keys = {
+        k
+        for k in ("vault_url", "vault_token", "backend", "file_path", "encryption_key")
+        if k in config
+    }
     if not minimal_keys:
         return
 

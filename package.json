@@ -1,0 +1,25 @@
+{
+  "name": "@dotmac/frontend-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DotMac Platform Services Frontend Workspace",
+  "scripts": {
+    "dev": "pnpm --filter @dotmac/base-app dev",
+    "build": "pnpm -r --filter ./shared/packages/** run build && pnpm --filter @dotmac/base-app build",
+    "test": "pnpm -r run test",
+    "test:ci": "pnpm -r run test:ci",
+    "lint": "pnpm -r run lint",
+    "type-check": "pnpm -r run type-check",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "clean": "pnpm -r run clean"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "prettier": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  }
+}

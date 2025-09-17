@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 """
 Production-ready secrets rotation automation system.
 
@@ -28,8 +30,7 @@ import structlog
 from .exceptions import ConfigurationError
 from .interfaces import WritableSecretsProvider
 
-logger = structlog.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class RotationStatus(str, Enum):
     """Status of a rotation operation."""
@@ -40,7 +41,6 @@ class RotationStatus(str, Enum):
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
 
-
 class SecretType(str, Enum):
     """Types of secrets that can be rotated."""
 
@@ -50,7 +50,6 @@ class SecretType(str, Enum):
     SERVICE_PASSWORD = "service_password"
     ENCRYPTION_KEY = "encryption_key"
     CERTIFICATE = "certificate"
-
 
 @dataclass
 class RotationResult:
@@ -82,7 +81,6 @@ class RotationResult:
             "metadata": self.metadata,
         }
 
-
 @dataclass
 class RotationRule:
     """Configuration for secret rotation."""
@@ -108,7 +106,6 @@ class RotationRule:
         time_since_rotation = (datetime.utcnow() - last_rotated).total_seconds()
         return time_since_rotation >= self.rotation_interval
 
-
 class RotationPolicy(ABC):
     """Abstract base class for rotation policies."""
 
@@ -125,7 +122,6 @@ class RotationPolicy(ABC):
     @abstractmethod
     async def validate_new_secret(self, secret_path: str, new_secret: dict[str, Any]) -> bool:
         """Validate the new secret works correctly."""
-
 
 class DefaultRotationPolicy(RotationPolicy):
     """Default rotation policy for general secrets."""
@@ -167,7 +163,6 @@ class DefaultRotationPolicy(RotationPolicy):
             and any(c.islower() for c in password)
             and any(c.isdigit() for c in password)
         )
-
 
 class JWTRotationPolicy(RotationPolicy):
     """Rotation policy for JWT keypairs."""
@@ -242,7 +237,6 @@ class JWTRotationPolicy(RotationPolicy):
 
         return False
 
-
 class DatabaseRotationPolicy(RotationPolicy):
     """Rotation policy for database credentials with zero-downtime rotation."""
 
@@ -281,7 +275,6 @@ class DatabaseRotationPolicy(RotationPolicy):
         # Implementation depends on database type
         password = new_secret.get("password", "")
         return len(password) >= 12
-
 
 class RotationScheduler:
     """Manages scheduled secret rotations."""
@@ -521,14 +514,12 @@ class RotationScheduler:
 
         return history[:limit]
 
-
 # Factory functions
 def create_rotation_scheduler(
     secrets_provider: WritableSecretsProvider, default_policy: RotationPolicy | None = None
 ) -> RotationScheduler:
     """Create a rotation scheduler."""
     return RotationScheduler(secrets_provider, default_policy)
-
 
 def create_database_rotation_rule(secret_path: str, days_interval: int = 14) -> RotationRule:
     """Create a database credential rotation rule."""
@@ -539,7 +530,6 @@ def create_database_rotation_rule(secret_path: str, days_interval: int = 14) -> 
         max_age=days_interval * 86400 * 2,
     )
 
-
 def create_jwt_rotation_rule(secret_path: str, days_interval: int = 7) -> RotationRule:
     """Create a JWT keypair rotation rule."""
     return RotationRule(
@@ -548,7 +538,6 @@ def create_jwt_rotation_rule(secret_path: str, days_interval: int = 7) -> Rotati
         rotation_interval=days_interval * 86400,
         max_age=days_interval * 86400 * 2,
     )
-
 
 def create_api_key_rotation_rule(secret_path: str, days_interval: int = 30) -> RotationRule:
     """Create an API key rotation rule."""

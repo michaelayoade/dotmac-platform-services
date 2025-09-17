@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Dict
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import declarative_base
@@ -23,6 +23,10 @@ class BaseModel(Base):
 
     # Primary key for all ORM entities using this base
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     def __init__(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():

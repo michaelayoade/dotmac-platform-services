@@ -35,4 +35,3 @@ def test_base64url_helpers_roundtrip():
     enc = encode_base64url(data)
     dec = decode_base64url(enc)
     assert dec == data
-

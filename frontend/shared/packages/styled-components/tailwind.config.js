@@ -1,0 +1,132 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: ['class'],
+  theme: {
+    container: {
+      center: true,
+      padding: '2rem',
+      screens: {
+        '2xl': '1400px',
+      },
+    },
+    extend: {
+      colors: {
+        // Admin Portal Theme - Dark, Professional
+        admin: {
+          background: 'hsl(var(--admin-background))',
+          foreground: 'hsl(var(--admin-foreground))',
+          card: 'hsl(var(--admin-card))',
+          'card-foreground': 'hsl(var(--admin-card-foreground))',
+          popover: 'hsl(var(--admin-popover))',
+          'popover-foreground': 'hsl(var(--admin-popover-foreground))',
+          primary: 'hsl(var(--admin-primary))',
+          'primary-foreground': 'hsl(var(--admin-primary-foreground))',
+          secondary: 'hsl(var(--admin-secondary))',
+          'secondary-foreground': 'hsl(var(--admin-secondary-foreground))',
+          muted: 'hsl(var(--admin-muted))',
+          'muted-foreground': 'hsl(var(--admin-muted-foreground))',
+          accent: 'hsl(var(--admin-accent))',
+          'accent-foreground': 'hsl(var(--admin-accent-foreground))',
+          destructive: 'hsl(var(--admin-destructive))',
+          'destructive-foreground': 'hsl(var(--admin-destructive-foreground))',
+          border: 'hsl(var(--admin-border))',
+          input: 'hsl(var(--admin-input))',
+          ring: 'hsl(var(--admin-ring))',
+        },
+        // Customer Portal Theme - Friendly, Accessible
+        customer: {
+          background: 'hsl(var(--customer-background))',
+          foreground: 'hsl(var(--customer-foreground))',
+          card: 'hsl(var(--customer-card))',
+          'card-foreground': 'hsl(var(--customer-card-foreground))',
+          popover: 'hsl(var(--customer-popover))',
+          'popover-foreground': 'hsl(var(--customer-popover-foreground))',
+          primary: 'hsl(var(--customer-primary))',
+          'primary-foreground': 'hsl(var(--customer-primary-foreground))',
+          secondary: 'hsl(var(--customer-secondary))',
+          'secondary-foreground': 'hsl(var(--customer-secondary-foreground))',
+          muted: 'hsl(var(--customer-muted))',
+          'muted-foreground': 'hsl(var(--customer-muted-foreground))',
+          accent: 'hsl(var(--customer-accent))',
+          'accent-foreground': 'hsl(var(--customer-accent-foreground))',
+          destructive: 'hsl(var(--customer-destructive))',
+          'destructive-foreground': 'hsl(var(--customer-destructive-foreground))',
+          border: 'hsl(var(--customer-border))',
+          input: 'hsl(var(--customer-input))',
+          ring: 'hsl(var(--customer-ring))',
+        },
+        // Reseller Portal Theme - Professional, Brandable
+        reseller: {
+          background: 'hsl(var(--reseller-background))',
+          foreground: 'hsl(var(--reseller-foreground))',
+          card: 'hsl(var(--reseller-card))',
+          'card-foreground': 'hsl(var(--reseller-card-foreground))',
+          popover: 'hsl(var(--reseller-popover))',
+          'popover-foreground': 'hsl(var(--reseller-popover-foreground))',
+          primary: 'hsl(var(--reseller-primary))',
+          'primary-foreground': 'hsl(var(--reseller-primary-foreground))',
+          secondary: 'hsl(var(--reseller-secondary))',
+          'secondary-foreground': 'hsl(var(--reseller-secondary-foreground))',
+          muted: 'hsl(var(--reseller-muted))',
+          'muted-foreground': 'hsl(var(--reseller-muted-foreground))',
+          accent: 'hsl(var(--reseller-accent))',
+          'accent-foreground': 'hsl(var(--reseller-accent-foreground))',
+          destructive: 'hsl(var(--reseller-destructive))',
+          'destructive-foreground': 'hsl(var(--reseller-destructive-foreground))',
+          border: 'hsl(var(--reseller-border))',
+          input: 'hsl(var(--reseller-input))',
+          ring: 'hsl(var(--reseller-ring))',
+        },
+        // Shared semantic colors
+        success: 'hsl(var(--success))',
+        'success-foreground': 'hsl(var(--success-foreground))',
+        warning: 'hsl(var(--warning))',
+        'warning-foreground': 'hsl(var(--warning-foreground))',
+        info: 'hsl(var(--info))',
+        'info-foreground': 'hsl(var(--info-foreground))',
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Consolas', 'monospace'],
+      },
+      fontSize: {
+        '2xs': ['0.625rem', { lineHeight: '0.75rem' }],
+      },
+      spacing: {
+        18: '4.5rem',
+        88: '22rem',
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
+        'fade-in': 'fade-in 0.5s ease-out',
+        'slide-in': 'slide-in 0.3s ease-out',
+      },
+      keyframes: {
+        'accordion-down': {
+          from: { height: 0 },
+          to: { height: 'var(--radix-accordion-content-height)' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: 0 },
+        },
+        'fade-in': {
+          from: { opacity: 0 },
+          to: { opacity: 1 },
+        },
+        'slide-in': {
+          from: { transform: 'translateY(-10px)', opacity: 0 },
+          to: { transform: 'translateY(0)', opacity: 1 },
+        },
+      },
+    },
+  },
+  plugins: [require('@tailwindcss/forms'), require('@tailwindcss/typography')],
+};

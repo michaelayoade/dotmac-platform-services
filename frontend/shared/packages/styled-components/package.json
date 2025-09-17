@@ -1,0 +1,78 @@
+{
+  "name": "@dotmac/styled-components",
+  "version": "1.0.0",
+  "description": "Portal-specific styled components for DotMac platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "import": "./dist/admin/index.mjs",
+      "require": "./dist/admin/index.js"
+    },
+    "./customer": {
+      "types": "./dist/customer/index.d.ts",
+      "import": "./dist/customer/index.mjs",
+      "require": "./dist/customer/index.js"
+    },
+    "./reseller": {
+      "types": "./dist/reseller/index.d.ts",
+      "import": "./dist/reseller/index.mjs",
+      "require": "./dist/reseller/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.mjs",
+      "require": "./dist/shared/index.js"
+    },
+    "./dist/styles/globals.css": "./dist/styles/globals.css",
+    "./dist/styles/tokens.css": "./dist/styles/tokens.css"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/admin/index.ts src/customer/index.ts src/reseller/index.ts src/shared/index.ts --format cjs,esm && mkdir -p dist/styles && cp src/styles/globals.css dist/styles/globals.css && cp src/styles/tokens.css dist/styles/tokens.css",
+    "dev": "tsup src/index.ts src/admin/index.ts src/customer/index.ts src/reseller/index.ts src/shared/index.ts --format cjs,esm --dts --watch",
+    "lint": "biome check src/",
+    "lint:fix": "biome check src/ --write",
+    "format": "biome format src/ --write",
+    "lint:test": "node scripts/test-lint-rules.js",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist test-builds test-results",
+    "test": "npm run lint:test",
+    "test:accessibility": "node scripts/accessibility-audit.js",
+    "test:bundle": "node scripts/bundle-analysis.js",
+    "test:theme": "echo 'Theme stress test requires Storybook or test runner'",
+    "test:production": "npm run test && npm run test:accessibility && npm run test:bundle",
+    "build:css": "tailwindcss -i ./src/styles/globals.css -o ./dist/styles.css --watch"
+  },
+  "dependencies": {
+    "@dotmac/primitives": "workspace:*",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.1",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@dotmac/typescript-config": "workspace:*",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  }
+}

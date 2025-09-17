@@ -144,7 +144,7 @@ class TestIdempotentDecorator:
         assert call_count == 1
 
         # Second call - cached
-        mock_cache.get.return_value = '10'
+        mock_cache.get.return_value = "10"
         result = await test_func(5)
         assert result == 10
         assert call_count == 1  # Should not increment

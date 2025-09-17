@@ -6,7 +6,7 @@ rotation capabilities, and RBAC integration.
 """
 
 import hashlib
-import logging
+
 import secrets
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -15,10 +15,13 @@ from uuid import UUID as UUIDType
 from uuid import uuid4
 
 from pydantic import (
+
     BaseModel,
     Field,
     field_validator,
 )
+from dotmac.platform.observability.unified_logging import get_logger
+
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,7 +41,6 @@ except Exception:  # FastAPI optional
     Depends = None  # type: ignore
     HTTPException = None  # type: ignore
 
-
 class APIKeyStatus(str, Enum):
     """API key status."""
 
@@ -46,7 +48,6 @@ class APIKeyStatus(str, Enum):
     SUSPENDED = "suspended"
     REVOKED = "revoked"
     EXPIRED = "expired"
-
 
 class APIKeyScope(str, Enum):
     """Predefined API key scopes."""
@@ -77,14 +78,12 @@ class APIKeyScope(str, Enum):
     WEBHOOK_RECEIVE = "webhook:receive"
     API_INTERNAL = "api:internal"
 
-
 class RateLimitWindow(str, Enum):
     """Rate limit time windows."""
 
     MINUTE = "minute"
     HOUR = "hour"
     DAY = "day"
-
 
 class APIKey(Base):
     """Database model for API keys."""
@@ -138,7 +137,6 @@ class APIKey(Base):
     # Relationships
     usage_logs = relationship("APIKeyUsage", back_populates="api_key", cascade="all, delete-orphan")
 
-
 class APIKeyUsage(Base):
     """Database model for API key usage logging."""
 
@@ -171,7 +169,6 @@ class APIKeyUsage(Base):
     # Relationships
     api_key = relationship("APIKey", back_populates="usage_logs")
 
-
 class APIKeyRateLimit(Base):
     """Database model for API key rate limiting."""
 
@@ -191,7 +188,6 @@ class APIKeyRateLimit(Base):
     # Usage counters
     request_count: Mapped[int] = mapped_column(Integer, default=0)
     last_request: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
 
 class APIKeyCreateRequest(BaseModel):
     """Request model for creating API keys."""
@@ -216,7 +212,6 @@ class APIKeyCreateRequest(BaseModel):
             raise ValueError(f"Invalid scopes: {invalid_scopes}")
         return v
 
-
 class APIKeyUpdateRequest(BaseModel):
     """Request model for updating API keys."""
 
@@ -240,7 +235,6 @@ class APIKeyUpdateRequest(BaseModel):
                 raise ValueError(f"Invalid scopes: {invalid_scopes}")
         return v
 
-
 class APIKeyResponse(BaseModel):
     """Response model for API key information."""
 
@@ -260,12 +254,10 @@ class APIKeyResponse(BaseModel):
     rate_limit_window: RateLimitWindow
     tenant_id: str | None
 
-
 class APIKeyCreateResponse(APIKeyResponse):
     """Response model for API key creation (includes full key)."""
 
     api_key: str  # Only returned on creation
-
 
 class APIKeyServiceConfig(BaseModel):
     """Configuration for API Key Service."""
@@ -277,36 +269,29 @@ class APIKeyServiceConfig(BaseModel):
     usage_log_retention_days: int = 90
     require_scope_validation: bool = True
 
-
 # ------------------------------------------------------------------
 # Module-level compatibility aliases and helpers expected by tests
 # ------------------------------------------------------------------
-
 
 # Simple validation model used by tests
 class APIKeyValidation(BaseModel):
     key: str
     required_scopes: list[str] | None = None
 
-
 # Alias names expected by tests
 APIKeyCreate = APIKeyCreateRequest
-
 
 def generate_api_key() -> str:
     """Generate a random API key string."""
     return "sk_" + secrets.token_urlsafe(32)
 
-
 def hash_api_key(key: str) -> str:
     """Hash an API key using the same algorithm as the service uses."""
     return hashlib.sha256(key.encode()).hexdigest()
 
-
 def verify_api_key(key: str, key_hash: str) -> bool:
     """Verify a key against a hash."""
     return hash_api_key(key) == key_hash
-
 
 class APIKeyService:
     """
@@ -811,7 +796,7 @@ class APIKeyService:
         request_info: dict[str, Any],
     ) -> None:
         """Log failed API key authentication attempt."""
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.warning(
             "Failed API key authentication: %s for key %s from IP %s",
             reason,
@@ -851,9 +836,7 @@ class APIKeyService:
             self.db.query(APIKey).filter(APIKey.user_id == user_id, APIKey.key_id == key_id).first()
         )
 
-
 # Middleware and decorator helpers
-
 
 def api_key_required(scopes: list[str] | None = None):
     """Decorator to require API key authentication."""
@@ -867,7 +850,6 @@ def api_key_required(scopes: list[str] | None = None):
 
     return decorator
 
-
 # FastAPI dependency for API key auth
 def extract_api_key_from_request(request: Any) -> str | None:
     """Extract API key from Authorization or X-API-Key headers."""
@@ -876,7 +858,6 @@ def extract_api_key_from_request(request: Any) -> str | None:
         return auth.split(" ", 1)[1].strip()
     key = request.headers.get("X-API-Key") or request.headers.get("X-Api-Key")
     return key
-
 
 def api_key_dependency(required_scopes: list[str] | None = None):
     """Create a FastAPI dependency that enforces API key authentication.
@@ -920,7 +901,6 @@ def api_key_dependency(required_scopes: list[str] | None = None):
         return key_info
 
     return _dep
-
 
 def check_api_rate_limit(key_info: dict[str, Any]) -> bool:
     """Helper function to check API key rate limits."""

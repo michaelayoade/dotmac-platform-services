@@ -9,7 +9,6 @@ from typing import Any
 
 from .exceptions import ConfigurationError
 
-
 class SecretsBackend(str, Enum):
     """Supported secrets backends."""
 
@@ -19,14 +18,12 @@ class SecretsBackend(str, Enum):
     FILE = "file"
     MEMORY = "memory"
 
-
 class CacheBackend(str, Enum):
     """Supported cache backends."""
 
     MEMORY = "memory"
     REDIS = "redis"
     NULL = "null"
-
 
 @dataclass
 class SecretsConfig:
@@ -312,18 +309,15 @@ class SecretsConfig:
 
         return warnings
 
-
 def create_default_config(**overrides) -> SecretsConfig:
     """Create default secrets configuration with optional overrides."""
     return SecretsConfig(**overrides)
-
 
 def create_openbao_config(vault_url: str, vault_token: str, **kwargs) -> SecretsConfig:
     """Create OpenBao-specific configuration."""
     return SecretsConfig(
         backend=SecretsBackend.OPENBAO, vault_url=vault_url, vault_token=vault_token, **kwargs
     )
-
 
 def create_development_config() -> SecretsConfig:
     """Create development configuration."""
@@ -335,7 +329,6 @@ def create_development_config() -> SecretsConfig:
         environment="development",
     )
 
-
 def create_production_config() -> SecretsConfig:
     """Create production configuration from environment."""
     config = SecretsConfig(environment="production")
@@ -343,9 +336,6 @@ def create_production_config() -> SecretsConfig:
     # Validate production readiness
     warnings = config.validate_production_readiness()
     if warnings:
-        import logging
-
-        logger = logging.getLogger(__name__)
         for warning in warnings:
             logger.warning(f"Production configuration warning: {warning}")
 

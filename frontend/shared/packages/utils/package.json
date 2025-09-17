@@ -1,0 +1,30 @@
+{
+  "name": "@dotmac/utils",
+  "version": "1.0.0",
+  "description": "Shared utility functions for DotMac ISP platform",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "utils",
+    "helpers",
+    "utilities",
+    "typescript"
+  ],
+  "author": "DotMac Team",
+  "license": "MIT",
+  "dependencies": {
+    "date-fns": "^2.30.0",
+    "lodash-es": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/lodash-es": "^4.17.0",
+    "typescript": "^5.0.0",
+    "tsup": "^8.0.0"
+  }
+}

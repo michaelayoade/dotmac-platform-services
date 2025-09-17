@@ -65,12 +65,22 @@ def upgrade() -> None:
     else:
         # Generic engines: attempt to add columns normally
         with op.batch_alter_table("bl_incidents") as batch:
-            batch.add_column(sa.Column("reporter_user_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=True))
+            batch.add_column(
+                sa.Column(
+                    "reporter_user_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=True
+                )
+            )
         with op.batch_alter_table("bl_payments") as batch:
-            batch.add_column(sa.Column("subscription_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=True))
+            batch.add_column(
+                sa.Column(
+                    "subscription_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=True
+                )
+            )
 
     # FKs (NOT VALID then VALIDATE for Postgres)
-    def add_fk_not_valid(table: str, cname: str, col: str, ref_table: str, ref_col: str, ondelete: str | None = None):
+    def add_fk_not_valid(
+        table: str, cname: str, col: str, ref_table: str, ref_col: str, ondelete: str | None = None
+    ):
         clause = f"ALTER TABLE {table} ADD CONSTRAINT {cname} FOREIGN KEY ({col}) REFERENCES {ref_table}({ref_col})"
         if ondelete:
             clause += f" ON DELETE {ondelete}"
@@ -136,4 +146,3 @@ def downgrade() -> None:
         batch.drop_column("subscription_id")
     with op.batch_alter_table("bl_incidents") as batch:
         batch.drop_column("reporter_user_id")
-

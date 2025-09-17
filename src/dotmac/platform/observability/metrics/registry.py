@@ -2,12 +2,13 @@
 Metrics registry abstraction over OpenTelemetry (SigNoz-compatible).
 """
 
-import logging
+
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
+from dotmac.platform.observability.unified_logging import get_logger
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry.sdk.metrics import Meter
@@ -25,8 +26,7 @@ except ImportError:
 
 CollectorRegistry = Any  # legacy collector type placeholder
 
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class MetricType(str, Enum):
     """Supported metric types."""
@@ -36,7 +36,6 @@ class MetricType(str, Enum):
     HISTOGRAM = "histogram"
     UP_DOWN_COUNTER = "up_down_counter"
     SUMMARY = "summary"
-
 
 @dataclass
 class MetricDefinition:
@@ -58,7 +57,6 @@ class MetricDefinition:
         # Ensure labels is not None
         if self.labels is None:
             self.labels = []
-
 
 @dataclass
 class MetricInstrument:
@@ -85,7 +83,6 @@ class MetricInstrument:
 
         except Exception as e:
             logger.error(f"Failed to record metric {self.definition.name}: {e}")
-
 
 class MetricsRegistry:
     """Unified metrics registry using OpenTelemetry instruments."""
@@ -257,7 +254,6 @@ class MetricsRegistry:
 
     # Prometheus instrument creation removed
 
-
 def initialize_metrics_registry(
     service_name: str,
 ) -> MetricsRegistry:
@@ -278,7 +274,6 @@ def initialize_metrics_registry(
     _register_default_metrics(registry)
 
     return registry
-
 
 def _register_default_metrics(registry: MetricsRegistry) -> None:
     """Register default system metrics."""

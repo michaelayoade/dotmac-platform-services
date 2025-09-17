@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from typing import Any, Optional
 
+from dotmac.platform.observability.unified_logging import get_logger
 try:
     from fastapi import Request, Response
     from fastapi.middleware.base import BaseHTTPMiddleware
@@ -27,13 +28,9 @@ except ImportError:
         pass
 
 
-import logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 from .manager import FeatureFlagManager
-
-
-
 
 class FeatureFlagMiddleware(BaseHTTPMiddleware):
     """
@@ -65,9 +62,15 @@ class FeatureFlagMiddleware(BaseHTTPMiddleware):
             request.state.feature_flag_manager = self.manager
 
             # Add convenience methods to request state
-            request.state.is_feature_enabled = lambda flag_key: self._check_feature_enabled(flag_key, context)
-            request.state.get_feature_variant = lambda flag_key: self._get_feature_variant(flag_key, context)
-            request.state.get_feature_payload = lambda flag_key: self._get_feature_payload(flag_key, context)
+            request.state.is_feature_enabled = lambda flag_key: self._check_feature_enabled(
+                flag_key, context
+            )
+            request.state.get_feature_variant = lambda flag_key: self._get_feature_variant(
+                flag_key, context
+            )
+            request.state.get_feature_payload = lambda flag_key: self._get_feature_payload(
+                flag_key, context
+            )
 
             # Process request
             response = await call_next(request)
@@ -132,14 +135,15 @@ class FeatureFlagMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error getting variant for {flag_key}: {e}")
             return None
 
-    async def _get_feature_payload(self, flag_key: str, context: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _get_feature_payload(
+        self, flag_key: str, context: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Get feature payload for context"""
         try:
             return await self.manager.get_payload(flag_key, context)
         except Exception as e:
             logger.error(f"Error getting payload for {flag_key}: {e}")
             return None
-
 
 class DjangoFeatureFlagMiddleware:
     """
@@ -165,8 +169,12 @@ class DjangoFeatureFlagMiddleware:
             request.feature_flag_manager = self.manager
 
             # Add convenience methods
-            request.is_feature_enabled = lambda flag_key: self._check_feature_enabled_sync(flag_key, context)
-            request.get_feature_variant = lambda flag_key: self._get_feature_variant_sync(flag_key, context)
+            request.is_feature_enabled = lambda flag_key: self._check_feature_enabled_sync(
+                flag_key, context
+            )
+            request.get_feature_variant = lambda flag_key: self._get_feature_variant_sync(
+                flag_key, context
+            )
 
         response = self.get_response(request)
         return response
@@ -210,7 +218,6 @@ class DjangoFeatureFlagMiddleware:
             return None
         finally:
             loop.close()
-
 
 class FlaskFeatureFlagExtension:
     """

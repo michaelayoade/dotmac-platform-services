@@ -69,9 +69,7 @@ class TestOAuthModels:
     def test_oauth_callback_request(self):
         """Test OAuth callback request model."""
         request = OAuthCallbackRequest(
-            session_id="session-123",
-            code="auth-code-xyz", 
-            state="state-123"
+            session_id="session-123", code="auth-code-xyz", state="state-123"
         )
 
         assert request.session_id == "session-123"
@@ -81,9 +79,7 @@ class TestOAuthModels:
     def test_oauth_callback_request_with_error(self):
         """Test OAuth callback request with error."""
         request = OAuthCallbackRequest(
-            session_id="session-456",
-            code="error-code-123",
-            state="state-123"
+            session_id="session-456", code="error-code-123", state="state-123"
         )
 
         assert request.session_id == "session-456"
@@ -341,7 +337,9 @@ class TestOAuthService:
         provider = OAuthProvider.GOOGLE
         token = "access-token-xyz"
 
-        revoke_url = oauth_service.config.providers[provider].get("revoke_url", "https://example.com/revoke")
+        revoke_url = oauth_service.config.providers[provider].get(
+            "revoke_url", "https://example.com/revoke"
+        )
         oauth_service.http_client = TestOAuthService.FakeHTTPClient(
             {("POST", revoke_url): TestOAuthService.FakeResponse(200, {})}
         )

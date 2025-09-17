@@ -15,4 +15,3 @@ def test_encrypt_decrypt_roundtrip():
     enc = encrypt_secret(secret, key)
     dec = decrypt_secret(enc, key)
     assert dec == secret
-

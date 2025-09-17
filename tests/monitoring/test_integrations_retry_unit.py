@@ -50,6 +50,7 @@ async def test_make_request_retries_and_raises(monkeypatch):
     # No sleep - use a proper async no-op
     async def no_sleep(s):
         return
+
     monkeypatch.setattr(asyncio, "sleep", no_sleep)
 
     req = httpx.Request("GET", "http://x")
@@ -77,6 +78,7 @@ async def test_initialize_failure_sets_error_status(monkeypatch):
             return None
 
     integ = SigNozIntegration(IntegrationConfig(name="c", endpoint="http://h"))
+
     # Force health_check to False
     async def bad_health(self):
         return False
@@ -105,4 +107,3 @@ async def test_manager_remove_nonexistent_and_inactive_broadcast():
     # No integrations -> empty dicts
     assert await mgr.broadcast_metrics([]) == {}
     assert await mgr.broadcast_alert({}) == {}
-

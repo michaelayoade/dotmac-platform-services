@@ -1,13 +1,13 @@
-import logging
+
 import warnings
 from typing import Any
 
 from fastapi import FastAPI
 
 from .config import ObservabilityConfig
-from .logging import create_logger as get_logger
 from .manager import ObservabilityManager
 
+from dotmac.platform.observability.unified_logging import get_logger
 __all__ = [
     # Manager class
     "ObservabilityManager",
@@ -173,7 +173,6 @@ except ImportError as e:
 # Service initialization and management
 _observability_service_registry: dict[str, Any] = {}
 
-
 def initialize_observability_service(config: dict[str, Any]) -> None:
     """Initialize observability services with configuration."""
     service_name = config.get("service_name", "dotmac-service")
@@ -219,13 +218,13 @@ def initialize_observability_service(config: dict[str, Any]) -> None:
         logger = get_logger(service_name)
         _observability_service_registry["logger"] = logger
     else:
-        logger = logging.getLogger(service_name)
+        logger = get_logger(service_name)
         _observability_service_registry["logger"] = logger
 
     # Initialize tracing manager if available
     if _tracing_available and TracingManager:
         try:
-            tracing_cfg = obs_cfg if 'obs_cfg' in locals() else ObservabilityConfig(service_name=service_name, environment=environment)  # type: ignore[name-defined]
+            tracing_cfg = obs_cfg if "obs_cfg" in locals() else ObservabilityConfig(service_name=service_name, environment=environment)  # type: ignore[name-defined]
         except Exception:
             tracing_cfg = None
         tracing_manager = TracingManager(config=tracing_cfg)
@@ -235,19 +234,16 @@ def initialize_observability_service(config: dict[str, Any]) -> None:
     if _health_available and ObservabilityHealth:
         _observability_service_registry["health"] = None
 
-
 def get_observability_service(name: str) -> Any | None:
     """Get an initialized observability service."""
     return _observability_service_registry.get(name)
-
 
 def is_observability_service_available(name: str) -> bool:
     """Check if observability service is available."""
     return name in _observability_service_registry
 
-
 # FastAPI integration helpers
-def add_observability_middleware(app, config: dict[str, Any] | None = None):
+def add_observability_middleware(app: FastAPI, config: dict[str, Any] | None = None):
     """Add observability middleware to FastAPI app."""
     if not isinstance(app, FastAPI):
         raise TypeError("app must be a FastAPI instance")
@@ -269,7 +265,6 @@ def add_observability_middleware(app, config: dict[str, Any] | None = None):
 
     return app
 
-
 # Simple environment helpers expected by tests
 def get_current_environment() -> str:
     """Return the current environment string.
@@ -280,7 +275,6 @@ def get_current_environment() -> str:
 
     env = os.getenv("ENVIRONMENT") or os.getenv("DOTMAC_ENV") or "development"
     return env.lower()
-
 
 def is_observability_enabled() -> bool:
     """Return whether observability is enabled via env (default: True)."""

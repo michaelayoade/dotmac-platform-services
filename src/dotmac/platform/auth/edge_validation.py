@@ -348,6 +348,7 @@ class EdgeAuthMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Convert unexpected errors to ConfigurationError (500 status)
             from .exceptions import ConfigurationError
+
             auth_error = ConfigurationError(f"Authentication middleware error: {e}")
             return await self.error_handler(request, auth_error)
 

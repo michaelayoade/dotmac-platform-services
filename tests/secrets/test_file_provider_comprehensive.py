@@ -19,6 +19,7 @@ from dotmac.platform.secrets.exceptions import (
 from dotmac.platform.secrets.interfaces import WritableSecretsProvider
 from dotmac.platform.secrets.providers.file import FileProvider
 
+
 # Module-level fixtures reused by multiple classes
 @pytest.fixture
 def temp_file():

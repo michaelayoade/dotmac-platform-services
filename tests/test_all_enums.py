@@ -3,7 +3,6 @@ Comprehensive tests for all enums and constants.
 Tests enum values, string representations, and usage.
 """
 
-
 import pytest
 
 

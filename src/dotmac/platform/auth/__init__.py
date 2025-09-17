@@ -281,36 +281,29 @@ def create_session_manager(config: dict[str, Any] = None) -> Any:
 class JWTServiceProtocol(Protocol):
     """Protocol for JWT service implementations."""
 
-    def create_access_token(self, data: dict[str, Any]) -> str:
-        ...
+    def create_access_token(self, data: dict[str, Any]) -> str: ...
 
-    def verify_token(self, token: str) -> dict[str, Any]:
-        ...
+    def verify_token(self, token: str) -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class RBACEngineProtocol(Protocol):
     """Protocol for RBAC engine implementations."""
 
-    def check_permission(self, user_roles: list[str], required_permission: str) -> bool:
-        ...
+    def check_permission(self, user_roles: list[str], required_permission: str) -> bool: ...
 
-    def add_role(self, role_name: str, permissions: list[str]) -> None:
-        ...
+    def add_role(self, role_name: str, permissions: list[str]) -> None: ...
 
 
 @runtime_checkable
 class SessionManagerProtocol(Protocol):
     """Protocol for session manager implementations."""
 
-    async def create_session(self, user_id: str, data: dict[str, Any]) -> str:
-        ...
+    async def create_session(self, user_id: str, data: dict[str, Any]) -> str: ...
 
-    async def get_session(self, session_id: str) -> dict[str, Any] | None:
-        ...
+    async def get_session(self, session_id: str) -> dict[str, Any] | None: ...
 
-    async def delete_session(self, session_id: str) -> bool:
-        ...
+    async def delete_session(self, session_id: str) -> bool: ...
 
 
 # Service initialization and management
@@ -509,7 +502,9 @@ def get_platform_config(config: dict[str, Any]) -> dict[str, Any]:
 
 
 # FastAPI integration helpers
-def add_auth_middleware(app, config: dict[str, Any] | None = None, service_name: str = "dotmac-platform") -> None:
+def add_auth_middleware(
+    app, config: dict[str, Any] | None = None, service_name: str = "dotmac-platform"
+) -> None:
     """Add authentication middleware to FastAPI app."""
     from fastapi import FastAPI
 
@@ -529,13 +524,17 @@ def add_auth_middleware(app, config: dict[str, Any] | None = None, service_name:
             jwt_service=get_auth_service("jwt"), patterns=config["edge_patterns"]
         )
         if edge_validator:
-            app.add_middleware(EdgeAuthMiddleware, validator=edge_validator, service_name=service_name)
+            app.add_middleware(
+                EdgeAuthMiddleware, validator=edge_validator, service_name=service_name
+            )
 
     # Add service auth middleware if available
     if _service_auth_available and ServiceAuthMiddleware is not None and "service_tokens" in config:
         service_manager = get_auth_service("service_tokens")
         if service_manager:
-            app.add_middleware(ServiceAuthMiddleware, token_manager=service_manager, service_name=service_name)
+            app.add_middleware(
+                ServiceAuthMiddleware, token_manager=service_manager, service_name=service_name
+            )
 
 
 # Utility functions for creating services
@@ -602,6 +601,7 @@ __all__ = [
     "RBACEngineProtocol",
     "SessionManagerProtocol",
 ]
+
 
 # Lightweight utility functions expected by tests
 def constant_time_compare(a: str | bytes, b: str | bytes) -> bool:

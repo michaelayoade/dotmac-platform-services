@@ -5,15 +5,18 @@ Provides unified access to secrets with caching, validation, and observability
 
 from __future__ import annotations
 
-import logging
+
 import time
 from typing import Any
 
 from .cache import InMemoryCache
 from .exceptions import (
+
     SecretNotFoundError,
     SecretValidationError,
 )
+from dotmac.platform.observability.unified_logging import get_logger
+
 from .interfaces import (
     ObservabilityHook,
     SecretCache,
@@ -31,8 +34,7 @@ from .types import (
 )
 from .validators import create_default_validator
 
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class SecretsManager:
     """

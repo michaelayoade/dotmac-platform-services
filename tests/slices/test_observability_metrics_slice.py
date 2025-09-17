@@ -21,4 +21,3 @@ def test_metrics_registry_register_and_get():
     assert reg.register(d) is True
     got = reg.get("app.requests")
     assert got is not None and got.name == "app.requests"
-

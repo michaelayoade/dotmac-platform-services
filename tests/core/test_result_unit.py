@@ -93,4 +93,3 @@ async def test_try_async_result_wrapper():
 
     r2 = await try_async_result(bad())
     assert r2.is_failure and isinstance(r2.error, RuntimeError)
-

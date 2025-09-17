@@ -1,0 +1,72 @@
+{
+  "name": "@dotmac/assets",
+  "version": "1.0.0",
+  "description": "Asset lifecycle management and inventory tracking for ISP operations",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "lint:fix": "eslint src/**/*.{ts,tsx} --fix",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@dotmac/primitives": "*",
+    "@dotmac/headless": "*",
+    "@dotmac/auth": "*",
+    "clsx": "^2.1.1",
+    "class-variance-authority": "^0.7.0",
+    "lucide-react": "^0.460.0",
+    "date-fns": "^3.6.0",
+    "react-hook-form": "^7.53.0",
+    "@hookform/resolvers": "^3.9.0",
+    "zod": "^3.23.8",
+    "recharts": "^2.12.7",
+    "react-select": "^5.8.2",
+    "react-table": "^7.8.0",
+    "react-barcode-scanner": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/react-table": "^7.7.20",
+    "typescript": "^5.9.2",
+    "tsup": "^8.3.5",
+    "eslint": "^8.57.1",
+    "jest": "^29.7.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/user-event": "^14.5.2"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dotmac-framework/frontend.git",
+    "directory": "packages/assets"
+  },
+  "keywords": [
+    "react",
+    "assets",
+    "inventory",
+    "lifecycle-management",
+    "asset-tracking",
+    "maintenance",
+    "isp",
+    "dotmac"
+  ],
+  "author": "DotMac Framework Team",
+  "license": "MIT"
+}

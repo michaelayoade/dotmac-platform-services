@@ -205,10 +205,12 @@ class TestEventPublisher:
 
         publisher = TestEventPublisher()
         await publisher.publish("test_event", {"data": "test"})
-        await publisher.publish_batch([
-            ("event1", {"data": 1}),
-            ("event2", {"data": 2}),
-        ])
+        await publisher.publish_batch(
+            [
+                ("event1", {"data": 1}),
+                ("event2", {"data": 2}),
+            ]
+        )
 
 
 @pytest.mark.unit
@@ -263,8 +265,7 @@ class TestQueryBuilder:
 
         builder = TestQueryBuilder()
         query = (
-            builder
-            .filter(name="test")
+            builder.filter(name="test")
             .order_by("created_at", desc=True)
             .limit(10)
             .offset(0)
@@ -275,5 +276,3 @@ class TestQueryBuilder:
         assert query["limit"] == 10
         assert query["offset"] == 0
         assert query["order"] == ("created_at", True)
-
-

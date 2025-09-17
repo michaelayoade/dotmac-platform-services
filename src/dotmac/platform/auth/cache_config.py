@@ -1,6 +1,5 @@
 """Cache configuration for auth module."""
 
-
 from pydantic import BaseModel, Field
 
 

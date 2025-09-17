@@ -3,7 +3,6 @@ Comprehensive tests for all configuration models.
 Tests Pydantic models, validation, and default values.
 """
 
-
 import pytest
 
 

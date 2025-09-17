@@ -1,0 +1,33 @@
+{
+  "name": "@dotmac/frontend-shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable DotMac frontend workspace containing shared packages only.",
+  "scripts": {
+    "install": "pnpm install --frozen-lockfile=false",
+    "dev": "pnpm -r --parallel --filter ./shared/packages/** run dev",
+    "build": "pnpm -r --filter ./shared/packages/** run build && pnpm build:base-app",
+    "lint": "pnpm -r --filter ./shared/packages/** run lint && pnpm --filter @dotmac/base-app lint",
+    "test": "pnpm -r --filter ./shared/packages/** run test",
+    "test:ci": "pnpm -r --filter ./shared/packages/** run test:ci && pnpm --filter @dotmac/base-app test:ci",
+    "test:coverage": "pnpm -r --filter ./shared/packages/** run test --coverage && pnpm --filter @dotmac/base-app test --coverage",
+    "type-check": "pnpm -r --filter ./shared/packages/** run type-check && pnpm --filter @dotmac/base-app type-check",
+    "generate:api-client": "openapi-typescript ../openapi.json --output shared/packages/http-client/src/generated-schema.ts",
+    "dev:base-app": "pnpm --filter @dotmac/base-app dev",
+    "build:base-app": "pnpm --filter @dotmac/base-app build",
+    "e2e": "playwright test",
+    "e2e:ci": "playwright test --reporter=github",
+    "e2e:headed": "playwright test --headed",
+    "e2e:debug": "playwright test --debug",
+    "clean": "pnpm -r --filter ./shared/packages/** run clean && pnpm --filter @dotmac/base-app run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.5.2"
+  }
+}

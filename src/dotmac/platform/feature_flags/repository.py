@@ -2,6 +2,7 @@
 Production-ready feature flag repository using DRY patterns.
 Provides database operations with tenant isolation and caching.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

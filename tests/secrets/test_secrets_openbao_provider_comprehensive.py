@@ -58,7 +58,9 @@ class TestOpenBaoProvider:
             self.headers = {}
 
         def request(self, method, url, **kwargs):
-            resp = self.mapping.get((method, url), TestOpenBaoProvider.FakeResponse(404, {}, "Not Found"))
+            resp = self.mapping.get(
+                (method, url), TestOpenBaoProvider.FakeResponse(404, {}, "Not Found")
+            )
             return TestOpenBaoProvider.FakeCM(resp)
 
     @pytest.fixture
@@ -217,7 +219,10 @@ class TestOpenBaoProvider:
         """Test that _ensure_session uses injected session when provided."""
         fake = Mock()
         fake.closed = False
-        fake.headers = {"X-Vault-Token": provider_config["token"], "Content-Type": "application/json"}
+        fake.headers = {
+            "X-Vault-Token": provider_config["token"],
+            "Content-Type": "application/json",
+        }
         provider = OpenBaoProvider(**provider_config, http_client=fake)
 
         await provider._ensure_session()
@@ -283,11 +288,14 @@ class TestOpenBaoProvider:
     @pytest.mark.asyncio
     async def test_request_success_with_json_response(self, provider):
         """Test successful request with JSON response."""
-        fake = self.FakeAioSession({
-            ("GET", "https://vault.example.com/v1/sys/health"): self.FakeResponse(
-                200, {"data": {"key": "value"}},
-            )
-        })
+        fake = self.FakeAioSession(
+            {
+                ("GET", "https://vault.example.com/v1/sys/health"): self.FakeResponse(
+                    200,
+                    {"data": {"key": "value"}},
+                )
+            }
+        )
         provider._session = fake
         result = await provider._request("GET", "v1/sys/health")
         assert result == {"data": {"key": "value"}}
@@ -295,9 +303,9 @@ class TestOpenBaoProvider:
     @pytest.mark.asyncio
     async def test_request_success_204_no_content(self, provider):
         """Test successful request with 204 No Content."""
-        fake = self.FakeAioSession({
-            ("DELETE", "https://vault.example.com/v1/secret/data/test"): self.FakeResponse(204)
-        })
+        fake = self.FakeAioSession(
+            {("DELETE", "https://vault.example.com/v1/secret/data/test"): self.FakeResponse(204)}
+        )
         provider._session = fake
         result = await provider._request("DELETE", "v1/secret/data/test")
         assert result == {"success": True}
@@ -305,9 +313,13 @@ class TestOpenBaoProvider:
     @pytest.mark.asyncio
     async def test_request_404_not_found(self, provider):
         """Test request handling 404 Not Found."""
-        fake = self.FakeAioSession({
-            ("GET", "https://vault.example.com/v1/secret/data/nonexistent"): self.FakeResponse(404, {}, "Not Found")
-        })
+        fake = self.FakeAioSession(
+            {
+                ("GET", "https://vault.example.com/v1/secret/data/nonexistent"): self.FakeResponse(
+                    404, {}, "Not Found"
+                )
+            }
+        )
         provider._session = fake
         with pytest.raises(SecretNotFoundError):
             await provider._request("GET", "v1/secret/data/nonexistent")
@@ -315,9 +327,13 @@ class TestOpenBaoProvider:
     @pytest.mark.asyncio
     async def test_request_403_forbidden(self, provider):
         """Test request handling 403 Forbidden."""
-        fake = self.FakeAioSession({
-            ("GET", "https://vault.example.com/v1/secret/data/restricted"): self.FakeResponse(403, {}, "Forbidden")
-        })
+        fake = self.FakeAioSession(
+            {
+                ("GET", "https://vault.example.com/v1/secret/data/restricted"): self.FakeResponse(
+                    403, {}, "Forbidden"
+                )
+            }
+        )
         provider._session = fake
         with pytest.raises(ProviderAuthorizationError):
             await provider._request("GET", "v1/secret/data/restricted")
@@ -325,9 +341,13 @@ class TestOpenBaoProvider:
     @pytest.mark.asyncio
     async def test_request_401_unauthorized(self, provider):
         """Test request handling 401 Unauthorized."""
-        fake = self.FakeAioSession({
-            ("GET", "https://vault.example.com/v1/secret/data/test"): self.FakeResponse(401, {}, "Unauthorized")
-        })
+        fake = self.FakeAioSession(
+            {
+                ("GET", "https://vault.example.com/v1/secret/data/test"): self.FakeResponse(
+                    401, {}, "Unauthorized"
+                )
+            }
+        )
         provider._session = fake
         with pytest.raises(ProviderAuthenticationError):
             await provider._request("GET", "v1/secret/data/test")

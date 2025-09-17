@@ -8,7 +8,7 @@ and backup codes with device management and JWT integration.
 import base64
 import io
 import json
-import logging
+
 import secrets
 import string
 from datetime import UTC, datetime, timedelta
@@ -19,10 +19,13 @@ from uuid import uuid4
 import pyotp
 import qrcode
 from pydantic import (
+
     BaseModel,
     Field,
     model_validator,
 )
+from dotmac.platform.observability.unified_logging import get_logger
+
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,7 +37,6 @@ from .exceptions import (
 )
 from .jwt_service import JWTService
 
-
 class MFAMethod(str, Enum):
     """Supported MFA methods."""
 
@@ -43,7 +45,6 @@ class MFAMethod(str, Enum):
     EMAIL = "email"
     BACKUP_CODE = "backup_code"
 
-
 class MFAStatus(str, Enum):
     """MFA enrollment status."""
 
@@ -51,7 +52,6 @@ class MFAStatus(str, Enum):
     ACTIVE = "active"
     DISABLED = "disabled"
     SUSPENDED = "suspended"
-
 
 class MFADevice(Base):
     """Database model for MFA devices."""
@@ -80,7 +80,6 @@ class MFADevice(Base):
     failure_count: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-
 class MFAChallenge(Base):
     """Database model for MFA challenges."""
 
@@ -101,7 +100,6 @@ class MFAChallenge(Base):
         DateTime(timezone=True), nullable=False, default=datetime.utcnow
     )
 
-
 class MFAEnrollmentRequest(BaseModel):
     """Request model for MFA enrollment."""
 
@@ -118,13 +116,11 @@ class MFAEnrollmentRequest(BaseModel):
             raise ValueError("Email required for email method")
         return self
 
-
 class MFAVerificationRequest(BaseModel):
     """Request model for MFA verification."""
 
     challenge_token: str
     code: str = Field(..., min_length=4, max_length=10)
-
 
 class TOTPSetupResponse(BaseModel):
     """Response model for TOTP setup."""
@@ -134,7 +130,6 @@ class TOTPSetupResponse(BaseModel):
     backup_codes: list[str]
     # Optional for backward-compatibility with tests that omit it
     device_id: str | None = None
-
 
 class MFAServiceConfig(BaseModel):
     """Configuration for MFA Service."""
@@ -154,13 +149,12 @@ class MFAServiceConfig(BaseModel):
     sms_provider: str | None = None
     email_provider: str | None = None
 
-
 class SMSProvider:
     """SMS provider interface."""
 
     async def send_sms(self, phone_number: str, message: str) -> bool:
         """Send SMS message."""
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.info(
             "SMS sent to %s for MFA verification",
             phone_number[-4:].rjust(len(phone_number), "*"),
@@ -176,13 +170,12 @@ class SMSProvider:
         """Compatibility helper: send a plain verification code via SMS."""
         return await self.send_sms(phone_number, f"Your verification code is: {code}")
 
-
 class EmailProvider:
     """Email provider interface."""
 
     async def send_email(self, email: str, subject: str, body: str) -> bool:
         """Send email message."""
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.info(
             "Email sent to %s with subject: %s",
             email.split("@")[0][:3] + "***@" + email.split("@")[1],
@@ -201,7 +194,6 @@ class EmailProvider:
         subject = "Your verification code"
         body = f"Your verification code is: {code}"
         return await self.send_email(email, subject, body)
-
 
 class MFAService:
     """
@@ -332,7 +324,9 @@ class MFAService:
         success: bool
         challenge_id: str | None = None
 
-    async def send_sms_code(self, user_id: str, phone_number: str) -> "MFAService.ChallengeSendResponse":
+    async def send_sms_code(
+        self, user_id: str, phone_number: str
+    ) -> "MFAService.ChallengeSendResponse":
         """Send an SMS code using provider; returns a simple response model.
 
         This is a minimal helper for tests that mock the provider and DB session.
@@ -734,7 +728,11 @@ class MFAService:
         """Get brief MFA status for a user (test-friendly)."""
         db = getattr(self, "db_session", self.db)
         devices = db.query().filter().all()
-        active_methods = [getattr(d, "method", None) for d in devices if getattr(d, "status", None) == MFAStatus.ACTIVE]
+        active_methods = [
+            getattr(d, "method", None)
+            for d in devices
+            if getattr(d, "status", None) == MFAStatus.ACTIVE
+        ]
         active_methods = [m for m in active_methods if m is not None]
         return MFAService.MFAStatusInfo(enabled=bool(active_methods), methods=active_methods)
 
@@ -751,9 +749,9 @@ class MFAService:
                 "is_primary": device.is_primary,
                 "last_used": device.last_used.isoformat() if device.last_used else None,
                 "created_at": device.created_at.isoformat(),
-                "phone_hint": self._mask_phone_number(device.phone_number)
-                if device.phone_number
-                else None,
+                "phone_hint": (
+                    self._mask_phone_number(device.phone_number) if device.phone_number else None
+                ),
                 "email_hint": self._mask_email(device.email) if device.email else None,
             }
             for device in devices
@@ -890,9 +888,7 @@ class MFAService:
             .all()
         )
 
-
 # Utility functions for JWT integration
-
 
 def extract_mfa_claims(token_payload: dict[str, Any]) -> dict[str, Any] | None:
     """Extract MFA claims from JWT token payload.
@@ -912,11 +908,9 @@ def extract_mfa_claims(token_payload: dict[str, Any]) -> dict[str, Any] | None:
         "timestamp": token_payload.get("mfa_timestamp"),
     }
 
-
 def is_mfa_required_for_scope(scope: str, mfa_required_scopes: list[str]) -> bool:
     """Check if MFA is required for given scope."""
     return scope in mfa_required_scopes
-
 
 def is_mfa_token_valid(mfa_claims: dict[str, Any], max_age_seconds: int = 3600) -> bool:
     """Check if MFA token is still valid based on age."""
@@ -942,7 +936,6 @@ def is_mfa_token_valid(mfa_claims: dict[str, Any], max_age_seconds: int = 3600) 
             return False
     current_timestamp = int(datetime.now(UTC).timestamp())
     return (current_timestamp - mfa_ts) <= max_age_seconds
-
 
 async def _maybe_commit(db) -> None:
     if db is None:

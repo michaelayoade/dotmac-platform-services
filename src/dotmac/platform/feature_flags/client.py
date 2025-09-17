@@ -6,8 +6,9 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Optional, Union
 
-import logging
-logger = logging.getLogger(__name__)
+
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 from .manager import FeatureFlagManager
 from .models import (
@@ -20,9 +21,6 @@ from .models import (
     TargetingRule,
 )
 from .storage import DatabaseStorage, InMemoryStorage, RedisStorage
-
-
-
 
 class FeatureFlagClient:
     """
@@ -101,14 +99,18 @@ class FeatureFlagClient:
 
         return await self.manager.is_enabled(flag_key, context or {})
 
-    async def get_variant(self, flag_key: str, context: Optional[dict[str, Any]] = None) -> Optional[str]:
+    async def get_variant(
+        self, flag_key: str, context: Optional[dict[str, Any]] = None
+    ) -> Optional[str]:
         """Get A/B test variant for a feature flag"""
         if not self._initialized:
             await self.initialize()
 
         return await self.manager.get_variant(flag_key, context or {})
 
-    async def get_payload(self, flag_key: str, context: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
+    async def get_payload(
+        self, flag_key: str, context: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """Get feature payload for a feature flag"""
         if not self._initialized:
             await self.initialize()
@@ -327,9 +329,13 @@ class FeatureFlagClient:
         end_percentage: float = 100.0,
     ) -> bool:
         """Start a gradual rollout for an existing flag"""
-        return await self.manager.start_gradual_rollout(key, start_percentage, end_percentage, duration_hours)
+        return await self.manager.start_gradual_rollout(
+            key, start_percentage, end_percentage, duration_hours
+        )
 
-    async def stop_gradual_rollout(self, key: str, final_percentage: Optional[float] = None) -> bool:
+    async def stop_gradual_rollout(
+        self, key: str, final_percentage: Optional[float] = None
+    ) -> bool:
         """Stop a gradual rollout"""
         return await self.manager.stop_gradual_rollout(key, final_percentage)
 
@@ -345,7 +351,9 @@ class FeatureFlagClient:
                 "name": flag.name,
                 "description": flag.description,
                 "status": flag.status.value if hasattr(flag.status, "value") else flag.status,
-                "strategy": flag.strategy.value if hasattr(flag.strategy, "value") else flag.strategy,
+                "strategy": (
+                    flag.strategy.value if hasattr(flag.strategy, "value") else flag.strategy
+                ),
                 "created_at": flag.created_at.isoformat(),
                 "updated_at": flag.updated_at.isoformat(),
                 "tags": flag.tags,
@@ -410,7 +418,6 @@ class FeatureFlagClient:
     async def override_flag_for_testing(self, key: str, enabled: bool):
         """Context manager for temporarily overriding a flag in tests"""
         return self.manager.override_flag(key, enabled)
-
 
 # Convenience functions for common patterns
 async def create_client_from_env() -> FeatureFlagClient:

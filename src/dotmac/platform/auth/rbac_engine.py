@@ -10,14 +10,15 @@ Provides comprehensive role and permission management with:
 - Performance-optimized lookups
 """
 
-import logging
+
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from dotmac.platform.observability.unified_logging import get_logger
 
+logger = get_logger(__name__)
 
 class Action(str, Enum):
     """Common action enumerations (compatibility)."""
@@ -30,7 +31,6 @@ class Action(str, Enum):
     LIST = "list"
     EXECUTE = "execute"
     ALL = "*"
-
 
 class Resource(str, Enum):
     """Common resource enumerations (compatibility)."""
@@ -47,13 +47,11 @@ class Resource(str, Enum):
     SYSTEM = "system"
     ALL = "*"
 
-
 class PolicyEffect(str, Enum):
     """Effect of a policy rule."""
 
     ALLOW = "allow"
     DENY = "deny"
-
 
 # Backward-compat enums expected by some tests
 class PermissionType(str, Enum):
@@ -63,7 +61,6 @@ class PermissionType(str, Enum):
     ADMIN = "admin"
     EXECUTE = "execute"
     MANAGE = "manage"
-
 
 class ResourceType(str, Enum):
     USER = "user"
@@ -76,7 +73,6 @@ class ResourceType(str, Enum):
     ANALYTICS = "analytics"
     SYSTEM = "system"
     ALL = "*"
-
 
 @dataclass
 class Permission:
@@ -127,7 +123,8 @@ class Permission:
 
         # Pattern-based matching (regex)
         if (
-            self._is_pattern(action_self) and action_self not in ("*", "all")
+            self._is_pattern(action_self)
+            and action_self not in ("*", "all")
             and re.match(action_self, required_action_l)
             and (
                 self.resource == required_resource.lower()
@@ -141,7 +138,11 @@ class Permission:
             if (
                 action_self == required_action_l
                 or action_self == "*"
-                or (self._is_pattern(action_self) and action_self not in ("*", "all") and re.match(action_self, required_action_l))
+                or (
+                    self._is_pattern(action_self)
+                    and action_self not in ("*", "all")
+                    and re.match(action_self, required_action_l)
+                )
             ):
                 return True
 
@@ -172,10 +173,6 @@ class Permission:
             and self.resource == other.resource
             and self.conditions == other.conditions
         )
-
-
- 
-
 
 @dataclass
 class Role:
@@ -285,7 +282,6 @@ class Role:
             return False
         return self.name == other.name and self.tenant_id == other.tenant_id
 
-
 class PermissionCache:
     """Cache for permission lookups to improve performance."""
 
@@ -330,7 +326,6 @@ class PermissionCache:
             "hit_rate": hit_rate,
             "cache_size": len(self.cache),
         }
-
 
 class RBACEngine:
     """
@@ -427,7 +422,9 @@ class RBACEngine:
         # Check for inheritance cycles
         if role.parent_roles:
             # Ensure we pass a set to the cycle check
-            parent_set = role.parent_roles if isinstance(role.parent_roles, set) else set(role.parent_roles)
+            parent_set = (
+                role.parent_roles if isinstance(role.parent_roles, set) else set(role.parent_roles)
+            )
             self._check_inheritance_cycle(role.name, parent_set)
 
         self.roles[role.name] = role
@@ -822,7 +819,6 @@ class RBACEngine:
         engine.import_roles(data)
         return engine
 
-
 def create_rbac_engine(config: dict[str, Any] | None = None) -> RBACEngine:
     """Create RBAC engine with optional configuration."""
     config = config or {}
@@ -838,17 +834,14 @@ def create_rbac_engine(config: dict[str, Any] | None = None) -> RBACEngine:
 
     return engine
 
-
 # Convenience functions
 def create_permission(action: str, resource: str, **conditions: Any) -> Permission:
     """Create a permission with optional conditions."""
     return Permission(action=action, resource=resource, conditions=conditions)
 
-
 # ----------------------------------------------------------------------
 # Policy model used by tests
 # ----------------------------------------------------------------------
-
 
 @dataclass
 class Policy:
@@ -880,19 +873,16 @@ class Policy:
         # Conditions: simple equality checks
         return all(context.get(k) == v for k, v in self.conditions.items())
 
-
 # Async helpers expected by tests
 async def evaluate_policy_async(
     engine: RBACEngine, principal: str, resource: str, action: str
 ) -> bool:
     return engine.evaluate_policy(principal, resource, action)
 
-
 async def check_permission_async(
     engine: RBACEngine, role: str | list[str], action: str, resource: str
 ) -> bool:
     return engine.check_permission(role, action, resource)
-
 
 def create_role(name: str, permissions: list[str], description: str | None = None) -> Role:
     """Create a role with permissions from strings."""
@@ -900,7 +890,6 @@ def create_role(name: str, permissions: list[str], description: str | None = Non
     for perm_str in permissions:
         role.add_permission(perm_str)
     return role
-
 
 @dataclass
 class RBACConfig:

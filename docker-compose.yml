@@ -1,4 +1,7 @@
+version: '3.9'
+
 services:
+  # Core Database Services
   postgres:
     image: postgres:15-alpine
     container_name: dotmac-postgres
@@ -16,6 +19,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - dotmac-network
 
   redis:
     image: redis:7-alpine
@@ -27,7 +32,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - dotmac-network
 
+  # Secrets Management
   openbao:
     image: quay.io/openbao/openbao:latest
     container_name: dotmac-openbao
@@ -39,17 +47,288 @@ services:
     ports:
       - "8200:8200"
     command: server -dev
+    networks:
+      - dotmac-network
 
-  # Simple OTLP collector for receiving telemetry
-  otel-collector:
-    image: otel/opentelemetry-collector:latest
-    container_name: dotmac-otel-collector
-    command: ["--config=/etc/otel-collector.yaml"]
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: dotmac-rabbitmq
     ports:
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  # Object Storage (S3 Compatible)
+  minio:
+    image: minio/minio:latest
+    container_name: dotmac-minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DEFAULT_BUCKETS: dotmac-storage,dotmac-backups,dotmac-uploads
+    command: server /data --console-address ":9001"
     volumes:
-      - ./scripts/otel-collector-simple.yaml:/etc/otel-collector.yaml
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  # Search Engine
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: dotmac-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_MASTER_KEY: masterKey123456789
+      MEILI_ENV: development
+      MEILI_DB_PATH: /meili_data
+      MEILI_HTTP_PAYLOAD_SIZE_LIMIT: 104857600
+      MEILI_LOG_LEVEL: INFO
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  # Observability Stack - SigNoz
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8-alpine
+    container_name: dotmac-clickhouse
+    hostname: clickhouse
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./scripts/clickhouse-config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./scripts/clickhouse-users.xml:/etc/clickhouse-server/users.xml:ro
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: signoz_traces
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  signoz-alertmanager:
+    image: signoz/alertmanager:0.23.5
+    container_name: dotmac-signoz-alertmanager
+    volumes:
+      - alertmanager_data:/data
+    depends_on:
+      - clickhouse
+    restart: on-failure
+    networks:
+      - dotmac-network
+
+  signoz-query-service:
+    image: signoz/query-service:0.38.2
+    container_name: dotmac-signoz-query-service
+    ports:
+      - "8080:8080"
+    environment:
+      ClickHouseUrl: tcp://clickhouse:9000/?database=signoz_traces
+      ALERTMANAGER_API_PREFIX: http://signoz-alertmanager:9093/api/
+      SIGNOZ_LOCAL_DB_PATH: /var/lib/signoz/signoz.db
+      DASHBOARDS_PATH: /root/config/dashboards
+      STORAGE: clickhouse
+      GODEBUG: netdns=go
+      TELEMETRY_ENABLED: false
+    volumes:
+      - signoz_data:/var/lib/signoz
+      - ./scripts/dashboards:/root/config/dashboards:ro
+    depends_on:
+      - clickhouse
+      - signoz-alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8080/api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  signoz-frontend:
+    image: signoz/frontend:0.38.2
+    container_name: dotmac-signoz-frontend
+    ports:
+      - "3301:3301"
+    environment:
+      QUERY_SERVICE_URL: http://signoz-query-service:8080
+    depends_on:
+      - signoz-query-service
+    networks:
+      - dotmac-network
+
+  signoz-otel-collector:
+    image: signoz/signoz-otel-collector:0.88.11
+    container_name: dotmac-signoz-otel-collector
+    ports:
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver
+      - "8888:8888"     # Prometheus metrics
+      - "8889:8889"     # Prometheus exporter metrics
+      - "13133:13133"   # Health check
+      - "55679:55679"   # ZPages
+    environment:
+      OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 9000
+      CLICKHOUSE_DATABASE: signoz_traces
+      ALERTMANAGER_API_PREFIX: http://signoz-alertmanager:9093/api/
+      SIGNOZ_LOCAL_DB_PATH: /var/lib/signoz/signoz.db
+    volumes:
+      - ./scripts/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    depends_on:
+      - clickhouse
+      - signoz-query-service
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:13133"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dotmac-network
+
+  # Celery Workers
+  celery-worker:
+    build: .
+    container_name: dotmac-celery-worker
+    command: celery -A dotmac.platform.tasks.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      CELERY_BROKER_URL: amqp://admin:admin@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: postgresql+asyncpg://dotmac:dotmac_password@postgres:5432/dotmac
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_MASTER_KEY: masterKey123456789
+      DOTMAC_VAULT_URL: http://openbao:8200
+      DOTMAC_VAULT_TOKEN: root-token
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://signoz-otel-collector:4317
+      OTEL_SERVICE_NAME: dotmac-celery-worker
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+      - minio
+      - meilisearch
+    volumes:
+      - ./src:/app/src
+    networks:
+      - dotmac-network
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    container_name: dotmac-celery-beat
+    command: celery -A dotmac.platform.tasks.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      CELERY_BROKER_URL: amqp://admin:admin@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: postgresql+asyncpg://dotmac:dotmac_password@postgres:5432/dotmac
+      REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://signoz-otel-collector:4317
+      OTEL_SERVICE_NAME: dotmac-celery-beat
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+    volumes:
+      - ./src:/app/src
+    networks:
+      - dotmac-network
+    restart: unless-stopped
+
+  # Celery Monitoring
+  flower:
+    image: mher/flower:2.0
+    container_name: dotmac-flower
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: amqp://admin:admin@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FLOWER_BASIC_AUTH: admin:admin
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - dotmac-network
+
+  # Main Application (optional - for development)
+  app:
+    build: .
+    container_name: dotmac-app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://dotmac:dotmac_password@postgres:5432/dotmac
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://admin:admin@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_MASTER_KEY: masterKey123456789
+      DOTMAC_VAULT_URL: http://openbao:8200
+      DOTMAC_VAULT_TOKEN: root-token
+      DOTMAC_JWT_SECRET_KEY: your-secret-key-change-in-production
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://signoz-otel-collector:4317
+      OTEL_SERVICE_NAME: dotmac-app
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - minio
+      - meilisearch
+      - openbao
+      - signoz-otel-collector
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+    command: uvicorn dotmac.platform.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - dotmac-network
 
 volumes:
   postgres_data:
+  minio_data:
+  meilisearch_data:
+  clickhouse_data:
+  signoz_data:
+  alertmanager_data:
+
+networks:
+  dotmac-network:
+    driver: bridge

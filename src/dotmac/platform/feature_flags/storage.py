@@ -8,13 +8,11 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
 
-import logging
-logger = logging.getLogger(__name__)
+
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 from .models import FeatureFlag
-
-
-
 
 class FeatureFlagStorage(ABC):
     """Abstract base class for feature flag storage"""
@@ -48,7 +46,6 @@ class FeatureFlagStorage(ABC):
     async def delete_flag(self, flag_key: str) -> bool:
         """Delete a feature flag"""
         pass
-
 
 class RedisStorage(FeatureFlagStorage):
     """Redis-based storage for feature flags"""
@@ -168,7 +165,6 @@ class RedisStorage(FeatureFlagStorage):
             return obj.isoformat()
         return obj
 
-
 class DatabaseStorage(FeatureFlagStorage):
     """Database-based storage for feature flags"""
 
@@ -187,7 +183,7 @@ class DatabaseStorage(FeatureFlagStorage):
 
             # Create tables if they don't exist
             async with self.engine.begin() as conn:
-                from dotmac.database.base import Base
+                from dotmac.platform.database.base import Base
 
                 await conn.run_sync(Base.metadata.create_all)
 
@@ -209,7 +205,9 @@ class DatabaseStorage(FeatureFlagStorage):
             from .db_models import FeatureFlagModel
 
             async with self.session_factory() as session:
-                result = await session.execute(select(FeatureFlagModel).where(FeatureFlagModel.key == flag_key))
+                result = await session.execute(
+                    select(FeatureFlagModel).where(FeatureFlagModel.key == flag_key)
+                )
                 db_flag = result.scalar_one_or_none()
 
                 if db_flag:
@@ -244,7 +242,9 @@ class DatabaseStorage(FeatureFlagStorage):
 
             async with self.session_factory() as session:
                 # Check if flag exists
-                result = await session.execute(select(FeatureFlagModel).where(FeatureFlagModel.key == flag.key))
+                result = await session.execute(
+                    select(FeatureFlagModel).where(FeatureFlagModel.key == flag.key)
+                )
                 db_flag = result.scalar_one_or_none()
 
                 if db_flag:
@@ -269,13 +269,14 @@ class DatabaseStorage(FeatureFlagStorage):
             from .db_models import FeatureFlagModel
 
             async with self.session_factory() as session:
-                result = await session.execute(delete(FeatureFlagModel).where(FeatureFlagModel.key == flag_key))
+                result = await session.execute(
+                    delete(FeatureFlagModel).where(FeatureFlagModel.key == flag_key)
+                )
                 await session.commit()
                 return result.rowcount > 0
         except Exception as e:
             logger.error(f"Error deleting flag {flag_key} from database: {e}")
             return False
-
 
 class InMemoryStorage(FeatureFlagStorage):
     """In-memory storage for testing and development"""

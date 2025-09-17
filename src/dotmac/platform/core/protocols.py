@@ -59,9 +59,7 @@ class RepositoryProtocol(Protocol, Generic[T, CreateT, UpdateT]):
 class TenantAwareRepository(RepositoryProtocol[T, CreateT, UpdateT]):
     """Repository protocol with multi-tenant support."""
 
-    async def get_by_tenant(
-        self, tenant_id: str, skip: int = 0, limit: int = 100
-    ) -> list[T]:
+    async def get_by_tenant(self, tenant_id: str, skip: int = 0, limit: int = 100) -> list[T]:
         """Get entities for a specific tenant."""
         ...
 
@@ -98,14 +96,11 @@ class ServiceProtocol(Protocol):
     between repositories and other services.
     """
 
-    async def initialize(self) -> None:
-        ...
+    async def initialize(self) -> None: ...
 
-    async def shutdown(self) -> None:
-        ...
+    async def shutdown(self) -> None: ...
 
-    async def health_check(self) -> dict[str, Any]:
-        ...
+    async def health_check(self) -> dict[str, Any]: ...
 
 
 class UnitOfWork(Protocol):
@@ -124,11 +119,9 @@ class UnitOfWork(Protocol):
         ...
 
     # Tests also expect sync context manager methods to exist on the protocol
-    def __enter__(self):
-        ...
+    def __enter__(self): ...
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        ...
+    def __exit__(self, exc_type, exc_val, exc_tb): ...
 
     async def commit(self) -> None:
         """Commit all changes."""

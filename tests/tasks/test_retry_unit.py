@@ -12,7 +12,10 @@ def test_calculate_backoff_without_and_with_jitter():
     assert calculate_backoff(0, base_delay=1.0, backoff_factor=2.0, jitter=False) == 1.0
     assert calculate_backoff(1, base_delay=1.0, backoff_factor=2.0, jitter=False) == 2.0
     # Cap at max_delay
-    assert calculate_backoff(10, base_delay=1.0, backoff_factor=3.0, max_delay=5.0, jitter=False) == 5.0
+    assert (
+        calculate_backoff(10, base_delay=1.0, backoff_factor=3.0, max_delay=5.0, jitter=False)
+        == 5.0
+    )
 
     # With jitter, ensure within +/-25%
     d = calculate_backoff(2, base_delay=2.0, backoff_factor=2.0, jitter=True)

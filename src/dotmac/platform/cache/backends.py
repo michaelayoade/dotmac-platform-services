@@ -5,15 +5,16 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import logging
+
 import time
 from typing import Any
 
 from .config import CacheConfig
 from .exceptions import CacheConnectionError, CacheError
 from .interfaces import CacheBackend
+from dotmac.platform.observability.unified_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Try to import Redis for optional Redis cache support
 try:
@@ -23,7 +24,6 @@ try:
 except ImportError:
     HAS_REDIS = False
     redis = None
-
 
 class CacheEntry:
     """Internal cache entry with metadata."""
@@ -39,7 +39,6 @@ class CacheEntry:
         if self.ttl is None:
             return False
         return time.time() > self.created_at + self.ttl
-
 
 class InMemoryCache(CacheBackend):
     """
@@ -256,7 +255,6 @@ class InMemoryCache(CacheBackend):
         }
         return InMemoryCache._StatsResult(data)
 
-
 class RedisCache(CacheBackend):
     """
     Redis-based cache backend with TTL support.
@@ -397,7 +395,7 @@ class RedisCache(CacheBackend):
             # Tests expect flushdb for clear
             await self._redis.flushdb()
             return True
-        
+
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
             return False
@@ -437,7 +435,6 @@ class RedisCache(CacheBackend):
         if self._redis:
             await self._redis.close()
         self._connected = False
-
 
 class NullCache(CacheBackend):
     """

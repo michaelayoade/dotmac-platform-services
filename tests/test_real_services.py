@@ -15,7 +15,9 @@ from dotmac.platform.observability import ObservabilityManager
 # Mark all tests in this module as integration tests
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(os.getenv("DOTMAC_LIVE") != "1", reason="Live integration disabled (set DOTMAC_LIVE=1)"),
+    pytest.mark.skipif(
+        os.getenv("DOTMAC_LIVE") != "1", reason="Live integration disabled (set DOTMAC_LIVE=1)"
+    ),
 ]
 
 
@@ -57,9 +59,9 @@ async def test_redis_connection():
     # Clean up
     client.delete("test:key")
     # client.close() may not be awaitable depending on the client type
-    if hasattr(client, 'close'):
-        close_method = getattr(client, 'close')
-        if hasattr(close_method, '__await__'):
+    if hasattr(client, "close"):
+        close_method = getattr(client, "close")
+        if hasattr(close_method, "__await__"):
             await close_method()
         else:
             close_method()

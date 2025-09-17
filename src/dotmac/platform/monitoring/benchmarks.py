@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 """
 Benchmarking and performance tracking for platform monitoring.
 
@@ -20,8 +22,7 @@ from uuid import uuid4
 
 import structlog
 
-logger = structlog.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class BenchmarkStatus(str, Enum):
     """Benchmark execution status."""
@@ -31,7 +32,6 @@ class BenchmarkStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
 
 class BenchmarkType(str, Enum):
     """Types of benchmarks."""
@@ -45,7 +45,6 @@ class BenchmarkType(str, Enum):
     CPU = "cpu"
     NETWORK = "network"
     DATABASE = "database"
-
 
 @dataclass
 class BenchmarkMetric:
@@ -61,7 +60,6 @@ class BenchmarkMetric:
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.utcnow()
-
 
 @dataclass
 class BenchmarkResult:
@@ -104,7 +102,6 @@ class BenchmarkResult:
     def get_metrics_by_category(self, category: str) -> list[BenchmarkMetric]:
         """Get all metrics in a specific category."""
         return [metric for metric in self.metrics if metric.category == category]
-
 
 class PerformanceBenchmark(ABC):
     """Abstract base class for performance benchmarks."""
@@ -213,7 +210,6 @@ class PerformanceBenchmark(ABC):
             if isinstance(value, (int, float)):
                 result.add_metric(key, value, "units", category="benchmark")
 
-
 class CPUBenchmark(PerformanceBenchmark):
     """CPU performance benchmark."""
 
@@ -256,7 +252,6 @@ class CPUBenchmark(PerformanceBenchmark):
     async def teardown(self):
         """Cleanup CPU benchmark."""
         self.logger.info("CPU benchmark teardown complete")
-
 
 class MemoryBenchmark(PerformanceBenchmark):
     """Memory allocation and access benchmark."""
@@ -314,7 +309,6 @@ class MemoryBenchmark(PerformanceBenchmark):
         """Cleanup memory benchmark."""
         self.allocated_data.clear()
         self.logger.info("Memory benchmark teardown complete")
-
 
 class NetworkBenchmark(PerformanceBenchmark):
     """Network latency and throughput benchmark."""
@@ -380,7 +374,6 @@ class NetworkBenchmark(PerformanceBenchmark):
         """Cleanup network benchmark."""
         self.logger.info("Network benchmark teardown complete")
 
-
 @dataclass
 class BenchmarkSuiteConfig:
     """Configuration for benchmark suite."""
@@ -391,7 +384,6 @@ class BenchmarkSuiteConfig:
     parallel_execution: bool = False
     retry_failed: bool = False
     retry_count: int = 1
-
 
 class BenchmarkSuite:
     """Collection of benchmarks that can be run together."""
@@ -560,7 +552,6 @@ class BenchmarkSuite:
             "max_duration_seconds": max_duration,
             "total_metrics": sum(len(r.metrics) for r in self.results),
         }
-
 
 class BenchmarkManager:
     """Central manager for coordinating benchmark execution and results."""

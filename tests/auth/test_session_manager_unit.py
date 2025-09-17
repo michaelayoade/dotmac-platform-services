@@ -2,7 +2,6 @@
 Unit tests for SessionManager with MemorySessionBackend.
 """
 
-
 import pytest
 
 from dotmac.platform.auth.session_manager import (

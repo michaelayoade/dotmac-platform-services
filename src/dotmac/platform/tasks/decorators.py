@@ -11,11 +11,12 @@ enhanced automatically. Otherwise, safe no-op fallbacks are provided.
 from __future__ import annotations
 
 import functools
-import logging
+
 from collections.abc import Callable
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 try:  # Optional retry support
     from tenacity import retry as _retry
@@ -55,7 +56,6 @@ except Exception:  # pragma: no cover - fallback
             return decorator(r_args[0])
         return decorator
 
-
 def task(_func: Callable[..., Any] | None = None, *, name: str | None = None):
     """Generic task decorator (no runtime binding).
 
@@ -77,7 +77,6 @@ def task(_func: Callable[..., Any] | None = None, *, name: str | None = None):
     if _func is not None:
         return decorator(_func)
     return decorator
-
 
 def periodic_task(
     _func: Callable[..., Any] | None = None,

@@ -62,7 +62,7 @@ class ChaosMonkey:
             "total_calls": total,
             "failures": self.failure_count,
             "successes": self.success_count,
-            "failure_rate": self.failure_count / total if total > 0 else 0
+            "failure_rate": self.failure_count / total if total > 0 else 0,
         }
 
 
@@ -206,10 +206,7 @@ class TestDatabaseResilience:
 
                 # Wait for available connection
                 try:
-                    await asyncio.wait_for(
-                        asyncio.sleep(10),  # Simulate long wait
-                        timeout=timeout
-                    )
+                    await asyncio.wait_for(asyncio.sleep(10), timeout=timeout)  # Simulate long wait
                 except asyncio.TimeoutError:
                     raise TimeoutError("Connection pool timeout")
 
@@ -230,9 +227,9 @@ class TestDatabaseResilience:
                 return "timeout"
 
         # Launch multiple concurrent requests
-        results = await gather(*[
-            acquire_connection(pool) for _ in range(10)
-        ], return_exceptions=True)
+        results = await gather(
+            *[acquire_connection(pool) for _ in range(10)], return_exceptions=True
+        )
 
         # Some should timeout due to pool exhaustion
         timeouts = [r for r in results if r == "timeout"]
@@ -346,17 +343,14 @@ class TestAuthenticationResilience:
         import jwt
 
         service = JWTService(
-            algorithm="HS256",
-            secret="test-secret",
-            issuer="test",
-            default_audience="test"
+            algorithm="HS256", secret="test-secret", issuer="test", default_audience="test"
         )
 
         # Create token with current time
         token = service.issue_access_token("user123", expires_in=60)
 
         # Simulate clock skew - move time forward
-        with patch('time.time', return_value=time.time() + 65):
+        with patch("time.time", return_value=time.time() + 65):
             # Token should be expired
             with pytest.raises(jwt.ExpiredSignatureError):
                 service.verify_token(token)
@@ -367,10 +361,10 @@ class TestAuthenticationResilience:
             secret="test-secret",
             issuer="test",
             default_audience="test",
-            leeway_seconds=120  # 2 minutes leeway
+            leeway_seconds=120,  # 2 minutes leeway
         )
 
-        with patch('time.time', return_value=time.time() + 65):
+        with patch("time.time", return_value=time.time() + 65):
             # Should work with leeway
             claims = service_with_leeway.verify_token(token)
             assert claims["sub"] == "user123"
@@ -381,14 +375,11 @@ class TestAuthenticationResilience:
             MemorySessionBackend,
             SessionManager,
             SessionConfig,
-            SessionData
+            SessionData,
         )
         from datetime import datetime, timedelta
 
-        config = SessionConfig(
-            max_sessions_per_user=3,
-            session_lifetime_seconds=3600
-        )
+        config = SessionConfig(max_sessions_per_user=3, session_lifetime_seconds=3600)
 
         backend = InMemorySessionBackend()
         manager = SessionManager(config=config, backend=backend)
@@ -398,10 +389,7 @@ class TestAuthenticationResilience:
         # Create sessions concurrently
         async def create_session(index: int):
             try:
-                session = await manager.create_session(
-                    user_id=user_id,
-                    metadata={"index": index}
-                )
+                session = await manager.create_session(user_id=user_id, metadata={"index": index})
                 return session
             except Exception as e:
                 return str(e)
@@ -451,10 +439,7 @@ class TestAuthenticationResilience:
 
         # Concurrent operations
         rotation_task = asyncio.create_task(rotate_key())
-        validation_tasks = [
-            asyncio.create_task(validate_key(old_key))
-            for _ in range(5)
-        ]
+        validation_tasks = [asyncio.create_task(validate_key(old_key)) for _ in range(5)]
 
         # Wait for all to complete
         await rotation_task
@@ -480,18 +465,13 @@ class TestSecretsResilience:
         # Mock HTTP client with chaos
         async def chaotic_request(method, url, **kwargs):
             await chaos.async_maybe_fail(ClientError)
-            return AsyncMock(
-                status=200,
-                json=AsyncMock(return_value={"data": {"secret": "value"}})
-            )
+            return AsyncMock(status=200, json=AsyncMock(return_value={"data": {"secret": "value"}}))
 
         provider = OpenBaoProvider(
-            url="http://vault:8200",
-            token="test-token",
-            mount_point="secret"
+            url="http://vault:8200", token="test-token", mount_point="secret"
         )
 
-        with patch('aiohttp.ClientSession.request', chaotic_request):
+        with patch("aiohttp.ClientSession.request", chaotic_request):
             success_count = 0
             failure_count = 0
 
@@ -507,7 +487,9 @@ class TestSecretsResilience:
             assert success_count > 0
             assert failure_count > 0
 
-    @pytest.mark.skip(reason="Imports SecretsManager which is not present in current implementation")
+    @pytest.mark.skip(
+        reason="Imports SecretsManager which is not present in current implementation"
+    )
     async def test_secret_rotation_during_access(self):
         """Test secret rotation while being accessed"""
         from dotmac.platform.secrets.rotation import SecretRotationManager
@@ -544,11 +526,7 @@ class TestSecretsResilience:
                 rotation_count += 1
 
         # Run concurrently
-        await asyncio.gather(
-            access_secret(),
-            access_secret(),
-            rotate_secret()
-        )
+        await asyncio.gather(access_secret(), access_secret(), rotate_secret())
 
         # Both access and rotation should complete
         assert access_count == 20
@@ -624,8 +602,10 @@ class TestCascadingFailures:
             async def call(self, func: Callable, *args, **kwargs):
                 # Check if circuit should be reset
                 if self.state == "open":
-                    if (self.last_failure_time and
-                            time.time() - self.last_failure_time > self.reset_timeout):
+                    if (
+                        self.last_failure_time
+                        and time.time() - self.last_failure_time > self.reset_timeout
+                    ):
                         self.state = "half-open"
                         self.failure_count = 0
 

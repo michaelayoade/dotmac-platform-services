@@ -1,0 +1,77 @@
+{
+  "name": "@dotmac/analytics",
+  "version": "1.0.0",
+  "description": "Advanced business intelligence and analytics system for DotMac platform",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.mjs",
+      "require": "./dist/hooks/index.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.mjs",
+      "require": "./dist/components/index.js"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.mjs",
+      "require": "./dist/services/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.mjs",
+      "require": "./dist/utils/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "test": "jest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dotmac/headless": "workspace:*",
+    "@dotmac/primitives": "workspace:*",
+    "@dotmac/providers": "workspace:*",
+    "@dotmac/dashboard": "workspace:*",
+    "zustand": "^4.4.7",
+    "date-fns": "^3.0.6",
+    "recharts": "^2.8.0",
+    "d3": "^7.8.5",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.17",
+    "@types/d3": "^7.4.3",
+    "@types/lodash": "^4.14.202",
+    "@dotmac/typescript-config": "workspace:*",
+    "@dotmac/governance": "workspace:*",
+    "typescript": "^5.3.3",
+    "tsup": "^8.0.1",
+    "jest": "^29.7.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

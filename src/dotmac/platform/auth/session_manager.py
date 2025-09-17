@@ -1,3 +1,5 @@
+from dotmac.platform.observability.unified_logging import get_logger
+
 """
 Production-ready session management with Redis and memory backends.
 """
@@ -14,8 +16,7 @@ from typing import Any
 
 import structlog
 
-logger = structlog.get_logger(__name__)
-
+logger = get_logger(__name__)
 
 class SessionStatus(str, Enum):
     """Session status enumeration."""
@@ -24,7 +25,6 @@ class SessionStatus(str, Enum):
     EXPIRED = "expired"
     INVALIDATED = "invalidated"
     SUSPICIOUS = "suspicious"
-
 
 @dataclass
 class SessionData:
@@ -66,11 +66,9 @@ class SessionData:
         """Check if session is active."""
         return self.status == SessionStatus.ACTIVE and not self.is_expired()
 
-
 # ------------------------------------------------------------------
 # Compatibility models expected by some tests
 # ------------------------------------------------------------------
-
 
 @dataclass
 class Session:
@@ -86,7 +84,6 @@ class Session:
     @property
     def is_valid(self) -> bool:
         return not self.is_expired()
-
 
 class SessionConfig:
     """Lightweight session configuration with sensible defaults and validation."""
@@ -119,7 +116,6 @@ class SessionConfig:
         self.secure_cookie = secure_cookie
         self.same_site = same_site
 
-
 class SessionBackend(ABC):
     """Abstract base class for session storage backends."""
 
@@ -143,9 +139,7 @@ class SessionBackend(ABC):
     async def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions. Returns count of cleaned sessions."""
 
-
 # Removed _AwaitableResult test-only wrapper
-
 
 class MemorySessionBackend(SessionBackend):
     """In-memory session backend (async)."""
@@ -191,14 +185,19 @@ class MemorySessionBackend(SessionBackend):
 # Backwards-compatibility alias expected by some tests
 InMemorySessionBackend = MemorySessionBackend
 
-
 # Removed synchronous MemorySessionBackendSync test-only wrapper
-
 
 class RedisSessionBackend(SessionBackend):
     """Redis session backend for production."""
 
-    def __init__(self, redis_url: str | None = None, key_prefix: str = "session:", host: str | None = None, port: int | None = None, db: int | None = None) -> None:
+    def __init__(
+        self,
+        redis_url: str | None = None,
+        key_prefix: str = "session:",
+        host: str | None = None,
+        port: int | None = None,
+        db: int | None = None,
+    ) -> None:
         # Support either full URL or host/port/db triple (compatibility)
         if not redis_url and host is not None and port is not None and db is not None:
             redis_url = f"redis://{host}:{port}/{db}"
@@ -213,7 +212,7 @@ class RedisSessionBackend(SessionBackend):
             try:
                 import redis.asyncio as redis
 
-                self._redis = redis.from_url(self.redis_url, decode_responses=True)
+                self._redis = redis.Redis.from_url(self.redis_url, decode_responses=True)
             except ImportError:
                 raise ImportError("redis package required for RedisSessionBackend")
         return self._redis
@@ -310,7 +309,6 @@ class RedisSessionBackend(SessionBackend):
             logger.error("Failed to cleanup expired sessions", error=str(e))
             return 0
 
-
 class SessionManager:
     """Production-ready session manager."""
 
@@ -339,7 +337,9 @@ class SessionManager:
         if config is not None:
             # Support both attribute and dict-style configs
             try:
-                if hasattr(config, "max_sessions_per_user") and getattr(config, "max_sessions_per_user"):
+                if hasattr(config, "max_sessions_per_user") and getattr(
+                    config, "max_sessions_per_user"
+                ):
                     self.max_sessions_per_user = int(getattr(config, "max_sessions_per_user"))
                 if hasattr(config, "session_lifetime_seconds") and getattr(
                     config, "session_lifetime_seconds"
@@ -403,7 +403,9 @@ class SessionManager:
         ttl: int | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> SessionData:
-        return await self.create_session_async(user_id=user_id, tenant_id=tenant_id, ttl=ttl, metadata=metadata)
+        return await self.create_session_async(
+            user_id=user_id, tenant_id=tenant_id, ttl=ttl, metadata=metadata
+        )
 
     # Synchronous compatibility API used in tests
     # Removed legacy synchronous create_session used only by tests
@@ -536,7 +538,6 @@ class SessionManager:
             "max_sessions_per_user": self.max_sessions_per_user,
         }
 
-
 # Factory functions
 def create_memory_session_manager(**kwargs) -> SessionManager:
     """Create session manager with memory backend."""
@@ -546,12 +547,10 @@ def create_memory_session_manager(**kwargs) -> SessionManager:
 # Compatibility alias expected by some tests
 InMemorySessionBackend = MemorySessionBackend
 
-
 def create_redis_session_manager(redis_url: str, **kwargs) -> SessionManager:
     """Create session manager with Redis backend."""
     backend = RedisSessionBackend(redis_url)
     return SessionManager(backend, **kwargs)
-
 
 def create_session_manager(backend_type: str = "memory", **config) -> SessionManager:
     """Create session manager with specified backend."""

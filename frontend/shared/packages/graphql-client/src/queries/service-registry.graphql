@@ -1,0 +1,48 @@
+query ServicesQuery($status: ServiceStatus, $first: Int, $after: String) {
+  services(status: $status, first: $first, after: $after) {
+    nodes {
+      id
+      name
+      version
+      status
+      endpoint
+      healthCheckUrl
+      tags
+      metadata
+      registeredAt
+      lastHeartbeat
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+      totalCount
+    }
+  }
+}
+
+query ServiceQuery($serviceId: String!) {
+  service(serviceId: $serviceId) {
+    id
+    name
+    version
+    status
+    endpoint
+    healthCheckUrl
+    tags
+    metadata
+    registeredAt
+    lastHeartbeat
+  }
+}
+
+subscription ServiceHealthStreamSubscription {
+  serviceHealthStream {
+    serviceName
+    status
+    message
+    lastCheck
+    responseTimeMs
+  }
+}

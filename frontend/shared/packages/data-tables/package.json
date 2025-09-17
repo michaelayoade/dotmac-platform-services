@@ -1,0 +1,67 @@
+{
+  "name": "@dotmac/data-tables",
+  "version": "1.0.0",
+  "description": "Universal data table components for all DotMac portals - DRY-compliant table system",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles": {
+      "import": "./dist/styles.css",
+      "require": "./dist/styles.css"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "biome check src/",
+    "lint:fix": "biome check src/ --write",
+    "format": "biome format src/ --write",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@dotmac/primitives": "workspace:*",
+    "@dotmac/headless": "workspace:*",
+    "@tanstack/react-table": "^8.20.5",
+    "@tanstack/react-virtual": "^3.10.8",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.11.1",
+    "lucide-react": "^0.263.1",
+    "react-hotkeys-hook": "^4.5.1",
+    "fuse.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@dotmac/typescript-config": "workspace:*",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "keywords": [
+    "data-table",
+    "table",
+    "pagination",
+    "search",
+    "filter",
+    "sort",
+    "export",
+    "bulk-operations",
+    "isp",
+    "dotmac",
+    "dry"
+  ]
+}

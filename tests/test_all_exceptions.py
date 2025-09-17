@@ -3,7 +3,6 @@ Comprehensive tests for all exception classes.
 Tests exception hierarchy, error messages, and attributes.
 """
 
-
 import pytest
 
 

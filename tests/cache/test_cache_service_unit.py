@@ -60,6 +60,7 @@ async def test_cached_decorator_with_memory_backend_and_tenant_isolation():
 @pytest.mark.unit
 def test_cached_decorator_rejects_sync_functions():
     with pytest.raises(ValueError):
+
         @cached(ttl=10)
         def nope() -> int:  # noqa: D401 - intentionally sync
             return 1

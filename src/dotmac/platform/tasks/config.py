@@ -1,6 +1,5 @@
 """Task configuration module."""
 
-
 from pydantic import BaseModel, Field
 
 

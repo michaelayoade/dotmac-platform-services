@@ -44,11 +44,14 @@ def test_rbac_permissions_and_policies_basic():
     engine.add_policy(deny_updates)
 
     assert (
-        engine.check_permission_with_context(["editor"], Resource.USER, Action.UPDATE, {"maintenance": True})
+        engine.check_permission_with_context(
+            ["editor"], Resource.USER, Action.UPDATE, {"maintenance": True}
+        )
         is False
     )
     assert (
-        engine.check_permission_with_context(["editor"], Resource.USER, Action.UPDATE, {"maintenance": False})
+        engine.check_permission_with_context(
+            ["editor"], Resource.USER, Action.UPDATE, {"maintenance": False}
+        )
         is True
     )
-

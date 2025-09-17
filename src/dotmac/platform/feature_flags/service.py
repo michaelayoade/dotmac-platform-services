@@ -2,6 +2,7 @@
 Feature flag service layer using DRY patterns.
 Consolidates business logic with built-in CRUD operations.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -48,11 +49,15 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
 
         # Validate flag key format
         if not data.key.replace("-", "").replace("_", "").isalnum():
-            raise ValidationError("Flag key can only contain alphanumeric characters, hyphens, and underscores")
+            raise ValidationError(
+                "Flag key can only contain alphanumeric characters, hyphens, and underscores"
+            )
 
         return data
 
-    async def _apply_update_business_rules(self, entity_id: UUID, data: UpdateFlagRequest) -> UpdateFlagRequest:
+    async def _apply_update_business_rules(
+        self, entity_id: UUID, data: UpdateFlagRequest
+    ) -> UpdateFlagRequest:
         """Apply business rules for flag updates."""
         # Set updated timestamp
         if hasattr(data, "updated_at"):
@@ -107,7 +112,9 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
             await self.db.rollback()
             raise ValidationError(f"Failed to create feature flag: {str(e)}") from e
 
-    async def update_flag(self, flag_key: str, data: UpdateFlagRequest, user_id: str) -> dict[str, str]:
+    async def update_flag(
+        self, flag_key: str, data: UpdateFlagRequest, user_id: str
+    ) -> dict[str, str]:
         """Update an existing feature flag with database and client sync."""
         # Get current flag from database
         current_flag = await self.repository.find_by_key(flag_key)
@@ -129,9 +136,7 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
             client_success = await self.client.manager.update_flag(updated_flag)
             if not client_success:
                 # Log warning but don't fail - database is source of truth
-                import logging
-
-                logging.warning(f"Failed to sync flag '{flag_key}' with evaluation engine")
+                logger.warning(f"Failed to sync flag '{flag_key}' with evaluation engine")
 
             return {
                 "message": "Feature flag updated successfully",
@@ -157,9 +162,7 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
             # Remove from evaluation client
             client_success = await self.client.delete_flag(flag_key)
             if not client_success:
-                import logging
-
-                logging.warning(f"Failed to remove flag '{flag_key}' from evaluation engine")
+                logger.warning(f"Failed to remove flag '{flag_key}' from evaluation engine")
 
             return {"message": "Feature flag deleted successfully", "key": flag_key}
 
@@ -191,7 +194,9 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
             "payload": flag.payload,
         }
 
-    async def list_flags(self, tags: str | None = None, user_id: str | None = None) -> list[dict[str, Any]]:
+    async def list_flags(
+        self, tags: str | None = None, user_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """List feature flags with optional tag filtering from database."""
         if tags:
             tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
@@ -214,7 +219,9 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
             for flag in flags
         ]
 
-    async def evaluate_flag(self, flag_key: str, context: dict[str, Any], user_id: str) -> EvaluationResponse:
+    async def evaluate_flag(
+        self, flag_key: str, context: dict[str, Any], user_id: str
+    ) -> EvaluationResponse:
         """Evaluate a feature flag for given context."""
         enabled = await self.client.is_enabled(flag_key, context)
         variant = await self.client.get_variant(flag_key, context)

@@ -30,4 +30,3 @@ async def test_idempotent_does_not_cache_failures_then_succeeds():
         assert calls["n"] == 2
     finally:
         await cache.shutdown()
-

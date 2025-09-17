@@ -1,0 +1,8 @@
+query HealthQuery {
+  health {
+    status
+    version
+    timestamp
+    services
+  }
+}

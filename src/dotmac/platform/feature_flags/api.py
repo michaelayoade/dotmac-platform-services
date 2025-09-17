@@ -8,14 +8,12 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-import logging
-logger = logging.getLogger(__name__)
+
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 from .client import FeatureFlagClient
 from .models import FeatureFlag, FeatureFlagStatus, RolloutStrategy
-
-
-
 
 class CreateFlagRequest(BaseModel):
     key: str
@@ -30,7 +28,6 @@ class CreateFlagRequest(BaseModel):
     expires_at: Optional[datetime] = None
     payload: Optional[dict[str, Any]] = None
 
-
 class UpdateFlagRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -43,22 +40,21 @@ class UpdateFlagRequest(BaseModel):
     expires_at: Optional[datetime] = None
     payload: Optional[dict[str, Any]] = None
 
-
 class EvaluationRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
-
 
 class EvaluationResponse(BaseModel):
     enabled: bool
     variant: Optional[str] = None
     payload: Optional[dict[str, Any]] = None
 
-
 def create_feature_flag_router(client: FeatureFlagClient) -> APIRouter:
     router = APIRouter(prefix="/api/feature-flags", tags=["Feature Flags"])
 
     @router.get("/")
-    async def list_flags(tags: Optional[str] = Query(None, description="Comma-separated tags")) -> list[dict[str, Any]]:
+    async def list_flags(
+        tags: Optional[str] = Query(None, description="Comma-separated tags")
+    ) -> list[dict[str, Any]]:
         try:
             tag_list = tags.split(",") if tags else None
             flags_data = await client.list_flags(tag_list)

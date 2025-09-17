@@ -2,7 +2,6 @@
 Unit tests for dotmac.platform package exports and initialization.
 """
 
-
 import pytest
 
 

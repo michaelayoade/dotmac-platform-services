@@ -10,7 +10,7 @@ Application-specific behavior is injected via hooks.
 
 from __future__ import annotations
 
-import logging
+from dotmac.platform.observability.unified_logging import get_logger
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -26,6 +26,9 @@ try:
         initialize_otel,
         initialize_tenant_metrics,
     )
+from dotmac.platform.observability.unified_logging import get_logger
+
+
 except Exception as e:  # pragma: no cover - import guard
     raise ImportError(f"dotmac.platform.observability not available: {e}")
 
@@ -48,30 +51,27 @@ except Exception as e:  # pragma: no cover - import guard
 
 try:
     # Application configuration types
-    from dotmac.application.config import DeploymentMode, PlatformConfig
+    from dotmac.platform.config.base import BaseConfig as PlatformConfig
 except Exception as e:  # pragma: no cover - import guard
-    raise ImportError(f"dotmac.application.config not available: {e}")
+    raise ImportError(f"dotmac.platform.config.base not available: {e}")
 
-
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 @dataclass
 class ObservabilityHooks:
     """Hooks for injecting application-specific observability behavior."""
 
-    configure_tenant_patterns: Callable[
-        [TenantIdentityResolver, PlatformConfig], None
-    ] | None = None
+    configure_tenant_patterns: Callable[[TenantIdentityResolver, PlatformConfig], None] | None = (
+        None
+    )
     configure_route_sensitivity: Callable[[EdgeJWTValidator, PlatformConfig], None] | None = None
     register_business_metrics: Callable[[Any, PlatformConfig], None] | None = None
-    register_service_capabilities: Callable[
-        [Any, str, str, str, PlatformConfig], None
-    ] | None = None
-    customize_resource_attributes: Callable[
-        [dict[str, str], PlatformConfig], dict[str, str]
-    ] | None = None
-
+    register_service_capabilities: Callable[[Any, str, str, str, PlatformConfig], None] | None = (
+        None
+    )
+    customize_resource_attributes: (
+        Callable[[dict[str, str], PlatformConfig], dict[str, str]] | None
+    ) = None
 
 async def setup_observability(
     app: FastAPI,
@@ -213,7 +213,6 @@ async def setup_observability(
 
     return components
 
-
 def _select_exporters(environment: str) -> tuple[list[str], list[str]]:
     if environment == "development":
         return ["console"], ["console"]
@@ -221,25 +220,35 @@ def _select_exporters(environment: str) -> tuple[list[str], list[str]]:
         return ["otlp", "console"], ["otlp"]
     return ["otlp"], ["otlp"]  # production default
 
-
 def _get_service_name(platform_config: PlatformConfig) -> str:
-    if not platform_config.deployment_context:
-        return platform_config.platform_name
-    mode = platform_config.deployment_context.mode
-    if mode == DeploymentMode.TENANT_CONTAINER:
-        tenant_id = getattr(platform_config.deployment_context, "tenant_id", "unknown")
-        return f"{platform_config.platform_name}-{tenant_id}"
-    return platform_config.platform_name
+    # Prefer explicit platform/service name if available
+    service_name = getattr(platform_config, "platform_name", None) or getattr(
+        platform_config, "app_name", "dotmac-service"
+    )
 
+    context = getattr(platform_config, "deployment_context", None)
+    if not context:
+        return service_name
+
+    mode = getattr(context, "mode", None)
+    mode_value = getattr(mode, "value", mode)
+    if isinstance(mode_value, str) and mode_value.replace("-", "_").lower() == "tenant_container":
+        tenant_id = getattr(context, "tenant_id", "unknown")
+        return f"{service_name}-{tenant_id}"
+
+    return service_name
 
 def _get_resource_attributes(platform_config: PlatformConfig) -> dict[str, str]:
     attributes: dict[str, str] = {
         "service.namespace": "dotmac",
-        "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+        "deployment.environment": getattr(
+            platform_config, "environment", os.getenv("ENVIRONMENT", "production")
+        ),
     }
-    ctx = platform_config.deployment_context
+    ctx = getattr(platform_config, "deployment_context", None)
     if ctx:
-        attributes["deployment.mode"] = getattr(ctx.mode, "value", str(ctx.mode))
+        mode = getattr(ctx, "mode", None)
+        attributes["deployment.mode"] = getattr(mode, "value", str(mode))
         if getattr(ctx, "tenant_id", None):
             attributes["tenant.id"] = str(ctx.tenant_id)
     return attributes

@@ -2,7 +2,6 @@
 Final targeted tests to push secrets manager coverage over 85%
 """
 
-
 import pytest
 
 from dotmac.platform.secrets.exceptions import (

@@ -60,4 +60,3 @@ async def test_performance_benchmark_run_success_and_cancel(monkeypatch):
     cb = CancelBenchmark("c", None)  # type: ignore[arg-type]
     res2 = await cb.run()
     assert res2.status == BenchmarkStatus.CANCELLED
-

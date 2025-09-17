@@ -1,6 +1,5 @@
 """Monitoring configuration module."""
 
-
 from pydantic import BaseModel, Field
 
 

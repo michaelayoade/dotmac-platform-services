@@ -6,18 +6,18 @@ import functools
 import hashlib
 import inspect
 import json
-import logging
+
 from typing import Any, Callable, TypeVar
 
 from .backends import InMemoryCache, NullCache, RedisCache
 from .config import CacheConfig
 from .exceptions import CacheError
 from .interfaces import CacheBackend
+from dotmac.platform.observability.unified_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 T = TypeVar("T")
-
 
 class CacheService:
     """
@@ -99,7 +99,9 @@ class CacheService:
         """
         full_key = self._make_key(key, tenant_id)
         # Ensure backend is connected if it supports connectivity checks
-        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+        if hasattr(self.backend, "is_connected") and callable(
+            getattr(self.backend, "is_connected")
+        ):
             try:
                 if not self.backend.is_connected():  # type: ignore[attr-defined]
                     await self.backend.connect()  # type: ignore[attr-defined]
@@ -127,7 +129,9 @@ class CacheService:
             True if successful
         """
         full_key = self._make_key(key, tenant_id)
-        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+        if hasattr(self.backend, "is_connected") and callable(
+            getattr(self.backend, "is_connected")
+        ):
             try:
                 if not self.backend.is_connected():  # type: ignore[attr-defined]
                     await self.backend.connect()  # type: ignore[attr-defined]
@@ -147,7 +151,9 @@ class CacheService:
             True if key was deleted
         """
         full_key = self._make_key(key, tenant_id)
-        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+        if hasattr(self.backend, "is_connected") and callable(
+            getattr(self.backend, "is_connected")
+        ):
             try:
                 if not self.backend.is_connected():  # type: ignore[attr-defined]
                     await self.backend.connect()  # type: ignore[attr-defined]
@@ -167,7 +173,9 @@ class CacheService:
             True if key exists
         """
         full_key = self._make_key(key, tenant_id)
-        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+        if hasattr(self.backend, "is_connected") and callable(
+            getattr(self.backend, "is_connected")
+        ):
             try:
                 if not self.backend.is_connected():  # type: ignore[attr-defined]
                     await self.backend.connect()  # type: ignore[attr-defined]
@@ -191,7 +199,9 @@ class CacheService:
             # In production, you'd want to use SCAN with pattern matching
             logger.warning("Tenant-specific clear not fully implemented")
             return True
-        if hasattr(self.backend, "is_connected") and callable(getattr(self.backend, "is_connected")):
+        if hasattr(self.backend, "is_connected") and callable(
+            getattr(self.backend, "is_connected")
+        ):
             try:
                 if not self.backend.is_connected():  # type: ignore[attr-defined]
                     await self.backend.connect()  # type: ignore[attr-defined]
@@ -243,7 +253,6 @@ class CacheService:
         key_str = "|".join(key_parts)
         return hashlib.sha256(key_str.encode()).hexdigest()
 
-
 def cached(
     ttl: int | None = None,
     key_prefix: str | None = None,
@@ -268,6 +277,7 @@ def cached(
             # Expensive operation
             return await fetch_user_from_db(user_id)
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         # Check if function is async
         if not inspect.iscoroutinefunction(func):
@@ -322,7 +332,6 @@ def cached(
         return wrapper
 
     return decorator
-
 
 def create_cache_service(
     config: CacheConfig | None = None,

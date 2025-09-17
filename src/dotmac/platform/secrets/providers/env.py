@@ -5,7 +5,7 @@ Includes production safeguards and validation
 
 from __future__ import annotations
 
-import logging
+
 import os
 import warnings
 from urllib.parse import parse_qs, urlparse
@@ -14,8 +14,8 @@ from ..exceptions import SecretNotFoundError
 from ..types import Environment, SecretData
 from .base import BaseProvider
 
-logger = logging.getLogger(__name__)
-
+from dotmac.platform.observability.unified_logging import get_logger
+logger = get_logger(__name__)
 
 class EnvironmentProvider(BaseProvider):
     """
