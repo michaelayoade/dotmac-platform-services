@@ -6,7 +6,7 @@ Shared interfaces, base classes, and protocols for import/export operations.
 
 import asyncio
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Protocol
@@ -251,7 +251,7 @@ class BaseDataProcessor(ABC):
             if hasattr(self._progress, key):
                 setattr(self._progress, key, value)
 
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
 
         if (
             self.progress_callback

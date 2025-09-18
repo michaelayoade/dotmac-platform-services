@@ -3,7 +3,7 @@ Feature flag client for easy integration with applications
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any, Optional, Union
 
 
@@ -232,7 +232,7 @@ class FeatureFlagClient:
         tags: Optional[list[str]] = None,
     ) -> bool:
         """Create a gradual rollout flag"""
-        start_date = datetime.utcnow()
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(hours=duration_hours)
 
         flag = FeatureFlag(
@@ -410,7 +410,7 @@ class FeatureFlagClient:
 
         return {
             "environment": self.environment,
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(UTC).isoformat(),
             "flags": config,
         }
 

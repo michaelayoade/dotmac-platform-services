@@ -4,7 +4,7 @@ Tests for OAuth Service - matching actual implementation.
 
 import base64
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import Mock, patch
 
 import pytest
@@ -357,7 +357,7 @@ class TestOAuthService:
         # Mock finding valid state in database
         mock_session = Mock(spec=OAuthSession)
         mock_session.state = state
-        mock_session.created_at = datetime.utcnow()
+        mock_session.created_at = datetime.now(UTC)
 
         mock_db_session.query().filter().first.return_value = mock_session
 
@@ -374,7 +374,7 @@ class TestOAuthService:
         # Mock finding expired state
         mock_session = Mock(spec=OAuthSession)
         mock_session.state = state
-        mock_session.created_at = datetime.utcnow() - timedelta(hours=1)
+        mock_session.created_at = datetime.now(UTC) - timedelta(hours=1)
 
         mock_db_session.query().filter().first.return_value = mock_session
 

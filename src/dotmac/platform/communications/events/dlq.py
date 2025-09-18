@@ -6,7 +6,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 
 from .bus import EventBus
@@ -479,7 +479,7 @@ def create_reprocess_after_delay_filter(delay_minutes: int = 30) -> Callable[[DL
     """Create a filter that reprocesses entries after a delay."""
 
     def filter_func(dlq_entry: DLQEntry) -> bool:
-        age = datetime.utcnow() - dlq_entry.dlq_timestamp
+        age = datetime.now(UTC) - dlq_entry.dlq_timestamp
         return age >= timedelta(minutes=delay_minutes)
 
     return filter_func

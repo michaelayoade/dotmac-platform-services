@@ -2,7 +2,7 @@
 Database models for feature flags storage
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, String, Text
@@ -108,7 +108,7 @@ class FeatureFlagModel(BaseModel):
         self.owner = flag.owner
         self.environments = flag.environments
         self.expires_at = flag.expires_at
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(UTC)
 
     def _deserialize_targeting_rules(self):
         """Convert JSON to TargetingRule objects"""

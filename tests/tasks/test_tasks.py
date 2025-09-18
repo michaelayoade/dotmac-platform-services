@@ -2,7 +2,7 @@
 Tests for task system components.
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import Mock, patch
 
 import pytest
@@ -54,7 +54,7 @@ class TestIdempotencyKey:
 
     def test_idempotency_key_creation(self):
         """Test creating an idempotency key."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         key = IdempotencyKey(key="test-key-123", operation_id="op-456", created_at=now)
 
         assert key.key == "test-key-123"
@@ -113,7 +113,7 @@ class TestBackgroundOperation:
 
     def test_background_operation_creation(self):
         """Test creating a background operation."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         operation = BackgroundOperation(
             id="op-1", name="Test Operation", status=OperationStatus.PENDING, created_at=now
@@ -144,7 +144,7 @@ class TestMemoryStorage:
         """Test storing and retrieving operations."""
         storage = MemoryStorage()
         operation = BackgroundOperation(
-            id="op-1", name="Test", status=OperationStatus.PENDING, created_at=datetime.utcnow()
+            id="op-1", name="Test", status=OperationStatus.PENDING, created_at=datetime.now(UTC)
         )
 
         storage.store_operation(operation)
@@ -184,8 +184,8 @@ class TestBackgroundOperationsManager:
     def test_start_operation(self, mock_datetime, mock_uuid):
         """Test starting a background operation."""
         mock_uuid.return_value = "generated-uuid"
-        mock_now = datetime(2024, 1, 1, 12, 0, 0)
-        mock_datetime.utcnow.return_value = mock_now
+        mock_now = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        mock_datetime.now.return_value = mock_now
 
         manager = BackgroundOperationsManager()
 
@@ -213,8 +213,8 @@ class TestBackgroundOperationsManager:
     @patch("dotmac.platform.tasks.datetime")
     def test_complete_operation(self, mock_datetime):
         """Test completing a background operation."""
-        mock_now = datetime(2024, 1, 1, 13, 0, 0)
-        mock_datetime.utcnow.return_value = mock_now
+        mock_now = datetime(2024, 1, 1, 13, 0, 0, tzinfo=UTC)
+        mock_datetime.now.return_value = mock_now
 
         manager = BackgroundOperationsManager()
 
@@ -240,8 +240,8 @@ class TestBackgroundOperationsManager:
     @patch("dotmac.platform.tasks.datetime")
     def test_fail_operation(self, mock_datetime):
         """Test failing a background operation."""
-        mock_now = datetime(2024, 1, 1, 13, 30, 0)
-        mock_datetime.utcnow.return_value = mock_now
+        mock_now = datetime(2024, 1, 1, 13, 30, 0, tzinfo=UTC)
+        mock_datetime.now.return_value = mock_now
 
         manager = BackgroundOperationsManager()
 

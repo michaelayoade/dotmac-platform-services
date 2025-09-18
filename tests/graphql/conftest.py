@@ -9,7 +9,7 @@ try:
     from strawberry.fastapi import GraphQLRouter
     from strawberry.test import BaseGraphQLTestClient
     from fastapi import FastAPI
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
 except ImportError:
     strawberry = None
     pytest.skip("Strawberry GraphQL not available", allow_module_level=True)
@@ -67,7 +67,8 @@ def graphql_app():
 @pytest.fixture
 async def graphql_client(graphql_app):
     """Create async GraphQL test client."""
-    async with AsyncClient(app=graphql_app, base_url="http://testserver") as client:
+    transport = ASGITransport(app=graphql_app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
 
 

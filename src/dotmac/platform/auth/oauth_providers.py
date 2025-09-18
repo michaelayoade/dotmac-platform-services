@@ -890,7 +890,7 @@ class OAuthService:
                     created_at = getattr(rec, "created_at", None)
                     if created_at is None:
                         return True
-                    age = (datetime.utcnow() - created_at).total_seconds()
+                    age = (datetime.now(UTC) - created_at).total_seconds()
                     return age <= max_age_seconds
         except Exception:
             pass

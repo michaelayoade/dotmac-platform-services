@@ -71,15 +71,20 @@ def get_analytics_service(
     cache_key = f"{tenant_id}:{service_name}"
 
     if cache_key not in _analytics_instances:
+        endpoint = signoz_endpoint or kwargs.get("otlp_endpoint")
+        # Fall back to the standard OTLP gRPC endpoint if nothing is supplied
+        endpoint = endpoint or "http://localhost:4317"
+
         config = OTelConfig(
             service_name=f"{service_name}-{tenant_id}",
-            signoz_endpoint=signoz_endpoint or "http://localhost:4318",
-            enable_traces=True,
-            enable_metrics=True,
-            enable_logs=True,
+            endpoint=endpoint,
         )
 
-        collector = create_otel_collector(config)
+        collector = OpenTelemetryCollector(
+            tenant_id=tenant_id,
+            service_name=config.service_name,
+            config=config,
+        )
         _analytics_instances[cache_key] = collector
         logger.info(f"Created analytics service for {cache_key}")
 

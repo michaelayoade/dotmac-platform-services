@@ -11,7 +11,7 @@ This test module validates:
 import asyncio
 import hashlib
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -41,10 +41,10 @@ async def test_dlq_list_entries():
                     "dlq_error": f"Error {i}",
                     "dlq_error_type": "TestError",
                     "dlq_retry_count": str(i),
-                    "dlq_first_failure_time": datetime.utcnow().isoformat(),
-                    "dlq_last_failure_time": datetime.utcnow().isoformat(),
+                    "dlq_first_failure_time": datetime.now(UTC).isoformat(),
+                    "dlq_last_failure_time": datetime.now(UTC).isoformat(),
                 },
-                metadata={"timestamp": datetime.utcnow()}
+                metadata={"timestamp": datetime.now(UTC)}
             )
             await handler(event)
         return True

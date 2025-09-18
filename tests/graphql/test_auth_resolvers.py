@@ -1,7 +1,7 @@
 """Tests for authentication GraphQL resolvers."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import patch, Mock, AsyncMock
 
 try:
@@ -33,8 +33,8 @@ class TestAuthResolvers:
                 roles=["user", "admin"],
                 scopes=["read:audit", "write:audit"],
                 is_active=True,
-                created_at=datetime.utcnow(),
-                last_login=datetime.utcnow()
+                created_at=datetime.now(UTC),
+                last_login=datetime.now(UTC)
             )
             mock_get_user.return_value = mock_user
 
@@ -89,8 +89,8 @@ class TestAuthResolvers:
                     prefix="sk_test_",
                     scopes=["read:audit"],
                     expires_at=None,
-                    created_at=datetime.utcnow(),
-                    last_used=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
+                    last_used=datetime.now(UTC),
                     is_active=True
                 )
             ]
@@ -159,7 +159,7 @@ class TestAuthResolvers:
                 prefix="sk_live_",
                 scopes=["read:audit", "write:audit"],
                 expires_at=None,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
                 last_used=None,
                 is_active=True
             )
@@ -230,8 +230,8 @@ class TestAuthResolvers:
                     user_id="test-user-123",
                     ip_address="192.168.1.100",
                     user_agent="Mozilla/5.0 Test Browser",
-                    created_at=datetime.utcnow(),
-                    expires_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
+                    expires_at=datetime.now(UTC),
                     is_active=True
                 )
             ]

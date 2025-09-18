@@ -20,7 +20,7 @@ import string
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -103,7 +103,7 @@ class RotationRule:
         if last_rotated is None:
             return True  # Never rotated
 
-        time_since_rotation = (datetime.utcnow() - last_rotated).total_seconds()
+        time_since_rotation = (datetime.now(UTC) - last_rotated).total_seconds()
         return time_since_rotation >= self.rotation_interval
 
 class RotationPolicy(ABC):
@@ -136,7 +136,7 @@ class DefaultRotationPolicy(RotationPolicy):
             return True
 
         last_rotated_dt = datetime.fromisoformat(last_rotated)
-        age = (datetime.utcnow() - last_rotated_dt).total_seconds()
+        age = (datetime.now(UTC) - last_rotated_dt).total_seconds()
         return age >= self.rotation_interval
 
     async def generate_new_secret(
@@ -150,7 +150,7 @@ class DefaultRotationPolicy(RotationPolicy):
         return {
             **current_secret,
             "password": password,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "version": str(uuid4()),
         }
 
@@ -177,7 +177,7 @@ class JWTRotationPolicy(RotationPolicy):
             return True
 
         last_rotated_dt = datetime.fromisoformat(last_rotated)
-        age = (datetime.utcnow() - last_rotated_dt).total_seconds()
+        age = (datetime.now(UTC) - last_rotated_dt).total_seconds()
         return age >= self.rotation_interval
 
     async def generate_new_secret(
@@ -210,7 +210,7 @@ class JWTRotationPolicy(RotationPolicy):
                 "public_key": public_pem,
                 "algorithm": "RS256",
                 "key_id": str(uuid4()),
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
                 "version": str(uuid4()),
             }
 
@@ -222,7 +222,7 @@ class JWTRotationPolicy(RotationPolicy):
                 "secret_key": key,
                 "algorithm": "HS256",
                 "key_id": str(uuid4()),
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
                 "version": str(uuid4()),
             }
 
@@ -250,7 +250,7 @@ class DatabaseRotationPolicy(RotationPolicy):
             return True
 
         last_rotated_dt = datetime.fromisoformat(last_rotated)
-        age = (datetime.utcnow() - last_rotated_dt).total_seconds()
+        age = (datetime.now(UTC) - last_rotated_dt).total_seconds()
         return age >= self.rotation_interval
 
     async def generate_new_secret(
@@ -264,7 +264,7 @@ class DatabaseRotationPolicy(RotationPolicy):
         return {
             **current_secret,
             "password": password,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "version": str(uuid4()),
             "rotation_stage": "new_password_generated",
         }
@@ -315,7 +315,7 @@ class RotationScheduler:
     async def rotate_secret(self, secret_path: str, force: bool = False) -> RotationResult:
         """Rotate a single secret."""
         rotation_id = str(uuid4())
-        started_at = datetime.utcnow()
+        started_at = datetime.now(UTC)
 
         logger.info("Starting secret rotation", rotation_id=rotation_id, secret_path=secret_path)
 
@@ -351,7 +351,7 @@ class RotationScheduler:
                 should_rotate = await policy.should_rotate(secret_path, current_secret)
                 if not should_rotate:
                     result.status = RotationStatus.COMPLETED
-                    result.completed_at = datetime.utcnow()
+                    result.completed_at = datetime.now(UTC)
                     result.error_message = "Rotation not needed"
                     logger.info("Rotation not needed", secret_path=secret_path)
                     return result
@@ -378,7 +378,7 @@ class RotationScheduler:
                 return result
 
             # Add rotation metadata
-            new_secret["last_rotated"] = datetime.utcnow().isoformat()
+            new_secret["last_rotated"] = datetime.now(UTC).isoformat()
             new_secret["rotated_by"] = "rotation_scheduler"
             new_secret["rotation_id"] = rotation_id
 
@@ -400,7 +400,7 @@ class RotationScheduler:
 
             # Mark as completed
             result.status = RotationStatus.COMPLETED
-            result.completed_at = datetime.utcnow()
+            result.completed_at = datetime.now(UTC)
 
             logger.info(
                 "Secret rotation completed",
@@ -418,7 +418,7 @@ class RotationScheduler:
             )
             result.status = RotationStatus.FAILED
             result.error_message = str(e)
-            result.completed_at = datetime.utcnow()
+            result.completed_at = datetime.now(UTC)
 
             # Attempt rollback if configured
             if rule and rule.rollback_hook:
@@ -468,8 +468,8 @@ class RotationScheduler:
                     secret_path=secret_path,
                     secret_type=rule.secret_type,
                     status=RotationStatus.FAILED,
-                    started_at=datetime.utcnow(),
-                    completed_at=datetime.utcnow(),
+                    started_at=datetime.now(UTC),
+                    completed_at=datetime.now(UTC),
                     error_message=f"Failed to check rotation status: {e!s}",
                 )
                 results.append(result)

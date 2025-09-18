@@ -10,7 +10,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from enum import Enum
 from typing import Any
 
@@ -60,7 +60,7 @@ class SessionData:
 
     def is_expired(self) -> bool:
         """Check if session is expired."""
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(UTC) > self.expires_at
 
     def is_active(self) -> bool:
         """Check if session is active."""
@@ -79,7 +79,7 @@ class Session:
     expires_at: datetime
 
     def is_expired(self) -> bool:
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(UTC) > self.expires_at
 
     @property
     def is_valid(self) -> bool:
@@ -254,7 +254,7 @@ class RedisSessionBackend(SessionBackend):
             user_sessions_key = self._user_sessions_key(session.user_id)
 
             # Calculate TTL
-            ttl = int((session.expires_at - datetime.utcnow()).total_seconds())
+            ttl = int((session.expires_at - datetime.now(UTC)).total_seconds())
             if ttl <= 0:
                 return False
 
@@ -368,7 +368,7 @@ class SessionManager:
     ) -> SessionData:
         """Create a new session."""
         session_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         expires_at = now + timedelta(seconds=ttl or self.default_ttl)
 
         session = SessionData(
@@ -415,7 +415,7 @@ class SessionManager:
         session = await self.backend.get_session(session_id)
         if session and session.is_active():
             # Update last accessed time
-            session.last_accessed = datetime.utcnow()
+            session.last_accessed = datetime.now(UTC)
             await self.backend.store_session(session)
 
             # Periodic cleanup

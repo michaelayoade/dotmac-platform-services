@@ -1,3 +1,4 @@
+from datetime import UTC
 """
 OpenAPI Contract Testing
 Validates that API endpoints honor their OpenAPI specification contracts.
@@ -269,7 +270,7 @@ class TestSessionContract(ContractTestBase):
         @app.post("/auth/sessions", response_model=SessionResponse, status_code=201)
         async def create_session(request: CreateSessionRequest):
             session_id = f"session_{len(sessions) + 1}"
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
 
             session = SessionResponse(
                 session_id=session_id,
@@ -402,7 +403,7 @@ class TestHealthEndpointContract(ContractTestBase):
         async def health_check():
             return {
                 "status": "healthy",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "checks": {
                     "database": {"status": "healthy", "response_time": 0.012},
                     "cache": {"status": "healthy", "response_time": 0.003},
@@ -480,7 +481,7 @@ class TestAPIKeyContract(ContractTestBase):
                 api_key=api_key,
                 name=request.name,
                 scopes=request.scopes,
-                created_at=datetime.utcnow().isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 expires_at=request.expires_at,
             )
 

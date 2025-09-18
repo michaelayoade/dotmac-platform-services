@@ -2,7 +2,7 @@
 Data models for service registry.
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any, Optional
 
@@ -30,7 +30,7 @@ class ServiceHealth(BaseModel):
     error_rate: Optional[float] = None
     request_count: Optional[int] = None
     details: dict[str, Any] = Field(default_factory=dict)
-    checked_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    checked_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ServiceInfo(BaseModel):

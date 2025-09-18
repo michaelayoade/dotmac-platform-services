@@ -5,7 +5,7 @@ Consolidates business logic with built-in CRUD operations.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any
 from uuid import UUID
 
@@ -61,7 +61,7 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
         """Apply business rules for flag updates."""
         # Set updated timestamp
         if hasattr(data, "updated_at"):
-            data.updated_at = datetime.utcnow()
+            data.updated_at = datetime.now(UTC)
 
         return data
 
@@ -80,8 +80,8 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
         flag_dict.update(
             {
                 "status": FeatureFlagStatus.ACTIVE,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
             }
         )
 
@@ -127,7 +127,7 @@ class FeatureFlagService(BaseService[FeatureFlag, CreateFlagRequest, UpdateFlagR
         try:
             # Update flag attributes
             update_dict = validated_data.model_dump(exclude_unset=True)
-            update_dict["updated_at"] = datetime.utcnow()
+            update_dict["updated_at"] = datetime.now(UTC)
 
             # Update in database
             updated_flag = await self.repository.update(current_flag.id, update_dict)

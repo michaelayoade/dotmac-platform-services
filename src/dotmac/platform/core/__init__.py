@@ -11,6 +11,7 @@ from pydantic import ConfigDict
 
 from .config import ApplicationConfig
 from .decorators import rate_limit, retry_on_failure, standard_exception_handler
+from .repository import DuplicateEntityError, EntityNotFoundError, RepositoryError
 
 
 class DotMacError(Exception):
@@ -138,4 +139,7 @@ __all__ = [
     "check_database_health",
     "get_db",
     "get_db_session",
+    "RepositoryError",
+    "EntityNotFoundError",
+    "DuplicateEntityError",
 ]

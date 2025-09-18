@@ -2,7 +2,7 @@
 Session slice tests using the async in-memory backend (no mocks).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import pytest
 from dotmac.platform.auth.session_manager import MemorySessionBackend, SessionData, SessionStatus
@@ -16,9 +16,9 @@ async def test_memory_session_backend_store_get_delete():
         session_id="s1",
         user_id="u1",
         tenant_id=None,
-        created_at=datetime.utcnow(),
-        last_accessed=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        created_at=datetime.now(UTC),
+        last_accessed=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
         status=SessionStatus.ACTIVE,
         metadata={"k": "v"},
     )

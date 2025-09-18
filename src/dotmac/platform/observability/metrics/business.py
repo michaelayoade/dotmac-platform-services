@@ -4,7 +4,7 @@ Business metrics and SLO monitoring for tenant-scoped operations.
 
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from enum import Enum
 from typing import Any
 
@@ -157,7 +157,6 @@ class TenantMetrics:
         self._register_default_business_metrics()
 
         logger.info(f"TenantMetrics initialized for {service_name}")
-
     def register_business_metric(self, spec: BusinessMetricSpec) -> bool:
         """
         Register a business metric specification.
@@ -261,7 +260,7 @@ class TenantMetrics:
                     self._slo_history[metric_name].append(evaluation)
 
                     # Keep only recent evaluations (last 24 hours)
-                    cutoff = datetime.utcnow() - timedelta(hours=24)
+                    cutoff = datetime.now(UTC) - timedelta(hours=24)
                     self._slo_history[metric_name] = [
                         e for e in self._slo_history[metric_name] if e.evaluation_time > cutoff
                     ]
@@ -285,7 +284,7 @@ class TenantMetrics:
         if metric_name not in self._slo_history:
             return []
 
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         return [e for e in self._slo_history[metric_name] if e.evaluation_time > cutoff]
 
     def get_business_metrics_info(self) -> dict[str, dict[str, Any]]:
@@ -592,3 +591,16 @@ def initialize_tenant_metrics(
         enable_dashboards=enable_dashboards,
         enable_slo_monitoring=enable_slo_monitoring,
     )
+
+
+# Backward compatibility alias expected by older integrations and tests
+BusinessMetrics = TenantMetrics
+
+__all__ = [
+    "BusinessMetricType",
+    "BusinessMetricSpec",
+    "TenantContext",
+    "SLOEvaluation",
+    "TenantMetrics",
+    "BusinessMetrics",
+]

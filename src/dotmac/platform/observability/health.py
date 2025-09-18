@@ -5,7 +5,7 @@ Health integration helpers for observability components.
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any
 
@@ -69,7 +69,7 @@ def check_otel_health(bootstrap: Any) -> HealthCheck:
     Returns:
         Health check result
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(UTC)
 
     try:
         if not bootstrap:
@@ -111,7 +111,7 @@ def check_otel_health(bootstrap: Any) -> HealthCheck:
             status = HealthStatus.UNHEALTHY
             message = "OpenTelemetry providers not working"
 
-        duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
         return HealthCheck(
             name="opentelemetry",
@@ -141,7 +141,7 @@ def check_metrics_registry_health(registry: Any) -> HealthCheck:
     Returns:
         Health check result
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(UTC)
 
     try:
         if not registry:
@@ -177,7 +177,7 @@ def check_metrics_registry_health(registry: Any) -> HealthCheck:
             status = HealthStatus.DEGRADED
             message = "Metrics registry has no registered metrics"
 
-        duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
         return HealthCheck(
             name="metrics_registry",
@@ -207,7 +207,7 @@ def check_tenant_metrics_health(tenant_metrics: Any) -> HealthCheck:
     Returns:
         Health check result
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(UTC)
 
     try:
         if not tenant_metrics:
@@ -237,7 +237,7 @@ def check_tenant_metrics_health(tenant_metrics: Any) -> HealthCheck:
             status = HealthStatus.DEGRADED
             message = "Tenant metrics has no registered business metrics"
 
-        duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
         return HealthCheck(
             name="tenant_metrics",
@@ -303,7 +303,7 @@ def get_observability_health(
     return ObservabilityHealth(
         status=overall_status,
         checks=checks,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(UTC),
     )
 
 def create_health_endpoint_handler(

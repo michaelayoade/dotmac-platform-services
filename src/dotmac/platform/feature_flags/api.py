@@ -2,7 +2,7 @@
 FastAPI routes for feature flag management (clean minimal version).
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -101,7 +101,7 @@ def create_feature_flag_router(client: FeatureFlagClient) -> APIRouter:
                 raise HTTPException(status_code=404, detail="Feature flag not found")
             for field, value in request.model_dump(exclude_unset=True).items():
                 setattr(current_flag, field, value)
-            current_flag.updated_at = datetime.utcnow()
+            current_flag.updated_at = datetime.now(UTC)
             success = await client.manager.update_flag(current_flag)
             if not success:
                 raise HTTPException(status_code=400, detail="Failed to update feature flag")

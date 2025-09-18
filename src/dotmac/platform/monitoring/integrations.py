@@ -10,7 +10,7 @@ and observability platforms including SigNoz.
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any
 from urllib.parse import urljoin
@@ -65,7 +65,7 @@ class MetricData:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(UTC)
         if self.labels is None:
             self.labels = {}
         if self.metadata is None:

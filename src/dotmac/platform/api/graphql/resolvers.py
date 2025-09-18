@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from dotmac.platform.observability.unified_logging import get_logger
@@ -60,8 +60,8 @@ class AuthResolver:
                 roles=user_claims.roles,
                 scopes=user_claims.scopes,
                 is_active=True,
-                created_at=datetime.utcnow(),  # Would come from user service
-                last_login=datetime.utcnow() if user_claims.issued_at else None
+                created_at=datetime.now(UTC),  # Would come from user service
+                last_login=datetime.now(UTC) if user_claims.issued_at else None
             )
         except Exception as e:
             logger.warning("Failed to get current user: %s", e)
@@ -497,21 +497,21 @@ class ObservabilityResolver:
                     service_name="auth-service",
                     status="healthy",
                     message="All checks passed",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(UTC),
                     response_time_ms=25.5
                 ),
                 HealthCheck(
                     service_name="secrets-service",
                     status="healthy",
                     message="Vault connection OK",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(UTC),
                     response_time_ms=42.1
                 ),
                 HealthCheck(
                     service_name="database",
                     status="healthy",
                     message="Connection pool OK",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(UTC),
                     response_time_ms=15.3
                 )
             ]
@@ -535,8 +535,8 @@ class ObservabilityResolver:
                     span_id="span001",
                     parent_span_id=None,
                     operation_name="POST /api/auth/login",
-                    start_time=datetime.utcnow(),
-                    end_time=datetime.utcnow(),
+                    start_time=datetime.now(UTC),
+                    end_time=datetime.now(UTC),
                     duration_ms=125.5,
                     status="ok",
                     tags={"http.method": "POST", "http.status_code": "200"}
@@ -558,7 +558,7 @@ class ObservabilityResolver:
             try:
                 from ..schema import MetricValue
                 yield MetricValue(
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     value=42.0,
                     labels={"service": "api-gateway"}
                 )
@@ -585,7 +585,7 @@ class AuditTrailResolver:
             events = [
                 AuditEvent(
                     id="audit001",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     category=AuditCategory.AUTHENTICATION,
                     level=AuditLevel.INFO,
                     action="login",
@@ -631,7 +631,7 @@ class AuditTrailResolver:
             from ..schema import AuditEvent, AuditCategory, AuditLevel
             return AuditEvent(
                 id=event_id,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 category=AuditCategory.AUTHENTICATION,
                 level=AuditLevel.INFO,
                 action="login",
@@ -665,8 +665,8 @@ class AuditTrailResolver:
             # Mock event creation - integrate with actual audit service
             from ..schema import AuditEvent
             return AuditEvent(
-                id=f"audit_{datetime.utcnow().timestamp()}",
-                timestamp=datetime.utcnow(),
+                id=f"audit_{datetime.now(UTC).timestamp()}",
+                timestamp=datetime.now(UTC),
                 category=category,
                 level=level,
                 action=action,
@@ -694,8 +694,8 @@ class AuditTrailResolver:
             try:
                 from ..schema import AuditEvent, AuditCategory, AuditLevel
                 yield AuditEvent(
-                    id=f"stream_{datetime.utcnow().timestamp()}",
-                    timestamp=datetime.utcnow(),
+                    id=f"stream_{datetime.now(UTC).timestamp()}",
+                    timestamp=datetime.now(UTC),
                     category=AuditCategory.SYSTEM_CHANGE,
                     level=AuditLevel.INFO,
                     action="config_update",
@@ -737,8 +737,8 @@ class ServiceRegistryResolver:
                     health_check_url="http://auth-service:8080/health",
                     tags={"environment": "production", "team": "platform"},
                     metadata={"instances": 3, "load_balancer": "round_robin"},
-                    registered_at=datetime.utcnow(),
-                    last_heartbeat=datetime.utcnow()
+                    registered_at=datetime.now(UTC),
+                    last_heartbeat=datetime.now(UTC)
                 )
             ]
 
@@ -780,8 +780,8 @@ class ServiceRegistryResolver:
                 health_check_url="http://auth-service:8080/health",
                 tags={"environment": "production", "team": "platform"},
                 metadata={"instances": 3, "load_balancer": "round_robin"},
-                registered_at=datetime.utcnow(),
-                last_heartbeat=datetime.utcnow()
+                registered_at=datetime.now(UTC),
+                last_heartbeat=datetime.now(UTC)
             )
         except Exception as e:
             logger.error("Failed to get service %s: %s", service_id, e)
@@ -798,7 +798,7 @@ class ServiceRegistryResolver:
                     service_name="auth-service",
                     status="healthy",
                     message="All systems operational",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(UTC),
                     response_time_ms=28.3
                 )
                 await asyncio.sleep(30)  # Health check every 30 seconds

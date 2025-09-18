@@ -12,7 +12,7 @@ This module provides:
 import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -259,7 +259,7 @@ def access_token(jwt_service, test_user) -> str:
 @pytest.fixture(scope="function")
 def expired_token(jwt_service, test_user) -> str:
     """Provide expired access token."""
-    with freezegun.freeze_time(datetime.utcnow() - timedelta(hours=2)):
+    with freezegun.freeze_time(datetime.now(UTC) - timedelta(hours=2)):
         return jwt_service.create_access_token(
             subject=test_user["id"],
             claims={"email": test_user["email"]},
@@ -411,8 +411,8 @@ def user_factory():
             "is_active": True,
             "is_admin": False,
             "tenant_id": str(uuid4()),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         }
         defaults.update(kwargs)
         return defaults
@@ -430,9 +430,9 @@ def api_key_factory():
             "key": f"sk_test_{uuid4().hex}",
             "name": "Test API Key",
             "scopes": ["read", "write"],
-            "expires_at": datetime.utcnow() + timedelta(days=30),
+            "expires_at": datetime.now(UTC) + timedelta(days=30),
             "is_active": True,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
         }
         defaults.update(kwargs)
         return defaults

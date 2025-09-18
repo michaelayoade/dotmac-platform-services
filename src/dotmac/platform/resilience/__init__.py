@@ -6,8 +6,8 @@ DotMac framework including service discovery, load balancing, circuit breakers,
 and observability.
 """
 
+from .circuit_breaker import CircuitBreaker, CircuitBreakerState
 from .service_mesh import (
-    CircuitBreakerState,
     EncryptionLevel,
     LoadBalancer,
     RetryPolicy,
@@ -32,6 +32,7 @@ __all__ = [
     "LoadBalancer",
     "ServiceRegistry",
     "CircuitBreakerState",
+    "CircuitBreaker",
     "ServiceCall",
     "setup_service_mesh_for_consolidated_services",
 ]

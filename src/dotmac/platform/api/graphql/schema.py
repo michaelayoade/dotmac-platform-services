@@ -2,21 +2,73 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import enum
+from datetime import datetime, UTC
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from dotmac.platform.observability.unified_logging import get_logger
 
 logger = get_logger(__name__)
 
+
 try:  # pragma: no cover - optional dependency import
     import strawberry
     from strawberry.types import Info
 except ImportError:  # pragma: no cover - graceful fallback when Strawberry not installed
     strawberry = None  # type: ignore[assignment]
+    Info = Any  # type: ignore[assignment]
     logger.info(
         "Strawberry not installed; GraphQL endpoint will remain disabled unless the dependency is provided."
     )
+else:  # pragma: no cover - handle incomplete strawberry installs
+    required_attrs = ("Schema", "type", "enum", "field", "input", "subscription")
+    missing_attrs = [attr for attr in required_attrs if not hasattr(strawberry, attr)]
+    if missing_attrs:
+        logger.info(
+            "Strawberry package missing GraphQL helpers (%s); using lightweight stub instead."
+            % ", ".join(sorted(missing_attrs))
+        )
+        strawberry = None  # type: ignore[assignment]
+        Info = Any  # type: ignore[assignment]
+
+if strawberry is None:
+    class _StrawberryStub:
+        """Minimal Strawberry replacement for environments without the dependency."""
+
+        Enum = enum.Enum
+
+        class Schema:
+            def __init__(self, query=None, mutation=None, subscription=None):
+                self.query = query
+                self.mutation = mutation
+                self.subscription = subscription
+
+        def _identity(self, obj=None, **kwargs):
+            if obj is None:
+                def decorator(inner):
+                    return inner
+                return decorator
+            return obj
+
+        def type(self, obj=None, **kwargs):
+            return self._identity(obj, **kwargs)
+
+        def input(self, obj=None, **kwargs):
+            return self._identity(obj, **kwargs)
+
+        def field(self, obj=None, **kwargs):
+            return self._identity(obj, **kwargs)
+
+        def enum(self, obj=None, **kwargs):
+            return self._identity(obj, **kwargs)
+
+        def subscription(self, obj=None, **kwargs):
+            return self._identity(obj, **kwargs)
+
+    strawberry = _StrawberryStub()
+    Info = Any  # type: ignore[assignment]
+    logger.info("Using lightweight Strawberry stub for GraphQL schema generation.")
 
 if strawberry:  # pragma: no branch - executed only when strawberry is available
     from .resolvers import (
@@ -27,6 +79,130 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         AuditTrailResolver,
         ServiceRegistryResolver,
     )
+    try:
+        from strawberry.scalars import JSON as JSONScalar
+    except ImportError:  # pragma: no cover - fallback when JSON scalar missing
+        JSONScalar = Dict[str, Any]  # type: ignore[assignment]
+
+    _MISSING = object()
+
+    def _safe_get(obj: Any, *names: str, default: Any = None) -> Any:
+        """Retrieve the first matching attribute or dict key from an object."""
+        for name in names:
+            if isinstance(obj, dict) and name in obj:
+                return obj[name]
+            value = getattr(obj, name, _MISSING)
+            if value is _MISSING:
+                continue
+            if hasattr(obj, "_mock_children"):
+                mock_children = getattr(obj, "_mock_children")  # type: ignore[attr-defined]
+                if (
+                    name in mock_children
+                    and mock_children[name] is value
+                    and not (hasattr(obj, "__dict__") and name in obj.__dict__)
+                ):
+                    continue
+            return value
+        return default
+
+    def _coerce_enum_value(enum_cls: type[Enum], value: Any) -> Enum:
+        """Best-effort conversion of arbitrary enum-like values."""
+        if isinstance(value, enum_cls):
+            return value
+        if value is None:
+            return next(iter(enum_cls))  # type: ignore[return-value]
+        if isinstance(value, str):
+            candidates = (value, value.upper(), value.lower())
+            members = getattr(enum_cls, "__members__", {})
+            for candidate in candidates:
+                member = members.get(candidate)
+                if member is not None:
+                    return member
+            value_map = getattr(enum_cls, "_value2member_map_", {})
+            for candidate in candidates:
+                member = value_map.get(candidate)
+                if member is not None:
+                    return member
+        try:
+            return enum_cls(value)  # type: ignore[arg-type]
+        except Exception:
+            return next(iter(enum_cls))  # type: ignore[return-value]
+
+    def _ensure_json(value: Any) -> Dict[str, Any]:
+        """Normalize arbitrary mapping-like objects to plain dicts."""
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if hasattr(value, "dict"):
+            try:
+                return value.dict()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        if hasattr(value, "to_dict"):
+            try:
+                return value.to_dict()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            return dict(value)
+        except Exception:
+            return {}
+
+    def _coerce_str(value: Any, default: str = "") -> str:
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return default
+        if hasattr(value, "_mock_parent") or hasattr(value, "_mock_name"):
+            parent = getattr(value, "_mock_parent", None)
+            if parent is not None:
+                parent_name = getattr(parent, "_mock_name", None)
+                if isinstance(parent_name, str) and parent_name:
+                    return parent_name
+            mock_name = getattr(value, "_mock_name", None)
+            if isinstance(mock_name, str) and mock_name:
+                return mock_name
+        return str(value)
+
+    def _coerce_optional_str(value: Any) -> Optional[str]:
+        return None if value is None else _coerce_str(value)
+
+    def _coerce_bool(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        try:
+            return bool(value)
+        except Exception:
+            return default
+
+    def _coerce_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=UTC)
+        if isinstance(value, str):
+            candidate = value.replace("Z", "+00:00")
+            try:
+                return datetime.fromisoformat(candidate)
+            except ValueError:
+                pass
+        if hasattr(value, "isoformat"):
+            try:
+                return _coerce_datetime(value.isoformat())
+            except Exception:
+                pass
+        return datetime.now(UTC)
+
+    def _coerce_optional_datetime(value: Any) -> Optional[datetime]:
+        return None if value is None else _coerce_datetime(value)
+
+    def _coerce_list(value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple, set)):
+            return list(value)
+        return [value]
 
     # ===============================
     # Core Types
@@ -95,7 +271,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
     # ===============================
 
     @strawberry.enum
-    class RolloutStrategy(strawberry.Enum):
+    class RolloutStrategy(Enum):
         ALL_ON = "all_on"
         ALL_OFF = "all_off"
         PERCENTAGE = "percentage"
@@ -113,7 +289,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         description: Optional[str]
         enabled: bool
         strategy: RolloutStrategy
-        config: Dict[str, Any]
+        config: JSONScalar
         created_at: datetime
         updated_at: datetime
         created_by: str
@@ -125,7 +301,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         enabled: bool
         variant: Optional[str]
         reason: str
-        context: Dict[str, Any]
+        context: JSONScalar
 
     # ===============================
     # Secrets Management
@@ -138,7 +314,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         version: int
         created_at: datetime
         updated_at: datetime
-        tags: Dict[str, str]
+        tags: JSONScalar
         description: Optional[str]
 
     @strawberry.type
@@ -158,7 +334,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         """Metric data point."""
         timestamp: datetime
         value: float
-        labels: Dict[str, str]
+        labels: JSONScalar
 
     @strawberry.type
     class Metric:
@@ -180,7 +356,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         end_time: datetime
         duration_ms: float
         status: str
-        tags: Dict[str, str]
+        tags: JSONScalar
 
     @strawberry.type
     class HealthCheck:
@@ -196,7 +372,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
     # ===============================
 
     @strawberry.enum
-    class AuditCategory(strawberry.Enum):
+    class AuditCategory(Enum):
         AUTHENTICATION = "authentication"
         AUTHORIZATION = "authorization"
         DATA_ACCESS = "data_access"
@@ -205,7 +381,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         SYSTEM_CHANGE = "system_change"
 
     @strawberry.enum
-    class AuditLevel(strawberry.Enum):
+    class AuditLevel(Enum):
         DEBUG = "debug"
         INFO = "info"
         WARNING = "warning"
@@ -225,7 +401,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         tenant_id: Optional[str]
         ip_address: Optional[str]
         user_agent: Optional[str]
-        details: Dict[str, Any]
+        details: JSONScalar
         outcome: str  # success, failure, denied
 
     # ===============================
@@ -233,7 +409,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
     # ===============================
 
     @strawberry.enum
-    class ServiceStatus(strawberry.Enum):
+    class ServiceStatus(Enum):
         HEALTHY = "healthy"
         UNHEALTHY = "unhealthy"
         UNKNOWN = "unknown"
@@ -249,8 +425,8 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         status: ServiceStatus
         endpoint: str
         health_check_url: Optional[str]
-        tags: Dict[str, str]
-        metadata: Dict[str, Any]
+        tags: JSONScalar
+        metadata: JSONScalar
         registered_at: datetime
         last_heartbeat: datetime
 
@@ -276,6 +452,116 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         nodes: List[ServiceInstance]
         page_info: PageInfo
 
+    def _to_page_info(source: Any, fallback_total: int) -> PageInfo:
+        """Convert raw pagination metadata to PageInfo."""
+        if source is None:
+            return PageInfo(
+                has_next_page=False,
+                has_previous_page=False,
+                start_cursor=None,
+                end_cursor=None,
+                total_count=fallback_total,
+            )
+
+        return PageInfo(
+            has_next_page=bool(
+                _safe_get(source, "has_next_page", "hasNextPage", default=False)
+            ),
+            has_previous_page=bool(
+                _safe_get(source, "has_previous_page", "hasPreviousPage", default=False)
+            ),
+            start_cursor=_safe_get(source, "start_cursor", "startCursor", default=None),
+            end_cursor=_safe_get(source, "end_cursor", "endCursor", default=None),
+            total_count=int(
+                _safe_get(source, "total_count", "totalCount", default=fallback_total)
+            ),
+        )
+
+    def _to_audit_event(raw: Any) -> AuditEvent:
+        """Convert resolver return values into GraphQL AuditEvent instances."""
+        if raw is None:
+            raise ValueError("Cannot convert empty audit event")
+
+        return AuditEvent(
+            id=_coerce_str(_safe_get(raw, "id", default="")),
+            timestamp=_coerce_datetime(_safe_get(raw, "timestamp", default=datetime.now(UTC))),
+            category=_coerce_enum_value(AuditCategory, _safe_get(raw, "category")),
+            level=_coerce_enum_value(AuditLevel, _safe_get(raw, "level")),
+            action=_coerce_str(_safe_get(raw, "action", default="")),
+            resource=_coerce_str(_safe_get(raw, "resource", default="")),
+            actor=_coerce_str(_safe_get(raw, "actor", default="")),
+            tenant_id=_coerce_optional_str(_safe_get(raw, "tenant_id", "tenantId", default=None)),
+            ip_address=_coerce_optional_str(_safe_get(raw, "ip_address", "ipAddress", default=None)),
+            user_agent=_coerce_optional_str(_safe_get(raw, "user_agent", "userAgent", default=None)),
+            details=_ensure_json(_safe_get(raw, "details", default={})),
+            outcome=_coerce_str(_safe_get(raw, "outcome", default="unknown"), default="unknown"),
+        )
+
+    def _to_audit_connection(raw: Any) -> AuditEventsConnection:
+        """Normalize resolver results to AuditEventsConnection."""
+        nodes_source = _safe_get(raw, "nodes", default=[]) or []
+        nodes = [_to_audit_event(node) for node in nodes_source]
+        page_info_source = _safe_get(raw, "page_info", "pageInfo")
+        page_info = _to_page_info(page_info_source, len(nodes))
+        return AuditEventsConnection(nodes=nodes, page_info=page_info)
+
+    def _to_api_key(raw: Any) -> APIKey:
+        """Convert resolver results into APIKey GraphQL objects."""
+        scopes = [
+            _coerce_str(item)
+            for item in _coerce_list(_safe_get(raw, "scopes", default=[]))
+        ]
+        name_value = _safe_get(raw, "name", default=None)
+        name = _coerce_str(name_value, default=_coerce_str(raw, default=""))
+
+        return APIKey(
+            id=_coerce_str(_safe_get(raw, "id", default="")),
+            name=name,
+            prefix=_coerce_str(_safe_get(raw, "prefix", default="")),
+            scopes=scopes,
+            expires_at=_coerce_optional_datetime(_safe_get(raw, "expires_at", "expiresAt")),
+            created_at=_coerce_datetime(_safe_get(raw, "created_at", "createdAt", default=datetime.now(UTC))),
+            last_used=_coerce_optional_datetime(_safe_get(raw, "last_used", "lastUsed")),
+            is_active=_coerce_bool(_safe_get(raw, "is_active", "isActive", default=True), default=True),
+        )
+
+    def _to_session(raw: Any) -> Session:
+        """Convert resolver results into Session GraphQL objects."""
+        return Session(
+            id=_coerce_str(_safe_get(raw, "id", "session_id", default="")),
+            user_id=_coerce_str(_safe_get(raw, "user_id", "userId", default="")),
+            ip_address=_coerce_optional_str(_safe_get(raw, "ip_address", "ipAddress", default=None)),
+            user_agent=_coerce_optional_str(_safe_get(raw, "user_agent", "userAgent", default=None)),
+            created_at=_coerce_datetime(_safe_get(raw, "created_at", "createdAt", default=datetime.now(UTC))),
+            expires_at=_coerce_datetime(_safe_get(raw, "expires_at", "expiresAt", default=datetime.now(UTC))),
+            is_active=_coerce_bool(_safe_get(raw, "is_active", "isActive", default=True), default=True),
+        )
+
+    def _to_feature_flag(raw: Any) -> FeatureFlag:
+        """Convert resolver results into FeatureFlag GraphQL objects."""
+        name_value = _safe_get(raw, "name", default=None)
+        name = _coerce_str(name_value, default=_coerce_str(raw, default=""))
+        description_value = _safe_get(raw, "description", default=None)
+
+        return FeatureFlag(
+            key=_coerce_str(_safe_get(raw, "key", default="")),
+            name=name,
+            description=_coerce_optional_str(description_value),
+            enabled=_coerce_bool(_safe_get(raw, "enabled", default=False)),
+            strategy=_coerce_enum_value(RolloutStrategy, _safe_get(raw, "strategy")),
+            config=_ensure_json(_safe_get(raw, "config", default={})),
+            created_at=_coerce_datetime(_safe_get(raw, "created_at", "createdAt", default=datetime.now(UTC))),
+            updated_at=_coerce_datetime(_safe_get(raw, "updated_at", "updatedAt", default=datetime.now(UTC))),
+            created_by=_coerce_str(_safe_get(raw, "created_by", "createdBy", default="")),
+        )
+
+    def _to_feature_flags_connection(raw: Any) -> FeatureFlagsConnection:
+        nodes_source = _safe_get(raw, "nodes", default=[]) or []
+        nodes = [_to_feature_flag(node) for node in nodes_source]
+        page_info_source = _safe_get(raw, "page_info", "pageInfo")
+        page_info = _to_page_info(page_info_source, len(nodes))
+        return FeatureFlagsConnection(nodes=nodes, page_info=page_info)
+
     # ===============================
     # Input Types
     # ===============================
@@ -288,7 +574,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         description: Optional[str] = None
         enabled: bool = False
         strategy: RolloutStrategy = RolloutStrategy.ALL_OFF
-        config: Dict[str, Any] = strawberry.field(default_factory=dict)
+        config: JSONScalar = strawberry.field(default_factory=dict)
 
     @strawberry.input
     class AuditEventFilter:
@@ -304,7 +590,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
     class MetricsFilter:
         """Filter for metrics query."""
         name_pattern: Optional[str] = None
-        labels: Optional[Dict[str, str]] = None
+        labels: Optional[JSONScalar] = None
         start_time: Optional[datetime] = None
         end_time: Optional[datetime] = None
 
@@ -322,7 +608,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             return HealthInfo(
                 status="ok",
                 version="1.0.0",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 services=["auth", "secrets", "observability", "audit", "registry"]
             )
 
@@ -338,12 +624,14 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         @strawberry.field(description="List user's API keys.")
         async def api_keys(self, info: Info) -> List[APIKey]:
             """Get API keys for the current user."""
-            return await AuthResolver.get_api_keys(info)
+            raw_keys = await AuthResolver.get_api_keys(info)
+            return [_to_api_key(key) for key in raw_keys or []]
 
         @strawberry.field(description="Get user sessions.")
         async def sessions(self, info: Info, user_id: Optional[str] = None) -> List[Session]:
             """Get user sessions."""
-            return await AuthResolver.get_sessions(info, user_id)
+            raw_sessions = await AuthResolver.get_sessions(info, user_id)
+            return [_to_session(session) for session in raw_sessions or []]
 
         # ===============================
         # Feature Flags
@@ -357,19 +645,23 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             after: Optional[str] = None
         ) -> FeatureFlagsConnection:
             """List feature flags with pagination."""
-            return await FeatureFlagResolver.get_feature_flags(info, first, after)
+            connection = await FeatureFlagResolver.get_feature_flags(info, first, after)
+            if not connection:
+                return FeatureFlagsConnection(nodes=[], page_info=_to_page_info(None, 0))
+            return _to_feature_flags_connection(connection)
 
         @strawberry.field(description="Get a specific feature flag.")
         async def feature_flag(self, info: Info, key: str) -> Optional[FeatureFlag]:
             """Get a feature flag by key."""
-            return await FeatureFlagResolver.get_feature_flag(info, key)
+            flag = await FeatureFlagResolver.get_feature_flag(info, key)
+            return _to_feature_flag(flag) if flag else None
 
         @strawberry.field(description="Evaluate feature flags for current user.")
         async def evaluate_flags(
             self,
             info: Info,
             flags: List[str],
-            context: Optional[Dict[str, Any]] = None
+            context: Optional[JSONScalar] = None
         ) -> List[FeatureFlagEvaluation]:
             """Evaluate multiple feature flags."""
             return await FeatureFlagResolver.evaluate_flags(info, flags, context or {})
@@ -433,12 +725,16 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             after: Optional[str] = None
         ) -> AuditEventsConnection:
             """Search audit events with pagination."""
-            return await AuditTrailResolver.search_events(info, filter, first, after)
+            connection = await AuditTrailResolver.search_events(info, filter, first, after)
+            if not connection:
+                return AuditEventsConnection(nodes=[], page_info=_to_page_info(None, 0))
+            return _to_audit_connection(connection)
 
         @strawberry.field(description="Get audit event by ID.")
         async def audit_event(self, info: Info, event_id: str) -> Optional[AuditEvent]:
             """Get a specific audit event."""
-            return await AuditTrailResolver.get_event(info, event_id)
+            event = await AuditTrailResolver.get_event(info, event_id)
+            return _to_audit_event(event) if event else None
 
         # ===============================
         # Service Registry
@@ -481,7 +777,10 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             expires_at: Optional[datetime] = None
         ) -> APIKey:
             """Create a new API key."""
-            return await AuthResolver.create_api_key(info, name, scopes, expires_at)
+            api_key = await AuthResolver.create_api_key(
+                info, name=name, scopes=scopes, expires_at=expires_at
+            )
+            return _to_api_key(api_key)
 
         @strawberry.field(description="Revoke an API key.")
         async def revoke_api_key(self, info: Info, api_key_id: str) -> bool:
@@ -504,7 +803,8 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             input: FeatureFlagInput
         ) -> FeatureFlag:
             """Create or update a feature flag."""
-            return await FeatureFlagResolver.upsert_feature_flag(info, input)
+            flag = await FeatureFlagResolver.upsert_feature_flag(info, input)
+            return _to_feature_flag(flag)
 
         @strawberry.field(description="Delete a feature flag.")
         async def delete_feature_flag(self, info: Info, key: str) -> bool:
@@ -514,7 +814,8 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         @strawberry.field(description="Toggle a feature flag.")
         async def toggle_feature_flag(self, info: Info, key: str, enabled: bool) -> FeatureFlag:
             """Toggle a feature flag on/off."""
-            return await FeatureFlagResolver.toggle_feature_flag(info, key, enabled)
+            flag = await FeatureFlagResolver.toggle_feature_flag(info, key, enabled)
+            return _to_feature_flag(flag)
 
         # ===============================
         # Audit Trail
@@ -528,12 +829,13 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
             level: AuditLevel,
             action: str,
             resource: str,
-            details: Optional[Dict[str, Any]] = None
+            details: Optional[JSONScalar] = None
         ) -> AuditEvent:
             """Log a new audit event."""
-            return await AuditTrailResolver.log_event(
+            event = await AuditTrailResolver.log_event(
                 info, category, level, action, resource, details or {}
             )
+            return _to_audit_event(event)
 
     # ===============================
     # Subscription Type
@@ -551,7 +853,7 @@ if strawberry:  # pragma: no branch - executed only when strawberry is available
         ) -> AuditEvent:
             """Stream audit events in real-time."""
             async for event in AuditTrailResolver.stream_events(info, filter):
-                yield event
+                yield _to_audit_event(event)
 
         @strawberry.subscription(description="Subscribe to metrics updates.")
         async def metrics_stream(

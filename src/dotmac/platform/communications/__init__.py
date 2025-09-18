@@ -252,13 +252,18 @@ class CommunicationsService:
         if self._websockets is None:
             if WebSocketManager and WebSocketConfig:
                 try:
-                    # Create WebSocketConfig from our config
+                    # Create WebSocketConfig from our config or use development config
                     websocket_config_dict = (
                         self.config.get("websockets", {})
                         if isinstance(self.config, dict)
                         else self.config.websockets if hasattr(self.config, "websockets") else {}
                     )
-                    ws_config = WebSocketConfig(**websocket_config_dict)
+                    # Use development config if no valid config provided
+                    if not websocket_config_dict or not isinstance(websocket_config_dict, dict):
+                        from dotmac.platform.communications.websockets.core.config import create_development_config
+                        ws_config = create_development_config()
+                    else:
+                        ws_config = WebSocketConfig.from_dict(websocket_config_dict)
                     self._websockets = WebSocketManager(ws_config)
                 except Exception as e:
                     warnings.warn(f"Failed to create WebSocket manager: {e}")
@@ -385,8 +390,18 @@ def create_websocket_manager(config: Optional[dict] = None):
     if not WebSocketManager or not WebSocketConfig:
         raise ImportError("WebSocket manager not available")
 
-    config = config or get_default_config().get("websockets", {})
-    ws_config = WebSocketConfig(**config)
+    # Import the development config helper from the WebSocket module
+    from dotmac.platform.communications.websockets.core.config import create_development_config
+
+    # Use provided config or create a default WebSocketConfig instance
+    if config is None:
+        # Use development config for testing (auth disabled)
+        ws_config = create_development_config()
+    elif isinstance(config, WebSocketConfig):
+        ws_config = config
+    else:
+        # Assume config contains proper WebSocketConfig parameters
+        ws_config = WebSocketConfig.from_dict(config)
     return WebSocketManager(ws_config)
 
 

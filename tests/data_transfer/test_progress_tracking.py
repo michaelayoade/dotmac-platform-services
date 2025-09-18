@@ -4,7 +4,7 @@ Comprehensive tests for progress tracking functionality.
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -56,12 +56,12 @@ class InMemoryProgressTracker:
         # Handle status updates to set start time
         if 'status' in kwargs and kwargs['status'] == TransferStatus.RUNNING:
             if not progress.start_time:
-                progress.start_time = datetime.utcnow()
+                progress.start_time = datetime.now(UTC)
 
         for key, value in kwargs.items():
             if hasattr(progress, key):
                 setattr(progress, key, value)
-        progress.last_update = datetime.utcnow()
+        progress.last_update = datetime.now(UTC)
 
         # Calculate estimated completion time if we have progress
         if progress.processed_records > 0 and progress.total_records:
@@ -155,12 +155,12 @@ class RedisProgressTracker:
         # Handle status updates to set start time
         if 'status' in kwargs and kwargs['status'] == TransferStatus.RUNNING:
             if not progress.start_time:
-                progress.start_time = datetime.utcnow()
+                progress.start_time = datetime.now(UTC)
 
         for key, value in kwargs.items():
             if hasattr(progress, key):
                 setattr(progress, key, value)
-        progress.last_update = datetime.utcnow()
+        progress.last_update = datetime.now(UTC)
 
         # Calculate estimated completion time if we have progress
         if progress.processed_records > 0 and progress.total_records:
@@ -248,7 +248,7 @@ class TestProgressInfo:
     @pytest.mark.unit
     def test_progress_info_with_custom_values(self):
         """Test progress info with custom values."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
 
         progress = ProgressInfo(
             operation_id="test-op-456",
@@ -551,8 +551,8 @@ class TestRedisProgressTracker:
             "total_records": 100,
             "processed_records": 50,
             "status": "running",
-            "start_time": datetime.utcnow().isoformat(),
-            "last_update": datetime.utcnow().isoformat(),
+            "start_time": datetime.now(UTC).isoformat(),
+            "last_update": datetime.now(UTC).isoformat(),
         }
 
         import json
@@ -587,8 +587,8 @@ class TestRedisProgressTracker:
             "total_records": 100,
             "processed_records": 25,
             "status": "pending",
-            "start_time": datetime.utcnow().isoformat(),
-            "last_update": datetime.utcnow().isoformat(),
+            "start_time": datetime.now(UTC).isoformat(),
+            "last_update": datetime.now(UTC).isoformat(),
         }
 
         import json
@@ -632,15 +632,15 @@ class TestRedisProgressTracker:
                 "operation_id": "op1",
                 "total_records": 100,
                 "status": "running",
-                "start_time": datetime.utcnow().isoformat(),
-                "last_update": datetime.utcnow().isoformat(),
+                "start_time": datetime.now(UTC).isoformat(),
+                "last_update": datetime.now(UTC).isoformat(),
             },
             {
                 "operation_id": "op2",
                 "total_records": 200,
                 "status": "completed",
-                "start_time": datetime.utcnow().isoformat(),
-                "last_update": datetime.utcnow().isoformat(),
+                "start_time": datetime.now(UTC).isoformat(),
+                "last_update": datetime.now(UTC).isoformat(),
             },
         ]
 

@@ -5,7 +5,7 @@ Comprehensive tests for monitoring integrations.
 import logging
 
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -73,7 +73,7 @@ class TestMetricData:
 
     def test_metric_data_custom_values(self):
         """Test custom values are set correctly."""
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         labels = {"service": "api", "env": "prod"}
         metadata = {"source": "benchmark"}
 

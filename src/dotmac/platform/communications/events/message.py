@@ -3,7 +3,7 @@
 import uuid
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional, Protocol
 
 __all__ = [
@@ -54,7 +54,7 @@ class EventMetadata:
         if timestamp_str:
             timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         else:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
 
         # Parse UUID
         event_id_str = headers_lower.get("x-event-id")
@@ -111,7 +111,7 @@ class Event:
     @property
     def timestamp(self) -> datetime:
         """Event timestamp."""
-        return self.metadata.timestamp if self.metadata else datetime.utcnow()
+        return self.metadata.timestamp if self.metadata else datetime.now(UTC)
 
     def with_headers(self, **headers: str) -> "Event":
         """Create a copy of the event with additional headers."""

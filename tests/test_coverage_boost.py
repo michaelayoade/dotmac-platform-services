@@ -2,7 +2,7 @@
 Tests to boost coverage for various modules.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import AsyncMock, Mock, patch
 
 import jwt
@@ -57,7 +57,7 @@ def test_jwt_service_coverage():
 
     # Test expired token
     expired_payload = TokenPayload(
-        sub="user123", type=TokenType.ACCESS, exp=datetime.utcnow() - timedelta(hours=1)
+        sub="user123", type=TokenType.ACCESS, exp=datetime.now(UTC) - timedelta(hours=1)
     )
     expired_token = jwt.encode(
         expired_payload.model_dump(), config.secret_key, algorithm=config.algorithm

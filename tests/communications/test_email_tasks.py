@@ -932,8 +932,12 @@ class TestTaskNotificationService:
         service = TaskNotificationService(service_id="lifecycle-test")
         service._redis = mock_redis
 
-        # Test initialization
-        await service.initialize()
+        with patch(
+            "dotmac.platform.communications.notifications.task_notifications.AsyncRedis.from_url",
+            return_value=mock_redis,
+        ):
+            # Test initialization
+            await service.initialize()
         assert service._redis is not None
 
         # Test startup

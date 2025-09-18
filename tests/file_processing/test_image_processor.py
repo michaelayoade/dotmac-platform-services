@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from PIL import Image
 
 from dotmac.platform.file_processing.base import (
     ProcessingOptions,

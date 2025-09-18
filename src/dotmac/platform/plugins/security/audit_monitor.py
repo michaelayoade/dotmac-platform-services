@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional
 
 from dotmac.platform.observability.logging import create_audit_logger
@@ -36,7 +36,7 @@ class UnifiedAuditMonitor:
         """Record an audit event using the structured audit logger."""
         payload = event.__dict__ if isinstance(event, AuditEvent) else dict(event)
         payload.setdefault("service", self.service_name)
-        payload.setdefault("timestamp", datetime.utcnow().isoformat())
+        payload.setdefault("timestamp", datetime.now(UTC).isoformat())
         action = payload.get("action", "unknown")
         self._logger.log_event(action=action, **payload)
 
@@ -47,7 +47,7 @@ class UnifiedAuditMonitor:
             "exception": type(exc).__name__,
             "message": str(exc),
             "context": context or {},
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self._logger.log_event(action="exception", **payload)
 

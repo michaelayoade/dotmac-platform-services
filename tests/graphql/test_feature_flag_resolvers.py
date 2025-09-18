@@ -1,7 +1,7 @@
 """Tests for feature flag GraphQL resolvers."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import patch, Mock
 
 try:
@@ -31,8 +31,8 @@ class TestFeatureFlagResolvers:
                     enabled=True,
                     strategy="ALL_ON",
                     config={"percentage": 100},
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
                     created_by="admin"
                 ),
                 Mock(
@@ -42,8 +42,8 @@ class TestFeatureFlagResolvers:
                     enabled=False,
                     strategy="ALL_OFF",
                     config={},
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
                     created_by="admin"
                 )
             ]
@@ -115,8 +115,8 @@ class TestFeatureFlagResolvers:
                 enabled=True,
                 strategy="PERCENTAGE",
                 config={"percentage": 50, "user_list": ["user1", "user2"]},
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 created_by="admin"
             )
             mock_get_flag.return_value = mock_flag
@@ -249,8 +249,8 @@ class TestFeatureFlagResolvers:
                 enabled=True,
                 strategy="PERCENTAGE",
                 config={"percentage": 25},
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 created_by="test-user-123"
             )
             mock_upsert.return_value = mock_flag
@@ -310,8 +310,8 @@ class TestFeatureFlagResolvers:
                 enabled=False,
                 strategy="ALL_OFF",
                 config={},
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 created_by="admin"
             )
             mock_toggle.return_value = mock_flag

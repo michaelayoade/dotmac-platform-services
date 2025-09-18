@@ -10,13 +10,14 @@ Application-specific behavior is injected via hooks.
 
 from __future__ import annotations
 
-from dotmac.platform.observability.unified_logging import get_logger
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import FastAPI
+
+from dotmac.platform.observability.unified_logging import get_logger
 
 try:
     # Platform observability surface
@@ -26,9 +27,6 @@ try:
         initialize_otel,
         initialize_tenant_metrics,
     )
-from dotmac.platform.observability.unified_logging import get_logger
-
-
 except Exception as e:  # pragma: no cover - import guard
     raise ImportError(f"dotmac.platform.observability not available: {e}")
 

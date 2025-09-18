@@ -8,7 +8,7 @@ import pytest
 pytestmark = pytest.mark.slow
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -44,7 +44,7 @@ class TestBenchmarkMetric:
 
     def test_benchmark_metric_custom_values(self):
         """Test custom values are set correctly."""
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         metadata = {"source": "test"}
 
         metric = BenchmarkMetric(
@@ -69,7 +69,7 @@ class TestBenchmarkResult:
 
     def test_benchmark_result_initialization(self):
         """Test benchmark result initialization."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         result = BenchmarkResult(
             id="test_id",
             name="test_benchmark",
@@ -91,7 +91,7 @@ class TestBenchmarkResult:
 
     def test_benchmark_result_duration_calculation(self):
         """Test duration calculation when end_time is set."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         end_time = start_time + timedelta(seconds=30)
 
         result = BenchmarkResult(
@@ -113,7 +113,7 @@ class TestBenchmarkResult:
             name="test_benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("cpu_usage", 75.5, "percent", category="system")
@@ -132,7 +132,7 @@ class TestBenchmarkResult:
             name="test_benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("cpu_usage", 75.5, "percent")
@@ -153,7 +153,7 @@ class TestBenchmarkResult:
             name="test_benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("cpu_usage", 75.5, "percent", category="system")
@@ -578,7 +578,7 @@ class TestBenchmarkSuite:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         benchmark2 = Mock()
@@ -588,7 +588,7 @@ class TestBenchmarkSuite:
             name="bench2",
             benchmark_type=BenchmarkType.MEMORY,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         suite.add_benchmark(benchmark1)
@@ -615,7 +615,7 @@ class TestBenchmarkSuite:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         benchmark2 = Mock()
@@ -625,7 +625,7 @@ class TestBenchmarkSuite:
             name="bench2",
             benchmark_type=BenchmarkType.MEMORY,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         suite.add_benchmark(benchmark1)
@@ -651,14 +651,14 @@ class TestBenchmarkSuite:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.FAILED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         success_result = BenchmarkResult(
             id="1",
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         benchmark.run = AsyncMock(side_effect=[failed_result, success_result])
@@ -688,7 +688,7 @@ class TestBenchmarkSuite:
                 name="slow_benchmark",
                 benchmark_type=BenchmarkType.CPU,
                 status=BenchmarkStatus.COMPLETED,
-                start_time=datetime.utcnow(),
+                start_time=datetime.now(UTC),
             )
 
         benchmark.run = slow_run
@@ -715,7 +715,7 @@ class TestBenchmarkSuite:
         suite = BenchmarkSuite(config)
 
         # Add mock results
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         result1 = BenchmarkResult(
             id="1",
             name="bench1",
@@ -774,7 +774,7 @@ class TestBenchmarkManager:
             name="test_benchmark",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         benchmark.run = AsyncMock(return_value=result)
 
@@ -825,7 +825,7 @@ class TestBenchmarkManager:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         suite.run_all = AsyncMock(return_value=[result])
 
@@ -893,14 +893,14 @@ class TestBenchmarkManager:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         result2 = BenchmarkResult(
             id="2",
             name="bench2",
             benchmark_type=BenchmarkType.MEMORY,
             status=BenchmarkStatus.FAILED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         manager.benchmark_history = [result1, result2]
@@ -921,21 +921,21 @@ class TestBenchmarkManager:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         result2 = BenchmarkResult(
             id="2",
             name="bench2",
             benchmark_type=BenchmarkType.MEMORY,
             status=BenchmarkStatus.FAILED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         result3 = BenchmarkResult(
             id="3",
             name="bench3",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.FAILED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         manager.benchmark_history = [result1, result2, result3]
@@ -966,7 +966,7 @@ class TestBenchmarkManager:
             name="bench1",
             benchmark_type=BenchmarkType.CPU,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
         manager.benchmark_history = [result]
 

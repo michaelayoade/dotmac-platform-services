@@ -1,8 +1,8 @@
 """Tests for audit trail GraphQL resolvers."""
 
 import pytest
-from datetime import datetime
-from unittest.mock import patch, Mock
+from datetime import datetime, UTC
+from unittest.mock import Mock, patch
 
 try:
     import strawberry
@@ -27,47 +27,47 @@ class TestAuditResolvers:
         }
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
-            # Mock the connection response
             mock_events = [
-                Mock(
-                    id="audit-001",
-                    timestamp=datetime.utcnow(),
-                    category="AUTHENTICATION",
-                    level="INFO",
-                    action="login",
-                    resource="user",
-                    actor="test-user-123",
-                    tenant_id="test-tenant",
-                    ip_address="192.168.1.100",
-                    user_agent="Mozilla/5.0 Test",
-                    details={"method": "password"},
-                    outcome="success"
-                ),
-                Mock(
-                    id="audit-002",
-                    timestamp=datetime.utcnow(),
-                    category="AUTHENTICATION",
-                    level="WARNING",
-                    action="failed_login",
-                    resource="user",
-                    actor="test-user-456",
-                    tenant_id="test-tenant",
-                    ip_address="192.168.1.101",
-                    user_agent="Mozilla/5.0 Test",
-                    details={"reason": "invalid_password"},
-                    outcome="failure"
-                )
+                {
+                    "id": "audit-001",
+                    "timestamp": datetime.now(UTC),
+                    "category": "AUTHENTICATION",
+                    "level": "INFO",
+                    "action": "login",
+                    "resource": "user",
+                    "actor": "test-user-123",
+                    "tenant_id": "test-tenant",
+                    "ip_address": "192.168.1.100",
+                    "user_agent": "Mozilla/5.0 Test",
+                    "details": {"method": "password"},
+                    "outcome": "success",
+                },
+                {
+                    "id": "audit-002",
+                    "timestamp": datetime.now(UTC),
+                    "category": "AUTHENTICATION",
+                    "level": "WARNING",
+                    "action": "failed_login",
+                    "resource": "user",
+                    "actor": "test-user-456",
+                    "tenant_id": "test-tenant",
+                    "ip_address": "192.168.1.101",
+                    "user_agent": "Mozilla/5.0 Test",
+                    "details": {"reason": "invalid_password"},
+                    "outcome": "failure",
+                },
             ]
 
-            mock_connection = Mock()
-            mock_connection.nodes = mock_events
-            mock_connection.page_info = Mock(
-                has_next_page=False,
-                has_previous_page=False,
-                start_cursor="audit-001",
-                end_cursor="audit-002",
-                total_count=2
-            )
+            mock_connection = {
+                "nodes": mock_events,
+                "page_info": {
+                    "has_next_page": False,
+                    "has_previous_page": False,
+                    "start_cursor": "audit-001",
+                    "end_cursor": "audit-002",
+                    "total_count": 2,
+                },
+            }
             mock_search.return_value = mock_connection
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -124,20 +124,20 @@ class TestAuditResolvers:
         variables = {"eventId": "audit-123"}
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.get_event') as mock_get_event:
-            mock_event = Mock(
-                id="audit-123",
-                timestamp=datetime.utcnow(),
-                category="SECURITY_EVENT",
-                level="CRITICAL",
-                action="suspicious_activity",
-                resource="system",
-                actor="unknown",
-                tenant_id="test-tenant",
-                ip_address="10.0.0.1",
-                user_agent="curl/7.68.0",
-                details={"attempts": 5, "pattern": "brute_force"},
-                outcome="blocked"
-            )
+            mock_event = {
+                "id": "audit-123",
+                "timestamp": datetime.now(UTC),
+                "category": "SECURITY_EVENT",
+                "level": "CRITICAL",
+                "action": "suspicious_activity",
+                "resource": "system",
+                "actor": "unknown",
+                "tenant_id": "test-tenant",
+                "ip_address": "10.0.0.1",
+                "user_agent": "curl/7.68.0",
+                "details": {"attempts": 5, "pattern": "brute_force"},
+                "outcome": "blocked",
+            }
             mock_get_event.return_value = mock_event
 
             result = await authenticated_graphql_client.execute_expecting_data(query, variables)
@@ -188,17 +188,17 @@ class TestAuditResolvers:
         }
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.log_event') as mock_log_event:
-            mock_event = Mock(
-                id="new-audit-456",
-                timestamp=datetime.utcnow(),
-                category="DATA_ACCESS",
-                level="INFO",
-                action="file_download",
-                resource="file:document.pdf",
-                actor="test-user-123",
-                details={"file_size": 1024000, "download_method": "direct"},
-                outcome="success"
-            )
+            mock_event = {
+                "id": "new-audit-456",
+                "timestamp": datetime.now(UTC),
+                "category": "DATA_ACCESS",
+                "level": "INFO",
+                "action": "file_download",
+                "resource": "file:document.pdf",
+                "actor": "test-user-123",
+                "details": {"file_size": 1024000, "download_method": "direct"},
+                "outcome": "success",
+            }
             mock_log_event.return_value = mock_event
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -225,12 +225,33 @@ class TestAuditResolvers:
         }
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
-            mock_connection = Mock()
-            mock_connection.nodes = [
-                Mock(category="SECURITY_EVENT", level="WARNING"),
-                Mock(category="SECURITY_EVENT", level="CRITICAL")
-            ]
-            mock_connection.page_info = Mock(total_count=2)
+            mock_connection = {
+                "nodes": [
+                    {
+                        "id": "audit-sec-1",
+                        "timestamp": datetime.now(UTC),
+                        "category": "SECURITY_EVENT",
+                        "level": "WARNING",
+                        "action": "alert",
+                        "resource": "system",
+                        "actor": "system",
+                        "details": {},
+                        "outcome": "investigating",
+                    },
+                    {
+                        "id": "audit-sec-2",
+                        "timestamp": datetime.now(UTC),
+                        "category": "SECURITY_EVENT",
+                        "level": "CRITICAL",
+                        "action": "breach",
+                        "resource": "system",
+                        "actor": "system",
+                        "details": {},
+                        "outcome": "blocked",
+                    },
+                ],
+                "page_info": {"total_count": 2},
+            }
             mock_search.return_value = mock_connection
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -247,9 +268,22 @@ class TestAuditResolvers:
         }
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
-            mock_connection = Mock()
-            mock_connection.nodes = [Mock(level="CRITICAL")]
-            mock_connection.page_info = Mock(total_count=1)
+            mock_connection = {
+                "nodes": [
+                    {
+                        "id": "audit-critical-1",
+                        "timestamp": datetime.now(UTC),
+                        "category": "SECURITY_EVENT",
+                        "level": "CRITICAL",
+                        "action": "breach",
+                        "resource": "system",
+                        "actor": "system",
+                        "details": {},
+                        "outcome": "blocked",
+                    }
+                ],
+                "page_info": {"total_count": 1},
+            }
             mock_search.return_value = mock_connection
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -274,12 +308,33 @@ class TestAuditResolvers:
         }
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
-            mock_connection = Mock()
-            mock_connection.nodes = [
-                Mock(timestamp="2024-01-15T12:00:00Z"),
-                Mock(timestamp="2024-01-20T15:30:00Z")
-            ]
-            mock_connection.page_info = Mock(total_count=2)
+            mock_connection = {
+                "nodes": [
+                    {
+                        "id": "audit-time-1",
+                        "timestamp": datetime(2024, 1, 15, 12, 0, tzinfo=UTC),
+                        "category": "SYSTEM_CHANGE",
+                        "level": "INFO",
+                        "action": "update",
+                        "resource": "config",
+                        "actor": "admin",
+                        "details": {},
+                        "outcome": "success",
+                    },
+                    {
+                        "id": "audit-time-2",
+                        "timestamp": datetime(2024, 1, 20, 15, 30, tzinfo=UTC),
+                        "category": "SYSTEM_CHANGE",
+                        "level": "INFO",
+                        "action": "update",
+                        "resource": "config",
+                        "actor": "admin",
+                        "details": {},
+                        "outcome": "success",
+                    },
+                ],
+                "page_info": {"total_count": 2},
+            }
             mock_search.return_value = mock_connection
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -302,15 +357,29 @@ class TestAuditResolvers:
         variables = {"first": 2, "after": None}
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
-            mock_connection = Mock()
-            mock_connection.nodes = [Mock(id=f"audit-{i}") for i in range(2)]
-            mock_connection.page_info = Mock(
-                has_next_page=True,
-                has_previous_page=False,
-                start_cursor="audit-0",
-                end_cursor="audit-1",
-                total_count=10
-            )
+            mock_connection = {
+                "nodes": [
+                    {
+                        "id": f"audit-{i}",
+                        "timestamp": datetime.now(UTC),
+                        "category": "AUTHENTICATION",
+                        "level": "INFO",
+                        "action": "login",
+                        "resource": "user",
+                        "actor": "user",
+                        "details": {},
+                        "outcome": "success",
+                    }
+                    for i in range(2)
+                ],
+                "page_info": {
+                    "has_next_page": True,
+                    "has_previous_page": False,
+                    "start_cursor": "audit-0",
+                    "end_cursor": "audit-1",
+                    "total_count": 10,
+                },
+            }
             mock_search.return_value = mock_connection
 
             result = await authenticated_graphql_client.execute_expecting_data(
@@ -329,9 +398,7 @@ class TestAuditResolvers:
 
         with patch('dotmac.platform.api.graphql.resolvers.AuditTrailResolver.search_events') as mock_search:
             from dotmac.platform.auth.exceptions import AuthError
-            mock_connection = Mock()
-            mock_connection.nodes = []
-            mock_connection.page_info = Mock(total_count=0)
+            mock_connection = {"nodes": [], "page_info": {"total_count": 0}}
             mock_search.return_value = mock_connection
 
             # Should work without authentication for read operations in this mock

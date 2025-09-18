@@ -4,7 +4,7 @@ Feature flag manager for centralized flag management
 
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any, Optional
 
 
@@ -78,7 +78,7 @@ class FeatureFlagManager:
     async def _load_all_flags(self):
         """Load all feature flags into cache"""
         flags = await self.storage.get_all_flags()
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for flag in flags:
             if self.environment in flag.environments:
@@ -89,7 +89,7 @@ class FeatureFlagManager:
 
     async def _refresh_expired_cache(self):
         """Refresh expired cache entries"""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         expired_keys = []
 
         for key, timestamp in self._cache_timestamps.items():
@@ -107,7 +107,7 @@ class FeatureFlagManager:
             flag = await self.storage.get_flag(flag_key)
             if flag and self.environment in flag.environments:
                 self._cache[flag_key] = flag
-                self._cache_timestamps[flag_key] = datetime.utcnow()
+                self._cache_timestamps[flag_key] = datetime.now(UTC)
             elif flag_key in self._cache:
                 # Flag no longer valid for this environment
                 del self._cache[flag_key]
@@ -117,7 +117,7 @@ class FeatureFlagManager:
 
     async def _cleanup_expired_flags(self):
         """Clean up expired flags from cache"""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         expired_keys = []
 
         for key, flag in self._cache.items():
@@ -150,7 +150,7 @@ class FeatureFlagManager:
             **context,
             "service_name": self.service_name,
             "environment": self.environment,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         try:
@@ -202,7 +202,7 @@ class FeatureFlagManager:
         # Check cache first
         if flag_key in self._cache:
             timestamp = self._cache_timestamps.get(flag_key)
-            if timestamp and (datetime.utcnow() - timestamp).total_seconds() < self.cache_ttl:
+            if timestamp and (datetime.now(UTC) - timestamp).total_seconds() < self.cache_ttl:
                 return self._cache[flag_key]
 
         # Load from storage
@@ -217,7 +217,7 @@ class FeatureFlagManager:
             if success:
                 # Update cache
                 self._cache[flag.key] = flag
-                self._cache_timestamps[flag.key] = datetime.utcnow()
+                self._cache_timestamps[flag.key] = datetime.now(UTC)
                 await self._notify_subscribers("flag_created", flag)
                 logger.info(f"Created feature flag: {flag.key}")
             return success
@@ -228,12 +228,12 @@ class FeatureFlagManager:
     async def update_flag(self, flag: FeatureFlag) -> bool:
         """Update an existing feature flag"""
         try:
-            flag.updated_at = datetime.utcnow()
+            flag.updated_at = datetime.now(UTC)
             success = await self.storage.save_flag(flag)
             if success:
                 # Update cache
                 self._cache[flag.key] = flag
-                self._cache_timestamps[flag.key] = datetime.utcnow()
+                self._cache_timestamps[flag.key] = datetime.now(UTC)
                 await self._notify_subscribers("flag_updated", flag)
                 logger.info(f"Updated feature flag: {flag.key}")
             return success
@@ -286,7 +286,7 @@ class FeatureFlagManager:
 
         from .models import GradualRolloutConfig
 
-        start_date = datetime.utcnow()
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(hours=duration_hours)
 
         flag.strategy = RolloutStrategy.GRADUAL
@@ -358,7 +358,7 @@ class FeatureFlagManager:
 
         # Apply override
         self._cache[flag_key] = override_flag
-        self._cache_timestamps[flag_key] = datetime.utcnow()
+        self._cache_timestamps[flag_key] = datetime.now(UTC)
 
         try:
             yield
@@ -366,7 +366,7 @@ class FeatureFlagManager:
             # Restore original
             if original_flag:
                 self._cache[flag_key] = original_flag
-                self._cache_timestamps[flag_key] = datetime.utcnow()
+                self._cache_timestamps[flag_key] = datetime.now(UTC)
             else:
                 self._cache.pop(flag_key, None)
                 self._cache_timestamps.pop(flag_key, None)

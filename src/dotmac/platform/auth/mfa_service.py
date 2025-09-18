@@ -13,17 +13,13 @@ import secrets
 import string
 from datetime import UTC, datetime, timedelta
 from enum import Enum
+from math import ceil
 from typing import Any
 from uuid import uuid4
 
 import pyotp
 import qrcode
-from pydantic import (
-
-    BaseModel,
-    Field,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from dotmac.platform.observability.unified_logging import get_logger
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
@@ -134,6 +130,8 @@ class TOTPSetupResponse(BaseModel):
 class MFAServiceConfig(BaseModel):
     """Configuration for MFA Service."""
 
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
     issuer_name: str = "DotMac ISP"
     totp_window: int = 1  # Number of time steps to allow
     # Compatibility fields expected by tests
@@ -148,6 +146,37 @@ class MFAServiceConfig(BaseModel):
     # Provider identifier strings (not used by core logic, but kept for config completeness)
     sms_provider: str | None = None
     email_provider: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_legacy_aliases(cls, values: Any) -> Any:
+        """Normalize legacy MFA config keys to the service config schema."""
+        if isinstance(values, cls):  # Already validated
+            return values
+
+        if isinstance(values, BaseModel):
+            data: dict[str, Any] = values.model_dump()
+        elif isinstance(values, dict):
+            data = dict(values)
+        else:
+            return values
+
+        alias_map = {
+            "totp_issuer": "issuer_name",
+            "totp_interval": "totp_period",
+            "max_attempts": "max_verification_attempts",
+        }
+        for legacy_key, target_key in alias_map.items():
+            if legacy_key in data and target_key not in data:
+                data[target_key] = data.pop(legacy_key)
+
+        if "lockout_duration" in data and "lockout_duration_minutes" not in data:
+            seconds = data.pop("lockout_duration")
+            if isinstance(seconds, (int, float)):
+                minutes = max(0, ceil(seconds / 60))
+                data["lockout_duration_minutes"] = minutes
+
+        return data
 
 class SMSProvider:
     """SMS provider interface."""

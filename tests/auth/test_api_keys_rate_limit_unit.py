@@ -2,7 +2,7 @@
 Unit tests for API key rate limit path using a fake DB session.
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 import pytest
 
@@ -74,7 +74,7 @@ def make_db_key():
         require_https=True,
         tenant_id=None,
         status=APIKeyStatus.ACTIVE,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     return k
 
@@ -91,7 +91,7 @@ async def test_check_rate_limit_exceeded_raises(monkeypatch):
     # Provide an existing rate limit at threshold
     rl = APIKeyRateLimit(
         api_key_id="id",
-        window_start=datetime.utcnow(),
+        window_start=datetime.now(UTC),
         window_type=db_key.rate_limit_window,
         request_count=db_key.rate_limit_requests,
         last_request=None,

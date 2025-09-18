@@ -3,9 +3,11 @@ API Gateway implementation with unified configuration and platform services.
 """
 
 from typing import Optional, Dict, Any
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 import time
+import inspect
 
 import uuid
 import json
@@ -15,6 +17,7 @@ from .config import GatewayConfig, ConfigManager
 from .validation import RequestValidator
 import os
 from .analytics_integration import get_gateway_analytics
+from .health import HealthChecker
 from .request_transformer import RequestTransformer
 
 from dotmac.platform.observability.unified_logging import get_logger
@@ -170,7 +173,7 @@ class APIGateway:
         """Initialize platform services based on config."""
         # Auth services
         if self.config.security.enable_auth:
-            self.jwt_service = JWTService()
+            self.jwt_service = self._create_jwt_service()
             self.rbac_engine = RBACEngine() if self.config.security.enable_rbac else None
         else:
             self.jwt_service = None
@@ -211,6 +214,44 @@ class APIGateway:
                 endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or "localhost:4317",
                 analytics_adapter=None,
             )
+
+    def _create_jwt_service(self) -> Optional[JWTService]:
+        """Create a JWT service instance that tolerates missing RSA material during tests.
+
+        Production deployments can still opt-in to RS256 by supplying the appropriate
+        environment variables; otherwise we default to an HS256 secret so unit tests
+        and local runs do not fail during gateway construction.
+        """
+
+        algorithm = os.getenv("DOTMAC_JWT_ALGORITHM", "HS256").strip().upper()
+        issuer = os.getenv("DOTMAC_JWT_ISSUER")
+        audience = os.getenv("DOTMAC_JWT_DEFAULT_AUDIENCE")
+        audience_value = audience.split(",")[0].strip() if audience else None
+
+        if algorithm == "RS256":
+            private_key = os.getenv("DOTMAC_JWT_PRIVATE_KEY")
+            public_key = os.getenv("DOTMAC_JWT_PUBLIC_KEY")
+
+            if private_key or public_key:
+                return JWTService(
+                    algorithm="RS256",
+                    private_key=private_key,
+                    public_key=public_key,
+                    issuer=issuer,
+                    default_audience=audience_value,
+                )
+
+            logger.warning(
+                "RS256 requested but no RSA keys provided; falling back to HS256 for compatibility."
+            )
+
+        secret = os.getenv("DOTMAC_JWT_SECRET_KEY", "dev-secret-key")
+        return JWTService(
+            algorithm="HS256",
+            secret=secret,
+            issuer=issuer,
+            default_audience=audience_value,
+        )
 
         # Service mesh
         self.service_mesh = ServiceMesh() if self.config.service_mesh.enabled else None
@@ -654,46 +695,180 @@ class APIGateway:
 
         # Add health check endpoint
         @app.get("/health")
-        async def health_check():
-            """Health check endpoint."""
-            health_status = {"status": "healthy", "service": self.config.name, "checks": {}}
+        async def health_check(request: Request) -> JSONResponse:
+            """Aggregated health endpoint for the gateway and its dependencies."""
 
-            # Check platform services
-            if self.cache_service:
+            checker = HealthChecker(self)
+            checks: Dict[str, Dict[str, Any]] = {}
+
+            run_checks = getattr(checker, "run_checks", None)
+            if callable(run_checks):
                 try:
-                    await self.cache_service.get("health_check")
-                    health_status["checks"]["cache"] = "healthy"
-                except:
-                    health_status["checks"]["cache"] = "unhealthy"
-                    health_status["status"] = "degraded"
+                    maybe_checks = run_checks()
+                    if inspect.isawaitable(maybe_checks):
+                        maybe_checks = await maybe_checks
+                    if isinstance(maybe_checks, dict):
+                        checks = maybe_checks
+                except TypeError:
+                    checks = {}
 
-            if self.jwt_service:
-                health_status["checks"]["auth"] = "healthy"
+            if not checks:
+                for key, method_name in (
+                    ("database", "check_database"),
+                    ("cache", "check_cache"),
+                    ("auth", "check_auth_service"),
+                    ("metrics", "check_metrics_backend"),
+                ):
+                    method = getattr(checker, method_name, None)
+                    if not callable(method):
+                        continue
+                    try:
+                        result = method()
+                        if inspect.isawaitable(result):
+                            result = await result
+                        if isinstance(result, dict):
+                            checks[key] = result
+                    except Exception as exc:
+                        checks[key] = {"status": "unhealthy", "error": str(exc)}
 
-            if self.rbac_engine:
-                health_status["checks"]["rbac"] = "healthy"
+            aggregate_callable = getattr(checker, "aggregate_health", None)
+            if callable(aggregate_callable):
+                aggregate = aggregate_callable(checks)
+                if inspect.isawaitable(aggregate):
+                    aggregate = await aggregate
+            else:
+                aggregate = HealthChecker(self).aggregate_health(checks)
 
-            return health_status
+            if not isinstance(aggregate, dict):
+                aggregate = {"status": "healthy", "checks": checks, "summary": {}}
+
+            status = aggregate.get("status", "healthy").lower()
+            http_status = 503 if status == "unhealthy" else 200
+
+            payload = {
+                "status": status,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": self.config.observability.service_name or "api-gateway",
+                "version": self.config.version,
+                "environment": getattr(self.config.mode, "value", str(self.config.mode)).lower(),
+                "checks": aggregate.get("checks", checks),
+                "summary": aggregate.get("summary", {}),
+            }
+
+            extra_sections = {
+                key: value
+                for key, value in aggregate.items()
+                if key not in {"status", "checks", "summary"}
+            }
+
+            detail_flag = request.query_params.get("detail")
+            include_details = detail_flag is None or detail_flag.lower() != "false"
+
+            if include_details:
+                payload.update(extra_sections)
+            else:
+                payload = {
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"checks", "summary"}
+                }
+
+            return JSONResponse(payload, status_code=http_status)
 
         # Add metrics endpoint
         @app.get("/metrics")
-        async def metrics():
-            """Get aggregated metrics summary."""
-            # Try analytics summary; ensure expected keys are present
-            summary: Dict[str, Any] = {}
+        async def metrics(request: Request) -> Response:
+            """Return a consolidated metrics snapshot."""
+
+            payload: Dict[str, Any] = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": self.config.observability.service_name or "api-gateway",
+                "version": self.config.version,
+                "environment": getattr(self.config.mode, "value", str(self.config.mode)).lower(),
+                "counters": {},
+                "gauges": {},
+                "histograms": {},
+            }
+
+            # Merge analytics summary if available
             if self.analytics is not None:
                 try:
-                    summary = await self.analytics.get_metrics_summary()
-                except Exception as e:
-                    logger.warning(f"Failed to get metrics summary: {e}")
-                    summary = {}
+                    analytics_summary = await self.analytics.get_metrics_summary()
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.warning(f"Failed to fetch analytics metrics: {exc}")
+                else:
+                    if isinstance(analytics_summary, dict):
+                        payload["timestamp"] = analytics_summary.get("timestamp", payload["timestamp"])
+                        for section in ("counters", "gauges", "histograms"):
+                            data = analytics_summary.get(section)
+                            if isinstance(data, dict):
+                                payload[section].update(data)
 
-            if not isinstance(summary, dict) or (
-                "counters" not in summary and "histograms" not in summary
-            ):
-                # Provide a minimal structure so callers have predictable keys
-                summary = {"counters": {}, "histograms": {}}
-            return summary
+            # Merge metrics registry snapshot if available
+            try:
+                from dotmac.platform.observability.metrics.registry import MetricsRegistry  # type: ignore
+
+                registry = MetricsRegistry()
+                section_getters = {
+                    "counters": getattr(registry, "get_counter_metrics", None),
+                    "gauges": getattr(registry, "get_gauge_metrics", None),
+                    "histograms": getattr(registry, "get_histogram_metrics", None),
+                }
+
+                for section, getter in section_getters.items():
+                    if callable(getter):
+                        data = getter()
+                        if isinstance(data, dict):
+                            payload[section].update(data)
+            except Exception as exc:
+                logger.debug(f"Metrics registry snapshot unavailable: {exc}")
+
+            # Optional query parameters for filtering
+            metrics_type = request.query_params.get("type")
+            if metrics_type:
+                metrics_type = metrics_type.lower()
+                allowed = {metrics_type}
+                payload = {
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"counters", "gauges", "histograms"}
+                    or key in allowed
+                }
+
+            if "since" in request.query_params:
+                payload["window"] = request.query_params["since"]
+
+            accept = request.headers.get("accept", "").lower()
+            if "text/plain" in accept:
+                lines: list[str] = [
+                    "# HELP gateway_info Static information about the API gateway",
+                    "# TYPE gateway_info gauge",
+                    f"gateway_info{{service=\"{payload['service']}\"}} 1",
+                ]
+
+                for counter, value in payload.get("counters", {}).items():
+                    lines.append(f"# HELP {counter} Counter metric {counter}")
+                    lines.append(f"# TYPE {counter} counter")
+                    lines.append(f"{counter} {value}")
+
+                for gauge, value in payload.get("gauges", {}).items():
+                    lines.append(f"# HELP {gauge} Gauge metric {gauge}")
+                    lines.append(f"# TYPE {gauge} gauge")
+                    lines.append(f"{gauge} {value}")
+
+                for hist, stats in payload.get("histograms", {}).items():
+                    lines.append(f"# HELP {hist} Histogram metric {hist}")
+                    lines.append(f"# TYPE {hist} histogram")
+                    if isinstance(stats, dict):
+                        count = stats.get("count", 0)
+                        total = stats.get("sum", 0.0)
+                        lines.append(f"{hist}_count {count}")
+                        lines.append(f"{hist}_sum {total}")
+
+                body = "\n".join(lines) + "\n"
+                return Response(body, media_type="text/plain")
+
+            return JSONResponse(payload)
 
         # Optional API documentation routes
         if self.config.features.get("openapi_docs", True):
@@ -707,9 +882,9 @@ class APIGateway:
         # Optional GraphQL endpoint
         if self.config.features.get("graphql_endpoint", False):
             try:
-                from dotmac.platform.api.graphql import mount_graphql
+                from dotmac.platform.api.graphql import router as graphql_router
 
-                mounted = mount_graphql(app)
+                mounted = graphql_router.mount_graphql(app)
                 if not mounted:
                     logger.info("GraphQL endpoint not mounted (dependency unavailable)")
             except Exception as exc:

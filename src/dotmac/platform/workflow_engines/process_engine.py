@@ -4,7 +4,7 @@ Business Process Engine for executing business workflows and processes.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from typing import Any, Optional, Dict, List, Type, Awaitable
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,8 @@ class BusinessProcessEngine:
         workflow_id: Optional[str] = None,
     ) -> BusinessWorkflow:
         """Start a new business workflow."""
+        workflow: BusinessWorkflow | None = None
+
         try:
             if workflow_type not in self.workflows:
                 raise ValueError(f"Unknown workflow type: {workflow_type}")
@@ -90,7 +92,7 @@ class BusinessProcessEngine:
                 )
                 raise ValueError(f"Policy violation: {policy_result.reason}")
 
-            # Add to active workflows
+            # Add to active workflows before execution so approval hooks can find it
             self.active_workflows[workflow.workflow_id] = workflow
 
             # Start execution
@@ -104,6 +106,8 @@ class BusinessProcessEngine:
             return workflow
 
         except Exception as e:
+            if workflow and getattr(workflow, "workflow_id", None):
+                self.active_workflows.pop(workflow.workflow_id, None)
             logger.error(f"Failed to start workflow {workflow_type}: {str(e)}")
             raise
 
@@ -209,7 +213,7 @@ class BusinessProcessEngine:
             process_context: Dict[str, Any] = {
                 "process_id": process_id,
                 "tenant_id": tenant_id,
-                "started_at": datetime.now(timezone.utc),
+                "started_at": datetime.now(UTC),
                 "context": context,
                 "steps_completed": 0,
                 "total_steps": len(process_def.get("steps", [])),
@@ -235,7 +239,7 @@ class BusinessProcessEngine:
             if process_context["steps_completed"] == process_context["total_steps"]:
                 process_context["status"] = "completed"
 
-            process_context["completed_at"] = datetime.now(timezone.utc)
+            process_context["completed_at"] = datetime.now(UTC)
 
             # Log process execution
             logger.info(
@@ -351,7 +355,7 @@ class BusinessProcessEngine:
 
     async def cleanup_completed_workflows(self, max_age_hours: int = 24):
         """Clean up completed workflows older than specified age."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=max_age_hours)
 
         workflows_to_remove = []
 

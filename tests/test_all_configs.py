@@ -160,9 +160,16 @@ def test_session_config():
     assert config.same_site == "strict"
 
 
-def test_secrets_config():
+def test_secrets_config(monkeypatch):
     """Test secrets manager configuration."""
     from dotmac.platform.secrets.config import SecretsConfig, SecretsBackend, CacheBackend
+
+    # Clear environment variables that might interfere
+    monkeypatch.delenv("DOTMAC_CACHE_BACKEND", raising=False)
+    monkeypatch.delenv("DOTMAC_REDIS_URL", raising=False)
+    monkeypatch.delenv("DOTMAC_SECRETS_BACKEND", raising=False)
+    monkeypatch.delenv("DOTMAC_VAULT_URL", raising=False)
+    monkeypatch.delenv("DOTMAC_VAULT_TOKEN", raising=False)
 
     # Test minimal config with required fields for OpenBao backend
     config = SecretsConfig(
@@ -491,11 +498,18 @@ def test_config_defaults_and_factories():
     assert cache_config.eviction_policy in ["lru", "lfu", "fifo"]
 
 
-def test_config_inheritance():
+def test_config_inheritance(monkeypatch):
     """Test configuration inheritance and composition."""
     from dotmac.platform.auth.jwt_service import JWTConfig
     from dotmac.platform.core import ApplicationConfig
     from dotmac.platform.secrets import SecretsConfig
+
+    # Clear environment variables that might interfere
+    monkeypatch.delenv("DOTMAC_CACHE_BACKEND", raising=False)
+    monkeypatch.delenv("DOTMAC_REDIS_URL", raising=False)
+    monkeypatch.delenv("DOTMAC_SECRETS_BACKEND", raising=False)
+    monkeypatch.delenv("DOTMAC_VAULT_URL", raising=False)
+    monkeypatch.delenv("DOTMAC_VAULT_TOKEN", raising=False)
 
     # Create a composite configuration
     class PlatformConfig:
@@ -505,7 +519,11 @@ def test_config_inheritance():
             from dotmac.platform.secrets.config import SecretsBackend as SB
 
             self.secrets = SecretsConfig(
-                backend=SB.ENVIRONMENT, environment="development", enable_field_encryption=False
+                backend=SB.ENVIRONMENT,
+                environment="development",
+                enable_field_encryption=False,
+                vault_url="http://dummy",  # Add dummy URL to satisfy validation
+                vault_token="dummy"  # Add dummy token to satisfy validation
             )
 
     platform_config = PlatformConfig()

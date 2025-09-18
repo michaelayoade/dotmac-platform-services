@@ -13,7 +13,7 @@ import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Protocol
 
@@ -868,7 +868,7 @@ class SecureFileStorage:
         metadata = {
             "path": path,
             "size": len(content),
-            "stored_at": datetime.utcnow().isoformat(),
+            "stored_at": datetime.now(UTC).isoformat(),
             "checksum": hashlib.sha256(content).hexdigest(),
         }
         metadata.update(kwargs)

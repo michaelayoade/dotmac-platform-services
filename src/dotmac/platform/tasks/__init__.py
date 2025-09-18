@@ -12,7 +12,7 @@ import inspect
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any, Awaitable, Optional
 
@@ -123,7 +123,7 @@ class BackgroundOperationsManager:
         if not operation:
             return
         operation.status = OperationStatus.RUNNING
-        operation.started_at = datetime.utcnow()
+        operation.started_at = datetime.now(UTC)
         self.storage.store_operation(operation)
 
     def start_operation(self, name: str, operation_id: str | None = None) -> BackgroundOperation:
@@ -132,7 +132,7 @@ class BackgroundOperationsManager:
             id=operation_id or str(uuid.uuid4()),
             name=name,
             status=OperationStatus.PENDING,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
 
         self.storage.store_operation(operation)
@@ -144,7 +144,7 @@ class BackgroundOperationsManager:
         operation = self.storage.get_operation(operation_id)
         if operation:
             operation.status = OperationStatus.COMPLETED
-            operation.completed_at = datetime.utcnow()
+            operation.completed_at = datetime.now(UTC)
             operation.result = result
             self.storage.store_operation(operation)
 
@@ -153,7 +153,7 @@ class BackgroundOperationsManager:
         operation = self.storage.get_operation(operation_id)
         if operation:
             operation.status = OperationStatus.FAILED
-            operation.completed_at = datetime.utcnow()
+            operation.completed_at = datetime.now(UTC)
             operation.error = error
             self.storage.store_operation(operation)
 
@@ -234,7 +234,7 @@ class TaskDispatcher:
                 )
                 operation.result = {
                     "task_id": async_result.id,
-                    "dispatched_at": datetime.utcnow().isoformat(),
+                    "dispatched_at": datetime.now(UTC).isoformat(),
                     "metadata": metadata or {},
                 }
                 self.manager.storage.store_operation(operation)

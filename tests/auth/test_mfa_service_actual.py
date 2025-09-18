@@ -2,7 +2,7 @@
 Tests for MFA Service - matching actual implementation.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -346,19 +346,19 @@ class TestMFAHelperFunctions:
     def test_is_mfa_token_valid(self):
         """Test MFA token validity check."""
         # Valid token (recent timestamp)
-        valid_claims = {"verified": True, "timestamp": datetime.utcnow().isoformat()}
+        valid_claims = {"verified": True, "timestamp": datetime.now(UTC).isoformat()}
 
         assert is_mfa_token_valid(valid_claims, max_age_seconds=3600) is True
 
         # Expired token (old timestamp)
         expired_claims = {
             "verified": True,
-            "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+            "timestamp": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
         }
 
         assert is_mfa_token_valid(expired_claims, max_age_seconds=3600) is False
 
         # Not verified
-        unverified_claims = {"verified": False, "timestamp": datetime.utcnow().isoformat()}
+        unverified_claims = {"verified": False, "timestamp": datetime.now(UTC).isoformat()}
 
         assert is_mfa_token_valid(unverified_claims) is False

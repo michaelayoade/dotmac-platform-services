@@ -3,7 +3,7 @@ Feature flag data models and enums
 """
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any, Optional, Union
 
@@ -131,7 +131,7 @@ class GradualRolloutConfig(BaseModel):
 
     def get_current_percentage(self) -> float:
         """Calculate current rollout percentage based on time"""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         if now < self.start_date:
             return 0.0
@@ -238,7 +238,7 @@ class FeatureFlag(BaseModel):
         if self.status != FeatureFlagStatus.ACTIVE:
             return False
 
-        if self.expires_at and datetime.utcnow() > self.expires_at:
+        if self.expires_at and datetime.now(UTC) > self.expires_at:
             return False
 
         # Check targeting rules first

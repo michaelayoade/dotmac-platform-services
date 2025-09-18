@@ -4,7 +4,7 @@ Tests for monitoring benchmarks module.
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -79,7 +79,7 @@ class TestBenchmarkMetric:
         metric = BenchmarkMetric(name="test", value=1, unit="count")
 
         assert isinstance(metric.timestamp, datetime)
-        assert metric.timestamp <= datetime.utcnow()
+        assert metric.timestamp <= datetime.now(UTC)
 
 
 class TestBenchmarkResult:
@@ -87,7 +87,7 @@ class TestBenchmarkResult:
 
     def test_result_creation(self):
         """Test creating a benchmark result."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         result = BenchmarkResult(
             id="test-123",
             name="Test Benchmark",
@@ -106,7 +106,7 @@ class TestBenchmarkResult:
 
     def test_result_duration_calculation(self):
         """Test automatic duration calculation."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         end_time = start_time + timedelta(seconds=10)
 
         result = BenchmarkResult(
@@ -128,7 +128,7 @@ class TestBenchmarkResult:
             name="Test",
             benchmark_type=BenchmarkType.MEMORY,
             status=BenchmarkStatus.RUNNING,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("memory_used", 512, "MB")
@@ -145,7 +145,7 @@ class TestBenchmarkResult:
             name="Test",
             benchmark_type=BenchmarkType.NETWORK,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("latency", 50, "ms")
@@ -165,7 +165,7 @@ class TestBenchmarkResult:
             name="Test",
             benchmark_type=BenchmarkType.LOAD,
             status=BenchmarkStatus.COMPLETED,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
         )
 
         result.add_metric("cpu", 75, "%", category="resources")
@@ -482,16 +482,16 @@ class TestBenchmarkSuite:
                 name="Test1",
                 benchmark_type=BenchmarkType.CPU,
                 status=BenchmarkStatus.COMPLETED,
-                start_time=datetime.utcnow(),
-                end_time=datetime.utcnow() + timedelta(seconds=5),
+                start_time=datetime.now(UTC),
+                end_time=datetime.now(UTC) + timedelta(seconds=5),
             ),
             BenchmarkResult(
                 id="2",
                 name="Test2",
                 benchmark_type=BenchmarkType.MEMORY,
                 status=BenchmarkStatus.FAILED,
-                start_time=datetime.utcnow(),
-                end_time=datetime.utcnow() + timedelta(seconds=3),
+                start_time=datetime.now(UTC),
+                end_time=datetime.now(UTC) + timedelta(seconds=3),
             ),
         ]
 
@@ -609,21 +609,21 @@ class TestBenchmarkManager:
                 name="CPU Test",
                 benchmark_type=BenchmarkType.CPU,
                 status=BenchmarkStatus.COMPLETED,
-                start_time=datetime.utcnow() - timedelta(hours=2),
+                start_time=datetime.now(UTC) - timedelta(hours=2),
             ),
             BenchmarkResult(
                 id="2",
                 name="Memory Test",
                 benchmark_type=BenchmarkType.MEMORY,
                 status=BenchmarkStatus.FAILED,
-                start_time=datetime.utcnow() - timedelta(hours=1),
+                start_time=datetime.now(UTC) - timedelta(hours=1),
             ),
             BenchmarkResult(
                 id="3",
                 name="CPU Test 2",
                 benchmark_type=BenchmarkType.CPU,
                 status=BenchmarkStatus.COMPLETED,
-                start_time=datetime.utcnow(),
+                start_time=datetime.now(UTC),
             ),
         ]
 
@@ -651,7 +651,7 @@ class TestBenchmarkManager:
                 name="Test",
                 benchmark_type=BenchmarkType.CPU,
                 status=BenchmarkStatus.COMPLETED,
-                start_time=datetime.utcnow(),
+                start_time=datetime.now(UTC),
             )
         ]
 

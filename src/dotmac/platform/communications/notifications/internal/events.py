@@ -6,7 +6,7 @@ Replaces dependency on dotmac.websockets.core.events
 import asyncio
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any, Optional
 from uuid import uuid4
@@ -97,9 +97,9 @@ class EventManager:
                 "status": status,
                 "channel": channel,
                 "recipient": recipient,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
             priority=EventPriority.NORMAL,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             metadata=metadata or {},
         )

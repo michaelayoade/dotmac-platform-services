@@ -7,7 +7,7 @@ Handles progress tracking, persistence, and resumable upload/download operations
 import json
 import pickle
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable
 
@@ -222,7 +222,7 @@ class ProgressTracker:
         self.checkpoint_interval = checkpoint_interval
 
         self._progress = ProgressInfo(operation_id=operation_id)
-        self._last_save = datetime.utcnow()
+        self._last_save = datetime.now(UTC)
         self._update_count = 0
         self._callbacks: list[Callable[[ProgressInfo], None]] = []
 
@@ -247,7 +247,7 @@ class ProgressTracker:
         self._progress.total_records = total_records
         self._progress.bytes_total = total_bytes
         self._progress.status = TransferStatus.RUNNING
-        self._progress.start_time = datetime.utcnow()
+        self._progress.start_time = datetime.now(UTC)
         await self._save_progress()
 
     async def update(
@@ -276,7 +276,7 @@ class ProgressTracker:
             if hasattr(self._progress, key):
                 setattr(self._progress, key, value)
 
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         self._update_count += 1
 
         # Auto-save progress
@@ -294,32 +294,32 @@ class ProgressTracker:
     async def complete(self) -> None:
         """Mark operation as completed."""
         self._progress.status = TransferStatus.COMPLETED
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         await self._save_progress()
 
     async def fail(self, error_message: str) -> None:
         """Mark operation as failed."""
         self._progress.status = TransferStatus.FAILED
         self._progress.error_message = error_message
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         await self._save_progress()
 
     async def pause(self) -> None:
         """Pause the operation."""
         self._progress.status = TransferStatus.PAUSED
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         await self._save_progress()
 
     async def resume(self) -> None:
         """Resume the operation."""
         self._progress.status = TransferStatus.RUNNING
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         await self._save_progress()
 
     async def cancel(self) -> None:
         """Cancel the operation."""
         self._progress.status = TransferStatus.CANCELLED
-        self._progress.last_update = datetime.utcnow()
+        self._progress.last_update = datetime.now(UTC)
         await self._save_progress()
 
     async def create_checkpoint(
@@ -388,7 +388,7 @@ class ProgressTracker:
         """Save progress to storage."""
         try:
             await self.progress_store.save_progress(self.operation_id, self._progress)
-            self._last_save = datetime.utcnow()
+            self._last_save = datetime.now(UTC)
         except Exception as e:
             raise ProgressError(f"Failed to save progress: {e}") from e
 
@@ -483,7 +483,7 @@ async def cleanup_old_operations(
         progress_store = FileProgressStore(storage_dir)
         checkpoint_store = CheckpointStore(storage_dir)
 
-        cutoff_date = datetime.utcnow() - timedelta(days=max_age_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
         operations = await progress_store.list_operations()
 
         for operation_id in operations:

@@ -6,7 +6,7 @@ Provider-agnostic rate limiting with multiple algorithms.
 import asyncio
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict, Optional
 
 import redis.asyncio as redis
@@ -49,13 +49,13 @@ class TokenBucketLimiter(RateLimiter):
 
         # Check if tokens available
         if bucket["tokens"] >= 1:
-            reset_at = datetime.utcnow() + timedelta(seconds=60)
+            reset_at = datetime.now(UTC) + timedelta(seconds=60)
             return RateLimitResult(allowed=True, remaining=int(bucket["tokens"]), reset_at=reset_at)
 
         # Calculate retry after
         tokens_needed = 1 - bucket["tokens"]
         retry_after = int(tokens_needed / refill_rate)
-        reset_at = datetime.utcnow() + timedelta(seconds=retry_after)
+        reset_at = datetime.now(UTC) + timedelta(seconds=retry_after)
 
         return RateLimitResult(
             allowed=False, remaining=0, reset_at=reset_at, retry_after=retry_after
@@ -99,7 +99,7 @@ class TokenBucketLimiter(RateLimiter):
         )
 
         allowed, remaining = result
-        reset_at = datetime.utcnow() + timedelta(seconds=60)
+        reset_at = datetime.now(UTC) + timedelta(seconds=60)
 
         return RateLimitResult(
             allowed=bool(allowed),
@@ -179,7 +179,7 @@ class SlidingWindowLimiter(RateLimiter):
             return RateLimitResult(
                 allowed=True,
                 remaining=self.config.requests_per_minute - len(window),
-                reset_at=datetime.utcnow() + timedelta(seconds=60),
+                reset_at=datetime.now(UTC) + timedelta(seconds=60),
             )
 
         # Rate limit exceeded
@@ -189,7 +189,7 @@ class SlidingWindowLimiter(RateLimiter):
         return RateLimitResult(
             allowed=False,
             remaining=0,
-            reset_at=datetime.utcnow() + timedelta(seconds=retry_after),
+            reset_at=datetime.now(UTC) + timedelta(seconds=retry_after),
             retry_after=retry_after,
         )
 
@@ -250,13 +250,13 @@ class SlidingWindowLimiter(RateLimiter):
             return RateLimitResult(
                 allowed=True,
                 remaining=self.config.requests_per_minute - count,
-                reset_at=datetime.utcnow() + timedelta(seconds=60),
+                reset_at=datetime.now(UTC) + timedelta(seconds=60),
             )
 
         return RateLimitResult(
             allowed=False,
             remaining=0,
-            reset_at=datetime.utcnow() + timedelta(seconds=60),
+            reset_at=datetime.now(UTC) + timedelta(seconds=60),
             retry_after=60,
         )
 
@@ -354,13 +354,13 @@ class FixedWindowLimiter(RateLimiter):
             return RateLimitResult(
                 allowed=True,
                 remaining=self.config.requests_per_minute - count,
-                reset_at=datetime.utcnow() + timedelta(seconds=60 - (now % 60)),
+                reset_at=datetime.now(UTC) + timedelta(seconds=60 - (now % 60)),
             )
 
         retry_after = int(60 - (now % 60))
         return RateLimitResult(
             allowed=False,
             remaining=0,
-            reset_at=datetime.utcnow() + timedelta(seconds=retry_after),
+            reset_at=datetime.now(UTC) + timedelta(seconds=retry_after),
             retry_after=retry_after,
         )

@@ -5,7 +5,7 @@ Provides chaining of file processors for complex processing workflows.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any, Callable, Optional, Protocol
 
@@ -129,7 +129,7 @@ class PipelineStep:
 
     async def execute(self, file_path: str) -> PipelineStepResult:
         """Execute the processing step."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         step_result = PipelineStepResult(
             step_name=self.name,
             status=ProcessingStatus.PROCESSING,
@@ -162,7 +162,7 @@ class PipelineStep:
             step_result.error_message = str(e)
 
         finally:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(UTC)
             step_result.execution_time = (end_time - start_time).total_seconds()
 
         return step_result
@@ -333,7 +333,7 @@ class ProcessingPipeline:
 
     async def execute(self, file_path: str) -> PipelineResult:
         """Execute the processing pipeline on a file."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
 
         result = PipelineResult(
             pipeline_name=self.config.pipeline_name,
@@ -376,7 +376,7 @@ class ProcessingPipeline:
             result.errors.append(str(e))
 
         finally:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(UTC)
             result.total_execution_time = (end_time - start_time).total_seconds()
 
         return result

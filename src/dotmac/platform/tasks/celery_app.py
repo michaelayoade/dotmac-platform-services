@@ -1,3 +1,4 @@
+from datetime import UTC
 """
 Celery application configuration and initialization.
 
@@ -413,7 +414,7 @@ def health_check() -> dict[str, Any]:
     return {
         "status": "healthy",
         "service": "celery-worker",
-        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+        "timestamp": __import__("datetime").datetime.now(UTC).isoformat(),
     }
 
 if __name__ == "__main__":

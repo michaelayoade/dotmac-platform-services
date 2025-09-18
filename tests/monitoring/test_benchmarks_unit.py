@@ -1,3 +1,4 @@
+from datetime import UTC
 import asyncio
 
 import pytest
@@ -18,7 +19,7 @@ async def test_benchmarkresult_metrics_and_duration_property():
         name="n",
         benchmark_type=None,  # type: ignore[arg-type]
         status=BenchmarkStatus.PENDING,
-        start_time=__import__("datetime").datetime.utcnow(),
+        start_time=__import__("datetime").datetime.now(UTC),
     )
     br.add_metric("m1", 1, "ms", category="c")
     assert br.get_metric("m1").unit == "ms"

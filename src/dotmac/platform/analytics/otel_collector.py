@@ -4,6 +4,7 @@ OpenTelemetry collector implementation for SigNoz integration.
 
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from opentelemetry import metrics, trace
@@ -41,6 +42,28 @@ class OTelConfig:
     export_interval_millis: int = 5000
     max_export_batch_size: int = 512
     max_queue_size: int = 2048
+    signoz_endpoint: Optional[str] = None
+    otlp_endpoint: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        """Normalize endpoint aliases and header formats."""
+        if self.endpoint == "localhost:4317":
+            if self.signoz_endpoint:
+                self.endpoint = self.signoz_endpoint
+            elif self.otlp_endpoint:
+                self.endpoint = self.otlp_endpoint
+
+        if isinstance(self.headers, str):
+            parsed_headers: Dict[str, str] = {}
+            for item in self.headers.split(","):
+                if "=" not in item:
+                    continue
+                key, value = item.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if key:
+                    parsed_headers[key] = value
+            self.headers = parsed_headers or None
 
 class OpenTelemetryCollector(BaseAnalyticsCollector):
     """
@@ -86,6 +109,14 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         self._gauges: Dict[str, Any] = {}
         self._histograms: Dict[str, Any] = {}
         self._updown_counters: Dict[str, Any] = {}
+        self._gauge_values: Dict[str, Dict[tuple, float]] = {}
+
+        # Lightweight in-memory summary for quick aggregation in tests and admin endpoints
+        self._metrics_summary: Dict[str, Dict[str, Any]] = {
+            "counters": {},
+            "gauges": {},
+            "histograms": {},
+        }
 
     def _init_metrics(self, resource: Resource) -> None:
         """Initialize OpenTelemetry metrics."""
@@ -158,8 +189,6 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """Get or create a gauge instrument."""
         if metric.name not in self._gauges:
             # Store gauge values for async callback
-            if metric.name not in self._gauge_values:
-                self._gauge_values = {}
             self._gauge_values[metric.name] = {}
 
             def gauge_callback(options: CallbackOptions) -> List[Observation]:
@@ -208,13 +237,28 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             elif isinstance(metric, GaugeMetric):
                 # Store value for async callback
                 attrs_key = tuple(sorted(attributes.items()))
-                if metric.name not in self._gauge_values:
-                    self._gauge_values = {}
-                self._gauge_values[metric.name][attrs_key] = metric.value
+                self._gauge_values.setdefault(metric.name, {})[attrs_key] = metric.value
 
             elif isinstance(metric, HistogramMetric):
                 histogram = self._get_or_create_histogram(metric)
                 histogram.record(metric.value, attributes)
+                summary = self._metrics_summary["histograms"].setdefault(
+                    metric.name,
+                    {"count": 0, "sum": 0.0, "min": None, "max": None},
+                )
+                summary["count"] += 1
+                summary["sum"] += metric.value
+                summary["avg"] = summary["sum"] / summary["count"]
+                summary["min"] = (
+                    metric.value
+                    if summary["min"] is None
+                    else min(summary["min"], metric.value)
+                )
+                summary["max"] = (
+                    metric.value
+                    if summary["max"] is None
+                    else max(summary["max"], metric.value)
+                )
 
             else:
                 logger.warning(f"Unsupported metric type: {metric.type}")
@@ -231,6 +275,102 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """
         for metric in metrics:
             await self.collect(metric)
+
+    async def record_metric(
+        self,
+        name: str,
+        value: float | int,
+        metric_type: str = "gauge",
+        labels: Optional[Dict[str, Any]] = None,
+        unit: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> None:
+        """Convenience helper for recording ad-hoc metrics.
+
+        Args:
+            name: Metric name
+            value: Metric value (interpreted per metric_type)
+            metric_type: counter | gauge | histogram
+            labels: Optional attributes for the metric
+            unit: Optional measurement unit
+            description: Optional metric description
+        """
+
+        metric_type = (metric_type or "gauge").lower()
+        labels = labels or {}
+
+        try:
+            if metric_type == "counter":
+                delta = float(value)
+                if delta < 0:
+                    raise ValueError("Counter metrics require non-negative values")
+                metric = CounterMetric(
+                    name=name,
+                    delta=delta,
+                    tenant_id=self.tenant_id,
+                    unit=unit,
+                    description=description,
+                    attributes=labels,
+                )
+                summary = self._metrics_summary["counters"]
+                summary[name] = summary.get(name, 0.0) + delta
+
+            elif metric_type == "histogram":
+                metric = HistogramMetric(
+                    name=name,
+                    value=float(value),
+                    tenant_id=self.tenant_id,
+                    unit=unit,
+                    description=description,
+                    attributes=labels,
+                )
+
+            else:
+                metric = GaugeMetric(
+                    name=name,
+                    value=float(value),
+                    tenant_id=self.tenant_id,
+                    unit=unit,
+                    description=description,
+                    attributes=labels,
+                )
+                self._metrics_summary["gauges"][name] = {
+                    "value": float(value),
+                    "labels": labels,
+                }
+
+            await self.collect(metric)
+
+        except Exception as exc:
+            logger.error(f"Failed to record metric {name}: {exc}")
+
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Return a snapshot of recently recorded metrics."""
+
+        histogram_snapshot: Dict[str, Any] = {}
+        for key, stats in self._metrics_summary["histograms"].items():
+            histogram_snapshot[key] = {
+                "count": stats.get("count", 0),
+                "sum": stats.get("sum", 0.0),
+                "avg": stats.get("avg", 0.0),
+                "min": stats.get("min"),
+                "max": stats.get("max"),
+            }
+
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": self.service_name,
+            "tenant": self.tenant_id,
+            "counters": dict(self._metrics_summary["counters"]),
+            "gauges": {
+                key: {
+                    "value": payload.get("value"),
+                    "labels": payload.get("labels", {}),
+                }
+                for key, payload in self._metrics_summary["gauges"].items()
+            },
+            "histograms": histogram_snapshot,
+        }
 
     def create_span(
         self,
