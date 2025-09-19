@@ -4,19 +4,35 @@ import pytest
 from typing import Any, Dict, Optional
 from unittest.mock import Mock, AsyncMock
 
-try:
+try:  # optional dependency: strawberry is not always installed locally
     import strawberry
     from strawberry.fastapi import GraphQLRouter
     from strawberry.test import BaseGraphQLTestClient
     from fastapi import FastAPI
     from httpx import ASGITransport, AsyncClient
-except ImportError:
+except ImportError:  # pragma: no cover - handled via graceful skips below
     strawberry = None
-    pytest.skip("Strawberry GraphQL not available", allow_module_level=True)
+    GraphQLRouter = None  # type: ignore
+    BaseGraphQLTestClient = None  # type: ignore
+    FastAPI = None  # type: ignore
+    ASGITransport = None  # type: ignore
+    AsyncClient = None  # type: ignore
 
-from dotmac.platform.api.graphql.schema import schema
-from dotmac.platform.api.graphql.router import mount_graphql
+if strawberry is not None:
+    from dotmac.platform.api.graphql.schema import schema
+    from dotmac.platform.api.graphql.router import mount_graphql
+else:  # pragma: no cover - executed when GraphQL stack missing
+    schema = None  # type: ignore
+    mount_graphql = None  # type: ignore
+
 from dotmac.platform.auth.current_user import UserClaims
+
+
+def _require_strawberry() -> None:
+    """Skip a test when Strawberry GraphQL is unavailable."""
+
+    if strawberry is None or FastAPI is None or AsyncClient is None or schema is None:
+        pytest.skip("Strawberry GraphQL not available")
 
 
 @pytest.fixture
@@ -56,7 +72,9 @@ def mock_auth_context(mock_user_claims):
 @pytest.fixture
 def graphql_app():
     """Create FastAPI app with GraphQL endpoint mounted."""
-    if not schema:
+    _require_strawberry()
+
+    if not schema or not mount_graphql or not FastAPI:
         pytest.skip("GraphQL schema not available")
 
     app = FastAPI(title="Test GraphQL API")
@@ -67,6 +85,8 @@ def graphql_app():
 @pytest.fixture
 async def graphql_client(graphql_app):
     """Create async GraphQL test client."""
+    _require_strawberry()
+
     transport = ASGITransport(app=graphql_app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
@@ -134,12 +154,14 @@ class GraphQLTestClient:
 @pytest.fixture
 async def graphql_test_client(graphql_client):
     """Enhanced GraphQL test client with utility methods."""
+    _require_strawberry()
     return GraphQLTestClient(graphql_client)
 
 
 @pytest.fixture
 async def authenticated_graphql_client(graphql_test_client):
     """GraphQL test client with authentication."""
+    _require_strawberry()
     graphql_test_client.set_auth_header("test-token")
     return graphql_test_client
 

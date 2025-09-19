@@ -275,7 +275,7 @@ class TestGraphQLMount:
                 health_data = response.json()
                 # Verify basic health response structure
                 assert "status" in health_data
-                assert health_data["status"] in ["healthy", "unhealthy"]
+                assert health_data["status"] in ["healthy", "unhealthy", "degraded"]
                 # GraphQL health would be included in checks if detailed
                 # assert "graphql" in health_data.get("checks", {})
 

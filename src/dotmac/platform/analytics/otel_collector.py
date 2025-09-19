@@ -121,23 +121,26 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
     def _init_metrics(self, resource: Resource) -> None:
         """Initialize OpenTelemetry metrics."""
         # Create OTLP metric exporter for SigNoz
-        metric_exporter = OTLPMetricExporter(
-            endpoint=self.config.endpoint,
-            insecure=self.config.insecure,
-            headers=self.config.headers,
-        )
+        try:
+            metric_exporter = OTLPMetricExporter(
+                endpoint=self.config.endpoint,
+                insecure=self.config.insecure,
+                headers=self.config.headers,
+            )
 
-        # Create metric reader
-        metric_reader = PeriodicExportingMetricReader(
-            exporter=metric_exporter,
-            export_interval_millis=self.config.export_interval_millis,
-        )
+            metric_reader = PeriodicExportingMetricReader(
+                exporter=metric_exporter,
+                export_interval_millis=self.config.export_interval_millis,
+            )
 
-        # Set up meter provider
-        provider = MeterProvider(
-            resource=resource,
-            metric_readers=[metric_reader],
-        )
+            provider = MeterProvider(
+                resource=resource,
+                metric_readers=[metric_reader],
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard for tests
+            logger.warning(f"Falling back to in-memory metrics provider: {exc}")
+            provider = MeterProvider(resource=resource)
+
         metrics.set_meter_provider(provider)
 
         # Get meter for this service
@@ -149,22 +152,23 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
     def _init_tracing(self, resource: Resource) -> None:
         """Initialize OpenTelemetry tracing."""
         # Create OTLP span exporter for SigNoz
-        span_exporter = OTLPSpanExporter(
-            endpoint=self.config.endpoint,
-            insecure=self.config.insecure,
-            headers=self.config.headers,
-        )
+        try:
+            span_exporter = OTLPSpanExporter(
+                endpoint=self.config.endpoint,
+                insecure=self.config.insecure,
+                headers=self.config.headers,
+            )
 
-        # Create tracer provider
-        provider = TracerProvider(resource=resource)
-
-        # Add span processor
-        span_processor = BatchSpanProcessor(
-            span_exporter,
-            max_queue_size=self.config.max_queue_size,
-            max_export_batch_size=self.config.max_export_batch_size,
-        )
-        provider.add_span_processor(span_processor)
+            provider = TracerProvider(resource=resource)
+            span_processor = BatchSpanProcessor(
+                span_exporter,
+                max_queue_size=self.config.max_queue_size,
+                max_export_batch_size=self.config.max_export_batch_size,
+            )
+            provider.add_span_processor(span_processor)
+        except Exception as exc:  # pragma: no cover - defensive guard for tests
+            logger.warning(f"Falling back to in-memory tracing provider: {exc}")
+            provider = TracerProvider(resource=resource)
 
         # Set global tracer provider
         trace.set_tracer_provider(provider)

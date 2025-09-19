@@ -9,13 +9,14 @@ Design:
   - DOTMAC_DATABASE_URL_ASYNC (async)
 - Falls back to reasonable defaults for development (SQLite) if not set.
 
-Exposed helpers:
+- Exposed helpers:
 - get_database_session()  -> context manager yielding sync Session
 - get_db_session()        -> async dependency yielding AsyncSession
 - get_async_db_session()  -> alias of get_db_session()
 - get_async_db()          -> alias of get_db_session()
 - create_async_database_engine(url: str, **kwargs) -> AsyncEngine
 - check_database_health() -> async bool
+- init_db()               -> ensure database connectivity and optional migrations
 """
 
 from __future__ import annotations
@@ -37,8 +38,11 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 
+from dotmac.platform.observability.unified_logging import get_logger
+
 _sync_engine: Engine | None = None
 _async_engine: AsyncEngine | None = None
+logger = get_logger(__name__)
 
 
 def _get_sync_url() -> str:
@@ -154,6 +158,25 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
 # Aliases commonly referenced across the codebase
 get_async_db = get_db_session
 get_async_db_session = get_db_session
+get_session = get_db_session
+
+
+async def init_db(run_migrations: bool | None = None) -> None:
+    """Initialize database engines and optionally apply migrations."""
+
+    _ensure_sync_engine()
+    healthy = await check_database_health()
+    if not healthy:
+        raise RuntimeError("Database initialization failed: unable to connect with provided URL")
+
+    should_run_migrations = run_migrations
+    if should_run_migrations is None:
+        should_run_migrations = os.getenv("DOTMAC_RUN_MIGRATIONS", "false").lower() == "true"
+
+    if should_run_migrations:
+        await _run_migrations_async()
+
+    logger.info("database initialized", run_migrations=bool(should_run_migrations))
 
 
 def create_async_database_engine(url: str, **kwargs) -> AsyncEngine:
@@ -178,3 +201,26 @@ async def check_database_health() -> bool:
         return True
     except Exception:
         return False
+
+
+async def _run_migrations_async() -> None:
+    """Execute Alembic migrations using a background thread."""
+
+    loop = asyncio.get_running_loop()
+
+    def _upgrade():
+        cfg_path = os.getenv("ALEMBIC_CONFIG", "alembic.ini")
+        if not os.path.exists(cfg_path):
+            logger.warning("alembic config not found; skipping migrations", path=cfg_path)
+            return
+
+        try:
+            from alembic import command
+            from alembic.config import Config
+        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+            logger.warning("alembic not installed; skipping migrations", error=str(exc))
+            return
+
+        command.upgrade(Config(cfg_path), "head")
+
+    await loop.run_in_executor(None, _upgrade)

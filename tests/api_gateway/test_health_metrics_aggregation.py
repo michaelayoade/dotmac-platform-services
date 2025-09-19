@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from dotmac.platform.api_gateway.gateway import APIGateway
@@ -12,6 +13,31 @@ from dotmac.platform.api_gateway.config import GatewayConfig
 
 class TestHealthMetricsAggregation:
     """Test health checks and metrics aggregation functionality."""
+
+    @pytest.fixture(autouse=True)
+    def stub_gateway_analytics(self, monkeypatch):
+        """Provide a lightweight analytics adapter to avoid external OTLP calls."""
+
+        async def fake_summary():
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "counters": {"api_request": 5},
+                "gauges": {},
+                "histograms": {},
+            }
+
+        adapter = SimpleNamespace(
+            analytics=SimpleNamespace(collector=SimpleNamespace(tracer=None)),
+            get_metrics_summary=AsyncMock(side_effect=fake_summary),
+            record_request=AsyncMock(return_value=None),
+        )
+
+        monkeypatch.setattr(
+            "dotmac.platform.api_gateway.gateway.get_gateway_analytics",
+            lambda **_: adapter,
+        )
+
+        return adapter
 
     @pytest.fixture
     def gateway_config(self):
@@ -57,7 +83,7 @@ class TestHealthMetricsAggregation:
 
     def test_health_aggregates_multiple_checks(self, test_client):
         """Test that health endpoint aggregates multiple service checks."""
-        with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+        with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
             mock_checker_instance = Mock()
             mock_health_checker.return_value = mock_checker_instance
 
@@ -105,7 +131,7 @@ class TestHealthMetricsAggregation:
 
     def test_health_check_timeout_handling(self, test_client):
         """Test handling of health check timeouts."""
-        with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+        with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
             mock_checker_instance = Mock()
             mock_health_checker.return_value = mock_checker_instance
 
@@ -219,7 +245,7 @@ class TestHealthMetricsAggregation:
 
     def test_health_check_caching(self, test_client):
         """Test that health checks are appropriately cached."""
-        with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+        with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
             mock_checker_instance = Mock()
             mock_health_checker.return_value = mock_checker_instance
 
@@ -249,7 +275,7 @@ class TestHealthMetricsAggregation:
 
     def test_health_check_includes_dependency_versions(self, test_client):
         """Test that health check includes dependency version information."""
-        with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+        with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
             mock_checker_instance = Mock()
             mock_health_checker.return_value = mock_checker_instance
 
@@ -319,7 +345,7 @@ class TestHealthMetricsAggregation:
             # Simulate circuit breaker open
             mock_cb_instance.is_open = True
 
-            with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+            with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
                 mock_checker_instance = Mock()
                 mock_health_checker.return_value = mock_checker_instance
 
@@ -408,7 +434,7 @@ class TestHealthMetricsAggregation:
 
     def test_health_check_external_dependencies(self, test_client):
         """Test health checks for external dependencies."""
-        with patch('dotmac.platform.api_gateway.health.HealthChecker') as mock_health_checker:
+        with patch('dotmac.platform.api_gateway.gateway.HealthChecker') as mock_health_checker:
             mock_checker_instance = Mock()
             mock_health_checker.return_value = mock_checker_instance
 

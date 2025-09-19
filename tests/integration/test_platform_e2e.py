@@ -22,6 +22,13 @@ from dotmac.platform.secrets import SecretsManager
 pytestmark = pytest.mark.integration
 
 
+if not os.getenv("DOTMAC_RUN_E2E_TESTS"):
+    pytest.skip(
+        "E2E integration tests require external services; set DOTMAC_RUN_E2E_TESTS=1 to enable",
+        allow_module_level=True,
+    )
+
+
 class TestPlatformE2E:
     """End-to-end tests for the complete platform."""
 

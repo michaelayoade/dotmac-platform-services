@@ -206,6 +206,21 @@ except ImportError as e:
     # Do not reassign PROVIDER_CONFIGS constant in except block
     _oauth_available = False
 
+try:
+    from .user_service import (
+        BaseUserService,
+        UserCreateSchema,
+        UserService,
+        UserType,
+    )
+
+    _user_service_available = True
+except ImportError as e:
+    warnings.warn(f"User service helpers not available: {e}", stacklevel=2)
+    BaseUserService = UserService = None
+    UserCreateSchema = UserType = None
+    _user_service_available = False
+
 # Exception handling
 try:
     from .exceptions import (
@@ -778,6 +793,16 @@ if _oauth_available:
             "generate_oauth_state",
             "generate_pkce_pair",
             "setup_oauth_provider",
+        ]
+    )
+
+if _user_service_available:
+    __all__.extend(
+        [
+            "BaseUserService",
+            "UserCreateSchema",
+            "UserService",
+            "UserType",
         ]
     )
 

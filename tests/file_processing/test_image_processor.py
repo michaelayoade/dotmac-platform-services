@@ -25,12 +25,7 @@ class TestImageProcessor:
     @pytest.fixture
     def image_processor(self):
         """Create image processor instance."""
-        with patch(
-            "dotmac.platform.file_processing.processors.ImageProcessor"
-        ) as MockImageProcessor:
-            instance = Mock()
-            MockImageProcessor.return_value = instance
-            return instance
+        return ImageProcessor()
 
     @pytest.fixture
     def processing_options(self):

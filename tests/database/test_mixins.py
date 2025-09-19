@@ -4,8 +4,7 @@ Unit tests for database mixins and base model helpers.
 
 import pytest
 from sqlalchemy import Column, Integer, String
-
-from dotmac.platform.database.base import BaseModel
+from sqlalchemy.orm import declarative_base
 from dotmac.platform.database.mixins import (
     DescriptionMixin,
     ISPModelMixin,
@@ -17,10 +16,13 @@ from dotmac.platform.database.mixins import (
 
 @pytest.mark.unit
 def test_mixins_attributes_and_helpers():
+    Base = declarative_base()
+
     class Thing(
-        BaseModel, ISPModelMixin, TimestampMixin, TenantMixin, StatusMixin, DescriptionMixin
+        Base, ISPModelMixin, TimestampMixin, TenantMixin, StatusMixin, DescriptionMixin
     ):
         __tablename__ = "things"
+        id = Column(Integer, primary_key=True)
         name = Column(String(50))
         count = Column(Integer, default=0)
 
@@ -41,6 +43,7 @@ def test_mixins_attributes_and_helpers():
             "count",
             "created_at",
             "updated_at",
+            "deleted_at",
             "tenant_id",
             "status",
             "is_active",

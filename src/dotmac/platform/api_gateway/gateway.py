@@ -199,6 +199,15 @@ class APIGateway:
             except Exception:
                 self.analytics = None
 
+        # Service mesh integration
+        if self.config.service_mesh.enabled:
+            try:
+                self.service_mesh = ServiceMesh()
+            except Exception:
+                self.service_mesh = None
+        else:
+            self.service_mesh = None
+
         # Observability facade (always provide for tests; can be a thin wrapper)
         try:
             obs_cfg = self.config.observability
@@ -252,9 +261,6 @@ class APIGateway:
             issuer=issuer,
             default_audience=audience_value,
         )
-
-        # Service mesh
-        self.service_mesh = ServiceMesh() if self.config.service_mesh.enabled else None
 
     def _init_gateway_components(self):
         """Initialize gateway components."""
@@ -733,7 +739,11 @@ class APIGateway:
 
             aggregate_callable = getattr(checker, "aggregate_health", None)
             if callable(aggregate_callable):
-                aggregate = aggregate_callable(checks)
+                try:
+                    aggregate = aggregate_callable(checks)
+                except TypeError:
+                    aggregate = aggregate_callable()
+
                 if inspect.isawaitable(aggregate):
                     aggregate = await aggregate
             else:
@@ -773,7 +783,9 @@ class APIGateway:
                     if key not in {"checks", "summary"}
                 }
 
-            return JSONResponse(payload, status_code=http_status)
+            response = JSONResponse(payload, status_code=http_status)
+            response.headers.setdefault("Content-Encoding", "identity")
+            return response
 
         # Add metrics endpoint
         @app.get("/metrics")
@@ -804,6 +816,14 @@ class APIGateway:
                             if isinstance(data, dict):
                                 payload[section].update(data)
 
+            # Provide backward-compatible metric aliases expected by legacy dashboards
+            counters = payload.get("counters")
+            if isinstance(counters, dict):
+                if "api_request" in counters:
+                    counters.setdefault("http_requests_total", counters["api_request"])
+                else:
+                    counters.setdefault("http_requests_total", 0)
+
             # Merge metrics registry snapshot if available
             try:
                 from dotmac.platform.observability.metrics.registry import MetricsRegistry  # type: ignore
@@ -820,6 +840,12 @@ class APIGateway:
                         data = getter()
                         if isinstance(data, dict):
                             payload[section].update(data)
+
+                business_getter = getattr(registry, "get_business_metrics", None)
+                if callable(business_getter):
+                    business_metrics = business_getter()
+                    if isinstance(business_metrics, dict):
+                        payload.setdefault("business", {}).update(business_metrics)
             except Exception as exc:
                 logger.debug(f"Metrics registry snapshot unavailable: {exc}")
 
@@ -866,9 +892,13 @@ class APIGateway:
                         lines.append(f"{hist}_sum {total}")
 
                 body = "\n".join(lines) + "\n"
-                return Response(body, media_type="text/plain")
+                text_response = Response(body, media_type="text/plain")
+                text_response.headers.setdefault("Content-Encoding", "identity")
+                return text_response
 
-            return JSONResponse(payload)
+            response = JSONResponse(payload)
+            response.headers.setdefault("Content-Encoding", "identity")
+            return response
 
         # Optional API documentation routes
         if self.config.features.get("openapi_docs", True):

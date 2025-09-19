@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 
 # Modules containing SQLAlchemy model definitions that rely on Base
 MODEL_MODULES: Iterable[str] = (
-    "dotmac.platform.user_management.models.rbac_models",
     "dotmac.platform.feature_flags.db_models",
 )
 

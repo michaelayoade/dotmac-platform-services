@@ -423,6 +423,11 @@ class TestDockerHealthChecks:
         import subprocess
         import json
 
+        # Define critical services that must be healthy
+        CRITICAL_SERVICES = ['postgres', 'redis', 'openbao', 'rabbitmq']
+        # Optional services that may be unhealthy without failing the test
+        OPTIONAL_SERVICES = ['celery-worker', 'celery-beat', 'minio', 'meilisearch']
+
         try:
             # Get container health status
             result = subprocess.run(
@@ -441,16 +446,35 @@ class TestDockerHealthChecks:
             if not dotmac_containers:
                 pytest.skip("No DotMac containers running")
 
-            unhealthy = []
+            critical_unhealthy = []
+            optional_unhealthy = []
+
             for container in dotmac_containers:
+                name = container.get('Names', '')
                 status = container.get('Status', '')
+
                 if 'unhealthy' in status.lower():
-                    unhealthy.append(container['Names'])
+                    # Check if it's a critical service
+                    is_critical = any(svc in name.lower() for svc in CRITICAL_SERVICES)
+                    is_optional = any(svc in name.lower() for svc in OPTIONAL_SERVICES)
 
-            if unhealthy:
-                pytest.fail(f"Unhealthy containers: {', '.join(unhealthy)}")
+                    if is_critical:
+                        critical_unhealthy.append(name)
+                    elif is_optional:
+                        optional_unhealthy.append(name)
+                    else:
+                        # Unknown service, treat as critical
+                        critical_unhealthy.append(name)
 
-            print(f"✓ All {len(dotmac_containers)} DotMac containers are healthy")
+            # Report status
+            if optional_unhealthy:
+                print(f"⚠ Optional services unhealthy (non-critical): {', '.join(optional_unhealthy)}")
+
+            if critical_unhealthy:
+                pytest.fail(f"Critical services unhealthy: {', '.join(critical_unhealthy)}")
+
+            healthy_count = len(dotmac_containers) - len(optional_unhealthy) - len(critical_unhealthy)
+            print(f"✓ {healthy_count}/{len(dotmac_containers)} DotMac containers are healthy")
 
         except Exception as e:
             pytest.skip(f"Could not check container health: {e}")

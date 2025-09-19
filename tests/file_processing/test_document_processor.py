@@ -5,7 +5,7 @@ Comprehensive tests for document processing functionality.
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -226,7 +226,7 @@ class TestDocumentProcessor:
         try:
             # Mock openpyxl.load_workbook
             with patch("openpyxl.load_workbook") as mock_workbook:
-                mock_wb = Mock()
+                mock_wb = MagicMock()
                 mock_wb.sheetnames = ["Sheet1", "Sheet2", "Sheet3"]
                 mock_workbook.return_value = mock_wb
 
@@ -328,7 +328,7 @@ class TestDocumentProcessor:
                 ("Data1", "Data2", None),
             ]
 
-            mock_wb = Mock()
+            mock_wb = MagicMock()
             mock_wb.sheetnames = ["TestSheet"]
             mock_wb.__getitem__.return_value = mock_sheet
             mock_workbook.return_value = mock_wb

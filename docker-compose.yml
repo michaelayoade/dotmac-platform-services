@@ -247,6 +247,12 @@ services:
     networks:
       - dotmac-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A dotmac.platform.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   celery-beat:
     build: .
@@ -268,6 +274,12 @@ services:
     networks:
       - dotmac-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A dotmac.platform.tasks.celery_app status | grep -q 'OK' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Celery Monitoring
   flower:

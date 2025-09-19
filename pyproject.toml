@@ -52,10 +52,10 @@ meilisearch = "^0.31.0"
 
 # Email Services
 sendgrid = "^6.11.0"
-python-multipart = "^0.0.6"  # For email attachments
+python-multipart = "^0.0.7"  # For email attachments
 
 # GraphQL
-strawberry-graphql = {extras = ["fastapi"], version = "^0.219.0", optional = true}
+strawberry-graphql = {extras = ["fastapi"], version = "^0.282.0"}
 
 # Optional dependencies (extras)
 uvicorn = {extras = ["standard"], version = ">=0.25.0", optional = true}

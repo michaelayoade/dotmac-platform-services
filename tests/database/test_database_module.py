@@ -39,3 +39,15 @@ def test_database_enums_expose_expected_values():
     assert DatabaseDriver.POSTGRESQL_ASYNC.value == "postgresql+asyncpg"
     assert IsolationLevel.SERIALIZABLE.value == "SERIALIZABLE"
     assert IsolationLevel.READ_COMMITTED.value == "READ COMMITTED"
+
+
+@pytest.mark.unit
+def test_base_model_assigns_arbitrary_kwargs():
+    widget = Widget(name="example", description=None, category="analytics")
+
+    # Attribute not defined on model should still be set on the instance
+    assert getattr(widget, "category") == "analytics"
+
+    # Only mapped columns are included in dictionary serialization
+    data = widget.to_dict()
+    assert "category" not in data

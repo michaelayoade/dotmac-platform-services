@@ -72,7 +72,7 @@ def _get_metrics_registry():
                 MetricDefinition(
                     name="celery_task_started_total",
                     description="Number of Celery tasks started",
-                    metric_type=MetricType.COUNTER,
+                    type=MetricType.COUNTER,
                     unit="1",
                 )
             )
@@ -80,7 +80,7 @@ def _get_metrics_registry():
                 MetricDefinition(
                     name="celery_task_completed_total",
                     description="Number of Celery tasks completed successfully",
-                    metric_type=MetricType.COUNTER,
+                    type=MetricType.COUNTER,
                     unit="1",
                 )
             )
@@ -88,7 +88,7 @@ def _get_metrics_registry():
                 MetricDefinition(
                     name="celery_task_failed_total",
                     description="Number of Celery tasks that failed",
-                    metric_type=MetricType.COUNTER,
+                    type=MetricType.COUNTER,
                     unit="1",
                 )
             )
@@ -96,7 +96,7 @@ def _get_metrics_registry():
                 MetricDefinition(
                     name="celery_task_retried_total",
                     description="Number of Celery task retries",
-                    metric_type=MetricType.COUNTER,
+                    type=MetricType.COUNTER,
                     unit="1",
                 )
             )
@@ -104,7 +104,7 @@ def _get_metrics_registry():
                 MetricDefinition(
                     name="celery_task_duration_ms",
                     description="Histogram of Celery task execution time in milliseconds",
-                    metric_type=MetricType.HISTOGRAM,
+                    type=MetricType.HISTOGRAM,
                     unit="ms",
                 )
             )
