@@ -11,7 +11,7 @@ import aiohttp
 
 from .types import AuthResult, UserInfo
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 # Try to import JWT support (optional dependency)

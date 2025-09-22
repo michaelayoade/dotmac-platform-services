@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
-from dotmac.platform.observability import ObservabilityManager
+# TODO: Update ObservabilityManager to use telemetry or logging directly
 
 # Mark all tests in this module as integration tests
 pytestmark = [

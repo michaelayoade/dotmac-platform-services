@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 from .schema import schema
 

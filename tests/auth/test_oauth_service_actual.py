@@ -121,7 +121,7 @@ class TestOAuthModels:
 
     def test_oauth_service_config(self):
         """Test OAuth service configuration."""
-        config = OAuthServiceConfig(
+        config = settings.OAuthService.model_copy(update={
             providers={
                 OAuthProvider.GOOGLE: {
                     "client_id": "google-client-id",
@@ -132,7 +132,7 @@ class TestOAuthModels:
             },
             default_scopes=["openid", "email"],
             state_ttl_seconds=600,
-        )
+        })
 
         assert OAuthProvider.GOOGLE in config.providers
         assert config.default_scopes == ["openid", "email"]
@@ -168,7 +168,7 @@ class TestOAuthService:
     @pytest.fixture
     def oauth_service(self):
         """Create OAuth service instance."""
-        config = OAuthServiceConfig(
+        config = settings.OAuthService.model_copy(update={
             providers={
                 OAuthProvider.GOOGLE: {
                     "client_id": "test-google-client",
@@ -185,7 +185,7 @@ class TestOAuthService:
                     "userinfo_url": "https://api.github.com/user",
                 },
             }
-        )
+        })
         return OAuthService(config)
 
     @pytest.fixture

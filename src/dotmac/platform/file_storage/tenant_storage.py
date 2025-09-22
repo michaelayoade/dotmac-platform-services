@@ -12,7 +12,7 @@ from typing import Any, BinaryIO, Optional
 
 from .backends import FileInfo, StorageBackend
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 @dataclass

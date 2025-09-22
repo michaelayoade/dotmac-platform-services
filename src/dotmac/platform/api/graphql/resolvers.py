@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, UTC
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 from dotmac.platform.auth.current_user import UserClaims
 from dotmac.platform.auth.exceptions import AuthError
 
@@ -23,9 +23,11 @@ if strawberry:
     from dotmac.platform.auth.jwt_service import JWTService
     from dotmac.platform.auth.api_keys import APIKeyService
     from dotmac.platform.auth.session_manager import SessionManager
-    from dotmac.platform.feature_flags.service import FeatureFlagService
-    from dotmac.platform.secrets.manager import SecretsManager
-    from dotmac.platform.observability.metrics.registry import MetricsRegistry
+    from dotmac.platform.feature_flags import is_enabled, set_flag, list_flags
+    # from dotmac.platform.secrets.manager import SecretsManager
+    SecretsManager = None  # Placeholder for removed secrets module
+    # MetricsRegistry removed - using OpenTelemetry directly
+    MetricsRegistry = None
 
 
 class AuthResolver:

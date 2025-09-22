@@ -14,12 +14,12 @@ from typing import Any, Iterable
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
-from dotmac.platform.core import AuthorizationError
-from dotmac.platform.core.enhanced.exceptions import (
+from dotmac.platform.domain import (
+    AuthorizationError,
     EntityNotFoundError,
     ValidationError,
 )
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

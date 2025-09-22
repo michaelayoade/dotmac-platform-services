@@ -108,7 +108,7 @@ except ImportError as e:
 
 # Configuration and observability
 try:
-    from .config import CommunicationsConfig, load_config, validate_config
+    from dotmac.platform.settings import settings, load_config, validate_config
     from .observability import CommunicationsObservability, get_observability
 except ImportError as e:
 

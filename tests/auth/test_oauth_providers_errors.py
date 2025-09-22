@@ -22,7 +22,7 @@ class DummyDB:
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_authorization_url_provider_missing(monkeypatch):
-    svc = OAuthService(DummyDB(), OAuthServiceConfig())
+    svc = OAuthService(DummyDB(), settings.OAuthService.model_copy())
     # Force missing provider config
     monkeypatch.setattr(svc, "_get_provider_config", lambda provider: None)
 
@@ -39,7 +39,7 @@ async def test_get_authorization_url_provider_disabled(monkeypatch):
     class P:  # minimal stub
         is_enabled = False
 
-    svc = OAuthService(DummyDB(), OAuthServiceConfig())
+    svc = OAuthService(DummyDB(), settings.OAuthService.model_copy())
     monkeypatch.setattr(svc, "_get_provider_config", lambda provider: P())
 
     req = OAuthAuthorizationRequest(

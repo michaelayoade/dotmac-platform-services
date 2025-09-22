@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Generic, Optional, TypeVar
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 
 ModelType = TypeVar("ModelType")

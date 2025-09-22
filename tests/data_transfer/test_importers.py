@@ -136,7 +136,7 @@ Bob,35,Paris"""
         assert isinstance(importer.options, ImportOptions)
 
         # Test with custom config and options
-        config = TransferConfig(batch_size=500)
+        config = settings.Transfer.model_copy(update={batch_size=500})
         options = ImportOptions(delimiter=";")
         importer = CSVImporter(config, options)
         assert importer.config.batch_size == 500
@@ -678,7 +678,7 @@ class TestImporterFactory:
     @pytest.mark.unit
     def test_create_importer_with_options(self):
         """Test creating importer with custom options."""
-        config = TransferConfig(batch_size=100)
+        config = settings.Transfer.model_copy(update={batch_size=100})
         options = ImportOptions(delimiter=";")
 
         importer = create_importer(DataFormat.CSV, config, options)
@@ -859,7 +859,7 @@ class TestIntegrationScenarios:
             temp_path = Path(f.name)
 
         try:
-            config = TransferConfig(batch_size=100)  # Small batches for testing
+            config = settings.Transfer.model_copy(update={batch_size=100})  # Small batches for testing
             importer = CSVImporter(config=config)
 
             batches = []

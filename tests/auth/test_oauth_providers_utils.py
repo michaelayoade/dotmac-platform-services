@@ -72,13 +72,13 @@ async def test_setup_oauth_provider_creates_new():
 @pytest.mark.asyncio
 async def test_setup_oauth_provider_updates_existing():
     original = deepcopy(PROVIDER_CONFIGS[OAuthProvider.GOOGLE])
-    existing = OAuthProviderConfig(
+    existing = settings.OAuthProvider.model_copy(update={
         provider=OAuthProvider.GOOGLE.value,
         client_id="old",
         client_secret="old-secret",
         authorization_url="https://old.example.com/auth",
         token_url="https://old.example.com/token",
-    )
+    })
     session = FakeSession(existing=existing)
     try:
         updated = await setup_oauth_provider(
@@ -100,7 +100,7 @@ async def test_setup_oauth_provider_updates_existing():
 
 
 def test_get_authorization_url_missing_inputs():
-    service = OAuthService(OAuthServiceConfig())
+    service = OAuthService(settings.OAuthService.model_copy())
     with pytest.raises(ConfigurationError):
         service.get_authorization_url(provider=OAuthProvider.GOOGLE, redirect_uri=None)
 
@@ -110,14 +110,14 @@ def test_get_authorization_url_missing_inputs():
 
 @pytest.mark.asyncio
 async def test_get_user_info_missing_provider_and_endpoint():
-    service = OAuthService(OAuthServiceConfig())
+    service = OAuthService(settings.OAuthService.model_copy())
 
     with pytest.raises(AuthenticationError):
         await service.get_user_info(OAuthProvider.GOOGLE, "token")
 
-    config = OAuthServiceConfig(
+    config = settings.OAuthService.model_copy(update={
         providers={OAuthProvider.GOOGLE: {"client_id": "id", "client_secret": "secret"}}
-    )
+    })
     service_with_provider = OAuthService(config)
     with pytest.raises(ConfigurationError):
         await service_with_provider.get_user_info(OAuthProvider.GOOGLE, "token")

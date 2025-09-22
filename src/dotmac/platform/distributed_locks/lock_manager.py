@@ -13,8 +13,8 @@ from uuid import uuid4
 import redis.asyncio as redis
 from redis.exceptions import LockError, RedisError
 
-from dotmac.platform.core.decorators import standard_exception_handler
-from dotmac.platform.observability.unified_logging import get_logger
+# standard_exception_handler removed - use standard error handling
+from dotmac.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -217,7 +217,7 @@ class LockManager:
                 self._active_locks.pop(full_name, None)
                 self._stats["locks_released"] += 1
 
-    @standard_exception_handler
+    
     async def try_lock(
         self,
         name: str,
@@ -240,7 +240,7 @@ class LockManager:
 
         return None
 
-    @standard_exception_handler
+    
     async def is_locked(self, name: str) -> bool:
         """Check if a resource is locked."""
         full_name = f"{self.namespace}:{name}"
@@ -252,7 +252,7 @@ class LockManager:
             logger.error(f"Failed to check lock status for {name}: {e}")
             return False
 
-    @standard_exception_handler
+    
     async def get_lock_info(self, name: str) -> Optional[dict[str, Any]]:
         """Get information about a lock."""
         full_name = f"{self.namespace}:{name}"
@@ -278,7 +278,7 @@ class LockManager:
             logger.error(f"Failed to get lock info for {name}: {e}")
             return None
 
-    @standard_exception_handler
+    
     async def list_locks(self, pattern: str = "*") -> list[str]:
         """List all active locks matching pattern."""
         search_pattern = f"lock:{self.namespace}:{pattern}"
@@ -290,7 +290,7 @@ class LockManager:
             logger.error(f"Failed to list locks: {e}")
             return []
 
-    @standard_exception_handler
+    
     async def force_release(self, name: str) -> bool:
         """Force release a lock (admin operation)."""
         full_name = f"{self.namespace}:{name}"
@@ -307,7 +307,7 @@ class LockManager:
             logger.error(f"Failed to force release lock {name}: {e}")
             return False
 
-    @standard_exception_handler
+    
     async def detect_deadlocks(self) -> list[dict[str, Any]]:
         """Detect potential deadlocks in the system."""
         deadlocks = []

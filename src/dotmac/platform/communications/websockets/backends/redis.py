@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from .base import ScalingBackend
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 try:

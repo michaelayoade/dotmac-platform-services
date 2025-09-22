@@ -484,7 +484,7 @@ class TestEmailProvider:
         )
 
         with patch("dotmac.platform.communications.notifications.task_notifications.submit_background_task") as mock_submit:
-            from dotmac.platform.tasks import TaskDispatchError
+            from dotmac.platform.tasks import app as celery_app
 
             mock_submit.side_effect = TaskDispatchError("Task system unavailable")
 

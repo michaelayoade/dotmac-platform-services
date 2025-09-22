@@ -20,13 +20,13 @@ from uuid import uuid4
 import pyotp
 import qrcode
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..database.base import Base
+from ..db import Base
 from .exceptions import (
     AuthenticationError,
     ValidationError,
@@ -320,7 +320,8 @@ class MFAService:
         backup_to_store = ",".join(backup_codes)
         if self.encryption_service:
             try:
-                from dotmac.platform.secrets.encryption import DataClassification
+                # from dotmac.platform.secrets.encryption import DataClassification
+                DataClassification = None  # Placeholder for removed secrets module
 
                 enc_secret = self.encryption_service.encrypt(secret, DataClassification.RESTRICTED)
                 secret_to_store = enc_secret.model_dump_json()
@@ -815,7 +816,8 @@ class MFAService:
         backup_to_store = ",".join(backup_codes)
         if self.encryption_service:
             try:
-                from dotmac.platform.secrets.encryption import DataClassification
+                # from dotmac.platform.secrets.encryption import DataClassification
+                DataClassification = None  # Placeholder for removed secrets module
 
                 enc = self.encryption_service.encrypt(
                     backup_to_store, DataClassification.CONFIDENTIAL

@@ -124,7 +124,7 @@ class TestCSVExporter:
         assert isinstance(exporter.options, ExportOptions)
 
         # Test with custom config and options
-        config = TransferConfig(batch_size=500)
+        config = settings.Transfer.model_copy(update={batch_size=500})
         options = ExportOptions(delimiter=";")
         exporter = CSVExporter(config, options)
         assert exporter.config.batch_size == 500
@@ -663,7 +663,7 @@ class TestExporterFactory:
     @pytest.mark.unit
     def test_create_exporter_with_options(self):
         """Test creating exporter with custom options."""
-        config = TransferConfig(batch_size=100)
+        config = settings.Transfer.model_copy(update={batch_size=100})
         options = ExportOptions(delimiter=";")
 
         exporter = create_exporter(DataFormat.CSV, config, options)

@@ -27,7 +27,7 @@ import aiohttp
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 # Removed non-existent imports - these services are not in platform
 # from ..core.exceptions import EntityNotFoundError
 # from ..services.performance_optimization import PerformanceOptimizationService

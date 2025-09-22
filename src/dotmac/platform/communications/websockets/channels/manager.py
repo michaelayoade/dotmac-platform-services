@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 from .abstractions import Channel, ChannelManager, ChannelMetadata
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 class ConcreteChannel(Channel):

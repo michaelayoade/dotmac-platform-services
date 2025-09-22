@@ -296,6 +296,10 @@ class MockWebSocket:
         """Send string message."""
         await self.send(message)
 
+    async def send_text(self, message: str):
+        """Alias for send_str for Starlette compatibility."""
+        await self.send_str(message)
+
     async def send_bytes(self, message: bytes):
         """Send bytes message."""
         await self.send(message)
@@ -315,6 +319,10 @@ class MockWebSocket:
         message = await self.receive()
         return message if isinstance(message, str) else message.decode()
 
+    async def receive_text(self) -> str:
+        """Alias for receive_str for Starlette compatibility."""
+        return await self.receive_str()
+
     async def receive_bytes(self) -> bytes:
         """Receive bytes message."""
         message = await self.receive()
@@ -330,6 +338,10 @@ class MockWebSocket:
         self.closed = True
         self.close_code = code
         self.close_reason = reason
+
+    async def accept(self):
+        """Accept handshake; included for interface completeness."""
+        return None
 
     def add_message(self, message: Union[str, bytes]):
         """Add message to be received."""
@@ -454,7 +466,19 @@ def mock_http_response():
 @pytest.fixture
 def mock_http_session():
     """Fixture providing a mock aiohttp-style session."""
-    return MockHTTPSession()
+    session = MockHTTPSession()
+
+    async def _wrap(method: str, url: str, **kwargs):
+        return await session.request(method, url, **kwargs)
+
+    session.get = AsyncMock(side_effect=lambda url, **kwargs: _wrap("GET", url, **kwargs))
+    session.post = AsyncMock(side_effect=lambda url, **kwargs: _wrap("POST", url, **kwargs))
+    session.put = AsyncMock(side_effect=lambda url, **kwargs: _wrap("PUT", url, **kwargs))
+    session.patch = AsyncMock(side_effect=lambda url, **kwargs: _wrap("PATCH", url, **kwargs))
+    session.delete = AsyncMock(side_effect=lambda url, **kwargs: _wrap("DELETE", url, **kwargs))
+    session.head = AsyncMock(side_effect=lambda url, **kwargs: _wrap("HEAD", url, **kwargs))
+
+    return session
 
 
 @pytest.fixture
@@ -466,7 +490,20 @@ def mock_async_http_client():
 @pytest.fixture
 def mock_websocket():
     """Fixture providing a mock WebSocket connection."""
-    return MockWebSocket()
+    socket = MockWebSocket()
+
+    async def _wrap(method: str, *args, **kwargs):
+        return await getattr(MockWebSocket, method)(socket, *args, **kwargs)
+
+    socket.accept = AsyncMock(side_effect=lambda: _wrap("accept"))
+    socket.close = AsyncMock(side_effect=lambda code=1000, reason="": _wrap("close", code, reason))
+    socket.send_text = AsyncMock(side_effect=lambda message: _wrap("send_text", message))
+    socket.send_bytes = AsyncMock(side_effect=lambda message: _wrap("send_bytes", message))
+    socket.send_json = AsyncMock(side_effect=lambda data: _wrap("send_json", data))
+    socket.receive_text = AsyncMock(side_effect=lambda: _wrap("receive_text"))
+    socket.receive_json = AsyncMock(side_effect=lambda: _wrap("receive_json"))
+
+    return socket
 
 
 @pytest.fixture

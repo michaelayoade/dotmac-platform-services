@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from dotmac.platform.auth.user_service import UserCreateSchema, UserService, UserType
-from dotmac.platform.core.enhanced.exceptions import ValidationError
+from dotmac.platform.domain import ValidationError
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def user_service():
 
 @pytest.mark.asyncio
 async def test_register_user_requires_acceptances(user_service: UserService):
-    user_data = UserCreateSchema.model_construct(
+    user_data = UserCreateSchema(
         username="user",
         email="user@example.com",
         first_name="Alice",
@@ -31,7 +31,7 @@ async def test_register_user_requires_acceptances(user_service: UserService):
 
 @pytest.mark.asyncio
 async def test_register_user_normalises_admin_user_type(user_service: UserService):
-    user_data = UserCreateSchema.model_construct(
+    user_data = UserCreateSchema(
         username="user",
         email="user@example.com",
         first_name="Alice",
@@ -57,7 +57,7 @@ async def test_create_user_rejects_duplicate_username(user_service: UserService)
     repo.check_email_available.return_value = True
     user_service.user_repo = repo
 
-    user_data = UserCreateSchema.model_construct(
+    user_data = UserCreateSchema(
         username="user",
         email="user@example.com",
         first_name="Alice",
@@ -80,7 +80,7 @@ async def test_create_user_rejects_duplicate_email(user_service: UserService):
     repo.check_email_available.return_value = False
     user_service.user_repo = repo
 
-    user_data = UserCreateSchema.model_construct(
+    user_data = UserCreateSchema(
         username="user",
         email="user@example.com",
         first_name="Alice",
@@ -104,7 +104,7 @@ async def test_create_user_invokes_repository(user_service: UserService):
     repo.create_user = AsyncMock(return_value={"id": "created"})
     user_service.user_repo = repo
 
-    user_data = UserCreateSchema.model_construct(
+    user_data = UserCreateSchema(
         username="user",
         email="user@example.com",
         first_name="Alice",

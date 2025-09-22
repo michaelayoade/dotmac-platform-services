@@ -1,4 +1,4 @@
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 """
 Row Level Security (RLS) Implementation for Multi-Tenant Database Isolation.

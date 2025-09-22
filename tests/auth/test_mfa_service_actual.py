@@ -75,14 +75,14 @@ class TestMFAModels:
 
     def test_mfa_service_config(self):
         """Test MFA service configuration."""
-        config = MFAServiceConfig(
+        config = settings.MFAService.model_copy(update={
             issuer_name="DotMac Platform",
             totp_digits=6,
             totp_period=30,
             backup_codes_count=10,
             sms_provider="twilio",
             email_provider="sendgrid",
-        )
+        })
 
         assert config.issuer_name == "DotMac Platform"
         assert config.totp_digits == 6
@@ -96,7 +96,7 @@ class TestMFAService:
     @pytest.fixture
     def mfa_service(self, mock_db_session):
         """Create MFA service instance."""
-        config = MFAServiceConfig(issuer_name="Test Platform", totp_window=1, backup_codes_count=10)
+        config = settings.MFAService.model_copy(update={issuer_name="Test Platform", totp_window=1, backup_codes_count=10})
         # Mock JWT service
         mock_jwt_service = Mock()
         return MFAService(

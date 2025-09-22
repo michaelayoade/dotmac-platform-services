@@ -20,13 +20,13 @@ from pydantic import (
     Field,
     field_validator,
 )
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..database.base import Base
+from ..db import Base
 from .exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -315,7 +315,7 @@ class APIKeyService:
     ) -> None:
         # Allow database_session to be optional for test compatibility
         self.db = database_session
-        self.config = config or APIKeyServiceConfig()
+        self.config = config or None
         self.rbac = rbac_service
 
     # ------------------------------------------------------------------

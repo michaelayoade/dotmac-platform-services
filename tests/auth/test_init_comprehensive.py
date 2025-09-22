@@ -171,12 +171,7 @@ class TestModuleAttributes:
         assert len(auth_module.__doc__) > 0
         assert "auth" in auth_module.__doc__.lower()
 
-    def test_cache_config_available(self):
-        """Test CacheConfig is available."""
-        assert hasattr(auth_module, "CacheConfig")
-        from dotmac.platform.auth.cache_config import CacheConfig
-
-        assert auth_module.CacheConfig is CacheConfig
+    # Note: CacheConfig removed - was referencing non-existent module
 
 
 class TestConditionalImports:
@@ -230,7 +225,7 @@ class TestFactoryFunctions:
                 # Test with basic config
                 from dotmac.platform.auth.jwt_service import JWTConfig
 
-                config = JWTConfig(secret_key="test-key", algorithm="HS256")
+                config = settings.JWT.model_copy(update={secret_key="test-key", algorithm="HS256"})
 
                 try:
                     service = auth_module.create_jwt_service_from_config(config)

@@ -17,7 +17,7 @@ from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Protocol
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 try:
     import boto3
     from botocore.config import Config as BotoConfig
@@ -48,8 +48,8 @@ logger = get_logger(__name__)
 class SecurityError(Exception):
     """Security-related storage error (path traversal, access denial, etc.)."""
 
-class ValidationError(Exception):
-    """Validation error (invalid extension, size limits, MIME mismatch, etc.)."""
+# Use ValidationError from domain.py instead of custom class
+from ..domain import ValidationError
 
 @dataclass
 class FileInfo:
@@ -428,10 +428,10 @@ class S3FileStorage:
         addressing_style = addressing_style or os.getenv("S3_ADDRESSING_STYLE")
         signature_version = signature_version or os.getenv("S3_SIGNATURE_VERSION")
         if addressing_style or signature_version:
-            client_kwargs["config"] = BotoConfig(
+            client_kwargs["config"] = settings.Boto.model_copy(update=dict(
                 s3={"addressing_style": addressing_style or "auto"},
                 signature_version=signature_version or "s3v4",
-            )
+            ))
 
         self.s3_client = boto3.client(
             "s3", **{k: v for k, v in client_kwargs.items() if v is not None}

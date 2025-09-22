@@ -6,7 +6,7 @@ Tenant isolation middleware for WebSocket connections.
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 class TenantMiddleware:

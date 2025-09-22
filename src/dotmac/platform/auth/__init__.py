@@ -26,8 +26,6 @@ import hashlib
 import hmac
 import secrets
 
-from .cache_config import CacheConfig
-
 try:
     from .jwt_service import JWTService, create_jwt_service_from_config
 
@@ -609,8 +607,6 @@ __all__ = [
     "is_service_auth_available",
     # Configuration helpers
     "get_platform_config",
-    # Configuration classes
-    "CacheConfig",
     # Protocols
     "JWTServiceProtocol",
     "RBACEngineProtocol",
@@ -625,15 +621,14 @@ def constant_time_compare(a: str | bytes, b: str | bytes) -> bool:
     return hmac.compare_digest(a_b, b_b)
 
 
-def encode_base64url(data: str | bytes) -> str:
-    if isinstance(data, str):
-        data = data.encode()
-    return base64.urlsafe_b64encode(data).decode().rstrip("=")
-
-
-def decode_base64url(data: str) -> str:
-    padding = "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(data + padding).decode()
+# Use base64.urlsafe_b64encode/decode directly:
+#
+# # Encoding:
+# base64.urlsafe_b64encode(data.encode()).decode().rstrip("=")
+#
+# # Decoding:
+# padding = "=" * (-len(data) % 4)
+# base64.urlsafe_b64decode(data + padding).decode()
 
 
 def generate_salt(length: int = 16) -> str:
@@ -644,18 +639,12 @@ def generate_secure_token(length: int = 32) -> str:
     return secrets.token_urlsafe(length)
 
 
-def hash_password(password: str, *, salt: str | None = None) -> str:
-    salt = salt or generate_salt(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return f"{salt}${base64.urlsafe_b64encode(digest).decode()}"
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    try:
-        salt, _ = hashed.split("$", 1)
-    except ValueError:
-        return False
-    return constant_time_compare(hash_password(password, salt=salt), hashed)
+# Use passlib directly instead of custom password hashing:
+#
+# from passlib.context import CryptContext
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# hashed = pwd_context.hash(password)
+# is_valid = pwd_context.verify(password, hashed)
 
 
 """
@@ -839,8 +828,6 @@ else:
 __all__.extend(
     [
         "constant_time_compare",
-        "decode_base64url",
-        "encode_base64url",
         "generate_salt",
         "generate_secure_token",
         "hash_password",

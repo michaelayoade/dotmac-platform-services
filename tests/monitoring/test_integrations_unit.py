@@ -40,7 +40,7 @@ async def test_signoz_integration_health_metrics_alert(monkeypatch):
         async def aclose(self):
             return None
 
-    cfg = IntegrationConfig(name="signoz", endpoint="https://s.example")
+    cfg = settings.Integration.model_copy(update={name="signoz", endpoint="https://s.example"})
     integ = SigNozIntegration(cfg)
     integ.client = FakeClient()
 
@@ -66,7 +66,7 @@ async def test_integration_manager_add_broadcast_status_shutdown(monkeypatch):
         async def send_alert(self, alert_data):
             return True
 
-    cfg = IntegrationConfig(name="dummy", endpoint="https://dummy")
+    cfg = settings.Integration.model_copy(update={name="dummy", endpoint="https://dummy"})
     d = Dummy(cfg)
 
     # Inject fake client and healthy init

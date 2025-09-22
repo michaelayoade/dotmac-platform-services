@@ -224,6 +224,48 @@ class APIEndpointHandler:
 
         return {"api_key": new_key, "status_code": 201}
 
+    async def register_user(self, request: MockRequest) -> dict[str, Any]:
+        """Register new user endpoint"""
+        user_data = await request.json()
+
+        # Validate required fields
+        required_fields = ["username", "email", "first_name", "password", "terms_accepted", "privacy_accepted"]
+        for field in required_fields:
+            if field not in user_data:
+                return {"error": f"{field} is required", "status_code": 400}
+
+        # Validate acceptances
+        if not user_data.get("terms_accepted") or not user_data.get("privacy_accepted"):
+            return {"error": "Must accept terms and privacy policy", "status_code": 400}
+
+        # Simulate user creation
+        user_id = f"user_{hash(user_data['username']) % 1000000:06d}"
+
+        return {
+            "user_id": user_id,
+            "username": user_data["username"],
+            "email": user_data["email"],
+            "status_code": 201
+        }
+
+    async def authenticate_user(self, request: MockRequest) -> dict[str, Any]:
+        """Authenticate user endpoint"""
+        auth_data = await request.json()
+
+        # Validate credentials
+        if not auth_data.get("username") or not auth_data.get("password"):
+            return {"error": "Username and password required", "status_code": 400}
+
+        # Simulate authentication
+        access_token = f"token_{hash(auth_data['username']) % 1000000:06d}"
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": 3600,
+            "status_code": 200
+        }
+
 
 class TestFastAPIIntegration:
     """FastAPI integration tests for Phase 2 coverage"""
@@ -451,38 +493,46 @@ class TestFastAPIIntegration:
     # Integration Flow Tests
 
     @pytest.mark.asyncio
-    async def test_complete_user_management_flow(self, api_handler, authenticated_user, admin_user):
-        """Test complete user management flow"""
-        # 1. Create profile
-        create_request = MockRequest(
-            json_data={"name": "Integration Test User", "email": "integration@example.com"}
+    async def test_complete_auth_user_flow(self, api_handler, authenticated_user, admin_user):
+        """Test complete auth user flow using new auth user service"""
+        # 1. Register user (auth service)
+        register_request = MockRequest(
+            json_data={
+                "username": "newuser",
+                "email": "newuser@example.com",
+                "first_name": "New",
+                "last_name": "User",
+                "password": "SecurePass123!",
+                "terms_accepted": True,
+                "privacy_accepted": True,
+            }
         )
 
-        create_result = await api_handler.create_user_profile(create_request, authenticated_user)
-        assert create_result["status_code"] == 201
+        register_result = await api_handler.register_user(register_request)
+        assert register_result["status_code"] == 201
+        assert "user_id" in register_result
 
-        # 2. Get profile
-        get_result = await api_handler.get_user_profile(
-            authenticated_user.user_id, authenticated_user
-        )
-        assert get_result["status_code"] == 200
-
-        # 3. Update profile
-        update_request = MockRequest(
-            json_data={"name": "Updated Integration User", "bio": "Integration test bio"}
+        # 2. Authenticate user
+        auth_request = MockRequest(
+            json_data={"username": "newuser", "password": "SecurePass123!"}
         )
 
-        update_result = await api_handler.update_user_profile(
-            authenticated_user.user_id, update_request, authenticated_user
-        )
-        assert update_result["status_code"] == 200
-        assert update_result["profile"]["name"] == "Updated Integration User"
+        auth_result = await api_handler.authenticate_user(auth_request)
+        assert auth_result["status_code"] == 200
+        assert "access_token" in auth_result
 
-        # 4. Admin delete profile
-        delete_result = await api_handler.delete_user_profile(
-            authenticated_user.user_id, admin_user
+        # 3. API key management
+        api_key_request = MockRequest(
+            json_data={"name": "Test API Key", "scopes": ["read"]}
         )
-        assert delete_result["status_code"] == 200
+
+        api_key_result = await api_handler.create_api_key(api_key_request, authenticated_user)
+        assert api_key_result["status_code"] == 201
+
+        # 4. List API keys
+        list_result = await api_handler.list_api_keys(authenticated_user)
+        assert list_result["status_code"] == 200
+        assert len(list_result["api_keys"]) > 0
 
     @pytest.mark.asyncio
     async def test_concurrent_api_requests(self, api_handler, authenticated_user):
@@ -494,11 +544,9 @@ class TestFastAPIIntegration:
         for _ in range(5):
             tasks.append(api_handler.health_check())
 
-        # Profile retrievals
+        # API key listings
         for _ in range(3):
-            tasks.append(
-                api_handler.get_user_profile(authenticated_user.user_id, authenticated_user)
-            )
+            tasks.append(api_handler.list_api_keys(authenticated_user))
 
         # API key listings
         for _ in range(2):
@@ -513,13 +561,8 @@ class TestFastAPIIntegration:
         for i in range(5):
             assert results[i]["status"] == "healthy"
 
-        # Profile retrieval results
-        for i in range(5, 8):
-            assert results[i]["status_code"] == 200
-            assert "profile" in results[i]
-
         # API key listing results
-        for i in range(8, 10):
+        for i in range(5, 10):
             assert results[i]["status_code"] == 200
             assert "api_keys" in results[i]
 
@@ -530,17 +573,55 @@ class TestFastAPIIntegration:
         """Test request validation with edge cases"""
         # Empty JSON
         empty_request = MockRequest(json_data={})
-        result = await api_handler.create_user_profile(empty_request, authenticated_user)
+        result = await api_handler.register_user(empty_request)
         assert result["status_code"] == 400
 
-        # Very long name
-        long_name_request = MockRequest(json_data={"name": "x" * 1000, "email": "test@example.com"})
-        result = await api_handler.create_user_profile(long_name_request, authenticated_user)
-        assert result["status_code"] == 201  # Should handle long names gracefully
+        # Missing required fields
+        incomplete_request = MockRequest(json_data={"username": "testuser"})
+        result = await api_handler.register_user(incomplete_request)
+        assert result["status_code"] == 400
+        assert "email is required" in result["error"]
 
-        # Invalid email format (basic validation)
-        invalid_email_request = MockRequest(
-            json_data={"name": "Test User", "email": "not-an-email"}
+        # Missing terms acceptance
+        no_terms_request = MockRequest(
+            json_data={
+                "username": "testuser",
+                "email": "test@example.com",
+                "first_name": "Test",
+                "password": "Password123!",
+                "terms_accepted": False,
+                "privacy_accepted": True,
+            }
         )
-        result = await api_handler.create_user_profile(invalid_email_request, authenticated_user)
-        assert result["status_code"] == 201  # Basic handler doesn't validate email format
+        result = await api_handler.register_user(no_terms_request)
+        assert result["status_code"] == 400
+        assert "terms and privacy policy" in result["error"]
+
+        # Missing privacy acceptance
+        no_privacy_request = MockRequest(
+            json_data={
+                "username": "testuser2",
+                "email": "test2@example.com",
+                "first_name": "Test",
+                "password": "Password123!",
+                "terms_accepted": True,
+                "privacy_accepted": False,
+            }
+        )
+        result = await api_handler.register_user(no_privacy_request)
+        assert result["status_code"] == 400
+        assert "terms and privacy policy" in result["error"]
+
+        # Missing first_name
+        no_first_name_request = MockRequest(
+            json_data={
+                "username": "testuser3",
+                "email": "test3@example.com",
+                "password": "Password123!",
+                "terms_accepted": True,
+                "privacy_accepted": True,
+            }
+        )
+        result = await api_handler.register_user(no_first_name_request)
+        assert result["status_code"] == 400
+        assert "first_name is required" in result["error"]

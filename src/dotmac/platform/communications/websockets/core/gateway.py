@@ -16,16 +16,16 @@ from ..backends.local import LocalBackend
 from ..channels.manager import ConcreteChannelManager
 from ..middleware.rate_limit import RateLimitMiddleware
 from ..middleware.tenant import TenantMiddleware
-from .config import WebSocketConfig
+from dotmac.platform.settings import settings
 from .session import SessionManager, SessionMetadata, WebSocketSession
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 class WebSocketGateway:
     """Main WebSocket Gateway class."""
 
-    def __init__(self, config: WebSocketConfig):
+    def __init__(self, config: type(settings.websocket)):
         self.config = config
         self.session_manager = SessionManager(config)
         self.channel_manager = ConcreteChannelManager(config)

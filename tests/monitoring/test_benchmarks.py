@@ -378,7 +378,7 @@ class TestBenchmarkSuite:
     @pytest.mark.asyncio
     async def test_suite_sequential_execution(self):
         """Test sequential benchmark execution in suite."""
-        config = BenchmarkSuiteConfig(name="Test Suite", parallel_execution=False)
+        config = settings.BenchmarkSuite.model_copy(update={name="Test Suite", parallel_execution=False})
         suite = BenchmarkSuite(config)
 
         # Add benchmarks
@@ -397,7 +397,7 @@ class TestBenchmarkSuite:
     @pytest.mark.asyncio
     async def test_suite_parallel_execution(self):
         """Test parallel benchmark execution in suite."""
-        config = BenchmarkSuiteConfig(name="Parallel Suite", parallel_execution=True)
+        config = settings.BenchmarkSuite.model_copy(update={name="Parallel Suite", parallel_execution=True})
         suite = BenchmarkSuite(config)
 
         # Add benchmarks
@@ -412,7 +412,7 @@ class TestBenchmarkSuite:
     @pytest.mark.asyncio
     async def test_suite_with_failures(self):
         """Test suite execution with failing benchmarks."""
-        config = BenchmarkSuiteConfig(name="Mixed Suite", retry_failed=False)
+        config = settings.BenchmarkSuite.model_copy(update={name="Mixed Suite", retry_failed=False})
         suite = BenchmarkSuite(config)
 
         suite.add_benchmark(MockBenchmark("Success"))
@@ -439,7 +439,7 @@ class TestBenchmarkSuite:
                     raise Exception("First attempt fails")
                 return {"success": True}
 
-        config = BenchmarkSuiteConfig(name="Retry Suite", retry_failed=True, retry_count=2)
+        config = settings.BenchmarkSuite.model_copy(update={name="Retry Suite", retry_failed=True, retry_count=2})
         suite = BenchmarkSuite(config)
 
         benchmark = RetryableBenchmark()
@@ -460,7 +460,7 @@ class TestBenchmarkSuite:
                 await asyncio.sleep(10)
                 return {}
 
-        config = BenchmarkSuiteConfig(name="Timeout Suite", timeout_seconds=1)
+        config = settings.BenchmarkSuite.model_copy(update={name="Timeout Suite", timeout_seconds=1})
         suite = BenchmarkSuite(config)
         suite.add_benchmark(SlowBenchmark())
 
@@ -472,7 +472,7 @@ class TestBenchmarkSuite:
 
     def test_suite_summary_stats(self):
         """Test suite summary statistics."""
-        config = BenchmarkSuiteConfig(name="Stats Suite")
+        config = settings.BenchmarkSuite.model_copy(update={name="Stats Suite"})
         suite = BenchmarkSuite(config)
 
         # Manually add results for testing
@@ -573,7 +573,7 @@ class TestBenchmarkManager:
     def test_manager_register_suite(self):
         """Test registering benchmark suites."""
         manager = BenchmarkManager()
-        config = BenchmarkSuiteConfig(name="Test Suite")
+        config = settings.BenchmarkSuite.model_copy(update={name="Test Suite"})
         suite = BenchmarkSuite(config)
 
         manager.register_suite(suite)
@@ -586,7 +586,7 @@ class TestBenchmarkManager:
         """Test running a registered suite."""
         manager = BenchmarkManager()
 
-        config = BenchmarkSuiteConfig(name="Test Suite")
+        config = settings.BenchmarkSuite.model_copy(update={name="Test Suite"})
         suite = BenchmarkSuite(config)
         suite.add_benchmark(MockBenchmark())
 

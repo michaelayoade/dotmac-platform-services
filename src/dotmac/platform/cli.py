@@ -13,9 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from sqlalchemy import select
 
-from dotmac.platform.database.session import init_db, get_session
+from dotmac.platform.db import init_db, get_session
 from dotmac.platform.auth.jwt_service import JWTService
-from dotmac.platform.secrets.manager import SecretsManager
+# from dotmac.platform.secrets.manager import SecretsManager
+SecretsManager = None  # Placeholder for removed secrets module
 
 
 @click.group()

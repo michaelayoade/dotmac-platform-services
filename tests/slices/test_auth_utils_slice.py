@@ -4,8 +4,6 @@ Auth utility slice tests (no mocks): crypto-safe comparisons and helpers.
 
 from dotmac.platform.auth import (
     constant_time_compare,
-    decode_base64url,
-    encode_base64url,
     generate_salt,
     generate_secure_token,
     hash_password,
@@ -30,8 +28,4 @@ def test_token_salt_and_hash_helpers():
     assert verify_password("bad", h) is False
 
 
-def test_base64url_helpers_roundtrip():
-    data = "Hello, world!"
-    enc = encode_base64url(data)
-    dec = decode_base64url(enc)
-    assert dec == data
+# Note: base64url functions removed - use base64.urlsafe_b64encode/decode directly

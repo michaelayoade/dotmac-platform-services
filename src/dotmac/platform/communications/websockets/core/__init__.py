@@ -2,7 +2,7 @@
 Core WebSocket components.
 """
 
-from .config import AuthConfig, RedisConfig, WebSocketConfig
+from dotmac.platform.settings import settings, RedisConfig, WebSocketConfig
 from .gateway import WebSocketGateway
 from .session import SessionManager, SessionState, WebSocketSession
 

@@ -11,7 +11,7 @@ def test_platform_config_env_loading(monkeypatch):
 
     monkeypatch.setenv("DOTMAC_JWT_ALGORITHM", "HS256")
     monkeypatch.setenv("DOTMAC_SERVICE_NAME", "svc")
-    cfg = PlatformConfig()
+    cfg = settings.Platform.model_copy()
 
     assert cfg.get("auth.jwt_algorithm") == "HS256"
     assert cfg.get("observability.service_name") == "svc"

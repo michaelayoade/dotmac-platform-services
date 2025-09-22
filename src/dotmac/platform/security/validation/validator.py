@@ -1,37 +1,35 @@
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 """
-Security validation framework.
+Security validation using standard libraries.
+
+For production use, consider: bleach, sqlparse, or dedicated security scanners.
 """
 
 import html
 import re
 from typing import Any
 
-import structlog
+# Try to import bleach for XSS protection (recommended: pip install bleach)
+try:
+    import bleach
+    BLEACH_AVAILABLE = True
+except ImportError:
+    BLEACH_AVAILABLE = False
+
+# Try to import sqlparse for SQL validation (recommended: pip install sqlparse)
+try:
+    import sqlparse
+    SQLPARSE_AVAILABLE = True
+except ImportError:
+    SQLPARSE_AVAILABLE = False
+
+from dotmac.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
 class SecurityValidator:
-    """Comprehensive security validator for input validation and sanitization."""
-
-    def __init__(self):
-        self.sql_injection_patterns = [
-            r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b)",
-            r"(\b(OR|AND)\s+\d+\s*=\s*\d+)",
-            r"(\b(OR|AND)\s+.+\s*=\s*.+)",
-            r"(--|#|\/\*|\*\/)",
-            r"(\bUNION\b.+\bSELECT\b)",
-        ]
-
-        self.xss_patterns = [
-            r"<script[^>]*>.*?</script>",
-            r"javascript:",
-            r"on\w+\s*=",
-            r"<iframe[^>]*>.*?</iframe>",
-            r"<object[^>]*>.*?</object>",
-            r"<embed[^>]*>",
-        ]
+    """Security validator using standard libraries when available."""
 
     def validate_input(self, data: Any, rules: dict[str, Any]) -> dict[str, Any]:
         """
@@ -88,27 +86,18 @@ class SecurityValidator:
 
     def sanitize_data(self, data: Any) -> Any:
         """
-        Sanitize input data to remove potentially harmful content.
-
-        Args:
-            data: Input data to sanitize
-
-        Returns:
-            Sanitized data
+        Sanitize input data using bleach if available, html.escape as fallback.
         """
         if isinstance(data, str):
-            # HTML escape
-            sanitized = html.escape(data)
-
-            # Remove potentially harmful patterns
-            for pattern in self.xss_patterns:
-                sanitized = re.sub(pattern, "", sanitized, flags=re.IGNORECASE)
-
-            return sanitized.strip()
+            if BLEACH_AVAILABLE:
+                # Use bleach for comprehensive XSS protection
+                return bleach.clean(data, tags=[], attributes={}, strip=True)
+            else:
+                # Fallback to html.escape
+                return html.escape(data).strip()
 
         elif isinstance(data, dict):
             return {k: self.sanitize_data(v) for k, v in data.items()}
-
         elif isinstance(data, list):
             return [self.sanitize_data(item) for item in data]
 
@@ -116,36 +105,45 @@ class SecurityValidator:
 
     def check_sql_injection(self, data: str) -> bool:
         """
-        Check if input contains potential SQL injection attempts.
-
-        Args:
-            data: Input string to check
-
-        Returns:
-            True if potential SQL injection detected
+        Check for SQL injection using sqlparse if available.
         """
-        data_lower = data.lower()
+        if SQLPARSE_AVAILABLE:
+            try:
+                # Parse SQL to detect injection patterns
+                parsed = sqlparse.parse(data)
+                for statement in parsed:
+                    if any(token.ttype is sqlparse.tokens.Keyword
+                          for token in statement.flatten()
+                          if str(token).upper() in ('UNION', 'SELECT', 'DROP', 'DELETE')):
+                        logger.warning("Potential SQL injection detected via sqlparse", data=data[:100])
+                        return True
+            except Exception:
+                pass
 
-        for pattern in self.sql_injection_patterns:
-            if re.search(pattern, data_lower, re.IGNORECASE):
-                logger.warning("Potential SQL injection detected", pattern=pattern, data=data[:100])
-                return True
+        # Basic fallback patterns
+        dangerous = ['union', 'select', 'drop', 'delete', '--', '/*', '*/', 'xp_']
+        data_lower = data.lower()
+        if any(pattern in data_lower for pattern in dangerous):
+            logger.warning("Potential SQL injection detected", data=data[:100])
+            return True
 
         return False
 
     def check_xss(self, data: str) -> bool:
         """
-        Check if input contains potential XSS attempts.
-
-        Args:
-            data: Input string to check
-
-        Returns:
-            True if potential XSS detected
+        Check for XSS using bleach if available.
         """
-        for pattern in self.xss_patterns:
-            if re.search(pattern, data, re.IGNORECASE):
-                logger.warning("Potential XSS detected", pattern=pattern, data=data[:100])
+        if BLEACH_AVAILABLE:
+            # Use bleach to detect potentially harmful content
+            cleaned = bleach.clean(data, tags=[], attributes={}, strip=True)
+            if cleaned != data:
+                logger.warning("Potential XSS detected via bleach", data=data[:100])
+                return True
+        else:
+            # Basic pattern matching fallback
+            patterns = ['<script', 'javascript:', 'on\w+\s*=', '<iframe', '<object']
+            if any(re.search(pattern, data, re.IGNORECASE) for pattern in patterns):
+                logger.warning("Potential XSS detected", data=data[:100])
                 return True
 
         return False

@@ -6,7 +6,7 @@ Analytics service factory and management.
 from typing import Optional, Dict, Any
 from .otel_collector import OpenTelemetryCollector, OTelConfig, create_otel_collector
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
 _analytics_instances: Dict[str, OpenTelemetryCollector] = {}
@@ -75,10 +75,10 @@ def get_analytics_service(
         # Fall back to the standard OTLP gRPC endpoint if nothing is supplied
         endpoint = endpoint or "http://localhost:4317"
 
-        config = OTelConfig(
-            service_name=f"{service_name}-{tenant_id}",
-            endpoint=endpoint,
-        )
+        config = settings.OTel.model_copy(update={
+            "service_name": f"{service_name}-{tenant_id}",
+            "endpoint": endpoint,
+        })
 
         collector = OpenTelemetryCollector(
             tenant_id=tenant_id,

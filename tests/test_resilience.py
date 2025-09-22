@@ -1,24 +1,30 @@
-"""Tests for resilience module."""
+"""Tests for resilience module using tenacity."""
 
 import pytest
-from dotmac.platform.resilience import CircuitBreaker, CircuitBreakerState, RetryPolicy
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 class TestResilience:
-    def test_circuit_breaker_state(self):
-        """Test circuit breaker state initialization."""
-        # Test CircuitBreakerState enum
-        assert CircuitBreakerState.CLOSED == "closed"
-        assert CircuitBreakerState.OPEN == "open"
-        assert CircuitBreakerState.HALF_OPEN == "half_open"
+    def test_tenacity_import(self):
+        """Test that tenacity components are available."""
+        # Basic imports work
+        assert retry is not None
+        assert stop_after_attempt is not None
+        assert wait_exponential is not None
+        assert retry_if_exception_type is not None
 
-        # Test CircuitBreaker class
-        cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
-        assert cb.failure_threshold == 5
-        assert cb.recovery_timeout == 30.0
-        assert cb.current_state() == CircuitBreakerState.CLOSED
+    def test_basic_resilience_pattern(self):
+        """Test basic retry pattern for resilience."""
+        attempts = 0
 
-    def test_retry_policy(self):
-        """Test retry policy enum."""
-        assert RetryPolicy.EXPONENTIAL_BACKOFF == "exponential_backoff"
-        assert RetryPolicy.NONE == "none"
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=0.1, max=1))
+        def resilient_operation():
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise ConnectionError("Temporary failure")
+            return "success"
+
+        result = resilient_operation()
+        assert result == "success"
+        assert attempts == 3

@@ -9,7 +9,7 @@ from typing import Any, Iterable
 
 import httpx
 
-from .config import LicensingConfig, LicensingMode, SubscriptionConfig
+from dotmac.platform.settings import settings, LicensingMode, SubscriptionConfig
 
 
 class LicensingError(RuntimeError):
@@ -86,7 +86,7 @@ class RemoteLicensingService(BaseLicensingService):
         subscriptions: list[SubscriptionConfig] = []
         for item in data:
             try:
-                subscriptions.append(SubscriptionConfig(**item))
+                subscriptions.append({**item})
             except Exception as exc:  # pragma: no cover - defensive parsing
                 raise LicensingError(f"Invalid subscription payload: {item!r}") from exc
 

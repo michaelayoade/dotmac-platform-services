@@ -337,7 +337,7 @@ def test_auth_defaults_and_algorithms():
     assert svc.refresh_token_expire_days == 7
 
     # Session default timeout
-    sc = SessionConfig()
+    sc = settings.Session.model_copy()
     assert sc.session_lifetime_seconds == 3600
 
 

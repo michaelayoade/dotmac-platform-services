@@ -8,8 +8,7 @@ from types import SimpleNamespace
 from typing import Any, Mapping, MutableMapping, Optional
 from uuid import uuid4
 
-from dotmac.platform.observability.logging import get_logger
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 from .notifications.task_notifications import WebhookProvider
 

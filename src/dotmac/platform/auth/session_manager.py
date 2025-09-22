@@ -1,4 +1,4 @@
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 """
 Production-ready session management with Redis and memory backends.

@@ -194,7 +194,7 @@ class TestMFAServiceConfig:
     @pytest.mark.unit
     def test_config_defaults(self):
         """Test MFA service config defaults."""
-        config = MFAServiceConfig()
+        config = settings.MFAService.model_copy()
 
         assert config.issuer_name == "DotMac ISP"
         assert config.totp_window == 1
@@ -212,7 +212,7 @@ class TestMFAServiceConfig:
     @pytest.mark.unit
     def test_config_custom_values(self):
         """Test MFA service config with custom values."""
-        config = MFAServiceConfig(
+        config = settings.MFAService.model_copy(update={
             issuer_name="Custom Issuer",
             totp_window=2,
             totp_digits=8,
@@ -225,7 +225,7 @@ class TestMFAServiceConfig:
             challenge_token_expiry_minutes=30,
             sms_provider="twilio",
             email_provider="sendgrid",
-        )
+        })
 
         assert config.issuer_name == "Custom Issuer"
         assert config.totp_window == 2
@@ -321,12 +321,12 @@ class TestMFAService:
     @pytest.fixture
     def service_config(self):
         """Create service configuration."""
-        return MFAServiceConfig(
+        return settings.MFAService.model_copy(update={
             issuer_name="Test Issuer",
             totp_window=1,
             backup_codes_count=5,
             max_verification_attempts=3,
-        )
+        })
 
     @pytest.fixture
     def mfa_service(

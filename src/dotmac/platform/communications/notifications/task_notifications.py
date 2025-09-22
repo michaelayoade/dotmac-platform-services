@@ -5,15 +5,12 @@ Provides flexible notification delivery for task completion events:
 - Multiple notification channels (webhook, email, SMS, Slack, etc.)
 - Reliable delivery with retry logic and dead letter queues
 - Template-based notification formatting
-- Notification history and delivery tracking
-- Bulk notification processing
-- Rate limiting and throttling
 """
-
 import asyncio
 import json
 import os
 import time
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -21,10 +18,8 @@ from enum import Enum
 from typing import Any, Optional
 
 import httpx
-from dotmac.platform.observability.logging import get_logger
-from dotmac.platform.observability.unified_logging import get_logger
-
-from dotmac.platform.tasks import TaskDispatchError, submit_background_task
+from dotmac.platform.logging import get_logger
+from dotmac.platform.tasks import app as celery_app
 from jinja2 import Template
 from redis.asyncio import Redis as AsyncRedis
 

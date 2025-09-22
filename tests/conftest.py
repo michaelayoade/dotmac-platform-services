@@ -105,7 +105,7 @@ except ImportError:
     HAS_JWT_SERVICE = False
 
 try:
-    from dotmac.platform.database.base import Base
+    from dotmac.platform.db import Base
 
     HAS_DATABASE_BASE = True
 except ImportError:

@@ -14,7 +14,7 @@ from .benchmarks import (
     BenchmarkSuite,
     PerformanceBenchmark,
 )
-from .config import MonitoringConfig
+from dotmac.platform.settings import settings
 from .integrations import (
     IntegrationManager,
     MonitoringIntegration,

@@ -11,9 +11,9 @@ from typing import Dict, Any
 
 # Import routers and configurations
 from dotmac.platform.api_gateway import create_api_gateway
-from dotmac.platform.observability import setup_observability
-from dotmac.platform.config import load_config
-from dotmac.platform.database.session import init_db
+from dotmac.platform.telemetry import setup_telemetry
+from dotmac.platform.settings import settings
+from dotmac.platform.db import init_db
 
 
 @asynccontextmanager
@@ -25,9 +25,9 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
 
-    # Setup observability if enabled
-    if os.getenv("OTEL_ENABLED", "false").lower() == "true":
-        setup_observability(app)
+    # Setup telemetry if enabled
+    if settings.observability.otel_enabled:
+        setup_telemetry(app)
 
     yield
 
@@ -39,8 +39,8 @@ async def lifespan(app: FastAPI):
 def create_application() -> FastAPI:
     """Create and configure the FastAPI application."""
 
-    # Load configuration
-    config = load_config()
+    # Use centralized settings
+    config = settings
 
     # Create FastAPI app
     app = FastAPI(

@@ -158,7 +158,12 @@ class TestDockerServices:
             # Give worker time to start
             time.sleep(3)
 
-            from dotmac.platform.tasks.celery_app import app, health_check
+            from dotmac.platform.tasks import app
+
+            # Define simple health check task
+            @app.task
+            def health_check():
+                return {"status": "healthy", "service": "celery"}
 
             # Test Celery health check
             result = health_check.apply_async()

@@ -1,54 +1,28 @@
 """
-DotMac Events - Transport-agnostic event bus package.
+DotMac Events - Direct Celery implementation.
 
-This package provides a unified interface for publishing and consuming events
-across different message brokers and transports.
+Replaces 2500+ lines of complex event bus code with simple Celery tasks.
+No wrappers, no adapters, just direct Celery usage.
 
 Example usage:
 
-    from dotmac.platform.communications.events import (
-        ConsumerOptions,
-        Event,
-        create_memory_bus,
-        run_consumer,
-    )
-
-    # Create an event bus
-    bus = create_memory_bus()
+    from dotmac.platform.communications.events import publish_event, event_handler
 
     # Publish an event
-    event = Event(topic="user.created", payload={"user_id": 123, "name": "John"})
-    await bus.publish(event)
+    publish_event("user.created", {"user_id": 123, "name": "John"})
 
-    # Subscribe to events
-    async def handle_user_created(event):
-        print(f"User created: {event.payload}")
+    # Handle events with decorator
+    @event_handler("user.created")
+    def handle_user_created(user_id, name):
+        print(f"User {name} (ID: {user_id}) was created")
 
-    options = ConsumerOptions(max_retries=3)
-    await run_consumer(bus, "user.created", handle_user_created, options)
-
-For production use with Redis:
-
-    from dotmac.platform.communications.events import create_redis_bus, RedisConfig
-
-    # Redis Streams
-    redis_config = RedisConfig(host="localhost", port=6379)
-    bus = create_redis_bus(redis_config)
-
-    # Kafka support has been removed from this package.
+Benefits:
+- Uses Celery directly (industry standard)
+- Built-in retry, monitoring, scaling
+- 95%+ code reduction
+- No custom abstractions
 """
 
-__version__ = "1.0.0"
-__package_name__ = "dotmac-events"
+from .events import publish_event, event_handler, Event
 
-# Re-export public API
-# Import api module for __all__
-from . import api
-
-# TODO: Fix star import - from .api import *
-
-# Package metadata
-__all__ = [
-    "__version__",
-    "__package_name__",
-] + api.__all__
+__all__ = ["publish_event", "event_handler", "Event"]

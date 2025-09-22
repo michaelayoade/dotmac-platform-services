@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from dotmac.platform.core.decorators import rate_limit, standard_exception_handler
+from dotmac.platform.rate_limiting import rate_limit, standard_exception_handler
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
@@ -20,10 +20,10 @@ from .internal.communication import UniversalCommunicationService
 from .internal.events import EventManager, EventPriority, WebSocketEvent
 from .models import NotificationRequest, NotificationResponse, NotificationStatus
 
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 logger = get_logger(__name__)
 
-class PushNotificationConfig(BaseModel):
+class Config(BaseModel):
     """Push notification configuration model."""
 
     vapid_public_key: Optional[str] = None
@@ -67,7 +67,7 @@ class PushNotificationService:
     ):
         self.event_manager = event_manager
         self.communication_service = communication_service
-        self.config = config or PushNotificationConfig()
+        self.config = config or None
 
         # In-memory storage (can be replaced with Redis/DB)
         self.subscriptions: dict[str, PushSubscription] = {}
@@ -92,7 +92,7 @@ class PushNotificationService:
         )
         await self.event_manager.add_event_handler("notification", self._handle_notification_event)
 
-    @standard_exception_handler
+    
     @rate_limit(max_requests=100, time_window_seconds=60)
     async def subscribe(
         self,
@@ -159,7 +159,7 @@ class PushNotificationService:
             logger.error(f"Push subscription error: {e}")
             raise HTTPException(status_code=500, detail=f"Subscription failed: {str(e)}") from e
 
-    @standard_exception_handler
+    
     @rate_limit(max_requests=50, time_window_seconds=60)
     async def unsubscribe(
         self, subscription_id: str, user_id: Optional[str] = None
@@ -191,7 +191,7 @@ class PushNotificationService:
         logger.info(f"Push subscription removed: {subscription_id}")
         return {"subscription_id": subscription_id, "status": "unsubscribed"}
 
-    @standard_exception_handler
+    
     @rate_limit(max_requests=200, time_window_seconds=60)
     async def send_push_notification(
         self,

@@ -3,7 +3,7 @@ Tenant identity and middleware utilities for DotMac platform.
 Also exposes lightweight enums/functions for import-compatibility in tests.
 """
 
-from .config import TenantConfig
+from dotmac.platform.settings import settings
 from .identity import TenantIdentityResolver
 from .middleware import TenantMiddleware
 

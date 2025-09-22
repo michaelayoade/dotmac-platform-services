@@ -330,7 +330,7 @@ class TestSessionPerformance:
 
     @pytest.fixture
     def session_manager(self):
-        config = SessionConfig(session_lifetime_seconds=3600, max_sessions_per_user=10)
+        config = settings.Session.model_copy(update={session_lifetime_seconds=3600, max_sessions_per_user=10})
         backend = MemorySessionBackend()
         return SessionManager(config=config, backend=backend)
 
@@ -403,7 +403,7 @@ class TestEndToEndPerformance:
                 algorithm="HS256", secret="test-secret", issuer="test", default_audience="test"
             ),
             "rbac": RBACEngine(),
-            "session": SessionManager(config=SessionConfig(), backend=MemorySessionBackend()),
+            "session": SessionManager(config=settings.Session.model_copy(), backend=MemorySessionBackend()),
         }
 
     @pytest.fixture
@@ -504,7 +504,7 @@ class TestConcurrentPerformance:
     async def test_concurrent_session_operations(self):
         """Test session manager under concurrent load"""
         session_manager = SessionManager(
-            config=SessionConfig(max_sessions_per_user=100), backend=MemorySessionBackend()
+            config=settings.Session.model_copy(update={max_sessions_per_user=100}), backend=MemorySessionBackend()
         )
 
         async def session_operation(index: int):

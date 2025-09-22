@@ -77,7 +77,7 @@ def test_platform_config_initialization():
 
     # Test with clean environment
     with patch.dict(os.environ, {}, clear=True):
-        config = PlatformConfig()
+        config = settings.Platform.model_copy()
 
         # Test default values
         assert config._config["auth"]["jwt_algorithm"] == "HS256"
@@ -121,7 +121,7 @@ def test_platform_config_environment_override():
     }
 
     with patch.dict(os.environ, env_vars):
-        config = PlatformConfig()
+        config = settings.Platform.model_copy()
 
         # Test auth config overrides
         assert config._config["auth"]["jwt_secret_key"] == "env-secret-key"
@@ -151,7 +151,7 @@ def test_platform_config_access_methods():
     """Test PlatformConfig access methods."""
     from dotmac.platform import PlatformConfig
 
-    config = PlatformConfig()
+    config = settings.Platform.model_copy()
 
     # Test direct config access
     assert "auth" in config._config
@@ -198,7 +198,7 @@ def test_platform_config_boolean_parsing():
         }
 
         with patch.dict(os.environ, env_vars):
-            config = PlatformConfig()
+            config = settings.Platform.model_copy()
 
             assert config._config["secrets"]["auto_rotation"] is expected
             assert config._config["observability"]["tracing_enabled"] is expected
@@ -215,7 +215,7 @@ def test_platform_config_integer_parsing():
     }
 
     with patch.dict(os.environ, env_vars):
-        config = PlatformConfig()
+        config = settings.Platform.model_copy()
 
         assert config._config["auth"]["access_token_expire_minutes"] == 120
         assert config._config["auth"]["refresh_token_expire_days"] == 14
@@ -235,7 +235,7 @@ def test_platform_config_invalid_integers():
     with patch.dict(os.environ, env_vars):
         # Should handle invalid integers gracefully (likely with defaults or errors)
         try:
-            config = PlatformConfig()
+            config = settings.Platform.model_copy()
             # If it doesn't raise an error, check that it has some sensible value
             assert isinstance(config._config["auth"]["access_token_expire_minutes"], int)
             assert isinstance(config._config["auth"]["refresh_token_expire_days"], int)
@@ -294,7 +294,7 @@ def test_platform_config_partial_environment():
     }
 
     with patch.dict(os.environ, env_vars, clear=True):
-        config = PlatformConfig()
+        config = settings.Platform.model_copy()
 
         # Overridden values
         assert config._config["auth"]["jwt_secret_key"] == "partial-secret"
@@ -350,7 +350,7 @@ def test_config_immutability():
     """Test that config can be modified after initialization."""
     from dotmac.platform import PlatformConfig
 
-    config = PlatformConfig()
+    config = settings.Platform.model_copy()
 
     # Test that config dict can be modified (it's not frozen)
     original_log_level = config._config["observability"]["log_level"]
@@ -364,7 +364,7 @@ def test_config_structure_completeness():
     """Test that all expected config sections exist."""
     from dotmac.platform import PlatformConfig
 
-    config = PlatformConfig()
+    config = settings.Platform.model_copy()
 
     # Test all major sections exist
     assert "auth" in config._config

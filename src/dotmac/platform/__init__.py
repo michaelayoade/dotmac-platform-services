@@ -200,9 +200,9 @@ def _initialize_available_services() -> None:
         pass
 
     try:
-        from .observability import initialize_observability_service
+        from .observability import initialize
 
-        initialize_observability_service(config.get("observability", {}))
+        initialize(config.get("observability", {}))
         _initialized_services.add("observability")
     except ImportError:
         pass
@@ -288,11 +288,13 @@ def create_secrets_manager(**kwargs):
 def create_observability_manager(**kwargs):
     """Quick create observability manager with configuration."""
     try:
-        from .observability import ObservabilityManager
+        from .observability import initialize, get_runtime
 
         obs_config = config.get("observability", {})
         obs_config.update(kwargs)
-        return ObservabilityManager(**obs_config)
+        # Initialize observability runtime with merged config
+        runtime = initialize(obs_config)
+        return runtime
     except ImportError:
         raise ImportError(
             "Observability service not available. Ensure OpenTelemetry deps are installed (core). "
@@ -303,9 +305,9 @@ def create_observability_manager(**kwargs):
 
 # Re-export selected components for convenience
 try:
-    from .observability.manager import ObservabilityManager  # type: ignore
-except Exception:  # pragma: no cover - optional
-    ObservabilityManager = None  # type: ignore
+    from .observability import ObservabilityRuntime  # type: ignore
+except ImportError:  # pragma: no cover - optional
+    ObservabilityRuntime = None  # type: ignore
 
 try:
     from .secrets.manager import SecretsManager  # type: ignore
@@ -327,7 +329,7 @@ except Exception:  # pragma: no cover - optional
 __all__ = [
     "PlatformConfig",
     "__version__",
-    "ObservabilityManager",
+    "ObservabilityRuntime",
     "SecretsManager",
     "create_application",
     "get_application",

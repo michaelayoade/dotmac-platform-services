@@ -34,7 +34,7 @@ async def test_make_request_handles_missing_json_and_content(monkeypatch):
         async def aclose(self):
             return None
 
-    integ = SigNozIntegration(IntegrationConfig(name="a", endpoint="http://h"))
+    integ = SigNozIntegration(settings.Integration.model_copy(update={name="a", endpoint="http://h"}))
     integ.client = FakeClient()
     # First call: empty content -> {}
     r1 = await integ._make_request("GET", "/health")
@@ -64,7 +64,7 @@ async def test_make_request_retries_and_raises(monkeypatch):
         async def aclose(self):
             return None
 
-    integ = SigNozIntegration(IntegrationConfig(name="b", endpoint="http://h", retry_count=2))
+    integ = SigNozIntegration(settings.Integration.model_copy(update={name="b", endpoint="http://h", retry_count=2}))
     integ.client = FailClient()
     with pytest.raises(httpx.HTTPStatusError):
         await integ._make_request("GET", "/fail")
@@ -77,7 +77,7 @@ async def test_initialize_failure_sets_error_status(monkeypatch):
         async def aclose(self):
             return None
 
-    integ = SigNozIntegration(IntegrationConfig(name="c", endpoint="http://h"))
+    integ = SigNozIntegration(settings.Integration.model_copy(update={name="c", endpoint="http://h"}))
 
     # Force health_check to False
     async def bad_health(self):

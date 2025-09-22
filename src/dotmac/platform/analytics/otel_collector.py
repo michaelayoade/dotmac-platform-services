@@ -26,7 +26,7 @@ from .base import (
     HistogramMetric,
     Metric,
 )
-from dotmac.platform.observability.unified_logging import get_logger
+from dotmac.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -440,11 +440,11 @@ def create_otel_collector(
     Returns:
         Configured OpenTelemetryCollector
     """
-    config = OTelConfig(
-        endpoint=endpoint or "localhost:4317",
-        service_name=service_name,
-        environment=environment or "development",
-    )
+    config = {
+        "endpoint": endpoint or "localhost:4317",
+        "service_name": service_name,
+        "environment": environment or "development",
+    }
 
     return OpenTelemetryCollector(
         tenant_id=tenant_id,

@@ -8,7 +8,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from dotmac.platform.api_gateway.factory import setup_gateway_app
+from dotmac.platform.api_gateway.gateway import APIGateway
+from dotmac.platform.settings import settings
 
 DEFAULT_OUTPUT = Path("openapi.json")
 
@@ -16,7 +17,8 @@ DEFAULT_OUTPUT = Path("openapi.json")
 def build_app(mode: str = "development") -> FastAPI:
     """Construct a FastAPI app wired to the API Gateway."""
     app = FastAPI(title="DotMac Platform API", version="1.0.0")
-    setup_gateway_app(app, mode=mode)
+    gateway = APIGateway(settings)
+    gateway.setup(app)
     return app
 
 

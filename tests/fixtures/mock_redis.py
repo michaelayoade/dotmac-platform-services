@@ -258,6 +258,25 @@ class MockRedis:
         matching = [k for k in all_keys if fnmatch.fnmatch(k, pattern)]
         return [k.encode() for k in matching]
 
+    async def publish(self, channel: str, message: Any) -> int:
+        """Publish message to a channel."""
+        self.call_history.append({"method": "publish", "args": {"channel": channel, "message": message}})
+        encoded = message if isinstance(message, str) else json.dumps(message)
+        self.pubsub_channels.setdefault(channel, []).append(encoded)
+        return len(self.pubsub_channels[channel])
+
+    async def subscribe(self, *channels: str) -> None:
+        """Subscribe to channels."""
+        self.call_history.append({"method": "subscribe", "args": {"channels": channels}})
+        for channel in channels:
+            self.pubsub_channels.setdefault(channel, [])
+
+    async def unsubscribe(self, *channels: str) -> None:
+        """Unsubscribe from channels."""
+        self.call_history.append({"method": "unsubscribe", "args": {"channels": channels}})
+        for channel in channels:
+            self.pubsub_channels.pop(channel, None)
+
     def pipeline(self):
         """Create pipeline for batch operations."""
         return MockRedisPipeline(self)
@@ -414,7 +433,20 @@ class MockRedisPubSub:
 @pytest.fixture
 def mock_redis():
     """Fixture providing a mock Redis client."""
-    return MockRedis()
+    redis = MockRedis()
+
+    async def _wrap(name: str, *args, **kwargs):
+        return await getattr(MockRedis, name)(redis, *args, **kwargs)
+
+    redis.get = AsyncMock(side_effect=lambda key: _wrap("get", key))
+    redis.set = AsyncMock(side_effect=lambda key, value, **kwargs: _wrap("set", key, value, **kwargs))
+    redis.delete = AsyncMock(side_effect=lambda *keys: _wrap("delete", *keys))
+    redis.publish = AsyncMock(side_effect=lambda channel, message: _wrap("publish", channel, message))
+    redis.subscribe = AsyncMock(side_effect=lambda *channels: _wrap("subscribe", *channels))
+    redis.unsubscribe = AsyncMock(side_effect=lambda *channels: _wrap("unsubscribe", *channels))
+    redis.ping = AsyncMock(side_effect=lambda: _wrap("ping"))
+
+    return redis
 
 
 @pytest.fixture

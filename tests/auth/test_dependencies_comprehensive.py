@@ -9,8 +9,8 @@ from unittest.mock import Mock
 import pytest
 from fastapi import Request
 
-# Test imports from the dependencies module
-from dotmac.platform.auth.dependencies import (  # Compatibility aliases
+# Test imports directly from current_user module (dependencies.py was bloat)
+from dotmac.platform.auth.current_user import (
     RequireAdmin,
     RequireAdminAccess,
     RequireAdminRole,
@@ -21,13 +21,13 @@ from dotmac.platform.auth.dependencies import (  # Compatibility aliases
     RequireWriteAccess,
     ServiceClaims,
     UserClaims,
-    get_current_active_user,
+    get_current_user as get_current_active_user,  # Compatibility alias
     get_current_service,
     get_current_tenant,
     get_current_user,
     get_optional_user,
     require_admin,
-    require_permissions,
+    require_scopes as require_permissions,  # Compatibility alias
     require_roles,
     require_scopes,
     require_service_operation,

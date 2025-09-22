@@ -7,8 +7,11 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from dotmac.platform.auth.user_service import BaseUserService
-from dotmac.platform.core import AuthorizationError
-from dotmac.platform.core.enhanced.exceptions import EntityNotFoundError, ValidationError
+from dotmac.platform.domain import (
+    AuthorizationError,
+    EntityNotFoundError,
+    ValidationError,
+)
 
 TENANT_ID = str(UUID("11111111-1111-1111-1111-111111111111"))
 

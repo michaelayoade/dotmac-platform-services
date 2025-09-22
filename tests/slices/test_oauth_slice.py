@@ -14,7 +14,7 @@ from dotmac.platform.auth.oauth_providers import (
 
 
 def test_oauth_config_and_helpers_mapping():
-    cfg = OAuthServiceConfig(
+    cfg = settings.OAuthService.model_copy(update={
         providers={
             OAuthProvider.GITHUB: {
                 "client_id": "cid",
@@ -26,7 +26,7 @@ def test_oauth_config_and_helpers_mapping():
         default_scopes=["user:email"],
         state_ttl_seconds=900,
         pkce_enabled=True,
-    )
+    })
 
     assert cfg.default_scopes == ["user:email"]
     assert cfg.state_ttl_seconds == 900

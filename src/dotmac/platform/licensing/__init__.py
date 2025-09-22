@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .config import LicensingConfig, LicensingMode, SubscriptionConfig
+from dotmac.platform.settings import settings, LicensingMode, SubscriptionConfig
 from .services import (
     BaseLicensingService,
     CachingLicensingService,

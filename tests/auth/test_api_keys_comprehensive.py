@@ -210,7 +210,7 @@ class TestAPIKeyServiceConfig:
     @pytest.mark.unit
     def test_config_defaults(self):
         """Test API key service config defaults."""
-        config = APIKeyServiceConfig()
+        config = settings.APIKeyService.model_copy()
 
         assert config.key_length == 32
         assert config.default_expiry_days == 90
@@ -222,14 +222,14 @@ class TestAPIKeyServiceConfig:
     @pytest.mark.unit
     def test_config_custom_values(self):
         """Test API key service config with custom values."""
-        config = APIKeyServiceConfig(
+        config = settings.APIKeyService.model_copy(update={
             key_length=64,
             default_expiry_days=365,
             max_keys_per_user=5,
             rate_limit_cleanup_interval_hours=12,
             usage_log_retention_days=30,
             require_scope_validation=False,
-        )
+        })
 
         assert config.key_length == 64
         assert config.default_expiry_days == 365
@@ -297,12 +297,12 @@ class TestAPIKeyService:
     @pytest.fixture
     def service_config(self):
         """Create service configuration."""
-        return APIKeyServiceConfig(
+        return settings.APIKeyService.model_copy(update={
             key_length=32,
             default_expiry_days=90,
             max_keys_per_user=5,
             require_scope_validation=True,
-        )
+        })
 
     @pytest.fixture
     def api_key_service(self, mock_db, service_config, mock_rbac):
@@ -703,12 +703,12 @@ class TestAPIKeyServiceIntegration:
         """Create a fully configured API key service."""
         mock_db = MagicMock()
         mock_rbac = MagicMock()
-        config = APIKeyServiceConfig(
+        config = settings.APIKeyService.model_copy(update={
             key_length=32,
             default_expiry_days=90,
             max_keys_per_user=3,
             require_scope_validation=True,
-        )
+        })
 
         return APIKeyService(
             database_session=mock_db,
