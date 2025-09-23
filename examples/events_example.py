@@ -65,7 +65,9 @@ def handle_low_stock_alert(event):
     current_stock = event.payload["current_stock"]
     threshold = event.payload["threshold"]
 
-    print(f"Low stock alert: Product {product_id} has {current_stock} items (threshold: {threshold})")
+    print(
+        f"Low stock alert: Product {product_id} has {current_stock} items (threshold: {threshold})"
+    )
 
     # In real code, this would:
     # - Notify procurement team
@@ -80,34 +82,40 @@ def example_usage():
 
     # Example 1: User registration
     print("Publishing user.created event...")
-    event_id = publish_event("user.created", {
-        "user_id": 12345,
-        "email": "newuser@example.com",
-        "name": "Jane Doe",
-        "signup_source": "web"
-    })
+    event_id = publish_event(
+        "user.created",
+        {
+            "user_id": 12345,
+            "email": "newuser@example.com",
+            "name": "Jane Doe",
+            "signup_source": "web",
+        },
+    )
     print(f"Published event {event_id}")
 
     # Example 2: Order completion
     print("\nPublishing order.completed event...")
-    event_id = publish_event("order.completed", {
-        "order_id": "ORD-67890",
-        "customer_id": 12345,
-        "total": 89.99,
-        "items": [
-            {"product_id": "PROD-1", "quantity": 2},
-            {"product_id": "PROD-2", "quantity": 1}
-        ]
-    })
+    event_id = publish_event(
+        "order.completed",
+        {
+            "order_id": "ORD-67890",
+            "customer_id": 12345,
+            "total": 89.99,
+            "items": [
+                {"product_id": "PROD-1", "quantity": 2},
+                {"product_id": "PROD-2", "quantity": 1},
+            ],
+        },
+    )
     print(f"Published event {event_id}")
 
     # Example 3: Multi-tenant event
     print("\nPublishing tenant-specific event...")
-    event_id = publish_event("product.low_stock", {
-        "product_id": "PROD-123",
-        "current_stock": 5,
-        "threshold": 10
-    }, tenant_id="tenant-abc")
+    event_id = publish_event(
+        "product.low_stock",
+        {"product_id": "PROD-123", "current_stock": 5, "threshold": 10},
+        tenant_id="tenant-abc",
+    )
     print(f"Published tenant event {event_id}")
 
 

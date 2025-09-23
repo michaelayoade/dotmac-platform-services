@@ -1,16 +1,15 @@
 """
 Simple caching setup using redis-py and cachetools directly.
 
-No wrappers, just standard library usage.
 """
 
-import json
 import pickle
 from functools import wraps
 from typing import Any, Optional
 
 import redis
-from cachetools import TTLCache, LRUCache, cached
+from cachetools import LRUCache, TTLCache, cached
+
 from dotmac.platform.settings import settings
 
 # Redis client for distributed caching
@@ -20,7 +19,7 @@ if settings.redis.host:
     redis_client = redis.Redis.from_url(
         settings.redis.cache_url,
         decode_responses=False,  # We'll handle encoding/decoding
-        max_connections=settings.redis.max_connections
+        max_connections=settings.redis.max_connections,
     )
 
 # In-memory caches for local caching
@@ -48,7 +47,7 @@ def cache_get(key: str, default: Any = None) -> Any:
     if redis_client:
         try:
             value = redis_client.get(key)
-            if value:
+            if value and isinstance(value, (bytes, bytearray, memoryview)):
                 return pickle.loads(value)
         except Exception:
             pass  # Fall back to memory cache
@@ -128,11 +127,15 @@ def redis_cache(ttl: int = 300):
         def expensive_function(arg):
             return compute_something(arg)
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Create cache key from function name and arguments
-            key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
+            # Create stable cache key from function name and arguments
+            import hashlib
+
+            key_data = f"{func.__module__}.{func.__name__}:{args}:{sorted(kwargs.items())}"
+            key = f"cache:{hashlib.md5(key_data.encode()).hexdigest()}"
 
             # Try to get from cache
             result = cache_get(key)
@@ -145,6 +148,7 @@ def redis_cache(ttl: int = 300):
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -152,20 +156,20 @@ def redis_cache(ttl: int = 300):
 # Users can use these directly without any wrapper
 __all__ = [
     # Redis functions
-    'redis_client',
-    'get_redis',
-    'cache_get',
-    'cache_set',
-    'cache_delete',
-    'cache_clear',
-    'redis_cache',
+    "redis_client",
+    "get_redis",
+    "cache_get",
+    "cache_set",
+    "cache_delete",
+    "cache_clear",
+    "redis_cache",
     # In-memory caches
-    'memory_cache',
-    'lru_cache',
+    "memory_cache",
+    "lru_cache",
     # Direct cachetools exports
-    'cached',
-    'TTLCache',
-    'LRUCache',
+    "cached",
+    "TTLCache",
+    "LRUCache",
 ]
 
 # Example usage:

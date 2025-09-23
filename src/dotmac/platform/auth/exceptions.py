@@ -260,8 +260,8 @@ class AuthorizationError(AuthError):
         super().__init__(message, error_code, details)
 
 
-# Use ValidationError from domain.py - no custom auth validation error needed
-from ..domain import ValidationError
+# Use ValidationError from core module - no custom auth validation error needed
+from ..core import ValidationError
 
 
 class RateLimitError(AuthError):

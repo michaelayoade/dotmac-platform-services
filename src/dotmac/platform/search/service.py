@@ -7,6 +7,8 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
+from ..dependencies import require_meilisearch, safe_import
+from ..settings import settings
 from .interfaces import (
     SearchBackend,
     SearchFilter,
@@ -16,20 +18,17 @@ from .interfaces import (
     SearchType,
 )
 
-try:
-    import meilisearch
+# Only import MeiliSearch if enabled and available
+meilisearch = None
+if settings.features.search_meilisearch_enabled:
+    meilisearch = safe_import("meilisearch", "search_meilisearch_enabled")
 
-    HAS_MEILISEARCH = True
-except ImportError:  # pragma: no cover - optional dependency
-    meilisearch = None  # type: ignore
-    HAS_MEILISEARCH = False
-
-try:
-    from opentelemetry import trace as ot_trace
-
-    search_tracer = ot_trace.get_tracer(__name__)
-except Exception:  # pragma: no cover - optional dependency
-    search_tracer = None
+# OpenTelemetry is optional for tracing
+search_tracer = None
+if settings.features.tracing_opentelemetry:
+    ot_trace = safe_import("opentelemetry.trace", "tracing_opentelemetry")
+    if ot_trace:
+        search_tracer = ot_trace.get_tracer(__name__)
 
 
 class InMemorySearchBackend(SearchBackend):
@@ -192,8 +191,10 @@ class SearchService:
 
     def __init__(self, backend: Optional[SearchBackend | str] = None):
         if isinstance(backend, str):
+            from .factory import create_search_backend_from_env
             self.backend = create_search_backend_from_env(backend)
         elif backend is None:
+            from .factory import create_search_backend_from_env
             self.backend = create_search_backend_from_env()
         else:
             self.backend = backend
@@ -218,6 +219,42 @@ class SearchService:
         index_name = f"business_{entity_type}"
         return await self.backend.delete(index_name, entity_id)
 
+    async def update_business_entity(
+        self, entity_type: str, entity_id: str, entity_data: Dict[str, Any]
+    ) -> bool:
+        """Update a business entity in search index."""
+        index_name = f"business_{entity_type}"
+        return await self.backend.update(index_name, entity_id, entity_data)
+
+    async def reindex_entity_type(self, entity_type: str, entities: List[Dict[str, Any]]) -> int:
+        """Reindex all entities of a type."""
+        index_name = f"business_{entity_type}"
+
+        # Delete and recreate index
+        await self.backend.delete_index(index_name)
+        await self.backend.create_index(index_name, self.index_mappings.get(entity_type))
+
+        # Bulk index
+        return await self.backend.bulk_index(index_name, entities)
+
+    async def setup_indices(self) -> None:
+        """Setup search indices for business entities."""
+        # Define index mappings for different entity types
+        entity_types = [
+            "customer",
+            "invoice",
+            "subscription",
+            "payment",
+            "workflow",
+            "task",
+            "notification",
+            "audit",
+        ]
+
+        for entity_type in entity_types:
+            index_name = f"business_{entity_type}"
+            await self.backend.create_index(index_name, self.index_mappings.get(entity_type))
+
 
 class MeilisearchBackend(SearchBackend):
     """Meilisearch implementation of the search backend protocol."""
@@ -229,15 +266,22 @@ class MeilisearchBackend(SearchBackend):
         primary_key: str = "id",
         default_timeout: int | None = None,
     ) -> None:
-        if not HAS_MEILISEARCH:
-            raise ImportError("meilisearch client is required for MeilisearchBackend")
+        # Use dependency checker for clear error messages
+        meilisearch_module = require_meilisearch()
 
         self.host = host or os.getenv("MEILISEARCH_HOST", "http://localhost:7700")
         self.api_key = api_key or os.getenv("MEILISEARCH_API_KEY")
         self.primary_key = primary_key
-        self.client = meilisearch.Client(self.host, self.api_key)
+        self.client = meilisearch_module.Client(self.host, self.api_key)
+        self.meilisearch = meilisearch_module  # Store reference for error handling
         if default_timeout is not None:
-            self.client.http_client.timeout = default_timeout
+            # Some meilisearch versions don't expose http_client attribute
+            try:
+                http_client = getattr(self.client, "http_client", None)
+                if http_client is not None:
+                    setattr(http_client, "timeout", default_timeout)
+            except (AttributeError, TypeError):
+                pass  # Ignore if timeout setting is not available
 
     async def _run(self, func):
         loop = asyncio.get_running_loop()
@@ -246,7 +290,7 @@ class MeilisearchBackend(SearchBackend):
     def _get_index(self, index_name: str):
         try:
             return self.client.get_index(index_name)
-        except meilisearch.errors.MeilisearchError:
+        except Exception:  # MeilisearchError path may vary by version
             return self.client.index(index_name)
 
     def _filters_to_expression(self, filters: List[SearchFilter]) -> Optional[str]:
@@ -371,7 +415,7 @@ class MeilisearchBackend(SearchBackend):
         def _op():
             try:
                 self.client.create_index(index_name, {"primaryKey": self.primary_key})
-            except meilisearch.errors.MeilisearchError as exc:
+            except Exception as exc:  # MeilisearchError path may vary by version
                 if "already exists" not in str(exc):
                     raise
             if mappings:
@@ -395,50 +439,8 @@ class MeilisearchBackend(SearchBackend):
         return True
 
 
-def create_search_backend_from_env(default_backend: str = "memory") -> SearchBackend:
-    backend = os.getenv("SEARCH_BACKEND", default_backend).lower()
-    if backend == "meilisearch":
-        return MeilisearchBackend()
-    return InMemorySearchBackend()
-
-
 def _search_span(name: str, **attributes: Any):
+    """Create tracing span if OpenTelemetry is available."""
     if search_tracer:
         return search_tracer.start_as_current_span(name, attributes=attributes)
     return contextlib.nullcontext()
-
-    async def update_business_entity(
-        self, entity_type: str, entity_id: str, entity_data: Dict[str, Any]
-    ) -> bool:
-        """Update a business entity in search index."""
-        index_name = f"business_{entity_type}"
-        return await self.backend.update(index_name, entity_id, entity_data)
-
-    async def reindex_entity_type(self, entity_type: str, entities: List[Dict[str, Any]]) -> int:
-        """Reindex all entities of a type."""
-        index_name = f"business_{entity_type}"
-
-        # Delete and recreate index
-        await self.backend.delete_index(index_name)
-        await self.backend.create_index(index_name, self.index_mappings.get(entity_type))
-
-        # Bulk index
-        return await self.backend.bulk_index(index_name, entities)
-
-    async def setup_indices(self) -> None:
-        """Setup search indices for business entities."""
-        # Define index mappings for different entity types
-        entity_types = [
-            "customer",
-            "invoice",
-            "subscription",
-            "payment",
-            "workflow",
-            "task",
-            "notification",
-            "audit",
-        ]
-
-        for entity_type in entity_types:
-            index_name = f"business_{entity_type}"
-            await self.backend.create_index(index_name, self.index_mappings.get(entity_type))

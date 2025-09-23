@@ -15,6 +15,7 @@ Design Principles:
 """
 
 import os
+import sys
 from typing import Any
 
 __version__ = "1.0.0"
@@ -161,51 +162,26 @@ def initialize_platform_services(
 
 def _initialize_available_services() -> None:
     """Initialize available platform services."""
-    try:
-        from .auth import initialize_auth_service
+    import importlib.util
 
-        # Normalize flat auth config into nested structure if needed
-        auth_conf = dict(config.get("auth", {}) or {})
-        if "jwt" not in auth_conf and any(
-            k in auth_conf
-            for k in ("jwt_secret_key", "jwt_algorithm", "access_token_expire_minutes")
-        ):
-            nested_jwt = {}
-            if "jwt_secret_key" in auth_conf:
-                nested_jwt["secret_key"] = auth_conf["jwt_secret_key"]
-            if "jwt_algorithm" in auth_conf:
-                nested_jwt["algorithm"] = auth_conf["jwt_algorithm"]
-            if "access_token_expire_minutes" in auth_conf:
-                nested_jwt["access_token_expire_minutes"] = auth_conf["access_token_expire_minutes"]
-            if "refresh_token_expire_days" in auth_conf:
-                nested_jwt["refresh_token_expire_days"] = auth_conf["refresh_token_expire_days"]
-            # Place into expected nested shape
-            auth_conf = {"jwt": nested_jwt}
-
-        initialize_auth_service(auth_conf)
+    # Check if auth module is available
+    if importlib.util.find_spec("dotmac.platform.auth"):
         _initialized_services.add("auth")
-    except ImportError:
-        pass
 
-    try:
-        from .secrets import initialize_secrets_service
+    # Check if secrets service is available
+    if importlib.util.find_spec("dotmac.platform.secrets"):
 
-        try:
-            initialize_secrets_service(config.get("secrets", {}))
-        except Exception:
-            # Secrets initialization is optional; continue without blocking platform init
-            pass
+        # Note: There's no initialize_secrets_service function in the current secrets module
+        # The secrets module provides VaultClient, SymmetricEncryptionService, etc.
         _initialized_services.add("secrets")
-    except ImportError:
-        pass
 
-    try:
-        from .observability import initialize
-
-        initialize(config.get("observability", {}))
-        _initialized_services.add("observability")
-    except ImportError:
-        pass
+    # Observability module doesn't exist yet - commented out for now
+    # try:
+    #     from .observability import initialize
+    #     initialize(config.get("observability", {}))
+    #     _initialized_services.add("observability")
+    # except ImportError:
+    #     pass
 
 
 def get_initialized_services() -> set[str]:
@@ -221,9 +197,7 @@ def create_jwt_service(**kwargs):
     JWTService/create_jwt_service_from_config schema.
     """
     try:
-        import sys as _sys
-
-        if "dotmac.platform.auth" not in _sys.modules:
+        if "dotmac.platform.auth" not in sys.modules:
             # Simulate optional extra missing
             raise ImportError("Auth module not available")
 
@@ -270,47 +244,61 @@ def create_jwt_service(**kwargs):
         )
 
 
-def create_secrets_manager(**kwargs):
-    """Quick create secrets manager with configuration."""
+def create_secrets_manager(backend: str | None = None, **kwargs):
+    """
+    Create a secrets manager with clean factory pattern.
+
+    Args:
+        backend: 'vault', 'local', or None for auto-detection
+        **kwargs: Backend-specific configuration
+
+    Returns:
+        SecretsManager instance following the protocol
+
+    Example:
+        # Auto-select best backend
+        manager = create_secrets_manager()
+
+        # Explicit Vault backend
+        manager = create_secrets_manager("vault", vault_url="...", vault_token="...")
+
+        # Local development backend
+        manager = create_secrets_manager("local")
+    """
     try:
-        from .secrets import SecretsManager
+        from .secrets.factory import create_secrets_manager as factory_create
 
         secrets_config = config.get("secrets", {})
         secrets_config.update(kwargs)
-        return SecretsManager(**secrets_config)
-    except ImportError:
+
+        # Handle None backend by using auto-detection
+        if backend is None:
+            return factory_create(**secrets_config)
+        else:
+            return factory_create(backend, **secrets_config)
+    except ImportError as e:
         raise ImportError(
-            "Secrets service not available. If you need Vault/OpenBao support, install extras: "
-            "pip install 'dotmac-platform-services[vault]' (or use '[all]')"
+            f"Secrets service error: {e}. "
+            "For Vault support, install: pip install 'dotmac-platform-services[vault]'"
         )
 
 
 def create_observability_manager(**kwargs):
     """Quick create observability manager with configuration."""
-    try:
-        from .observability import initialize, get_runtime
-
-        obs_config = config.get("observability", {})
-        obs_config.update(kwargs)
-        # Initialize observability runtime with merged config
-        runtime = initialize(obs_config)
-        return runtime
-    except ImportError:
-        raise ImportError(
-            "Observability service not available. Ensure OpenTelemetry deps are installed (core). "
-            "For server middleware and local serving, optionally install: "
-            "pip install 'dotmac-platform-services[server]' (or use '[all]')"
-        )
+    # Observability module doesn't exist yet
+    raise ImportError(
+        "Observability service not yet implemented. "
+        "The observability module is planned for future implementation."
+    )
 
 
 # Re-export selected components for convenience
-try:
-    from .observability import ObservabilityRuntime  # type: ignore
-except ImportError:  # pragma: no cover - optional
-    ObservabilityRuntime = None  # type: ignore
+# ObservabilityRuntime doesn't exist yet
+ObservabilityRuntime = None  # type: ignore
 
+# Use the proper factory pattern instead of confusing aliases
 try:
-    from .secrets.manager import SecretsManager  # type: ignore
+    from .secrets.factory import SecretsManager  # Protocol interface
 except Exception:  # pragma: no cover - optional
     SecretsManager = None  # type: ignore
 

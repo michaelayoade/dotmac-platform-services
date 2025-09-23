@@ -15,6 +15,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 import magic
 
+
 # Example 1: Fast PDF text extraction (10x faster than PyPDF2)
 def extract_pdf_text_fast(pdf_path: str) -> str:
     """Extract text using PyMuPDF - much faster than PyPDF2."""
@@ -25,14 +26,15 @@ def extract_pdf_text_fast(pdf_path: str) -> str:
     doc.close()
     return text
 
+
 # Example 2: High-performance image processing
 def create_optimized_thumbnail(image_path: str, output_path: str):
     """Create thumbnail using Pillow-SIMD - 2-4x faster."""
     with Image.open(image_path) as img:
         # Convert to RGB if needed
-        if img.mode in ('RGBA', 'LA'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'RGBA':
+        if img.mode in ("RGBA", "LA"):
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "RGBA":
                 background.paste(img, mask=img.split()[-1])
             img = background
 
@@ -40,10 +42,12 @@ def create_optimized_thumbnail(image_path: str, output_path: str):
         img.thumbnail((200, 200), Image.LANCZOS)
         img.save(output_path, "JPEG", optimize=True, quality=85)
 
+
 # Example 3: Reliable MIME detection
 def get_file_type(file_path: str) -> str:
     """Get MIME type using python-magic."""
     return magic.from_file(file_path, mime=True)
+
 
 # Example 4: PDF metadata extraction
 def get_pdf_metadata(pdf_path: str) -> dict:
@@ -58,6 +62,7 @@ def get_pdf_metadata(pdf_path: str) -> dict:
     }
     doc.close()
     return info
+
 
 if __name__ == "__main__":
     # Demo usage

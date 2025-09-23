@@ -6,33 +6,23 @@ Replaces custom rate limiting implementations with industry standard.
 
 from typing import Callable
 
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.util import get_remote_address
-    from slowapi.errors import RateLimitExceeded
-    SLOWAPI_AVAILABLE = True
-except ImportError:
-    SLOWAPI_AVAILABLE = False
-    Limiter = None
-    RateLimitExceeded = None
-    get_remote_address = None
-    _rate_limit_exceeded_handler = None
+import structlog
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from dotmac.platform.caching import redis_client
-from dotmac.platform.logging import get_logger
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def get_limiter():
     """Get rate limiter instance using Redis storage."""
-    if not SLOWAPI_AVAILABLE:
-        logger.warning("SlowAPI not available")
-        return None
-
     if redis_client:
-        # Use Redis for distributed rate limiting
-        storage_uri = f"redis://:{redis_client.connection_pool.connection_kwargs.get('password', '')}@{redis_client.connection_pool.connection_kwargs.get('host', 'localhost')}:{redis_client.connection_pool.connection_kwargs.get('port', 6379)}"
+        # Use Redis for distributed rate limiting - get URL from settings
+        from dotmac.platform.settings import settings
+
+        storage_uri = settings.redis.cache_url
         return Limiter(
             key_func=get_remote_address,
             storage_uri=storage_uri,
@@ -59,40 +49,18 @@ def rate_limit(limit: str):
         async def my_endpoint():
             return {"message": "success"}
     """
-    def decorator(func: Callable):
-        if not SLOWAPI_AVAILABLE or not limiter:
-            logger.warning("Rate limiting not available, skipping")
-            return func
 
+    def decorator(func: Callable):
         return limiter.limit(limit)(func)
 
     return decorator
 
 
-# Export standard SlowAPI components if available
+# Export SlowAPI components directly - use established library
 __all__ = [
     "limiter",
     "rate_limit",
     "RateLimitExceeded",
     "get_remote_address",
-    "_rate_limit_exceeded_handler"
+    "_rate_limit_exceeded_handler",
 ]
-
-if SLOWAPI_AVAILABLE:
-    # Re-export SlowAPI utilities
-    pass
-else:
-    # Provide no-op fallbacks
-    def rate_limit(limit: str):
-        def decorator(func: Callable):
-            return func
-        return decorator
-
-    class RateLimitExceeded(Exception):
-        pass
-
-    def get_remote_address(request):
-        return "127.0.0.1"
-
-    def _rate_limit_exceeded_handler(request, exc):
-        return {"error": "Rate limit exceeded"}

@@ -50,7 +50,7 @@ class Metric:
 
     def to_otel_attributes(self) -> Dict[str, Any]:
         """Convert to OpenTelemetry attributes format."""
-        attrs = {
+        attrs: Dict[str, Any] = {
             "tenant.id": self.tenant_id,
             "metric.id": str(self.id),
         }
@@ -59,6 +59,7 @@ class Metric:
         for key, value in self.attributes.items():
             # OpenTelemetry attribute naming convention
             otel_key = key.replace("_", ".").lower()
+            # OpenTelemetry accepts str, int, float, bool as attribute values
             if isinstance(value, (str, int, float, bool)):
                 attrs[otel_key] = value
             else:
@@ -145,6 +146,50 @@ class BaseAnalyticsCollector(ABC):
     @abstractmethod
     async def collect_batch(self, metrics: List[Metric]) -> None:
         """Collect multiple metrics in batch."""
+        pass
+
+    @abstractmethod
+    async def record_metric(
+        self,
+        name: str,
+        value: float,
+        metric_type: str = "gauge",
+        labels: Optional[Dict[str, Any]] = None,
+        unit: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> None:
+        """
+        Record a metric.
+
+        Args:
+            name: Metric name
+            value: Metric value
+            metric_type: Type of metric (counter, gauge, histogram)
+            labels: Optional labels/tags
+            unit: Optional unit of measurement
+            description: Optional description
+        """
+        pass
+
+    @abstractmethod
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of collected metrics.
+
+        Returns:
+            Dictionary with metrics summary
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def tracer(self) -> Any:
+        """
+        Get the tracer for distributed tracing.
+
+        Returns:
+            Tracer instance (OpenTelemetry or dummy)
+        """
         pass
 
     async def flush(self) -> None:

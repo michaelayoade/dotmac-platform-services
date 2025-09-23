@@ -14,33 +14,34 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
+
 def start_worker():
     """Start Celery worker in the background."""
     env = os.environ.copy()
-    env.update({
-        "CELERY_BROKER_URL": "amqp://admin:admin@localhost:5672//",
-        "CELERY_RESULT_BACKEND": "redis://localhost:6379/1",
-        "PYTHONPATH": str(project_root / "src"),
-    })
+    env.update(
+        {
+            "CELERY_BROKER_URL": "amqp://admin:admin@localhost:5672//",
+            "CELERY_RESULT_BACKEND": "redis://localhost:6379/1",
+            "PYTHONPATH": str(project_root / "src"),
+        }
+    )
 
     cmd = [
-        sys.executable, "-m", "celery",
-        "-A", "dotmac.platform.tasks.celery_app",
+        sys.executable,
+        "-m",
+        "celery",
+        "-A",
+        "dotmac.platform.tasks.celery_app",
         "worker",
         "--loglevel=info",
         "--concurrency=2",
-        "--pool=solo"  # Use solo pool for testing (no multiprocessing issues)
+        "--pool=solo",  # Use solo pool for testing (no multiprocessing issues)
     ]
 
     print(f"Starting Celery worker with command: {' '.join(cmd)}")
 
     process = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
 
     # Wait for worker to be ready
@@ -52,6 +53,7 @@ def start_worker():
             break
 
     return process
+
 
 def stop_worker(process):
     """Stop the Celery worker gracefully."""
@@ -65,6 +67,7 @@ def stop_worker(process):
             print("Force killing Celery worker...")
             process.kill()
             process.wait()
+
 
 if __name__ == "__main__":
     import argparse

@@ -3,20 +3,14 @@
 CLI management commands for DotMac Platform Services.
 """
 
-import click
 import asyncio
-import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+import click
+from sqlalchemy import text
 
-from sqlalchemy import select
-
-from dotmac.platform.db import init_db, get_session
-from dotmac.platform.auth.jwt_service import JWTService
-# from dotmac.platform.secrets.manager import SecretsManager
-SecretsManager = None  # Placeholder for removed secrets module
+from dotmac.platform.db import get_session, init_db
 
 
 @click.group()
@@ -29,7 +23,7 @@ def cli():
 def init_database():
     """Initialize the database with required schemas."""
     click.echo("Initializing database...")
-    asyncio.run(init_db())
+    init_db()  # This is a sync function
     click.echo("Database initialized successfully!")
 
 
@@ -38,27 +32,35 @@ def init_database():
 @click.option("--password", prompt=True, hide_input=True, help="Admin user password")
 def create_admin(email: str, password: str):
     """Create an admin user."""
+
     async def _create_admin():
-        from dotmac.platform.auth.models import User
-        from dotmac.platform.auth.utils import hash_password
+        import hashlib
+
+        # Simple password hashing for CLI (production should use bcrypt/argon2)
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
 
         async with get_session() as session:
-            # Check if user exists
+            # Check if user exists using raw SQL
             existing = await session.execute(
-                select(User).where(User.email == email)
+                text("SELECT email FROM users WHERE email = :email"), {"email": email}
             )
-            if existing.scalar():
+            if existing.first():
                 click.echo(f"User with email {email} already exists!")
                 return
 
-            # Create admin user
-            user = User(
-                email=email,
-                password_hash=hash_password(password),
-                is_admin=True,
-                is_active=True,
+            # Create admin user with raw SQL
+            await session.execute(
+                text(
+                    "INSERT INTO users (email, password_hash, is_admin, is_active) "
+                    "VALUES (:email, :password_hash, :is_admin, :is_active)"
+                ),
+                {
+                    "email": email,
+                    "password_hash": password_hash,
+                    "is_admin": True,
+                    "is_active": True,
+                },
             )
-            session.add(user)
             await session.commit()
             click.echo(f"Admin user {email} created successfully!")
 
@@ -68,17 +70,15 @@ def create_admin(email: str, password: str):
 @cli.command()
 def generate_jwt_keys():
     """Generate JWT signing keys."""
+    from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.backends import default_backend
 
     click.echo("Generating RSA key pair for JWT signing...")
 
     # Generate private key
     private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend()
+        public_exponent=65537, key_size=2048, backend=default_backend()
     )
 
     # Get public key
@@ -88,13 +88,12 @@ def generate_jwt_keys():
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
     # Serialize public key
     public_pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
 
     # Save keys
@@ -105,43 +104,13 @@ def generate_jwt_keys():
 
 
 @cli.command()
-@click.option("--path", required=True, help="Secret path")
-@click.option("--value", required=True, help="Secret value")
-@click.option("--provider", default="vault", help="Secret provider (vault/env)")
-def set_secret(path: str, value: str, provider: str):
-    """Set a secret in the secrets manager."""
-    async def _set_secret():
-        manager = SecretsManager(provider=provider)
-        await manager.set_secret(path, {"value": value})
-        click.echo(f"Secret set at path: {path}")
-
-    asyncio.run(_set_secret())
-
-
-@cli.command()
-@click.option("--path", required=True, help="Secret path")
-@click.option("--provider", default="vault", help="Secret provider (vault/env)")
-def get_secret(path: str, provider: str):
-    """Get a secret from the secrets manager."""
-    async def _get_secret():
-        manager = SecretsManager(provider=provider)
-        secret = await manager.get_secret(path)
-        click.echo(f"Secret at {path}: {secret}")
-
-    asyncio.run(_get_secret())
-
-
-@cli.command()
 def run_migrations():
     """Run database migrations."""
     import subprocess
+    import sys
 
     click.echo("Running database migrations...")
-    result = subprocess.run(
-        ["alembic", "upgrade", "head"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True)
 
     if result.returncode == 0:
         click.echo("Migrations completed successfully!")
@@ -156,31 +125,33 @@ def run_migrations():
 @click.option("--test", is_flag=True, help="Run in test mode")
 def check_services(test: bool):
     """Check connectivity to all required services."""
+
     async def _check_services():
         results = {}
 
         # Check database
         try:
             async with get_session() as session:
-                await session.execute("SELECT 1")
+                await session.execute(text("SELECT 1"))
             results["database"] = "✓ Connected"
         except Exception as e:
             results["database"] = f"✗ Failed: {e}"
 
         # Check Redis
         try:
-            import aioredis
-            redis = await aioredis.create_redis_pool('redis://localhost')
-            await redis.ping()
-            redis.close()
-            await redis.wait_closed()
-            results["redis"] = "✓ Connected"
+            from dotmac.platform.caching import redis_client
+
+            if redis_client and redis_client.ping():
+                results["redis"] = "✓ Connected"
+            else:
+                results["redis"] = "✗ Not configured"
         except Exception as e:
             results["redis"] = f"✗ Failed: {e}"
 
         # Check Vault/OpenBao
         try:
             import httpx
+
             async with httpx.AsyncClient() as client:
                 response = await client.get("http://localhost:8200/v1/sys/health")
                 if response.status_code in [200, 429, 501, 503]:
@@ -203,17 +174,16 @@ def check_services(test: bool):
 @click.option("--days", default=30, help="Number of days to keep")
 def cleanup_sessions(days: int):
     """Clean up expired sessions."""
-    async def _cleanup():
-        from datetime import datetime, timedelta
 
+    async def _cleanup():
         async with get_session() as session:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            result = await session.execute(
-                "DELETE FROM auth.sessions WHERE created_at < :cutoff",
-                {"cutoff": cutoff}
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            # Use raw SQL for DELETE operation
+            await session.execute(
+                text("DELETE FROM auth.sessions WHERE created_at < :cutoff"), {"cutoff": cutoff}
             )
             await session.commit()
-            click.echo(f"Deleted {result.rowcount} expired sessions")
+            click.echo("Deleted expired sessions")
 
     asyncio.run(_cleanup())
 
@@ -222,20 +192,21 @@ def cleanup_sessions(days: int):
 @click.option("--format", default="json", help="Export format (json/csv)")
 def export_audit_logs(format: str):
     """Export audit logs."""
+    import csv
+    import json
+
     async def _export():
         async with get_session() as session:
             result = await session.execute(
-                "SELECT * FROM audit.audit_log ORDER BY event_timestamp DESC"
+                text("SELECT * FROM audit.audit_log ORDER BY event_timestamp DESC")
             )
             logs = result.fetchall()
 
             if format == "json":
-                import json
                 output = json.dumps([dict(log) for log in logs], default=str, indent=2)
                 Path("audit_logs.json").write_text(output)
                 click.echo(f"Exported {len(logs)} logs to audit_logs.json")
             elif format == "csv":
-                import csv
                 with open("audit_logs.csv", "w", newline="") as f:
                     if logs:
                         writer = csv.DictWriter(f, fieldnames=logs[0].keys())

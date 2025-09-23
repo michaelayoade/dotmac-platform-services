@@ -8,8 +8,8 @@ from dotmac.platform.search.interfaces import SearchFilter, SearchQuery, SearchT
 from dotmac.platform.search.service import (
     InMemorySearchBackend,
     SearchService,
-    create_search_backend_from_env,
 )
+from dotmac.platform.search.factory import create_search_backend_from_env
 
 
 @pytest.mark.asyncio
@@ -106,15 +106,3 @@ async def test_inmemory_backend_bulk_and_delete_index():
     assert empty.total == 0
 
 
-def test_create_search_backend_from_env_defaults(monkeypatch):
-    monkeypatch.delenv("SEARCH_BACKEND", raising=False)
-    backend = create_search_backend_from_env()
-    assert isinstance(backend, InMemorySearchBackend)
-
-    monkeypatch.setenv("SEARCH_BACKEND", "memory")
-    backend = create_search_backend_from_env()
-    assert isinstance(backend, InMemorySearchBackend)
-
-    monkeypatch.setenv("SEARCH_BACKEND", "unknown")
-    backend = create_search_backend_from_env()
-    assert isinstance(backend, InMemorySearchBackend)

@@ -5,30 +5,29 @@ Utility functions for data transfer operations.
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import AsyncGenerator, Optional, Any
+from typing import AsyncGenerator, Optional
 from uuid import uuid4
 
 from .core import (
     DataBatch,
-    DataRecord,
     DataFormat,
-    TransferConfig,
-    ProgressInfo,
+    DataRecord,
     DataTransformer,
     DataValidator,
     ProgressCallback,
+    ProgressInfo,
+    TransferConfig,
+)
+from .exporters import (
+    ExportOptions,
+    create_exporter,
 )
 from .importers import (
     ImportOptions,
     create_importer,
     detect_format,
 )
-from .exporters import (
-    ExportOptions,
-    create_exporter,
-)
 from .progress import (
-    ProgressTracker,
     create_progress_tracker,
 )
 
@@ -40,7 +39,7 @@ def create_operation_id() -> str:
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable form."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024.0
@@ -80,7 +79,7 @@ async def create_batches(
     """Create batches from a list of data."""
     batch_number = 0
     for i in range(0, len(data), batch_size):
-        batch_data = data[i:i + batch_size]
+        batch_data = data[i : i + batch_size]
         records = [DataRecord(data=item) for item in batch_data]
         yield DataBatch(
             records=records,
@@ -216,10 +215,7 @@ class DataPipeline:
         self.transformer = transformer
 
         self.operation_id = create_operation_id()
-        self.progress_tracker = create_progress_tracker(
-            self.operation_id,
-            progress_callback
-        )
+        self.progress_tracker = create_progress_tracker(self.operation_id, progress_callback)
 
     async def execute(self) -> ProgressInfo:
         """Execute the data pipeline."""
@@ -263,10 +259,7 @@ class DataPipeline:
                     yield batch
 
             # Export processed data
-            result = await exporter.export_to_file(
-                process_data(),
-                self.target_path
-            )
+            result = await exporter.export_to_file(process_data(), self.target_path)
 
             await self.progress_tracker.complete()
             return result

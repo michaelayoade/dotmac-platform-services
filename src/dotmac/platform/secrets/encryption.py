@@ -10,7 +10,8 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 try:  # pragma: no cover - optional dependency
-    from cryptography.fernet import Fernet, InvalidToken as FernetInvalidToken
+    from cryptography.fernet import Fernet
+    from cryptography.fernet import InvalidToken as FernetInvalidToken
 except Exception:  # pragma: no cover - cryptography may be absent
     Fernet = None  # type: ignore
     FernetInvalidToken = Exception  # type: ignore

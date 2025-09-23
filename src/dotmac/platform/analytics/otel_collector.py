@@ -2,22 +2,83 @@
 OpenTelemetry collector implementation for SigNoz integration.
 """
 
-
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from opentelemetry import metrics, trace
-from opentelemetry.trace import Tracer
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.metrics import CallbackOptions, Observation
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.trace import Status, StatusCode
+# Optional OpenTelemetry imports
+from ..dependencies import safe_import
+from ..settings import settings
+
+# Only import OpenTelemetry if enabled and available
+metrics = None
+trace = None
+Tracer = None
+OTLPMetricExporter = None
+OTLPSpanExporter = None
+CallbackOptions = None
+Observation = None
+MeterProvider = None
+PeriodicExportingMetricReader = None
+Resource = None
+TracerProvider = None
+BatchSpanProcessor = None
+Status = None
+StatusCode = None
+
+if settings.features.tracing_opentelemetry:
+    metrics = safe_import("opentelemetry.metrics", "tracing_opentelemetry")
+    trace = safe_import("opentelemetry.trace", "tracing_opentelemetry")
+    if trace:
+        Tracer = trace.Tracer
+        Status = trace.Status
+        StatusCode = trace.StatusCode
+
+    OTLPMetricExporter = (
+        safe_import(
+            "opentelemetry.exporter.otlp.proto.grpc.metric_exporter", "tracing_opentelemetry"
+        ).OTLPMetricExporter
+        if safe_import(
+            "opentelemetry.exporter.otlp.proto.grpc.metric_exporter", "tracing_opentelemetry"
+        )
+        else None
+    )
+
+    OTLPSpanExporter = (
+        safe_import(
+            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter", "tracing_opentelemetry"
+        ).OTLPSpanExporter
+        if safe_import(
+            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter", "tracing_opentelemetry"
+        )
+        else None
+    )
+
+    if metrics:
+        CallbackOptions = metrics.CallbackOptions
+        Observation = metrics.Observation
+
+    sdk_metrics = safe_import("opentelemetry.sdk.metrics", "tracing_opentelemetry")
+    if sdk_metrics:
+        MeterProvider = sdk_metrics.MeterProvider
+
+    metrics_export = safe_import("opentelemetry.sdk.metrics.export", "tracing_opentelemetry")
+    if metrics_export:
+        PeriodicExportingMetricReader = metrics_export.PeriodicExportingMetricReader
+
+    sdk_resources = safe_import("opentelemetry.sdk.resources", "tracing_opentelemetry")
+    if sdk_resources:
+        Resource = sdk_resources.Resource
+
+    sdk_trace = safe_import("opentelemetry.sdk.trace", "tracing_opentelemetry")
+    if sdk_trace:
+        TracerProvider = sdk_trace.TracerProvider
+
+    sdk_trace_export = safe_import("opentelemetry.sdk.trace.export", "tracing_opentelemetry")
+    if sdk_trace_export:
+        BatchSpanProcessor = sdk_trace_export.BatchSpanProcessor
+
+import structlog
 
 from .base import (
     BaseAnalyticsCollector,
@@ -26,9 +87,9 @@ from .base import (
     HistogramMetric,
     Metric,
 )
-from dotmac.platform.logging import get_logger
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
+
 
 @dataclass
 class OTelConfig:
@@ -65,6 +126,7 @@ class OTelConfig:
                     parsed_headers[key] = value
             self.headers = parsed_headers or None
 
+
 class OpenTelemetryCollector(BaseAnalyticsCollector):
     """
     OpenTelemetry collector for sending metrics and traces to SigNoz.
@@ -86,23 +148,35 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """
         super().__init__(tenant_id, service_name)
         self.config = config
+        self._tracer = None  # Will be set during initialization
 
         # Initialize resource attributes
-        resource = Resource.create(
-            {
-                "service.name": service_name,
-                "service.namespace": "dotmac",
-                "service.version": "1.0.0",
-                "deployment.environment": config.environment,
-                "tenant.id": tenant_id,
-            }
-        )
+        if Resource:
+            resource = Resource.create(
+                {
+                    "service.name": service_name,
+                    "service.namespace": "dotmac",
+                    "service.version": "1.0.0",
+                    "deployment.environment": config.environment,
+                    "tenant.id": tenant_id,
+                }
+            )
 
-        # Initialize metrics
-        self._init_metrics(resource)
+            # Initialize metrics
+            if metrics and MeterProvider:
+                self._init_metrics(resource)
+            else:
+                self.meter = None
 
-        # Initialize tracing
-        self._init_tracing(resource)
+            # Initialize tracing
+            if trace and TracerProvider:
+                self._init_tracing(resource)
+            else:
+                self._tracer = DummyTracer()
+        else:
+            # Fallback if Resource is not available
+            self.meter = None
+            self._tracer = DummyTracer()
 
         # Metric instruments cache
         self._counters: Dict[str, Any] = {}
@@ -118,7 +192,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             "histograms": {},
         }
 
-    def _init_metrics(self, resource: Resource) -> None:
+    def _init_metrics(self, resource: Any) -> None:
         """Initialize OpenTelemetry metrics."""
         # Create OTLP metric exporter for SigNoz
         try:
@@ -149,7 +223,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             version="1.0.0",
         )
 
-    def _init_tracing(self, resource: Resource) -> None:
+    def _init_tracing(self, resource: Any) -> None:
         """Initialize OpenTelemetry tracing."""
         # Create OTLP span exporter for SigNoz
         try:
@@ -174,7 +248,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         trace.set_tracer_provider(provider)
 
         # Get tracer for this service
-        self.tracer: Tracer = trace.get_tracer(
+        self._tracer = trace.get_tracer(
             instrumenting_module_name=self.service_name,
             instrumenting_library_version="1.0.0",
         )
@@ -195,11 +269,12 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             # Store gauge values for async callback
             self._gauge_values[metric.name] = {}
 
-            def gauge_callback(options: CallbackOptions) -> List[Observation]:
+            def gauge_callback(options: Any) -> List[Any]:
                 """Callback for observable gauge."""
                 observations = []
-                for attrs_key, value in self._gauge_values.get(metric.name, {}).items():
-                    observations.append(Observation(value=value, attributes=dict(attrs_key)))
+                if Observation:
+                    for attrs_key, value in self._gauge_values.get(metric.name, {}).items():
+                        observations.append(Observation(value=value, attributes=dict(attrs_key)))
                 return observations
 
             self._gauges[metric.name] = self.meter.create_observable_gauge(
@@ -254,14 +329,10 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                 summary["sum"] += metric.value
                 summary["avg"] = summary["sum"] / summary["count"]
                 summary["min"] = (
-                    metric.value
-                    if summary["min"] is None
-                    else min(summary["min"], metric.value)
+                    metric.value if summary["min"] is None else min(summary["min"], metric.value)
                 )
                 summary["max"] = (
-                    metric.value
-                    if summary["max"] is None
-                    else max(summary["max"], metric.value)
+                    metric.value if summary["max"] is None else max(summary["max"], metric.value)
                 )
 
             else:
@@ -376,12 +447,17 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             "histograms": histogram_snapshot,
         }
 
+    @property
+    def tracer(self):
+        """Get the tracer for distributed tracing."""
+        return self._tracer
+
     def create_span(
         self,
         name: str,
         attributes: Optional[Dict[str, Any]] = None,
-        kind: trace.SpanKind = trace.SpanKind.INTERNAL,
-    ) -> trace.Span:
+        kind: Any = None,
+    ) -> Any:
         """
         Create a new span for distributed tracing.
 
@@ -393,14 +469,17 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         Returns:
             OpenTelemetry span
         """
-        span = self.tracer.start_span(
+        if not kind and trace:
+            kind = trace.SpanKind.INTERNAL if hasattr(trace, "SpanKind") else None
+
+        span = self._tracer.start_span(
             name=name,
             attributes=attributes or {},
             kind=kind,
         )
         return span
 
-    def record_exception(self, span: trace.Span, exception: Exception) -> None:
+    def record_exception(self, span: Any, exception: Exception) -> None:
         """
         Record an exception in a span.
 
@@ -408,8 +487,10 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             span: Current span
             exception: Exception to record
         """
-        span.record_exception(exception)
-        span.set_status(Status(StatusCode.ERROR, str(exception)))
+        if hasattr(span, "record_exception"):
+            span.record_exception(exception)
+        if Status and StatusCode and hasattr(span, "set_status"):
+            span.set_status(Status(StatusCode.ERROR, str(exception)))
 
     async def close(self) -> None:
         """Close the collector and flush pending data."""
@@ -422,14 +503,129 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         if hasattr(self, "tracer"):
             trace.get_tracer_provider().shutdown()
 
+
+class SimpleAnalyticsCollector(BaseAnalyticsCollector):
+    """Simple in-memory analytics collector for when OpenTelemetry is not available."""
+
+    def __init__(self, tenant_id: str, service_name: str):
+        super().__init__(tenant_id, service_name)
+        self.metrics_store: List[Metric] = []
+        self._metrics_summary = {
+            "counters": {},
+            "gauges": {},
+            "histograms": {},
+        }
+
+    async def collect(self, metric: Metric) -> None:
+        """Collect a single metric."""
+        enriched = self._enrich_metric(metric)
+        self.metrics_store.append(enriched)
+
+    async def collect_batch(self, metrics: List[Metric]) -> None:
+        """Collect multiple metrics."""
+        for metric in metrics:
+            await self.collect(metric)
+
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Get a summary of collected metrics."""
+        return {
+            "tenant": self.tenant_id,
+            "counters": dict(self._metrics_summary["counters"]),
+            "gauges": dict(self._metrics_summary["gauges"]),
+            "histograms": dict(self._metrics_summary["histograms"]),
+        }
+
+    async def record_metric(
+        self,
+        name: str,
+        value: float,
+        metric_type: str = "gauge",
+        labels: Optional[Dict[str, Any]] = None,
+        unit: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> None:
+        """Record a metric."""
+        if metric_type == "counter":
+            self._metrics_summary["counters"][name] = (
+                self._metrics_summary["counters"].get(name, 0) + value
+            )
+            metric = CounterMetric(
+                name=name,
+                value=value,
+                tenant_id=self.tenant_id,
+                unit=unit,
+                description=description,
+                attributes=labels or {},
+            )
+        else:
+            self._metrics_summary["gauges"][name] = {
+                "value": float(value),
+                "labels": labels or {},
+            }
+            metric = GaugeMetric(
+                name=name,
+                value=value,
+                tenant_id=self.tenant_id,
+                unit=unit,
+                description=description,
+                attributes=labels or {},
+            )
+
+        await self.collect(metric)
+
+    @property
+    def tracer(self):
+        """Return a dummy tracer for compatibility."""
+        return DummyTracer()
+
+    def create_span(self, name: str, attributes: Optional[Dict[str, Any]] = None, kind: Any = None):
+        """Create a dummy span."""
+        return DummySpan(name, attributes)
+
+    def record_exception(self, span: Any, exception: Exception) -> None:
+        """Record an exception in a span - no-op for simple collector."""
+        pass
+
+
+class DummyTracer:
+    """Dummy tracer for when OpenTelemetry is not available."""
+
+    def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None, kind: Any = None):
+        """Create a dummy span."""
+        return DummySpan(name, attributes)
+
+
+class DummySpan:
+    """Dummy span for when OpenTelemetry is not available."""
+
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+        self.name = name
+        self.attributes = attributes or {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def set_attribute(self, key: str, value: Any):
+        self.attributes[key] = value
+
+    def set_status(self, status: Any):
+        pass
+
+    def record_exception(self, exception: Exception):
+        pass
+
+
 def create_otel_collector(
     tenant_id: str,
     service_name: str = "dotmac-business",
     endpoint: Optional[str] = None,
     environment: Optional[str] = None,
-) -> OpenTelemetryCollector:
+) -> BaseAnalyticsCollector:
     """
-    Create an OpenTelemetry collector with default configuration.
+    Create an analytics collector with default configuration.
 
     Args:
         tenant_id: Tenant identifier
@@ -438,16 +634,25 @@ def create_otel_collector(
         environment: Environment name (default: development)
 
     Returns:
-        Configured OpenTelemetryCollector
+        Configured analytics collector (OpenTelemetryCollector or SimpleAnalyticsCollector)
     """
-    config = {
-        "endpoint": endpoint or "localhost:4317",
-        "service_name": service_name,
-        "environment": environment or "development",
-    }
+    # Check if OpenTelemetry is available and enabled
+    if trace and metrics and Resource and settings.features.tracing_opentelemetry:
+        config = OTelConfig(
+            endpoint=endpoint or "localhost:4317",
+            service_name=service_name,
+            environment=environment or "development",
+        )
 
-    return OpenTelemetryCollector(
-        tenant_id=tenant_id,
-        service_name=service_name,
-        config=config,
-    )
+        return OpenTelemetryCollector(
+            tenant_id=tenant_id,
+            service_name=service_name,
+            config=config,
+        )
+    else:
+        # Return a simple in-memory collector as fallback
+        logger.info("OpenTelemetry not available, using simple in-memory collector")
+        return SimpleAnalyticsCollector(
+            tenant_id=tenant_id,
+            service_name=service_name,
+        )

@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -24,22 +23,19 @@ from typing import Any
 from uuid import uuid4
 
 import aiohttp
+import structlog
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.logging import get_logger
-# Removed non-existent imports - these services are not in platform
-# from ..core.exceptions import EntityNotFoundError
-# from ..services.performance_optimization import PerformanceOptimizationService
-# from ..services.service_marketplace import ServiceMarketplace
+# Use core exceptions
+from ..core.exceptions import EntityNotFoundError
 
-class EntityNotFoundError(Exception):
-    """Entity not found error."""
-    pass
 
 class PerformanceOptimizationService:
     """Stub for performance optimization service."""
+
     pass
+
 
 class ServiceMarketplace:
     """Stub for service marketplace - discovers available services."""
@@ -49,7 +45,9 @@ class ServiceMarketplace:
         # Return empty list by default
         return []
 
-logger = get_logger(__name__)
+
+logger = structlog.get_logger(__name__)
+
 
 class TrafficPolicy(str, Enum):
     """Traffic routing policies."""
@@ -60,6 +58,7 @@ class TrafficPolicy(str, Enum):
     CONSISTENT_HASH = "consistent_hash"
     STICKY_SESSION = "sticky_session"
 
+
 class RetryPolicy(str, Enum):
     """Retry policies for failed requests."""
 
@@ -68,12 +67,14 @@ class RetryPolicy(str, Enum):
     FIXED_INTERVAL = "fixed_interval"
     CIRCUIT_BREAKER = "circuit_breaker"
 
+
 class EncryptionLevel(str, Enum):
     """Service communication encryption levels."""
 
     NONE = "none"
     TLS = "tls"
     MTLS = "mtls"
+
 
 class ServiceStatus(str, Enum):
     """Service health status."""
@@ -82,6 +83,7 @@ class ServiceStatus(str, Enum):
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
     DEGRADED = "degraded"
+
 
 @dataclass
 class ServiceEndpoint:
@@ -107,6 +109,7 @@ class ServiceEndpoint:
         """Get the health check URL."""
         return f"{self.protocol}://{self.host}:{self.port}{self.health_check_path}"
 
+
 @dataclass
 class TrafficRule:
     """Traffic routing rule configuration."""
@@ -123,6 +126,7 @@ class TrafficRule:
     circuit_breaker_enabled: bool = True
     rate_limit_rpm: int | None = None
     encryption_level: EncryptionLevel = EncryptionLevel.TLS
+
 
 @dataclass
 class ServiceCall:
@@ -152,6 +156,7 @@ class ServiceCall:
             "trace_id": self.trace_id,
             "span_id": self.span_id,
         }
+
 
 class CircuitBreakerState:
     """Circuit breaker for service calls."""
@@ -198,6 +203,7 @@ class CircuitBreakerState:
     @property
     def is_open(self) -> bool:
         return self.state == "OPEN"
+
 
 class ServiceRegistry:
     """Registry for service endpoints and configurations."""
@@ -255,6 +261,7 @@ class ServiceRegistry:
             self.circuit_breakers[service_name] = CircuitBreakerState()
         return self.circuit_breakers[service_name]
 
+
 class LoadBalancer:
     """Load balancer for selecting service endpoints."""
 
@@ -262,7 +269,7 @@ class LoadBalancer:
         self.registry = registry
         self.round_robin_counters: dict[str, int] = {}
 
-    def select_endpoint(
+    async def select_endpoint(
         self,
         service_name: str,
         policy: TrafficPolicy,
@@ -274,7 +281,7 @@ class LoadBalancer:
             return None
 
         # Filter healthy endpoints
-        healthy_endpoints = [ep for ep in endpoints if self._is_healthy(ep)]
+        healthy_endpoints = [ep for ep in endpoints if await self._is_healthy(ep)]
         if not healthy_endpoints:
             # Fallback to all endpoints if none are healthy
             healthy_endpoints = endpoints
@@ -286,7 +293,7 @@ class LoadBalancer:
         elif policy == TrafficPolicy.LEAST_CONNECTIONS:
             return self._select_least_connections(healthy_endpoints)
         elif policy == TrafficPolicy.CONSISTENT_HASH:
-            return self._select_consistent_hash(healthy_endpoints, source_context)
+            return self._select_consistent_hash(healthy_endpoints, source_context or {})
         else:
             return healthy_endpoints[0]  # Default to first
 
@@ -354,9 +361,9 @@ class LoadBalancer:
         health_status = self.registry.health_status.get(endpoint_key, {})
 
         # Check if we have recent health data (within 30 seconds)
-        last_check = health_status.get('last_check', 0)
+        last_check = health_status.get("last_check", 0)
         if time.time() - last_check < 30:
-            return health_status.get('healthy', True)
+            return health_status.get("healthy", True)
 
         # Perform health check
         return await self._perform_health_check(endpoint)
@@ -374,10 +381,10 @@ class LoadBalancer:
 
                     # Update health status
                     self.registry.health_status[endpoint_key] = {
-                        'healthy': is_healthy,
-                        'last_check': time.time(),
-                        'status_code': response.status,
-                        'response_time_ms': 0  # Would need timing logic
+                        "healthy": is_healthy,
+                        "last_check": time.time(),
+                        "status_code": response.status,
+                        "response_time_ms": 0,  # Would need timing logic
                     }
 
                     return is_healthy
@@ -385,11 +392,12 @@ class LoadBalancer:
         except Exception as e:
             logger.warning(f"Health check failed for {endpoint_key}: {e}")
             self.registry.health_status[endpoint_key] = {
-                'healthy': False,
-                'last_check': time.time(),
-                'error': str(e)
+                "healthy": False,
+                "last_check": time.time(),
+                "error": str(e),
             }
             return False
+
 
 class ServiceMesh:
     """Main service mesh implementation."""
@@ -512,7 +520,7 @@ class ServiceMesh:
             )
 
         # Select endpoint
-        endpoint = self.load_balancer.select_endpoint(
+        endpoint = await self.load_balancer.select_endpoint(
             destination_service, traffic_rule.policy, {"source_service": source_service}
         )
 
@@ -611,12 +619,15 @@ class ServiceMesh:
         if not self.http_session:
             raise RuntimeError("HTTP session not initialized")
 
+        # Convert timeout to ClientTimeout object
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
+
         async with self.http_session.request(
             method=method.upper(),
             url=url,
             headers=call_headers,
             data=body,
-            timeout=timeout,
+            timeout=client_timeout,
         ) as response:
             response_body = await response.read()
 
@@ -753,7 +764,7 @@ class ServiceMesh:
     async def _check_all_endpoints_health(self):
         """Check health of all registered endpoints."""
         tasks = []
-        for service_name, endpoints in self.registry.endpoints.items():
+        for _service_name, endpoints in self.registry.endpoints.items():
             for endpoint in endpoints:
                 tasks.append(self._check_endpoint_health(endpoint))
 
@@ -778,11 +789,11 @@ class ServiceMesh:
 
                 # Update health status
                 self.registry.health_status[endpoint_key] = {
-                    'healthy': is_healthy,
-                    'last_check': time.time(),
-                    'status_code': response.status,
-                    'response_time_ms': response_time,
-                    'endpoint': endpoint.service_name
+                    "healthy": is_healthy,
+                    "last_check": time.time(),
+                    "status_code": response.status,
+                    "response_time_ms": response_time,
+                    "endpoint": endpoint.service_name,
                 }
 
                 # Update endpoint status
@@ -796,10 +807,10 @@ class ServiceMesh:
         except Exception as e:
             logger.error(f"Health check failed for {endpoint_key}: {e}")
             self.registry.health_status[endpoint_key] = {
-                'healthy': False,
-                'last_check': time.time(),
-                'error': str(e),
-                'endpoint': endpoint.service_name
+                "healthy": False,
+                "last_check": time.time(),
+                "error": str(e),
+                "endpoint": endpoint.service_name,
             }
             endpoint.status = ServiceStatus.UNHEALTHY
             return False
@@ -808,21 +819,23 @@ class ServiceMesh:
         """Get current health status of all endpoints."""
         total_endpoints = sum(len(endpoints) for endpoints in self.registry.endpoints.values())
         healthy_endpoints = sum(
-            1 for status in self.registry.health_status.values()
-            if status.get('healthy', False)
+            1 for status in self.registry.health_status.values() if status.get("healthy", False)
         )
 
         return {
-            'total_endpoints': total_endpoints,
-            'healthy_endpoints': healthy_endpoints,
-            'unhealthy_endpoints': total_endpoints - healthy_endpoints,
-            'health_percentage': (healthy_endpoints / total_endpoints * 100) if total_endpoints > 0 else 0,
-            'endpoints': self.registry.health_status,
-            'last_check': max(
-                (status.get('last_check', 0) for status in self.registry.health_status.values()),
-                default=0
-            )
+            "total_endpoints": total_endpoints,
+            "healthy_endpoints": healthy_endpoints,
+            "unhealthy_endpoints": total_endpoints - healthy_endpoints,
+            "health_percentage": (
+                (healthy_endpoints / total_endpoints * 100) if total_endpoints > 0 else 0
+            ),
+            "endpoints": self.registry.health_status,
+            "last_check": max(
+                (status.get("last_check", 0) for status in self.registry.health_status.values()),
+                default=0,
+            ),
         }
+
 
 class ServiceMeshFactory:
     """Factory for creating service mesh instances."""
@@ -861,6 +874,7 @@ class ServiceMeshFactory:
     ) -> ServiceEndpoint:
         """Create a service endpoint configuration."""
         return ServiceEndpoint(service_name=service_name, host=host, port=port, **kwargs)
+
 
 async def setup_service_mesh_for_consolidated_services(
     db_session: AsyncSession,

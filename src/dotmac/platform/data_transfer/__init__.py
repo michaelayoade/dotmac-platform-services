@@ -5,81 +5,81 @@ This module replaces the custom data transfer implementation with
 pandas-based functionality and Python standard libraries.
 """
 
-from .core import (
-    # Core classes and enums
-    DataFormat,
-    TransferStatus,
-    CompressionType,
-    ProgressInfo,
-    DataRecord,
-    DataBatch,
-    TransferConfig,
-    # Exceptions
-    DataTransferError,
-    ImportError,
-    ExportError,
-    DataValidationError,
-    FormatError,
-    StreamingError,
-    ProgressError,
-    # Base classes
+from .core import (  # Core classes and enums; Exceptions; Base classes; Protocols
     BaseDataProcessor,
-    BaseImporter,
     BaseExporter,
-    # Protocols
+    BaseImporter,
+    CompressionType,
+    DataBatch,
+    DataFormat,
+    DataRecord,
+    DataTransferError,
     DataTransformer,
+    DataValidationError,
     DataValidator,
+    ExportError,
+    FormatError,
+    ImportError,
     ProgressCallback,
+    ProgressError,
+    ProgressInfo,
+    StreamingError,
+    TransferConfig,
+    TransferStatus,
 )
-
-from .importers import (
-    CSVImporter,
-    JSONImporter,
-    ExcelImporter,
-    XMLImporter,
-    YAMLImporter,
-    ImportOptions,
-    import_file,
-    detect_format,
-    create_importer,
-)
-
 from .exporters import (
     CSVExporter,
-    JSONExporter,
     ExcelExporter,
+    ExportOptions,
+    JSONExporter,
     XMLExporter,
     YAMLExporter,
-    ExportOptions,
-    export_data,
-    create_exporter,
     compress_file,
+    export_data,
 )
-
+from .factory import (
+    DataTransferFactory,
+    DataTransferRegistry,
+    create_csv_exporter,
+    create_csv_importer,
+    create_excel_exporter,
+    create_excel_importer,
+    create_exporter,
+    create_importer,
+    detect_format,
+)
+from .importers import (
+    CSVImporter,
+    ExcelImporter,
+    ImportOptions,
+    JSONImporter,
+    XMLImporter,
+    YAMLImporter,
+    import_file,
+)
 from .progress import (
-    ProgressTracker,
     CheckpointData,
     CheckpointStore,
     FileProgressStore,
     ProgressStore,
+    ProgressTracker,
     ResumableOperation,
-    create_progress_tracker,
     cleanup_old_operations,
+    create_progress_tracker,
 )
-
 from .utils import (
+    DataPipeline,
     calculate_throughput,
+    convert_file,
     create_batches,
+    create_data_pipeline,
+    create_export_options,
+    create_import_options,
     create_operation_id,
+    create_transfer_config,
     estimate_completion_time,
     format_file_size,
-    convert_file,
     validate_and_clean_file,
-    create_transfer_config,
-    create_import_options,
-    create_export_options,
-    create_data_pipeline,
-    DataPipeline,
 )
 
 # Version info
@@ -153,4 +153,14 @@ __all__ = [
     "create_export_options",
     "create_data_pipeline",
     "DataPipeline",
+    # Factory classes and functions
+    "DataTransferFactory",
+    "DataTransferRegistry",
+    "create_importer",
+    "create_exporter",
+    "detect_format",
+    "create_csv_importer",
+    "create_csv_exporter",
+    "create_excel_importer",
+    "create_excel_exporter",
 ]

@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 try:
-    from dotmac.platform.domain import (
+    from dotmac.platform.core import (
         AuthorizationError,
         BaseModel,
         ConfigurationError,
@@ -17,6 +17,7 @@ try:
         TenantContext,
         ValidationError,
     )
+
     # These were removed - no longer needed
     DatabaseManager = None
     check_database_health = lambda: {"status": "ok"}
@@ -164,47 +165,6 @@ class TestCoreModels:
         assert str(config_error) == "Invalid config"
         assert isinstance(config_error, DotMacError)
 
-    def test_database_manager_creation(self):
-        """Test DatabaseManager instantiation"""
-        # Test without config
-        db_manager = DatabaseManager()
-        assert db_manager.config is None
-
-        # Test with config
-        config = {"host": "localhost", "port": 5432}
-        db_manager = DatabaseManager(config=config)
-        assert db_manager.config == config
-
-    def test_database_manager_methods(self):
-        """Test DatabaseManager methods"""
-        db_manager = DatabaseManager()
-
-        # Test get_session method
-        session = db_manager.get_session()
-        assert session is None  # Mock implementation returns None
-
-        # Test health check
-        health = db_manager.check_health()
-        assert isinstance(health, dict)
-        assert "status" in health
-        assert health["status"] == "ok"
-
-    def test_database_utility_functions(self):
-        """Test database utility functions"""
-        # Test get_db function
-        db = get_db()
-        assert db is None  # Mock implementation
-
-        # Test get_db_session function
-        session = get_db_session()
-        assert session is None  # Mock implementation
-
-        # Test check_database_health function
-        health = check_database_health()
-        assert isinstance(health, dict)
-        assert "status" in health
-        assert health["status"] == "ok"
-        assert "message" in health
 
 
 @pytest.mark.unit

@@ -5,13 +5,18 @@ This module provides the foundational components for centralized analytics
 collection, processing, and export to SigNoz via OpenTelemetry.
 """
 
+from .aggregators import (
+    MetricAggregator,
+    StatisticalAggregator,
+    TimeWindowAggregator,
+)
 from .base import (
     AnalyticsCollector,
-    MetricType,
-    Metric,
     CounterMetric,
     GaugeMetric,
     HistogramMetric,
+    Metric,
+    MetricType,
     SpanContext,
 )
 from .otel_collector import (
@@ -19,12 +24,7 @@ from .otel_collector import (
     OTelConfig,
     create_otel_collector,
 )
-from .aggregators import (
-    MetricAggregator,
-    TimeWindowAggregator,
-    StatisticalAggregator,
-)
-from .service import get_analytics_service, AnalyticsService
+from .service import AnalyticsService, get_analytics_service
 
 __all__ = [
     # Base classes

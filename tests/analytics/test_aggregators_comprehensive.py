@@ -1,586 +1,569 @@
 """
-Comprehensive tests for analytics aggregators module.
-Focuses on covering all aggregation methods and edge cases.
+Comprehensive tests for analytics aggregators.
+
+Tests all aggregation functionality including:
+- Basic aggregations (sum, avg, min, max, count)
+- Time-based aggregations
+- Percentile calculations
+- Group by operations
+- Real-time aggregations
+- Error handling
 """
 
-import statistics
-from collections import deque
+import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List
-from unittest.mock import Mock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dotmac.platform.analytics.base import (
-    Metric,
-    CounterMetric,
-    GaugeMetric,
-    HistogramMetric,
-    MetricType
-)
 from dotmac.platform.analytics.aggregators import (
+    AggregationEngine,
+    AggregationType,
     MetricAggregator,
-    TimeWindowAggregator,
-    StatisticalAggregator,
+    RealTimeAggregator,
+    TimeSeriesAggregator,
 )
 
 
-class TestMetricAggregatorComprehensive:
-    """Comprehensive tests for MetricAggregator."""
+@pytest.fixture
+def sample_events():
+    """Generate sample event data."""
+    now = datetime.now(timezone.utc)
+    return [
+        {
+            "event_id": "evt1",
+            "event_name": "login",
+            "timestamp": now - timedelta(hours=2),
+            "user_id": "user1",
+            "properties": {"browser": "chrome", "country": "US"},
+        },
+        {
+            "event_id": "evt2",
+            "event_name": "logout",
+            "timestamp": now - timedelta(hours=1),
+            "user_id": "user1",
+            "properties": {"browser": "chrome", "country": "US"},
+        },
+        {
+            "event_id": "evt3",
+            "event_name": "login",
+            "timestamp": now - timedelta(minutes=30),
+            "user_id": "user2",
+            "properties": {"browser": "firefox", "country": "UK"},
+        },
+        {
+            "event_id": "evt4",
+            "event_name": "purchase",
+            "timestamp": now - timedelta(minutes=15),
+            "user_id": "user2",
+            "properties": {"amount": 99.99, "product": "premium"},
+        },
+    ]
 
-    @pytest.fixture
-    def aggregator(self):
-        """Create a MetricAggregator instance."""
-        return MetricAggregator(window_size=60)
 
-    def test_aggregator_initialization(self, aggregator):
-        """Test aggregator initialization."""
-        assert aggregator.window_size == 60
-        assert isinstance(aggregator.metrics_buffer, dict)
+@pytest.fixture
+def sample_metrics():
+    """Generate sample metric data."""
+    now = datetime.now(timezone.utc)
+    return [
+        {"metric_name": "api_latency", "value": 100.0, "timestamp": now - timedelta(hours=1)},
+        {"metric_name": "api_latency", "value": 150.0, "timestamp": now - timedelta(minutes=45)},
+        {"metric_name": "api_latency", "value": 200.0, "timestamp": now - timedelta(minutes=30)},
+        {"metric_name": "api_latency", "value": 120.0, "timestamp": now - timedelta(minutes=15)},
+        {"metric_name": "request_count", "value": 10.0, "timestamp": now - timedelta(hours=1)},
+        {"metric_name": "request_count", "value": 15.0, "timestamp": now - timedelta(minutes=30)},
+        {"metric_name": "request_count", "value": 20.0, "timestamp": now},
+    ]
 
-    def test_add_metric_alias(self, aggregator):
-        """Test add method as alias for add_metric."""
-        metric = CounterMetric(name="test", value=1)
-        aggregator.add(metric)  # Using alias
-        assert len(aggregator.metrics_buffer) > 0
 
-    def test_get_key_generation(self, aggregator):
-        """Test metric key generation."""
-        metric = CounterMetric(
-            name="requests",
-            value=1,
-            tenant_id="tenant123",
-            attributes={"service": "api", "endpoint": "/users", "method": "GET"}
-        )
+@pytest.fixture
+def aggregation_engine():
+    """Create aggregation engine instance."""
+    return AggregationEngine()
 
-        key = aggregator._get_key(metric)
-        assert "requests" in key
-        assert "tenant123" in key
-        assert "service:api" in key
-        assert "endpoint:/users" in key
-        assert "method:GET" in key
 
-    def test_get_key_with_partial_attributes(self, aggregator):
-        """Test key generation with partial attributes."""
-        metric = CounterMetric(
-            name="requests",
-            value=1,
-            tenant_id="tenant123",
-            attributes={"service": "api", "other_attr": "value"}  # Missing endpoint, method
-        )
+@pytest.fixture
+def metric_aggregator():
+    """Create metric aggregator instance."""
+    return MetricAggregator()
 
-        key = aggregator._get_key(metric)
-        assert "requests" in key
-        assert "tenant123" in key
-        assert "service:api" in key
-        assert "endpoint:" not in key
-        assert "method:" not in key
 
-    def test_get_aggregates_avg(self, aggregator):
-        """Test average aggregation."""
-        values = [10.0, 20.0, 30.0, 40.0, 50.0]
-        for value in values:
-            metric = GaugeMetric(name="cpu", value=value)
-            aggregator.add_metric(metric)
+@pytest.fixture
+def time_series_aggregator():
+    """Create time series aggregator instance."""
+    return TimeSeriesAggregator()
 
-        result = aggregator.get_aggregates(aggregation_type="avg")
-        expected_avg = statistics.mean(values)
-        assert len(result) == 1
-        assert abs(list(result.values())[0] - expected_avg) < 0.001
 
-    def test_get_aggregates_sum(self, aggregator):
+@pytest.fixture
+def realtime_aggregator():
+    """Create real-time aggregator instance."""
+    return RealTimeAggregator()
+
+
+class TestAggregationEngine:
+    """Test AggregationEngine class."""
+
+    def test_init_aggregation_engine(self, aggregation_engine):
+        """Test aggregation engine initialization."""
+        assert aggregation_engine is not None
+        assert hasattr(aggregation_engine, "aggregate")
+
+    async def test_aggregate_sum(self, aggregation_engine, sample_metrics):
         """Test sum aggregation."""
-        values = [1, 2, 3, 4, 5]
-        for value in values:
-            metric = CounterMetric(name="requests", value=value)
-            aggregator.add_metric(metric)
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.SUM,
+            field="value",
+        )
+        expected_sum = sum(m["value"] for m in sample_metrics)
+        assert result == expected_sum
 
-        result = aggregator.get_aggregates(aggregation_type="sum")
-        assert list(result.values())[0] == sum(values)
+    async def test_aggregate_avg(self, aggregation_engine, sample_metrics):
+        """Test average aggregation."""
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.AVG,
+            field="value",
+        )
+        expected_avg = sum(m["value"] for m in sample_metrics) / len(sample_metrics)
+        assert result == pytest.approx(expected_avg)
 
-    def test_get_aggregates_min_max(self, aggregator):
-        """Test min and max aggregation."""
-        values = [10, 50, 30, 70, 20]
-        for value in values:
-            metric = GaugeMetric(name="latency", value=value)
-            aggregator.add_metric(metric)
+    async def test_aggregate_min(self, aggregation_engine, sample_metrics):
+        """Test minimum aggregation."""
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.MIN,
+            field="value",
+        )
+        expected_min = min(m["value"] for m in sample_metrics)
+        assert result == expected_min
 
-        min_result = aggregator.get_aggregates(aggregation_type="min")
-        max_result = aggregator.get_aggregates(aggregation_type="max")
+    async def test_aggregate_max(self, aggregation_engine, sample_metrics):
+        """Test maximum aggregation."""
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.MAX,
+            field="value",
+        )
+        expected_max = max(m["value"] for m in sample_metrics)
+        assert result == expected_max
 
-        assert list(min_result.values())[0] == min(values)
-        assert list(max_result.values())[0] == max(values)
-
-    def test_get_aggregates_count(self, aggregator):
+    async def test_aggregate_count(self, aggregation_engine, sample_metrics):
         """Test count aggregation."""
-        for i in range(10):
-            metric = CounterMetric(name="events", value=i)
-            aggregator.add_metric(metric)
-
-        result = aggregator.get_aggregates(aggregation_type="count")
-        assert list(result.values())[0] == 10
-
-    def test_get_aggregates_median(self, aggregator):
-        """Test median aggregation."""
-        values = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-        for value in values:
-            metric = GaugeMetric(name="response_time", value=value)
-            aggregator.add_metric(metric)
-
-        result = aggregator.get_aggregates(aggregation_type="median")
-        expected_median = statistics.median(values)
-        assert list(result.values())[0] == expected_median
-
-    def test_get_aggregates_stddev(self, aggregator):
-        """Test standard deviation aggregation."""
-        values = [10.0, 12.0, 8.0, 15.0, 5.0]
-        for value in values:
-            metric = GaugeMetric(name="cpu", value=value)
-            aggregator.add_metric(metric)
-
-        result = aggregator.get_aggregates(aggregation_type="stddev")
-        expected_stddev = statistics.stdev(values)
-        assert abs(list(result.values())[0] - expected_stddev) < 0.001
-
-    def test_get_aggregates_stddev_single_value(self, aggregator):
-        """Test standard deviation with single value."""
-        metric = GaugeMetric(name="single", value=42.0)
-        aggregator.add_metric(metric)
-
-        result = aggregator.get_aggregates(aggregation_type="stddev")
-        assert list(result.values())[0] == 0  # Should return 0 for single value
-
-    def test_get_aggregates_p95(self, aggregator):
-        """Test 95th percentile aggregation."""
-        # Add values 0-99
-        for i in range(100):
-            metric = HistogramMetric(name="latency", value=i)
-            aggregator.add_metric(metric)
-
-        result = aggregator.get_aggregates(aggregation_type="p95")
-        # 95th percentile of 0-99 should be around 94-95
-        p95_value = list(result.values())[0]
-        assert 94 <= p95_value <= 95
-
-    def test_get_aggregates_with_cutoff_time(self, aggregator):
-        """Test aggregation with cutoff time."""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        old_time = now - timedelta(minutes=5)
-        cutoff = now - timedelta(minutes=2)
-
-        # Add old metric (should be filtered out)
-        old_metric = CounterMetric(
-            name="requests",
-            value=100,
-            timestamp=old_time
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.COUNT,
+            field="value",
         )
-        aggregator.add_metric(old_metric)
+        assert result == len(sample_metrics)
 
-        # Add recent metric (should be included)
-        recent_metric = CounterMetric(
-            name="requests",
-            value=50,
-            timestamp=now
+    async def test_aggregate_with_group_by(self, aggregation_engine, sample_metrics):
+        """Test aggregation with group by."""
+        result = await aggregation_engine.aggregate(
+            data=sample_metrics,
+            aggregation_type=AggregationType.SUM,
+            field="value",
+            group_by="metric_name",
         )
-        aggregator.add_metric(recent_metric)
+        assert "api_latency" in result
+        assert "request_count" in result
+        assert result["api_latency"] == 570.0  # 100 + 150 + 200 + 120
+        assert result["request_count"] == 45.0  # 10 + 15 + 20
 
-        result = aggregator.get_aggregates(
+    async def test_aggregate_with_filters(self, aggregation_engine, sample_metrics):
+        """Test aggregation with filters."""
+        # Filter for api_latency metrics only
+        filtered_data = [m for m in sample_metrics if m["metric_name"] == "api_latency"]
+        result = await aggregation_engine.aggregate(
+            data=filtered_data,
+            aggregation_type=AggregationType.AVG,
+            field="value",
+        )
+        expected_avg = sum(m["value"] for m in filtered_data) / len(filtered_data)
+        assert result == pytest.approx(expected_avg)
+
+    async def test_aggregate_empty_data(self, aggregation_engine):
+        """Test aggregation with empty data."""
+        result = await aggregation_engine.aggregate(
+            data=[],
+            aggregation_type=AggregationType.SUM,
+            field="value",
+        )
+        assert result == 0
+
+    async def test_aggregate_missing_field(self, aggregation_engine):
+        """Test aggregation with missing field."""
+        data = [{"name": "test", "other": 10}]
+        result = await aggregation_engine.aggregate(
+            data=data,
+            aggregation_type=AggregationType.SUM,
+            field="value",  # Field doesn't exist
+        )
+        assert result == 0
+
+
+class TestMetricAggregator:
+    """Test MetricAggregator class."""
+
+    def test_init_metric_aggregator(self, metric_aggregator):
+        """Test metric aggregator initialization."""
+        assert metric_aggregator is not None
+        assert hasattr(metric_aggregator, "aggregate_metrics")
+
+    async def test_aggregate_metrics_basic(self, metric_aggregator, sample_metrics):
+        """Test basic metric aggregation."""
+        result = await metric_aggregator.aggregate_metrics(
+            metrics=sample_metrics,
             aggregation_type="sum",
-            cutoff_time=cutoff
         )
+        assert result is not None
+        assert isinstance(result, (dict, float, int))
 
-        # Should only include the recent metric
-        assert list(result.values())[0] == 50
-
-    def test_get_aggregates_empty_buffer(self, aggregator):
-        """Test aggregation with empty buffer."""
-        result = aggregator.get_aggregates(aggregation_type="avg")
-        assert result == {}
-
-    def test_get_aggregates_all_filtered_out(self, aggregator):
-        """Test aggregation where all metrics are filtered out by cutoff."""
-        old_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
-
-        metric = CounterMetric(name="old", value=10, timestamp=old_time)
-        aggregator.add_metric(metric)
-
-        # Use recent cutoff time that filters out all metrics
-        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
-        result = aggregator.get_aggregates(cutoff_time=cutoff)
-        assert result == {}
-
-    def test_multiple_metric_keys(self, aggregator):
-        """Test aggregation with multiple different metric keys."""
-        # Add metrics with different names/attributes
-        metric1 = CounterMetric(
-            name="requests",
-            value=10,
-            attributes={"endpoint": "/api"}
+    async def test_aggregate_metrics_by_name(self, metric_aggregator, sample_metrics):
+        """Test metric aggregation grouped by name."""
+        result = await metric_aggregator.aggregate_metrics(
+            metrics=sample_metrics,
+            aggregation_type="avg",
+            group_by="metric_name",
         )
-        metric2 = CounterMetric(
-            name="requests",
-            value=20,
-            attributes={"endpoint": "/health"}
+        assert isinstance(result, dict)
+        assert "api_latency" in result
+        assert "request_count" in result
+
+    async def test_percentile_calculation(self, metric_aggregator, sample_metrics):
+        """Test percentile calculation."""
+        # Get 50th percentile (median)
+        api_metrics = [m for m in sample_metrics if m["metric_name"] == "api_latency"]
+        result = await metric_aggregator.calculate_percentile(
+            metrics=api_metrics,
+            percentile=50,
+            field="value",
         )
-        metric3 = CounterMetric(
-            name="errors",
-            value=5,
-            attributes={"endpoint": "/api"}
+        # Median of [100, 150, 200, 120] = 135
+        assert result == pytest.approx(135.0, rel=0.1)
+
+    async def test_percentile_95(self, metric_aggregator, sample_metrics):
+        """Test 95th percentile calculation."""
+        api_metrics = [m for m in sample_metrics if m["metric_name"] == "api_latency"]
+        result = await metric_aggregator.calculate_percentile(
+            metrics=api_metrics,
+            percentile=95,
+            field="value",
         )
+        # 95th percentile should be close to max value
+        assert result >= 150.0
 
-        aggregator.add_metric(metric1)
-        aggregator.add_metric(metric2)
-        aggregator.add_metric(metric3)
-
-        result = aggregator.get_aggregates(aggregation_type="sum")
-
-        # Should have separate aggregations for each key
-        assert len(result) == 3
-        assert 10 in result.values()
-        assert 20 in result.values()
-        assert 5 in result.values()
-
-    def test_buffer_maxlen_behavior(self, aggregator):
-        """Test buffer maximum length behavior."""
-        # Add more metrics than maxlen (1000)
-        for i in range(1500):
-            metric = CounterMetric(name="overflow", value=i)
-            aggregator.add_metric(metric)
-
-        # Buffer should be limited to maxlen
-        key = list(aggregator.metrics_buffer.keys())[0]
-        assert len(aggregator.metrics_buffer[key]) <= 1000
-
-    def test_percentile_calculation(self, aggregator):
-        """Test internal percentile calculation method."""
-        values = list(range(100))  # 0-99
-        p95 = aggregator._percentile(values, 95)
-        assert 94 <= p95 <= 95
-
-        # Test with small list
-        small_values = [1, 2, 3]
-        p50 = aggregator._percentile(small_values, 50)
-        assert p50 == 2
-
-        # Test edge cases
-        single_value = [42]
-        p95_single = aggregator._percentile(single_value, 95)
-        assert p95_single == 42
-
-    def test_aggregation_with_none_values(self, aggregator):
-        """Test aggregation handling of None values."""
-        # Create metric with None value (should be handled gracefully)
-        metric = GaugeMetric(name="test", value=None)
-        aggregator.add_metric(metric)
-
-        # Should handle None values without crashing
-        result = aggregator.get_aggregates(aggregation_type="avg")
-        # Result depends on implementation - might filter None or convert to 0
-
-
-class TestTimeWindowAggregatorComprehensive:
-    """Comprehensive tests for TimeWindowAggregator."""
-
-    @pytest.fixture
-    def time_aggregator(self):
-        """Create TimeWindowAggregator instance."""
-        return TimeWindowAggregator(window_seconds=300)  # 5 minutes
-
-    def test_time_aggregator_initialization(self, time_aggregator):
-        """Test time aggregator initialization."""
-        assert time_aggregator.window_seconds == 300
-        assert hasattr(time_aggregator, 'metrics')
-
-    def test_add_metric_with_timestamp(self, time_aggregator):
-        """Test adding metric with specific timestamp."""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        metric = CounterMetric(
-            name="timed_metric",
-            value=1,
-            timestamp=now
+    async def test_percentile_99(self, metric_aggregator, sample_metrics):
+        """Test 99th percentile calculation."""
+        api_metrics = [m for m in sample_metrics if m["metric_name"] == "api_latency"]
+        result = await metric_aggregator.calculate_percentile(
+            metrics=api_metrics,
+            percentile=99,
+            field="value",
         )
+        # 99th percentile should be very close to max
+        assert result >= 190.0
 
-        time_aggregator.add_metric(metric)
-        assert len(time_aggregator.metrics) > 0
-
-    def test_get_windows_basic(self, time_aggregator):
-        """Test getting time windows."""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-        # Add metrics across different time periods
-        for i in range(10):
-            timestamp = now - timedelta(minutes=i)
-            metric = CounterMetric(
-                name="events",
-                value=1,
-                timestamp=timestamp
-            )
-            time_aggregator.add_metric(metric)
-
-        windows = time_aggregator.get_windows()
-        assert windows is not None
-
-    def test_window_boundary_alignment(self, time_aggregator):
-        """Test window boundary calculations."""
-        # Test if there's an align_to_window method
-        if hasattr(time_aggregator, 'align_to_window'):
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
-            aligned = time_aggregator.align_to_window(now)
-            assert isinstance(aligned, datetime)
-
-    def test_overlapping_windows(self, time_aggregator):
-        """Test overlapping window handling."""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-        # Add metrics that span multiple windows
-        for i in range(20):
-            timestamp = now - timedelta(seconds=i * 30)  # Every 30 seconds
-            metric = CounterMetric(
-                name="events",
-                value=1,
-                timestamp=timestamp
-            )
-            time_aggregator.add_metric(metric)
-
-        # Test overlapping window functionality if available
-        if hasattr(time_aggregator, 'get_overlapping_windows'):
-            overlapping = time_aggregator.get_overlapping_windows()
-            assert overlapping is not None
-
-
-class TestStatisticalAggregatorComprehensive:
-    """Comprehensive tests for StatisticalAggregator."""
-
-    @pytest.fixture
-    def stats_aggregator(self):
-        """Create StatisticalAggregator instance."""
-        return StatisticalAggregator()
-
-    def test_stats_aggregator_initialization(self, stats_aggregator):
-        """Test statistical aggregator initialization."""
-        assert stats_aggregator is not None
-        assert hasattr(stats_aggregator, 'add_value')
-        assert hasattr(stats_aggregator, 'calculate_statistics')
-
-    def test_add_value_and_calculate_basic_stats(self, stats_aggregator):
-        """Test adding values and calculating basic statistics."""
-        values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-        for value in values:
-            stats_aggregator.add_value("test_metric", value)
-
-        stats = stats_aggregator.calculate_statistics("test_metric")
-
-        assert stats["count"] == 10
-        assert stats["mean"] == 5.5
-        assert stats["min"] == 1
-        assert stats["max"] == 10
-
-    def test_calculate_statistics_advanced(self, stats_aggregator):
-        """Test advanced statistical calculations."""
-        # Add sample data
-        data = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-
-        for value in data:
-            stats_aggregator.add_value("advanced_metric", value)
-
-        stats = stats_aggregator.calculate_statistics("advanced_metric")
-
-        # Verify additional statistics if available
-        expected_mean = statistics.mean(data)
-        assert abs(stats["mean"] - expected_mean) < 0.001
-
-        # Test for additional stats if they exist
-        if "median" in stats:
-            assert stats["median"] == statistics.median(data)
-        if "stddev" in stats:
-            assert abs(stats["stddev"] - statistics.stdev(data)) < 0.001
-
-    def test_multiple_metrics_tracking(self, stats_aggregator):
-        """Test tracking multiple different metrics."""
-        # Add data for metric1
-        for i in range(1, 11):
-            stats_aggregator.add_value("metric1", i)
-
-        # Add data for metric2
-        for i in range(10, 21):
-            stats_aggregator.add_value("metric2", i)
-
-        stats1 = stats_aggregator.calculate_statistics("metric1")
-        stats2 = stats_aggregator.calculate_statistics("metric2")
-
-        assert stats1["mean"] == 5.5
-        assert stats2["mean"] == 15.0
-        assert stats1["count"] == 10
-        assert stats2["count"] == 11
-
-    def test_empty_metric_statistics(self, stats_aggregator):
-        """Test statistics for non-existent metric."""
-        stats = stats_aggregator.calculate_statistics("nonexistent")
-        assert stats["count"] == 0
-
-    def test_single_value_statistics(self, stats_aggregator):
-        """Test statistics with single value."""
-        stats_aggregator.add_value("single", 42)
-        stats = stats_aggregator.calculate_statistics("single")
-
-        assert stats["count"] == 1
-        assert stats["mean"] == 42
-        assert stats["min"] == 42
-        assert stats["max"] == 42
-
-    def test_large_dataset_performance(self, stats_aggregator):
-        """Test performance with large dataset."""
-        # Add large amount of data
-        for i in range(10000):
-            stats_aggregator.add_value("large_dataset", i % 100)
-
-        stats = stats_aggregator.calculate_statistics("large_dataset")
-
-        assert stats["count"] == 10000
-        # Mean should be around 49.5 (average of 0-99 repeated)
-        assert 49 <= stats["mean"] <= 50
-
-    def test_negative_values_handling(self, stats_aggregator):
-        """Test handling of negative values."""
-        values = [-10, -5, 0, 5, 10, 15, 20]
-
-        for value in values:
-            stats_aggregator.add_value("mixed_signs", value)
-
-        stats = stats_aggregator.calculate_statistics("mixed_signs")
-
-        assert stats["min"] == -10
-        assert stats["max"] == 20
-        assert abs(stats["mean"] - statistics.mean(values)) < 0.001
-
-    def test_floating_point_precision(self, stats_aggregator):
-        """Test floating point precision in calculations."""
-        values = [1.1, 2.2, 3.3, 4.4, 5.5]
-
-        for value in values:
-            stats_aggregator.add_value("float_metric", value)
-
-        stats = stats_aggregator.calculate_statistics("float_metric")
-
-        expected_mean = sum(values) / len(values)
-        assert abs(stats["mean"] - expected_mean) < 0.0001
-
-    def test_statistics_after_clear(self, stats_aggregator):
-        """Test statistics after clearing data."""
-        # Add some data
-        for i in range(5):
-            stats_aggregator.add_value("clearable", i)
-
-        # Clear if method exists
-        if hasattr(stats_aggregator, 'clear'):
-            stats_aggregator.clear("clearable")
-            stats = stats_aggregator.calculate_statistics("clearable")
-            assert stats["count"] == 0
-
-
-class TestAggregatorEdgeCases:
-    """Test edge cases across all aggregators."""
-
-    def test_concurrent_access_simulation(self):
-        """Test simulated concurrent access to aggregator."""
-        aggregator = MetricAggregator()
-
-        # Simulate multiple threads adding metrics
-        import threading
-        results = []
-
-        def add_metrics(start, end):
-            for i in range(start, end):
-                metric = CounterMetric(f"concurrent_{i}", i)
-                aggregator.add_metric(metric)
-                results.append(i)
-
-        threads = []
-        for i in range(0, 100, 10):
-            thread = threading.Thread(target=add_metrics, args=(i, i + 10))
-            threads.append(thread)
-            thread.start()
-
-        for thread in threads:
-            thread.join()
-
-        # Verify all metrics were added
-        assert len(results) == 100
-
-    def test_memory_usage_large_datasets(self):
-        """Test memory usage with large datasets."""
-        aggregator = MetricAggregator()
-
-        # Add many metrics with different keys
-        for i in range(1000):
-            metric = CounterMetric(
-                name=f"metric_{i % 10}",  # 10 different keys
-                value=i,
-                attributes={"index": str(i)}
-            )
-            aggregator.add_metric(metric)
-
-        # Verify buffer sizes are managed
-        total_buffered = sum(
-            len(buffer) for buffer in aggregator.metrics_buffer.values()
+    async def test_aggregate_metrics_with_time_range(self, metric_aggregator, sample_metrics):
+        """Test metric aggregation with time range filter."""
+        now = datetime.now(timezone.utc)
+        recent_metrics = [
+            m for m in sample_metrics
+            if m["timestamp"] >= now - timedelta(minutes=30)
+        ]
+        result = await metric_aggregator.aggregate_metrics(
+            metrics=recent_metrics,
+            aggregation_type="count",
         )
-        assert total_buffered <= 10000  # Should be reasonable
+        assert result == len(recent_metrics)
 
-    def test_extreme_values_handling(self):
-        """Test handling of extreme values."""
-        aggregator = MetricAggregator()
 
-        extreme_values = [
-            float('inf'),
-            float('-inf'),
-            1e308,  # Very large
-            1e-308, # Very small
-            0.0
+class TestTimeSeriesAggregator:
+    """Test TimeSeriesAggregator class."""
+
+    def test_init_time_series_aggregator(self, time_series_aggregator):
+        """Test time series aggregator initialization."""
+        assert time_series_aggregator is not None
+        assert hasattr(time_series_aggregator, "aggregate_time_series")
+
+    async def test_aggregate_by_hour(self, time_series_aggregator, sample_metrics):
+        """Test time series aggregation by hour."""
+        result = await time_series_aggregator.aggregate_time_series(
+            data=sample_metrics,
+            interval="hour",
+            aggregation_type="count",
+        )
+        assert isinstance(result, list)
+        # Should have at least 2 buckets (current hour and previous hour)
+        assert len(result) >= 2
+
+    async def test_aggregate_by_minute(self, time_series_aggregator, sample_metrics):
+        """Test time series aggregation by minute."""
+        result = await time_series_aggregator.aggregate_time_series(
+            data=sample_metrics,
+            interval="minute",
+            aggregation_type="avg",
+            field="value",
+        )
+        assert isinstance(result, list)
+        # Each bucket should have timestamp and value
+        if result:
+            assert "timestamp" in result[0]
+            assert "value" in result[0]
+
+    async def test_aggregate_by_day(self, time_series_aggregator, sample_events):
+        """Test time series aggregation by day."""
+        result = await time_series_aggregator.aggregate_time_series(
+            data=sample_events,
+            interval="day",
+            aggregation_type="count",
+        )
+        assert isinstance(result, list)
+        # All sample events are within same day
+        assert len(result) == 1
+
+    async def test_fill_gaps_in_time_series(self, time_series_aggregator):
+        """Test filling gaps in time series data."""
+        now = datetime.now(timezone.utc)
+        sparse_data = [
+            {"timestamp": now - timedelta(hours=3), "value": 10},
+            {"timestamp": now, "value": 20},
+        ]
+        result = await time_series_aggregator.aggregate_time_series(
+            data=sparse_data,
+            interval="hour",
+            aggregation_type="sum",
+            field="value",
+            fill_gaps=True,
+        )
+        # Should have 4 buckets (0, -1, -2, -3 hours)
+        assert len(result) == 4
+        # Check that gaps are filled with 0
+        zero_buckets = [b for b in result if b["value"] == 0]
+        assert len(zero_buckets) == 2
+
+    async def test_time_series_with_custom_aggregation(self, time_series_aggregator):
+        """Test time series with custom aggregation function."""
+
+        def custom_agg(values):
+            """Custom aggregation: return range (max - min)."""
+            if not values:
+                return 0
+            return max(values) - min(values)
+
+        data = [
+            {"timestamp": datetime.now(timezone.utc), "value": 10},
+            {"timestamp": datetime.now(timezone.utc), "value": 20},
+            {"timestamp": datetime.now(timezone.utc), "value": 15},
         ]
 
-        for i, value in enumerate(extreme_values):
-            try:
-                metric = GaugeMetric(f"extreme_{i}", value)
-                aggregator.add_metric(metric)
-            except (OverflowError, ValueError):
-                # Some extreme values might not be handled
-                pass
+        with patch.object(time_series_aggregator, "custom_aggregation", custom_agg):
+            result = await time_series_aggregator.aggregate_time_series(
+                data=data,
+                interval="hour",
+                aggregation_type="custom",
+                field="value",
+            )
+            if result:
+                # Range should be 20 - 10 = 10
+                assert result[0]["value"] == 10
 
-        # Test if aggregation handles extreme values gracefully
-        try:
-            result = aggregator.get_aggregates(aggregation_type="sum")
-            # Should either work or fail gracefully
-        except (OverflowError, ValueError):
-            # Acceptable to fail with extreme values
-            pass
 
-    def test_invalid_aggregation_types(self):
-        """Test invalid aggregation type handling."""
-        aggregator = MetricAggregator()
+class TestRealTimeAggregator:
+    """Test RealTimeAggregator class."""
 
-        metric = CounterMetric("test", 1)
-        aggregator.add_metric(metric)
+    def test_init_realtime_aggregator(self, realtime_aggregator):
+        """Test real-time aggregator initialization."""
+        assert realtime_aggregator is not None
+        assert hasattr(realtime_aggregator, "add_data_point")
+        assert hasattr(realtime_aggregator, "get_current_aggregation")
 
-        # Test invalid aggregation type
-        result = aggregator.get_aggregates(aggregation_type="invalid_type")
-        # Should return empty or handle gracefully
-        assert isinstance(result, dict)
+    async def test_add_data_point(self, realtime_aggregator):
+        """Test adding data point to real-time aggregator."""
+        data_point = {"metric": "latency", "value": 100.0, "timestamp": datetime.now(timezone.utc)}
+        await realtime_aggregator.add_data_point(data_point)
 
-    def test_timezone_handling_edge_cases(self):
-        """Test timezone handling edge cases."""
-        aggregator = MetricAggregator()
+        result = await realtime_aggregator.get_current_aggregation("latency")
+        assert result is not None
 
-        # Create metrics with different timezone representations
-        now_utc = datetime.now(timezone.utc)
-        now_naive = datetime.now()
+    async def test_sliding_window_aggregation(self, realtime_aggregator):
+        """Test sliding window aggregation."""
+        now = datetime.now(timezone.utc)
 
-        metric1 = CounterMetric("tz_test1", 1, timestamp=now_utc.replace(tzinfo=None))
-        metric2 = CounterMetric("tz_test2", 1, timestamp=now_naive)
+        # Add data points over time
+        for i in range(10):
+            await realtime_aggregator.add_data_point({
+                "metric": "requests",
+                "value": i + 1,
+                "timestamp": now - timedelta(seconds=i * 10),
+            })
 
-        aggregator.add_metric(metric1)
-        aggregator.add_metric(metric2)
+        # Get aggregation for last minute
+        result = await realtime_aggregator.get_window_aggregation(
+            metric="requests",
+            window_seconds=60,
+            aggregation_type="sum",
+        )
+        # Should sum values from last 60 seconds (6 data points)
+        assert result > 0
 
-        # Should handle different timestamp formats
-        result = aggregator.get_aggregates()
-        assert len(result) >= 0  # Should not crash
+    async def test_real_time_percentiles(self, realtime_aggregator):
+        """Test real-time percentile tracking."""
+        # Add many data points
+        for i in range(100):
+            await realtime_aggregator.add_data_point({
+                "metric": "response_time",
+                "value": i,
+                "timestamp": datetime.now(timezone.utc),
+            })
+
+        # Get percentiles
+        p50 = await realtime_aggregator.get_percentile("response_time", 50)
+        p95 = await realtime_aggregator.get_percentile("response_time", 95)
+        p99 = await realtime_aggregator.get_percentile("response_time", 99)
+
+        assert p50 == pytest.approx(49.5, rel=0.1)
+        assert p95 == pytest.approx(94.5, rel=0.1)
+        assert p99 == pytest.approx(98.5, rel=0.1)
+
+    async def test_concurrent_updates(self, realtime_aggregator):
+        """Test concurrent updates to real-time aggregator."""
+
+        async def add_points(start_value):
+            for i in range(10):
+                await realtime_aggregator.add_data_point({
+                    "metric": "concurrent_test",
+                    "value": start_value + i,
+                    "timestamp": datetime.now(timezone.utc),
+                })
+
+        # Run multiple concurrent updates
+        await asyncio.gather(
+            add_points(0),
+            add_points(100),
+            add_points(200),
+        )
+
+        # Check final count
+        result = await realtime_aggregator.get_current_aggregation("concurrent_test")
+        assert result["count"] == 30
+
+    async def test_expiry_of_old_data(self, realtime_aggregator):
+        """Test that old data points are expired."""
+        now = datetime.now(timezone.utc)
+
+        # Add old data point
+        await realtime_aggregator.add_data_point({
+            "metric": "expiry_test",
+            "value": 100,
+            "timestamp": now - timedelta(hours=2),
+        })
+
+        # Add recent data point
+        await realtime_aggregator.add_data_point({
+            "metric": "expiry_test",
+            "value": 200,
+            "timestamp": now,
+        })
+
+        # Get aggregation for last hour
+        result = await realtime_aggregator.get_window_aggregation(
+            metric="expiry_test",
+            window_seconds=3600,
+            aggregation_type="sum",
+        )
+        # Should only include recent point
+        assert result == 200
+
+
+class TestEdgeCases:
+    """Test edge cases and error handling."""
+
+    async def test_aggregate_null_values(self, aggregation_engine):
+        """Test aggregation with null values."""
+        data = [
+            {"value": 10},
+            {"value": None},
+            {"value": 20},
+            {"value": None},
+            {"value": 30},
+        ]
+        result = await aggregation_engine.aggregate(
+            data=data,
+            aggregation_type=AggregationType.SUM,
+            field="value",
+        )
+        # Should skip None values
+        assert result == 60
+
+    async def test_aggregate_mixed_types(self, aggregation_engine):
+        """Test aggregation with mixed data types."""
+        data = [
+            {"value": 10},
+            {"value": "20"},  # String that can be converted
+            {"value": 30.5},
+            {"value": "invalid"},  # Invalid string
+        ]
+        result = await aggregation_engine.aggregate(
+            data=data,
+            aggregation_type=AggregationType.SUM,
+            field="value",
+        )
+        # Should handle numeric strings and skip invalid
+        assert result == 60.5
+
+    async def test_divide_by_zero_in_average(self, aggregation_engine):
+        """Test average calculation with no valid values."""
+        data = [
+            {"value": None},
+            {"value": None},
+        ]
+        result = await aggregation_engine.aggregate(
+            data=data,
+            aggregation_type=AggregationType.AVG,
+            field="value",
+        )
+        # Should return 0 or None for empty average
+        assert result in (0, None)
+
+    async def test_percentile_with_single_value(self, metric_aggregator):
+        """Test percentile calculation with single value."""
+        metrics = [{"value": 42.0}]
+        result = await metric_aggregator.calculate_percentile(
+            metrics=metrics,
+            percentile=50,
+            field="value",
+        )
+        # Any percentile of single value is that value
+        assert result == 42.0
+
+    async def test_percentile_with_empty_data(self, metric_aggregator):
+        """Test percentile calculation with empty data."""
+        result = await metric_aggregator.calculate_percentile(
+            metrics=[],
+            percentile=50,
+            field="value",
+        )
+        # Should handle gracefully
+        assert result in (0, None)
+
+    async def test_time_series_with_unsorted_data(self, time_series_aggregator):
+        """Test time series aggregation with unsorted timestamps."""
+        now = datetime.now(timezone.utc)
+        unsorted_data = [
+            {"timestamp": now, "value": 30},
+            {"timestamp": now - timedelta(hours=2), "value": 10},
+            {"timestamp": now - timedelta(hours=1), "value": 20},
+        ]
+        result = await time_series_aggregator.aggregate_time_series(
+            data=unsorted_data,
+            interval="hour",
+            aggregation_type="sum",
+            field="value",
+        )
+        # Should handle unsorted data correctly
+        assert len(result) == 3
+        # Check values are aggregated correctly
+        total = sum(bucket["value"] for bucket in result)
+        assert total == 60

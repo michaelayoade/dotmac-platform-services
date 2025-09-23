@@ -8,26 +8,25 @@ Provides comprehensive monitoring capabilities including:
 - Alert management
 """
 
+from dotmac.platform.settings import settings
+
 from .benchmarks import (
     BenchmarkManager,
     BenchmarkResult,
     BenchmarkSuite,
     PerformanceBenchmark,
 )
-from dotmac.platform.settings import settings
 from .integrations import (
-    IntegrationManager,
-    MonitoringIntegration,
-    SigNozIntegration,
+    MetricData,
+    PrometheusIntegration,
 )
 
 __all__ = [
-    # Configuration
-    "MonitoringConfig",
+    # Settings
+    "settings",
     # Integrations
-    "MonitoringIntegration",
-    "SigNozIntegration",
-    "IntegrationManager",
+    "MetricData",
+    "PrometheusIntegration",
     # Benchmarks
     "BenchmarkManager",
     "PerformanceBenchmark",

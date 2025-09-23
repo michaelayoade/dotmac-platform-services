@@ -3,29 +3,30 @@ Data exporters using pandas for various file formats.
 """
 
 import asyncio
-import json
-import gzip
-import zipfile
 import bz2
+import gzip
+import json
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import AsyncGenerator, Optional
+from xml.dom import minidom
+
 import pandas as pd
 import yaml
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 
 from .core import (
     BaseExporter,
+    CompressionType,
     DataBatch,
     DataFormat,
     ExportError,
-    FormatError,
-    TransferConfig,
     ExportOptions,
+    FormatError,
     ProgressCallback,
     ProgressInfo,
+    TransferConfig,
     TransferStatus,
-    CompressionType,
 )
 
 
@@ -52,13 +53,26 @@ class CSVExporter(BaseExporter):
             # Convert to DataFrame and export
             if all_records:
                 df = pd.DataFrame(all_records)
+                # Map quoting integer to valid pandas CSV quoting values
+                # Pandas expects literal values 0, 1, 2, or 3
+                if self.options.quoting == 0:
+                    quoting_value = 0  # QUOTE_MINIMAL
+                elif self.options.quoting == 1:
+                    quoting_value = 1  # QUOTE_ALL
+                elif self.options.quoting == 2:
+                    quoting_value = 2  # QUOTE_NONNUMERIC
+                elif self.options.quoting == 3:
+                    quoting_value = 3  # QUOTE_NONE
+                else:
+                    quoting_value = 0  # Default to QUOTE_MINIMAL
+
                 df.to_csv(
                     file_path,
                     sep=self.options.delimiter,
                     index=False,
                     header=self.options.include_headers,
                     encoding=self.options.encoding,
-                    quoting=self.options.quoting,
+                    quoting=quoting_value,
                 )
 
             self._progress.status = TransferStatus.COMPLETED
@@ -83,7 +97,7 @@ class JSONExporter(BaseExporter):
 
             if self.options.json_lines:
                 # Export as JSON Lines
-                with open(file_path, 'w', encoding=self.options.encoding) as f:
+                with open(file_path, "w", encoding=self.options.encoding) as f:
                     async for batch in data:
                         for record in batch.records:
                             json_line = json.dumps(
@@ -91,7 +105,7 @@ class JSONExporter(BaseExporter):
                                 ensure_ascii=self.options.json_ensure_ascii,
                                 sort_keys=self.options.json_sort_keys,
                             )
-                            f.write(json_line + '\n')
+                            f.write(json_line + "\n")
                         self.update_progress(processed=len(batch.records))
                         await asyncio.sleep(0)
             else:
@@ -107,7 +121,7 @@ class JSONExporter(BaseExporter):
                     df = pd.DataFrame(all_records)
                     df.to_json(
                         file_path,
-                        orient='records',
+                        orient="records",
                         indent=self.options.json_indent,
                         force_ascii=self.options.json_ensure_ascii,
                     )
@@ -144,7 +158,7 @@ class ExcelExporter(BaseExporter):
             if all_records:
                 df = pd.DataFrame(all_records)
 
-                with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
                     df.to_excel(
                         writer,
                         sheet_name=self.options.sheet_name,
@@ -191,7 +205,7 @@ class XMLExporter(BaseExporter):
             # Write to file
             if self.options.xml_pretty_print:
                 xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
-                with open(file_path, 'w', encoding=self.options.encoding) as f:
+                with open(file_path, "w", encoding=self.options.encoding) as f:
                     f.write(xml_str)
             else:
                 tree = ET.ElementTree(root)
@@ -243,7 +257,7 @@ class YAMLExporter(BaseExporter):
                 await asyncio.sleep(0)
 
             # Export to YAML
-            with open(file_path, 'w', encoding=self.options.encoding) as f:
+            with open(file_path, "w", encoding=self.options.encoding) as f:
                 yaml.dump(
                     all_records,
                     f,
@@ -302,7 +316,11 @@ async def export_data(
     if format is None:
         format = detect_format(path)
 
-    config = config or None
+    # Provide default config if None
+    if config is None:
+        from .core import TransferConfig
+
+        config = TransferConfig()
     exporter = create_exporter(format, config, options, progress_callback)
 
     return await exporter.export_to_file(data, path)
@@ -341,20 +359,20 @@ def compress_file(
 
     try:
         if compression == CompressionType.GZIP:
-            compressed_path = file_path.with_suffix(file_path.suffix + '.gz')
-            with open(file_path, 'rb') as f_in:
-                with gzip.open(compressed_path, 'wb') as f_out:
+            compressed_path = file_path.with_suffix(file_path.suffix + ".gz")
+            with open(file_path, "rb") as f_in:
+                with gzip.open(compressed_path, "wb") as f_out:
                     f_out.writelines(f_in)
 
         elif compression == CompressionType.ZIP:
-            compressed_path = file_path.with_suffix('.zip')
-            with zipfile.ZipFile(compressed_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            compressed_path = file_path.with_suffix(".zip")
+            with zipfile.ZipFile(compressed_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 zipf.write(file_path, file_path.name)
 
         elif compression == CompressionType.BZIP2:
-            compressed_path = file_path.with_suffix(file_path.suffix + '.bz2')
-            with open(file_path, 'rb') as f_in:
-                with bz2.open(compressed_path, 'wb') as f_out:
+            compressed_path = file_path.with_suffix(file_path.suffix + ".bz2")
+            with open(file_path, "rb") as f_in:
+                with bz2.open(compressed_path, "wb") as f_out:
                     f_out.writelines(f_in)
 
         else:

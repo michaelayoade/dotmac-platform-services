@@ -5,16 +5,16 @@ Simplified progress tracking using standard Python libraries.
 import asyncio
 import json
 import pickle
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 from uuid import uuid4
 
 from .core import (
-    ProgressInfo,
-    TransferStatus,
     ProgressCallback,
     ProgressError,
+    ProgressInfo,
+    TransferStatus,
 )
 
 
@@ -69,7 +69,7 @@ class FileProgressStore(ProgressStore):
         """Save progress to JSON file."""
         try:
             file_path = self._get_file_path(operation_id)
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 json.dump(progress.model_dump(), f, default=str)
         except Exception as e:
             raise ProgressError(f"Failed to save progress: {e}") from e
@@ -81,11 +81,11 @@ class FileProgressStore(ProgressStore):
             if not file_path.exists():
                 return None
 
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 data = json.load(f)
 
             # Convert string dates back to datetime
-            for date_field in ['start_time', 'last_update', 'estimated_completion']:
+            for date_field in ["start_time", "last_update", "estimated_completion"]:
                 if data.get(date_field):
                     data[date_field] = datetime.fromisoformat(data[date_field])
 
@@ -125,7 +125,7 @@ class CheckpointStore:
         """Save checkpoint to file."""
         try:
             file_path = self._get_file_path(checkpoint.operation_id)
-            with open(file_path, 'wb') as f:
+            with open(file_path, "wb") as f:
                 pickle.dump(checkpoint, f)
         except Exception as e:
             raise ProgressError(f"Failed to save checkpoint: {e}") from e
@@ -137,7 +137,7 @@ class CheckpointStore:
             if not file_path.exists():
                 return None
 
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 return pickle.load(f)
         except Exception as e:
             raise ProgressError(f"Failed to load checkpoint: {e}") from e
@@ -206,9 +206,7 @@ class ProgressTracker:
         remaining = self._progress.total_records - self._progress.processed_records
         eta_seconds = remaining / rate
 
-        self._progress.estimated_completion = (
-            datetime.now(UTC) + timedelta(seconds=eta_seconds)
-        )
+        self._progress.estimated_completion = datetime.now(UTC) + timedelta(seconds=eta_seconds)
 
     def _notify_callbacks(self) -> None:
         """Notify all callbacks of progress update."""
@@ -299,9 +297,7 @@ class ProgressTracker:
         """Load checkpoint data."""
         return await self.checkpoint_store.load_checkpoint(self.operation_id)
 
-    async def restore_from_checkpoint(
-        self, checkpoint: CheckpointData
-    ) -> bool:
+    async def restore_from_checkpoint(self, checkpoint: CheckpointData) -> bool:
         """Restore from checkpoint."""
         if checkpoint and checkpoint.operation_id == self.operation_id:
             self._progress = checkpoint.progress

@@ -5,7 +5,7 @@ Metric aggregation utilities for analytics processing.
 import statistics
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional, Deque, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from .base import Metric
 

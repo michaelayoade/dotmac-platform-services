@@ -4,9 +4,8 @@ SQLAlchemy 2.0 Database Configuration
 Simple, standard SQLAlchemy setup replacing the custom database module.
 """
 
-import os
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Iterator
 from uuid import uuid4
 
@@ -31,26 +30,48 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
+from dotmac.platform.settings import settings
+
 # ==========================================
-# Database URLs from environment
+# Database URLs from settings
 # ==========================================
 
-DATABASE_URL = os.getenv("DOTMAC_DATABASE_URL", "sqlite:///./dotmac_dev.sqlite")
-DATABASE_URL_ASYNC = os.getenv(
-    "DOTMAC_DATABASE_URL_ASYNC",
-    DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-    if "postgresql://" in DATABASE_URL
-    else DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
-    if "sqlite://" in DATABASE_URL
-    else DATABASE_URL
-)
+
+def get_database_url() -> str:
+    """Get the sync database URL from settings."""
+    if settings.database.url:
+        return str(settings.database.url)
+
+    # In development, use SQLite if PostgreSQL is not configured
+    if settings.is_development and not settings.database.password:
+        return "sqlite:///./dotmac_dev.sqlite"
+
+    # Build PostgreSQL URL from components
+    return (
+        f"postgresql://{settings.database.username}:{settings.database.password}"
+        f"@{settings.database.host}:{settings.database.port}/{settings.database.database}"
+    )
+
+
+def get_async_database_url() -> str:
+    """Get the async database URL from settings."""
+    sync_url = get_database_url()
+    # Convert to async driver
+    if "postgresql://" in sync_url:
+        return sync_url.replace("postgresql://", "postgresql+asyncpg://")
+    elif "sqlite://" in sync_url:
+        return sync_url.replace("sqlite://", "sqlite+aiosqlite://")
+    return sync_url
+
 
 # ==========================================
 # SQLAlchemy 2.0 Declarative Base
 # ==========================================
 
+
 class Base(DeclarativeBase):
     """Base class for all database models using SQLAlchemy 2.0 declarative mapping."""
+
     pass
 
 
@@ -58,27 +79,52 @@ class Base(DeclarativeBase):
 # Common Mixins (Optional, can be used by models)
 # ==========================================
 
+
 class TimestampMixin:
     """Adds created_at and updated_at timestamps to models."""
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
 
 class TenantMixin:
     """Adds tenant_id for multi-tenancy support."""
+
     tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
 
 class SoftDeleteMixin:
     """Adds soft delete support."""
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    @property
+    def is_deleted(self) -> bool:
+        """Check if the record is soft deleted."""
+        return self.deleted_at is not None
+
+    def soft_delete(self) -> None:
+        """Mark this record as soft deleted."""
+        self.deleted_at = datetime.now(timezone.utc)
+        self.is_active = False
+
+    def restore(self) -> None:
+        """Restore this record from soft deletion."""
+        self.deleted_at = None
+        self.is_active = True
 
 
 class AuditMixin:
     """Adds audit trail fields."""
+
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
@@ -87,18 +133,27 @@ class AuditMixin:
 # Legacy Compatibility BaseModel
 # ==========================================
 
+
 class BaseModel(Base):
     """
     Legacy compatibility model for existing code.
     New models should inherit directly from Base and use mixins as needed.
     """
+
     __abstract__ = True
 
     # Primary key for all ORM entities
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     def to_dict(self) -> dict[str, Any]:
@@ -123,9 +178,13 @@ def get_sync_engine():
     global _sync_engine
     if _sync_engine is None:
         _sync_engine = create_engine(
-            DATABASE_URL,
-            echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
-            future=True  # Use SQLAlchemy 2.0 style
+            get_database_url(),
+            echo=settings.database.echo,
+            pool_size=settings.database.pool_size,
+            max_overflow=settings.database.max_overflow,
+            pool_timeout=settings.database.pool_timeout,
+            pool_recycle=settings.database.pool_recycle,
+            pool_pre_ping=settings.database.pool_pre_ping,
         )
     return _sync_engine
 
@@ -135,9 +194,13 @@ def get_async_engine():
     global _async_engine
     if _async_engine is None:
         _async_engine = create_async_engine(
-            DATABASE_URL_ASYNC,
-            echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
-            future=True  # Use SQLAlchemy 2.0 style
+            get_async_database_url(),
+            echo=settings.database.echo,
+            pool_size=settings.database.pool_size,
+            max_overflow=settings.database.max_overflow,
+            pool_timeout=settings.database.pool_timeout,
+            pool_recycle=settings.database.pool_recycle,
+            pool_pre_ping=settings.database.pool_pre_ping,
         )
     return _async_engine
 
@@ -162,6 +225,7 @@ AsyncSessionLocal = async_sessionmaker(
 # ==========================================
 # Session Context Managers
 # ==========================================
+
 
 @contextmanager
 def get_db() -> Iterator[Session]:
@@ -191,6 +255,18 @@ async def get_async_db() -> AsyncIterator[AsyncSession]:
             await session.close()
 
 
+async def get_async_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency for getting an async database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 # ==========================================
 # Aliases for compatibility
 # ==========================================
@@ -205,6 +281,7 @@ get_session = get_async_db
 # ==========================================
 # Database Initialization
 # ==========================================
+
 
 def create_all_tables():
     """Create all tables in the database."""
@@ -234,11 +311,14 @@ async def drop_all_tables_async():
 # Health Check
 # ==========================================
 
+
 async def check_database_health() -> bool:
     """Check if the database is accessible."""
+    from sqlalchemy import text
+
     try:
         async with get_async_db() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
         return True
     except Exception:
         return False
@@ -257,29 +337,25 @@ __all__ = [
     # Base classes
     "Base",
     "BaseModel",  # For legacy compatibility
-
     # Mixins
     "TimestampMixin",
     "TenantMixin",
     "SoftDeleteMixin",
     "AuditMixin",
-
     # Session management
     "get_db",
     "get_async_db",
+    "get_async_session",  # FastAPI dependency
     "get_database_session",  # Legacy alias
     "get_db_session",  # Legacy alias
     "get_async_db_session",  # Legacy alias
     "get_session",  # Legacy alias
-
     # Engines
     "get_sync_engine",
     "get_async_engine",
-
     # Session factories
     "SyncSessionLocal",
     "AsyncSessionLocal",
-
     # Database operations
     "create_all_tables",
     "create_all_tables_async",

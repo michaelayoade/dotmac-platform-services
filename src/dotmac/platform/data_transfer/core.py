@@ -2,18 +2,20 @@
 Core classes and types for simplified data transfer using pandas.
 """
 
-import asyncio
-from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, UTC
+from abc import abstractmethod
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncGenerator, Callable, Protocol, Optional, Union
+from typing import Any, AsyncGenerator, Optional, Protocol, Union
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
+
+from ..core.exceptions import DotMacError
+from ..core.models import BaseModel
 
 
-class DataTransferError(Exception):
+class DataTransferError(DotMacError):
     """Base exception for data transfer operations."""
 
 
@@ -43,6 +45,7 @@ class ProgressError(DataTransferError):
 
 class DataFormat(str, Enum):
     """Supported data formats."""
+
     CSV = "csv"
     JSON = "json"
     JSONL = "jsonl"
@@ -54,6 +57,7 @@ class DataFormat(str, Enum):
 
 class TransferStatus(str, Enum):
     """Transfer operation status."""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
@@ -64,6 +68,7 @@ class TransferStatus(str, Enum):
 
 class CompressionType(str, Enum):
     """Supported compression types."""
+
     NONE = "none"
     GZIP = "gzip"
     ZIP = "zip"
@@ -72,6 +77,7 @@ class CompressionType(str, Enum):
 
 class ProgressInfo(BaseModel):
     """Progress tracking information."""
+
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     operation_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -93,6 +99,8 @@ class ProgressInfo(BaseModel):
         """Calculate progress percentage."""
         if self.total_records and self.total_records > 0:
             return (self.processed_records / self.total_records) * 100
+        elif self.bytes_total and self.bytes_total > 0:
+            return (self.bytes_processed / self.bytes_total) * 100
         return 0.0
 
     @property
@@ -110,15 +118,25 @@ class ProgressInfo(BaseModel):
         """Check if operation failed."""
         return self.status == TransferStatus.FAILED
 
+    @property
+    def success_rate(self) -> float:
+        """Calculate success rate percentage."""
+        total_processed = self.processed_records + self.failed_records
+        if total_processed > 0:
+            return (self.processed_records / total_processed) * 100
+        return 100.0  # Default to 100% if no records processed yet
+
 
 class DataRecord(BaseModel):
     """Single data record."""
+
     data: dict[str, Any]
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DataBatch(BaseModel):
     """Batch of data records."""
+
     records: list[DataRecord]
     batch_number: int
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -131,6 +149,7 @@ class DataBatch(BaseModel):
 
 class TransferConfig(BaseModel):
     """Configuration for transfer operations."""
+
     batch_size: int = 1000
     max_workers: int = 4
     chunk_size: int = 8192
@@ -146,6 +165,7 @@ class TransferConfig(BaseModel):
 
 class ImportOptions(BaseModel):
     """Import-specific options."""
+
     delimiter: str = ","
     header_row: Optional[int] = 0
     skip_rows: int = 0
@@ -160,6 +180,7 @@ class ImportOptions(BaseModel):
 
 class ExportOptions(BaseModel):
     """Export-specific options."""
+
     delimiter: str = ","
     include_headers: bool = True
     json_indent: Optional[int] = 2
@@ -201,7 +222,7 @@ class ProgressCallback(Protocol):
         ...
 
 
-class BaseDataProcessor(ABC):
+class BaseDataProcessor:
     """Base class for data processors."""
 
     def __init__(
@@ -229,11 +250,6 @@ class BaseDataProcessor(ABC):
         if self.progress_callback:
             self.progress_callback(self._progress)
 
-    @abstractmethod
-    async def process(self, *args, **kwargs) -> Any:
-        """Process data (to be implemented by subclasses)."""
-        pass
-
 
 class BaseImporter(BaseDataProcessor):
     """Base class for data importers."""
@@ -248,11 +264,13 @@ class BaseImporter(BaseDataProcessor):
         self.options = options
 
     @abstractmethod
-    async def import_from_file(
-        self, file_path: Path
-    ) -> AsyncGenerator[DataBatch, None]:
+    async def import_from_file(self, file_path: Path) -> AsyncGenerator[DataBatch, None]:
         """Import data from file."""
-        pass
+        # This is an abstract async generator method
+        # Subclasses must implement this with yield statements
+        if False:  # pragma: no cover
+            yield  # This makes it a generator function
+        raise NotImplementedError("Subclasses must implement import_from_file")
 
     async def process(self, file_path: Path) -> AsyncGenerator[DataBatch, None]:
         """Process import operation."""

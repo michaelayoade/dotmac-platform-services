@@ -3,23 +3,23 @@ Data importers using pandas for various file formats.
 """
 
 import asyncio
-import json
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import AsyncGenerator, Optional
+
 import pandas as pd
 import yaml
-import xml.etree.ElementTree as ET
 
 from .core import (
     BaseImporter,
     DataBatch,
-    DataRecord,
     DataFormat,
-    ImportError,
+    DataRecord,
     FormatError,
-    TransferConfig,
+    ImportError,
     ImportOptions,
     ProgressCallback,
+    TransferConfig,
     TransferStatus,
 )
 
@@ -34,7 +34,9 @@ class CSVImporter(BaseImporter):
 
             # Get total rows for progress tracking
             try:
-                total_rows = sum(1 for _ in open(file_path)) - (1 if self.options.header_row is not None else 0)
+                total_rows = sum(1 for _ in open(file_path)) - (
+                    1 if self.options.header_row is not None else 0
+                )
                 self._progress.total_records = total_rows
                 self._progress.total_batches = (total_rows // self.config.batch_size) + 1
             except Exception:
@@ -101,8 +103,10 @@ class JSONImporter(BaseImporter):
                     encoding=self.options.encoding,
                 )
                 # Create chunks manually
-                chunks = [df[i:i+self.config.batch_size]
-                         for i in range(0, len(df), self.config.batch_size)]
+                chunks = [
+                    df[i : i + self.config.batch_size]
+                    for i in range(0, len(df), self.config.batch_size)
+                ]
 
             batch_number = 0
             for chunk in chunks:
@@ -139,7 +143,7 @@ class ExcelImporter(BaseImporter):
             self._progress.status = TransferStatus.RUNNING
 
             # Read Excel file
-            df = pd.read_excel(
+            df_result = pd.read_excel(
                 file_path,
                 sheet_name=self.options.sheet_name,
                 header=self.options.header_row,
@@ -148,10 +152,17 @@ class ExcelImporter(BaseImporter):
                 parse_dates=self.options.parse_dates,
             )
 
+            # Handle multiple sheets case (when sheet_name=None returns dict)
+            if isinstance(df_result, dict):
+                # Use the first sheet if multiple sheets are returned
+                df = list(df_result.values())[0]
+            else:
+                df = df_result
+
             # Process in batches
             batch_number = 0
             for i in range(0, len(df), self.config.batch_size):
-                chunk = df[i:i+self.config.batch_size]
+                chunk = df.iloc[i : i + self.config.batch_size]
                 records = []
                 for _, row in chunk.iterrows():
                     record = DataRecord(data=row.to_dict())
@@ -264,7 +275,7 @@ class YAMLImporter(BaseImporter):
         try:
             self._progress.status = TransferStatus.RUNNING
 
-            with open(file_path, 'r', encoding=self.options.encoding) as f:
+            with open(file_path, "r", encoding=self.options.encoding) as f:
                 data = yaml.safe_load(f)
 
             # Convert to list of records if not already
@@ -278,9 +289,11 @@ class YAMLImporter(BaseImporter):
             # Process in batches
             batch_number = 0
             for i in range(0, len(records_data), self.config.batch_size):
-                batch_data = records_data[i:i+self.config.batch_size]
-                records = [DataRecord(data=item if isinstance(item, dict) else {"value": item})
-                          for item in batch_data]
+                batch_data = records_data[i : i + self.config.batch_size]
+                records = [
+                    DataRecord(data=item if isinstance(item, dict) else {"value": item})
+                    for item in batch_data
+                ]
 
                 batch = DataBatch(
                     records=records,
@@ -365,7 +378,11 @@ async def import_file(
     if format is None:
         format = detect_format(path)
 
-    config = config or None
+    # Provide default config if None
+    if config is None:
+        from .core import TransferConfig
+
+        config = TransferConfig()
     importer = create_importer(format, config, options, progress_callback)
 
     async for batch in importer.import_from_file(path):

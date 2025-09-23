@@ -11,8 +11,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from dotmac.platform.tenant.identity import TenantIdentityResolver
-from dotmac.platform.tenant.middleware import TenantMiddleware
+from dotmac.platform.tenant.tenant import TenantIdentityResolver, TenantMiddleware
 
 
 class TestTenantMiddleware:

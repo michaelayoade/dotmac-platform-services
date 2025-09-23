@@ -1,3 +1,0 @@
-"""
-Communications tests package.
-"""

@@ -229,7 +229,14 @@ class APIEndpointHandler:
         user_data = await request.json()
 
         # Validate required fields
-        required_fields = ["username", "email", "first_name", "password", "terms_accepted", "privacy_accepted"]
+        required_fields = [
+            "username",
+            "email",
+            "first_name",
+            "password",
+            "terms_accepted",
+            "privacy_accepted",
+        ]
         for field in required_fields:
             if field not in user_data:
                 return {"error": f"{field} is required", "status_code": 400}
@@ -245,7 +252,7 @@ class APIEndpointHandler:
             "user_id": user_id,
             "username": user_data["username"],
             "email": user_data["email"],
-            "status_code": 201
+            "status_code": 201,
         }
 
     async def authenticate_user(self, request: MockRequest) -> dict[str, Any]:
@@ -263,7 +270,7 @@ class APIEndpointHandler:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": 3600,
-            "status_code": 200
+            "status_code": 200,
         }
 
 
@@ -513,18 +520,14 @@ class TestFastAPIIntegration:
         assert "user_id" in register_result
 
         # 2. Authenticate user
-        auth_request = MockRequest(
-            json_data={"username": "newuser", "password": "SecurePass123!"}
-        )
+        auth_request = MockRequest(json_data={"username": "newuser", "password": "SecurePass123!"})
 
         auth_result = await api_handler.authenticate_user(auth_request)
         assert auth_result["status_code"] == 200
         assert "access_token" in auth_result
 
         # 3. API key management
-        api_key_request = MockRequest(
-            json_data={"name": "Test API Key", "scopes": ["read"]}
-        )
+        api_key_request = MockRequest(json_data={"name": "Test API Key", "scopes": ["read"]})
 
         api_key_result = await api_handler.create_api_key(api_key_request, authenticated_user)
         assert api_key_result["status_code"] == 201

@@ -1,1 +1,1 @@
-# Test package for service registry
+"""Service Registry tests."""

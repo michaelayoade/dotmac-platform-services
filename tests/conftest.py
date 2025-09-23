@@ -98,7 +98,7 @@ except ImportError:
 
 # Graceful imports from dotmac platform
 try:
-    from dotmac.platform.auth.jwt_service import JWTService
+    from dotmac.platform.auth.core import JWTService
 
     HAS_JWT_SERVICE = True
 except ImportError:

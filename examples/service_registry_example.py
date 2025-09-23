@@ -28,7 +28,7 @@ async def example_microservice_setup():
         port=8000,
         tags=["api", "users", "v1"],
         meta={"version": "1.2.3", "environment": "production"},
-        health_check="/health"
+        health_check="/health",
     )
     services.append(api_service_id)
     print(f"Registered user-api service: {api_service_id}")
@@ -40,7 +40,7 @@ async def example_microservice_setup():
         port=8001,
         tags=["worker", "email"],
         meta={"queue": "emails", "concurrency": "10"},
-        health_check="/health"
+        health_check="/health",
     )
     services.append(worker_service_id)
     print(f"Registered email-worker service: {worker_service_id}")
@@ -51,7 +51,7 @@ async def example_microservice_setup():
         address="127.0.0.1",
         port=5432,
         tags=["database", "postgresql"],
-        meta={"database": "users", "read_only": "false"}
+        meta={"database": "users", "read_only": "false"},
     )
     services.append(db_service_id)
     print(f"Registered user-database service: {db_service_id}")
@@ -97,8 +97,8 @@ async def example_load_balancing():
             port=port,
             service_id=f"web-app-{i+1}",
             tags=["web", "frontend"],
-            meta={"instance": str(i+1)},
-            health_check="/health"
+            meta={"instance": str(i + 1)},
+            health_check="/health",
         )
         instance_ids.append(service_id)
         print(f"Registered web-app instance {i+1} on port {port}")
@@ -125,7 +125,7 @@ def consul_benefits_summary():
         "Industry Standard": [
             "Battle-tested by thousands of companies",
             "Proven scalability and reliability",
-            "Extensive documentation and community"
+            "Extensive documentation and community",
         ],
         "Built-in Features": [
             "Automatic health checking",
@@ -133,21 +133,21 @@ def consul_benefits_summary():
             "Multi-datacenter support",
             "Web UI for monitoring and management",
             "Key-value store for configuration",
-            "Distributed locks and semaphores"
+            "Distributed locks and semaphores",
         ],
         "Operational Benefits": [
             "Rich monitoring and alerting",
             "Integration with observability tools",
             "Built-in load balancing strategies",
             "Automatic failure detection and recovery",
-            "Rolling upgrades and blue/green deployments"
+            "Rolling upgrades and blue/green deployments",
         ],
         "Development Benefits": [
             "Simple API (register_service, discover_services)",
             "Reduced custom code maintenance",
             "Better testing with Consul's test modes",
-            "Integration with CI/CD pipelines"
-        ]
+            "Integration with CI/CD pipelines",
+        ],
     }
 
     for category, items in benefits.items():
@@ -181,4 +181,5 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

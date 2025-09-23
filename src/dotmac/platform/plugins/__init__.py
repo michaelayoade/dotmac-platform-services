@@ -7,17 +7,18 @@ Use standard Python import mechanisms instead of custom loaders.
 
 import importlib
 import importlib.util
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Type
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Protocol
 
-from dotmac.platform.logging import get_logger
+import structlog
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class Plugin(Protocol):
     """Simple plugin interface."""
+
     name: str
     version: str = "1.0.0"
 
@@ -33,6 +34,7 @@ class Plugin(Protocol):
 @dataclass
 class PluginInfo:
     """Plugin metadata."""
+
     name: str
     module: Any
     instance: Optional[Plugin] = None
@@ -43,7 +45,7 @@ class PluginInfo:
 class SimplePluginManager:
     """Simple plugin manager using importlib."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.plugins: Dict[str, PluginInfo] = {}
         self.plugin_paths: List[Path] = []
 
@@ -59,9 +61,7 @@ class SimplePluginManager:
             instance = plugin_cls()
 
             self.plugins[instance.name] = PluginInfo(
-                name=instance.name,
-                module=module,
-                instance=instance
+                name=instance.name, module=module, instance=instance
             )
             logger.info("Loaded plugin from module", plugin=instance.name, module=module_name)
             return True
@@ -85,9 +85,7 @@ class SimplePluginManager:
             instance = plugin_cls()
 
             self.plugins[instance.name] = PluginInfo(
-                name=instance.name,
-                module=module,
-                instance=instance
+                name=instance.name, module=module, instance=instance
             )
             logger.info("Loaded plugin from file", plugin=instance.name, file=str(file_path))
             return True
@@ -107,9 +105,9 @@ class SimplePluginManager:
                 if plugin_file.is_file():
                     # Try to load with common class name patterns
                     class_names = [
-                        plugin_file.stem.replace('_', '').title() + 'Plugin',
-                        plugin_file.stem.title().replace('_', '') + 'Plugin',
-                        'Plugin'
+                        plugin_file.stem.replace("_", "").title() + "Plugin",
+                        plugin_file.stem.title().replace("_", "") + "Plugin",
+                        "Plugin",
                     ]
 
                     for class_name in class_names:
@@ -177,8 +175,8 @@ class SimplePluginManager:
         return {
             name: {
                 "active": info.active,
-                "version": getattr(info.instance, 'version', '1.0.0') if info.instance else None,
-                "error": info.error
+                "version": getattr(info.instance, "version", "1.0.0") if info.instance else None,
+                "error": info.error,
             }
             for name, info in self.plugins.items()
         }
@@ -207,7 +205,7 @@ plugin_manager = SimplePluginManager()
 # Convenience functions
 def load_plugin(module_or_file: str, plugin_class: str = "Plugin") -> bool:
     """Load plugin from module name or file path."""
-    if '/' in module_or_file or module_or_file.endswith('.py'):
+    if "/" in module_or_file or module_or_file.endswith(".py"):
         return plugin_manager.load_plugin_from_file(module_or_file, plugin_class)
     else:
         return plugin_manager.load_plugin_from_module(module_or_file, plugin_class)

@@ -1,6 +1,6 @@
 # DotMac Platform Services - Makefile
 
-.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client
+.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client infra-up infra-down infra-status run run-dev
 
 # Default target
 help:
@@ -17,10 +17,19 @@ help:
 	@echo "  make test-integration Run integration tests with Docker"
 	@echo "  make test-cov        Generate HTML coverage report"
 	@echo ""
+	@echo "Infrastructure:"
+	@echo "  make infra-up        Start all infrastructure services"
+	@echo "  make infra-down      Stop all infrastructure services"
+	@echo "  make infra-status    Check infrastructure health"
+	@echo ""
 	@echo "Docker:"
 	@echo "  make docker-up       Start Docker services"
 	@echo "  make docker-down     Stop Docker services"
 	@echo "  make docker-test     Run integration tests with Docker"
+	@echo ""
+	@echo "Running:"
+	@echo "  make run             Start the application"
+	@echo "  make run-dev         Start in development mode with hot reload"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint            Run all linters"
@@ -128,3 +137,41 @@ docker-test: docker-up
 # Integration tests
 test-integration:
 	@./scripts/run_integration_tests.sh
+
+# Infrastructure Management
+infra-up:
+	@echo "Starting infrastructure services..."
+	@docker-compose up -d postgres redis openbao
+	@echo "Waiting for services to be healthy..."
+	@sleep 5
+	@docker-compose ps
+	@echo ""
+	@echo "Infrastructure services started!"
+	@echo "  PostgreSQL: localhost:5432"
+	@echo "  Redis: localhost:6379"
+	@echo "  OpenBao/Vault: localhost:8200"
+	@echo ""
+	@echo "To start optional services:"
+	@echo "  docker-compose --profile celery up -d     # Celery workers"
+	@echo "  docker-compose --profile observability up -d  # Jaeger"
+	@echo "  docker-compose --profile storage up -d     # MinIO"
+
+infra-down:
+	@echo "Stopping infrastructure services..."
+	@docker-compose down
+	@echo "Infrastructure services stopped."
+
+infra-status:
+	@echo "Infrastructure Status:"
+	@echo "====================="
+	@docker-compose ps
+	@echo ""
+	@echo "Service Health:"
+	@poetry run python -c "from src.dotmac.platform.health_checks import HealthChecker; checker = HealthChecker(); summary = checker.get_summary(); [print(f\"  {'✅' if s['status'] == 'healthy' else '❌'} {s['name']}: {s['status']} - {s['message']}\") for s in summary['services']]"
+
+# Run application
+run:
+	@poetry run python -m src.dotmac.platform.main
+
+run-dev:
+	@ENVIRONMENT=development poetry run python -m src.dotmac.platform.main

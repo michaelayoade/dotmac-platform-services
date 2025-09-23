@@ -4,26 +4,22 @@ Consul-based service registry implementation.
 Simple wrapper around HashiCorp Consul for service discovery.
 """
 
-import asyncio
-import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
-try:
-    import consul
-    import consul.aio
-except ImportError:
-    # Mock consul for testing if not available
-    consul = None
-from dotmac.platform.logging import get_logger
+import consul
+import consul.aio
+import structlog
+
 from dotmac.platform.settings import settings
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
 class ConsulServiceInfo:
     """Service information from Consul."""
+
     name: str
     address: str
     port: int
@@ -48,11 +44,6 @@ class ConsulServiceRegistry:
 
     def __init__(self, consul_host: str = "localhost", consul_port: int = 8500):
         """Initialize Consul client."""
-        if consul is None:
-            raise ImportError(
-                "consul-python package is required for ConsulServiceRegistry. "
-                "Install with: pip install consul-python"
-            )
         self.consul = consul.aio.Consul(host=consul_host, port=consul_port)
         self._registered_services: set[str] = set()
 
@@ -104,28 +95,20 @@ class ConsulServiceRegistry:
                 "DeregisterCriticalServiceAfter": "90s",
             }
 
-        try:
-            await self.consul.agent.service.register(**service_def)
-            self._registered_services.add(service_id)
-            logger.info(f"Registered service '{name}' with ID '{service_id}' at {address}:{port}")
-            return service_id
-
-        except Exception as e:
-            logger.error(f"Failed to register service '{name}': {e}")
-            raise
+        await self.consul.agent.service.register(**service_def)
+        self._registered_services.add(service_id)
+        logger.info(f"Registered service '{name}' with ID '{service_id}' at {address}:{port}")
+        return service_id
 
     async def deregister(self, service_id: str) -> None:
         """Deregister a service from Consul."""
-        try:
-            await self.consul.agent.service.deregister(service_id)
-            self._registered_services.discard(service_id)
-            logger.info(f"Deregistered service with ID '{service_id}'")
+        await self.consul.agent.service.deregister(service_id)
+        self._registered_services.discard(service_id)
+        logger.info(f"Deregistered service with ID '{service_id}'")
 
-        except Exception as e:
-            logger.error(f"Failed to deregister service '{service_id}': {e}")
-            raise
-
-    async def discover(self, service_name: str, only_healthy: bool = True) -> list[ConsulServiceInfo]:
+    async def discover(
+        self, service_name: str, only_healthy: bool = True
+    ) -> list[ConsulServiceInfo]:
         """
         Discover services by name.
 
@@ -136,41 +119,33 @@ class ConsulServiceRegistry:
         Returns:
             List of service instances
         """
-        try:
-            _, services = await self.consul.health.service(
-                service_name,
-                passing=only_healthy
+        _, services = await self.consul.health.service(service_name, passing=only_healthy)
+
+        result = []
+        for service_data in services:
+            service = service_data["Service"]
+            checks = service_data["Checks"]
+
+            # Determine health status
+            health_status = "passing"
+            for check in checks:
+                if check["Status"] != "passing":
+                    health_status = check["Status"]
+                    break
+
+            service_info = ConsulServiceInfo(
+                name=service["Service"],
+                address=service["Address"],
+                port=service["Port"],
+                service_id=service["ID"],
+                tags=service.get("Tags", []),
+                meta=service.get("Meta", {}),
+                health=health_status,
             )
+            result.append(service_info)
 
-            result = []
-            for service_data in services:
-                service = service_data["Service"]
-                checks = service_data["Checks"]
-
-                # Determine health status
-                health_status = "passing"
-                for check in checks:
-                    if check["Status"] != "passing":
-                        health_status = check["Status"]
-                        break
-
-                service_info = ConsulServiceInfo(
-                    name=service["Service"],
-                    address=service["Address"],
-                    port=service["Port"],
-                    service_id=service["ID"],
-                    tags=service.get("Tags", []),
-                    meta=service.get("Meta", {}),
-                    health=health_status,
-                )
-                result.append(service_info)
-
-            logger.debug(f"Discovered {len(result)} instances of service '{service_name}'")
-            return result
-
-        except Exception as e:
-            logger.error(f"Failed to discover service '{service_name}': {e}")
-            raise
+        logger.debug(f"Discovered {len(result)} instances of service '{service_name}'")
+        return result
 
     async def get_healthy_services(self, service_name: str) -> list[ConsulServiceInfo]:
         """Get only healthy instances of a service."""
@@ -179,10 +154,7 @@ class ConsulServiceRegistry:
     async def close(self) -> None:
         """Clean up and deregister all services."""
         for service_id in list(self._registered_services):
-            try:
-                await self.deregister(service_id)
-            except Exception as e:
-                logger.warning(f"Failed to cleanup service '{service_id}': {e}")
+            await self.deregister(service_id)
 
     async def __aenter__(self) -> "ConsulServiceRegistry":
         """Async context manager entry."""
@@ -202,8 +174,8 @@ def get_consul_registry() -> ConsulServiceRegistry:
     global _consul_registry
     if _consul_registry is None:
         # Get Consul configuration from settings if available
-        consul_host = getattr(settings, 'consul_host', 'localhost')
-        consul_port = getattr(settings, 'consul_port', 8500)
+        consul_host = getattr(settings, "consul_host", "localhost")
+        consul_port = getattr(settings, "consul_port", 8500)
         _consul_registry = ConsulServiceRegistry(consul_host, consul_port)
     return _consul_registry
 
@@ -237,7 +209,9 @@ async def deregister_service(service_id: str) -> None:
     await registry.deregister(service_id)
 
 
-async def discover_services(service_name: str, only_healthy: bool = True) -> list[ConsulServiceInfo]:
+async def discover_services(
+    service_name: str, only_healthy: bool = True
+) -> list[ConsulServiceInfo]:
     """Discover services by name."""
     registry = get_consul_registry()
     return await registry.discover(service_name, only_healthy)

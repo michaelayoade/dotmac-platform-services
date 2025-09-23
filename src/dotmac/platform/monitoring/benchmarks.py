@@ -1,5 +1,3 @@
-from dotmac.platform.logging import get_logger
-
 """
 Benchmarking and performance tracking for platform monitoring.
 
@@ -15,14 +13,15 @@ import statistics
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 from uuid import uuid4
 
 import structlog
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
+
 
 class BenchmarkStatus(str, Enum):
     """Benchmark execution status."""
@@ -32,6 +31,7 @@ class BenchmarkStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
 
 class BenchmarkType(str, Enum):
     """Types of benchmarks."""
@@ -46,6 +46,7 @@ class BenchmarkType(str, Enum):
     NETWORK = "network"
     DATABASE = "database"
 
+
 @dataclass
 class BenchmarkMetric:
     """Individual benchmark metric."""
@@ -59,7 +60,8 @@ class BenchmarkMetric:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now(UTC)
+            self.timestamp = datetime.now(timezone.utc)
+
 
 @dataclass
 class BenchmarkResult:
@@ -103,6 +105,7 @@ class BenchmarkResult:
         """Get all metrics in a specific category."""
         return [metric for metric in self.metrics if metric.category == category]
 
+
 class PerformanceBenchmark(ABC):
     """Abstract base class for performance benchmarks."""
 
@@ -136,7 +139,7 @@ class PerformanceBenchmark(ABC):
             name=self.name,
             benchmark_type=self.benchmark_type,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(UTC),
+            start_time=datetime.now(timezone.utc),
             metadata=self.metadata.copy(),
         )
 
@@ -155,7 +158,7 @@ class PerformanceBenchmark(ABC):
             await self._process_results(result, raw_results)
 
             result.status = BenchmarkStatus.COMPLETED
-            result.end_time = datetime.now(UTC)
+            result.end_time = datetime.now(timezone.utc)
             # Ensure duration is populated after end_time is set
             try:
                 if result.start_time and result.end_time:
@@ -177,7 +180,7 @@ class PerformanceBenchmark(ABC):
 
         except asyncio.CancelledError:
             result.status = BenchmarkStatus.CANCELLED
-            result.end_time = datetime.now(UTC)
+            result.end_time = datetime.now(timezone.utc)
             result.error_message = "Benchmark was cancelled"
             self.logger.warning("Benchmark cancelled")
             try:
@@ -187,7 +190,7 @@ class PerformanceBenchmark(ABC):
                 pass
         except Exception as e:
             result.status = BenchmarkStatus.FAILED
-            result.end_time = datetime.now(UTC)
+            result.end_time = datetime.now(timezone.utc)
             result.error_message = str(e)
             self.logger.error("Benchmark failed", error=str(e))
             try:
@@ -209,6 +212,7 @@ class PerformanceBenchmark(ABC):
         for key, value in raw_results.items():
             if isinstance(value, (int, float)):
                 result.add_metric(key, value, "units", category="benchmark")
+
 
 class CPUBenchmark(PerformanceBenchmark):
     """CPU performance benchmark."""
@@ -252,6 +256,7 @@ class CPUBenchmark(PerformanceBenchmark):
     async def teardown(self):
         """Cleanup CPU benchmark."""
         self.logger.info("CPU benchmark teardown complete")
+
 
 class MemoryBenchmark(PerformanceBenchmark):
     """Memory allocation and access benchmark."""
@@ -309,6 +314,7 @@ class MemoryBenchmark(PerformanceBenchmark):
         """Cleanup memory benchmark."""
         self.allocated_data.clear()
         self.logger.info("Memory benchmark teardown complete")
+
 
 class NetworkBenchmark(PerformanceBenchmark):
     """Network latency and throughput benchmark."""
@@ -374,6 +380,7 @@ class NetworkBenchmark(PerformanceBenchmark):
         """Cleanup network benchmark."""
         self.logger.info("Network benchmark teardown complete")
 
+
 @dataclass
 class BenchmarkSuiteConfig:
     """Configuration for benchmark suite."""
@@ -384,6 +391,7 @@ class BenchmarkSuiteConfig:
     parallel_execution: bool = False
     retry_failed: bool = False
     retry_count: int = 1
+
 
 class BenchmarkSuite:
     """Collection of benchmarks that can be run together."""
@@ -470,8 +478,8 @@ class BenchmarkSuite:
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(UTC),
-                    end_time=datetime.now(UTC),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message="Benchmark execution timed out",
                 )
                 results.append(timeout_result)
@@ -496,8 +504,8 @@ class BenchmarkSuite:
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(UTC),
-                    end_time=datetime.now(UTC),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message="Benchmark execution timed out",
                 )
 
@@ -513,8 +521,8 @@ class BenchmarkSuite:
                     name=self.benchmarks[i].name,
                     benchmark_type=self.benchmarks[i].benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(UTC),
-                    end_time=datetime.now(UTC),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message=str(result),
                 )
                 final_results.append(error_result)
@@ -552,6 +560,7 @@ class BenchmarkSuite:
             "max_duration_seconds": max_duration,
             "total_metrics": sum(len(r.metrics) for r in self.results),
         }
+
 
 class BenchmarkManager:
     """Central manager for coordinating benchmark execution and results."""

@@ -1,3 +1,0 @@
-"""
-Data transfer tests package.
-"""

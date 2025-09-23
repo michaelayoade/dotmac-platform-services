@@ -5,7 +5,7 @@ from fastapi import Request
 from starlette.datastructures import Headers
 from urllib.parse import urlencode
 
-from dotmac.platform.tenant.identity import TenantIdentityResolver
+from dotmac.platform.tenant.tenant import TenantIdentityResolver
 
 
 def make_request(headers=None, query=None, state_dict=None) -> Request:
