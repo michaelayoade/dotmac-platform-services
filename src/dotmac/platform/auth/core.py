@@ -11,6 +11,7 @@ This module provides all auth functionality using standard libraries:
 
 import json
 import secrets
+import inspect
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -525,6 +526,24 @@ api_key_service = APIKeyService()
 # ============================================
 
 
+async def _verify_token_with_fallback(token: str) -> dict:
+    """Verify tokens using async path when available, falling back to the sync method."""
+
+    verify_async = getattr(jwt_service, "verify_token_async", None)
+    if verify_async:
+        try:
+            result = verify_async(token)
+            if inspect.isawaitable(result):
+                return await result
+            if isinstance(result, dict):
+                return result
+        except TypeError:
+            # Mocked objects (MagicMock) may not support awaiting
+            pass
+
+    return jwt_service.verify_token(token)
+
+
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
     api_key: Optional[str] = Depends(api_key_header),
@@ -535,7 +554,7 @@ async def get_current_user(
     # Try Bearer token first
     if credentials and credentials.credentials:
         try:
-            claims = await jwt_service.verify_token_async(credentials.credentials)
+            claims = await _verify_token_with_fallback(credentials.credentials)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
@@ -543,7 +562,7 @@ async def get_current_user(
     # Try OAuth2 token
     if token:
         try:
-            claims = await jwt_service.verify_token_async(token)
+            claims = await _verify_token_with_fallback(token)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass

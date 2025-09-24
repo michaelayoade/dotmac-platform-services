@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user, require_admin
-from dotmac.platform.db import get_async_session
+from dotmac.platform.db import get_session_dependency
 from dotmac.platform.user_management.service import UserService
 
 logger = structlog.get_logger(__name__)
@@ -85,7 +85,7 @@ class UserListResponse(BaseModel):
 
 
 async def get_user_service(
-    session: Annotated[AsyncSession, Depends(get_async_session)]
+    session: Annotated[AsyncSession, Depends(get_session_dependency)]
 ) -> UserService:
     """Get user service with database session."""
     return UserService(session)

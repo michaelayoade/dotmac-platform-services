@@ -321,7 +321,34 @@ SMSNotifier = NotificationService
 PushNotifier = NotificationService
 
 
+# Enhanced imports
+try:
+    from .models import (
+        EmailTemplate,
+        BulkEmailJob,
+        EmailDelivery,
+        BulkJobStatus,
+        EmailTemplateCreate,
+        EmailTemplateUpdate,
+        EmailTemplateResponse,
+        BulkEmailJobCreate,
+        BulkEmailJobResponse,
+        TemplatePreviewRequest,
+        TemplatePreviewResponse,
+        BulkJobStatsResponse,
+        RecipientData,
+    )
+    from .template_service import TemplateService, get_template_service
+    from .bulk_service import BulkEmailService, get_bulk_service
+    from .enhanced_router import enhanced_router
+
+    _ENHANCED_AVAILABLE = True
+except ImportError:
+    _ENHANCED_AVAILABLE = False
+
+
 __all__ = [
+    # Original functionality
     "NotificationService",
     "UnifiedNotificationService",
     "EmailNotifier",
@@ -337,3 +364,29 @@ __all__ = [
     "get_notification_service",
     "send_notification",
 ]
+
+# Add enhanced features if available
+if _ENHANCED_AVAILABLE:
+    __all__.extend([
+        # Enhanced models
+        "EmailTemplate",
+        "BulkEmailJob",
+        "EmailDelivery",
+        "BulkJobStatus",
+        "EmailTemplateCreate",
+        "EmailTemplateUpdate",
+        "EmailTemplateResponse",
+        "BulkEmailJobCreate",
+        "BulkEmailJobResponse",
+        "TemplatePreviewRequest",
+        "TemplatePreviewResponse",
+        "BulkJobStatsResponse",
+        "RecipientData",
+        # Enhanced services
+        "TemplateService",
+        "get_template_service",
+        "BulkEmailService",
+        "get_bulk_service",
+        # Enhanced router
+        "enhanced_router",
+    ])

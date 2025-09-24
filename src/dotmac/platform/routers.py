@@ -69,6 +69,13 @@ ROUTER_CONFIGS = [
         description="Email, notifications, and events",
     ),
     RouterConfig(
+        module_path="dotmac.platform.communications.enhanced_router",
+        router_name="enhanced_router",
+        prefix="/api/v1/communications",
+        tags=["Enhanced Communications"],
+        description="Email templates and bulk campaigns",
+    ),
+    RouterConfig(
         module_path="dotmac.platform.search.router",
         router_name="search_router",
         prefix="/api/v1/search",
@@ -95,6 +102,27 @@ ROUTER_CONFIGS = [
         prefix="/api/v1/feature-flags",
         tags=["Feature Flags"],
         description="Feature flags management",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.customer_management.router",
+        router_name="router",
+        prefix="/api/v1/customers",
+        tags=["Customer Management"],
+        description="Customer relationship management",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.auth.api_keys_router",
+        router_name="router",
+        prefix="/api/v1/auth/api-keys",
+        tags=["API Keys"],
+        description="API key management",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.communications.webhooks_router",
+        router_name="router",
+        prefix="/api/v1/webhooks",
+        tags=["Webhooks"],
+        description="Webhook subscription management",
     ),
 ]
 

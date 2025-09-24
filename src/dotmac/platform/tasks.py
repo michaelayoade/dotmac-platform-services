@@ -175,11 +175,11 @@ def init_celery_instrumentation() -> None:
     - settings.observability.otel_instrument_celery: Specific toggle for Celery instrumentation
     """
     if not settings.observability.otel_enabled:
-        logger.debug("celery.instrumentation.disabled", reason="otel_disabled")
+        logger.debug("OpenTelemetry is disabled in settings, skipping Celery instrumentation")
         return
 
     if not settings.observability.otel_instrument_celery:
-        logger.debug("celery.instrumentation.disabled", reason="celery_instrumentation_disabled")
+        logger.debug("Celery instrumentation is disabled in settings")
         return
 
     try:
@@ -192,56 +192,25 @@ def init_celery_instrumentation() -> None:
             return
 
         instrumentor.instrument()
-        logger.info(
-            "celery.instrumentation.enabled",
-            service_name=settings.observability.otel_service_name,
-            endpoint=settings.observability.otel_endpoint
-        )
+        logger.info("Celery instrumentation enabled for OpenTelemetry tracing")
     except ImportError as e:
-        logger.warning(
-            "celery.instrumentation.package_missing",
-            error=str(e),
-            install_command="poetry install --extras observability"
-        )
+        logger.warning(f"Failed to instrument Celery: {e}")
         # Don't raise - let worker continue without instrumentation
         return
     except Exception as e:
-        logger.error(
-            "celery.instrumentation.failed",
-            error=str(e),
-            exc_info=True
-        )
+        logger.error(f"Failed to instrument Celery: {e}")
         # Don't raise - let worker continue without instrumentation
         return
 
 
-def get_celery_app():
-    """Get configured Celery application instance.
 
-    Returns:
-        Celery: Configured Celery application with instrumentation
-    """
-    try:
-        from .celery_app import celery_app
-        return celery_app
-    except ImportError:
-        # Fallback to basic Celery setup if celery_app module not available
-        from celery import Celery
 
-        app = Celery(
-            "dotmac_platform_fallback",
-            broker=settings.celery.broker_url,
-            backend=settings.celery.result_backend
-        )
-
-        # Try to setup instrumentation for fallback app too
-        try:
-            init_celery_instrumentation()
-        except Exception:
-            pass  # Ignore instrumentation errors in fallback
-
-        return app
-
+# Import tasks to register them with Celery
+try:
+    from .communications.bulk_service import process_bulk_email_job
+    logger.info("Bulk email tasks registered")
+except ImportError:
+    logger.debug("Bulk email tasks not available")
 
 # Initialize instrumentation on import if in worker context
 try:

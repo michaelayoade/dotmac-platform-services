@@ -11,7 +11,7 @@ from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from dotmac.platform.database.mixins import GUID
+from sqlalchemy.dialects.postgresql import UUID as GUID
 
 # revision identifiers, used by Alembic.
 revision = "90ab336e04eb"

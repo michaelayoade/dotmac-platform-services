@@ -55,7 +55,7 @@ class TestLoginEndpoint:
     """Test login endpoint."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.verify_password')
     @patch('dotmac.platform.auth.router.jwt_service')
@@ -73,7 +73,9 @@ class TestLoginEndpoint:
     ):
         """Test successful login with username."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -104,7 +106,7 @@ class TestLoginEndpoint:
         mock_session_manager.create_session.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.verify_password')
     async def test_login_success_with_email(
@@ -118,7 +120,9 @@ class TestLoginEndpoint:
     ):
         """Test successful login with email."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = mock_user
@@ -139,7 +143,7 @@ class TestLoginEndpoint:
         mock_user_service.get_user_by_email.assert_called_once_with("test@example.com")
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     async def test_login_invalid_credentials(
         self,
@@ -150,7 +154,9 @@ class TestLoginEndpoint:
     ):
         """Test login with invalid credentials."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = None
@@ -165,7 +171,7 @@ class TestLoginEndpoint:
         assert "Invalid username or password" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.verify_password')
     async def test_login_wrong_password(
@@ -179,7 +185,9 @@ class TestLoginEndpoint:
     ):
         """Test login with wrong password."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -194,7 +202,7 @@ class TestLoginEndpoint:
         assert "Invalid username or password" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.verify_password')
     async def test_login_inactive_user(
@@ -208,7 +216,9 @@ class TestLoginEndpoint:
     ):
         """Test login with inactive user account."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user.is_active = False
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = mock_user
@@ -228,7 +238,7 @@ class TestRegisterEndpoint:
     """Test register endpoint."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     @patch('dotmac.platform.auth.router.session_manager')
@@ -244,7 +254,9 @@ class TestRegisterEndpoint:
     ):
         """Test successful user registration."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = None
@@ -283,7 +295,7 @@ class TestRegisterEndpoint:
         )
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     async def test_register_username_exists(
         self,
@@ -295,7 +307,9 @@ class TestRegisterEndpoint:
     ):
         """Test registration with existing username."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -313,7 +327,7 @@ class TestRegisterEndpoint:
         assert "Username already exists" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     async def test_register_email_exists(
         self,
@@ -325,7 +339,9 @@ class TestRegisterEndpoint:
     ):
         """Test registration with existing email."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = mock_user
@@ -344,7 +360,7 @@ class TestRegisterEndpoint:
         assert "Email already registered" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.logger')
     async def test_register_create_user_failure(
@@ -357,7 +373,9 @@ class TestRegisterEndpoint:
     ):
         """Test registration when user creation fails."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = None
@@ -382,7 +400,7 @@ class TestRefreshTokenEndpoint:
     """Test refresh token endpoint."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_refresh_token_success(
@@ -396,7 +414,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test successful token refresh."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_id.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -422,7 +442,7 @@ class TestRefreshTokenEndpoint:
         assert data["token_type"] == "bearer"
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_refresh_token_invalid_type(
         self,
@@ -433,7 +453,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test refresh with wrong token type."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_jwt_service.verify_token.return_value = {
             "sub": "user_id",
             "type": "access"  # Wrong type
@@ -448,7 +470,7 @@ class TestRefreshTokenEndpoint:
         assert "Invalid token type" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_refresh_token_no_subject(
         self,
@@ -459,7 +481,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test refresh with token missing subject."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_jwt_service.verify_token.return_value = {
             "type": "refresh"
             # Missing "sub" field
@@ -474,7 +498,7 @@ class TestRefreshTokenEndpoint:
         assert "Invalid refresh token" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_refresh_token_user_not_found(
@@ -487,7 +511,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test refresh when user not found."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_id.return_value = None
         mock_user_service_class.return_value = mock_user_service
@@ -506,7 +532,7 @@ class TestRefreshTokenEndpoint:
         assert "User not found or disabled" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_refresh_token_inactive_user(
@@ -520,7 +546,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test refresh with inactive user."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user.is_active = False
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_id.return_value = mock_user
@@ -540,7 +568,7 @@ class TestRefreshTokenEndpoint:
         assert "User not found or disabled" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.jwt_service')
     @patch('dotmac.platform.auth.router.logger')
     async def test_refresh_token_invalid_token(
@@ -553,7 +581,9 @@ class TestRefreshTokenEndpoint:
     ):
         """Test refresh with invalid token."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_jwt_service.verify_token.side_effect = Exception("Invalid token")
 
         response = test_client.post(
@@ -681,7 +711,7 @@ class TestPasswordResetEndpoints:
     """Test password reset endpoints."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.get_auth_email_service')
     async def test_password_reset_request_success(
@@ -695,7 +725,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test successful password reset request."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_email.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -715,7 +747,7 @@ class TestPasswordResetEndpoints:
         mock_email_svc.send_password_reset_email.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     async def test_password_reset_request_user_not_found(
         self,
@@ -726,7 +758,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test password reset request for non-existent user."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_email.return_value = None
         mock_user_service_class.return_value = mock_user_service
@@ -742,7 +776,7 @@ class TestPasswordResetEndpoints:
         assert "reset link has been sent" in data["message"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.get_auth_email_service')
     @patch('dotmac.platform.auth.router.logger')
@@ -758,7 +792,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test password reset when email sending fails."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_email.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -777,7 +813,7 @@ class TestPasswordResetEndpoints:
         mock_logger.error.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.get_auth_email_service')
     @patch('dotmac.platform.auth.router.hash_password')
@@ -793,7 +829,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test successful password reset confirmation."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_email.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -821,7 +859,7 @@ class TestPasswordResetEndpoints:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.get_auth_email_service')
     async def test_password_reset_confirm_invalid_token(
         self,
@@ -832,7 +870,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test password reset confirmation with invalid token."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
 
         mock_email_svc = MagicMock()
         mock_email_svc.verify_reset_token.return_value = None
@@ -850,7 +890,7 @@ class TestPasswordResetEndpoints:
         assert "Invalid or expired reset token" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.get_auth_email_service')
     async def test_password_reset_confirm_user_not_found(
@@ -863,7 +903,9 @@ class TestPasswordResetEndpoints:
     ):
         """Test password reset confirmation when user not found."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_email.return_value = None
         mock_user_service_class.return_value = mock_user_service
@@ -888,7 +930,7 @@ class TestGetCurrentUserEndpoint:
     """Test /me endpoint."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_get_current_user_success(
@@ -902,7 +944,9 @@ class TestGetCurrentUserEndpoint:
     ):
         """Test successful current user retrieval."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_id.return_value = mock_user
         mock_user_service_class.return_value = mock_user_service
@@ -926,7 +970,7 @@ class TestGetCurrentUserEndpoint:
         assert data["is_active"] == mock_user.is_active
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_get_current_user_invalid_token(
         self,
@@ -937,7 +981,9 @@ class TestGetCurrentUserEndpoint:
     ):
         """Test current user with invalid token."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_jwt_service.verify_token.side_effect = Exception("Invalid token")
 
         response = test_client.get(
@@ -949,7 +995,7 @@ class TestGetCurrentUserEndpoint:
         assert "Invalid or expired token" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_get_current_user_no_subject(
@@ -962,7 +1008,9 @@ class TestGetCurrentUserEndpoint:
     ):
         """Test current user when token has no subject."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_jwt_service.verify_token.return_value = {}  # No "sub" field
 
         response = test_client.get(
@@ -974,7 +1022,7 @@ class TestGetCurrentUserEndpoint:
         assert "Invalid token" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     async def test_get_current_user_user_not_found(
@@ -987,7 +1035,9 @@ class TestGetCurrentUserEndpoint:
     ):
         """Test current user when user not found in database."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_id.return_value = None
         mock_user_service_class.return_value = mock_user_service
@@ -1016,7 +1066,7 @@ class TestRegisterWithWelcomeEmail:
     """Test register endpoint with email integration."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.auth.router.get_async_session')
+    @patch('dotmac.platform.auth.router.get_session_dependency')
     @patch('dotmac.platform.auth.router.UserService')
     @patch('dotmac.platform.auth.router.jwt_service')
     @patch('dotmac.platform.auth.router.session_manager')
@@ -1036,7 +1086,9 @@ class TestRegisterWithWelcomeEmail:
     ):
         """Test registration when welcome email sending fails."""
         # Setup mocks
-        mock_get_session.return_value = mock_session
+        async def mock_session_generator():
+            yield mock_session
+        mock_get_session.return_value = mock_session_generator()
         mock_user_service = AsyncMock()
         mock_user_service.get_user_by_username.return_value = None
         mock_user_service.get_user_by_email.return_value = None

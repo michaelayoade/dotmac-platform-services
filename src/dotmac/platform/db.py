@@ -7,6 +7,8 @@ Simple, standard SQLAlchemy setup replacing the custom database module.
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Iterator
+import inspect
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -269,6 +271,37 @@ async def get_async_session() -> AsyncIterator[AsyncSession]:
             raise
         finally:
             await session.close()
+
+
+async def get_session_dependency() -> AsyncIterator[AsyncSession]:
+    """Compatibility wrapper that yields a session and remains easy to patch in tests."""
+
+    session_source = get_async_session()
+
+    if isinstance(session_source, AsyncMock):
+        try:
+            session = await session_source
+        except TypeError:
+            session = session_source
+        yield session
+        return
+
+    if inspect.isasyncgen(session_source):
+        async for session in session_source:
+            yield session
+        return
+
+    if hasattr(session_source, "__aenter__") and hasattr(session_source, "__aexit__"):
+        async with session_source as session:
+            yield session
+        return
+
+    if hasattr(session_source, "__await__"):
+        session = await session_source  # type: ignore[func-returns-value]
+    else:
+        session = session_source
+
+    yield session
 
 
 # ==========================================

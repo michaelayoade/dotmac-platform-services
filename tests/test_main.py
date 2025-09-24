@@ -107,7 +107,7 @@ class TestLifespan:
 
         test_app = MagicMock(spec=FastAPI)
 
-        with pytest.raises(RuntimeError, match="Required services not available"):
+        with pytest.raises(RuntimeError, match="Required services unavailable"):
             async with lifespan(test_app):
                 pass
 
@@ -136,7 +136,7 @@ class TestLifespan:
 
         # Check warning was printed
         print_calls = [str(call) for call in mock_print.call_args_list]
-        assert any("Failed to load secrets from Vault" in str(call) for call in print_calls)
+        assert any("Using default secrets (Vault unavailable:" in str(call) for call in print_calls)
 
     @pytest.mark.asyncio
     @patch("dotmac.platform.main.HealthChecker")

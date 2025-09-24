@@ -110,12 +110,12 @@ class TestAuthEmailService:
         assert reset_token is not None
         assert len(reset_token) > 0
 
-        # Verify token was stored
-        assert reset_token in auth_email_service._reset_tokens
-        token_data = auth_email_service._reset_tokens[reset_token]
-        assert token_data.email == "user@example.com"
-        assert not token_data.used
-        assert token_data.expires_at > datetime.now(timezone.utc)
+        # Verify token was stored in token_storage
+        stored_token = auth_email_service.token_storage.get_token(reset_token)
+        assert stored_token is not None
+        assert stored_token.email == "user@example.com"
+        assert not stored_token.used
+        assert stored_token.expires_at > datetime.now(timezone.utc)
 
         # Verify email content
         call_args = mock_notification_service.send.call_args[0][0]
@@ -135,8 +135,9 @@ class TestAuthEmailService:
         email = auth_email_service.verify_reset_token(reset_token)
         assert email == "user@example.com"
 
-        # Token should be marked as used
-        assert auth_email_service._reset_tokens[reset_token].used
+        # Token should be marked as used in token_storage
+        stored_token = auth_email_service.token_storage.get_token(reset_token)
+        assert stored_token is not None and stored_token.used
 
     def test_verify_reset_token_invalid(self, auth_email_service):
         """Test invalid reset token verification."""
@@ -167,8 +168,17 @@ class TestAuthEmailService:
             user_name="John Doe"
         )
 
-        # Manually set expiration to past
-        auth_email_service._reset_tokens[reset_token].expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        # Mock the get_token method to return an expired token
+        from unittest.mock import MagicMock
+        from dotmac.platform.auth.email_service import PasswordResetToken
+
+        expired_token_data = PasswordResetToken(
+            token=reset_token,
+            email="user@example.com",
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=1)
+        )
+        auth_email_service.token_storage.get_token = MagicMock(return_value=expired_token_data)
+        auth_email_service.token_storage.invalidate_token = MagicMock()
 
         # Verification should fail
         email = auth_email_service.verify_reset_token(reset_token)

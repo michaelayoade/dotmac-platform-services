@@ -35,8 +35,14 @@ if config.config_file_name is not None:
 from dotmac.platform.db import Base
 
 # Import all models to ensure they're registered
-from dotmac.platform.auth.models import User, Session, ApiKey
-from dotmac.platform.tenant.models import Tenant, TenantUser
+from dotmac.platform.user_management.models import User
+from dotmac.platform.customer_management.models import (
+    Customer,
+    CustomerSegment,
+    CustomerActivity,
+    CustomerNote,
+    CustomerTag,
+)
 
 # Use Base.metadata for autogeneration
 target_metadata = Base.metadata

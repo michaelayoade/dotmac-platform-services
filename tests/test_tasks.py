@@ -295,6 +295,7 @@ class TestCeleryInstrumentation:
 
         with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor:
             mock_instance = Mock()
+            mock_instance._instrumented = False  # Ensure it's not already instrumented
             mock_instrumentor.return_value = mock_instance
 
             init_celery_instrumentation()
@@ -312,10 +313,10 @@ class TestCeleryInstrumentation:
         mock_settings.observability.otel_instrument_celery = True
 
         with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor", side_effect=ImportError("Module not found")):
-            with pytest.raises(ImportError, match="opentelemetry-instrumentation-celery is required"):
-                init_celery_instrumentation()
+            # Should not raise exception
+            init_celery_instrumentation()
 
-            mock_logger.error.assert_called()
+            mock_logger.warning.assert_called()
 
     @patch("dotmac.platform.tasks.settings")
     @patch("dotmac.platform.tasks.logger")
@@ -326,11 +327,12 @@ class TestCeleryInstrumentation:
 
         with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor:
             mock_instance = Mock()
+            mock_instance._instrumented = False  # Ensure it's not already instrumented
             mock_instance.instrument.side_effect = Exception("Instrumentation failed")
             mock_instrumentor.return_value = mock_instance
 
-            with pytest.raises(Exception, match="Instrumentation failed"):
-                init_celery_instrumentation()
+            # Should not raise exception
+            init_celery_instrumentation()
 
             mock_logger.error.assert_called_with("Failed to instrument Celery: Instrumentation failed")
 

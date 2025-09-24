@@ -22,11 +22,28 @@ from dotmac.platform.auth.core import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 from dotmac.platform.auth.email_service import get_auth_email_service
-from dotmac.platform.db import get_async_session
+from dotmac.platform.db import get_session_dependency
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
 
 logger = structlog.get_logger(__name__)
+
+# ========================================
+# Local dependency wrappers
+# ========================================
+
+
+async def get_auth_session():
+    """Adapter to reuse the shared session dependency helper."""
+    async for session in get_session_dependency():
+        yield session
+
+
+# Backwards compatibility: some tests patch this symbol directly
+async def get_async_session():  # pragma: no cover - compatibility wrapper
+    async for session in get_session_dependency():
+        yield session
+
 
 # Create router
 auth_router = APIRouter()
@@ -81,7 +98,7 @@ class PasswordResetConfirm(BaseModel):
 @auth_router.post("/login", response_model=TokenResponse)
 async def login(
     request: LoginRequest,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> TokenResponse:
     """
     Authenticate user and return JWT tokens.
@@ -147,7 +164,7 @@ async def login(
 @auth_router.post("/register", response_model=TokenResponse)
 async def register(
     request: RegisterRequest,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> TokenResponse:
     """
     Register a new user and return JWT tokens.
@@ -234,7 +251,7 @@ async def register(
 @auth_router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: RefreshTokenRequest,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> TokenResponse:
     """
     Refresh access token using refresh token.
@@ -372,7 +389,7 @@ async def verify_token(
 @auth_router.post("/password-reset")
 async def request_password_reset(
     request: PasswordResetRequest,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> dict:
     """
     Request a password reset token to be sent via email.
@@ -400,7 +417,7 @@ async def request_password_reset(
 @auth_router.post("/password-reset/confirm")
 async def confirm_password_reset(
     request: PasswordResetConfirm,
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> dict:
     """
     Confirm password reset with token and set new password.
@@ -451,7 +468,7 @@ async def confirm_password_reset(
 @auth_router.get("/me")
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> dict:
     """
     Get current user information from token.
