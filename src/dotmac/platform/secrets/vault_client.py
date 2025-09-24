@@ -402,6 +402,91 @@ class AsyncVaultClient:
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to list secrets at {path}: {e}")
 
+    async def get_secret_metadata(self, path: str) -> Dict[str, Any]:
+        """
+        Get metadata for a specific secret (KV v2 only).
+
+        Args:
+            path: Secret path
+
+        Returns:
+            Metadata dictionary with creation/update times, versions, etc.
+
+        Raises:
+            VaultError: If metadata retrieval fails
+        """
+        if self.kv_version != 2:
+            return {"error": "Metadata only available in KV v2"}
+
+        try:
+            path = path.strip("/")
+            metadata_path = f"/v1/{self.mount_path}/metadata/{path}"
+            response = await self.client.get(metadata_path)
+
+            if response.status_code == 404:
+                return {"error": "Secret not found"}
+
+            response.raise_for_status()
+            data = response.json()
+            return data.get("data", {})
+
+        except httpx.HTTPError as e:
+            raise VaultError(f"Failed to get metadata for {path}: {e}")
+
+    async def list_secrets_with_metadata(self, path: str = "") -> list[Dict[str, Any]]:
+        """
+        List secrets with their metadata.
+
+        Args:
+            path: Path to list (empty string for root)
+
+        Returns:
+            List of dictionaries with secret info and metadata
+
+        Raises:
+            VaultError: If listing fails
+        """
+        try:
+            secrets = await self.list_secrets(path)
+            secrets_with_metadata = []
+
+            for secret_key in secrets:
+                full_path = f"{path.rstrip('/')}/{secret_key}".lstrip("/")
+
+                secret_info = {
+                    "path": full_path,
+                    "created_time": None,
+                    "updated_time": None,
+                    "version": None,
+                    "metadata": {"source": "vault"}
+                }
+
+                # Try to get metadata for each secret
+                try:
+                    if self.kv_version == 2:
+                        metadata = await self.get_secret_metadata(full_path)
+                        if "error" not in metadata:
+                            secret_info.update({
+                                "created_time": metadata.get("created_time"),
+                                "updated_time": metadata.get("updated_time"),
+                                "version": metadata.get("current_version"),
+                                "metadata": {
+                                    "source": "vault",
+                                    "versions": metadata.get("versions", {}),
+                                    "cas_required": metadata.get("cas_required", False),
+                                    "delete_version_after": metadata.get("delete_version_after", None)
+                                }
+                            })
+                except Exception as e:
+                    secret_info["metadata"]["metadata_error"] = str(e)
+
+                secrets_with_metadata.append(secret_info)
+
+            return secrets_with_metadata
+
+        except Exception as e:
+            raise VaultError(f"Failed to list secrets with metadata at {path}: {e}")
+
     async def delete_secret(self, path: str) -> None:
         """
         Async version of delete_secret.

@@ -80,11 +80,9 @@ class TestLifespan:
 
         # Verify print statements
         print_calls = [str(call) for call in mock_print.call_args_list]
-        assert any("Starting DotMac Platform Services" in str(call) for call in print_calls)
+        assert any("DotMac Platform Services starting" in str(call) for call in print_calls)
         assert any("Database initialized" in str(call) for call in print_calls)
-        assert any(
-            "Telemetry and structured logging configured" in str(call) for call in print_calls
-        )
+        assert any("Startup complete" in str(call) for call in print_calls)
         assert any("Shutting down" in str(call) for call in print_calls)
 
     @pytest.mark.asyncio

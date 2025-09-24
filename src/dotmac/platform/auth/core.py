@@ -147,12 +147,14 @@ OAUTH_CONFIGS = {
 
 
 class JWTService:
-    """Simplified JWT service using Authlib."""
+    """Simplified JWT service using Authlib with token revocation support."""
 
-    def __init__(self, secret: str | None = None, algorithm: str | None = None):
+    def __init__(self, secret: str | None = None, algorithm: str | None = None, redis_url: str | None = None):
         self.secret = secret or JWT_SECRET
         self.algorithm = algorithm or JWT_ALGORITHM
         self.header = {"alg": self.algorithm}
+        self.redis_url = redis_url or REDIS_URL
+        self._redis = None
 
     def create_access_token(
         self,
@@ -192,10 +194,92 @@ class JWTService:
         return token.decode("utf-8") if isinstance(token, bytes) else token
 
     def verify_token(self, token: str) -> dict:
-        """Verify and decode token."""
+        """Verify and decode token with sync blacklist check."""
         try:
             claims = jwt.decode(token, self.secret)
             claims.validate()
+
+            # Check if token is revoked (sync version)
+            jti = claims.get("jti")
+            if jti and self.is_token_revoked_sync(jti):
+                raise JoseError("Token has been revoked")
+
+            return claims
+        except JoseError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid token: {e}",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    async def _get_redis(self):
+        """Get Redis connection."""
+        if not REDIS_AVAILABLE:
+            return None
+        if self._redis is None:
+            self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+        return self._redis
+
+    async def revoke_token(self, token: str) -> bool:
+        """Revoke a token by adding its JTI to blacklist."""
+        try:
+            redis_client = await self._get_redis()
+            if not redis_client:
+                logger.warning("Redis not available, cannot revoke tokens")
+                return False
+
+            claims = jwt.decode(token, self.secret)
+            jti = claims.get("jti")
+            if not jti:
+                return False
+
+            # Calculate TTL based on token expiry
+            exp = claims.get("exp")
+            if exp:
+                ttl = max(0, exp - int(datetime.now(UTC).timestamp()))
+                await redis_client.setex(f"blacklist:{jti}", ttl, "1")
+            else:
+                await redis_client.set(f"blacklist:{jti}", "1")
+
+            logger.info(f"Revoked token with JTI: {jti}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to revoke token: {e}")
+            return False
+
+    def is_token_revoked_sync(self, jti: str) -> bool:
+        """Check if token is revoked (sync version)."""
+        try:
+            from dotmac.platform.caching import get_redis
+            redis_client = get_redis()
+            if not redis_client:
+                return False
+            return bool(redis_client.exists(f"blacklist:{jti}"))
+        except Exception as e:
+            logger.error(f"Failed to check token revocation status: {e}")
+            return False
+
+    async def is_token_revoked(self, jti: str) -> bool:
+        """Check if a token is revoked."""
+        try:
+            redis_client = await self._get_redis()
+            if not redis_client:
+                return False
+            return bool(await redis_client.exists(f"blacklist:{jti}"))
+        except Exception:
+            return False
+
+    async def verify_token_async(self, token: str) -> dict:
+        """Verify and decode token with revocation check (async version)."""
+        try:
+            claims = jwt.decode(token, self.secret)
+            claims.validate()
+
+            # Check if token is revoked
+            jti = claims.get("jti")
+            if jti and await self.is_token_revoked(jti):
+                raise JoseError("Token has been revoked")
+
             return claims
         except JoseError as e:
             raise HTTPException(
@@ -244,9 +328,8 @@ class SessionManager:
 
         # Track user sessions
         user_key = f"user_sessions:{user_id}"
-        # These Redis operations may not be awaitable in this context
-        client.sadd(user_key, session_id)
-        client.expire(user_key, ttl)
+        await client.sadd(user_key, session_id)
+        await client.expire(user_key, ttl)
 
         return session_id
 
@@ -271,13 +354,37 @@ class SessionManager:
                 user_id = session.get("user_id")
                 if user_id:
                     # Remove session from user's session set
-                    client.srem(f"user_sessions:{user_id}", session_id)
+                    await client.srem(f"user_sessions:{user_id}", session_id)
 
             deleted_count = await client.delete(f"session:{session_id}")
             return bool(deleted_count)
         except Exception as e:
             logger.error("Failed to delete session", session_id=session_id, error=str(e))
             return False
+
+    async def delete_user_sessions(self, user_id: str) -> int:
+        """Delete all sessions for a user."""
+        try:
+            client = await self._get_redis()
+            user_sessions_key = f"user_sessions:{user_id}"
+
+            # Get all session IDs for this user
+            session_ids = await client.smembers(user_sessions_key)
+
+            deleted_count = 0
+            for session_id in session_ids:
+                session_key = f"session:{session_id}"
+                if await client.delete(session_key):
+                    deleted_count += 1
+
+            # Clean up the user sessions set
+            await client.delete(user_sessions_key)
+
+            logger.info(f"Deleted {deleted_count} sessions for user {user_id}")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to delete user sessions for {user_id}: {e}")
+            return 0
 
 
 # ============================================
@@ -428,7 +535,7 @@ async def get_current_user(
     # Try Bearer token first
     if credentials and credentials.credentials:
         try:
-            claims = jwt_service.verify_token(credentials.credentials)
+            claims = await jwt_service.verify_token_async(credentials.credentials)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
@@ -436,7 +543,7 @@ async def get_current_user(
     # Try OAuth2 token
     if token:
         try:
-            claims = jwt_service.verify_token(token)
+            claims = await jwt_service.verify_token_async(token)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass

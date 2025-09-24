@@ -6,6 +6,7 @@ Provides REST endpoints for secrets management operations.
 
 import logging
 from typing import Annotated, Any, Dict, Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -60,10 +61,20 @@ class SecretResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Secret metadata")
 
 
+class SecretInfo(BaseModel):
+    """Secret information with metadata."""
+
+    path: str = Field(..., description="Secret path")
+    created_time: Optional[str] = Field(None, description="When the secret was created")
+    updated_time: Optional[str] = Field(None, description="When the secret was last updated")
+    version: Optional[int] = Field(None, description="Current version (KV v2)")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+
 class SecretListResponse(BaseModel):
     """List secrets response."""
 
-    secrets: list[str] = Field(..., description="List of secret paths")
+    secrets: list[SecretInfo] = Field(..., description="List of secrets with metadata")
 
 
 class HealthResponse(BaseModel):
@@ -182,10 +193,11 @@ async def delete_secret(
     """
     try:
         async with vault:
-            # In KV v2, we need to use the metadata path for deletion
-            # For now, return success as delete is complex in Vault
-            # Real implementation would need additional Vault API calls
-            pass
+            # For KV v2, delete the latest version
+            await vault.delete_secret(path)
+
+            logger.info(f"Deleted secret at path: {path}")
+            return None
 
     except VaultError as e:
         logger.error(f"Failed to delete secret: {e}")
@@ -206,11 +218,50 @@ async def list_secrets(
     Args:
         prefix: Optional prefix to filter secret paths
     """
-    # Note: Vault LIST operation requires additional implementation
-    # This is a simplified version for demonstration
-    logger.warning("List secrets endpoint not fully implemented")
+    try:
+        if not vault:
+            logger.error("Vault client not available")
+            return SecretListResponse(secrets=[])
 
-    return SecretListResponse(secrets=[])
+        # Use the vault client to list secrets with metadata
+        secrets_with_metadata = await vault.list_secrets_with_metadata(prefix)
+
+        # Convert to SecretInfo objects
+        secrets = []
+        for secret_data in secrets_with_metadata:
+            try:
+                secret_info = SecretInfo(
+                    path=secret_data["path"],
+                    created_time=secret_data.get("created_time"),
+                    updated_time=secret_data.get("updated_time"),
+                    version=secret_data.get("version"),
+                    metadata=secret_data.get("metadata", {"source": "vault"})
+                )
+                secrets.append(secret_info)
+            except Exception as e:
+                logger.warning(f"Failed to parse secret metadata for {secret_data.get('path', 'unknown')}: {e}")
+                # Still include the secret even if parsing fails
+                secret_info = SecretInfo(
+                    path=secret_data.get("path", "unknown"),
+                    metadata={"source": "vault", "parsing_error": str(e)}
+                )
+                secrets.append(secret_info)
+
+        logger.info(f"Listed {len(secrets)} secrets with prefix '{prefix}'")
+        return SecretListResponse(secrets=secrets)
+
+    except VaultError as e:
+        logger.error(f"Failed to list secrets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list secrets: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error listing secrets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list secrets"
+        )
 
 
 # ========================================

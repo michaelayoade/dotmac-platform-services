@@ -11,6 +11,90 @@ from dotmac.platform.tasks import (
 )
 
 
+class TestEnhancedCeleryInstrumentation:
+    """Test enhanced Celery instrumentation functionality."""
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_disabled_by_otel(self, mock_settings):
+        """Test instrumentation disabled when OTEL is disabled."""
+        mock_settings.observability.otel_enabled = False
+
+        # Should not raise exception
+        init_celery_instrumentation()
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_disabled_by_celery_setting(self, mock_settings):
+        """Test instrumentation disabled when Celery instrumentation is disabled."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_instrument_celery = False
+
+        # Should not raise exception
+        init_celery_instrumentation()
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_missing_package(self, mock_settings):
+        """Test instrumentation with missing package."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_instrument_celery = True
+
+        # Mock the specific import that fails
+        with patch.dict('sys.modules', {'opentelemetry.instrumentation.celery': None}):
+            # Should not raise exception
+            init_celery_instrumentation()
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_success(self, mock_settings):
+        """Test successful instrumentation."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_instrument_celery = True
+        mock_settings.observability.otel_service_name = "test-service"
+        mock_settings.observability.otel_endpoint = "http://localhost:4318"
+
+        # Mock CeleryInstrumentor
+        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+            mock_instrumentor = Mock()
+            mock_instrumentor._instrumented = False
+            mock_instrumentor_class.return_value = mock_instrumentor
+
+            init_celery_instrumentation()
+
+            # Should instrument
+            mock_instrumentor.instrument.assert_called_once()
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_already_instrumented(self, mock_settings):
+        """Test when already instrumented."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_instrument_celery = True
+
+        # Mock already instrumented
+        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+            mock_instrumentor = Mock()
+            mock_instrumentor._instrumented = True
+            mock_instrumentor_class.return_value = mock_instrumentor
+
+            init_celery_instrumentation()
+
+            # Should not instrument again
+            mock_instrumentor.instrument.assert_not_called()
+
+    @patch("dotmac.platform.tasks.settings")
+    def test_init_celery_instrumentation_error_handling(self, mock_settings):
+        """Test error handling during instrumentation."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_instrument_celery = True
+
+        # Mock instrumentation error
+        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+            mock_instrumentor = Mock()
+            mock_instrumentor._instrumented = False
+            mock_instrumentor.instrument.side_effect = Exception("Instrumentation error")
+            mock_instrumentor_class.return_value = mock_instrumentor
+
+            # Should not raise exception
+            init_celery_instrumentation()
+
+
 class TestCeleryTasks:
     """Test Celery tasks functionality."""
 

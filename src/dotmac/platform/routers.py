@@ -89,6 +89,13 @@ ROUTER_CONFIGS = [
         tags=["User Management"],
         description="User management endpoints",
     ),
+    RouterConfig(
+        module_path="dotmac.platform.feature_flags.router",
+        router_name="feature_flags_router",
+        prefix="/api/v1/feature-flags",
+        tags=["Feature Flags"],
+        description="Feature flags management",
+    ),
 ]
 
 

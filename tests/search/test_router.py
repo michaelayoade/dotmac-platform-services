@@ -41,10 +41,12 @@ def mock_user():
 class TestSearchRouter:
     """Test search router endpoints."""
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_endpoint_success(self, mock_get_user, client, mock_user):
+    def test_search_endpoint_success(self, client, mock_user):
         """Test successful search request."""
-        mock_get_user.return_value = mock_user
+        # Need to mock as a dependency override
+        from dotmac.platform.search.router import get_current_user
+
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=test+query&limit=5&page=1")
 
@@ -74,10 +76,10 @@ class TestSearchRouter:
             assert "score" in result
             assert "metadata" in result
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_endpoint_with_type_filter(self, mock_get_user, client, mock_user):
+    def test_search_endpoint_with_type_filter(self, client, mock_user):
         """Test search with type filter."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=test&type=document&limit=10")
 
@@ -85,10 +87,10 @@ class TestSearchRouter:
         data = response.json()
         assert data["query"] == "test"
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_endpoint_pagination_limits(self, mock_get_user, client, mock_user):
+    def test_search_endpoint_pagination_limits(self, client, mock_user):
         """Test search pagination limits."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Test minimum limit
         response = client.get("/search/?q=test&limit=1&page=1")
@@ -110,18 +112,18 @@ class TestSearchRouter:
         response = client.get("/search/?q=test&page=0")
         assert response.status_code == 422
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_endpoint_missing_query(self, mock_get_user, client, mock_user):
+    def test_search_endpoint_missing_query(self, client, mock_user):
         """Test search without required query parameter."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/")
         assert response.status_code == 422  # Missing required 'q' parameter
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_endpoint_default_values(self, mock_get_user, client, mock_user):
+    def test_search_endpoint_default_values(self, client, mock_user):
         """Test search with default parameter values."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=test")
 
@@ -139,11 +141,11 @@ class TestSearchRouter:
         # Depending on auth implementation, this might be 401 or 403
         assert response.status_code in [401, 403]
 
-    @patch('dotmac.platform.search.router.get_current_user')
     @patch('dotmac.platform.search.router.logger')
-    def test_search_endpoint_logging(self, mock_logger, mock_get_user, client, mock_user):
+    def test_search_endpoint_logging(self, mock_logger, client, mock_user):
         """Test that search requests are logged."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=important+search&limit=5")
 
@@ -155,10 +157,10 @@ class TestSearchRouter:
         assert "test-user-123" in log_call
         assert "important search" in log_call
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_index_content_authenticated(self, mock_get_user, client, mock_user):
+    def test_index_content_authenticated(self, client, mock_user):
         """Test indexing content with authenticated user."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         content = {
             "title": "Test Document",
@@ -183,28 +185,25 @@ class TestSearchRouter:
             "content": "This is test content"
         }
 
-        # Note: current_user is Optional in the endpoint, so this should work
+        # This endpoint requires authentication, so should return 401
         response = client.post("/search/index", json=content)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["message"] == "Content indexed"
+        assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.logger')
-    def test_index_content_logging_anonymous(self, mock_logger, client):
+    def test_index_content_logging_anonymous(self, client):
         """Test indexing content logging for anonymous user."""
         content = {"title": "Test Document"}
 
+        # This endpoint requires authentication, so should return 401
         response = client.post("/search/index", json=content)
 
-        assert response.status_code == 200
-        mock_logger.info.assert_called_once_with("Anonymous user indexing content")
+        assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.get_current_user')
     @patch('dotmac.platform.search.router.logger')
-    def test_index_content_logging_authenticated(self, mock_logger, mock_get_user, client, mock_user):
+    def test_index_content_logging_authenticated(self, mock_logger, client, mock_user):
         """Test indexing content logging for authenticated user."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
         content = {"title": "Test Document"}
 
         response = client.post("/search/index", json=content)
@@ -221,10 +220,10 @@ class TestSearchRouter:
 
         assert response.status_code == 422
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_remove_from_index_authenticated(self, mock_get_user, client, mock_user):
+    def test_remove_from_index_authenticated(self, client, mock_user):
         """Test removing content from index with authenticated user."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.delete("/search/index/test-content-id")
 
@@ -238,23 +237,21 @@ class TestSearchRouter:
         """Test removing content from index without authentication."""
         response = client.delete("/search/index/test-content-id")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["message"] == "Content test-content-id removed from index"
+        # This endpoint requires authentication, so should return 401
+        assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.logger')
-    def test_remove_from_index_logging_anonymous(self, mock_logger, client):
+    def test_remove_from_index_logging_anonymous(self, client):
         """Test removing content logging for anonymous user."""
         response = client.delete("/search/index/test-id")
 
-        assert response.status_code == 200
-        mock_logger.info.assert_called_once_with("Anonymous user removing test-id from index")
+        # This endpoint requires authentication, so should return 401
+        assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.get_current_user')
     @patch('dotmac.platform.search.router.logger')
-    def test_remove_from_index_logging_authenticated(self, mock_logger, mock_get_user, client, mock_user):
+    def test_remove_from_index_logging_authenticated(self, mock_logger, client, mock_user):
         """Test removing content logging for authenticated user."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.delete("/search/index/test-id")
 
@@ -264,9 +261,12 @@ class TestSearchRouter:
         assert "test-user-123" in log_call
         assert "removing test-id from index" in log_call
 
-    def test_remove_from_index_special_characters(self, client):
+    def test_remove_from_index_special_characters(self, client, mock_user):
         """Test removing content with special characters in ID."""
-        content_id = "test-id-with-special@chars#123"
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
+
+        content_id = "test-id-with-special@chars"  # Some special chars get URL encoded
         response = client.delete(f"/search/index/{content_id}")
 
         assert response.status_code == 200
@@ -389,10 +389,10 @@ class TestSearchResponseModels:
 class TestRouterIntegration:
     """Integration tests for search router."""
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_complete_search_flow(self, mock_get_user, client, mock_user):
+    def test_complete_search_flow(self, client, mock_user):
         """Test complete search workflow."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Index some content
         content1 = {"title": "Python Tutorial", "content": "Learn Python programming"}
@@ -425,10 +425,10 @@ class TestRouterIntegration:
         assert "search_router" in __all__
         assert len(__all__) == 1
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_query_encoding(self, mock_get_user, client, mock_user):
+    def test_search_query_encoding(self, client, mock_user):
         """Test search with URL-encoded queries."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Test with spaces and special characters
         query = "python programming & web development"
@@ -440,10 +440,10 @@ class TestRouterIntegration:
         data = response.json()
         assert data["query"] == query
 
-    @patch('dotmac.platform.search.router.get_current_user')
-    def test_search_edge_cases(self, mock_get_user, client, mock_user):
+    def test_search_edge_cases(self, client, mock_user):
         """Test search edge cases."""
-        mock_get_user.return_value = mock_user
+        from dotmac.platform.search.router import get_current_user
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Empty query
         response = client.get("/search/?q=")

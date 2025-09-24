@@ -6,7 +6,7 @@ Tests OpenTelemetry configuration, structured logging setup, and instrumentation
 
 import os
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import structlog
@@ -108,6 +108,101 @@ class TestResourceCreation:
         attributes = resource.attributes
         assert attributes.get("service.name") == "test-service"
         assert "custom.attr" not in attributes
+
+
+class TestEnhancedSetupTelemetry:
+    """Test enhanced setup_telemetry function."""
+
+    @patch("dotmac.platform.telemetry.setup_tracing")
+    @patch("dotmac.platform.telemetry.setup_metrics")
+    @patch("dotmac.platform.telemetry.instrument_libraries")
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_auto_enable_warning(
+        self, mock_configure_structlog, mock_instrument, mock_setup_metrics, mock_setup_tracing, mock_settings
+    ):
+        """Test auto-enable warning when endpoint configured but OTEL disabled."""
+        mock_settings.observability.otel_endpoint = "http://localhost:4318"
+        mock_settings.observability.otel_enabled = False
+        mock_settings.observability.enable_tracing = True
+        mock_settings.observability.enable_metrics = True
+
+        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
+            mock_logger = Mock()
+            mock_structlog.get_logger.return_value = mock_logger
+
+            setup_telemetry()
+
+            # Should log auto-enable warning
+            mock_logger.info.assert_any_call(
+                "Auto-enabling OpenTelemetry due to configured endpoint",
+                endpoint="http://localhost:4318"
+            )
+            # Should log recommendation
+            mock_logger.warning.assert_any_call(
+                "Consider setting OTEL_ENABLED=true explicitly in configuration"
+            )
+
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_missing_packages(self, mock_configure_structlog, mock_settings):
+        """Test setup_telemetry with missing OpenTelemetry packages."""
+        mock_settings.observability.otel_enabled = True
+
+        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
+            mock_logger = Mock()
+            mock_structlog.get_logger.return_value = mock_logger
+
+            # Mock missing import
+            with patch("builtins.__import__", side_effect=ImportError("No module named 'opentelemetry'")):
+                setup_telemetry()
+
+                # Should log warning about missing packages
+                mock_logger.warning.assert_called_with(
+                    "OpenTelemetry packages not installed - install with: poetry install --extras observability",
+                    error="No module named 'opentelemetry'"
+                )
+
+    @patch("dotmac.platform.telemetry.setup_tracing")
+    @patch("dotmac.platform.telemetry.setup_metrics")
+    @patch("dotmac.platform.telemetry.instrument_libraries")
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_success_logging(
+        self, mock_configure_structlog, mock_instrument, mock_setup_metrics, mock_setup_tracing, mock_settings
+    ):
+        """Test successful telemetry setup logging."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.enable_tracing = True
+        mock_settings.observability.enable_metrics = True
+
+        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
+            mock_logger = Mock()
+            mock_structlog.get_logger.return_value = mock_logger
+
+            app = Mock()
+            setup_telemetry(app)
+
+            # Should log success
+            mock_logger.info.assert_any_call(
+                "OpenTelemetry telemetry configured successfully",
+                service_name=mock_settings.observability.otel_service_name,
+                endpoint=mock_settings.observability.otel_endpoint,
+                tracing_enabled=True,
+                metrics_enabled=True
+            )
+
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_disabled(self, mock_configure_structlog, mock_settings):
+        """Test setup_telemetry when disabled."""
+        mock_settings.observability.otel_enabled = False
+        mock_settings.observability.otel_endpoint = None
+
+        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
+            mock_logger = Mock()
+            mock_structlog.get_logger.return_value = mock_logger
+
+            setup_telemetry()
+
+            # Should log that it's disabled
+            mock_logger.debug.assert_called_with("OpenTelemetry is disabled by configuration")
 
 
 class TestStructlogConfiguration:

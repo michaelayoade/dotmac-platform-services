@@ -34,10 +34,10 @@ def create_admin(email: str, password: str):
     """Create an admin user."""
 
     async def _create_admin():
-        import hashlib
+        from dotmac.platform.auth.core import hash_password
 
-        # Simple password hashing for CLI (production should use bcrypt/argon2)
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        # Use same bcrypt hashing as regular users for consistency
+        password_hash = hash_password(password)
 
         async with get_session() as session:
             # Check if user exists using raw SQL

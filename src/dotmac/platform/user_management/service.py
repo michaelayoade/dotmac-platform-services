@@ -167,8 +167,13 @@ class UserService:
         role: Optional[str] = None,
         tenant_id: Optional[str] = None,
         search: Optional[str] = None,
+        require_tenant: bool = True,  # Default to requiring tenant for safety
     ) -> tuple[List[User], int]:
         """List users with pagination and filters."""
+        # Enforce tenant isolation by default
+        if require_tenant and (not tenant_id or not tenant_id.strip()):
+            raise ValueError("tenant_id is required when require_tenant=True")
+
         query = select(User)
 
         # Apply filters

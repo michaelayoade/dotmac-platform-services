@@ -232,8 +232,10 @@ class Settings(BaseSettings):
         metrics_port: int = Field(9090, description="Metrics port")
 
         # OpenTelemetry
-        otel_enabled: bool = Field(False, description="Enable OpenTelemetry")
-        otel_endpoint: Optional[str] = Field(None, description="OTLP endpoint")
+        otel_enabled: bool = Field(True, description="Enable OpenTelemetry")
+        otel_endpoint: Optional[str] = Field(
+            "http://localhost:4318/v1/traces", description="OTLP endpoint (default: local OTEL collector)"
+        )
         otel_service_name: str = Field("dotmac-platform", description="Service name")
         otel_resource_attributes: dict[str, str] = Field(
             default_factory=dict, description="Resource attributes"

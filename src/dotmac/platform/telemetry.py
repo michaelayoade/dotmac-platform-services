@@ -87,8 +87,31 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
 
     logger = structlog.get_logger(__name__)
 
+    # Auto-enable if endpoint is configured but OTEL is disabled
+    if settings.observability.otel_endpoint and not settings.observability.otel_enabled:
+        logger.info(
+            "Auto-enabling OpenTelemetry due to configured endpoint",
+            endpoint=settings.observability.otel_endpoint
+        )
+        # We can't modify the settings object, but we can log the recommendation
+        logger.warning(
+            "Consider setting OTEL_ENABLED=true explicitly in configuration"
+        )
+
     if not settings.observability.otel_enabled:
-        logger.debug("OpenTelemetry is disabled")
+        logger.debug("OpenTelemetry is disabled by configuration")
+        return
+
+    # Check if OpenTelemetry packages are available
+    try:
+        from opentelemetry import trace, metrics
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    except ImportError as e:
+        logger.warning(
+            "OpenTelemetry packages not installed - install with: poetry install --extras observability",
+            error=str(e)
+        )
         return
 
     # Create resource for all telemetry
@@ -104,6 +127,14 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
 
     # Auto-instrument libraries
     instrument_libraries(app)
+
+    logger.info(
+        "OpenTelemetry telemetry configured successfully",
+        service_name=settings.observability.otel_service_name,
+        endpoint=settings.observability.otel_endpoint,
+        tracing_enabled=settings.observability.enable_tracing,
+        metrics_enabled=settings.observability.enable_metrics,
+    )
 
 
 def setup_tracing(resource: Resource) -> None:

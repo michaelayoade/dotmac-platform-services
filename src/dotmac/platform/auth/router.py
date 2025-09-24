@@ -21,6 +21,7 @@ from dotmac.platform.auth.core import (
     session_manager,
     ACCESS_TOKEN_EXPIRE_MINUTES,
 )
+from dotmac.platform.auth.email_service import get_auth_email_service
 from dotmac.platform.db import get_async_session
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
@@ -62,6 +63,19 @@ class RefreshTokenRequest(BaseModel):
     """Refresh token request model."""
 
     refresh_token: str = Field(..., description="Refresh token")
+
+
+class PasswordResetRequest(BaseModel):
+    """Password reset request model."""
+
+    email: EmailStr = Field(..., description="Email address")
+
+
+class PasswordResetConfirm(BaseModel):
+    """Password reset confirmation model."""
+
+    token: str = Field(..., description="Reset token")
+    new_password: str = Field(..., min_length=8, description="New password")
 
 
 @auth_router.post("/login", response_model=TokenResponse)
@@ -198,6 +212,17 @@ async def register(
         }
     )
 
+    # Send welcome email
+    try:
+        email_service = get_auth_email_service()
+        email_service.send_welcome_email(
+            email=new_user.email,
+            user_name=new_user.full_name or new_user.username
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send welcome email: {e}")
+        # Don't fail registration if email fails
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -243,6 +268,12 @@ async def refresh_token(
                 detail="User not found or disabled",
             )
 
+        # Revoke old refresh token
+        try:
+            await jwt_service.revoke_token(request.refresh_token)
+        except Exception as e:
+            logger.warning(f"Failed to revoke old refresh token: {e}")
+
         # Create new tokens
         access_token = jwt_service.create_access_token(
             subject=str(user.id),
@@ -281,20 +312,36 @@ async def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """
-    Logout user and invalidate session.
+    Logout user and invalidate session and tokens.
     """
     token = credentials.credentials
 
     try:
-        # Get user info from token to find session
+        # Get user info from token
         payload = jwt_service.verify_token(token)
         user_id = payload.get("sub")
 
-        # For now, return success as we don't track sessions by token
-        # In production, you'd want to maintain a token->session mapping
-        return {"message": "Logged out successfully"}
+        if user_id:
+            # Revoke the access token
+            await jwt_service.revoke_token(token)
+
+            # Delete all user sessions
+            deleted_sessions = await session_manager.delete_user_sessions(user_id)
+
+            logger.info(f"Logged out user {user_id}, revoked token and deleted {deleted_sessions} sessions")
+            return {
+                "message": "Logged out successfully",
+                "sessions_deleted": deleted_sessions
+            }
+        else:
+            return {"message": "Logout completed"}
     except Exception as e:
         logger.error(f"Logout failed: {e}")
+        # Still try to revoke the token even if we can't parse it
+        try:
+            await jwt_service.revoke_token(token)
+        except Exception:
+            pass
         return {"message": "Logout completed"}
 
 
@@ -316,6 +363,133 @@ async def verify_token(
             "roles": payload.get("roles", []),
         }
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+
+@auth_router.post("/password-reset")
+async def request_password_reset(
+    request: PasswordResetRequest,
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """
+    Request a password reset token to be sent via email.
+    """
+    user_service = UserService(session)
+
+    # Find user by email
+    user = await user_service.get_user_by_email(request.email)
+
+    # Always return success to prevent email enumeration
+    if user and user.is_active:
+        try:
+            email_service = get_auth_email_service()
+            response, reset_token = email_service.send_password_reset_email(
+                email=user.email,
+                user_name=user.full_name or user.username
+            )
+            logger.info(f"Password reset requested for {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
+
+    return {"message": "If the email exists, a password reset link has been sent."}
+
+
+@auth_router.post("/password-reset/confirm")
+async def confirm_password_reset(
+    request: PasswordResetConfirm,
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """
+    Confirm password reset with token and set new password.
+    """
+    email_service = get_auth_email_service()
+
+    # Verify the reset token
+    email = email_service.verify_reset_token(request.token)
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Find user and update password
+    user_service = UserService(session)
+    user = await user_service.get_user_by_email(email)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found",
+        )
+
+    # Update password
+    try:
+        user.password_hash = hash_password(request.new_password)
+        await session.commit()
+
+        # Send confirmation email
+        email_service.send_password_reset_success_email(
+            email=user.email,
+            user_name=user.full_name or user.username
+        )
+
+        logger.info(f"Password reset completed for {user.email}")
+        return {"message": "Password has been reset successfully."}
+    except Exception as e:
+        logger.error(f"Failed to reset password: {e}")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password",
+        )
+
+
+@auth_router.get("/me")
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """
+    Get current user information from token.
+    """
+    token = credentials.credentials
+
+    try:
+        payload = jwt_service.verify_token(token)
+        user_id = payload.get("sub")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
+
+        user_service = UserService(session)
+        user = await user_service.get_user_by_id(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        return {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name,
+            "roles": user.roles or [],
+            "is_active": user.is_active,
+            "tenant_id": user.tenant_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get current user: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

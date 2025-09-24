@@ -254,6 +254,9 @@ class TestCaching:
 
     def test_redis_cache_decorator_with_kwargs(self):
         """Test redis_cache decorator with keyword arguments."""
+        # Clear caches first to ensure clean state
+        cache_clear()
+
         call_count = 0
 
         @redis_cache(ttl=300)

@@ -6,65 +6,121 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from dotmac.platform.db import init_db
 from dotmac.platform.health_checks import HealthChecker, ensure_infrastructure_running
+from dotmac.platform.rate_limiting import limiter
 from dotmac.platform.routers import get_api_info, register_routers
 from dotmac.platform.secrets import load_secrets_from_vault_sync
 from dotmac.platform.settings import settings
 from dotmac.platform.telemetry import setup_telemetry
 
 
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Handle rate limit exceeded exceptions with proper typing."""
+    return _rate_limit_exceeded_handler(request, exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle events."""
-    # Startup
-    print("Starting DotMac Platform Services...")
+    # Setup telemetry first to enable structured logging
+    setup_telemetry(app)
 
-    # Check service dependencies
+    # Get structured logger after telemetry setup
+    import structlog
+    logger = structlog.get_logger(__name__)
+
+    # Structured startup event
+    logger.info(
+        "service.startup.begin",
+        service="dotmac-platform",
+        version=settings.app_version,
+        environment=settings.environment
+    )
+
+    # Check service dependencies with structured logging
     checker = HealthChecker()
     all_healthy, checks = checker.run_all_checks()
 
-    print("\n" + "=" * 60)
-    print("Service Dependency Health Checks")
-    print("=" * 60)
+    # Log each dependency check as structured events
     for check in checks:
-        icon = "✅" if check.is_healthy else "❌" if check.required else "⚠️"
-        print(f"{icon} {check.name}: {check.status.value} - {check.message}")
-    print("=" * 60 + "\n")
+        logger.info(
+            "service.dependency.check",
+            dependency=check.name,
+            status=check.status.value,
+            healthy=check.is_healthy,
+            required=check.required,
+            message=check.message
+        )
+
+    # Summary for human-readable console output (keep minimal print for deployment visibility)
+    print(f"🚀 DotMac Platform Services starting (v{settings.app_version})")
+    failed_services = [c.name for c in checks if c.required and not c.is_healthy]
+    if failed_services:
+        print(f"❌ Required services unavailable: {', '.join(failed_services)}")
+    elif not all_healthy:
+        optional_failed = [c.name for c in checks if not c.required and not c.is_healthy]
+        print(f"⚠️  Optional services unavailable: {', '.join(optional_failed)}")
+    else:
+        print("✅ All service dependencies healthy")
 
     # Fail fast in production if required services are missing
     if not all_healthy:
-        failed_required = [c.name for c in checks if c.required and not c.is_healthy]
-        if failed_required and settings.environment == "production":
-            raise RuntimeError(f"Required services not available: {', '.join(failed_required)}")
+        if failed_services and settings.environment == "production":
+            logger.error(
+                "service.startup.failed",
+                failed_services=failed_services,
+                environment=settings.environment
+            )
+            raise RuntimeError(f"Required services unavailable: {failed_services}")
+        else:
+            logger.warning(
+                "service.startup.degraded",
+                optional_failed_services=[c.name for c in checks if not c.required and not c.is_healthy]
+            )
 
     # Load secrets from Vault/OpenBao if configured
     try:
         load_secrets_from_vault_sync()
+        logger.info("secrets.load.success", source="vault")
         print("✅ Secrets loaded from Vault/OpenBao")
     except Exception as e:
-        print(f"⚠️  Failed to load secrets from Vault: {e}")
+        logger.warning("secrets.load.failed", source="vault", error=str(e))
+        print(f"⚠️  Using default secrets (Vault unavailable: {e})")
         # Continue with default values in development, fail in production
         if settings.environment == "production":
+            logger.error("secrets.load.production_failure", error=str(e))
             raise
 
     # Initialize database
-    init_db()
-    print("✅ Database initialized")
+    try:
+        init_db()
+        logger.info("database.init.success")
+        print("✅ Database initialized")
+    except Exception as e:
+        logger.error("database.init.failed", error=str(e))
+        raise
 
-    # Setup telemetry (includes structlog configuration)
-    setup_telemetry(app)
-    print("✅ Telemetry and structured logging configured")
+    logger.info("service.startup.complete", healthy=all_healthy)
+    print("🎉 Startup complete - service ready")
 
     yield
 
-    # Shutdown
-    print("Shutting down DotMac Platform Services...")
+    # Shutdown with structured logging
+    logger.info("service.shutdown.begin")
+    print("👋 Shutting down DotMac Platform Services...")
+
     # Cleanup resources here if needed
+
+    logger.info("service.shutdown.complete")
+    print("✅ Shutdown complete")
 
 
 def create_application() -> FastAPI:
@@ -92,6 +148,10 @@ def create_application() -> FastAPI:
 
     # Add GZip compression
     app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+    # Add rate limiting support
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
     # Register all API routers
     register_routers(app)

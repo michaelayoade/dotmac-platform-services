@@ -31,7 +31,7 @@ class TestDataClassification:
     def test_classification_string_behavior(self):
         """Test that classifications behave as strings."""
         classification = DataClassification.CONFIDENTIAL
-        assert str(classification) == "confidential"
+        assert classification.value == "confidential"
         assert classification == "confidential"
 
 

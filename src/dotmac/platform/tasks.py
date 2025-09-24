@@ -175,31 +175,72 @@ def init_celery_instrumentation() -> None:
     - settings.observability.otel_instrument_celery: Specific toggle for Celery instrumentation
     """
     if not settings.observability.otel_enabled:
-        logger.debug("OpenTelemetry is disabled in settings, skipping Celery instrumentation")
+        logger.debug("celery.instrumentation.disabled", reason="otel_disabled")
         return
 
     if not settings.observability.otel_instrument_celery:
-        logger.debug("Celery instrumentation is disabled in settings")
+        logger.debug("celery.instrumentation.disabled", reason="celery_instrumentation_disabled")
         return
 
     try:
         from opentelemetry.instrumentation.celery import CeleryInstrumentor
 
-        CeleryInstrumentor().instrument()
-        logger.info("Celery instrumentation enabled for OpenTelemetry tracing")
-    except ImportError as e:
-        logger.error(
-            "OpenTelemetry Celery instrumentation package not installed. "
-            "Run: poetry add opentelemetry-instrumentation-celery",
-            error=str(e),
+        # Check if already instrumented to avoid double-instrumentation
+        instrumentor = CeleryInstrumentor()
+        if hasattr(instrumentor, '_instrumented') and instrumentor._instrumented:
+            logger.debug("celery.instrumentation.already_enabled")
+            return
+
+        instrumentor.instrument()
+        logger.info(
+            "celery.instrumentation.enabled",
+            service_name=settings.observability.otel_service_name,
+            endpoint=settings.observability.otel_endpoint
         )
-        raise ImportError(
-            "opentelemetry-instrumentation-celery is required for Celery tracing. "
-            "Install it with: poetry add opentelemetry-instrumentation-celery"
-        ) from e
+    except ImportError as e:
+        logger.warning(
+            "celery.instrumentation.package_missing",
+            error=str(e),
+            install_command="poetry install --extras observability"
+        )
+        # Don't raise - let worker continue without instrumentation
+        return
     except Exception as e:
-        logger.error(f"Failed to instrument Celery: {e}")
-        raise
+        logger.error(
+            "celery.instrumentation.failed",
+            error=str(e),
+            exc_info=True
+        )
+        # Don't raise - let worker continue without instrumentation
+        return
+
+
+def get_celery_app():
+    """Get configured Celery application instance.
+
+    Returns:
+        Celery: Configured Celery application with instrumentation
+    """
+    try:
+        from .celery_app import celery_app
+        return celery_app
+    except ImportError:
+        # Fallback to basic Celery setup if celery_app module not available
+        from celery import Celery
+
+        app = Celery(
+            "dotmac_platform_fallback",
+            broker=settings.celery.broker_url,
+            backend=settings.celery.result_backend
+        )
+
+        # Try to setup instrumentation for fallback app too
+        try:
+            init_celery_instrumentation()
+        except Exception:
+            pass  # Ignore instrumentation errors in fallback
+
+        return app
 
 
 # Initialize instrumentation on import if in worker context

@@ -144,6 +144,10 @@ class BaseModel(Base):
 
     # Primary key for all ORM entities
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Tenant isolation - critical for multi-tenant SaaS
+    tenant_id = Column(String(255), nullable=True, index=True)
+
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

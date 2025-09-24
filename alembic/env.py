@@ -32,11 +32,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from dotmac.platform.database import model_registry
+from dotmac.platform.db import Base
 
-# Import platform model modules and capture metadata used for autogeneration
-metadata_list = model_registry.get_metadata()
-target_metadata = metadata_list if metadata_list else None
+# Import all models to ensure they're registered
+from dotmac.platform.auth.models import User, Session, ApiKey
+from dotmac.platform.tenant.models import Tenant, TenantUser
+
+# Use Base.metadata for autogeneration
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

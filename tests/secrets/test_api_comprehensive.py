@@ -95,11 +95,20 @@ class TestSecretModels:
 
     def test_secret_list_response_model(self):
         """Test SecretListResponse model."""
-        response = SecretListResponse(
-            secrets=["app/database", "app/cache", "api/keys"]
-        )
+        from dotmac.platform.secrets.api import SecretInfo
 
-        assert response.secrets == ["app/database", "app/cache", "api/keys"]
+        secrets = [
+            SecretInfo(path="app/database", metadata={"source": "vault"}),
+            SecretInfo(path="app/cache", metadata={"source": "vault"}),
+            SecretInfo(path="api/keys", metadata={"source": "vault"})
+        ]
+
+        response = SecretListResponse(secrets=secrets)
+
+        assert len(response.secrets) == 3
+        assert response.secrets[0].path == "app/database"
+        assert response.secrets[1].path == "app/cache"
+        assert response.secrets[2].path == "api/keys"
 
     def test_health_response_model(self):
         """Test HealthResponse model."""
