@@ -194,26 +194,39 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 
     def _init_metrics(self, resource: Any) -> None:
         """Initialize OpenTelemetry metrics."""
-        # Create OTLP metric exporter for SigNoz
-        try:
-            metric_exporter = OTLPMetricExporter(
-                endpoint=self.config.endpoint,
-                insecure=self.config.insecure,
-                headers=self.config.headers,
-            )
+        # Skip OTLP export in test environment to prevent connection warnings
+        import os
+        is_test_env = (
+            os.environ.get("PYTEST_CURRENT_TEST") or
+            os.environ.get("OTEL_ENABLED") == "false" or
+            self.config.environment == "test"
+        )
 
-            metric_reader = PeriodicExportingMetricReader(
-                exporter=metric_exporter,
-                export_interval_millis=self.config.export_interval_millis,
-            )
-
-            provider = MeterProvider(
-                resource=resource,
-                metric_readers=[metric_reader],
-            )
-        except Exception as exc:  # pragma: no cover - defensive guard for tests
-            logger.warning(f"Falling back to in-memory metrics provider: {exc}")
+        if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
+            # Use in-memory provider for tests
+            logger.debug("Using in-memory metrics provider for test environment")
             provider = MeterProvider(resource=resource)
+        else:
+            # Create OTLP metric exporter for SigNoz
+            try:
+                metric_exporter = OTLPMetricExporter(
+                    endpoint=self.config.endpoint,
+                    insecure=self.config.insecure,
+                    headers=self.config.headers,
+                )
+
+                metric_reader = PeriodicExportingMetricReader(
+                    exporter=metric_exporter,
+                    export_interval_millis=self.config.export_interval_millis,
+                )
+
+                provider = MeterProvider(
+                    resource=resource,
+                    metric_readers=[metric_reader],
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard for tests
+                logger.warning(f"Falling back to in-memory metrics provider: {exc}")
+                provider = MeterProvider(resource=resource)
 
         metrics.set_meter_provider(provider)
 
@@ -225,24 +238,37 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 
     def _init_tracing(self, resource: Any) -> None:
         """Initialize OpenTelemetry tracing."""
-        # Create OTLP span exporter for SigNoz
-        try:
-            span_exporter = OTLPSpanExporter(
-                endpoint=self.config.endpoint,
-                insecure=self.config.insecure,
-                headers=self.config.headers,
-            )
+        # Skip OTLP export in test environment to prevent connection warnings
+        import os
+        is_test_env = (
+            os.environ.get("PYTEST_CURRENT_TEST") or
+            os.environ.get("OTEL_ENABLED") == "false" or
+            self.config.environment == "test"
+        )
 
+        if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
+            # Use in-memory provider for tests
+            logger.debug("Using in-memory tracing provider for test environment")
             provider = TracerProvider(resource=resource)
-            span_processor = BatchSpanProcessor(
-                span_exporter,
-                max_queue_size=self.config.max_queue_size,
-                max_export_batch_size=self.config.max_export_batch_size,
-            )
-            provider.add_span_processor(span_processor)
-        except Exception as exc:  # pragma: no cover - defensive guard for tests
-            logger.warning(f"Falling back to in-memory tracing provider: {exc}")
-            provider = TracerProvider(resource=resource)
+        else:
+            # Create OTLP span exporter for SigNoz
+            try:
+                span_exporter = OTLPSpanExporter(
+                    endpoint=self.config.endpoint,
+                    insecure=self.config.insecure,
+                    headers=self.config.headers,
+                )
+
+                provider = TracerProvider(resource=resource)
+                span_processor = BatchSpanProcessor(
+                    span_exporter,
+                    max_queue_size=self.config.max_queue_size,
+                    max_export_batch_size=self.config.max_export_batch_size,
+                )
+                provider.add_span_processor(span_processor)
+            except Exception as exc:  # pragma: no cover - defensive guard for tests
+                logger.warning(f"Falling back to in-memory tracing provider: {exc}")
+                provider = TracerProvider(resource=resource)
 
         # Set global tracer provider
         trace.set_tracer_provider(provider)

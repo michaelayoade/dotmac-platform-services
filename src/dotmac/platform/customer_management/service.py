@@ -20,6 +20,14 @@ def get_current_tenant() -> str:
     return "default-tenant"
 
 
+def validate_uuid(value: str, field_name: str = "id") -> UUID:
+    """Validate and convert string to UUID."""
+    try:
+        return UUID(value) if isinstance(value, str) else value
+    except (ValueError, AttributeError) as e:
+        raise ValueError(f"Invalid UUID for {field_name}: {value}") from e
+
+
 from dotmac.platform.customer_management.models import (
     ActivityType,
     Customer,
@@ -73,7 +81,10 @@ class CustomerService:
 
         self.session.add(customer)
 
-        # Create initial activity
+        # Flush to get the customer ID before creating related records
+        await self.session.flush()
+
+        # Create initial activity - now customer.id is available
         activity = CustomerActivity(
             customer_id=customer.id,
             tenant_id=tenant_id,
@@ -107,11 +118,13 @@ class CustomerService:
 
     async def get_customer(
         self,
-        customer_id: UUID,
+        customer_id: UUID | str,
         include_activities: bool = False,
         include_notes: bool = False,
     ) -> Optional[Customer]:
         """Get customer by ID."""
+        # Validate UUID
+        customer_id = validate_uuid(customer_id, "customer_id")
         tenant_id = get_current_tenant()
 
         query = select(Customer).where(

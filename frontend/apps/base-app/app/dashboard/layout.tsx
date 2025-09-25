@@ -21,7 +21,8 @@ import {
   User,
   ChevronDown,
   Key,
-  Webhook
+  Webhook,
+  CreditCard
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,6 +35,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Overview', href: '/dashboard', icon: Home },
   { name: 'Customers', href: '/dashboard/customers', icon: UserCheck },
+  { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
   { name: 'Users', href: '/dashboard/users', icon: Users },
   { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
   { name: 'Webhooks', href: '/dashboard/webhooks', icon: Webhook },

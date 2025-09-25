@@ -4,7 +4,7 @@ Main FastAPI application entry point for DotMac Platform Services.
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.responses import Response
 
 from dotmac.platform.db import init_db
 from dotmac.platform.health_checks import HealthChecker, ensure_infrastructure_running
@@ -22,13 +23,14 @@ from dotmac.platform.settings import settings
 from dotmac.platform.telemetry import setup_telemetry
 
 
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+def rate_limit_handler(request: Request, exc: Exception) -> Response:
     """Handle rate limit exceeded exceptions with proper typing."""
-    return _rate_limit_exceeded_handler(request, exc)
+    # Cast to RateLimitExceeded since we know it will be that type when called
+    return _rate_limit_exceeded_handler(request, exc)  # type: ignore
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle events."""
     # Setup telemetry first to enable structured logging
     setup_telemetry(app)

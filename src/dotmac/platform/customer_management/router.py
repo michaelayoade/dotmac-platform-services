@@ -68,13 +68,16 @@ async def create_customer(
             created_by=current_user.user_id,
         )
         return CustomerResponse.model_validate(customer)
+    except HTTPException:
+        # Re-raise HTTPException as-is (for duplicate email check)
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
-        logger.error("Failed to create customer", error=str(e))
+        logger.error("Failed to create customer", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create customer",

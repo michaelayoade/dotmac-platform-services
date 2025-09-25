@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Iterator
 import inspect
 from unittest.mock import AsyncMock
+from urllib.parse import quote_plus
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -48,10 +49,17 @@ def get_database_url() -> str:
     if settings.is_development and not settings.database.password:
         return "sqlite:///./dotmac_dev.sqlite"
 
-    # Build PostgreSQL URL from components
+    # Build PostgreSQL URL from components with proper encoding
+    # URL-encode password to handle special characters safely
+    username = quote_plus(settings.database.username)
+    password = quote_plus(settings.database.password) if settings.database.password else ""
+    host = settings.database.host
+    port = settings.database.port
+    database = settings.database.database
+
     return (
-        f"postgresql://{settings.database.username}:{settings.database.password}"
-        f"@{settings.database.host}:{settings.database.port}/{settings.database.database}"
+        f"postgresql://{username}:{password}"
+        f"@{host}:{port}/{database}"
     )
 
 
@@ -80,6 +88,12 @@ class Base(DeclarativeBase):
 # ==========================================
 # Common Mixins (Optional, can be used by models)
 # ==========================================
+#
+# IMPORTANT: Tenant Isolation Guidelines
+# - Use StrictTenantMixin for user data, billing, secrets, etc.
+# - Use TenantMixin only for system/shared resources
+# - Always filter by tenant_id in queries for tenant-isolated models
+# ==========================================
 
 
 class TimestampMixin:
@@ -97,9 +111,19 @@ class TimestampMixin:
 
 
 class TenantMixin:
-    """Adds tenant_id for multi-tenancy support."""
+    """Adds tenant_id for multi-tenancy support (optional tenant)."""
 
     tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+
+class StrictTenantMixin:
+    """Adds tenant_id for strict multi-tenancy (required tenant).
+
+    Use this mixin for models that MUST have tenant isolation.
+    Records without a tenant_id will be rejected.
+    """
+
+    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
 
 class SoftDeleteMixin:

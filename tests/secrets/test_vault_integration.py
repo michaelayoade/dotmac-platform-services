@@ -14,8 +14,8 @@ from typing import Any, Dict
 
 import structlog
 
-from .vault_client import AsyncVaultClient, VaultClient, VaultError
-from .vault_config import (
+from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultClient, VaultError
+from dotmac.platform.secrets.vault_config import (
     VaultConnectionManager,
     check_vault_health,
     get_vault_config,

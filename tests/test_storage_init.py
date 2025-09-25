@@ -2,6 +2,8 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
+# Import the entire module to ensure coverage tracking
+import dotmac.platform.storage_init
 from dotmac.platform.storage_init import init_storage, get_storage
 
 

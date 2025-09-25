@@ -5,6 +5,7 @@ This module provides functionality to load secrets from Vault/OpenBao
 and update the application settings with secure values at runtime.
 """
 
+import inspect
 import logging
 from typing import Any, Dict, Optional
 
@@ -169,8 +170,11 @@ async def load_secrets_from_vault(
             raise
     finally:
         # Clean up client if we created it
-        if vault_client and not isinstance(vault_client, AsyncVaultClient):
-            await vault_client.close()
+        if vault_client and hasattr(vault_client, 'close'):
+            if inspect.iscoroutinefunction(vault_client.close):
+                await vault_client.close()
+            else:
+                vault_client.close()
 
 
 def load_secrets_from_vault_sync(

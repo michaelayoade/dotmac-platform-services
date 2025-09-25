@@ -21,7 +21,7 @@ export const CompositionPatterns = {
 
   // Example: Form field composition
   createFieldComposition: () => ({
-    label: (text: string) => <label htmlFor='input-1755609778623-728pfpm32'>{text}</label>,
+    label: (text: string) => <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>{text}</label>,
     input: (props: unknown) => <input {...props} />,
     error: (message: string) => <span className='error'>{message}</span>,
     help: (text: string) => <span className='help'>{text}</span>,

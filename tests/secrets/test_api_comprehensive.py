@@ -287,27 +287,34 @@ class TestListSecretsEndpoint:
     async def test_list_secrets(self):
         """Test list secrets endpoint."""
         mock_vault = AsyncMock()
+        mock_vault.list_secrets_with_metadata.return_value = [
+            {
+                "path": "app/secret1",
+                "created_time": "2023-01-01T00:00:00Z",
+                "updated_time": "2023-01-02T00:00:00Z",
+                "version": 1,
+                "metadata": {"source": "test"}
+            }
+        ]
 
-        with patch("dotmac.platform.secrets.api.logger") as mock_logger:
-            result = await list_secrets(mock_vault, prefix="app/")
+        result = await list_secrets(mock_vault, prefix="app/")
 
-            assert isinstance(result, SecretListResponse)
-            assert result.secrets == []  # Not implemented yet
-
-            mock_logger.warning.assert_called_once_with("List secrets endpoint not fully implemented")
+        assert isinstance(result, SecretListResponse)
+        assert len(result.secrets) == 1
+        assert result.secrets[0].path == "app/secret1"
+        mock_vault.list_secrets_with_metadata.assert_called_once_with("app/")
 
     @pytest.mark.asyncio
     async def test_list_secrets_without_prefix(self):
         """Test list secrets without prefix."""
         mock_vault = AsyncMock()
+        mock_vault.list_secrets_with_metadata.return_value = []
 
-        with patch("dotmac.platform.secrets.api.logger") as mock_logger:
-            result = await list_secrets(mock_vault)
+        result = await list_secrets(mock_vault, prefix="")
 
-            assert isinstance(result, SecretListResponse)
-            assert result.secrets == []
-
-            mock_logger.warning.assert_called_once()
+        assert isinstance(result, SecretListResponse)
+        assert result.secrets == []
+        mock_vault.list_secrets_with_metadata.assert_called_once_with("")
 
 
 class TestSecretsAPIIntegration:

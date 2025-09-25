@@ -23,7 +23,7 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@dotmac/primitives": "*",
+    "@dotmac/primitives": "workspace:*",
     "clsx": "^2.1.1",
     "class-variance-authority": "^0.7.0",
     "@radix-ui/react-slot": "^1.1.0",

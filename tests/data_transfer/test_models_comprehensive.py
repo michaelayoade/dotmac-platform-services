@@ -269,13 +269,22 @@ class TestImportRequest:
                 mapping={"field": 123}  # integer value
             )
 
-        # Field names too long
+        # Field names too long - source field
         with pytest.raises(ValidationError, match="Field names must not exceed 100 characters"):
             ImportRequest(
                 source_type=ImportSource.FILE,
                 source_path="/path/to/file.csv",
                 format=DataFormat.CSV,
                 mapping={"a" * 101: "target_field"}  # 101 character source field
+            )
+
+        # Field names too long - target field
+        with pytest.raises(ValidationError, match="Field names must not exceed 100 characters"):
+            ImportRequest(
+                source_type=ImportSource.FILE,
+                source_path="/path/to/file.csv",
+                format=DataFormat.CSV,
+                mapping={"source_field": "a" * 101}  # 101 character target field
             )
 
     def test_import_request_batch_size_validation(self):
@@ -400,6 +409,93 @@ class TestExportRequest:
         assert request.options == options
         assert request.batch_size == 2000
 
+    def test_export_request_target_path_validation_email(self):
+        """Test target path validation for email targets."""
+        # Valid email
+        request = ExportRequest(
+            target_type=ExportTarget.EMAIL,
+            target_path="user@example.com",
+            format=DataFormat.JSON
+        )
+        assert request.target_path == "user@example.com"
+
+        # Invalid email - no @
+        with pytest.raises(ValidationError, match="Invalid email address"):
+            ExportRequest(
+                target_type=ExportTarget.EMAIL,
+                target_path="invalid-email",
+                format=DataFormat.JSON
+            )
+
+        # Invalid email - too short
+        with pytest.raises(ValidationError, match="Invalid email address"):
+            ExportRequest(
+                target_type=ExportTarget.EMAIL,
+                target_path="a@b",
+                format=DataFormat.JSON
+            )
+
+    def test_export_request_target_path_validation_file(self):
+        """Test target path validation for file targets."""
+        # Valid file path
+        request = ExportRequest(
+            target_type=ExportTarget.FILE,
+            target_path="/valid/path/output.json",
+            format=DataFormat.JSON
+        )
+        assert request.target_path == "/valid/path/output.json"
+
+        # Invalid file path - parent directory traversal
+        with pytest.raises(ValidationError, match="Invalid file path"):
+            ExportRequest(
+                target_type=ExportTarget.FILE,
+                target_path="../invalid/path",
+                format=DataFormat.JSON
+            )
+
+    def test_export_request_target_path_validation_s3(self):
+        """Test target path validation for S3 targets."""
+        # Valid S3 path
+        request = ExportRequest(
+            target_type=ExportTarget.S3,
+            target_path="s3://my-bucket/output/data.json",
+            format=DataFormat.JSON
+        )
+        assert request.target_path == "s3://my-bucket/output/data.json"
+
+        # Invalid S3 path
+        with pytest.raises(ValidationError, match="S3 paths must start with s3://"):
+            ExportRequest(
+                target_type=ExportTarget.S3,
+                target_path="my-bucket/output/data.json",
+                format=DataFormat.JSON
+            )
+
+    def test_export_request_fields_validation(self):
+        """Test fields validation with duplicate removal."""
+        # Fields with duplicates - should remove duplicates while preserving order
+        fields_with_duplicates = ["field1", "field2", "field1", "field3", "field2", "field4"]
+        expected_unique = ["field1", "field2", "field3", "field4"]
+
+        request = ExportRequest(
+            target_type=ExportTarget.FILE,
+            target_path="/output/data.csv",
+            format=DataFormat.CSV,
+            fields=fields_with_duplicates
+        )
+
+        assert request.fields == expected_unique
+
+        # None fields - should remain None
+        request = ExportRequest(
+            target_type=ExportTarget.FILE,
+            target_path="/output/data.csv",
+            format=DataFormat.CSV,
+            fields=None
+        )
+
+        assert request.fields is None
+
 
 class TestTransferJobResponse:
     """Test TransferJobResponse model."""
@@ -462,6 +558,113 @@ class TestTransferJobResponse:
         assert response.records_processed == 1000
         assert response.records_failed == 5
         assert response.records_total == 1000
+
+    def test_transfer_job_response_duration_property(self):
+        """Test duration property calculation."""
+        job_id = uuid4()
+        created_at = datetime.now(timezone.utc)
+        started_at = created_at
+        completed_at = datetime.now(timezone.utc)
+
+        # Job with both start and completion times
+        response = TransferJobResponse(
+            job_id=job_id,
+            name="Test Job",
+            type=TransferType.IMPORT,
+            status=TransferStatus.COMPLETED,
+            progress=100.0,
+            created_at=created_at,
+            started_at=started_at,
+            completed_at=completed_at,
+            records_processed=1000,
+            records_failed=0,
+            records_total=1000
+        )
+
+        # Duration should be calculated
+        duration = response.duration
+        assert duration is not None
+        assert isinstance(duration, float)
+        assert duration >= 0
+
+        # Job without completion time
+        response_incomplete = TransferJobResponse(
+            job_id=job_id,
+            name="Incomplete Job",
+            type=TransferType.IMPORT,
+            status=TransferStatus.RUNNING,
+            progress=50.0,
+            created_at=created_at,
+            started_at=started_at,
+            records_processed=500,
+            records_failed=0
+        )
+
+        assert response_incomplete.duration is None
+
+        # Job without start time
+        response_not_started = TransferJobResponse(
+            job_id=job_id,
+            name="Not Started Job",
+            type=TransferType.IMPORT,
+            status=TransferStatus.PENDING,
+            progress=0.0,
+            created_at=created_at,
+            records_processed=0,
+            records_failed=0
+        )
+
+        assert response_not_started.duration is None
+
+    def test_transfer_job_response_success_rate_property(self):
+        """Test success_rate property calculation."""
+        job_id = uuid4()
+        created_at = datetime.now(timezone.utc)
+
+        # Job with some failures
+        response_with_failures = TransferJobResponse(
+            job_id=job_id,
+            name="Job with Failures",
+            type=TransferType.IMPORT,
+            status=TransferStatus.COMPLETED,
+            progress=100.0,
+            created_at=created_at,
+            records_processed=80,
+            records_failed=20,
+            records_total=100
+        )
+
+        assert response_with_failures.success_rate == 80.0
+
+        # Job with no failures
+        response_perfect = TransferJobResponse(
+            job_id=job_id,
+            name="Perfect Job",
+            type=TransferType.IMPORT,
+            status=TransferStatus.COMPLETED,
+            progress=100.0,
+            created_at=created_at,
+            records_processed=100,
+            records_failed=0,
+            records_total=100
+        )
+
+        assert response_perfect.success_rate == 100.0
+
+        # Job with no records processed (edge case)
+        response_no_records = TransferJobResponse(
+            job_id=job_id,
+            name="No Records Job",
+            type=TransferType.IMPORT,
+            status=TransferStatus.COMPLETED,
+            progress=100.0,
+            created_at=created_at,
+            records_processed=0,
+            records_failed=0,
+            records_total=0
+        )
+
+        assert response_no_records.success_rate == 100.0
 
 
 class TestTransferJobListResponse:

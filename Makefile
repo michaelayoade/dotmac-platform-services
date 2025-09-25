@@ -1,6 +1,6 @@
 # DotMac Platform Services - Makefile
 
-.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client infra-up infra-down infra-status run run-dev
+.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client infra-up infra-down infra-status run run-dev seed-db
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "Setup:"
 	@echo "  make install          Install all dependencies"
 	@echo "  make doctor          Verify Python version and key dependencies"
+	@echo "  make seed-db         Seed database with test data"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test            Run all tests with coverage"
@@ -175,3 +176,14 @@ run:
 
 run-dev:
 	@ENVIRONMENT=development poetry run python -m src.dotmac.platform.main
+
+# Database seeding
+seed-db:
+	@echo "🌱 Seeding database with test data..."
+	@poetry run python scripts/seed_data.py --env=development
+	@echo "✅ Database seeded successfully!"
+
+seed-db-clean:
+	@echo "🧹 Clearing and re-seeding database..."
+	@poetry run python scripts/seed_data.py --env=development --clear
+	@echo "✅ Database re-seeded successfully!"

@@ -439,7 +439,7 @@ class TestPublishEventEndpoint:
             event_type="order.completed",
             data={
                 "order_id": "ord_123",
-                "customer": {"id": "cust_456", "name": "John Doe"},
+                "customer": {"id": "550e8400-e29b-41d4-a716-446655440007", "name": "John Doe"},
                 "items": [
                     {"sku": "ITEM001", "quantity": 2, "price": 29.99},
                     {"sku": "ITEM002", "quantity": 1, "price": 49.99},

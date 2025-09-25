@@ -20,9 +20,11 @@ from dotmac.platform.auth.core import (
     jwt_service,
     session_manager,
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    DEFAULT_USER_ROLE,
 )
 from dotmac.platform.auth.email_service import get_auth_email_service
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.rate_limiting import rate_limit
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
 
@@ -171,33 +173,29 @@ async def register(
     """
     user_service = UserService(session)
 
-    # Check if user already exists
-    existing_user = await user_service.get_user_by_username(request.username)
-    if existing_user:
+    # Check if user already exists - use generic error message to prevent enumeration
+    existing_user_by_username = await user_service.get_user_by_username(request.username)
+    existing_user_by_email = await user_service.get_user_by_email(request.email)
+
+    if existing_user_by_username or existing_user_by_email:
+        # Generic error message to prevent user enumeration
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists",
+            detail="Registration failed. Please check your input and try again.",
         )
 
-    existing_user = await user_service.get_user_by_email(request.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
-    # Create new user
+    # Create new user with configurable default role
     try:
         new_user = await user_service.create_user(
             username=request.username,
             email=request.email,
             password=request.password,
             full_name=request.full_name,
-            roles=["user"],  # Default role
+            roles=[DEFAULT_USER_ROLE],  # Use configurable default role
             is_active=True,
         )
     except Exception as e:
-        logger.error(f"Failed to create user: {e}")
+        logger.error("Failed to create user", exc_info=True)  # Use exc_info for safer logging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create user",
@@ -237,7 +235,7 @@ async def register(
             user_name=new_user.full_name or new_user.username
         )
     except Exception as e:
-        logger.warning(f"Failed to send welcome email: {e}")
+        logger.warning("Failed to send welcome email", exc_info=True)
         # Don't fail registration if email fails
 
     return TokenResponse(
@@ -289,7 +287,7 @@ async def refresh_token(
         try:
             await jwt_service.revoke_token(request.refresh_token)
         except Exception as e:
-            logger.warning(f"Failed to revoke old refresh token: {e}")
+            logger.warning("Failed to revoke old refresh token", exc_info=True)
 
         # Create new tokens
         access_token = jwt_service.create_access_token(
@@ -317,7 +315,7 @@ async def refresh_token(
         # Re-raise HTTPException as-is
         raise
     except Exception as e:
-        logger.error(f"Token refresh failed: {e}")
+        logger.error("Token refresh failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
@@ -342,10 +340,18 @@ async def logout(
             # Revoke the access token
             await jwt_service.revoke_token(token)
 
-            # Delete all user sessions
+            # Delete all user sessions (which should include refresh tokens)
             deleted_sessions = await session_manager.delete_user_sessions(user_id)
 
-            logger.info(f"Logged out user {user_id}, revoked token and deleted {deleted_sessions} sessions")
+            # Also explicitly revoke all refresh tokens for this user
+            # This ensures refresh tokens can't be used after logout
+            try:
+                # Get all active sessions to find refresh tokens
+                await jwt_service.revoke_user_tokens(user_id)
+            except Exception as e:
+                logger.warning("Failed to revoke user refresh tokens", exc_info=True)
+
+            logger.info("User logged out successfully", user_id=user_id, sessions_deleted=deleted_sessions)
             return {
                 "message": "Logged out successfully",
                 "sessions_deleted": deleted_sessions
@@ -353,7 +359,7 @@ async def logout(
         else:
             return {"message": "Logout completed"}
     except Exception as e:
-        logger.error(f"Logout failed: {e}")
+        logger.error("Logout failed", exc_info=True)
         # Still try to revoke the token even if we can't parse it
         try:
             await jwt_service.revoke_token(token)
@@ -407,9 +413,9 @@ async def request_password_reset(
                 email=user.email,
                 user_name=user.full_name or user.username
             )
-            logger.info(f"Password reset requested for {user.email}")
+            logger.info("Password reset requested", user_id=str(user.id))
         except Exception as e:
-            logger.error(f"Failed to send password reset email: {e}")
+            logger.error("Failed to send password reset email", exc_info=True)
 
     return {"message": "If the email exists, a password reset link has been sent."}
 
@@ -454,10 +460,10 @@ async def confirm_password_reset(
             user_name=user.full_name or user.username
         )
 
-        logger.info(f"Password reset completed for {user.email}")
+        logger.info("Password reset completed", user_id=str(user.id))
         return {"message": "Password has been reset successfully."}
     except Exception as e:
-        logger.error(f"Failed to reset password: {e}")
+        logger.error("Failed to reset password", exc_info=True)
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -506,7 +512,7 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get current user: {e}")
+        logger.error("Failed to get current user", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

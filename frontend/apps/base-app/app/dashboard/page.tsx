@@ -140,22 +140,22 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold mb-4 text-purple-400">Quick Actions</h2>
             <div className="space-y-3">
               <Link
-                href="/profile"
+                href="/dashboard/customers"
                 className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
               >
-                Edit Profile
+                Manage Customers
               </Link>
               <Link
-                href="/api-keys"
+                href="/dashboard/billing"
                 className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
               >
-                API Keys
+                Billing Overview
               </Link>
               <Link
-                href="/settings"
+                href="/dashboard/api-keys"
                 className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
               >
-                Settings
+                Manage API Keys
               </Link>
             </div>
           </div>

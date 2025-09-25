@@ -498,7 +498,7 @@ export const AdvancedDataTable = forwardRef<HTMLDivElement, AdvancedDataTablePro
             .filter((col) => col.filterable)
             .map((column) => (
               <div key={column.key} className='filter-item'>
-                <label htmlFor='input-1755609778625-q6lp0bsh3' className='filter-label'>
+                <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`} className='filter-label'>
                   {column.title}
                 </label>
                 {renderFilter(column)}

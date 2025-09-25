@@ -16,6 +16,8 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 
+# Import the entire module to ensure coverage tracking
+import dotmac.platform.telemetry
 from dotmac.platform.telemetry import (
     configure_structlog,
     create_resource,

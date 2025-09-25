@@ -3,6 +3,8 @@ import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
+# Import the entire module to ensure coverage tracking
+import dotmac.platform.tasks
 from dotmac.platform.tasks import (
     app,
     idempotent_task,

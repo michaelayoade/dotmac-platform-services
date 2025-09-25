@@ -274,3 +274,177 @@ class TestAppInstance:
         """Test that app has lifespan configured."""
         # The lifespan should be set
         assert app.router.lifespan_context is not None
+
+
+class TestMissingCoverage:
+    """Tests to cover missing lines and branches."""
+
+    def test_rate_limit_handler(self):
+        """Test rate limit handler function."""
+        from dotmac.platform.main import rate_limit_handler
+        from fastapi import Request
+
+        # Create mock request and exception
+        request = MagicMock(spec=Request)
+        exc = Exception("Rate limit exceeded")
+
+        # Call rate limit handler - should not raise
+        result = rate_limit_handler(request, exc)
+
+        # Should return a response (the _rate_limit_exceeded_handler return value)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    @patch("dotmac.platform.main.HealthChecker")
+    @patch("dotmac.platform.main.load_secrets_from_vault_sync")
+    @patch("dotmac.platform.main.init_db")
+    @patch("dotmac.platform.main.setup_telemetry")
+    @patch("dotmac.platform.main.settings")
+    @patch("builtins.print")
+    async def test_lifespan_degraded_startup_dev(
+        self, mock_print, mock_settings, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+    ):
+        """Test lifespan with optional services failed in dev (line 86)."""
+        mock_settings.environment = "development"
+
+        # Mock health checker with optional services failed
+        mock_checker_instance = MagicMock()
+        mock_optional_check = MagicMock()
+        mock_optional_check.name = "Redis"
+        mock_optional_check.is_healthy = False
+        mock_optional_check.required = False
+        mock_optional_check.status.value = "unhealthy"
+        mock_optional_check.message = "Connection failed"
+
+        mock_checker_instance.run_all_checks.return_value = (False, [mock_optional_check])
+        mock_health_checker.return_value = mock_checker_instance
+
+        test_app = MagicMock(spec=FastAPI)
+
+        # Should not raise in development with optional services failed
+        async with lifespan(test_app):
+            pass
+
+        # Verify warning was logged (line 86 coverage)
+        print_calls = [str(call) for call in mock_print.call_args_list]
+        assert any("Optional services unavailable: Redis" in str(call) for call in print_calls)
+
+    @pytest.mark.asyncio
+    @patch("dotmac.platform.main.HealthChecker")
+    @patch("dotmac.platform.main.load_secrets_from_vault_sync")
+    @patch("dotmac.platform.main.init_db")
+    @patch("dotmac.platform.main.setup_telemetry")
+    @patch("dotmac.platform.main.settings")
+    async def test_lifespan_database_init_failure(
+        self, mock_settings, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+    ):
+        """Test lifespan when database init fails (lines 109-111)."""
+        mock_settings.environment = "development"
+
+        # Mock health checker success
+        mock_checker_instance = MagicMock()
+        mock_checker_instance.run_all_checks.return_value = (True, [])
+        mock_health_checker.return_value = mock_checker_instance
+
+        # Mock database init failure
+        mock_init_db.side_effect = Exception("Database connection failed")
+
+        test_app = MagicMock(spec=FastAPI)
+
+        # Should raise when database init fails
+        with pytest.raises(Exception, match="Database connection failed"):
+            async with lifespan(test_app):
+                pass
+
+    @patch("dotmac.platform.main.settings")
+    def test_create_application_cors_enabled(self, mock_settings):
+        """Test application creation with CORS enabled (line 141->152)."""
+        # Enable CORS in settings
+        mock_settings.app_version = "1.0.0"
+        mock_settings.environment = "development"
+        mock_settings.cors.enabled = True
+        mock_settings.cors.origins = ["*"]
+        mock_settings.cors.credentials = True
+        mock_settings.cors.methods = ["*"]
+        mock_settings.cors.headers = ["*"]
+        mock_settings.cors.max_age = 600
+        mock_settings.observability.enable_metrics = False
+
+        test_app = create_application()
+
+        # Should have CORS middleware - check for it in any middleware
+        has_cors = any('cors' in str(type(middleware.cls)).lower() for middleware in test_app.user_middleware)
+        assert has_cors
+
+    @patch("dotmac.platform.main.settings")
+    def test_create_application_metrics_enabled(self, mock_settings):
+        """Test application creation with metrics enabled (lines 210->216)."""
+        mock_settings.app_version = "1.0.0"
+        mock_settings.environment = "development"
+        mock_settings.cors.enabled = False
+        mock_settings.observability.enable_metrics = True
+
+        with patch('prometheus_client.make_asgi_app') as mock_make_asgi:
+            mock_make_asgi.return_value = MagicMock()
+
+            test_app = create_application()
+
+            # Should have mounted metrics endpoint
+            mock_make_asgi.assert_called_once()
+
+    @patch("dotmac.platform.main.HealthChecker")
+    @patch("dotmac.platform.main.load_secrets_from_vault_sync")
+    @patch("dotmac.platform.main.init_db")
+    @patch("dotmac.platform.main.setup_telemetry")
+    def test_liveness_endpoint(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+        """Test /health/live endpoint (line 175)."""
+        # Mock HealthChecker
+        mock_checker_instance = MagicMock()
+        mock_checker_instance.run_all_checks.return_value = (True, [])
+        mock_health_checker.return_value = mock_checker_instance
+
+        with TestClient(app) as client:
+            response = client.get("/health/live")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "alive"
+            assert "timestamp" in data
+
+    @patch("dotmac.platform.main.HealthChecker")
+    @patch("dotmac.platform.main.load_secrets_from_vault_sync")
+    @patch("dotmac.platform.main.init_db")
+    @patch("dotmac.platform.main.setup_telemetry")
+    def test_api_info_endpoint(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+        """Test /api endpoint (line 207)."""
+        # Mock HealthChecker
+        mock_checker_instance = MagicMock()
+        mock_checker_instance.run_all_checks.return_value = (True, [])
+        mock_health_checker.return_value = mock_checker_instance
+
+        with TestClient(app) as client:
+            response = client.get("/api")
+            assert response.status_code == 200
+            data = response.json()
+            assert isinstance(data, dict)
+
+    @patch("dotmac.platform.main.HealthChecker")
+    @patch("dotmac.platform.main.load_secrets_from_vault_sync")
+    @patch("dotmac.platform.main.init_db")
+    @patch("dotmac.platform.main.setup_telemetry")
+    def test_readiness_endpoint_health_ready(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+        """Test /health/ready endpoint."""
+        # Mock HealthChecker for both lifespan and endpoint
+        mock_checker_instance = MagicMock()
+        mock_checker_instance.run_all_checks.return_value = (True, [])
+        mock_checker_instance.get_summary.return_value = {
+            "healthy": True,
+            "services": {"Database": "healthy"},
+            "failed_services": [],
+        }
+        mock_health_checker.return_value = mock_checker_instance
+
+        with TestClient(app) as client:
+            response = client.get("/health/ready")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "ready"

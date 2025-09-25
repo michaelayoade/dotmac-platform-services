@@ -347,6 +347,6 @@ class TestAsyncVaultClientComprehensive:
         mock_httpx_client.return_value = mock_client
 
         client = AsyncVaultClient(url="http://vault:8200", token="test-token")
-        await client.aclose()
+        await client.close()
 
         mock_client.aclose.assert_called_once()

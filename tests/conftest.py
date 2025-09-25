@@ -14,6 +14,10 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+# Import shared fixtures and telemetry fixtures
+from tests.conftest_telemetry import *  # noqa: F401,F403
+from tests.shared_fixtures import *  # noqa: F401,F403
+
 # Optional dependency imports with fallbacks
 # Optional fakeredis import with graceful fallback when unavailable
 try:
@@ -302,6 +306,37 @@ if HAS_FASTAPI:
     def test_client(test_app):
         """Test client for FastAPI app."""
         return TestClient(test_app)
+
+    @pytest.fixture
+    async def authenticated_client(test_app):
+        """Async test client with authentication for testing protected endpoints."""
+        from httpx import AsyncClient, ASGITransport
+        from dotmac.platform.auth.core import JWTService
+
+        # Create JWT service and generate a test token
+        jwt_service = JWTService(
+            algorithm="HS256",
+            secret="test-secret-key-for-testing-only"
+        )
+
+        # Create test token with user claims
+        test_token = jwt_service.issue_access_token(
+            subject="test-user-123",
+            scopes=["read", "write", "admin"],
+            additional_claims={
+                "tenant_id": "test-tenant",
+                "email": "test@example.com"
+            }
+        )
+
+        # Create async client with auth headers
+        transport = ASGITransport(app=test_app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+            headers={"Authorization": f"Bearer {test_token}"}
+        ) as client:
+            yield client
 
 else:
 

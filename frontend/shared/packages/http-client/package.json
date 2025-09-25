@@ -22,7 +22,7 @@
     "axios": "^1.6.2",
     "js-cookie": "^3.0.5",
     "uuid": "^9.0.1",
-    "@dotmac/auth": "*",
+    "@dotmac/auth": "workspace:*",
     "@tanstack/react-query": "^5.59.20"
   },
   "devDependencies": {

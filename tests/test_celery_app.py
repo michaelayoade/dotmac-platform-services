@@ -3,6 +3,8 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from celery import Celery
 
+# Import the entire module to ensure coverage tracking
+import dotmac.platform.celery_app
 from dotmac.platform.celery_app import celery_app, setup_celery_instrumentation, setup_periodic_tasks
 
 

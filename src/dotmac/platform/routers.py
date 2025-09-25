@@ -124,6 +124,13 @@ ROUTER_CONFIGS = [
         tags=["Webhooks"],
         description="Webhook subscription management",
     ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.router",
+        router_name="router",
+        prefix="/api/v1/billing",
+        tags=["Billing"],
+        description="Billing and payment management",
+    ),
 ]
 
 

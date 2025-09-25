@@ -62,6 +62,8 @@ try:
     _access_token_expire_minutes = settings.jwt.access_token_expire_minutes
     _refresh_token_expire_days = settings.jwt.refresh_token_expire_days
     _redis_url = settings.redis.redis_url
+    # Get default role from settings or use minimal 'guest' role
+    _default_user_role = getattr(settings, 'default_user_role', 'guest')
 except ImportError:
     # Fallback values if settings not available
     _jwt_secret = "default-secret-change-this"
@@ -69,6 +71,7 @@ except ImportError:
     _access_token_expire_minutes = 15
     _refresh_token_expire_days = 7
     _redis_url = "redis://localhost:6379"
+    _default_user_role = "guest"  # Minimal permissions by default
 
 # Module constants
 JWT_SECRET = _jwt_secret
@@ -76,6 +79,7 @@ JWT_ALGORITHM = _jwt_algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = _access_token_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = _refresh_token_expire_days
 REDIS_URL = _redis_url
+DEFAULT_USER_ROLE = _default_user_role
 
 # ============================================
 # Models
@@ -130,7 +134,7 @@ OAUTH_CONFIGS = {
     },
     OAuthProvider.GITHUB: {
         "authorize_url": "https://github.com/login/oauth/authorize",
-        "token_url": "https://github.login/oauth/access_token",
+        "token_url": "https://github.com/login/oauth/access_token",
         "userinfo_url": "https://api.github.com/user",
         "scope": "user:email",
     },

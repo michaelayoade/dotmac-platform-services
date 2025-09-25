@@ -256,7 +256,7 @@ export function NetworkDeviceWidget({ device, className, ...props }: NetworkDevi
 
       <div className='metrics-grid'>
         <div className='metric-item'>
-          <label htmlFor='input-1755609778624-phphyx6yf'>CPU Usage</label>
+          <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>CPU Usage</label>
           <div className='metric-bar-container'>
             <div
               className={clsx('metric-bar', `metric-${getMetricColor(device.metrics.cpuUsage)}`)}
@@ -267,7 +267,7 @@ export function NetworkDeviceWidget({ device, className, ...props }: NetworkDevi
         </div>
 
         <div className='metric-item'>
-          <label htmlFor='input-1755609778624-nvy8ng800'>Memory Usage</label>
+          <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>Memory Usage</label>
           <div className='metric-bar-container'>
             <div
               className={clsx('metric-bar', `metric-${getMetricColor(device.metrics.memoryUsage)}`)}
@@ -278,7 +278,7 @@ export function NetworkDeviceWidget({ device, className, ...props }: NetworkDevi
         </div>
 
         <div className='metric-item'>
-          <label htmlFor='input-1755609778624-ui993ul79'>Network Utilization</label>
+          <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>Network Utilization</label>
           <div className='metric-bar-container'>
             <div
               className={clsx(
@@ -293,7 +293,7 @@ export function NetworkDeviceWidget({ device, className, ...props }: NetworkDevi
 
         {device.metrics.temperature ? (
           <div className='metric-item'>
-            <label htmlFor='input-1755609778624-jbr8785ky'>Temperature</label>
+            <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>Temperature</label>
             <div className='metric-bar-container'>
               <div
                 className={clsx(
@@ -357,7 +357,7 @@ export function ServiceHealthWidget({ service, className, ...props }: ServiceHea
     >
       <div className='service-overview'>
         <div className='overview-item'>
-          <label htmlFor='input-1755609778624-hgw3wkn8s'>Status</label>
+          <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>Status</label>
           <div className='status-badge'>
             <StatusIndicator status={getStatusColor(service.status) as unknown} size='sm' />
             <span>{service.status.toUpperCase()}</span>
@@ -365,7 +365,7 @@ export function ServiceHealthWidget({ service, className, ...props }: ServiceHea
         </div>
 
         <div className='overview-item'>
-          <label htmlFor='input-1755609778624-bd7vw9ra7'>Response Time</label>
+          <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`}>Response Time</label>
           <span className='response-time'>{service.responseTime}ms</span>
         </div>
       </div>
@@ -442,7 +442,7 @@ export function RealTimeMetricsWidget({
         {metrics.map((metric, index) => (
           <div key={`item-${index}`} className='metric-row'>
             <div className='metric-info'>
-              <label htmlFor='input-1755609778624-1rrkflxfu' className='metric-label'>
+              <label htmlFor={`input-${Math.random().toString(36).substr(2, 9)}`} className='metric-label'>
                 {metric.label}
               </label>
               <div className='metric-value-container'>

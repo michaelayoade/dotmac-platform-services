@@ -1,13 +1,23 @@
 """
 Tenant identity and middleware utilities for DotMac platform.
-Simple, lightweight tenant resolution and middleware.
+Configurable for both single-tenant and multi-tenant deployments.
 """
 
+from .config import (
+    TenantConfiguration,
+    TenantMode,
+    get_tenant_config,
+    set_tenant_config,
+)
 from .tenant import TenantIdentityResolver, TenantMiddleware
 
 __all__ = [
     "TenantIdentityResolver",
     "TenantMiddleware",
+    "TenantConfiguration",
+    "TenantMode",
+    "get_tenant_config",
+    "set_tenant_config",
 ]
 
 from enum import Enum

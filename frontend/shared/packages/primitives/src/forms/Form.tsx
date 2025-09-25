@@ -435,17 +435,21 @@ export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputE
   label?: string;
   description?: string;
   indeterminate?: boolean;
+  id?: string;
 }
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, label, description, indeterminate, ...props }, ref) => {
+  ({ className, label, description, indeterminate, id, ...props }, ref) => {
+    const generatedId = useId();
+    const checkboxId = id || `checkbox-${generatedId}`;
+
     return (
       <div className={clsx('checkbox-wrapper', className)}>
-        <input type='checkbox' ref={ref} className='checkbox-input' {...props} />
+        <input type='checkbox' ref={ref} id={checkboxId} className='checkbox-input' {...props} />
         {label || description ? (
           <div className='checkbox-content'>
             {label ? (
-              <label htmlFor='input-1755609778623-3bo25m4wl' className='checkbox-label'>
+              <label htmlFor={checkboxId} className='checkbox-label'>
                 {label}
               </label>
             ) : null}
@@ -461,17 +465,21 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
 export interface RadioProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   label?: string;
   description?: string;
+  id?: string;
 }
 
 export const Radio = forwardRef<HTMLInputElement, RadioProps>(
-  ({ className, label, description, ...props }, ref) => {
+  ({ className, label, description, id, ...props }, ref) => {
+    const generatedId = useId();
+    const radioId = id || `radio-${generatedId}`;
+
     return (
       <div className={clsx('radio-wrapper', className)}>
-        <input type='radio' ref={ref} className='radio-input' {...props} />
+        <input type='radio' ref={ref} id={radioId} className='radio-input' {...props} />
         {label || description ? (
           <div className='radio-content'>
             {label ? (
-              <label htmlFor='input-1755609778623-4p3kg5m3s' className='radio-label'>
+              <label htmlFor={radioId} className='radio-label'>
                 {label}
               </label>
             ) : null}

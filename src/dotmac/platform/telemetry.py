@@ -4,6 +4,7 @@ OpenTelemetry setup for distributed tracing and metrics.
 Configures OTLP exporters and auto-instrumentation for FastAPI, SQLAlchemy, and HTTP clients.
 """
 
+import os
 from typing import Optional
 
 import structlog
@@ -86,6 +87,11 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
     configure_structlog()
 
     logger = structlog.get_logger(__name__)
+
+    # Skip telemetry setup in test environment to prevent export warnings
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("OTEL_ENABLED") == "false":
+        logger.debug("Skipping OpenTelemetry setup in test environment")
+        return
 
     # Auto-enable if endpoint is configured but OTEL is disabled
     if settings.observability.otel_endpoint and not settings.observability.otel_enabled:

@@ -14,10 +14,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 try:
-    from ..db import get_async_session
+    from ..db import AsyncSessionLocal
 except ImportError:
-    async def get_async_session():
-        return None
+    # Mock for testing
+    AsyncSessionLocal = None
 
 try:
     from ..settings import settings
@@ -81,7 +81,9 @@ class BulkEmailService:
     ) -> BulkEmailJobResponse:
         """Create a new bulk email job."""
         if session is None:
-            async with get_async_session() as session:
+            if AsyncSessionLocal is None:
+                raise RuntimeError("Database not configured")
+            async with AsyncSessionLocal() as session:
                 return await self._create_bulk_job(job_data, session)
         return await self._create_bulk_job(job_data, session)
 
@@ -153,7 +155,9 @@ class BulkEmailService:
     ) -> Optional[BulkEmailJobResponse]:
         """Get bulk job by ID."""
         if session is None:
-            async with get_async_session() as session:
+            if AsyncSessionLocal is None:
+                raise RuntimeError("Database not configured")
+            async with AsyncSessionLocal() as session:
                 return await self._get_bulk_job(job_id, session)
         return await self._get_bulk_job(job_id, session)
 
@@ -180,7 +184,9 @@ class BulkEmailService:
     ) -> List[BulkEmailJobResponse]:
         """List bulk jobs with optional filtering."""
         if session is None:
-            async with get_async_session() as session:
+            if AsyncSessionLocal is None:
+                raise RuntimeError("Database not configured")
+            async with AsyncSessionLocal() as session:
                 return await self._list_bulk_jobs(status, limit, offset, session)
         return await self._list_bulk_jobs(status, limit, offset, session)
 
@@ -211,7 +217,9 @@ class BulkEmailService:
     ) -> bool:
         """Cancel a bulk job."""
         if session is None:
-            async with get_async_session() as session:
+            if AsyncSessionLocal is None:
+                raise RuntimeError("Database not configured")
+            async with AsyncSessionLocal() as session:
                 return await self._cancel_bulk_job(job_id, session)
         return await self._cancel_bulk_job(job_id, session)
 
@@ -242,7 +250,9 @@ class BulkEmailService:
     ) -> BulkJobStatsResponse:
         """Get bulk job statistics."""
         if session is None:
-            async with get_async_session() as session:
+            if AsyncSessionLocal is None:
+                raise RuntimeError("Database not configured")
+            async with AsyncSessionLocal() as session:
                 return await self._get_job_stats(session)
         return await self._get_job_stats(session)
 
@@ -281,7 +291,9 @@ def process_bulk_email_job(self, job_id: str):
 
 async def _process_bulk_email_job_async(job_id: str, task_instance):
     """Async processing of bulk email job."""
-    async with get_async_session() as session:
+    if AsyncSessionLocal is None:
+        raise RuntimeError("Database not configured")
+    async with AsyncSessionLocal() as session:
         # Get job
         result = await session.execute(
             select(BulkEmailJob).where(BulkEmailJob.id == job_id)

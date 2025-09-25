@@ -5,7 +5,8 @@ from unittest.mock import patch, MagicMock, Mock
 from dotmac.platform.secrets.vault_config import (
     VaultConnectionManager,
     get_vault_client,
-    get_async_vault_client
+    get_async_vault_client,
+    get_vault_connection_manager
 )
 
 
@@ -13,10 +14,17 @@ class TestVaultConnectionManagerCoverage:
     """Test VaultConnectionManager missing coverage areas."""
 
     def test_vault_connection_manager_singleton(self):
-        """Test VaultConnectionManager singleton behavior."""
-        manager1 = VaultConnectionManager()
-        manager2 = VaultConnectionManager()
+        """Test VaultConnectionManager singleton behavior via get_vault_connection_manager."""
+        # Clear any existing global instance
+        import dotmac.platform.secrets.vault_config as vault_config_module
+        vault_config_module._connection_manager = None
+
+        manager1 = get_vault_connection_manager()
+        manager2 = get_vault_connection_manager()
         assert manager1 is manager2
+
+        # Cleanup
+        vault_config_module._connection_manager = None
 
     @patch('dotmac.platform.secrets.vault_config.VaultClient')
     def test_get_sync_client_with_error(self, mock_vault_client):
@@ -255,9 +263,13 @@ class TestVaultConfigEdgeCases:
             assert call_args['timeout'] is None
 
     def test_manager_reset_behavior(self):
-        """Test that multiple VaultConnectionManager instances share state."""
-        manager1 = VaultConnectionManager()
-        manager2 = VaultConnectionManager()
+        """Test that multiple get_vault_connection_manager calls return the same instance."""
+        # Clear any existing global instance
+        import dotmac.platform.secrets.vault_config as vault_config_module
+        vault_config_module._connection_manager = None
+
+        manager1 = get_vault_connection_manager()
+        manager2 = get_vault_connection_manager()
 
         # They should be the same instance (singleton)
         assert manager1 is manager2
@@ -265,3 +277,6 @@ class TestVaultConfigEdgeCases:
         # Setting attributes on one should affect the other
         manager1._sync_client = "test_client"
         assert manager2._sync_client == "test_client"
+
+        # Cleanup
+        vault_config_module._connection_manager = None

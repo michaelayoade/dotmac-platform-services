@@ -3,6 +3,8 @@ import pickle
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
+# Import the entire module to ensure coverage tracking
+import dotmac.platform.caching
 from dotmac.platform.caching import (
     get_redis,
     cache_get,
@@ -295,6 +297,22 @@ class TestCaching:
     def test_redis_client_initialization(self):
         """Test Redis client initialization."""
         # This will be None or Redis instance depending on settings
+        assert redis_client is None or hasattr(redis_client, 'get')
+
+    def test_redis_initialization_logic(self):
+        """Test the Redis initialization logic works correctly."""
+        # Test the import path and settings access
+        # This verifies the initialization code can run without errors
+        from dotmac.platform.settings import settings
+
+        # Verify settings attributes exist (they may be None)
+        assert hasattr(settings.redis, 'host')
+        assert hasattr(settings.redis, 'cache_url')
+        assert hasattr(settings.redis, 'max_connections')
+
+        # Test that the redis_client import works
+        from dotmac.platform.caching import redis_client
+        # redis_client will be None if no Redis configured, or a Redis instance if configured
         assert redis_client is None or hasattr(redis_client, 'get')
 
     @patch("dotmac.platform.caching.redis_client")

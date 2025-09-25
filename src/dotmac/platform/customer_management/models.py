@@ -398,6 +398,13 @@ class CustomerNote(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         Boolean, default=True, nullable=False, comment="Internal note vs customer visible"
     )
 
+    def __init__(self, **kwargs):
+        """Initialize with defaults."""
+        # Set is_internal default if not provided
+        if 'is_internal' not in kwargs:
+            kwargs['is_internal'] = True
+        super().__init__(**kwargs)
+
     # Author
     created_by_id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True),

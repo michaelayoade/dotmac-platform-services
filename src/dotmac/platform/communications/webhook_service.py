@@ -610,6 +610,93 @@ class WebhookService:
 
         return len(subscriptions)
 
+    async def check_rate_limit(
+        self,
+        subscription_id: str,
+        limit: int = 100,
+        window: int = 3600
+    ) -> bool:
+        """
+        Check if a subscription has exceeded its rate limit.
+
+        Args:
+            subscription_id: ID of the subscription
+            limit: Maximum number of requests allowed in the window
+            window: Time window in seconds (default: 1 hour)
+
+        Returns:
+            True if the request is within the rate limit, False otherwise
+        """
+        try:
+            client = await self._get_redis()
+
+            if client:
+                # Use Redis for rate limiting
+                key = f"webhook_rate_limit:{subscription_id}"
+                current_time = time.time()
+                window_start = current_time - window
+
+                # Remove old entries outside the window
+                await client.zremrangebyscore(key, 0, window_start)
+
+                # Count current entries in the window
+                count = await client.zcard(key)
+
+                if count >= limit:
+                    logger.warning(
+                        "Rate limit exceeded",
+                        subscription_id=subscription_id,
+                        limit=limit,
+                        window=window,
+                        count=count
+                    )
+                    return False
+
+                # Add current request timestamp
+                await client.zadd(key, {str(uuid4()): current_time})
+
+                # Set expiry on the key
+                await client.expire(key, window)
+
+                return True
+            else:
+                # Fallback to in-memory rate limiting
+                rate_limits = self._memory_storage.setdefault("rate_limits", {})
+                subscription_limits = rate_limits.setdefault(subscription_id, [])
+
+                current_time = time.time()
+                window_start = current_time - window
+
+                # Filter out old entries
+                subscription_limits[:] = [
+                    ts for ts in subscription_limits
+                    if ts > window_start
+                ]
+
+                if len(subscription_limits) >= limit:
+                    logger.warning(
+                        "Rate limit exceeded (memory)",
+                        subscription_id=subscription_id,
+                        limit=limit,
+                        window=window,
+                        count=len(subscription_limits)
+                    )
+                    return False
+
+                # Add current timestamp
+                subscription_limits.append(current_time)
+
+                return True
+
+        except Exception as e:
+            logger.error(
+                "Failed to check rate limit",
+                subscription_id=subscription_id,
+                error=str(e)
+            )
+            # On error, allow the request (fail open)
+            return True
+
 
 # Global service instance
 webhook_service = WebhookService()
