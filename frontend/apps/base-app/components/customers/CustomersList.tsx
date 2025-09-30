@@ -12,7 +12,7 @@ import {
   Building,
   User
 } from 'lucide-react';
-import { Customer } from '@/hooks/useCustomers';
+import { Customer } from '@/types';
 
 interface CustomersListProps {
   customers: Customer[];

@@ -45,8 +45,8 @@ class TestFactoryIntegration:
             importer = DataTransferFactory.create_importer("csv")
 
             assert isinstance(importer, BaseImporter)
-            assert hasattr(importer, 'import_data')
-            assert hasattr(importer, 'validate_data')
+            assert hasattr(importer, 'import_from_file')
+            assert hasattr(importer, 'process')
 
     def test_real_csv_exporter_creation(self):
         """Test creating a real CSV exporter."""
@@ -56,7 +56,7 @@ class TestFactoryIntegration:
             exporter = DataTransferFactory.create_exporter("csv")
 
             assert isinstance(exporter, BaseExporter)
-            assert hasattr(exporter, 'export_data')
+            assert hasattr(exporter, 'export_to_file')
 
     def test_real_json_importer_creation(self):
         """Test creating a real JSON importer."""
@@ -66,7 +66,7 @@ class TestFactoryIntegration:
             importer = DataTransferFactory.create_importer(DataFormat.JSON)
 
             assert isinstance(importer, BaseImporter)
-            assert hasattr(importer, 'import_data')
+            assert hasattr(importer, 'import_from_file')
 
     def test_real_json_exporter_creation(self):
         """Test creating a real JSON exporter."""
@@ -76,7 +76,7 @@ class TestFactoryIntegration:
             exporter = DataTransferFactory.create_exporter(DataFormat.JSON)
 
             assert isinstance(exporter, BaseExporter)
-            assert hasattr(exporter, 'export_data')
+            assert hasattr(exporter, 'export_to_file')
 
     def test_importer_with_custom_config(self):
         """Test creating importer with custom configuration."""
@@ -85,12 +85,13 @@ class TestFactoryIntegration:
 
             config = TransferConfig(
                 chunk_size=5000,
-                max_memory_usage=512 * 1024 * 1024,
-                temp_dir="/tmp/test"
+                batch_size=500,
+                max_workers=2
             )
             options = ImportOptions(
-                skip_errors=True,
-                validate_data=False
+                delimiter=";",
+                header_row=1,
+                type_inference=False
             )
 
             importer = DataTransferFactory.create_importer(
@@ -100,7 +101,7 @@ class TestFactoryIntegration:
             )
 
             assert importer.config.chunk_size == 5000
-            assert importer.options.skip_errors is True
+            assert importer.options.delimiter == ";"
 
     def test_exporter_with_custom_config(self):
         """Test creating exporter with custom configuration."""
@@ -395,9 +396,9 @@ class TestFactoryIntegration:
 
             # Test with various configuration combinations
             configs = [
-                (TransferConfig(chunk_size=1000), ImportOptions(skip_errors=True)),
-                (TransferConfig(max_memory_usage=1024), ImportOptions(validate_data=False)),
-                (None, ImportOptions(skip_errors=False)),
+                (TransferConfig(chunk_size=1000), ImportOptions(delimiter=",")),
+                (TransferConfig(batch_size=1024), ImportOptions(type_inference=False)),
+                (None, ImportOptions(header_row=0)),
                 (TransferConfig(chunk_size=5000), None),
             ]
 
@@ -416,7 +417,7 @@ class TestFactoryIntegration:
                     assert isinstance(importer.config, TransferConfig)
 
                 if options:
-                    assert importer.options.skip_errors == options.skip_errors
+                    assert importer.options.delimiter == options.delimiter
                 else:
                     # Should use default options
                     assert isinstance(importer.options, ImportOptions)

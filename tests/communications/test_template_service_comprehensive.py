@@ -1,620 +1,552 @@
 """
-Comprehensive tests for TemplateService.
-
-Tests all template functionality including:
-- Template CRUD operations
-- Jinja2 rendering and validation
-- Template preview with variable extraction
-- Security features (sandboxed environment)
-- Error handling and validation
+Comprehensive tests for template service to improve coverage.
 """
 
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
-from uuid import uuid4
+import os
+import tempfile
+from unittest.mock import patch, MagicMock
+from jinja2 import TemplateSyntaxError
 
-from jinja2 import TemplateSyntaxError, UndefinedError
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from dotmac.platform.communications.template_service import TemplateService
-from dotmac.platform.communications.models import (
-    EmailTemplateCreate,
-    EmailTemplateUpdate,
-    TemplatePreviewRequest,
+from dotmac.platform.communications.template_service import (
+    TemplateService,
+    TemplateData,
+    RenderedTemplate,
+    get_template_service,
+    create_template,
+    render_template,
+    quick_render,
 )
 
 
-class TestTemplateServiceInitialization:
-    """Test TemplateService initialization and configuration."""
+class TestTemplateServiceBasic:
+    """Test basic template service operations."""
 
-    def test_template_service_init(self):
-        """Test template service initialization."""
+    def test_init_without_template_dir(self):
+        """Test initialization without template directory."""
         service = TemplateService()
 
-        # Check Jinja environment setup
-        assert service.jinja_env is not None
-        assert service.jinja_env.autoescape is True
-        assert service.jinja_env.trim_blocks is True
-        assert service.jinja_env.lstrip_blocks is True
+        assert service.template_dir is None
+        assert service.file_env is None
+        assert service.dict_env is not None
+        assert len(service.templates) == 0
 
-        # Check security: SandboxedEnvironment
-        from jinja2.sandbox import SandboxedEnvironment
-        assert isinstance(service.jinja_env, SandboxedEnvironment)
+    def test_init_with_template_dir(self):
+        """Test initialization with template directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = TemplateService(template_dir=tmpdir)
 
-        # Check common functions are available
-        assert 'len' in service.jinja_env.globals
-        assert 'str' in service.jinja_env.globals
-        assert 'int' in service.jinja_env.globals
-        assert 'float' in service.jinja_env.globals
+            assert service.template_dir == tmpdir
+            assert service.file_env is not None
+            assert service.dict_env is not None
 
+    def test_init_with_nonexistent_dir(self):
+        """Test initialization with nonexistent directory."""
+        service = TemplateService(template_dir="/nonexistent/path")
 
-class TestTemplateServiceJinjaOperations:
-    """Test Jinja2 template operations."""
+        # Should still initialize but file_env should be None
+        assert service.file_env is None
+        assert service.dict_env is not None
 
-    @pytest.fixture
-    def service(self):
-        return TemplateService()
+    def test_template_globals_added(self):
+        """Test that template globals are added."""
+        service = TemplateService()
 
-    def test_extract_template_variables(self, service):
-        """Test extracting variables from template."""
-        template_content = "Hello {{ name }}, your order {{ order_id }} is {{ status }}!"
-        variables = service.extract_template_variables(template_content)
-
-        assert "name" in variables
-        assert "order_id" in variables
-        assert "status" in variables
-        assert len(variables) == 3
-
-    def test_extract_template_variables_with_filters(self, service):
-        """Test extracting variables from template with Jinja filters."""
-        template_content = "Hello {{ name|title }}, total: {{ amount|round(2) }}"
-        variables = service.extract_template_variables(template_content)
-
-        assert "name" in variables
-        assert "amount" in variables
-
-    def test_extract_template_variables_with_loops(self, service):
-        """Test extracting variables from template with loops."""
-        template_content = """
-        Hello {{ user.name }},
-        {% for item in items %}
-            - {{ item.name }}: {{ item.price }}
-        {% endfor %}
-        Total: {{ total }}
-        """
-        variables = service.extract_template_variables(template_content)
-
-        assert "user" in variables
-        assert "items" in variables
-        assert "total" in variables
-
-    def test_extract_template_variables_invalid_syntax(self, service):
-        """Test extracting variables from invalid template."""
-        template_content = "Hello {{ name, invalid syntax"
-
-        with pytest.raises(TemplateSyntaxError):
-            service.extract_template_variables(template_content)
-
-    def test_render_template_success(self, service):
-        """Test successful template rendering."""
-        template_content = "Hello {{ name }}, your total is ${{ amount }}"
-        variables = {"name": "John", "amount": 25.99}
-
-        result = service.render_template(template_content, variables)
-
-        assert result == "Hello John, your total is $25.99"
-
-    def test_render_template_with_filters(self, service):
-        """Test template rendering with Jinja filters."""
-        template_content = "Hello {{ name|title }}, total: ${{ amount|round(2) }}"
-        variables = {"name": "john doe", "amount": 25.999}
-
-        result = service.render_template(template_content, variables)
-
-        assert result == "Hello John Doe, total: $26.0"
-
-    def test_render_template_with_loops(self, service):
-        """Test template rendering with loops."""
-        template_content = """
-        Items:
-        {% for item in items %}
-        - {{ item.name }}: ${{ item.price }}
-        {% endfor %}
-        """.strip()
-
-        variables = {
-            "items": [
-                {"name": "Apple", "price": 1.50},
-                {"name": "Orange", "price": 2.00}
-            ]
-        }
-
-        result = service.render_template(template_content, variables)
-
-        assert "- Apple: $1.5" in result
-        assert "- Orange: $2.0" in result
-
-    def test_render_template_missing_variables(self, service):
-        """Test template rendering with missing variables."""
-        template_content = "Hello {{ name }}, your order {{ order_id }} is ready"
-        variables = {"name": "John"}  # Missing order_id
-
-        with pytest.raises(UndefinedError):
-            service.render_template(template_content, variables)
-
-    def test_render_template_sandbox_security(self, service):
-        """Test that template rendering is sandboxed for security."""
-        # Attempt to access restricted functionality
-        template_content = "{{ ''.__class__.__mro__[2].__subclasses__() }}"
-        variables = {}
-
-        with pytest.raises(Exception):  # Should be blocked by sandbox
-            service.render_template(template_content, variables)
-
-    def test_validate_template_syntax_valid(self, service):
-        """Test template syntax validation - valid template."""
-        template_content = "Hello {{ name }}, total: {{ amount|round(2) }}"
-
-        is_valid, error = service.validate_template_syntax(template_content)
-
-        assert is_valid is True
-        assert error is None
-
-    def test_validate_template_syntax_invalid(self, service):
-        """Test template syntax validation - invalid template."""
-        template_content = "Hello {{ name, invalid"
-
-        is_valid, error = service.validate_template_syntax(template_content)
-
-        assert is_valid is False
-        assert error is not None
-        assert "syntax" in error.lower()
+        # Check that common functions are available
+        assert 'len' in service.dict_env.globals
+        assert 'str' in service.dict_env.globals
+        assert 'now' in service.dict_env.globals
+        assert 'today' in service.dict_env.globals
 
 
-class TestTemplateServiceDatabaseOperations:
-    """Test database CRUD operations for templates."""
+class TestTemplateCreation:
+    """Test template creation operations."""
 
-    @pytest.fixture
-    def service(self):
-        return TemplateService()
-
-    @pytest.fixture
-    def mock_session(self):
-        """Mock async database session."""
-        session = AsyncMock(spec=AsyncSession)
-        session.add = Mock()
-        session.commit = AsyncMock()
-        session.refresh = AsyncMock()
-        session.execute = AsyncMock()
-        session.delete = AsyncMock()
-        return session
-
-    @pytest.fixture
-    def sample_template_data(self):
-        return EmailTemplateCreate(
-            name="Welcome Email",
-            subject="Welcome {{ user_name }}!",
-            html_content="<h1>Welcome {{ user_name }}!</h1><p>Thanks for joining us.</p>",
-            text_content="Welcome {{ user_name }}! Thanks for joining us.",
-            variables=["user_name"],
-            description="Welcome email for new users"
-        )
-
-    @pytest.mark.asyncio
-    async def test_create_template_success(self, service, mock_session, sample_template_data):
+    def test_create_template_success(self):
         """Test successful template creation."""
-        # Mock database template object
-        mock_template = Mock()
-        mock_template.id = str(uuid4())
-        mock_template.name = sample_template_data.name
-        mock_template.subject = sample_template_data.subject
+        service = TemplateService()
 
-        with patch('dotmac.platform.communications.models.EmailTemplate') as MockTemplate:
-            MockTemplate.return_value = mock_template
-
-            result = await service.create_template(sample_template_data, mock_session)
-
-            # Verify database operations
-            mock_session.add.assert_called_once()
-            mock_session.commit.assert_called_once()
-            mock_session.refresh.assert_called_once_with(mock_template)
-
-            assert result.name == sample_template_data.name
-
-    @pytest.mark.asyncio
-    async def test_create_template_invalid_syntax(self, service, mock_session):
-        """Test template creation with invalid Jinja syntax."""
-        invalid_template = EmailTemplateCreate(
-            name="Invalid Template",
-            subject="Hello {{ name",  # Invalid syntax
-            html_content="<p>Content</p>",
-            text_content="Content"
+        template_data = TemplateData(
+            name="welcome_email",
+            subject_template="Welcome {{ name }}!",
+            text_template="Hello {{ name }}, welcome to {{ company }}.",
+            html_template="<p>Hello {{ name }}</p>"
         )
 
-        with pytest.raises(TemplateSyntaxError):
-            await service.create_template(invalid_template, mock_session)
+        result = service.create_template(template_data)
 
-        # Should not have attempted database operations
-        mock_session.add.assert_not_called()
+        assert result.id is not None
+        assert result.name == "welcome_email"
+        assert "name" in result.variables
+        assert "company" in result.variables
+        assert template_data.id in service.templates
 
-    @pytest.mark.asyncio
-    async def test_get_template_success(self, service, mock_session):
-        """Test successful template retrieval."""
-        template_id = str(uuid4())
+    def test_create_template_with_syntax_error(self):
+        """Test template creation with syntax error."""
+        service = TemplateService()
 
-        # Mock database query result
-        mock_template = Mock()
-        mock_template.id = template_id
-        mock_template.name = "Test Template"
-        mock_template.subject = "Hello {{ name }}"
+        template_data = TemplateData(
+            name="bad_template",
+            subject_template="Hello {{ name }",  # Missing closing brace
+            text_template="Body"
+        )
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
+        with pytest.raises(ValueError) as exc_info:
+            service.create_template(template_data)
 
-        result = await service.get_template(template_id, mock_session)
+        assert "Syntax error" in str(exc_info.value)
 
-        assert result is not None
-        assert result.id == template_id
-        mock_session.execute.assert_called_once()
+    def test_create_template_extracts_variables(self):
+        """Test that template creation extracts variables."""
+        service = TemplateService()
 
-    @pytest.mark.asyncio
-    async def test_get_template_not_found(self, service, mock_session):
-        """Test template retrieval when template doesn't exist."""
-        template_id = str(uuid4())
+        template_data = TemplateData(
+            name="test",
+            subject_template="Hello {{ first_name }} {{ last_name }}",
+            text_template="Your code is {{ code }}",
+            html_template="<p>{{ first_name }}</p>"
+        )
 
-        # Mock database query result - no template found
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute.return_value = mock_result
+        result = service.create_template(template_data)
 
-        result = await service.get_template(template_id, mock_session)
+        # Should extract all unique variables
+        assert set(result.variables) == {"first_name", "last_name", "code"}
+
+    def test_create_template_no_variables(self):
+        """Test creating template with no variables."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="static_template",
+            subject_template="Static Subject",
+            text_template="Static Body"
+        )
+
+        result = service.create_template(template_data)
+
+        assert result.variables == []
+
+
+class TestTemplateRetrieval:
+    """Test template retrieval operations."""
+
+    def test_get_template_success(self):
+        """Test getting existing template."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="test",
+            subject_template="Subject",
+            text_template="Body"
+        )
+        created = service.create_template(template_data)
+
+        retrieved = service.get_template(created.id)
+
+        assert retrieved is not None
+        assert retrieved.id == created.id
+        assert retrieved.name == "test"
+
+    def test_get_template_not_found(self):
+        """Test getting nonexistent template."""
+        service = TemplateService()
+
+        result = service.get_template("nonexistent_id")
 
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_list_templates_success(self, service, mock_session):
-        """Test successful template listing."""
-        # Mock multiple templates
-        mock_templates = [
-            Mock(id=str(uuid4()), name="Template 1"),
-            Mock(id=str(uuid4()), name="Template 2"),
-        ]
+    def test_list_templates_empty(self):
+        """Test listing templates when none exist."""
+        service = TemplateService()
 
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = mock_templates
-        mock_session.execute.return_value = mock_result
+        templates = service.list_templates()
 
-        templates, count = await service.list_templates(mock_session)
+        assert templates == []
 
-        assert len(templates) == 2
-        assert count == 2
-        assert templates[0].name == "Template 1"
-        assert templates[1].name == "Template 2"
+    def test_list_templates_multiple(self):
+        """Test listing multiple templates."""
+        service = TemplateService()
 
-    @pytest.mark.asyncio
-    async def test_list_templates_with_filters(self, service, mock_session):
-        """Test template listing with name filter."""
-        mock_templates = [Mock(id=str(uuid4()), name="Welcome Template")]
+        # Create multiple templates
+        for i in range(3):
+            template_data = TemplateData(
+                name=f"template_{i}",
+                subject_template=f"Subject {i}",
+                text_template=f"Body {i}"
+            )
+            service.create_template(template_data)
 
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = mock_templates
-        mock_session.execute.return_value = mock_result
+        templates = service.list_templates()
 
-        templates, count = await service.list_templates(
-            mock_session,
-            name_filter="Welcome",
-            limit=10,
-            offset=0
+        assert len(templates) == 3
+
+    def test_delete_template_success(self):
+        """Test deleting existing template."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="to_delete",
+            subject_template="Subject",
+            text_template="Body"
         )
+        created = service.create_template(template_data)
 
-        assert len(templates) == 1
-        assert templates[0].name == "Welcome Template"
-
-    @pytest.mark.asyncio
-    async def test_update_template_success(self, service, mock_session):
-        """Test successful template update."""
-        template_id = str(uuid4())
-
-        # Mock existing template
-        mock_template = Mock()
-        mock_template.id = template_id
-        mock_template.name = "Old Name"
-        mock_template.subject = "Old Subject"
-
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
-
-        update_data = EmailTemplateUpdate(
-            name="New Name",
-            subject="New Subject {{ name }}"
-        )
-
-        result = await service.update_template(template_id, update_data, mock_session)
-
-        assert mock_template.name == "New Name"
-        assert mock_template.subject == "New Subject {{ name }}"
-        mock_session.commit.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_update_template_invalid_syntax(self, service, mock_session):
-        """Test template update with invalid syntax."""
-        template_id = str(uuid4())
-
-        mock_template = Mock()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
-
-        invalid_update = EmailTemplateUpdate(
-            subject="Hello {{ name"  # Invalid syntax
-        )
-
-        with pytest.raises(TemplateSyntaxError):
-            await service.update_template(template_id, invalid_update, mock_session)
-
-        mock_session.commit.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_delete_template_success(self, service, mock_session):
-        """Test successful template deletion."""
-        template_id = str(uuid4())
-
-        mock_template = Mock()
-        mock_template.id = template_id
-
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
-
-        result = await service.delete_template(template_id, mock_session)
+        result = service.delete_template(created.id)
 
         assert result is True
-        mock_session.delete.assert_called_once_with(mock_template)
-        mock_session.commit.assert_called_once()
+        assert service.get_template(created.id) is None
 
-    @pytest.mark.asyncio
-    async def test_delete_template_not_found(self, service, mock_session):
-        """Test template deletion when template doesn't exist."""
-        template_id = str(uuid4())
+    def test_delete_template_not_found(self):
+        """Test deleting nonexistent template."""
+        service = TemplateService()
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute.return_value = mock_result
-
-        result = await service.delete_template(template_id, mock_session)
+        result = service.delete_template("nonexistent_id")
 
         assert result is False
-        mock_session.delete.assert_not_called()
 
 
-class TestTemplateServicePreview:
-    """Test template preview functionality."""
+class TestTemplateRendering:
+    """Test template rendering operations."""
 
-    @pytest.fixture
-    def service(self):
-        return TemplateService()
+    def test_render_template_success(self):
+        """Test successful template rendering."""
+        service = TemplateService()
 
-    @pytest.fixture
-    def mock_session(self):
-        session = AsyncMock(spec=AsyncSession)
-        return session
+        template_data = TemplateData(
+            name="greeting",
+            subject_template="Hello {{ name }}!",
+            text_template="Welcome {{ name }} to {{ company }}.",
+            html_template="<p>Hello {{ name }}</p>"
+        )
+        created = service.create_template(template_data)
 
-    @pytest.mark.asyncio
-    async def test_preview_template_success(self, service, mock_session):
-        """Test successful template preview."""
-        template_id = str(uuid4())
-
-        # Mock template from database
-        mock_template = Mock()
-        mock_template.id = template_id
-        mock_template.subject = "Welcome {{ user_name }}!"
-        mock_template.html_content = "<h1>Hello {{ user_name }}</h1>"
-        mock_template.text_content = "Hello {{ user_name }}"
-
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
-
-        preview_request = TemplatePreviewRequest(
-            variables={"user_name": "John Doe"}
+        result = service.render_template(
+            created.id,
+            {"name": "Alice", "company": "Acme Corp"}
         )
 
-        result = await service.preview_template(template_id, preview_request, mock_session)
+        assert result.template_id == created.id
+        assert result.subject == "Hello Alice!"
+        assert "Alice" in result.text_body
+        assert "Acme Corp" in result.text_body
+        assert "<p>Hello Alice</p>" in result.html_body
 
-        assert result.rendered_subject == "Welcome John Doe!"
-        assert result.rendered_html_content == "<h1>Hello John Doe</h1>"
-        assert result.rendered_text_content == "Hello John Doe"
-        assert result.template_id == template_id
+    def test_render_template_not_found(self):
+        """Test rendering nonexistent template."""
+        service = TemplateService()
 
-    @pytest.mark.asyncio
-    async def test_preview_template_missing_variables(self, service, mock_session):
-        """Test template preview with missing variables."""
-        template_id = str(uuid4())
+        with pytest.raises(ValueError) as exc_info:
+            service.render_template("nonexistent", {})
 
-        mock_template = Mock()
-        mock_template.subject = "Welcome {{ user_name }}!"
-        mock_template.html_content = "<h1>Hello {{ user_name }}</h1>"
+        assert "not found" in str(exc_info.value)
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
+    def test_render_template_missing_variables(self):
+        """Test rendering with missing variables."""
+        service = TemplateService()
 
-        # Missing user_name variable
-        preview_request = TemplatePreviewRequest(variables={})
+        template_data = TemplateData(
+            name="test",
+            subject_template="Hello {{ name }}!",
+            text_template="Code: {{ code }}"
+        )
+        created = service.create_template(template_data)
 
-        with pytest.raises(UndefinedError):
-            await service.preview_template(template_id, preview_request, mock_session)
+        # Render with only name, missing code
+        result = service.render_template(created.id, {"name": "Bob"})
 
-    @pytest.mark.asyncio
-    async def test_preview_template_not_found(self, service, mock_session):
-        """Test template preview when template doesn't exist."""
-        template_id = str(uuid4())
+        assert result.missing_variables == ["code"]
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute.return_value = mock_result
+    def test_render_template_no_missing_variables(self):
+        """Test rendering with all variables provided."""
+        service = TemplateService()
 
-        preview_request = TemplatePreviewRequest(variables={})
+        template_data = TemplateData(
+            name="test",
+            subject_template="Hello {{ name }}!",
+            text_template="Body"
+        )
+        created = service.create_template(template_data)
 
-        result = await service.preview_template(template_id, preview_request, mock_session)
+        result = service.render_template(created.id, {"name": "Charlie"})
 
-        assert result is None
+        assert result.missing_variables == []
 
-    @pytest.mark.asyncio
-    async def test_preview_template_complex_variables(self, service, mock_session):
-        """Test template preview with complex nested variables."""
-        template_id = str(uuid4())
+    def test_render_template_text_only(self):
+        """Test rendering template with text only."""
+        service = TemplateService()
 
-        mock_template = Mock()
-        mock_template.subject = "Order {{ order.id }} for {{ customer.name }}"
-        mock_template.html_content = """
-        <h1>Hello {{ customer.name }}</h1>
-        <p>Your order details:</p>
-        <ul>
-        {% for item in order.items %}
-            <li>{{ item.name }}: ${{ item.price }}</li>
-        {% endfor %}
-        </ul>
-        <p>Total: ${{ order.total }}</p>
-        """
+        template_data = TemplateData(
+            name="text_only",
+            subject_template="Subject",
+            text_template="Plain text body"
+        )
+        created = service.create_template(template_data)
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
+        result = service.render_template(created.id, {})
 
-        preview_request = TemplatePreviewRequest(
-            variables={
-                "customer": {"name": "Jane Smith"},
-                "order": {
-                    "id": "12345",
-                    "total": 29.99,
-                    "items": [
-                        {"name": "Coffee", "price": 4.99},
-                        {"name": "Sandwich", "price": 24.99}
-                    ]
-                }
-            }
+        assert result.subject == "Subject"
+        assert result.text_body == "Plain text body"
+        assert result.html_body is None
+
+    def test_render_template_html_only(self):
+        """Test rendering template with HTML only."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="html_only",
+            subject_template="Subject",
+            html_template="<p>HTML body</p>"
+        )
+        created = service.create_template(template_data)
+
+        result = service.render_template(created.id, {})
+
+        assert result.subject == "Subject"
+        assert result.text_body is None
+        assert result.html_body == "<p>HTML body</p>"
+
+
+class TestStringTemplateRendering:
+    """Test rendering templates from strings."""
+
+    def test_render_string_template_all_parts(self):
+        """Test rendering with all template parts."""
+        service = TemplateService()
+
+        result = service.render_string_template(
+            subject_template="Hello {{ name }}",
+            text_template="Welcome {{ name }}",
+            html_template="<p>Hello {{ name }}</p>",
+            data={"name": "David"}
         )
 
-        result = await service.preview_template(template_id, preview_request, mock_session)
+        assert result['subject'] == "Hello David"
+        assert result['text_body'] == "Welcome David"
+        assert result['html_body'] == "<p>Hello David</p>"
 
-        assert result.rendered_subject == "Order 12345 for Jane Smith"
-        assert "Hello Jane Smith" in result.rendered_html_content
-        assert "Coffee: $4.99" in result.rendered_html_content
-        assert "Total: $29.99" in result.rendered_html_content
+    def test_render_string_template_subject_only(self):
+        """Test rendering with subject only."""
+        service = TemplateService()
 
+        result = service.render_string_template(
+            subject_template="Static Subject",
+            data={}
+        )
 
-class TestTemplateServiceVariableExtraction:
-    """Test variable extraction and analysis."""
+        assert result['subject'] == "Static Subject"
+        assert 'text_body' not in result
+        assert 'html_body' not in result
 
-    @pytest.fixture
-    def service(self):
-        return TemplateService()
+    def test_render_string_template_no_data(self):
+        """Test rendering with no data provided."""
+        service = TemplateService()
 
-    @pytest.mark.asyncio
-    async def test_get_template_variables(self, service, mock_session=None):
-        """Test extracting all variables from a template."""
-        if mock_session is None:
-            mock_session = AsyncMock(spec=AsyncSession)
+        result = service.render_string_template(
+            subject_template="No variables",
+            text_template="Static text"
+        )
 
-        template_id = str(uuid4())
+        assert result['subject'] == "No variables"
+        assert result['text_body'] == "Static text"
 
-        mock_template = Mock()
-        mock_template.subject = "Hello {{ customer.name }}"
-        mock_template.html_content = """
-        <h1>Welcome {{ customer.name }}!</h1>
-        {% for item in order.items %}
-            <p>{{ item.name }}: ${{ item.price }}</p>
-        {% endfor %}
-        <p>Total: ${{ order.total }}</p>
-        """
-        mock_template.text_content = "Welcome {{ customer.name }}! Total: {{ order.total }}"
+    def test_render_string_template_with_error(self):
+        """Test rendering with template error."""
+        service = TemplateService()
 
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_template
-        mock_session.execute.return_value = mock_result
+        with pytest.raises(ValueError) as exc_info:
+            service.render_string_template(
+                subject_template="Hello {{ name }",  # Syntax error
+                data={}
+            )
 
-        variables = await service.get_template_variables(template_id, mock_session)
-
-        # Should extract all unique variables across all template parts
-        assert "customer" in variables
-        assert "order" in variables
-        assert "item" in variables
-
-    def test_analyze_template_complexity(self, service):
-        """Test template complexity analysis."""
-        simple_template = "Hello {{ name }}"
-        complex_template = """
-        Hello {{ user.name }},
-        {% if user.premium %}
-            Premium benefits:
-            {% for benefit in premium_benefits %}
-                - {{ benefit.name }}: {{ benefit.description }}
-            {% endfor %}
-        {% else %}
-            <a href="{{ upgrade_url }}">Upgrade now!</a>
-        {% endif %}
-        """
-
-        simple_vars = service.extract_template_variables(simple_template)
-        complex_vars = service.extract_template_variables(complex_template)
-
-        assert len(simple_vars) == 1
-        assert len(complex_vars) > 3
-        assert "user" in complex_vars
-        assert "premium_benefits" in complex_vars
-        assert "upgrade_url" in complex_vars
+        assert "Template rendering error" in str(exc_info.value)
 
 
-class TestTemplateServiceErrorHandling:
-    """Test error handling and edge cases."""
+class TestFileTemplateLoading:
+    """Test file-based template loading."""
 
-    @pytest.fixture
-    def service(self):
-        return TemplateService()
+    def test_load_file_template_without_file_env(self):
+        """Test loading file template when file env not configured."""
+        service = TemplateService()
 
-    def test_handle_template_with_malicious_content(self, service):
-        """Test handling template with potentially malicious content."""
-        malicious_templates = [
-            "{{ ''.__class__.__mro__[2].__subclasses__() }}",
-            "{{ config.items() }}",
-            "{{ self.__dict__ }}",
-        ]
+        with pytest.raises(ValueError) as exc_info:
+            service.load_file_template("test.html")
 
-        for template in malicious_templates:
-            with pytest.raises(Exception):  # Should be blocked
-                service.render_template(template, {})
+        assert "not configured" in str(exc_info.value)
 
-    def test_handle_template_with_large_loops(self, service):
-        """Test handling template with potentially expensive loops."""
-        # This should be handled gracefully by Jinja2's sandbox
-        template = """
-        {% for i in range(1000000) %}
-            {{ i }}
-        {% endfor %}
-        """
+    def test_load_file_template_success(self):
+        """Test successful file template loading."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a template file
+            template_path = os.path.join(tmpdir, "test.html")
+            with open(template_path, 'w') as f:
+                f.write("<p>Hello {{ name }}</p>")
 
-        # Should work but be resource-controlled by sandbox
-        variables = service.extract_template_variables(template)
-        assert "range" not in variables  # range is a built-in function
+            service = TemplateService(template_dir=tmpdir)
 
-    def test_handle_empty_template(self, service):
-        """Test handling empty template content."""
-        empty_template = ""
-        variables = service.extract_template_variables(empty_template)
-        assert len(variables) == 0
+            template = service.load_file_template("test.html")
 
-        rendered = service.render_template(empty_template, {})
-        assert rendered == ""
+            assert template is not None
+            rendered = template.render(name="Eve")
+            assert "Hello Eve" in rendered
 
-    def test_handle_whitespace_only_template(self, service):
-        """Test handling template with only whitespace."""
-        whitespace_template = "   \n\t   \n  "
-        variables = service.extract_template_variables(whitespace_template)
-        assert len(variables) == 0
+    def test_load_file_template_not_found(self):
+        """Test loading nonexistent file template."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = TemplateService(template_dir=tmpdir)
 
-        rendered = service.render_template(whitespace_template, {})
-        # Due to trim_blocks=True, should be empty or minimal whitespace
-        assert len(rendered.strip()) == 0
+            template = service.load_file_template("nonexistent.html")
+
+            assert template is None
+
+
+class TestTemplateServiceFactory:
+    """Test factory and convenience functions."""
+
+    def test_get_template_service_singleton(self):
+        """Test that get_template_service returns singleton."""
+        # Reset singleton
+        import dotmac.platform.communications.template_service as ts_module
+        ts_module._template_service = None
+
+        service1 = get_template_service()
+        service2 = get_template_service()
+
+        assert service1 is service2
+
+    def test_create_template_convenience(self):
+        """Test create_template convenience function."""
+        # Reset singleton
+        import dotmac.platform.communications.template_service as ts_module
+        ts_module._template_service = None
+
+        result = create_template(
+            name="test_convenience",
+            subject_template="Subject {{ var }}",
+            text_template="Body {{ var }}",
+            html_template="<p>{{ var }}</p>"
+        )
+
+        assert result.name == "test_convenience"
+        assert "var" in result.variables
+
+    def test_render_template_convenience(self):
+        """Test render_template convenience function."""
+        # Reset singleton
+        import dotmac.platform.communications.template_service as ts_module
+        ts_module._template_service = None
+
+        # Create a template first
+        template = create_template(
+            name="render_test",
+            subject_template="Hello {{ name }}",
+            text_template="Body"
+        )
+
+        # Render it
+        result = render_template(template.id, {"name": "Frank"})
+
+        assert result.subject == "Hello Frank"
+
+    def test_quick_render_convenience(self):
+        """Test quick_render convenience function."""
+        # Reset singleton
+        import dotmac.platform.communications.template_service as ts_module
+        ts_module._template_service = None
+
+        result = quick_render(
+            subject="Quick {{ name }}",
+            text_body="Body {{ name }}",
+            html_body="<p>{{ name }}</p>",
+            data={"name": "Grace"}
+        )
+
+        assert result['subject'] == "Quick Grace"
+        assert result['text_body'] == "Body Grace"
+        assert result['html_body'] == "<p>Grace</p>"
+
+    def test_quick_render_no_data(self):
+        """Test quick_render with no data."""
+        # Reset singleton
+        import dotmac.platform.communications.template_service as ts_module
+        ts_module._template_service = None
+
+        result = quick_render(
+            subject="Static",
+            text_body="Static body"
+        )
+
+        assert result['subject'] == "Static"
+        assert result['text_body'] == "Static body"
+
+
+class TestTemplateErrorHandling:
+    """Test error handling in template operations."""
+
+    def test_extract_variables_with_syntax_error(self):
+        """Test variable extraction skips templates with syntax errors."""
+        service = TemplateService()
+
+        # The _extract_variables method should skip templates with syntax errors
+        template_data = TemplateData(
+            name="test",
+            subject_template="Hello {{ name }}",  # Valid
+            text_template="Bad {{ syntax }",  # Invalid
+            html_template="<p>{{ other }}</p>"  # Valid
+        )
+
+        # This should still extract variables from valid templates
+        variables = service._extract_variables(template_data)
+
+        # Should extract from valid templates only
+        assert "name" in variables
+        assert "other" in variables
+
+    def test_validate_template_syntax_error_in_text(self):
+        """Test syntax validation catches errors in text template."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="test",
+            subject_template="Valid {{ var }}",
+            text_template="Invalid {{ var }"  # Missing closing brace
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            service._validate_template_syntax(template_data)
+
+        assert "Syntax error in text template" in str(exc_info.value)
+
+    def test_validate_template_syntax_error_in_html(self):
+        """Test syntax validation catches errors in HTML template."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="test",
+            subject_template="Valid",
+            html_template="Invalid {{ var }"  # Missing closing brace
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            service._validate_template_syntax(template_data)
+
+        assert "Syntax error in html template" in str(exc_info.value)
+
+    def test_find_missing_variables(self):
+        """Test finding missing variables."""
+        service = TemplateService()
+
+        template_data = TemplateData(
+            name="test",
+            subject_template="Hello {{ name }}",
+            text_template="Code: {{ code }}"
+        )
+        # Manually set variables
+        template_data.variables = ["name", "code", "extra"]
+
+        missing = service._find_missing_variables(
+            template_data,
+            {"name": "Test", "code": "123"}
+        )
+
+        assert missing == ["extra"]

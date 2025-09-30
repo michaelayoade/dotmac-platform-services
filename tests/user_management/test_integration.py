@@ -274,7 +274,7 @@ class TestUserManagementIntegration:
 
         user_service.session.execute.side_effect = [mock_count_result, mock_result]
 
-        filtered_users, total = await user_service.list_users(search="Alice")
+        filtered_users, total = await user_service.list_users(search="Alice", tenant_id="tenant-123")
 
         assert len(filtered_users) == 1
         assert total == 1
@@ -288,7 +288,7 @@ class TestUserManagementIntegration:
 
         user_service.session.execute.side_effect = [mock_count_result, mock_result]
 
-        admin_users, total = await user_service.list_users(role="admin")
+        admin_users, total = await user_service.list_users(role="admin", tenant_id="tenant-123")
 
         assert len(admin_users) == 1
         assert total == 1
@@ -302,7 +302,7 @@ class TestUserManagementIntegration:
 
         user_service.session.execute.side_effect = [mock_count_result, mock_result]
 
-        inactive_users, total = await user_service.list_users(is_active=False)
+        inactive_users, total = await user_service.list_users(is_active=False, tenant_id="tenant-123")
 
         assert len(inactive_users) == 1
         assert total == 1

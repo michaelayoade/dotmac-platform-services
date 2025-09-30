@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/utils/logger';
 import {
   X,
   Edit,
@@ -16,7 +17,8 @@ import {
   Clock,
   Tag
 } from 'lucide-react';
-import { Customer, useCustomers, useCustomerActivities, useCustomerNotes } from '@/hooks/useCustomers';
+import { Customer } from '@/types';
+import { useCustomer, useCustomerActivities, useCustomerNotes } from '@/hooks/useCustomers';
 import { CustomerActivities } from './CustomerActivities';
 import { CustomerNotes } from './CustomerNotes';
 
@@ -286,7 +288,7 @@ function CustomerOverview({ customer }: { customer: Customer }) {
 
 export function CustomerDetailModal({ customer, onClose, onEdit, onDelete }: CustomerDetailModalProps) {
   const [activeTab, setActiveTab] = useState('overview');
-  const { getCustomer, loading } = useCustomers();
+  const { getCustomer, loading } = useCustomer();
   const [detailedCustomer, setDetailedCustomer] = useState<Customer>(customer);
 
   // Load detailed customer data
@@ -296,7 +298,7 @@ export function CustomerDetailModal({ customer, onClose, onEdit, onDelete }: Cus
         const detailed = await getCustomer(customer.id, true, true);
         setDetailedCustomer(detailed);
       } catch (error) {
-        console.error('Failed to load detailed customer:', error);
+        logger.error('Failed to load detailed customer', error instanceof Error ? error : new Error(String(error)));
       }
     };
 

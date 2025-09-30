@@ -5,7 +5,7 @@ Webhook router for payment providers
 import logging
 from typing import Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.config import get_billing_config

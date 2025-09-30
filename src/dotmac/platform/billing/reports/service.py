@@ -4,7 +4,7 @@ Billing reports service - Main orchestrator for all billing reports
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from enum import Enum
 
 from sqlalchemy.ext.asyncio import AsyncSession

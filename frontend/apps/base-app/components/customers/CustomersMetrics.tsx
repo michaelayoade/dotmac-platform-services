@@ -1,5 +1,5 @@
 import { TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
-import { CustomerMetrics } from '@/hooks/useCustomers';
+import { CustomerMetrics } from '@/types';
 
 interface CustomersMetricsProps {
   metrics: CustomerMetrics | null;
@@ -102,7 +102,7 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
         <MetricCard
           title="Active Customers"
           value={formatNumber(metrics.active_customers)}
-          change={`${((metrics.active_customers / metrics.total_customers) * 100).toFixed(1)}% of total`}
+          change={`${metrics.total_customers > 0 ? ((metrics.active_customers / metrics.total_customers) * 100).toFixed(1) : '0'}% of total`}
           changeType="neutral"
           icon={Activity}
         />
@@ -129,7 +129,7 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
           <h3 className="text-lg font-semibold text-white mb-4">By Status</h3>
           <div className="space-y-3">
             {Object.entries(metrics.customers_by_status).map(([status, count]) => {
-              const percentage = (count / metrics.total_customers) * 100;
+              const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const statusColors = {
                 active: 'bg-green-500',
                 prospect: 'bg-yellow-500',
@@ -160,7 +160,7 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
           <h3 className="text-lg font-semibold text-white mb-4">By Tier</h3>
           <div className="space-y-3">
             {Object.entries(metrics.customers_by_tier).map(([tier, count]) => {
-              const percentage = (count / metrics.total_customers) * 100;
+              const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const tierColors = {
                 free: 'bg-slate-500',
                 basic: 'bg-blue-500',
@@ -190,7 +190,7 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
           <h3 className="text-lg font-semibold text-white mb-4">By Type</h3>
           <div className="space-y-3">
             {Object.entries(metrics.customers_by_type).map(([type, count]) => {
-              const percentage = (count / metrics.total_customers) * 100;
+              const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const typeColors = {
                 individual: 'bg-blue-500',
                 business: 'bg-green-500',

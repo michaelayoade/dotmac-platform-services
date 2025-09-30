@@ -33,7 +33,7 @@ class CompanyInfo(BaseModel):
 
     # Branding
     logo_url: Optional[str] = Field(None, description="URL to company logo")
-    brand_color: Optional[str] = Field(None, regex=r"^#[0-9A-Fa-f]{6}$")
+    brand_color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     class Config:
         json_schema_extra = {
@@ -154,7 +154,7 @@ class InvoiceSettings(BaseModel):
 
     # PDF customization
     logo_on_invoices: bool = Field(True)
-    color_scheme: Optional[str] = Field(None, regex=r"^#[0-9A-Fa-f]{6}$")
+    color_scheme: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     class Config:
         json_schema_extra = {

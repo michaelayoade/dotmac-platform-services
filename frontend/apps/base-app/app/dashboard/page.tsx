@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getAccessToken, clearTokens, getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, logout as logoutUser } from '@/lib/auth';
 import { platformConfig } from '@/lib/config';
+import { logger } from '@/lib/utils/logger';
 
 interface User {
   id: string;
@@ -28,34 +29,56 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = getAccessToken();
+    let isMounted = true;
 
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    const loadUser = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        if (!isMounted) return;
+        setUser(currentUser);
+      } catch (err) {
+        logger.error('Failed to fetch user', err instanceof Error ? err : new Error(String(err)));
+        if (!isMounted) return;
+        router.replace('/login');
+      }
+    };
 
-    // Fetch user data
-    getCurrentUser(token)
-      .then(setUser)
-      .catch((err) => {
-        console.error('Failed to fetch user:', err);
-        // Token might be invalid, redirect to login
-        clearTokens();
-        router.push('/login');
-      });
+    const loadHealth = async () => {
+      try {
+        const baseUrl = platformConfig.apiBaseUrl || '';
+        const healthPath = `${baseUrl}/health`;
+        const response = await fetch(healthPath);
+        if (!isMounted) return;
+        if (!response.ok) {
+          logger.error('Failed to fetch health status', new Error(`HTTP ${response.status}`));
+          return;
+        }
+        const data = await response.json();
+        setHealth(data);
+      } catch (error) {
+        if (!isMounted) return;
+        logger.error('Failed to fetch health status', error instanceof Error ? error : new Error(String(error)));
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
 
-    // Fetch health status
-    fetch(`${platformConfig.apiBaseUrl.replace('/api', '')}/health`)
-      .then(res => res.json())
-      .then(setHealth)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    loadUser();
+    loadHealth();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
-  const handleLogout = () => {
-    clearTokens();
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } finally {
+      router.push('/login');
+    }
   };
 
   if (loading) {
@@ -190,13 +213,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Auth Token Display (for debugging) */}
-        <div className="mt-12 p-4 bg-slate-900/30 border border-slate-800 rounded-lg">
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Debug Info</h3>
-          <p className="text-xs text-slate-500 font-mono break-all">
-            Token: {getAccessToken()?.substring(0, 20)}...
-          </p>
-        </div>
       </div>
     </main>
   );

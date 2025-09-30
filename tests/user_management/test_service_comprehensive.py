@@ -266,10 +266,11 @@ class TestUserListing:
             await user_service.create_user(
                 username=f"listuser{i}",
                 email=f"listuser{i}@example.com",
-                password="password123"
+                password="password123",
+                tenant_id="test-tenant"
             )
 
-        users, total = await user_service.list_users(skip=0, limit=10)
+        users, total = await user_service.list_users(skip=0, limit=10, tenant_id="test-tenant")
 
         assert len(users) >= 3  # At least the 3 users we created
         assert total >= 3
@@ -282,11 +283,12 @@ class TestUserListing:
         await user_service.create_user(
             username="searchableuser",
             email="searchable@example.com",
-            password="password123"
+            password="password123",
+            tenant_id="test-tenant"
         )
 
         # Test with search term (using basic parameters)
-        users, total = await user_service.list_users(skip=0, limit=10)
+        users, total = await user_service.list_users(skip=0, limit=10, tenant_id="test-tenant")
 
         # Should find at least the user we created
         assert len(users) >= 1
@@ -311,7 +313,7 @@ class TestEdgeCases:
 
     async def test_list_users_with_special_characters(self, user_service: UserService):
         """Test listing users with special characters in search."""
-        users, total = await user_service.list_users(skip=0, limit=10)
+        users, total = await user_service.list_users(skip=0, limit=10, tenant_id="test-tenant")
         # Should not crash, might return empty results
         assert isinstance(users, list)
         assert isinstance(total, int)

@@ -3,12 +3,11 @@ Billing settings service
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.settings.models import (
+from .models import (
     BillingSettings,
     CompanyInfo,
     TaxSettings,

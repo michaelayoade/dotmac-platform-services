@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4, UUID
 from datetime import datetime, timezone
+from decimal import Decimal
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
@@ -59,7 +60,7 @@ class TestCreateCustomerEndpoint:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -152,7 +153,7 @@ class TestGetCustomerEndpoints:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -231,6 +232,7 @@ class TestGetCustomerEndpoints:
         mock_service.get_customer_by_number.return_value = mock_customer
 
         with patch('dotmac.platform.customer_management.schemas.CustomerResponse.model_validate') as mock_validate:
+            now = datetime.now(timezone.utc)
             mock_response = CustomerResponse(
                 id=uuid4(),
                 customer_number=customer_number,
@@ -240,7 +242,23 @@ class TestGetCustomerEndpoints:
                 customer_type="individual",
                 tier="basic",
                 status="prospect",
-                created_at=datetime.now(timezone.utc)
+                # Required verification fields
+                email_verified=True,
+                phone_verified=False,
+                # Required metrics
+                lifetime_value=Decimal("100.00"),
+                total_purchases=2,
+                average_order_value=Decimal("50.00"),
+                # Required scoring
+                risk_score=10,
+                # Required dates
+                acquisition_date=now,
+                created_at=now,
+                updated_at=now,
+                # Required collections
+                tags=[],
+                metadata={},
+                custom_fields={}
             )
             mock_validate.return_value = mock_response
 
@@ -270,7 +288,7 @@ class TestUpdateCustomerEndpoint:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -287,6 +305,7 @@ class TestUpdateCustomerEndpoint:
         mock_service.update_customer.return_value = mock_customer
 
         with patch('dotmac.platform.customer_management.schemas.CustomerResponse.model_validate') as mock_validate:
+            now = datetime.now(timezone.utc)
             mock_response = CustomerResponse(
                 id=customer_id,
                 customer_number="CUST001",
@@ -296,7 +315,23 @@ class TestUpdateCustomerEndpoint:
                 customer_type="individual",
                 tier="premium",
                 status="prospect",
-                created_at=datetime.now(timezone.utc)
+                # Required verification fields
+                email_verified=True,
+                phone_verified=False,
+                # Required metrics
+                lifetime_value=Decimal("150.00"),
+                total_purchases=3,
+                average_order_value=Decimal("50.00"),
+                # Required scoring
+                risk_score=5,
+                # Required dates
+                acquisition_date=now,
+                created_at=now,
+                updated_at=now,
+                # Required collections
+                tags=[],
+                metadata={},
+                custom_fields={}
             )
             mock_validate.return_value = mock_response
 
@@ -362,7 +397,7 @@ class TestDeleteCustomerEndpoint:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -419,7 +454,7 @@ class TestSearchCustomersEndpoint:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -435,6 +470,7 @@ class TestSearchCustomersEndpoint:
         mock_service.search_customers.return_value = (mock_customers, 15)
 
         with patch('dotmac.platform.customer_management.schemas.CustomerResponse.model_validate') as mock_validate:
+            now = datetime.now(timezone.utc)
             mock_response = CustomerResponse(
                 id=uuid4(),
                 customer_number="CUST001",
@@ -444,7 +480,23 @@ class TestSearchCustomersEndpoint:
                 customer_type="individual",
                 tier="basic",
                 status="prospect",
-                created_at=datetime.now(timezone.utc)
+                # Required verification fields
+                email_verified=True,
+                phone_verified=False,
+                # Required metrics
+                lifetime_value=Decimal("100.00"),
+                total_purchases=2,
+                average_order_value=Decimal("50.00"),
+                # Required scoring
+                risk_score=10,
+                # Required dates
+                acquisition_date=now,
+                created_at=now,
+                updated_at=now,
+                # Required collections
+                tags=[],
+                metadata={},
+                custom_fields={}
             )
             mock_validate.return_value = mock_response
 
@@ -498,7 +550,7 @@ class TestCustomerActivitiesEndpoints:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -632,7 +684,7 @@ class TestCustomerNotesEndpoints:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -769,7 +821,7 @@ class TestCustomerMetricsEndpoints:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -827,7 +879,7 @@ class TestCustomerSegmentsEndpoints:
     def mock_current_user(self):
         """Mock current user."""
         return UserInfo(
-            user_id="user123",
+            user_id=str(uuid4()),
             username="testuser",
             email="user@example.com",
             roles=["user"]
@@ -844,25 +896,32 @@ class TestCustomerSegmentsEndpoints:
         )
 
         mock_service = AsyncMock()
+        # Create a mock segment with all required attributes
         mock_segment = MagicMock()
+        segment_id = uuid4()
+        now = datetime.now(timezone.utc)
+
+        # Set all the attributes that the router will access
+        mock_segment.id = segment_id
+        mock_segment.name = "High Value Customers"
+        mock_segment.description = "Customers with high LTV"
+        mock_segment.criteria = {"min_ltv": 1000}
+        mock_segment.is_dynamic = True
+        mock_segment.priority = 1
+        mock_segment.member_count = 25
+        mock_segment.last_calculated = now
+        mock_segment.created_at = now
+        mock_segment.updated_at = now
+
         mock_service.create_segment.return_value = mock_segment
 
-        with patch('dotmac.platform.customer_management.schemas.CustomerSegmentResponse.model_validate') as mock_validate:
-            mock_response = CustomerSegmentResponse(
-                id=uuid4(),
-                name="High Value Customers",
-                description="Customers with high LTV",
-                criteria={"min_ltv": 1000},
-                is_dynamic=True,
-                member_count=25,
-                created_at=datetime.now(timezone.utc)
-            )
-            mock_validate.return_value = mock_response
+        result = await create_segment(segment_data, mock_service, mock_current_user)
 
-            result = await create_segment(segment_data, mock_service, mock_current_user)
-
-            assert result == mock_response
-            mock_service.create_segment.assert_called_once_with(segment_data)
+        assert result.id == segment_id
+        assert result.name == "High Value Customers"
+        assert result.is_dynamic is True
+        assert result.member_count == 25
+        mock_service.create_segment.assert_called_once_with(segment_data)
 
     @pytest.mark.asyncio
     async def test_create_segment_exception(self, mock_current_user):

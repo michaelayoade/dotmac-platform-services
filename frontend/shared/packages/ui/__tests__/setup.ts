@@ -4,6 +4,7 @@
  */
 
 import '@testing-library/jest-dom';
+import './mocks';
 
 // Mock ResizeObserver which might be used by components
 global.ResizeObserver = jest.fn().mockImplementation(() => ({

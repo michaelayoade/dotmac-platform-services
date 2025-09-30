@@ -15,7 +15,7 @@ from fastapi.security import HTTPBearer
 logger = structlog.get_logger(__name__)
 
 # Security scheme for Swagger UI
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 @dataclass
@@ -41,6 +41,14 @@ ROUTER_CONFIGS = [
         description="Authentication endpoints",
     ),
     RouterConfig(
+        module_path="dotmac.platform.auth.rbac_read_router",
+        router_name="router",
+        prefix="/api/v1/auth/rbac",
+        tags=["RBAC"],
+        requires_auth=True,
+        description="RBAC read-only endpoints for frontend",
+    ),
+    RouterConfig(
         module_path="dotmac.platform.secrets.api",
         router_name="router",
         prefix="/api/v1/secrets",
@@ -63,17 +71,10 @@ ROUTER_CONFIGS = [
     ),
     RouterConfig(
         module_path="dotmac.platform.communications.router",
-        router_name="communications_router",
+        router_name="router",
         prefix="/api/v1/communications",
         tags=["Communications"],
-        description="Email, notifications, and events",
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.communications.enhanced_router",
-        router_name="enhanced_router",
-        prefix="/api/v1/communications",
-        tags=["Enhanced Communications"],
-        description="Email templates and bulk campaigns",
+        description="Communications API with email, templates, and background tasks",
     ),
     RouterConfig(
         module_path="dotmac.platform.search.router",
@@ -111,6 +112,13 @@ ROUTER_CONFIGS = [
         description="Customer relationship management",
     ),
     RouterConfig(
+        module_path="dotmac.platform.contacts.router",
+        router_name="router",
+        prefix="/api/v1/contacts",
+        tags=["Contacts"],
+        description="Contact management system",
+    ),
+    RouterConfig(
         module_path="dotmac.platform.auth.api_keys_router",
         router_name="router",
         prefix="/api/v1/auth/api-keys",
@@ -118,11 +126,12 @@ ROUTER_CONFIGS = [
         description="API key management",
     ),
     RouterConfig(
-        module_path="dotmac.platform.communications.webhooks_router",
+        module_path="dotmac.platform.webhooks.router",
         router_name="router",
         prefix="/api/v1/webhooks",
         tags=["Webhooks"],
-        description="Webhook subscription management",
+        description="Generic webhook subscription and event management",
+        requires_auth=True,
     ),
     RouterConfig(
         module_path="dotmac.platform.billing.router",
@@ -130,6 +139,84 @@ ROUTER_CONFIGS = [
         prefix="/api/v1/billing",
         tags=["Billing"],
         description="Billing and payment management",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.plugins.router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Plugin Management"],
+        description="Dynamic plugin system management",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.audit.router",
+        router_name="router",
+        prefix="/api/v1/audit",
+        tags=["Audit"],
+        description="Audit trails and activity tracking",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.admin.settings.router",
+        router_name="router",
+        prefix="/api/v1/admin/settings",
+        tags=["Admin", "Settings"],
+        description="Platform settings management (admin only)",
+        requires_auth=True,  # Uses require_admin internally
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.catalog.router",
+        router_name="router",
+        prefix="/api/v1/billing/catalog",
+        tags=["Billing", "Products"],
+        description="Product catalog management",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.subscriptions.router",
+        router_name="router",
+        prefix="/api/v1/billing/subscriptions",
+        tags=["Billing", "Subscriptions"],
+        description="Subscription management",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.pricing.router",
+        router_name="router",
+        prefix="/api/v1/billing/pricing",
+        tags=["Billing", "Pricing"],
+        description="Pricing engine and rules",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.bank_accounts.router",
+        router_name="router",
+        prefix="/api/v1/billing/bank-accounts",
+        tags=["Billing", "Bank Accounts"],
+        description="Bank accounts and manual payments",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.settings.router",
+        router_name="router",
+        prefix="/api/v1/billing/settings",
+        tags=["Billing", "Settings"],
+        description="Billing configuration and settings",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.monitoring.logs_router",
+        router_name="logs_router",
+        prefix="/api/v1/monitoring",
+        tags=["Monitoring", "Logs"],
+        description="Application logs with filtering and search",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.monitoring.traces_router",
+        router_name="traces_router",
+        prefix="/api/v1/observability",
+        tags=["Observability", "Traces", "Metrics"],
+        description="Distributed traces, metrics, and performance data",
+        requires_auth=True,
     ),
 ]
 

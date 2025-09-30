@@ -15,9 +15,10 @@ from dotmac.platform.billing.core.exceptions import (
     InvalidInvoiceStatusError,
     InvoiceNotFoundError,
 )
-from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
+from dotmac.platform.billing.core.models import Invoice
 from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.database import get_async_session
+from dotmac.platform.billing.dependencies import get_tenant_id
 
 
 # ============================================================================
@@ -114,13 +115,12 @@ def get_tenant_id_from_request(request: Request) -> str:
 @router.post("", response_model=Invoice, status_code=status.HTTP_201_CREATED)
 async def create_invoice(
     invoice_data: CreateInvoiceRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user=Depends(get_current_user),
 ) -> Invoice:
     """Create a new invoice with tenant isolation"""
 
-    tenant_id = get_tenant_id_from_request(request)
     invoice_service = InvoiceService(db)
 
     try:

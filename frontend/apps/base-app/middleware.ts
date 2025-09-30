@@ -3,13 +3,24 @@ import type { NextRequest } from 'next/server';
 
 // Routes that don't require authentication
 const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/'];
-const apiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
+const apiAuthRoutes = [
+  '/api/auth/',
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/logout',
+];
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Skip middleware for public routes and API auth endpoints
-  if (publicRoutes.includes(pathname) || apiRoutes.some(route => pathname.startsWith(route))) {
+  if (publicRoutes.includes(pathname) || apiAuthRoutes.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
+
+  // Skip authentication in mock mode (MSW can't set real cookies)
+  if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_MOCK_API === 'true') {
     return NextResponse.next();
   }
 

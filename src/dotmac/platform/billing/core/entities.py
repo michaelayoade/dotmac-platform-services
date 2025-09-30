@@ -3,6 +3,7 @@ Billing module SQLAlchemy entities with tenant support
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -41,7 +43,6 @@ from .enums import (
     PaymentMethodType,
     PaymentStatus,
     TransactionType,
-    VerificationStatus,
 )
 
 
@@ -54,6 +55,7 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     """Invoice database entity"""
 
     __tablename__ = "invoices"
+    __table_args__ = {'extend_existing': True}
 
     invoice_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -65,6 +67,9 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Customer
     customer_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    billing_contact_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )  # Soft reference to contacts table (FK added when contacts module is available)
     billing_email: Mapped[str] = mapped_column(String(255), nullable=False)
     billing_address: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
@@ -106,6 +111,7 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships
+    # billing_contact relationship added when contacts module is integrated
     line_items: Mapped[list["InvoiceLineItemEntity"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan"
     )
@@ -117,6 +123,7 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
         Index("idx_invoice_tenant_status", "tenant_id", "status"),
         Index("idx_invoice_tenant_due_date", "tenant_id", "due_date"),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_invoice_idempotency"),
+        {"extend_existing": True},
     )
 
 
@@ -124,6 +131,7 @@ class InvoiceLineItemEntity(Base):
     """Invoice line item database entity"""
 
     __tablename__ = "invoice_line_items"
+    __table_args__ = ({'extend_existing': True},)
 
     line_item_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -164,6 +172,7 @@ class PaymentEntity(Base, TenantMixin, TimestampMixin):
     """Payment database entity"""
 
     __tablename__ = "payments"
+    __table_args__ = {'extend_existing': True}
 
     payment_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -212,6 +221,7 @@ class PaymentEntity(Base, TenantMixin, TimestampMixin):
         Index("idx_payment_tenant_customer", "tenant_id", "customer_id"),
         Index("idx_payment_tenant_status", "tenant_id", "status"),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_payment_idempotency"),
+        {"extend_existing": True},
     )
 
 
@@ -219,6 +229,7 @@ class PaymentInvoiceEntity(Base):
     """Payment-Invoice association table"""
 
     __tablename__ = "payment_invoices"
+    __table_args__ = ({'extend_existing': True},)
 
     payment_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("payments.payment_id"), primary_key=True
@@ -240,6 +251,7 @@ class PaymentMethodEntity(Base, TenantMixin, TimestampMixin, SoftDeleteMixin):
     """Payment method database entity"""
 
     __tablename__ = "payment_methods"
+    __table_args__ = {'extend_existing': True}
 
     payment_method_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -291,6 +303,7 @@ class TransactionEntity(Base, TenantMixin):
     """Transaction ledger database entity"""
 
     __tablename__ = "transactions"
+    __table_args__ = {'extend_existing': True}
 
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -334,6 +347,7 @@ class CreditNoteEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     """Credit note database entity"""
 
     __tablename__ = "credit_notes"
+    __table_args__ = {'extend_existing': True}
 
     credit_note_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -396,6 +410,7 @@ class CreditNoteLineItemEntity(Base):
     """Credit note line item database entity"""
 
     __tablename__ = "credit_note_line_items"
+    __table_args__ = {'extend_existing': True}
 
     line_item_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -429,6 +444,7 @@ class CreditApplicationEntity(Base, TenantMixin):
     """Credit application database entity"""
 
     __tablename__ = "credit_applications"
+    __table_args__ = {'extend_existing': True}
 
     application_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -467,6 +483,7 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
     """Customer credit balance database entity"""
 
     __tablename__ = "customer_credits"
+    __table_args__ = {'extend_existing': True}
 
     customer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(255), primary_key=True)
@@ -486,3 +503,95 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
 
     # Composite primary key
     __table_args__ = (Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),)
+
+
+
+class CashRegister(Base, SoftDeleteMixin, TenantMixin):
+    """
+    Cash register entity for physical cash management.
+    """
+    __tablename__ = "cash_registers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    register_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    register_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    location: Mapped[str | None] = mapped_column(String(200))
+
+    # Float management
+    initial_float: Mapped[Decimal] = mapped_column(
+        Numeric(19, 4), nullable=False, default=Decimal("0.00")
+    )
+    current_float: Mapped[Decimal] = mapped_column(
+        Numeric(19, 4), nullable=False, default=Decimal("0.00")
+    )
+    max_cash_limit: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
+
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    requires_daily_reconciliation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    last_reconciled: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Audit
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(String(255))
+
+    # Metadata
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class CashReconciliation(Base, TenantMixin):
+    """
+    Cash reconciliation records for cash registers.
+    """
+    __tablename__ = "cash_reconciliations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    register_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("cash_registers.register_id"), nullable=False
+    )
+    reconciliation_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    # Amounts
+    opening_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    closing_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    expected_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    actual_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    discrepancy: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+
+    # Details
+    reconciled_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    shift_id: Mapped[str | None] = mapped_column(String(50))
+
+    # Metadata
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class CashTransaction(Base, TenantMixin):
+    """
+    Individual cash transactions for a register.
+    """
+    __tablename__ = "cash_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    register_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("cash_registers.register_id"), nullable=False
+    )
+
+    # Transaction details
+    transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+
+    reference: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(500))
+
+    # Audit
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Metadata
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logger } from '@/lib/utils/logger';
 import {
   Clock,
   Plus,
@@ -101,7 +102,7 @@ function AddActivityModal({ onClose, onAdd }: AddActivityModalProps) {
       await onAdd(formData);
       onClose();
     } catch (error) {
-      console.error('Failed to add activity:', error);
+      logger.error('Failed to add activity', error instanceof Error ? error : new Error(String(error)));
     } finally {
       setLoading(false);
     }

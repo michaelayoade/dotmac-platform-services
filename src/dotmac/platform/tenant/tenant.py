@@ -105,6 +105,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # In single-tenant mode, still set default tenant for consistency
             if self.config.is_single_tenant:
                 request.state.tenant_id = self.config.default_tenant_id
+                from . import set_current_tenant_id
+                set_current_tenant_id(self.config.default_tenant_id)
             return await call_next(request)
 
         # Resolve tenant ID
@@ -114,8 +116,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
         tenant_id = self.config.get_tenant_id_for_request(resolved_id)
 
         if tenant_id:
-            # Set tenant ID on request state
+            # Set tenant ID on request state and context var
             request.state.tenant_id = tenant_id
+            from . import set_current_tenant_id
+            set_current_tenant_id(tenant_id)
         elif self.require_tenant:
             # Only raise error if tenant is required (multi-tenant mode)
             from fastapi import status
@@ -130,5 +134,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         else:
             # Fall back to default if available
             request.state.tenant_id = self.config.default_tenant_id
+            from . import set_current_tenant_id
+            set_current_tenant_id(self.config.default_tenant_id)
 
         return await call_next(request)

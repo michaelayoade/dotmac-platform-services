@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
-import { Customer, useCustomers } from '@/hooks/useCustomers';
+import { Customer, CustomerCreateInput, CustomerUpdateInput } from '@/types';
+import { logger } from '@/lib/utils/logger';
 
 interface CreateCustomerModalProps {
   onClose: () => void;
   onCustomerCreated: (customer: Customer) => void;
   editingCustomer?: Customer | null;
+  createCustomer: (payload: CustomerCreateInput) => Promise<Customer>;
+  updateCustomer: (id: string, payload: CustomerUpdateInput) => Promise<Customer>;
+  loading?: boolean;
 }
 
 interface FormData {
@@ -58,8 +62,14 @@ const initialFormData: FormData = {
   notes: '',
 };
 
-export function CreateCustomerModal({ onClose, onCustomerCreated, editingCustomer }: CreateCustomerModalProps) {
-  const { createCustomer, updateCustomer, loading } = useCustomers();
+export function CreateCustomerModal({
+  onClose,
+  onCustomerCreated,
+  editingCustomer,
+  createCustomer,
+  updateCustomer,
+  loading = false
+}: CreateCustomerModalProps) {
   const [formData, setFormData] = useState<FormData>(() => {
     if (editingCustomer) {
       return {
@@ -136,7 +146,7 @@ export function CreateCustomerModal({ onClose, onCustomerCreated, editingCustome
 
       onCustomerCreated(result);
     } catch (error) {
-      console.error('Failed to save customer:', error);
+      logger.error('Failed to save customer', error instanceof Error ? error : new Error(String(error)));
       // You might want to show a toast notification here
     }
   };

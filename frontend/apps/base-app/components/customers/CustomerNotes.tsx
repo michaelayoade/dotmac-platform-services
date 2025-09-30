@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logger } from '@/lib/utils/logger';
 import {
   MessageSquare,
   Plus,
@@ -83,7 +84,7 @@ function AddNoteModal({ onClose, onAdd }: AddNoteModalProps) {
       await onAdd(formData);
       onClose();
     } catch (error) {
-      console.error('Failed to add note:', error);
+      logger.error('Failed to add note', error instanceof Error ? error : new Error(String(error)));
     } finally {
       setLoading(false);
     }

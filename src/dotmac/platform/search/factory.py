@@ -48,14 +48,10 @@ class SearchBackendRegistry:
         """List search backends that are enabled via feature flags."""
         enabled = ["memory"]  # Memory is always enabled
 
-        # Check optional backends
-        if settings.features.search_meilisearch_enabled:
-            if DependencyChecker.check_feature_dependency("search_meilisearch_enabled"):
+        # Check MeiliSearch backend
+        if settings.features.search_enabled:
+            if DependencyChecker.check_feature_dependency("search_enabled"):
                 enabled.append("meilisearch")
-
-        if settings.features.search_elasticsearch_enabled:
-            if DependencyChecker.check_feature_dependency("search_elasticsearch_enabled"):
-                enabled.append("elasticsearch")
 
         return enabled
 
@@ -69,9 +65,9 @@ def _register_optional_backends():
     """Register optional search backends if they're enabled and dependencies are available."""
 
     # MeiliSearch Backend
-    if settings.features.search_meilisearch_enabled:
+    if settings.features.search_enabled:
         try:
-            DependencyChecker.require_feature_dependency("search_meilisearch_enabled")
+            DependencyChecker.require_feature_dependency("search_enabled")
             from .service import MeilisearchBackend
 
             _registry.register_backend("meilisearch", MeilisearchBackend)
@@ -79,15 +75,6 @@ def _register_optional_backends():
             # Dependencies not available - will be caught when trying to use
             pass
 
-    # Elasticsearch Backend (if implemented)
-    if settings.features.search_elasticsearch_enabled:
-        try:
-            DependencyChecker.require_feature_dependency("search_elasticsearch_enabled")
-            # from .elasticsearch_backend import ElasticsearchBackend  # Assuming this exists
-            # _registry.register_backend("elasticsearch", ElasticsearchBackend)
-            pass
-        except ImportError:
-            pass
 
 
 # Register optional backends on module import
@@ -116,23 +103,16 @@ class SearchBackendFactory:
         if backend_type is None:
             backend_type = SearchBackendFactory._auto_select_backend()
 
-        # Validate backend is enabled
-        if backend_type == "meilisearch" and not settings.features.search_meilisearch_enabled:
+        # Validate MeiliSearch backend is enabled
+        if backend_type == "meilisearch" and not settings.features.search_enabled:
             raise ValueError(
                 "MeiliSearch backend selected but not enabled. "
-                "Set FEATURES__SEARCH_MEILISEARCH_ENABLED=true"
-            )
-        elif backend_type == "elasticsearch" and not settings.features.search_elasticsearch_enabled:
-            raise ValueError(
-                "Elasticsearch backend selected but not enabled. "
-                "Set FEATURES__SEARCH_ELASTICSEARCH_ENABLED=true"
+                "Set FEATURES__SEARCH_ENABLED=true"
             )
 
         # Check dependencies before creating
         if backend_type == "meilisearch":
-            DependencyChecker.require_feature_dependency("search_meilisearch_enabled")
-        elif backend_type == "elasticsearch":
-            DependencyChecker.require_feature_dependency("search_elasticsearch_enabled")
+            DependencyChecker.require_feature_dependency("search_enabled")
 
         # Get backend class and create instance
         backend_class = _registry.get_backend_class(backend_type)
@@ -143,17 +123,11 @@ class SearchBackendFactory:
         """Auto-select the best available search backend."""
         # Prefer MeiliSearch if enabled and available
         if (
-            settings.features.search_meilisearch_enabled
-            and DependencyChecker.check_feature_dependency("search_meilisearch_enabled")
+            settings.features.search_enabled
+            and DependencyChecker.check_feature_dependency("search_enabled")
         ):
             return "meilisearch"
 
-        # Fallback to Elasticsearch if enabled and available
-        if (
-            settings.features.search_elasticsearch_enabled
-            and DependencyChecker.check_feature_dependency("search_elasticsearch_enabled")
-        ):
-            return "elasticsearch"
 
         # Default to in-memory backend
         return "memory"
@@ -197,7 +171,7 @@ def get_default_search_backend(**kwargs) -> SearchBackend:
     return SearchBackendFactory.create_backend(**kwargs)
 
 
-@require_dependency("search_meilisearch_enabled")
+@require_dependency("search_enabled")
 def create_meilisearch_backend(**kwargs) -> SearchBackend:
     """Create a MeiliSearch backend (requires MeiliSearch to be enabled)."""
     return SearchBackendFactory.create_backend("meilisearch", **kwargs)

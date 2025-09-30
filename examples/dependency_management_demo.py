@@ -17,15 +17,15 @@ Run with different feature flags to see different behaviors:
     FEATURES__SEARCH_MEILISEARCH_ENABLED=true python examples/dependency_management_demo.py
 
     # Enable storage
-    FEATURES__STORAGE_S3_ENABLED=true python examples/dependency_management_demo.py
+    FEATURES__STORAGE_ENABLED=true python examples/dependency_management_demo.py
 
     # Enable everything
-    FEATURES__SEARCH_MEILISEARCH_ENABLED=true FEATURES__STORAGE_S3_ENABLED=true \
+    FEATURES__SEARCH_MEILISEARCH_ENABLED=true FEATURES__STORAGE_ENABLED=true \
     FEATURES__TRACING_OPENTELEMETRY=true python examples/dependency_management_demo.py
 """
 
 import os
-from dotmac.platform.dependencies import DependencyChecker, DependencyError
+from dotmac.platform.dependencies import DependencyChecker
 from dotmac.platform.settings import settings
 
 
@@ -54,8 +54,7 @@ def demonstrate_dependency_checking():
     # Check optional features
     optional_features = [
         "search_meilisearch_enabled",
-        "storage_s3_enabled",
-        "storage_minio_enabled",
+        "storage_enabled",
         "tracing_opentelemetry",
         "graphql_enabled"
     ]
@@ -95,19 +94,8 @@ def demonstrate_storage_backends():
         local_backend = StorageBackendFactory.create_backend("local")
         print(f"✅ Success: {type(local_backend).__name__}")
 
-        # Try S3 if enabled
-        if settings.features.storage_s3_enabled:
-            print(f"\n🔄 Creating S3 storage backend...")
-            try:
-                s3_backend = StorageBackendFactory.create_backend("s3")
-                print(f"✅ Success: {type(s3_backend).__name__}")
-            except Exception as e:
-                print(f"❌ Failed: {e}")
-        else:
-            print(f"\n⭕ S3 storage disabled (set FEATURES__STORAGE_S3_ENABLED=true to enable)")
-
         # Try MinIO if enabled
-        if settings.features.storage_minio_enabled:
+        if settings.features.storage_enabled:
             print(f"\n🔄 Creating MinIO storage backend...")
             try:
                 minio_backend = StorageBackendFactory.create_backend("minio")
@@ -115,7 +103,7 @@ def demonstrate_storage_backends():
             except Exception as e:
                 print(f"❌ Failed: {e}")
         else:
-            print(f"\n⭕ MinIO storage disabled (set FEATURES__STORAGE_MINIO_ENABLED=true to enable)")
+            print(f"\n⭕ MinIO storage disabled (set FEATURES__STORAGE_ENABLED=true to enable)")
 
     except Exception as e:
         print(f"❌ Storage factory error: {e}")
@@ -174,12 +162,12 @@ def demonstrate_error_messages():
         except Exception as e:
             print(f"❌ Expected error: {e}")
 
-    # Test S3 (unless enabled)
-    if not settings.features.storage_s3_enabled:
-        print(f"\n🔄 Trying to require S3 when disabled...")
+    # Test MinIO (unless enabled)
+    if not settings.features.storage_enabled:
+        print(f"\n🔄 Trying to require MinIO when disabled...")
         try:
-            from dotmac.platform.dependencies import require_boto3
-            require_boto3()
+            from dotmac.platform.dependencies import require_minio
+            require_minio()
         except Exception as e:
             print(f"❌ Expected error: {e}")
 

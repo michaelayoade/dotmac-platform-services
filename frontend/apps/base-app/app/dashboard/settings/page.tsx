@@ -1,450 +1,363 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   User,
+  Users,
+  CreditCard,
   Mail,
   Lock,
   Bell,
   Shield,
   Globe,
-  Moon,
-  Sun,
-  Monitor,
   Palette,
   Database,
   Key,
-  AlertCircle,
-  CheckCircle,
-  Save
+  Package,
+  Building,
+  ArrowUpRight,
+  Settings as SettingsIcon,
+  Sliders,
+  FileText,
+  Zap,
+  Cloud,
+  Smartphone
 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { RouteGuard } from '@/components/auth/PermissionGuard';
 
-interface SettingSection {
+interface SettingCard {
   id: string;
   title: string;
   description: string;
   icon: React.ElementType;
+  href: string;
+  status?: 'active' | 'warning' | 'info';
+  badge?: string;
 }
 
-const sections: SettingSection[] = [
-  { id: 'profile', title: 'Profile', description: 'Manage your personal information', icon: User },
-  { id: 'security', title: 'Security', description: 'Password and authentication settings', icon: Shield },
-  { id: 'notifications', title: 'Notifications', description: 'Email and system notifications', icon: Bell },
-  { id: 'appearance', title: 'Appearance', description: 'Theme and display preferences', icon: Palette },
-  { id: 'api', title: 'API Keys', description: 'Manage API access tokens', icon: Key },
-  { id: 'data', title: 'Data & Privacy', description: 'Data export and privacy settings', icon: Database },
+const settingCards: SettingCard[] = [
+  {
+    id: 'profile',
+    title: 'Profile',
+    description: 'Manage your personal information and account details',
+    icon: User,
+    href: '/dashboard/settings/profile',
+    status: 'active'
+  },
+  {
+    id: 'organization',
+    title: 'Organization',
+    description: 'Company information, team management, and roles',
+    icon: Building,
+    href: '/dashboard/settings/organization'
+  },
+  {
+    id: 'billing',
+    title: 'Billing Preferences',
+    description: 'Payment methods, billing address, and invoice settings',
+    icon: CreditCard,
+    href: '/dashboard/settings/billing',
+    badge: 'Payment due'
+  },
+  {
+    id: 'notifications',
+    title: 'Notifications',
+    description: 'Email alerts, push notifications, and communication preferences',
+    icon: Bell,
+    href: '/dashboard/settings/notifications'
+  },
+  {
+    id: 'security',
+    title: 'Security',
+    description: 'Password, two-factor authentication, and security settings',
+    icon: Shield,
+    href: '/dashboard/settings/security',
+    status: 'warning',
+    badge: 'MFA disabled'
+  },
+  {
+    id: 'integrations',
+    title: 'Integrations',
+    description: 'Connect with third-party services and APIs',
+    icon: Package,
+    href: '/dashboard/settings/integrations'
+  },
+  {
+    id: 'api-tokens',
+    title: 'API Tokens',
+    description: 'Manage personal API access tokens and OAuth apps',
+    icon: Key,
+    href: '/dashboard/settings/tokens'
+  },
+  {
+    id: 'appearance',
+    title: 'Appearance',
+    description: 'Theme preferences, display settings, and UI customization',
+    icon: Palette,
+    href: '/dashboard/settings/appearance'
+  },
+  {
+    id: 'data-privacy',
+    title: 'Data & Privacy',
+    description: 'Data export, deletion requests, and privacy controls',
+    icon: Database,
+    href: '/dashboard/settings/privacy'
+  },
+  {
+    id: 'advanced',
+    title: 'Advanced',
+    description: 'Developer settings, experimental features, and system config',
+    icon: Sliders,
+    href: '/dashboard/settings/advanced'
+  },
 ];
 
-export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState('profile');
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: false,
-    updates: true,
-    security: true,
-  });
-  const [profile, setProfile] = useState({
-    full_name: '',
-    email: '',
-    username: '',
-    phone: '',
-  });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+interface QuickStat {
+  label: string;
+  value: string | number;
+  icon: React.ElementType;
+  trend?: 'up' | 'down' | 'stable';
+}
 
-  useEffect(() => {
-    // Load user profile
-    loadUserProfile();
-  }, []);
-
-  const loadUserProfile = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-
-      const response = await fetch('http://localhost:8000/api/v1/auth/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfile({
-          full_name: data.full_name || '',
-          email: data.email || '',
-          username: data.username || '',
-          phone: data.phone || '',
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load profile:', error);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    setLoading(true);
-    setMessage(null);
-
-    // Simulate save operation
-    setTimeout(() => {
-      setMessage({ type: 'success', text: 'Profile settings saved successfully!' });
-      setLoading(false);
-      setTimeout(() => setMessage(null), 3000);
-    }, 1000);
-  };
-
-  const handlePasswordChange = async () => {
-    setLoading(true);
-    setMessage(null);
-
-    // Simulate password change
-    setTimeout(() => {
-      setMessage({ type: 'success', text: 'Password updated successfully!' });
-      setLoading(false);
-      setTimeout(() => setMessage(null), 3000);
-    }, 1000);
-  };
-
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'profile':
-        return (
-          <div className="space-y-6">
+function QuickStats({ stats }: { stats: QuickStat[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {stats.map((stat, index) => (
+        <div key={index} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-medium text-slate-100 mb-4">Profile Information</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={profile.full_name}
-                    onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Username</label>
-                  <input
-                    type="text"
-                    value={profile.username}
-                    onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    value={profile.email}
-                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={profile.phone}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={loading}
-                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
+              <p className="text-sm text-slate-400">{stat.label}</p>
+              <p className="mt-1 text-2xl font-semibold text-white">{stat.value}</p>
+            </div>
+            <div className="p-2 bg-slate-800 rounded-lg">
+              <stat.icon className="h-5 w-5 text-sky-400" />
             </div>
           </div>
-        );
+        </div>
+      ))}
+    </div>
+  );
+}
 
-      case 'security':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-slate-100 mb-4">Change Password</h3>
-              <div className="space-y-4 max-w-md">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Current Password</label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">New Password</label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Confirm New Password</label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <button
-                  onClick={handlePasswordChange}
-                  disabled={loading}
-                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 text-white rounded-lg transition-colors"
-                >
-                  {loading ? 'Updating...' : 'Update Password'}
-                </button>
-              </div>
-            </div>
+function SettingCard({ card }: { card: SettingCard }) {
+  const statusColors = {
+    active: 'border-green-900/20 bg-green-950/10',
+    warning: 'border-orange-900/20 bg-orange-950/10',
+    info: 'border-blue-900/20 bg-blue-950/10'
+  };
 
-            <div className="pt-6 border-t border-slate-800">
-              <h3 className="text-lg font-medium text-slate-100 mb-4">Two-Factor Authentication</h3>
-              <p className="text-sm text-slate-400 mb-4">Add an extra layer of security to your account</p>
-              <button className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors">
-                Enable 2FA
-              </button>
-            </div>
-          </div>
-        );
-
-      case 'notifications':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium text-slate-100 mb-4">Notification Preferences</h3>
-            <div className="space-y-4">
-              <label className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer hover:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-200">Email Notifications</div>
-                    <div className="text-xs text-slate-400">Receive updates via email</div>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifications.email}
-                  onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer hover:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <Bell className="h-5 w-5 text-slate-400" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-200">Push Notifications</div>
-                    <div className="text-xs text-slate-400">Browser push notifications</div>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifications.push}
-                  onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer hover:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <Globe className="h-5 w-5 text-slate-400" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-200">Product Updates</div>
-                    <div className="text-xs text-slate-400">New features and improvements</div>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifications.updates}
-                  onChange={(e) => setNotifications({ ...notifications, updates: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer hover:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <Shield className="h-5 w-5 text-slate-400" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-200">Security Alerts</div>
-                    <div className="text-xs text-slate-400">Important security notifications</div>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifications.security}
-                  onChange={(e) => setNotifications({ ...notifications, security: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
-                />
-              </label>
-            </div>
-          </div>
-        );
-
-      case 'appearance':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium text-slate-100 mb-4">Appearance Settings</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-3">Theme</label>
-                <div className="grid grid-cols-3 gap-3 max-w-md">
-                  <button
-                    onClick={() => setTheme('light')}
-                    className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                      theme === 'light'
-                        ? 'border-sky-500 bg-sky-500/10'
-                        : 'border-slate-700 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Sun className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-300">Light</span>
-                  </button>
-                  <button
-                    onClick={() => setTheme('dark')}
-                    className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                      theme === 'dark'
-                        ? 'border-sky-500 bg-sky-500/10'
-                        : 'border-slate-700 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Moon className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-300">Dark</span>
-                  </button>
-                  <button
-                    onClick={() => setTheme('system')}
-                    className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
-                      theme === 'system'
-                        ? 'border-sky-500 bg-sky-500/10'
-                        : 'border-slate-700 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Monitor className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-300">System</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'api':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium text-slate-100 mb-4">API Keys</h3>
-            <p className="text-sm text-slate-400 mb-4">Manage your API keys for programmatic access</p>
-
-            <div className="space-y-3">
-              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-medium text-slate-200">Production API Key</div>
-                  <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full">Active</span>
-                </div>
-                <div className="font-mono text-xs text-slate-400">sk_live_...4a2b</div>
-                <div className="text-xs text-slate-500 mt-2">Created: Jan 15, 2024</div>
-              </div>
-
-              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-medium text-slate-200">Development API Key</div>
-                  <span className="text-xs px-2 py-1 bg-amber-500/20 text-amber-400 rounded-full">Test</span>
-                </div>
-                <div className="font-mono text-xs text-slate-400">sk_test_...8f3c</div>
-                <div className="text-xs text-slate-500 mt-2">Created: Jan 10, 2024</div>
-              </div>
-            </div>
-
-            <button className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors">
-              Generate New API Key
-            </button>
-          </div>
-        );
-
-      case 'data':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium text-slate-100 mb-4">Data & Privacy</h3>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
-                <h4 className="text-sm font-medium text-slate-200 mb-2">Export Your Data</h4>
-                <p className="text-xs text-slate-400 mb-3">Download all your data in JSON format</p>
-                <button className="px-3 py-1.5 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors">
-                  Request Export
-                </button>
-              </div>
-
-              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
-                <h4 className="text-sm font-medium text-slate-200 mb-2">Delete Account</h4>
-                <p className="text-xs text-slate-400 mb-3">Permanently delete your account and all data</p>
-                <button className="px-3 py-1.5 text-sm border border-rose-500/50 text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors">
-                  Delete Account
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  const badgeColors = {
+    active: 'bg-green-500/20 text-green-400',
+    warning: 'bg-orange-500/20 text-orange-400',
+    info: 'bg-blue-500/20 text-blue-400'
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Page Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-slate-100">Settings</h1>
-          <p className="text-slate-400 mt-1">Manage your account and application preferences</p>
+    <Link
+      href={card.href}
+      className={`group relative rounded-lg border p-6 hover:border-slate-700 transition-all ${
+        card.status ? statusColors[card.status] : 'border-slate-800 bg-slate-900 hover:bg-slate-800/50'
+      }`}
+    >
+      <div className="flex items-start gap-4">
+        <div className="p-3 bg-slate-800 rounded-lg group-hover:bg-slate-700 transition-colors">
+          <card.icon className="h-6 w-6 text-sky-400" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold text-white group-hover:text-sky-400 transition-colors">
+                {card.title}
+              </h3>
+              <p className="mt-1 text-sm text-slate-400">
+                {card.description}
+              </p>
+            </div>
+            <ArrowUpRight className="h-4 w-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          {card.badge && (
+            <span className={`inline-block mt-3 px-2 py-1 text-xs font-medium rounded-full ${
+              card.status ? badgeColors[card.status] : 'bg-slate-700 text-slate-300'
+            }`}>
+              {card.badge}
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function SettingsHubPageContent() {
+  const [user, setUser] = useState<Record<string, unknown> | null>(null);
+  const [organization, setOrganization] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSettingsData();
+  }, []);
+
+  const fetchSettingsData = async () => {
+    try {
+      setLoading(true);
+      // Fetch user and organization data
+      const [userResponse, orgResponse] = await Promise.all([
+        apiClient.get('/api/v1/auth/me').catch(() => ({ success: false })),
+        apiClient.get('/api/v1/organization').catch(() => ({ success: false }))
+      ]);
+
+      if (userResponse.success) {
+        setUser(userResponse.data);
+      }
+      if (orgResponse.success) {
+        setOrganization(orgResponse.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch settings data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const quickStats: QuickStat[] = [
+    { label: 'Active Sessions', value: 3, icon: Smartphone },
+    { label: 'API Calls Today', value: '1,234', icon: Zap },
+    { label: 'Storage Used', value: '2.3 GB', icon: Cloud },
+    { label: 'Team Members', value: organization?.memberCount || 5, icon: Users }
+  ];
+
+  return (
+    <div className="min-h-screen p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <SettingsIcon className="h-8 w-8 text-sky-400" />
+            <h1 className="text-3xl font-bold text-white">Settings</h1>
+          </div>
+          <p className="text-slate-400">
+            Manage your account, organization, and platform preferences
+          </p>
         </div>
 
-        {/* Success/Error Messages */}
-        {message && (
-          <div className={`mb-6 p-4 rounded-lg flex items-center gap-2 ${
-            message.type === 'success'
-              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-              : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
-          }`}>
-            {message.type === 'success' ? (
-              <CheckCircle className="h-4 w-4 flex-shrink-0" />
-            ) : (
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            )}
-            <span className="text-sm">{message.text}</span>
+        {/* Quick Stats */}
+        <QuickStats stats={quickStats} />
+
+        {/* User Info Banner */}
+        {user && (
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+                  {user.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{user.full_name || user.username}</h2>
+                  <p className="text-sm text-slate-400">{user.email}</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Organization: {organization?.name || 'Personal'} •
+                    Plan: {organization?.plan || 'Free'} •
+                    Role: {user.roles?.join(', ') || 'User'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href="/dashboard/settings/profile"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Edit Profile
+                </Link>
+                <Link
+                  href="/dashboard/settings/security"
+                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Security Settings
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
-          <div className="lg:col-span-1">
-            <nav className="space-y-1">
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeSection === section.id
-                      ? 'bg-sky-500/10 text-sky-400'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  <section.icon className="h-5 w-5 flex-shrink-0" />
-                  <div className="text-left">
-                    <div>{section.title}</div>
-                    <div className="text-xs text-slate-500">{section.description}</div>
-                  </div>
-                </button>
-              ))}
-            </nav>
+        {/* Settings Categories */}
+        <div>
+          <h2 className="text-xl font-semibold text-white mb-4">Configuration Areas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {settingCards.map((card) => (
+              <SettingCard key={card.id} card={card} />
+            ))}
           </div>
+        </div>
 
-          {/* Content Area */}
-          <div className="lg:col-span-3 bg-slate-900/50 border border-slate-800 rounded-lg p-6">
-            {renderContent()}
+        {/* Quick Links */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link
+              href="/dashboard/settings/security#change-password"
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+            >
+              <Lock className="h-4 w-4" />
+              Change Password
+            </Link>
+            <Link
+              href="/dashboard/settings/security#2fa"
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+            >
+              <Shield className="h-4 w-4" />
+              Enable 2FA
+            </Link>
+            <Link
+              href="/dashboard/settings/privacy#export"
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+            >
+              <Database className="h-4 w-4" />
+              Export Data
+            </Link>
+            <Link
+              href="/dashboard/settings/billing"
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+            >
+              <CreditCard className="h-4 w-4" />
+              Update Payment
+            </Link>
+          </div>
+        </div>
+
+        {/* Help Section */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
+          <h3 className="text-lg font-semibold text-white mb-2">Need Help?</h3>
+          <p className="text-sm text-slate-400 mb-4">
+            Check out our documentation or contact support for assistance with your settings.
+          </p>
+          <div className="flex gap-3">
+            <Link
+              href="/docs/settings"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <FileText className="inline h-4 w-4 mr-2" />
+              Documentation
+            </Link>
+            <Link
+              href="/support"
+              className="px-4 py-2 border border-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Mail className="inline h-4 w-4 mr-2" />
+              Contact Support
+            </Link>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsHubPage() {
+  return (
+    <RouteGuard permission="settings.read">
+      <SettingsHubPageContent />
+    </RouteGuard>
   );
 }

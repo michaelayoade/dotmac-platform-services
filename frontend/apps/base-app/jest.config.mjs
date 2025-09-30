@@ -19,6 +19,7 @@ const config = {
     '^@dotmac/headless$': '<rootDir>/__mocks__/headless.js',
     '^@dotmac/notifications$': '<rootDir>/__mocks__/notifications.js',
     '^@dotmac/primitives$': '<rootDir>/__mocks__/primitives.js',
+    '^lucide-react$': '<rootDir>/__mocks__/lucide-react.js',
   },
   testMatch: [
     '**/__tests__/**/*.{js,jsx,ts,tsx}',

@@ -101,9 +101,9 @@ class TestAuthRouterDirect:
         mock_jwt_service.create_refresh_token.return_value = "refresh_token"
         mock_session_manager.create_session = AsyncMock()
 
-        mock_email = MagicMock()
-        mock_email.send_welcome_email = MagicMock()
-        mock_email_service.return_value = mock_email
+        mock_facade = MagicMock()
+        mock_facade.send_welcome_email = AsyncMock()
+        mock_email_service.return_value = mock_facade
 
         response = client.post(
             "/auth/register",

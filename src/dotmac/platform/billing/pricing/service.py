@@ -1,0 +1,808 @@
+"""
+Pricing engine service.
+
+Simple pricing calculations with rule-based discounts - first match wins approach.
+"""
+
+import structlog
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import List, Optional, Dict, Any
+from uuid import uuid4
+
+from sqlalchemy import and_, or_, select
+
+from dotmac.platform.db import get_async_session
+from dotmac.platform.billing.pricing.models import (
+    PricingRule,
+    PricingRuleCreateRequest,
+    PricingRuleUpdateRequest,
+    PriceCalculationRequest,
+    PriceCalculationContext,
+    PriceCalculationResult,
+    PriceAdjustment,
+    DiscountType,
+)
+from dotmac.platform.billing.models import (
+    BillingPricingRuleTable,
+    BillingRuleUsageTable,
+)
+from dotmac.platform.billing.catalog.service import ProductService
+from dotmac.platform.billing.exceptions import (
+    PricingError,
+    InvalidPricingRuleError,
+)
+from dotmac.platform.settings import settings
+
+logger = structlog.get_logger(__name__)
+
+
+def generate_rule_id() -> str:
+    """Generate unique pricing rule ID."""
+    return f"rule_{uuid4().hex[:12]}"
+
+
+def generate_usage_id() -> str:
+    """Generate unique rule usage ID."""
+    return f"usage_{uuid4().hex[:12]}"
+
+
+class PricingEngine:
+    """Simple pricing engine with rule-based discounts."""
+
+    def __init__(self):
+        self.product_service = ProductService()
+
+    # ========================================
+    # Pricing Rule Management
+    # ========================================
+
+    async def create_pricing_rule(
+        self,
+        rule_data: PricingRuleCreateRequest,
+        tenant_id: str
+    ) -> PricingRule:
+        """Create a new pricing rule."""
+
+        # Validate rule makes sense
+        if not (rule_data.applies_to_all or rule_data.applies_to_product_ids or rule_data.applies_to_categories):
+            raise InvalidPricingRuleError("Rule must apply to at least something (products, categories, or all)")
+
+        # Validate discount value based on type
+        if rule_data.discount_type == DiscountType.PERCENTAGE and rule_data.discount_value > 100:
+            max_discount = settings.billing.max_discount_percentage
+            if rule_data.discount_value > max_discount:
+                raise InvalidPricingRuleError(f"Percentage discount cannot exceed {max_discount}%")
+
+        async with get_async_session() as session:
+            # Create database record
+            db_rule = BillingPricingRuleTable(
+                rule_id=generate_rule_id(),
+                tenant_id=tenant_id,
+                name=rule_data.name,
+                applies_to_product_ids=rule_data.applies_to_product_ids,
+                applies_to_categories=rule_data.applies_to_categories,
+                applies_to_all=rule_data.applies_to_all,
+                min_quantity=rule_data.min_quantity,
+                customer_segments=rule_data.customer_segments,
+                discount_type=rule_data.discount_type.value,
+                discount_value=rule_data.discount_value,
+                starts_at=rule_data.starts_at,
+                ends_at=rule_data.ends_at,
+                max_uses=rule_data.max_uses,
+                metadata_json=rule_data.metadata,
+            )
+
+            session.add(db_rule)
+            await session.commit()
+            await session.refresh(db_rule)
+
+            rule = self._db_to_pydantic_rule(db_rule)
+
+        logger.info(
+            "Pricing rule created",
+            rule_id=rule.rule_id,
+            name=rule.name,
+            discount_type=rule.discount_type,
+            discount_value=str(rule.discount_value),
+            tenant_id=tenant_id,
+        )
+
+        return rule
+
+    async def get_pricing_rule(self, rule_id: str, tenant_id: str) -> PricingRule:
+        """Get pricing rule by ID."""
+
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+        if not db_rule:
+            raise PricingError(f"Pricing rule {rule_id} not found")
+
+        return self._db_to_pydantic_rule(db_rule)
+
+    async def list_pricing_rules(
+        self,
+        tenant_id: str,
+        active_only: bool = True,
+        product_id: Optional[str] = None,
+        category: Optional[str] = None
+    ) -> List[PricingRule]:
+        """List pricing rules with filtering."""
+
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                BillingPricingRuleTable.tenant_id == tenant_id
+            )
+
+            if active_only:
+                stmt = stmt.where(BillingPricingRuleTable.is_active == True)
+
+            if product_id:
+                # Rules that apply to this specific product or to all products
+                stmt = stmt.where(
+                    or_(
+                        BillingPricingRuleTable.applies_to_all == True,
+                        BillingPricingRuleTable.applies_to_product_ids.contains([product_id])
+                    )
+                )
+
+            if category:
+                # Rules that apply to this category or to all products
+                stmt = stmt.where(
+                    or_(
+                        BillingPricingRuleTable.applies_to_all == True,
+                        BillingPricingRuleTable.applies_to_categories.contains([category])
+                    )
+                )
+
+            # Order by priority (highest first) then by name
+            stmt = stmt.order_by(
+                BillingPricingRuleTable.priority.desc(),
+                BillingPricingRuleTable.name
+            )
+
+            result = await session.execute(stmt)
+            db_rules = result.scalars().all()
+
+        return [self._db_to_pydantic_rule(db_rule) for db_rule in db_rules]
+
+    async def update_pricing_rule(
+        self,
+        rule_id: str,
+        updates: PricingRuleUpdateRequest,
+        tenant_id: str
+    ) -> PricingRule:
+        """Update pricing rule."""
+
+        async with get_async_session() as session:
+            # Get existing rule
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                raise PricingError(f"Pricing rule {rule_id} not found")
+
+            # Apply updates
+            update_data = updates.model_dump(exclude_unset=True)
+
+            for field, value in update_data.items():
+                if field == "metadata":
+                    setattr(db_rule, "metadata_json", value)
+                else:
+                    setattr(db_rule, field, value)
+
+            await session.commit()
+            await session.refresh(db_rule)
+
+            rule = self._db_to_pydantic_rule(db_rule)
+
+        logger.info(
+            "Pricing rule updated",
+            rule_id=rule_id,
+            updates=list(update_data.keys()),
+            tenant_id=tenant_id,
+        )
+
+        return rule
+
+    async def deactivate_pricing_rule(self, rule_id: str, tenant_id: str) -> PricingRule:
+        """Deactivate pricing rule."""
+
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                raise PricingError(f"Pricing rule {rule_id} not found")
+
+            db_rule.is_active = False
+
+            await session.commit()
+            await session.refresh(db_rule)
+
+            rule = self._db_to_pydantic_rule(db_rule)
+
+        logger.info(
+            "Pricing rule deactivated",
+            rule_id=rule_id,
+            tenant_id=tenant_id,
+        )
+
+        return rule
+
+    # ========================================
+    # Price Calculation Engine
+    # ========================================
+
+    async def calculate_price(
+        self,
+        request: PriceCalculationRequest,
+        tenant_id: str
+    ) -> PriceCalculationResult:
+        """Calculate final price with applicable rules - first match wins."""
+
+        # Get product information
+        product = await self.product_service.get_product(request.product_id, tenant_id)
+
+        # Build calculation context
+        context = PriceCalculationContext(
+            product_id=product.product_id,
+            quantity=request.quantity,
+            customer_id=request.customer_id,
+            customer_segments=request.customer_segments,
+            product_category=product.category,
+            base_price=product.base_price,
+            calculation_date=request.calculation_date or datetime.now(timezone.utc),
+            metadata=request.metadata,
+        )
+
+        # Calculate base subtotal
+        subtotal = product.base_price * request.quantity
+
+        # Get applicable rules
+        applicable_rules = await self._get_applicable_rules(context, tenant_id)
+
+        # Apply rules - SIMPLE APPROACH: First qualifying rule wins
+        final_price = subtotal
+        applied_adjustments: List[PriceAdjustment] = []
+
+        for rule in applicable_rules:
+            if await self._rule_applies(rule, context, tenant_id):
+                adjustment = self._apply_rule(rule, final_price, context)
+                applied_adjustments.append(adjustment)
+                final_price = adjustment.adjusted_price
+
+                # Record rule usage
+                await self._record_rule_usage(rule, context, tenant_id)
+
+                # FIRST MATCH WINS - break after first applicable rule
+                break
+
+        # Calculate total discount
+        total_discount = subtotal - final_price
+
+        result = PriceCalculationResult(
+            product_id=request.product_id,
+            quantity=request.quantity,
+            customer_id=request.customer_id,
+            base_price=product.base_price,
+            subtotal=subtotal,
+            total_discount_amount=total_discount,
+            final_price=final_price,
+            applied_adjustments=applied_adjustments,
+        )
+
+        logger.info(
+            "Price calculated",
+            product_id=request.product_id,
+            quantity=request.quantity,
+            customer_id=request.customer_id,
+            base_price=str(product.base_price),
+            final_price=str(final_price),
+            discount_amount=str(total_discount),
+            rules_applied=len(applied_adjustments),
+            tenant_id=tenant_id,
+        )
+
+        return result
+
+    async def calculate_subscription_price(
+        self,
+        plan_id: str,
+        customer_id: str,
+        customer_segments: List[str],
+        custom_price: Optional[Decimal],
+        tenant_id: str
+    ) -> PriceCalculationResult:
+        """Calculate subscription pricing with customer overrides and rules."""
+
+        # Import here to avoid circular dependency
+        from dotmac.platform.billing.subscriptions.service import SubscriptionService
+
+        subscription_service = SubscriptionService()
+        plan = await subscription_service.get_plan(plan_id, tenant_id)
+
+        # Use custom price if set, otherwise plan price
+        effective_price = custom_price or plan.price
+
+        # Build simple context for subscription
+        context = PriceCalculationContext(
+            product_id=plan.product_id,
+            quantity=1,  # Subscriptions are typically quantity 1
+            customer_id=customer_id,
+            customer_segments=customer_segments,
+            product_category="subscription",  # Special category
+            base_price=effective_price,
+        )
+
+        # Get subscription-specific rules
+        applicable_rules = await self._get_applicable_rules(context, tenant_id)
+
+        # Apply first matching rule
+        final_price = effective_price
+        applied_adjustments: List[PriceAdjustment] = []
+
+        for rule in applicable_rules:
+            if await self._rule_applies(rule, context, tenant_id):
+                adjustment = self._apply_rule(rule, final_price, context)
+                applied_adjustments.append(adjustment)
+                final_price = adjustment.adjusted_price
+
+                # Record usage
+                await self._record_rule_usage(rule, context, tenant_id)
+                break  # First match wins
+
+        return PriceCalculationResult(
+            product_id=plan.product_id,
+            quantity=1,
+            customer_id=customer_id,
+            base_price=effective_price,
+            subtotal=effective_price,
+            total_discount_amount=effective_price - final_price,
+            final_price=final_price,
+            applied_adjustments=applied_adjustments,
+        )
+
+    # ========================================
+    # Private Helper Methods
+    # ========================================
+
+    async def _get_applicable_rules(
+        self,
+        context: PriceCalculationContext,
+        tenant_id: str
+    ) -> List[PricingRule]:
+        """Get rules that might apply to this calculation context."""
+
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.tenant_id == tenant_id,
+                    BillingPricingRuleTable.is_active == True,
+                )
+            )
+
+            # Filter by time constraints
+            now = context.calculation_date
+            stmt = stmt.where(
+                or_(
+                    BillingPricingRuleTable.starts_at.is_(None),
+                    BillingPricingRuleTable.starts_at <= now
+                )
+            )
+            stmt = stmt.where(
+                or_(
+                    BillingPricingRuleTable.ends_at.is_(None),
+                    BillingPricingRuleTable.ends_at > now
+                )
+            )
+
+            # Filter by product/category applicability
+            stmt = stmt.where(
+                or_(
+                    BillingPricingRuleTable.applies_to_all == True,
+                    BillingPricingRuleTable.applies_to_product_ids.contains([context.product_id]),
+                    BillingPricingRuleTable.applies_to_categories.contains([context.product_category or ""])
+                )
+            )
+
+            # Order by priority (highest first)
+            stmt = stmt.order_by(BillingPricingRuleTable.priority.desc())
+
+            result = await session.execute(stmt)
+            db_rules = result.scalars().all()
+
+        return [self._db_to_pydantic_rule(db_rule) for db_rule in db_rules]
+
+    async def _rule_applies(
+        self,
+        rule: PricingRule,
+        context: PriceCalculationContext,
+        tenant_id: str
+    ) -> bool:
+        """Check if a rule applies to the given context."""
+
+        # Check quantity requirement
+        if rule.min_quantity and context.quantity < rule.min_quantity:
+            return False
+
+        # Check customer segments
+        if rule.customer_segments:
+            if not any(segment in context.customer_segments for segment in rule.customer_segments):
+                return False
+
+        # Check usage limits
+        if rule.max_uses is not None:
+            if rule.current_uses >= rule.max_uses:
+                return False
+
+        return True
+
+    def _apply_rule(
+        self,
+        rule: PricingRule,
+        current_price: Decimal,
+        context: PriceCalculationContext
+    ) -> PriceAdjustment:
+        """Apply a pricing rule and return the adjustment."""
+
+        original_price = current_price
+
+        if rule.discount_type == DiscountType.PERCENTAGE:
+            # Percentage discount
+            discount_amount = current_price * (rule.discount_value / 100)
+            adjusted_price = current_price - discount_amount
+
+        elif rule.discount_type == DiscountType.FIXED_AMOUNT:
+            # Fixed amount discount
+            discount_amount = rule.discount_value
+            adjusted_price = max(Decimal("0"), current_price - discount_amount)
+
+        elif rule.discount_type == DiscountType.FIXED_PRICE:
+            # Set to fixed price
+            adjusted_price = rule.discount_value
+            discount_amount = current_price - adjusted_price
+
+        else:
+            raise PricingError(f"Unsupported discount type: {rule.discount_type}")
+
+        # Ensure price doesn't go negative
+        adjusted_price = max(Decimal("0"), adjusted_price)
+        discount_amount = original_price - adjusted_price
+
+        return PriceAdjustment(
+            rule_id=rule.rule_id,
+            rule_name=rule.name,
+            discount_type=rule.discount_type,
+            discount_value=rule.discount_value,
+            original_price=original_price,
+            discount_amount=discount_amount,
+            adjusted_price=adjusted_price,
+        )
+
+    async def _record_rule_usage(
+        self,
+        rule: PricingRule,
+        context: PriceCalculationContext,
+        tenant_id: str
+    ):
+        """Record that a rule was used."""
+
+        async with get_async_session() as session:
+            # Create usage record
+            db_usage = BillingRuleUsageTable(
+                usage_id=generate_usage_id(),
+                tenant_id=tenant_id,
+                rule_id=rule.rule_id,
+                customer_id=context.customer_id,
+                # invoice_id will be set later when invoice is created
+            )
+
+            session.add(db_usage)
+
+            # Update rule usage count
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule.rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if db_rule:
+                db_rule.current_uses += 1
+
+            await session.commit()
+
+    def _db_to_pydantic_rule(self, db_rule: BillingPricingRuleTable) -> PricingRule:
+        """Convert database rule to Pydantic model."""
+        return PricingRule(
+            rule_id=db_rule.rule_id,
+            tenant_id=db_rule.tenant_id,
+            name=db_rule.name,
+            applies_to_product_ids=db_rule.applies_to_product_ids or [],
+            applies_to_categories=db_rule.applies_to_categories or [],
+            applies_to_all=db_rule.applies_to_all,
+            min_quantity=db_rule.min_quantity,
+            customer_segments=db_rule.customer_segments or [],
+            discount_type=DiscountType(db_rule.discount_type),
+            discount_value=db_rule.discount_value,
+            starts_at=db_rule.starts_at,
+            ends_at=db_rule.ends_at,
+            max_uses=db_rule.max_uses,
+            current_uses=db_rule.current_uses,
+            is_active=db_rule.is_active,
+            metadata=db_rule.metadata_json or {},
+            created_at=db_rule.created_at,
+            updated_at=db_rule.updated_at,
+        )
+
+    async def get_applicable_rules(
+        self,
+        request: PriceCalculationRequest,
+        tenant_id: str
+    ) -> List[PricingRule]:
+        """Get rules that would apply for given request (for testing/preview)."""
+        from dotmac.platform.billing.catalog.service import ProductCatalogService
+
+        catalog_service = ProductCatalogService()
+        product = await catalog_service.get_product(request.product_id, tenant_id)
+
+        context = PriceCalculationContext(
+            product_id=request.product_id,
+            quantity=request.quantity,
+            customer_id=request.customer_id,
+            customer_segments=request.customer_segments,
+            product_category=product.category if product else None,
+            base_price=product.base_price if product else Decimal("0"),
+            calculation_date=request.calculation_date or datetime.now(timezone.utc),
+            metadata=request.metadata,
+        )
+
+        return await self._get_applicable_rules(context, tenant_id)
+
+    async def get_rule_usage_stats(
+        self,
+        rule_id: str,
+        tenant_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get usage statistics for a pricing rule."""
+        async with get_async_session() as session:
+            # Get rule details
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                return None
+
+            # Get usage count from rule usage table
+            from sqlalchemy import func
+            usage_stmt = select(func.count(BillingRuleUsageTable.usage_id)).where(
+                and_(
+                    BillingRuleUsageTable.rule_id == rule_id,
+                    BillingRuleUsageTable.tenant_id == tenant_id
+                )
+            )
+            usage_result = await session.execute(usage_stmt)
+            actual_usage_count = usage_result.scalar() or 0
+
+        return {
+            "rule_id": rule_id,
+            "rule_name": db_rule.name,
+            "current_uses": db_rule.current_uses,
+            "actual_usage_count": actual_usage_count,
+            "max_uses": db_rule.max_uses,
+            "usage_remaining": (db_rule.max_uses - db_rule.current_uses) if db_rule.max_uses else None,
+            "is_active": db_rule.is_active,
+            "created_at": db_rule.created_at.isoformat(),
+        }
+
+    async def reset_rule_usage(
+        self,
+        rule_id: str,
+        tenant_id: str
+    ) -> bool:
+        """Reset usage counter for a pricing rule."""
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                return False
+
+            db_rule.current_uses = 0
+            await session.commit()
+            return True
+
+    async def activate_rule(
+        self,
+        rule_id: str,
+        tenant_id: str
+    ) -> bool:
+        """Activate a pricing rule."""
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                return False
+
+            db_rule.is_active = True
+            await session.commit()
+            return True
+
+    async def deactivate_rule(
+        self,
+        rule_id: str,
+        tenant_id: str
+    ) -> bool:
+        """Deactivate a pricing rule."""
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.rule_id == rule_id,
+                    BillingPricingRuleTable.tenant_id == tenant_id
+                )
+            )
+            result = await session.execute(stmt)
+            db_rule = result.scalar_one_or_none()
+
+            if not db_rule:
+                return False
+
+            db_rule.is_active = False
+            await session.commit()
+            return True
+
+    async def detect_rule_conflicts(
+        self,
+        tenant_id: str
+    ) -> List[Dict[str, Any]]:
+        """Detect potential conflicts between pricing rules."""
+        conflicts = []
+
+        async with get_async_session() as session:
+            stmt = select(BillingPricingRuleTable).where(
+                and_(
+                    BillingPricingRuleTable.tenant_id == tenant_id,
+                    BillingPricingRuleTable.is_active == True
+                )
+            ).order_by(BillingPricingRuleTable.priority.desc())
+
+            result = await session.execute(stmt)
+            db_rules = result.scalars().all()
+
+        rules = [self._db_to_pydantic_rule(rule) for rule in db_rules]
+
+        # Check for overlapping rules with same priority
+        priority_groups = {}
+        for rule in rules:
+            if rule.priority not in priority_groups:
+                priority_groups[rule.priority] = []
+            priority_groups[rule.priority].append(rule)
+
+        for priority, priority_rules in priority_groups.items():
+            if len(priority_rules) > 1:
+                # Check for overlapping conditions
+                for i, rule1 in enumerate(priority_rules):
+                    for rule2 in priority_rules[i+1:]:
+                        if self._rules_overlap(rule1, rule2):
+                            conflicts.append({
+                                "type": "priority_overlap",
+                                "rule1": {"id": rule1.rule_id, "name": rule1.name},
+                                "rule2": {"id": rule2.rule_id, "name": rule2.name},
+                                "priority": priority,
+                                "description": f"Rules '{rule1.name}' and '{rule2.name}' have same priority and overlapping conditions"
+                            })
+
+        return conflicts
+
+    def _rules_overlap(self, rule1: PricingRule, rule2: PricingRule) -> bool:
+        """Check if two rules have overlapping conditions."""
+        # Check product overlap
+        if rule1.applies_to_all or rule2.applies_to_all:
+            return True
+
+        product_overlap = bool(
+            set(rule1.applies_to_product_ids) & set(rule2.applies_to_product_ids)
+        )
+
+        category_overlap = bool(
+            set(rule1.applies_to_categories) & set(rule2.applies_to_categories)
+        )
+
+        if not (product_overlap or category_overlap):
+            return False
+
+        # Check customer segment overlap
+        if rule1.customer_segments and rule2.customer_segments:
+            segment_overlap = bool(
+                set(rule1.customer_segments) & set(rule2.customer_segments)
+            )
+            if not segment_overlap:
+                return False
+
+        return True
+
+    async def bulk_activate_rules(
+        self,
+        rule_ids: List[str],
+        tenant_id: str
+    ) -> Dict[str, Any]:
+        """Activate multiple rules at once."""
+        results = {"activated": 0, "failed": 0, "errors": []}
+
+        for rule_id in rule_ids:
+            try:
+                success = await self.activate_rule(rule_id, tenant_id)
+                if success:
+                    results["activated"] += 1
+                else:
+                    results["failed"] += 1
+                    results["errors"].append(f"Rule {rule_id} not found")
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append(f"Rule {rule_id}: {str(e)}")
+
+        return results
+
+    async def bulk_deactivate_rules(
+        self,
+        rule_ids: List[str],
+        tenant_id: str
+    ) -> Dict[str, Any]:
+        """Deactivate multiple rules at once."""
+        results = {"deactivated": 0, "failed": 0, "errors": []}
+
+        for rule_id in rule_ids:
+            try:
+                success = await self.deactivate_rule(rule_id, tenant_id)
+                if success:
+                    results["deactivated"] += 1
+                else:
+                    results["failed"] += 1
+                    results["errors"].append(f"Rule {rule_id} not found")
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append(f"Rule {rule_id}: {str(e)}")
+
+        return results

@@ -228,17 +228,12 @@ export function AuthProvider({ children }) {
     isAuthenticated,
     login,
     logout,
-    refreshToken,
-    updateSession,
   } = useAuthStore();
 
-  // Configure API client with auth interceptors
+  // Configure API client for HttpOnly-cookie sessions
   useEffect(() => {
     apiClient.interceptors.request.use((config) => {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      config.withCredentials = true;
       return config;
     });
 
@@ -246,31 +241,25 @@ export function AuthProvider({ children }) {
       (response) => response,
       async (error) => {
         if (error.response?.status === 401) {
-          // Token expired, try to refresh
-          try {
-            await refreshToken();
-            // Retry original request
-            const originalRequest = error.config;
-            const newToken = localStorage.getItem('access_token');
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return apiClient.request(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed, logout user
-            logout();
-            window.location.href = '/login';
-          }
+          // Cookie session expired or missing – force a re-login
+          logout();
+          window.location.href = '/login';
         }
         return Promise.reject(error);
       }
     );
-  }, [refreshToken, logout]);
+  }, [logout]);
 
   // Session heartbeat for audit trail
   useEffect(() => {
     if (isAuthenticated) {
       const interval = setInterval(async () => {
         try {
-          await apiClient.post('/api/auth/session-heartbeat');
+          await apiClient.post(
+            '/api/auth/session-heartbeat',
+            undefined,
+            { withCredentials: true }
+          );
         } catch (error) {
           console.warn('Session heartbeat failed:', error);
         }

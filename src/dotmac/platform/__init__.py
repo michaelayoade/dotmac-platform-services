@@ -15,8 +15,10 @@ Design Principles:
 """
 
 import os
-import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:  # pragma: no cover - typings only
+    from .observability import ObservabilityManager as _ObservabilityManager
 
 __version__ = "1.0.0"
 __author__ = "DotMac Team"
@@ -37,7 +39,7 @@ def register_service(name: str, service: Any) -> None:
     _services_registry[name] = service
 
 
-def get_service(name: str) -> Any | None:
+def get_service(name: str) -> Optional[Any]:
     """Get a registered platform service."""
     return _services_registry.get(name)
 
@@ -133,9 +135,9 @@ config = PlatformConfig()
 
 
 def initialize_platform_services(
-    auth_config: dict[str, Any] | None = None,
-    secrets_config: dict[str, Any] | None = None,
-    observability_config: dict[str, Any] | None = None,
+    auth_config: Optional[dict[str, Any]] = None,
+    secrets_config: Optional[dict[str, Any]] = None,
+    observability_config: Optional[dict[str, Any]] = None,
     auto_discover: bool = True,
 ) -> None:
     """
@@ -197,45 +199,16 @@ def create_jwt_service(**kwargs):
     JWTService/create_jwt_service_from_config schema.
     """
     try:
-        if "dotmac.platform.auth" not in sys.modules:
-            # Simulate optional extra missing
-            raise ImportError("Auth module not available")
-
-        from .auth import JWTService, create_jwt_service_from_config  # type: ignore
+        from .auth import JWTService  # type: ignore
 
         cfg = dict(config.get("auth", {}))
         cfg.update(kwargs)
 
-        # Normalize into expected keys for create_jwt_service_from_config
-        normalized: dict[str, Any] = {}
+        secret = cfg.get("jwt_secret_key") or cfg.get("secret")
+        algorithm = cfg.get("jwt_algorithm") or cfg.get("algorithm")
+        redis_url = cfg.get("redis_url")
 
-        # Algorithm mapping
-        if "jwt_algorithm" in cfg:
-            normalized["algorithm"] = cfg["jwt_algorithm"]
-
-        # Secret/private key mapping
-        if "jwt_secret_key" in cfg:
-            alg = cfg.get("jwt_algorithm", "HS256")
-            if str(alg).startswith("HS"):
-                normalized["secret"] = cfg["jwt_secret_key"]
-            else:
-                normalized["private_key"] = cfg["jwt_secret_key"]
-
-        # Other common fields
-        for k in (
-            "access_token_expire_minutes",
-            "refresh_token_expire_days",
-            "issuer",
-            "default_audience",
-            "leeway",
-        ):
-            if k in cfg:
-                normalized[k] = cfg[k]
-
-        # Fall back to direct constructor if normalized is empty
-        if normalized:
-            return create_jwt_service_from_config(normalized)
-        return JWTService()
+        return JWTService(secret=secret, algorithm=algorithm, redis_url=redis_url)
     except ImportError:
         raise ImportError(
             "Auth service not available. Ensure core dependencies are installed. "
@@ -244,7 +217,7 @@ def create_jwt_service(**kwargs):
         )
 
 
-def create_secrets_manager(backend: str | None = None, **kwargs):
+def create_secrets_manager(backend: Optional[str] = None, **kwargs):
     """
     Create a secrets manager with clean factory pattern.
 
@@ -283,19 +256,25 @@ def create_secrets_manager(backend: str | None = None, **kwargs):
         )
 
 
-def create_observability_manager(**kwargs):
-    """Quick create observability manager with configuration."""
-    # Observability module doesn't exist yet
-    raise ImportError(
-        "Observability service not yet implemented. "
-        "The observability module is planned for future implementation."
-    )
+def create_observability_manager(
+    app: Optional[Any] = None,
+    *,
+    auto_initialize: bool = False,
+    **kwargs,
+) -> "_ObservabilityManager":
+    """Create an observability manager backed by the telemetry helpers."""
+
+    try:
+        from .observability import ObservabilityManager
+    except ImportError as exc:  # pragma: no cover - safety net
+        raise ImportError(
+            "Observability services unavailable. Install telemetry extras or check dependencies."
+        ) from exc
+
+    return ObservabilityManager(app=app, auto_initialize=auto_initialize, **kwargs)
 
 
 # Re-export selected components for convenience
-# ObservabilityRuntime doesn't exist yet
-ObservabilityRuntime = None  # type: ignore
-
 # Use the proper factory pattern instead of confusing aliases
 try:
     from .secrets.factory import SecretsManager  # Protocol interface
@@ -317,7 +296,6 @@ except Exception:  # pragma: no cover - optional
 __all__ = [
     "PlatformConfig",
     "__version__",
-    "ObservabilityRuntime",
     "SecretsManager",
     "create_application",
     "get_application",

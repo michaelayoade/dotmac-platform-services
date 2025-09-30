@@ -287,21 +287,31 @@ class TestCustomerResponseSchema:
 
     def test_customer_response_from_model(self):
         """Test CustomerResponse creation from model data."""
-        # Simulate model data
+        # Simulate model data with all required fields
+        now = datetime.now(timezone.utc)
         model_data = {
             "id": uuid4(),
             "customer_number": "CUST001",
-            "tenant_id": "test-tenant",
             "first_name": "John",
             "last_name": "Doe",
             "email": "john.doe@example.com",
             "customer_type": CustomerType.INDIVIDUAL,
             "tier": CustomerTier.BASIC,
             "status": CustomerStatus.ACTIVE,
+            # Required verification fields
+            "email_verified": True,
+            "phone_verified": False,
+            # Required metrics
             "lifetime_value": Decimal("500.00"),
             "total_purchases": 5,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "average_order_value": Decimal("100.00"),
+            # Required scoring
+            "risk_score": 10,
+            # Required dates
+            "acquisition_date": now,
+            "created_at": now,
+            "updated_at": now,
+            # Optional but included
             "tags": ["customer", "active"],
             "metadata": {"source": "web"},
             "custom_fields": {"notes": "Good customer"},
@@ -325,7 +335,7 @@ class TestCustomerSearchParamsSchema:
         schema = CustomerSearchParams()
 
         assert schema.page == 1  # Default
-        assert schema.page_size == 50  # Default
+        assert schema.page_size == 20  # Default
         assert schema.query is None
         assert schema.status is None
 
@@ -333,12 +343,10 @@ class TestCustomerSearchParamsSchema:
         """Test search params with all fields."""
         data = {
             "query": "john doe",
-            "email": "john.doe@example.com",
             "status": CustomerStatus.ACTIVE,
             "customer_type": CustomerType.BUSINESS,
             "tier": CustomerTier.PREMIUM,
             "country": "US",
-            "city": "Anytown",
             "tags": ["vip", "priority"],
             "page": 2,
             "page_size": 25,
@@ -347,12 +355,10 @@ class TestCustomerSearchParamsSchema:
         schema = CustomerSearchParams(**data)
 
         assert schema.query == "john doe"
-        assert schema.email == "john.doe@example.com"
         assert schema.status == CustomerStatus.ACTIVE
         assert schema.customer_type == CustomerType.BUSINESS
         assert schema.tier == CustomerTier.PREMIUM
         assert schema.country == "US"
-        assert schema.city == "Anytown"
         assert schema.tags == ["vip", "priority"]
         assert schema.page == 2
         assert schema.page_size == 25
@@ -467,6 +473,7 @@ class TestCustomerNoteSchemas:
             "is_internal": False,
             "created_by_id": uuid4(),
             "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         schema = CustomerNoteResponse.model_validate(model_data)
@@ -518,7 +525,9 @@ class TestCustomerSegmentSchemas:
             "criteria": {"tier": "premium"},
             "is_dynamic": True,
             "member_count": 25,
+            "priority": 1,
             "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
 
         schema = CustomerSegmentResponse.model_validate(model_data)
@@ -534,21 +543,31 @@ class TestCustomerListResponseSchema:
 
     def test_customer_list_response(self):
         """Test CustomerListResponse schema."""
+        now = datetime.now(timezone.utc)
         customers_data = [
             {
                 "id": uuid4(),
                 "customer_number": "CUST001",
-                "tenant_id": "test-tenant",
                 "first_name": "John",
                 "last_name": "Doe",
                 "email": "john.doe@example.com",
                 "customer_type": CustomerType.INDIVIDUAL,
                 "tier": CustomerTier.BASIC,
                 "status": CustomerStatus.ACTIVE,
+                # Required verification fields
+                "email_verified": True,
+                "phone_verified": False,
+                # Required metrics
                 "lifetime_value": Decimal("100.00"),
                 "total_purchases": 2,
-                "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc),
+                "average_order_value": Decimal("50.00"),
+                # Required scoring
+                "risk_score": 10,
+                # Required dates
+                "acquisition_date": now,
+                "created_at": now,
+                "updated_at": now,
+                # Optional collections
                 "tags": [],
                 "metadata": {},
                 "custom_fields": {},
@@ -559,7 +578,7 @@ class TestCustomerListResponseSchema:
             "customers": customers_data,
             "total": 1,
             "page": 1,
-            "page_size": 50,
+            "page_size": 20,
             "has_next": False,
             "has_prev": False,
         }

@@ -6,6 +6,7 @@ Provides comprehensive monitoring capabilities including:
 - Benchmarking and performance tracking
 - Observability data collection
 - Alert management
+- REST APIs for logs and traces
 """
 
 from dotmac.platform.settings import settings
@@ -20,6 +21,8 @@ from .integrations import (
     MetricData,
     PrometheusIntegration,
 )
+from .logs_router import logs_router
+from .traces_router import traces_router
 
 __all__ = [
     # Settings
@@ -32,4 +35,7 @@ __all__ = [
     "PerformanceBenchmark",
     "BenchmarkResult",
     "BenchmarkSuite",
+    # Routers
+    "logs_router",
+    "traces_router",
 ]

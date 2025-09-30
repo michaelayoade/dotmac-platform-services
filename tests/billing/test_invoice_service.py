@@ -139,13 +139,31 @@ class TestInvoiceService:
 
         idempotency_key = "test-key-123"
 
-        # Mock existing invoice with same idempotency key
+        # Create a proper mock InvoiceEntity object with all required fields
         existing_invoice = MagicMock()
         existing_invoice.tenant_id = sample_tenant_id
         existing_invoice.invoice_id = "existing-invoice-id"
-        existing_invoice.total_amount = 10000
+        existing_invoice.invoice_number = "INV-001"
+        existing_invoice.idempotency_key = idempotency_key
+        existing_invoice.customer_id = sample_customer_id
+        existing_invoice.billing_email = "customer@example.com"
+        existing_invoice.billing_address = sample_billing_address
+        existing_invoice.issue_date = datetime.now()
+        existing_invoice.due_date = datetime.now() + timedelta(days=30)
+        existing_invoice.currency = "USD"
+        existing_invoice.subtotal = 10000
+        existing_invoice.tax_amount = 1000
+        existing_invoice.discount_amount = 0
+        existing_invoice.total_amount = 11000
+        existing_invoice.remaining_balance = 11000
+        existing_invoice.status = "draft"
+        existing_invoice.notes = "Test invoice"
+        existing_invoice.created_at = datetime.now()
 
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = existing_invoice
+        # Properly configure AsyncMock chain for db.execute().scalar_one_or_none()
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none.return_value = existing_invoice
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
 
         # Create invoice with same idempotency key
         result = await invoice_service.create_invoice(

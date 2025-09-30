@@ -4,7 +4,6 @@ Data transfer request and response models with proper validation.
 
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Optional
 from uuid import UUID, uuid4
 

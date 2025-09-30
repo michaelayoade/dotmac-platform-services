@@ -20,6 +20,12 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
+      "@/types": [
+        "types"
+      ],
+      "@/types/*": [
+        "types/*"
+      ],
       "@/lib/*": [
         "lib/*"
       ],
@@ -28,6 +34,12 @@
       ],
       "@/providers/*": [
         "providers/*"
+      ],
+      "@/hooks/*": [
+        "hooks/*"
+      ],
+      "@/*": [
+        "*"
       ]
     },
     "plugins": [

@@ -408,7 +408,7 @@ class TestHealthChecker:
 
         assert result.name == "storage"
         assert result.status == ServiceStatus.HEALTHY
-        assert result.message == "MinIO health check skipped (boto3 not required)"
+        assert result.message == "MinIO health check skipped (minio client not bundled)"
         assert result.required is False
 
     @patch('dotmac.platform.health_checks.settings')

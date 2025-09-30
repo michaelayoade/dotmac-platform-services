@@ -14,7 +14,6 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     JSON,
     Boolean,
-    Column,
     DateTime,
     Enum as SQLEnum,
     ForeignKey,
@@ -23,7 +22,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -261,6 +259,8 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     notes = relationship("CustomerNote", back_populates="customer", lazy="dynamic")
     customer_tags = relationship("CustomerTag", back_populates="customer", lazy="dynamic")
     segment = relationship("CustomerSegment", back_populates="customers")
+    # Contact relationships via join table
+    contact_links = relationship("CustomerContactLink", back_populates="customer", lazy="dynamic")
 
     # Indexes and constraints
     __table_args__ = (
@@ -446,4 +446,78 @@ class CustomerTag(Base, TimestampMixin, TenantMixin):
     __table_args__ = (
         UniqueConstraint("customer_id", "tag_name", name="uq_customer_tag"),
         Index("ix_tag_name_category", "tag_name", "tag_category"),
+    )
+
+
+class ContactRole(str, Enum):
+    """Roles a contact can have for a customer."""
+
+    PRIMARY = "primary"
+    BILLING = "billing"
+    TECHNICAL = "technical"
+    ADMIN = "admin"
+    SUPPORT = "support"
+    EMERGENCY = "emergency"
+    OTHER = "other"
+
+
+class CustomerContactLink(Base, TimestampMixin, TenantMixin):
+    """
+    Join table linking customers to contacts with roles.
+
+    Normalizes the many-to-many relationship between customers and contacts,
+    allowing a contact to be associated with multiple customers with different roles.
+    """
+
+    __tablename__ = "customer_contacts"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    customer_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Contact reference - nullable for testing without contacts module
+    contact_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        # FK will be added in migration when contacts module is available
+        nullable=False,
+        index=True,
+        comment="FK to contacts.id - constraint added when both modules are deployed"
+    )
+
+    # Role this contact has for this customer
+    role: Mapped[ContactRole] = mapped_column(
+        SQLEnum(ContactRole),
+        default=ContactRole.OTHER,
+        nullable=False,
+    )
+
+    # Is this the primary contact for this role?
+    is_primary_for_role: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Primary contact for this specific role",
+    )
+
+    # Additional metadata
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    customer = relationship("Customer", back_populates="contact_links")
+    # Contact relationship will be added when contacts module is fully integrated
+    # contact = relationship("Contact", back_populates="customer_links")
+
+    __table_args__ = (
+        UniqueConstraint("customer_id", "contact_id", "role", name="uq_customer_contact_role"),
+        Index("ix_customer_contact_customer", "customer_id", "role"),
+        Index("ix_customer_contact_contact", "contact_id", "role"),
     )

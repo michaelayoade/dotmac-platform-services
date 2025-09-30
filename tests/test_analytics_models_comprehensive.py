@@ -60,7 +60,7 @@ class TestEnums:
 
         # Test all values are present
         all_values = list(EventType)
-        assert len(all_values) == 5
+        assert len(all_values) == 8
 
     def test_metric_unit_enum(self):
         """Test MetricUnit enum values."""

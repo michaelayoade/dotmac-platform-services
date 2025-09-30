@@ -5,8 +5,8 @@ Provides REST endpoints for analytics operations.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
-from uuid import UUID, uuid4
+from typing import Any, Optional
+from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,15 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
 
 from .models import (
-    AggregationType,
-    AnalyticsErrorResponse,
     AnalyticsQueryRequest,
-    DashboardPeriod,
-    DashboardResponse,
-    DashboardWidget,
     EventTrackRequest,
     EventTrackResponse,
-    EventsQueryResponse,
     MetricDataPoint,
     MetricRecordRequest,
     MetricRecordResponse,
@@ -30,11 +24,41 @@ from .models import (
     MetricsQueryResponse,
     ReportResponse,
     ReportSection,
-    ReportType,
-    TimeInterval,
+    format_datetime,
 )
 
 logger = structlog.get_logger(__name__)
+
+
+def _ensure_utc(value: Optional[Any]) -> datetime:
+    """Normalize incoming datetime-like values to UTC-aware datetimes."""
+
+    if value is None:
+        return datetime.now(timezone.utc)
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(cleaned)
+        except ValueError:
+            return datetime.now(timezone.utc)
+        return _ensure_utc(parsed)
+
+    return datetime.now(timezone.utc)
+
+
+def _isoformat(value: Optional[Any]) -> str:
+    """Return a UTC ISO 8601 representation with trailing Z."""
+
+    return format_datetime(_ensure_utc(value))
+
 
 # Create router
 analytics_router = APIRouter()
@@ -84,10 +108,12 @@ async def track_event(
             session_id=request.session_id,
         )
 
+        event_timestamp = _ensure_utc(request.timestamp)
+
         return EventTrackResponse(
             event_id=event_id,
             event_name=request.event_name,
-            timestamp=request.timestamp or datetime.now(timezone.utc),
+            timestamp=event_timestamp,
             status="tracked",
         )
     except Exception as e:
@@ -119,12 +145,14 @@ async def record_metric(
             tags=request.tags,
         )
 
+        metric_timestamp = _ensure_utc(request.timestamp)
+
         return MetricRecordResponse(
             metric_id=str(metric_id) if metric_id else str(uuid4()),
             metric_name=request.metric_name,
             value=request.value,
             unit=request.unit.value,
-            timestamp=request.timestamp or datetime.now(timezone.utc),
+            timestamp=metric_timestamp,
             status="recorded",
         )
     except Exception as e:
@@ -155,6 +183,9 @@ async def get_events(
         if not start_date:
             start_date = end_date - timedelta(days=7)
 
+        end_date = _ensure_utc(end_date)
+        start_date = _ensure_utc(start_date)
+
         # Query events
         service = get_analytics_service()
         events = await service.query_events(
@@ -168,7 +199,7 @@ async def get_events(
         return {
             "events": events,
             "total": len(events),
-            "period": {"start": start_date, "end": end_date},
+            "period": {"start": _isoformat(start_date), "end": _isoformat(end_date)},
         }
     except Exception as e:
         logger.error(f"Error querying events: {e}")
@@ -198,6 +229,9 @@ async def get_metrics(
         if not start_date:
             start_date = end_date - timedelta(hours=24)
 
+        end_date = _ensure_utc(end_date)
+        start_date = _ensure_utc(start_date)
+
         # Query metrics
         service = get_analytics_service()
         metrics_summary = await service.query_metrics(
@@ -221,8 +255,8 @@ async def get_metrics(
                                     "name": name,
                                     "type": metric_type[:-1],  # Remove 's' from plural
                                     "value": value,
-                                    "timestamp": metrics_summary.get(
-                                        "timestamp", datetime.now(timezone.utc).isoformat()
+                                    "timestamp": _ensure_utc(
+                                        metrics_summary.get("timestamp")
                                     ),
                                 }
                             )
@@ -238,7 +272,7 @@ async def get_metrics(
             grouped = defaultdict(list)
             for metric in metrics_list:
                 grouped[metric["name"]].append({
-                    "timestamp": metric.get("timestamp", datetime.now(timezone.utc)),
+                    "timestamp": _ensure_utc(metric.get("timestamp")),
                     "value": metric["value"],
                 })
 
@@ -404,13 +438,21 @@ async def get_dashboard_data(
         else:
             start_date = end_date - timedelta(days=1)
 
+        start_date = _ensure_utc(start_date)
+        end_date = _ensure_utc(end_date)
+
         # Get dashboard data
         service = get_analytics_service()
         dashboard = await service.get_dashboard_data(
             start_date=start_date, end_date=end_date, user_id=current_user.user_id
         )
 
-        return {"period": period, "data": dashboard, "generated_at": datetime.now(timezone.utc)}
+        return {
+            "period": period,
+            "data": dashboard,
+            "generated_at": _isoformat(None),
+            "window": {"start": _isoformat(start_date), "end": _isoformat(end_date)},
+        }
     except Exception as e:
         logger.error(f"Error getting dashboard data: {e}")
         raise HTTPException(

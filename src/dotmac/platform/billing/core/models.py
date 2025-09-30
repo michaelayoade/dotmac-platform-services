@@ -3,7 +3,6 @@ Billing module Pydantic models with tenant support
 """
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -13,17 +12,14 @@ from dotmac.platform.core.models import BaseModel
 
 from .enums import (
     BankAccountType,
-    BillingCycle,
     CreditApplicationType,
     CreditNoteStatus,
     CreditReason,
     CreditType,
-    InvoiceStatus,
     PaymentMethodStatus,
     PaymentMethodType,
     PaymentStatus,
     TransactionType,
-    VerificationStatus,
 )
 
 
@@ -49,11 +45,11 @@ class BillingBaseModel(BaseModel):
 class InvoiceLineItem(BaseModel):
     """Invoice line item"""
 
-    line_item_id: str = Field(default_factory=lambda: str(uuid4()))
-    description: str = Field(..., min_length=1, max_length=500)
-    quantity: int = Field(ge=1)
-    unit_price: int = Field(..., description="Unit price in minor currency units")
-    total_price: int = Field(..., description="Total price (quantity * unit_price)")
+    line_item_id: str | None = Field(None, description="Line item identifier")
+    description: str = Field(default="", min_length=0, max_length=500)
+    quantity: int = Field(default=1, ge=0)
+    unit_price: int = Field(default=0, description="Unit price in minor currency units")
+    total_price: int = Field(default=0, description="Total price (quantity * unit_price)")
 
     # Optional references
     product_id: str | None = Field(None, description="Reference to product/service")
@@ -69,6 +65,18 @@ class InvoiceLineItem(BaseModel):
 
     extra_data: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("tax_amount", "discount_amount", mode="before")
+    @classmethod
+    def to_minor_units(cls, value):
+        """Convert Decimal/float monetary values to integer minor units (cents)."""
+        from decimal import Decimal, ROUND_HALF_UP
+
+        if isinstance(value, Decimal):
+            return int((value * 100).to_integral_value(rounding=ROUND_HALF_UP))
+        if isinstance(value, float):
+            return int(Decimal(str(value)).scaleb(2).to_integral_value(rounding=ROUND_HALF_UP))
+        return int(value)
+
     @field_validator("total_price")
     @classmethod
     def validate_total_price(cls, v: int, info) -> int:
@@ -82,40 +90,40 @@ class InvoiceLineItem(BaseModel):
 class Invoice(BillingBaseModel):
     """Core invoice model with idempotency support"""
 
-    invoice_id: str = Field(default_factory=lambda: str(uuid4()))
+    invoice_id: str | None = Field(None, description="Invoice identifier")
     invoice_number: str | None = Field(None, description="Human-readable invoice number")
 
     # Idempotency
     idempotency_key: str | None = None
-    created_by: str = Field(..., description="User/system that created invoice")
+    created_by: str | None = Field(None, description="User/system that created invoice")
 
     # Customer
-    customer_id: str = Field(..., description="Customer identifier")
-    billing_email: str = Field(..., description="Billing email address")
-    billing_address: dict[str, str] = Field(..., description="Billing address")
+    customer_id: str | None = Field(None, description="Customer identifier")
+    billing_email: str | None = Field(None, description="Billing email address")
+    billing_address: dict[str, str] = Field(default_factory=dict, description="Billing address")
 
     # Invoice details
     issue_date: datetime = Field(default_factory=datetime.utcnow)
-    due_date: datetime
+    due_date: datetime | None = Field(None, description="Invoice due date")
     currency: str = Field("USD", min_length=3, max_length=3)
 
     # Amounts in minor units (cents)
-    subtotal: int = Field(ge=0)
+    subtotal: int = Field(default=0, ge=0)
     tax_amount: int = Field(0, ge=0)
     discount_amount: int = Field(0, ge=0)
-    total_amount: int = Field(ge=0)
+    total_amount: int = Field(default=0, ge=0)
 
     # Credits
-    total_credits_applied: int = Field(0, ge=0)
-    remaining_balance: int = Field(ge=0)
-    credit_applications: list[str] = Field(default_factory=list)
+    total_credits_applied: int | None = Field(None, description="Total credits applied")
+    remaining_balance: int = Field(default=0, ge=0)
+    credit_applications: list[str] | None = Field(None, description="Credit applications")
 
     # Status
-    status: InvoiceStatus = Field(InvoiceStatus.DRAFT)
-    payment_status: PaymentStatus = Field(PaymentStatus.PENDING)
+    status: str = Field("draft", description="Invoice status")
+    payment_status: str = Field("pending", description="Payment status")
 
     # Line items
-    line_items: list[InvoiceLineItem] = Field(min_length=1)
+    line_items: list[InvoiceLineItem] = Field(default_factory=list)
 
     # References
     subscription_id: str | None = None
@@ -127,8 +135,8 @@ class Invoice(BillingBaseModel):
     extra_data: dict[str, Any] = Field(default_factory=dict)
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime | None = Field(None, description="Creation timestamp")
+    updated_at: datetime | None = Field(None, description="Last update timestamp")
     paid_at: datetime | None = None
     voided_at: datetime | None = None
 
@@ -362,5 +370,108 @@ class CustomerCredit(BillingBaseModel):
 
     # Timestamps
     last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+    extra_data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ============================================================================
+# Customer Models
+# ============================================================================
+
+
+class Customer(BillingBaseModel):
+    """Customer billing information"""
+
+    customer_id: str = Field(description="Unique customer identifier")
+    email: str = Field(description="Customer email address")
+
+    # Billing information
+    billing_name: str | None = Field(None, description="Billing contact name")
+    billing_address: dict[str, Any] = Field(default_factory=dict, description="Billing address")
+
+    # Payment settings
+    currency: str = Field(default="USD", min_length=3, max_length=3, description="Default currency")
+    payment_terms: int = Field(default=30, description="Payment terms in days")
+
+    # Status
+    is_active: bool = Field(default=True, description="Customer account status")
+
+    extra_data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ============================================================================
+# Subscription Models
+# ============================================================================
+
+
+class Subscription(BillingBaseModel):
+    """Customer subscription"""
+
+    subscription_id: str = Field(description="Unique subscription identifier")
+    customer_id: str = Field(description="Customer identifier")
+
+    # Plan information
+    plan_id: str = Field(description="Subscription plan ID")
+    status: str = Field(description="Subscription status")
+
+    # Billing cycle
+    billing_cycle: str = Field(default="monthly", description="Billing frequency")
+    next_billing_date: datetime | None = Field(None, description="Next billing date")
+
+    extra_data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ============================================================================
+# Product Models
+# ============================================================================
+
+
+class Product(BillingBaseModel):
+    """Product for billing"""
+
+    product_id: str = Field(description="Unique product identifier")
+    name: str = Field(description="Product name")
+    description: str | None = Field(None, description="Product description")
+
+    # Pricing
+    unit_price: int = Field(description="Price in cents")
+    currency: str = Field(default="USD", description="Currency code")
+
+    extra_data: dict[str, Any] = Field(default_factory=dict)
+
+
+class Price(BillingBaseModel):
+    """Price information"""
+
+    price_id: str = Field(description="Unique price identifier")
+    product_id: str = Field(description="Associated product ID")
+
+    # Pricing details
+    unit_amount: int = Field(description="Amount in cents")
+    currency: str = Field(default="USD", description="Currency code")
+
+    extra_data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ============================================================================
+# Invoice Item Models
+# ============================================================================
+
+
+class InvoiceItem(BillingBaseModel):
+    """Invoice line item"""
+
+    item_id: str = Field(description="Unique item identifier")
+    invoice_id: str = Field(description="Associated invoice ID")
+
+    # Product information
+    product_id: str | None = Field(None, description="Product ID if applicable")
+    description: str = Field(description="Item description")
+
+    # Pricing
+    quantity: int = Field(default=1, description="Quantity")
+    unit_price: int = Field(description="Unit price in cents")
+    total_amount: int = Field(description="Total amount in cents")
+    currency: str = Field(default="USD", description="Currency code")
 
     extra_data: dict[str, Any] = Field(default_factory=dict)

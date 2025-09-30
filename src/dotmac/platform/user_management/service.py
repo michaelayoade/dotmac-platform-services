@@ -279,10 +279,10 @@ class UserService:
             logger.warning(f"Inactive user login attempt: {user.username}")
             return None
 
-        # Reset failed attempts and update last login
+        # Reset failed attempts
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login = datetime.now(timezone.utc)
+        # Note: last_login is updated in the router after successful authentication
 
         await self.session.commit()
         logger.info(f"User authenticated: {user.username}")
@@ -339,6 +339,36 @@ class UserService:
             user.roles = [r for r in user.roles if r != role]
             await self.session.commit()
             logger.info(f"Removed role {role} from user: {user.username}")
+
+        return user
+
+    async def update_last_login(
+        self,
+        user_id: str | UUID,
+        ip_address: Optional[str] = None
+    ) -> Optional[User]:
+        """Update user's last login timestamp and IP address.
+
+        Args:
+            user_id: The user ID to update
+            ip_address: Optional IP address of the login
+
+        Returns:
+            Updated user object or None if user not found
+        """
+        from datetime import datetime, timezone
+
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return None
+
+        # Update last login fields
+        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+        if ip_address:
+            user.last_login_ip = ip_address
+
+        await self.session.commit()
+        logger.info(f"Updated last login for user: {user.username}")
 
         return user
 

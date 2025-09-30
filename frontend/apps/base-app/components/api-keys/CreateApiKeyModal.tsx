@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/utils/logger';
 import {
   X,
   Key,
@@ -48,7 +49,7 @@ export function CreateApiKeyModal({
         const scopes = await getAvailableScopes();
         setAvailableScopes(scopes);
       } catch (error) {
-        console.error('Failed to load available scopes:', error);
+        logger.error('Failed to load available scopes', error instanceof Error ? error : new Error(String(error)));
       }
     };
 
@@ -119,7 +120,7 @@ export function CreateApiKeyModal({
         setCreatedApiKey(response.api_key);
       }
     } catch (error) {
-      console.error('Failed to save API key:', error);
+      logger.error('Failed to save API key', error instanceof Error ? error : new Error(String(error)));
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to save API key' });
     } finally {
       setLoading(false);
@@ -145,7 +146,7 @@ export function CreateApiKeyModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      logger.error('Failed to copy to clipboard', error instanceof Error ? error : new Error(String(error)));
     }
   };
 
@@ -170,7 +171,7 @@ export function CreateApiKeyModal({
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white">API Key Created!</h3>
-                <p className="text-slate-400 text-sm">Save this key securely - you won't see it again</p>
+                <p className="text-slate-400 text-sm">Save this key securely - you won&apos;t see it again</p>
               </div>
             </div>
           </div>

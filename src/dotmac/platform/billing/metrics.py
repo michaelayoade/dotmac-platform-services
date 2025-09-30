@@ -2,18 +2,36 @@
 Billing module metrics and monitoring
 """
 
+import contextlib
 import logging
-from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
-from opentelemetry import metrics, trace
-from opentelemetry.metrics import Counter, Histogram, Meter
-from opentelemetry.trace import Tracer, SpanKind, Status, StatusCode
+try:
+    from opentelemetry import metrics, trace
+    from opentelemetry.metrics import Counter, Histogram, Meter
+    from opentelemetry.trace import Tracer, SpanKind, Status, StatusCode
+    OTEL_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    metrics = trace = None
+    Counter = Histogram = Meter = None  # type: ignore[assignment]
+    Tracer = None  # type: ignore[assignment]
+    SpanKind = Status = StatusCode = None  # type: ignore[assignment]
+    OTEL_AVAILABLE = False
 
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
+from dotmac.platform.billing.core.enums import PaymentStatus
 from dotmac.platform.telemetry import get_meter, get_tracer
 
 logger = logging.getLogger(__name__)
+
+
+class _NoopInstrument:
+    """Minimal no-op instrument used when OpenTelemetry is unavailable."""
+
+    def add(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - trivial
+        return None
+
+    def record(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - trivial
+        return None
 
 
 class BillingMetrics:
@@ -21,135 +39,115 @@ class BillingMetrics:
 
     def __init__(self, meter: Optional[Meter] = None, tracer: Optional[Tracer] = None):
         """Initialize billing metrics"""
-        self.meter = meter or get_meter("billing")
-        self.tracer = tracer or get_tracer("billing")
+
+        try:
+            self.meter = meter or get_meter("billing")
+        except Exception as exc:  # pragma: no cover - optional dependency path
+            logger.debug("billing.metrics.meter_unavailable", error=str(exc))
+            self.meter = None
+
+        try:
+            self.tracer = tracer or get_tracer("billing")
+        except Exception as exc:  # pragma: no cover - optional dependency path
+            logger.debug("billing.metrics.tracer_unavailable", error=str(exc))
+            self.tracer = None
 
         # Invoice metrics
-        self.invoice_created_counter = self.meter.create_counter(
+        self.invoice_created_counter = self._create_counter(
             name="billing.invoice.created",
             description="Number of invoices created",
-            unit="1",
         )
-
-        self.invoice_finalized_counter = self.meter.create_counter(
+        self.invoice_finalized_counter = self._create_counter(
             name="billing.invoice.finalized",
             description="Number of invoices finalized",
-            unit="1",
         )
-
-        self.invoice_paid_counter = self.meter.create_counter(
+        self.invoice_paid_counter = self._create_counter(
             name="billing.invoice.paid",
             description="Number of invoices paid",
-            unit="1",
         )
-
-        self.invoice_voided_counter = self.meter.create_counter(
+        self.invoice_voided_counter = self._create_counter(
             name="billing.invoice.voided",
             description="Number of invoices voided",
-            unit="1",
         )
-
-        self.invoice_amount_histogram = self.meter.create_histogram(
+        self.invoice_amount_histogram = self._create_histogram(
             name="billing.invoice.amount",
             description="Invoice amounts",
             unit="cents",
         )
 
         # Payment metrics
-        self.payment_initiated_counter = self.meter.create_counter(
+        self.payment_initiated_counter = self._create_counter(
             name="billing.payment.initiated",
             description="Number of payments initiated",
-            unit="1",
         )
-
-        self.payment_succeeded_counter = self.meter.create_counter(
+        self.payment_succeeded_counter = self._create_counter(
             name="billing.payment.succeeded",
             description="Number of successful payments",
-            unit="1",
         )
-
-        self.payment_failed_counter = self.meter.create_counter(
+        self.payment_failed_counter = self._create_counter(
             name="billing.payment.failed",
             description="Number of failed payments",
-            unit="1",
         )
-
-        self.payment_refunded_counter = self.meter.create_counter(
+        self.payment_refunded_counter = self._create_counter(
             name="billing.payment.refunded",
             description="Number of refunds processed",
-            unit="1",
         )
-
-        self.payment_amount_histogram = self.meter.create_histogram(
+        self.payment_amount_histogram = self._create_histogram(
             name="billing.payment.amount",
             description="Payment amounts",
             unit="cents",
         )
-
-        self.payment_duration_histogram = self.meter.create_histogram(
+        self.payment_duration_histogram = self._create_histogram(
             name="billing.payment.duration",
             description="Payment processing duration",
             unit="ms",
         )
 
         # Webhook metrics
-        self.webhook_received_counter = self.meter.create_counter(
+        self.webhook_received_counter = self._create_counter(
             name="billing.webhook.received",
             description="Number of webhooks received",
-            unit="1",
         )
-
-        self.webhook_processed_counter = self.meter.create_counter(
+        self.webhook_processed_counter = self._create_counter(
             name="billing.webhook.processed",
             description="Number of webhooks processed successfully",
-            unit="1",
         )
-
-        self.webhook_failed_counter = self.meter.create_counter(
+        self.webhook_failed_counter = self._create_counter(
             name="billing.webhook.failed",
             description="Number of webhook processing failures",
-            unit="1",
         )
-
-        self.webhook_duration_histogram = self.meter.create_histogram(
+        self.webhook_duration_histogram = self._create_histogram(
             name="billing.webhook.duration",
             description="Webhook processing duration",
             unit="ms",
         )
 
         # Revenue metrics
-        self.revenue_counter = self.meter.create_counter(
+        self.revenue_counter = self._create_counter(
             name="billing.revenue.total",
             description="Total revenue collected",
             unit="cents",
         )
-
-        self.refund_counter = self.meter.create_counter(
+        self.refund_counter = self._create_counter(
             name="billing.refund.total",
             description="Total refunds issued",
             unit="cents",
         )
 
         # Credit note metrics
-        self.credit_note_created_counter = self.meter.create_counter(
+        self.credit_note_created_counter = self._create_counter(
             name="billing.credit_note.created",
             description="Number of credit notes created",
-            unit="1",
         )
-
-        self.credit_note_issued_counter = self.meter.create_counter(
+        self.credit_note_issued_counter = self._create_counter(
             name="billing.credit_note.issued",
             description="Number of credit notes issued",
-            unit="1",
         )
-
-        self.credit_note_voided_counter = self.meter.create_counter(
+        self.credit_note_voided_counter = self._create_counter(
             name="billing.credit_note.voided",
             description="Number of credit notes voided",
-            unit="1",
         )
-
-        self.credit_note_amount_histogram = self.meter.create_histogram(
+        self.credit_note_amount_histogram = self._create_histogram(
             name="billing.credit_note.amount",
             description="Credit note amounts",
             unit="cents",
@@ -337,6 +335,26 @@ class BillingMetrics:
         self.credit_note_voided_counter.add(1, attributes)
         logger.info(f"Credit note voided - tenant: {tenant_id}, credit_note: {credit_note_id}")
 
+    # Internal helpers -----------------------------------------------------
+
+    def _create_counter(self, name: str, description: str, unit: str = "1") -> Any:
+        if not self.meter:
+            return _NoopInstrument()
+        try:
+            return self.meter.create_counter(name=name, description=description, unit=unit)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("billing.metrics.counter_unavailable", name=name, error=str(exc))
+            return _NoopInstrument()
+
+    def _create_histogram(self, name: str, description: str, unit: str = "1") -> Any:
+        if not self.meter:
+            return _NoopInstrument()
+        try:
+            return self.meter.create_histogram(name=name, description=description, unit=unit)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("billing.metrics.histogram_unavailable", name=name, error=str(exc))
+            return _NoopInstrument()
+
     # Tracing helpers
     def trace_invoice_operation(
         self,
@@ -345,6 +363,8 @@ class BillingMetrics:
         invoice_id: str,
     ):
         """Create a trace span for invoice operations"""
+        if not self.tracer:
+            return contextlib.nullcontext()
         return self.tracer.start_as_current_span(
             f"billing.invoice.{operation}",
             kind=SpanKind.INTERNAL,
@@ -363,6 +383,8 @@ class BillingMetrics:
         provider: str,
     ):
         """Create a trace span for payment operations"""
+        if not self.tracer:
+            return contextlib.nullcontext()
         return self.tracer.start_as_current_span(
             f"billing.payment.{operation}",
             kind=SpanKind.INTERNAL,
@@ -380,6 +402,8 @@ class BillingMetrics:
         event_type: str,
     ):
         """Create a trace span for webhook processing"""
+        if not self.tracer:
+            return contextlib.nullcontext()
         return self.tracer.start_as_current_span(
             "billing.webhook.process",
             kind=SpanKind.SERVER,

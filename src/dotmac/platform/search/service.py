@@ -7,6 +7,8 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
+import structlog
+
 from ..dependencies import require_meilisearch, safe_import
 from ..settings import settings
 from .interfaces import (
@@ -20,13 +22,28 @@ from .interfaces import (
 
 # Only import MeiliSearch if enabled and available
 meilisearch = None
-if settings.features.search_meilisearch_enabled:
-    meilisearch = safe_import("meilisearch", "search_meilisearch_enabled")
+if settings.features.search_enabled:
+    meilisearch = safe_import(
+        "meilisearch",
+        "search_enabled",
+        error_if_missing=False,
+    )
+
+logger = structlog.get_logger(__name__)
+if settings.features.search_enabled and meilisearch is None:
+    logger.debug(
+        "search.meilisearch.dependency_missing",
+        message="MeiliSearch client not installed; using in-memory search backend",
+    )
 
 # OpenTelemetry is optional for tracing
 search_tracer = None
-if settings.features.tracing_opentelemetry:
-    ot_trace = safe_import("opentelemetry.trace", "tracing_opentelemetry")
+if settings.observability.otel_enabled:
+    ot_trace = safe_import(
+        "opentelemetry.trace",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if ot_trace:
         search_tracer = ot_trace.get_tracer(__name__)
 

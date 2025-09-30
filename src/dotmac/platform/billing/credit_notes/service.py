@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, List, Optional
 from uuid import uuid4
 
-from sqlalchemy import and_, select, or_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,7 +29,7 @@ from dotmac.platform.billing.core.exceptions import (
     InvalidCreditNoteStatusError,
     InsufficientCreditError,
 )
-from dotmac.platform.billing.core.models import CreditNote, CreditNoteLineItem, Transaction
+from dotmac.platform.billing.core.models import CreditNote
 from dotmac.platform.billing.metrics import get_billing_metrics
 
 logger = logging.getLogger(__name__)

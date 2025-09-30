@@ -38,72 +38,72 @@ class DependencyChecker:
 
     # Mapping of feature flags to required packages
     FEATURE_DEPENDENCIES: Dict[str, Dict[str, Union[str, List[str]]]] = {
-        # Storage backends
-        "storage_s3_enabled": {
-            "packages": ["boto3", "botocore"],
-            "install_cmd": "poetry install --extras s3",
-        },
-        "storage_minio_enabled": {
+        # Storage - MinIO only
+        "storage_enabled": {
             "packages": ["minio"],
-            "install_cmd": "poetry install --extras minio",
+            "install_cmd": "poetry install",  # Core dependency now
         },
-        "storage_azure_enabled": {
-            "packages": ["azure-storage-blob"],
-            "install_cmd": "poetry install --extras azure",
+        # Legacy alias for storage
+        "storage_s3_enabled": {
+            "packages": ["minio"],
+            "install_cmd": "poetry install",
         },
-        # Search backends
+        # Search
+        "search_enabled": {
+            "packages": ["meilisearch"],
+            "install_cmd": "poetry install",  # Core dependency now
+        },
+        # Legacy alias for search
         "search_meilisearch_enabled": {
             "packages": ["meilisearch"],
-            "install_cmd": "poetry install --extras search",
+            "install_cmd": "poetry install",
         },
-        "search_elasticsearch_enabled": {
-            "packages": ["elasticsearch"],
-            "install_cmd": "poetry install --extras search",
-        },
-        # GraphQL removed - using REST APIs only
-        # Observability
-        "tracing_opentelemetry": {
+        # Observability (OpenTelemetry and Prometheus)
+        "otel_enabled": {
             "packages": ["opentelemetry-api", "opentelemetry-sdk"],
-            "install_cmd": "poetry install --extras observability",
+            "install_cmd": "poetry install",  # Core dependency now
         },
-        "metrics_prometheus": {
+        "prometheus_enabled": {
             "packages": ["prometheus-client"],
-            "install_cmd": "poetry install --extras metrics",
-        },
-        "sentry_enabled": {
-            "packages": ["sentry-sdk"],
-            "install_cmd": "poetry install --extras sentry",
+            "install_cmd": "poetry install",  # Core dependency now
         },
         # Encryption and secrets
         "encryption_fernet": {
             "packages": ["cryptography"],
-            "install_cmd": "pip install cryptography",
+            "install_cmd": "poetry install",  # Core dependency now
         },
-        "secrets_vault": {"packages": ["hvac"], "install_cmd": "poetry install --extras vault"},
+        "secrets_vault": {
+            "packages": ["hvac"],
+            "install_cmd": "poetry install",  # Core dependency now
+        },
         # Data transfer
         "data_transfer_excel": {
             "packages": ["openpyxl", "xlsxwriter"],
-            "install_cmd": "poetry install --extras data-transfer",
+            "install_cmd": "poetry install",  # Core dependency now
         },
         # File processing
         "file_processing_pdf": {
-            "packages": ["PyMuPDF"],
-            "install_cmd": "poetry install --extras file-processing",
+            "packages": ["pypdf2"],
+            "install_cmd": "poetry install",  # Core dependency now
         },
         "file_processing_images": {
             "packages": ["Pillow"],
-            "install_cmd": "poetry install --extras file-processing",
+            "install_cmd": "poetry install",  # Core dependency now
         },
         # Task queue
-        "celery_enabled": {"packages": ["celery"], "install_cmd": "poetry install --extras celery"},
-        # Communication
-        "slack_enabled": {
-            "packages": ["slack-sdk"],
-            "install_cmd": "poetry install --extras notifications",
+        "celery_enabled": {
+            "packages": ["celery"],
+            "install_cmd": "poetry install",  # Core dependency now
         },
         # Database
-        "db_postgresql": {"packages": ["asyncpg"], "install_cmd": "pip install asyncpg"},
-        "db_sqlite": {"packages": ["aiosqlite"], "install_cmd": "pip install aiosqlite"},
+        "db_postgresql": {
+            "packages": ["asyncpg"],
+            "install_cmd": "poetry install",  # Core dependency now
+        },
+        "db_sqlite": {
+            "packages": ["aiosqlite"],
+            "install_cmd": "poetry install",  # Core dependency now
+        },
     }
 
     @classmethod
@@ -204,10 +204,10 @@ def require_dependency(feature_flag: str):
         feature_flag: The feature flag name
 
     Example:
-        @require_dependency("storage_s3_enabled")
-        def create_s3_client():
-            import boto3
-            return boto3.client('s3')
+        @require_dependency("storage_enabled")
+        def create_minio_client():
+            from minio import Minio
+            return Minio(...)
     """
 
     def decorator(func):
@@ -225,13 +225,39 @@ def require_dependency(feature_flag: str):
     return decorator
 
 
-def safe_import(module_name: str, feature_flag: Optional[str] = None):
+def _is_feature_enabled(feature_flag: str) -> bool:
+    """Best-effort check for feature toggles across settings."""
+
+    features = getattr(settings, "features", None)
+    if features and hasattr(features, feature_flag):
+        return bool(getattr(features, feature_flag))
+
+    observability = getattr(settings, "observability", None)
+    if observability and hasattr(observability, feature_flag):
+        return bool(getattr(observability, feature_flag))
+
+    rate_limit = getattr(settings, "rate_limit", None)
+    if rate_limit and hasattr(rate_limit, feature_flag):
+        return bool(getattr(rate_limit, feature_flag))
+
+    return False
+
+
+def safe_import(
+    module_name: str,
+    feature_flag: Optional[str] = None,
+    *,
+    error_if_missing: bool = True,
+):
     """
     Safely import a module with helpful error messages.
 
     Args:
         module_name: The module to import
         feature_flag: Optional feature flag that controls this import
+        error_if_missing: When True, raise a dependency error if the module is
+            missing and the associated feature flag is enabled. When False,
+            return ``None`` silently.
 
     Returns:
         The imported module or None if not available
@@ -242,37 +268,32 @@ def safe_import(module_name: str, feature_flag: Optional[str] = None):
     try:
         return importlib.import_module(module_name)
     except ImportError:
-        if feature_flag:
-            # Check if feature is enabled
-            feature_enabled = getattr(settings.features, feature_flag, False)
-            if feature_enabled:
-                # Feature is enabled but dependency is missing - this is an error
-                DependencyChecker.require_feature_dependency(feature_flag)
+        if feature_flag and error_if_missing and _is_feature_enabled(feature_flag):
+            # Feature is enabled but dependency is missing - surface helpful error
+            DependencyChecker.require_feature_dependency(feature_flag)
         return None
 
 
 # Convenience functions for common dependencies
-def require_boto3():
-    """Require boto3 for S3 operations."""
-    if settings.features.storage_s3_enabled:
-        DependencyChecker.require_feature_dependency("storage_s3_enabled")
-        import boto3
-
-        return boto3
+def require_minio():
+    """Require minio for storage operations."""
+    if settings.features.storage_enabled:
+        DependencyChecker.require_feature_dependency("storage_enabled")
+        import minio
+        return minio
     else:
-        raise ValueError("S3 storage is not enabled. Set FEATURES__STORAGE_S3_ENABLED=true")
+        raise ValueError("Storage is not enabled. Set FEATURES__STORAGE_ENABLED=true")
 
 
 def require_meilisearch():
     """Require meilisearch for search operations."""
-    if settings.features.search_meilisearch_enabled:
-        DependencyChecker.require_feature_dependency("search_meilisearch_enabled")
+    if settings.features.search_enabled:
+        DependencyChecker.require_feature_dependency("search_enabled")
         import meilisearch
-
         return meilisearch
     else:
         raise ValueError(
-            "MeiliSearch is not enabled. Set FEATURES__SEARCH_MEILISEARCH_ENABLED=true"
+            "Search is not enabled. Set FEATURES__SEARCH_ENABLED=true"
         )
 
 
@@ -285,6 +306,3 @@ def require_cryptography():
         return Fernet
     else:
         raise ValueError("Fernet encryption is not enabled. Set FEATURES__ENCRYPTION_FERNET=true")
-
-
-# GraphQL support removed - using REST APIs only

@@ -34,15 +34,66 @@ if config.config_file_name is not None:
 
 from dotmac.platform.db import Base
 
-# Import all models to ensure they're registered
-from dotmac.platform.user_management.models import User
-from dotmac.platform.customer_management.models import (
-    Customer,
-    CustomerSegment,
-    CustomerActivity,
-    CustomerNote,
-    CustomerTag,
-)
+# Import all models to ensure they're registered with Base.metadata
+# This ensures alembic autogenerate can detect all tables
+
+# Core and base models
+from dotmac.platform.core.models import *
+
+# Auth and user management
+from dotmac.platform.auth.models import *
+try:
+    from dotmac.platform.user_management.models import *
+except ImportError:
+    pass  # Skip if circular import issues
+
+# Customer and contacts
+from dotmac.platform.customer_management.models import *
+from dotmac.platform.contacts.models import *
+
+# Billing (comprehensive)
+from dotmac.platform.billing.core.models import *
+from dotmac.platform.billing.core.entities import *
+from dotmac.platform.billing.bank_accounts.models import *
+from dotmac.platform.billing.bank_accounts.entities import *
+from dotmac.platform.billing.catalog.models import *
+from dotmac.platform.billing.pricing.models import *
+from dotmac.platform.billing.subscriptions.models import *
+from dotmac.platform.billing.settings.models import *
+from dotmac.platform.billing.receipts.models import *
+try:
+    from dotmac.platform.billing.money_models import *
+except ImportError:
+    pass
+
+# Communications and webhooks
+from dotmac.platform.communications.models import *
+from dotmac.platform.webhooks.models import *
+
+# Analytics and audit
+from dotmac.platform.analytics.models import *
+from dotmac.platform.audit.models import *
+
+# Data operations
+from dotmac.platform.data_transfer.models import *
+try:
+    from dotmac.platform.data_import.models import *
+except ImportError:
+    pass
+
+# Admin and services
+try:
+    from dotmac.platform.admin.settings.models import *
+except ImportError:
+    pass
+try:
+    from dotmac.platform.service_registry.models import *
+except ImportError:
+    pass
+try:
+    from dotmac.platform.ticketing.models import *
+except ImportError:
+    pass
 
 # Use Base.metadata for autogeneration
 target_metadata = Base.metadata

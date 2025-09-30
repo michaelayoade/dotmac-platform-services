@@ -28,8 +28,8 @@ processors:
     spike_limit_mib: 128
 
 exporters:
-  logging:
-    loglevel: debug
+  debug:
+    verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
 
@@ -44,7 +44,7 @@ exporters:
 
   # Export metrics to Prometheus
   prometheus:
-    endpoint: "0.0.0.0:8888"
+    endpoint: "0.0.0.0:8889"
     namespace: dotmac
     const_labels:
       environment: development
@@ -54,17 +54,17 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [logging, otlp/jaeger]
+      exporters: [debug, otlp/jaeger]
 
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [logging, prometheus]
+      exporters: [debug, prometheus]
 
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [logging]
+      exporters: [debug]
 
   extensions: [health_check]
 

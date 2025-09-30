@@ -9,18 +9,19 @@ from typing import Any, AsyncGenerator, Dict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.responses import Response
 
 from dotmac.platform.db import init_db
 from dotmac.platform.health_checks import HealthChecker, ensure_infrastructure_running
-from dotmac.platform.rate_limiting import limiter
+from dotmac.platform.rate_limiting import get_limiter
 from dotmac.platform.routers import get_api_info, register_routers
 from dotmac.platform.secrets import load_secrets_from_vault_sync
 from dotmac.platform.settings import settings
 from dotmac.platform.telemetry import setup_telemetry
+from dotmac.platform.audit import AuditContextMiddleware
+from dotmac.platform.tenant import TenantMiddleware
 
 
 def rate_limit_handler(request: Request, exc: Exception) -> Response:
@@ -105,10 +106,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         init_db()
         logger.info("database.init.success")
-        print("✅ Database initialized")
+        print("✅ Database initialized successfully")
     except Exception as e:
         logger.error("database.init.failed", error=str(e))
-        raise
+        print(f"❌ Database initialization failed: {e}")
+        # Continue in development, fail in production
+        if settings.environment == "production":
+            raise
 
     logger.info("service.startup.complete", healthy=all_healthy)
     print("🎉 Startup complete - service ready")
@@ -151,8 +155,15 @@ def create_application() -> FastAPI:
     # Add GZip compression
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+    # Add tenant middleware BEFORE audit middleware
+    # This ensures tenant context is set before audit logs are created
+    app.add_middleware(TenantMiddleware)
+
+    # Add audit context middleware for user tracking
+    app.add_middleware(AuditContextMiddleware)
+
     # Add rate limiting support
-    app.state.limiter = limiter
+    app.state.limiter = get_limiter()
     app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
     # Register all API routers
@@ -201,9 +212,9 @@ def create_application() -> FastAPI:
         return await readiness_check()
 
     # API info endpoint (public - shows available endpoints)
-    @app.get("/api")
-    async def api_info() -> Dict[str, Any]:
-        """Get information about available API endpoints."""
+    @app.get("/api/v1/info")
+    async def api_v1_info() -> Dict[str, Any]:
+        """API info endpoint with versioned prefix for compatibility."""
         return get_api_info()
 
     # Metrics endpoint (if metrics enabled)

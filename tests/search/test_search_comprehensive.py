@@ -88,8 +88,7 @@ class TestSearchBackendRegistry:
     @patch('dotmac.platform.search.factory.DependencyChecker')
     def test_list_enabled_backends_memory_only(self, mock_checker, mock_settings, registry):
         """Test listing enabled backends when only memory is available."""
-        mock_settings.features.search_meilisearch_enabled = False
-        mock_settings.features.search_elasticsearch_enabled = False
+        mock_settings.features.search_enabled = False
 
         enabled = registry.list_enabled_backends()
         assert enabled == ["memory"]
@@ -98,8 +97,7 @@ class TestSearchBackendRegistry:
     @patch('dotmac.platform.search.factory.DependencyChecker')
     def test_list_enabled_backends_with_meilisearch(self, mock_checker, mock_settings, registry):
         """Test listing enabled backends with MeiliSearch."""
-        mock_settings.features.search_meilisearch_enabled = True
-        mock_settings.features.search_elasticsearch_enabled = False
+        mock_settings.features.search_enabled = True
         mock_checker.check_feature_dependency.return_value = True
 
         enabled = registry.list_enabled_backends()
@@ -110,7 +108,7 @@ class TestSearchBackendRegistry:
     @patch('dotmac.platform.search.factory.DependencyChecker')
     def test_list_enabled_backends_meilisearch_no_deps(self, mock_checker, mock_settings, registry):
         """Test meilisearch not enabled when dependencies missing."""
-        mock_settings.features.search_meilisearch_enabled = True
+        mock_settings.features.search_enabled = True
         mock_checker.check_feature_dependency.return_value = False
 
         enabled = registry.list_enabled_backends()
@@ -133,18 +131,11 @@ class TestSearchBackendFactory:
     @patch('dotmac.platform.search.factory.settings')
     def test_create_backend_meilisearch_disabled(self, mock_settings):
         """Test creating meilisearch when disabled."""
-        mock_settings.features.search_meilisearch_enabled = False
+        mock_settings.features.search_enabled = False
 
         with pytest.raises(ValueError, match="MeiliSearch backend selected but not enabled"):
             SearchBackendFactory.create_backend("meilisearch")
 
-    @patch('dotmac.platform.search.factory.settings')
-    def test_create_backend_elasticsearch_disabled(self, mock_settings):
-        """Test creating elasticsearch when disabled."""
-        mock_settings.features.search_elasticsearch_enabled = False
-
-        with pytest.raises(ValueError, match="Elasticsearch backend selected but not enabled"):
-            SearchBackendFactory.create_backend("elasticsearch")
 
     def test_create_backend_unknown(self):
         """Test creating unknown backend."""
@@ -155,29 +146,18 @@ class TestSearchBackendFactory:
     @patch('dotmac.platform.search.factory.DependencyChecker')
     def test_auto_select_backend_meilisearch(self, mock_checker, mock_settings):
         """Test auto-selecting MeiliSearch when available."""
-        mock_settings.features.search_meilisearch_enabled = True
+        mock_settings.features.search_enabled = True
         mock_checker.check_feature_dependency.return_value = True
 
         backend_type = SearchBackendFactory._auto_select_backend()
         assert backend_type == "meilisearch"
 
-    @patch('dotmac.platform.search.factory.settings')
-    @patch('dotmac.platform.search.factory.DependencyChecker')
-    def test_auto_select_backend_elasticsearch(self, mock_checker, mock_settings):
-        """Test auto-selecting Elasticsearch when MeiliSearch unavailable."""
-        mock_settings.features.search_meilisearch_enabled = False
-        mock_settings.features.search_elasticsearch_enabled = True
-        mock_checker.check_feature_dependency.return_value = True
-
-        backend_type = SearchBackendFactory._auto_select_backend()
-        assert backend_type == "elasticsearch"
 
     @patch('dotmac.platform.search.factory.settings')
     @patch('dotmac.platform.search.factory.DependencyChecker')
     def test_auto_select_backend_memory_fallback(self, mock_checker, mock_settings):
         """Test falling back to memory backend."""
-        mock_settings.features.search_meilisearch_enabled = False
-        mock_settings.features.search_elasticsearch_enabled = False
+        mock_settings.features.search_enabled = False
 
         backend_type = SearchBackendFactory._auto_select_backend()
         assert backend_type == "memory"

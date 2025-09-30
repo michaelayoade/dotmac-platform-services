@@ -4,7 +4,6 @@ Tax management service
 
 import logging
 from datetime import datetime
-from decimal import Decimal
 from typing import Dict, List, Optional
 from uuid import uuid4
 
@@ -14,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
 from dotmac.platform.billing.core.enums import TransactionType
-from dotmac.platform.billing.tax.calculator import TaxCalculator, TaxRate
+from dotmac.platform.billing.tax.calculator import TaxCalculator
 
 logger = logging.getLogger(__name__)
 

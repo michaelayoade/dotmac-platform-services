@@ -86,12 +86,12 @@ def mock_session_manager():
 
 @pytest.fixture
 def mock_email_service():
-    """Create a mock email service."""
+    """Create a mock email service facade."""
     service = MagicMock()
-    service.send_welcome_email = MagicMock()
-    service.send_password_reset_email = MagicMock(return_value=("Email sent", "reset_token_123"))
+    service.send_welcome_email = AsyncMock()
+    service.send_password_reset_email = AsyncMock(return_value=("Email sent", "reset_token_123"))
     service.verify_reset_token = MagicMock(return_value="test@example.com")
-    service.send_password_reset_success_email = MagicMock()
+    service.send_password_reset_success_email = AsyncMock()
     return service
 
 
@@ -208,7 +208,7 @@ class TestRegisterEndpoint:
     @pytest.mark.asyncio
     async def test_register_success(
         self, mock_session, mock_user, mock_user_service, mock_jwt_service,
-        mock_session_manager, mock_email_service
+        mock_session_manager
     ):
         """Test successful user registration."""
         from dotmac.platform.auth.router import register
@@ -217,22 +217,31 @@ class TestRegisterEndpoint:
         mock_user_service.get_user_by_email = AsyncMock(return_value=None)
         mock_user_service.create_user = AsyncMock(return_value=mock_user)
 
+        # Properly mock the facade
+        mock_email_facade = MagicMock()
+        mock_email_facade.send_welcome_email = AsyncMock()
+
         with patch('dotmac.platform.auth.router.UserService', return_value=mock_user_service):
             with patch('dotmac.platform.auth.router.jwt_service', mock_jwt_service):
                 with patch('dotmac.platform.auth.router.session_manager', mock_session_manager):
-                    with patch('dotmac.platform.auth.router.get_auth_email_service', return_value=mock_email_service):
+                    with patch('dotmac.platform.auth.router.get_auth_email_service', return_value=mock_email_facade):
                         request = RegisterRequest(
                             username="newuser",
                             email="new@example.com",
                             password="password123",
                             full_name="New User"
                         )
-                        result = await register(request, mock_session)
+                        # Mock request and response objects with proper attributes
+                        mock_request = MagicMock()
+                        mock_request.client.host = "127.0.0.1"
+                        mock_request.headers.get.return_value = "test-user-agent"
+                        mock_response = MagicMock()
+                        result = await register(request, mock_request, mock_response, mock_session)
 
                         assert isinstance(result, TokenResponse)
                         assert result.access_token == "access_token_123"
                         mock_user_service.create_user.assert_called_once()
-                        mock_email_service.send_welcome_email.assert_called_once()
+                        mock_email_facade.send_welcome_email.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_register_username_exists(
@@ -317,20 +326,26 @@ class TestRegisterEndpoint:
         mock_user_service.get_user_by_email = AsyncMock(return_value=None)
         mock_user_service.create_user = AsyncMock(return_value=mock_user)
 
-        mock_email_service = MagicMock()
-        mock_email_service.send_welcome_email.side_effect = Exception("Email error")
+        # Properly mock the facade
+        mock_email_facade = MagicMock()
+        mock_email_facade.send_welcome_email = AsyncMock(side_effect=Exception("Email error"))
 
         with patch('dotmac.platform.auth.router.UserService', return_value=mock_user_service):
             with patch('dotmac.platform.auth.router.jwt_service', mock_jwt_service):
                 with patch('dotmac.platform.auth.router.session_manager', mock_session_manager):
-                    with patch('dotmac.platform.auth.router.get_auth_email_service', return_value=mock_email_service):
+                    with patch('dotmac.platform.auth.router.get_auth_email_service', return_value=mock_email_facade):
                         request = RegisterRequest(
                             username="newuser",
                             email="new@example.com",
                             password="password123"
                         )
                         # Should not raise exception even if email fails
-                        result = await register(request, mock_session)
+                        # Mock request and response objects with proper attributes
+                        mock_request = MagicMock()
+                        mock_request.client.host = "127.0.0.1"
+                        mock_request.headers.get.return_value = "test-user-agent"
+                        mock_response = MagicMock()
+                        result = await register(request, mock_request, mock_response, mock_session)
                         assert isinstance(result, TokenResponse)
 
 

@@ -1,7 +1,6 @@
 """Data transfer API router."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
@@ -15,7 +14,6 @@ from .models import (
     ExportRequest,
     FormatsResponse,
     ImportRequest,
-    TransferErrorResponse,
     TransferJobListResponse,
     TransferJobResponse,
     TransferType,

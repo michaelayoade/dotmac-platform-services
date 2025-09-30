@@ -248,3 +248,9 @@ def get_storage() -> MinIOStorage:
     if _storage is None:
         _storage = MinIOStorage()
     return _storage
+
+
+def reset_storage() -> None:
+    """Reset the cached MinIO storage instance (useful for testing)."""
+    global _storage
+    _storage = None

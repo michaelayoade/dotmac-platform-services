@@ -41,8 +41,11 @@
     "tsup": "^8.3.5",
     "eslint": "^8.57.1",
     "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.2.5",
     "@testing-library/react": "^16.1.0",
-    "@testing-library/jest-dom": "^6.6.3"
+    "@testing-library/jest-dom": "^6.6.3",
+    "identity-obj-proxy": "^3.0.0"
   },
   "peerDependencies": {
     "react": "^18.0.0",

@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 # Import shared fixtures and telemetry fixtures
 from tests.conftest_telemetry import *  # noqa: F401,F403
 from tests.shared_fixtures import *  # noqa: F401,F403
+from tests.test_utils import *  # noqa: F401,F403
 
 # Optional dependency imports with fallbacks
 # Optional fakeredis import with graceful fallback when unavailable
@@ -255,7 +256,14 @@ if HAS_SQLALCHEMY:
                     candidate = Path.cwd() / candidate
                 candidate.parent.mkdir(parents=True, exist_ok=True)
 
-        engine = create_async_engine(db_url, connect_args=connect_args)
+        engine = create_async_engine(
+            db_url,
+            connect_args=connect_args,
+            pool_size=20,  # Increase pool size for tests
+            max_overflow=30,  # Allow overflow connections
+            pool_pre_ping=True,  # Verify connections before use
+            pool_recycle=3600  # Recycle connections every hour
+        )
         if HAS_DATABASE_BASE:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -320,10 +328,10 @@ if HAS_FASTAPI:
         )
 
         # Create test token with user claims
-        test_token = jwt_service.issue_access_token(
+        test_token = jwt_service.create_access_token(
             subject="test-user-123",
-            scopes=["read", "write", "admin"],
             additional_claims={
+                "scopes": ["read", "write", "admin"],
                 "tenant_id": "test-tenant",
                 "email": "test@example.com"
             }

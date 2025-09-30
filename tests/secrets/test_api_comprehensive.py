@@ -175,7 +175,15 @@ class TestGetSecretEndpoint:
         mock_vault = AsyncMock()
         mock_vault.get_secret.return_value = {"username": "admin", "password": "secret"}
 
-        result = await get_secret("app/database", mock_vault)
+        # Create proper mock request with required attributes
+        mock_request = MagicMock()
+        mock_request.state.user_id = "test-user"
+        mock_request.state.tenant_id = "test-tenant"
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "test-agent"
+
+        with patch("dotmac.platform.secrets.api.log_api_activity"):
+            result = await get_secret("app/database", mock_request, mock_vault)
 
         assert isinstance(result, SecretResponse)
         assert result.path == "app/database"
@@ -191,8 +199,16 @@ class TestGetSecretEndpoint:
         mock_vault = AsyncMock()
         mock_vault.get_secret.return_value = None
 
-        with pytest.raises(HTTPException) as exc_info:
-            await get_secret("nonexistent/path", mock_vault)
+        # Create proper mock request
+        mock_request = MagicMock()
+        mock_request.state.user_id = "test-user"
+        mock_request.state.tenant_id = "test-tenant"
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "test-agent"
+
+        with patch("dotmac.platform.secrets.api.log_api_activity"):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_secret("nonexistent/path", mock_request, mock_vault)
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert "Secret not found at path: nonexistent/path" in str(exc_info.value.detail)
@@ -203,9 +219,17 @@ class TestGetSecretEndpoint:
         mock_vault = AsyncMock()
         mock_vault.get_secret.side_effect = VaultError("Vault connection failed")
 
-        with patch("dotmac.platform.secrets.api.logger") as mock_logger:
-            with pytest.raises(HTTPException) as exc_info:
-                await get_secret("app/database", mock_vault)
+        # Create proper mock request
+        mock_request = MagicMock()
+        mock_request.state.user_id = "test-user"
+        mock_request.state.tenant_id = "test-tenant"
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "test-agent"
+
+        with patch("dotmac.platform.secrets.api.log_api_activity"):
+            with patch("dotmac.platform.secrets.api.logger") as mock_logger:
+                with pytest.raises(HTTPException) as exc_info:
+                    await get_secret("app/database", mock_request, mock_vault)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "Failed to retrieve secret" in str(exc_info.value.detail)
@@ -260,7 +284,14 @@ class TestDeleteSecretEndpoint:
         mock_vault = AsyncMock()
 
         # Should not raise an exception
-        result = await delete_secret("app/database", mock_vault)
+        mock_request = MagicMock()
+        mock_request.state.user_id = "test-user"
+        mock_request.state.tenant_id = "test-tenant"
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "test-agent"
+
+        with patch("dotmac.platform.secrets.api.log_api_activity"):
+            result = await delete_secret("app/database", mock_request, mock_vault)
 
         assert result is None  # No content returned
         mock_vault.__aenter__.assert_called_once()
@@ -271,9 +302,16 @@ class TestDeleteSecretEndpoint:
         mock_vault = AsyncMock()
         mock_vault.__aenter__.side_effect = VaultError("Connection failed")
 
-        with patch("dotmac.platform.secrets.api.logger") as mock_logger:
-            with pytest.raises(HTTPException) as exc_info:
-                await delete_secret("app/database", mock_vault)
+        mock_request = MagicMock()
+        mock_request.state.user_id = "test-user"
+        mock_request.state.tenant_id = "test-tenant"
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "test-agent"
+
+        with patch("dotmac.platform.secrets.api.log_api_activity"):
+            with patch("dotmac.platform.secrets.api.logger") as mock_logger:
+                with pytest.raises(HTTPException) as exc_info:
+                    await delete_secret("app/database", mock_request, mock_vault)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "Failed to delete secret" in str(exc_info.value.detail)

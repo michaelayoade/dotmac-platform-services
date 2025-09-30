@@ -332,7 +332,7 @@ class TestUserService:
         mock_session.execute.side_effect = [mock_count_result, mock_result]
 
         # Act
-        returned_users, total = await user_service.list_users()
+        returned_users, total = await user_service.list_users(tenant_id="test-tenant")
 
         # Assert
         assert returned_users == users
@@ -376,7 +376,7 @@ class TestUserService:
         mock_session.execute.side_effect = [mock_count_result, mock_result]
 
         # Act
-        users, total = await user_service.list_users(skip=50, limit=25)
+        users, total = await user_service.list_users(skip=50, limit=25, tenant_id="test-tenant")
 
         # Assert
         assert users == []

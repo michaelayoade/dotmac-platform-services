@@ -6,13 +6,13 @@ Provides REST endpoints for secrets management operations.
 
 import logging
 from typing import Annotated, Any, Dict, Optional
-from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultError
 from dotmac.platform.settings import settings
+from ..audit import log_api_activity, ActivityType, ActivitySeverity
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ async def check_vault_health(
 @router.get("/secrets/{path:path}", response_model=SecretResponse, tags=["secrets"])
 async def get_secret(
     path: str,
+    request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
 ) -> SecretResponse:
     """
@@ -127,10 +128,32 @@ async def get_secret(
             data = await vault.get_secret(path)
 
         if not data:
+            # Log secret access attempt that failed
+            await log_api_activity(
+                request=request,
+                action="secret_access_failed",
+                description=f"Failed to access secret at path: {path}",
+                severity=ActivitySeverity.MEDIUM,
+                resource_type="secret",
+                resource_id=path,
+                details={"path": path, "reason": "secret_not_found"}
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Secret not found at path: {path}",
             )
+
+        # Log successful secret access
+        await log_api_activity(
+            request=request,
+            activity_type=ActivityType.SECRET_ACCESSED,
+            action="secret_access_success",
+            description=f"Successfully accessed secret at path: {path}",
+            severity=ActivitySeverity.LOW,
+            resource_type="secret",
+            resource_id=path,
+            details={"path": path, "keys": list(data.keys())}
+        )
 
         return SecretResponse(
             path=path,
@@ -140,6 +163,16 @@ async def get_secret(
 
     except VaultError as e:
         logger.error(f"Failed to retrieve secret: {e}")
+        # Log vault error
+        await log_api_activity(
+            request=request,
+            action="secret_access_error",
+            description=f"Vault error accessing secret at path: {path}",
+            severity=ActivitySeverity.HIGH,
+            resource_type="secret",
+            resource_id=path,
+            details={"path": path, "error": str(e)}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve secret: {str(e)}",
@@ -150,6 +183,7 @@ async def get_secret(
 async def create_or_update_secret(
     path: str,
     secret_data: SecretData,
+    request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
 ) -> SecretResponse:
     """
@@ -163,6 +197,22 @@ async def create_or_update_secret(
         async with vault:
             await vault.set_secret(path, secret_data.data)
 
+        # Log successful secret creation/update
+        await log_api_activity(
+            request=request,
+            activity_type=ActivityType.SECRET_CREATED,
+            action="secret_create_or_update",
+            description=f"Successfully created/updated secret at path: {path}",
+            severity=ActivitySeverity.MEDIUM,
+            resource_type="secret",
+            resource_id=path,
+            details={
+                "path": path,
+                "keys": list(secret_data.data.keys()),
+                "metadata": secret_data.metadata
+            }
+        )
+
         return SecretResponse(
             path=path,
             data=secret_data.data,
@@ -171,6 +221,16 @@ async def create_or_update_secret(
 
     except VaultError as e:
         logger.error(f"Failed to store secret: {e}")
+        # Log vault error
+        await log_api_activity(
+            request=request,
+            action="secret_create_error",
+            description=f"Vault error creating/updating secret at path: {path}",
+            severity=ActivitySeverity.HIGH,
+            resource_type="secret",
+            resource_id=path,
+            details={"path": path, "error": str(e)}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to store secret: {str(e)}",
@@ -180,6 +240,7 @@ async def create_or_update_secret(
 @router.delete("/secrets/{path:path}", status_code=status.HTTP_204_NO_CONTENT, tags=["secrets"])
 async def delete_secret(
     path: str,
+    request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
 ) -> None:
     """
@@ -196,11 +257,33 @@ async def delete_secret(
             # For KV v2, delete the latest version
             await vault.delete_secret(path)
 
+            # Log successful secret deletion
+            await log_api_activity(
+                request=request,
+                activity_type=ActivityType.SECRET_DELETED,
+                action="secret_delete",
+                description=f"Successfully deleted secret at path: {path}",
+                severity=ActivitySeverity.HIGH,
+                resource_type="secret",
+                resource_id=path,
+                details={"path": path}
+            )
+
             logger.info(f"Deleted secret at path: {path}")
             return None
 
     except VaultError as e:
         logger.error(f"Failed to delete secret: {e}")
+        # Log vault error
+        await log_api_activity(
+            request=request,
+            action="secret_delete_error",
+            description=f"Vault error deleting secret at path: {path}",
+            severity=ActivitySeverity.HIGH,
+            resource_type="secret",
+            resource_id=path,
+            details={"path": path, "error": str(e)}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete secret: {str(e)}",

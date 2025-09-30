@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
 
 from ..core.models import BaseModel
 
@@ -19,6 +19,25 @@ class EventType(str, Enum):
     API_CALL = "api_call"
     ERROR = "error"
     CUSTOM = "custom"
+    USER_LOGIN = "user_login"
+    USER_LOGOUT = "user_logout"
+    BULK_OPERATION = "bulk_operation"
+
+
+def _format_datetime(value: datetime) -> str:
+    """Format datetimes in UTC with a trailing Z for consistent API responses."""
+
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def format_datetime(value: datetime) -> str:
+    """Public helper for consistent datetime formatting."""
+
+    return _format_datetime(value)
 
 
 class MetricUnit(str, Enum):
@@ -218,6 +237,10 @@ class EventTrackResponse(BaseModel):
     status: str = Field("tracked", description="Tracking status")
     message: Optional[str] = Field(None, description="Optional status message")
 
+    @field_serializer("timestamp")
+    def _serialize_timestamp(self, value: datetime) -> str:
+        return _format_datetime(value)
+
 
 class MetricRecordResponse(BaseModel):
     """Metric recording response."""
@@ -231,6 +254,10 @@ class MetricRecordResponse(BaseModel):
     timestamp: datetime = Field(..., description="Recording timestamp")
     status: str = Field("recorded", description="Recording status")
 
+    @field_serializer("timestamp")
+    def _serialize_timestamp(self, value: datetime) -> str:
+        return _format_datetime(value)
+
 
 class MetricDataPoint(BaseModel):
     """Single metric data point."""
@@ -238,6 +265,10 @@ class MetricDataPoint(BaseModel):
     timestamp: datetime = Field(..., description="Data point timestamp")
     value: float = Field(..., description="Metric value")
     tags: Optional[dict[str, str]] = Field(None, description="Associated tags")
+
+    @field_serializer("timestamp")
+    def _serialize_timestamp(self, value: datetime) -> str:
+        return _format_datetime(value)
 
 
 class MetricSeries(BaseModel):
@@ -284,6 +315,13 @@ class MetricsQueryResponse(BaseModel):
     total_series: int = Field(..., description="Total metric series")
     query_time_ms: Optional[float] = Field(None, description="Query execution time")
 
+    @field_serializer("period")
+    def _serialize_period(self, value: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: _format_datetime(val) if isinstance(val, datetime) else val
+            for key, val in value.items()
+        }
+
 
 class AggregationResult(BaseModel):
     """Single aggregation result."""
@@ -326,6 +364,14 @@ class ReportResponse(BaseModel):
     period: dict[str, datetime] = Field(..., description="Report time period")
     metadata: Optional[dict[str, Any]] = Field(None, description="Report metadata")
 
+    @field_serializer("generated_at")
+    def _serialize_generated_at(self, value: datetime) -> str:
+        return _format_datetime(value)
+
+    @field_serializer("period")
+    def _serialize_report_period(self, value: dict[str, datetime]) -> dict[str, str]:
+        return {key: _format_datetime(val) for key, val in value.items()}
+
 
 class DashboardWidget(BaseModel):
     """Dashboard widget data."""
@@ -347,6 +393,10 @@ class DashboardResponse(BaseModel):
     widgets: list[DashboardWidget] = Field(..., description="Dashboard widgets")
     generated_at: datetime = Field(..., description="Dashboard generation timestamp")
     refresh_interval: Optional[int] = Field(60, description="Refresh interval in seconds")
+
+    @field_serializer("generated_at")
+    def _serialize_dashboard_generated_at(self, value: datetime) -> str:
+        return _format_datetime(value)
 
 
 # ========================================
@@ -391,4 +441,5 @@ __all__ = [
     "DashboardWidget",
     "DashboardResponse",
     "AnalyticsErrorResponse",
+    "format_datetime",
 ]

@@ -42,6 +42,8 @@ export const TemplateManager: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +98,11 @@ export const TemplateManager: React.FC = () => {
       text_template: template.text_template || '',
       category: template.category || '',
     });
+  };
+
+  const handlePreview = (template: EmailTemplate) => {
+    setPreviewTemplate(template);
+    setIsPreviewing(true);
   };
 
   const handleSave = async () => {
@@ -302,7 +309,7 @@ export const TemplateManager: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {/* TODO: Implement preview */}}
+                    onClick={() => handlePreview(template)}
                   >
                     <Eye className="w-4 h-4" />
                   </Button>
@@ -337,6 +344,104 @@ export const TemplateManager: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Preview Modal */}
+      {isPreviewing && previewTemplate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Template Preview</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsPreviewing(false);
+                    setPreviewTemplate(null);
+                  }}
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="space-y-6">
+                {/* Template Info */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">{previewTemplate.name}</h3>
+                  {previewTemplate.description && (
+                    <p className="text-gray-600 mb-4">{previewTemplate.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {previewTemplate.category && (
+                      <Badge variant="outline">{previewTemplate.category}</Badge>
+                    )}
+                    <Badge variant={previewTemplate.is_active ? "default" : "secondary"}>
+                      {previewTemplate.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">Subject</h4>
+                  <div className="bg-gray-50 p-3 rounded-md font-mono text-sm">
+                    {previewTemplate.subject_template}
+                  </div>
+                </div>
+
+                {/* Variables */}
+                {previewTemplate.variables.all_variables.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-2">Template Variables</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {previewTemplate.variables.all_variables.map((variable) => (
+                        <span key={variable} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm font-mono">
+                          {`{{${variable}}}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* HTML Template */}
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">HTML Template</h4>
+                  <div className="border rounded-md p-4 bg-white">
+                    {previewTemplate.html_template ? (
+                      <div dangerouslySetInnerHTML={{ __html: previewTemplate.html_template }} />
+                    ) : (
+                      <p className="text-gray-500 italic">No HTML template defined</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Text Template */}
+                {previewTemplate.text_template && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-2">Text Template</h4>
+                    <div className="bg-gray-50 p-3 rounded-md whitespace-pre-wrap font-mono text-sm">
+                      {previewTemplate.text_template}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t bg-gray-50">
+              <div className="flex justify-end">
+                <Button onClick={() => {
+                  setIsPreviewing(false);
+                  setPreviewTemplate(null);
+                }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

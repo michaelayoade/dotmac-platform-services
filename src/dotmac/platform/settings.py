@@ -175,13 +175,79 @@ class Settings(BaseSettings):
         """CORS configuration."""
 
         enabled: bool = Field(True, description="Enable CORS")
-        origins: list[str] = Field(default_factory=lambda: ["*"], description="Allowed origins")
+        origins: list[str] = Field(
+            default_factory=lambda: [
+                "http://localhost:3000",  # Frontend dev server
+                "http://localhost:3001",  # Alternative frontend port
+                "http://localhost:8000",  # Backend (for Swagger UI)
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8000"
+            ],
+            description="Allowed origins for CORS"
+        )
         methods: list[str] = Field(default_factory=lambda: ["*"], description="Allowed methods")
         headers: list[str] = Field(default_factory=lambda: ["*"], description="Allowed headers")
         credentials: bool = Field(True, description="Allow credentials")
         max_age: int = Field(3600, description="Max age for preflight")
 
     cors: CORSSettings = CORSSettings()  # type: ignore[call-arg]
+
+    # ============================================================
+    # Email & SMTP Settings
+    # ============================================================
+
+    class EmailSettings(BaseModel):
+        """Email and SMTP configuration."""
+
+        # SMTP Configuration
+        smtp_host: str = Field("localhost", description="SMTP server host")
+        smtp_port: int = Field(587, description="SMTP server port")
+        smtp_username: str = Field("", description="SMTP username")
+        smtp_password: str = Field("", description="SMTP password")
+        use_tls: bool = Field(True, description="Use TLS for SMTP")
+        use_ssl: bool = Field(False, description="Use SSL for SMTP")
+
+        # Email defaults
+        from_address: str = Field("noreply@example.com", description="Default from email")
+        from_name: str = Field("DotMac Platform", description="Default from name")
+        reply_to: str = Field("", description="Reply-to address")
+
+        # Email behavior
+        enabled: bool = Field(True, description="Enable email sending")
+        max_retries: int = Field(3, description="Max send retries")
+        timeout: int = Field(30, description="SMTP timeout in seconds")
+
+        # Template settings
+        template_path: str = Field("templates/emails", description="Email template path")
+        use_html: bool = Field(True, description="Send HTML emails")
+
+    email: EmailSettings = EmailSettings()  # type: ignore[call-arg]
+
+    # ============================================================
+    # Tenant Settings
+    # ============================================================
+
+    class TenantSettings(BaseModel):
+        """Multi-tenant configuration."""
+
+        # Tenant mode
+        mode: str = Field("single", description="Tenant mode: single or multi")
+        default_tenant_id: str = Field("default", description="Default tenant ID")
+
+        # Request handling
+        require_tenant_header: bool = Field(False, description="Require tenant header")
+        tenant_header_name: str = Field("X-Tenant-ID", description="Tenant header name")
+        tenant_query_param: str = Field("tenant_id", description="Tenant query parameter")
+
+        # Tenant isolation
+        strict_isolation: bool = Field(True, description="Enforce strict tenant isolation")
+        allow_cross_tenant_access: bool = Field(False, description="Allow cross-tenant access for admins")
+
+        # Tenant limits
+        max_users_per_tenant: int = Field(1000, description="Max users per tenant")
+        max_storage_per_tenant_gb: int = Field(100, description="Max storage per tenant in GB")
+
+    tenant: TenantSettings = TenantSettings()  # type: ignore[call-arg]
 
     # ============================================================
     # Celery & Task Queue
@@ -254,13 +320,69 @@ class Settings(BaseSettings):
             True, description="Enable Requests instrumentation when OTEL is enabled"
         )
 
-        # Sentry
-        sentry_enabled: bool = Field(False, description="Enable Sentry")
-        sentry_dsn: Optional[str] = Field(None, description="Sentry DSN")
-        sentry_environment: Optional[str] = Field(None, description="Sentry environment")
-        sentry_traces_sample_rate: float = Field(0.1, description="Sentry traces sample rate")
+        # Prometheus metrics endpoint
+        prometheus_enabled: bool = Field(True, description="Enable Prometheus metrics")
+        prometheus_port: int = Field(8001, description="Prometheus metrics port")
 
     observability: ObservabilitySettings = ObservabilitySettings()  # type: ignore[call-arg]
+
+    # ============================================================
+    # Billing Configuration
+    # ============================================================
+
+    class BillingSettings(BaseModel):
+        """Billing system configuration."""
+
+        # Product settings
+        default_currency: str = Field("USD", description="Default currency for products")
+        auto_generate_skus: bool = Field(True, description="Auto-generate SKUs for products")
+        sku_prefix: str = Field("PROD", description="Prefix for auto-generated SKUs")
+        sku_auto_increment: bool = Field(True, description="Use auto-incrementing SKU numbers")
+
+        # Subscription settings
+        default_trial_days: int = Field(14, description="Default trial period in days")
+        allow_plan_changes: bool = Field(True, description="Allow subscription plan changes")
+        proration_enabled: bool = Field(True, description="Enable mid-cycle proration")
+        cancel_at_period_end_default: bool = Field(True, description="Default cancellation behavior")
+
+        # Pricing settings
+        pricing_rules_enabled: bool = Field(True, description="Enable pricing rules system")
+        max_discount_percentage: int = Field(50, description="Maximum discount percentage allowed")
+        customer_specific_pricing_enabled: bool = Field(True, description="Enable customer-specific pricing")
+        volume_discounts_enabled: bool = Field(True, description="Enable volume discount rules")
+
+        # Usage billing settings
+        usage_billing_enabled: bool = Field(True, description="Enable usage-based billing")
+        usage_calculation_precision: int = Field(2, description="Decimal places for usage calculations")
+        usage_aggregation_period: str = Field("monthly", description="Usage aggregation period")
+        overage_billing_enabled: bool = Field(True, description="Enable overage billing for hybrid plans")
+
+        # Processing settings
+        auto_invoice_subscriptions: bool = Field(True, description="Automatically create subscription invoices")
+        auto_process_renewals: bool = Field(False, description="Automatically process subscription renewals")
+        invoice_due_days: int = Field(30, description="Default invoice due period in days")
+        grace_period_days: int = Field(3, description="Grace period for failed payments")
+        payment_retry_attempts: int = Field(3, description="Number of payment retry attempts")
+        payment_retry_interval_hours: int = Field(24, description="Hours between payment retries")
+
+        # Notification settings
+        send_renewal_reminders: bool = Field(True, description="Send subscription renewal reminders")
+        renewal_reminder_days: int = Field(7, description="Days before renewal to send reminder")
+        send_payment_failure_notifications: bool = Field(True, description="Send payment failure notifications")
+        send_cancellation_confirmations: bool = Field(True, description="Send cancellation confirmations")
+
+        # Tax and compliance
+        tax_inclusive_pricing: bool = Field(False, description="Display tax-inclusive prices")
+        require_tax_id_for_business: bool = Field(False, description="Require tax ID for business customers")
+        enable_tax_exemptions: bool = Field(True, description="Allow tax exemptions")
+
+        # Feature flags
+        enable_promotional_codes: bool = Field(True, description="Enable promotional discount codes")
+        enable_referral_discounts: bool = Field(False, description="Enable referral discount system")
+        enable_multi_currency: bool = Field(False, description="Enable multi-currency support")
+        enable_dunning_management: bool = Field(True, description="Enable dunning management for failed payments")
+
+    billing: BillingSettings = BillingSettings()  # type: ignore[call-arg]
 
     # ============================================================
     # Rate Limiting
@@ -304,18 +426,19 @@ class Settings(BaseSettings):
     # ============================================================
 
     class StorageSettings(BaseModel):
-        """Object storage configuration."""
+        """MinIO object storage configuration."""
 
-        provider: str = Field("minio", description="Storage provider (s3, minio, local)")
-        endpoint: Optional[str] = Field(None, description="Storage endpoint")
-        access_key: Optional[str] = Field(None, description="Access key")
-        secret_key: Optional[str] = Field(None, description="Secret key")
+        provider: str = Field("minio", description="Storage provider: 'minio' or 'local'")
+        enabled: bool = Field(True, description="Enable MinIO storage")
+        endpoint: str = Field("localhost:9000", description="MinIO endpoint")
+        region: str = Field("us-east-1", description="MinIO region")
+        access_key: str = Field("minioadmin", description="MinIO access key")
+        secret_key: str = Field("minioadmin", description="MinIO secret key")
         bucket: str = Field("dotmac", description="Default bucket")
-        region: str = Field("us-east-1", description="AWS region")
         use_ssl: bool = Field(False, description="Use SSL")
 
-        # Local storage
-        local_path: str = Field("/tmp/storage", description="Local storage path")
+        # Local fallback for development
+        local_path: str = Field("/tmp/storage", description="Local storage path for dev")
 
     storage: StorageSettings = StorageSettings()  # type: ignore[call-arg]
 
@@ -324,151 +447,48 @@ class Settings(BaseSettings):
     # ============================================================
 
     class FeatureFlags(BaseModel):
-        """Feature flags for optional dependencies and features."""
+        """Feature flags for core platform features."""
 
         # Core features
-        mfa_enabled: bool = Field(False, description="Enable MFA")
+        mfa_enabled: bool = Field(False, description="Enable multi-factor authentication")
         audit_logging: bool = Field(True, description="Enable audit logging")
-        experimental_features: bool = Field(False, description="Enable experimental features")
+        # Communications
+        email_enabled: bool = Field(True, description="Enable email integrations")
 
-        # Storage backends
-        storage_s3_enabled: bool = Field(
-            False, description="Enable S3 storage backend (requires boto3)"
-        )
-        storage_minio_enabled: bool = Field(
-            False, description="Enable MinIO storage backend (requires minio)"
-        )
-        storage_azure_enabled: bool = Field(
-            False, description="Enable Azure storage backend (requires azure-storage-blob)"
-        )
-        storage_gcs_enabled: bool = Field(
-            False, description="Enable Google Cloud storage backend (requires google-cloud-storage)"
-        )
+        # Storage - MinIO only
+        storage_enabled: bool = Field(True, description="Enable MinIO storage")
 
-        # Search backends
-        search_enabled: bool = Field(False, description="Enable search functionality")
-        search_meilisearch_enabled: bool = Field(
-            False, description="Enable MeiliSearch backend (requires meilisearch)"
-        )
-        search_elasticsearch_enabled: bool = Field(
-            False, description="Enable Elasticsearch backend (requires elasticsearch)"
-        )
+        # Search functionality (MeiliSearch)
+        search_enabled: bool = Field(True, description="Enable search functionality")
 
-        # Communication features
-        websockets_enabled: bool = Field(False, description="Enable WebSockets (requires fastapi)")
-        websockets_redis_scaling: bool = Field(
-            False, description="Enable Redis scaling for WebSockets (requires redis)"
-        )
-        email_enabled: bool = Field(
-            False, description="Enable email notifications (requires smtplib)"
-        )
-        slack_enabled: bool = Field(
-            False, description="Enable Slack notifications (requires slack-sdk)"
-        )
-
-        # GraphQL removed - using REST APIs only
-
-        # Observability
-        observability_enabled: bool = Field(True, description="Enable observability features")
-        tracing_opentelemetry: bool = Field(
-            False, description="Enable OpenTelemetry tracing (requires opentelemetry packages)"
-        )
-        metrics_prometheus: bool = Field(
-            False, description="Enable Prometheus metrics (requires prometheus-client)"
-        )
-        sentry_enabled: bool = Field(
-            False, description="Enable Sentry error tracking (requires sentry-sdk)"
-        )
-
-        # Encryption and secrets
-        encryption_fernet: bool = Field(
-            True, description="Enable Fernet encryption (requires cryptography)"
-        )
-        secrets_vault: bool = Field(
-            False, description="Enable Vault secrets backend (requires hvac)"
-        )
-        secrets_aws: bool = Field(False, description="Enable AWS Secrets Manager (requires boto3)")
-
-        # Data transfer features
-        data_transfer_enabled: bool = Field(True, description="Enable data transfer functionality")
-        data_transfer_excel: bool = Field(
-            True, description="Enable Excel import/export (requires openpyxl, xlsxwriter)"
-        )
-        data_transfer_compression: bool = Field(
-            True, description="Enable compression support (requires standard library)"
-        )
+        # Data handling
+        data_transfer_enabled: bool = Field(True, description="Enable data import/export")
+        data_transfer_excel: bool = Field(True, description="Enable Excel import/export support")
+        data_transfer_compression: bool = Field(True, description="Enable compression support")
         data_transfer_streaming: bool = Field(True, description="Enable streaming data transfer")
 
         # File processing
-        file_processing_enabled: bool = Field(False, description="Enable file processing")
-        file_processing_pdf: bool = Field(
-            False, description="Enable PDF processing (requires PyMuPDF)"
-        )
-        file_processing_images: bool = Field(
-            False, description="Enable image processing (requires Pillow)"
-        )
-        file_processing_office: bool = Field(
-            False, description="Enable Office document processing (requires python-docx, openpyxl)"
-        )
+        file_processing_enabled: bool = Field(True, description="Enable file processing")
+        file_processing_pdf: bool = Field(True, description="Enable PDF processing")
+        file_processing_images: bool = Field(True, description="Enable image processing")
+        file_processing_office: bool = Field(True, description="Enable Office document processing")
 
-        # Task queue
-        celery_enabled: bool = Field(
-            False, description="Enable Celery task queue (requires celery)"
-        )
-        celery_redis: bool = Field(False, description="Use Redis as Celery broker (requires redis)")
-        celery_rabbitmq: bool = Field(
-            False, description="Use RabbitMQ as Celery broker (requires pika)"
-        )
+        # Background tasks
+        celery_enabled: bool = Field(True, description="Enable Celery task queue")
+        celery_redis: bool = Field(True, description="Use Redis as Celery broker")
 
-        # Database features
-        db_migrations: bool = Field(
-            True, description="Enable database migrations (requires alembic)"
-        )
-        db_postgresql: bool = Field(
-            True, description="Enable PostgreSQL support (requires asyncpg)"
-        )
-        db_sqlite: bool = Field(True, description="Enable SQLite support (requires aiosqlite)")
+        # Encryption and secrets
+        encryption_fernet: bool = Field(True, description="Enable Fernet encryption")
+        secrets_vault: bool = Field(False, description="Enable Vault/OpenBao secrets backend")
 
-        # Testing and development
-        testing_factories: bool = Field(
-            False, description="Enable test data factories (requires factory-boy)"
-        )
-        dev_tools: bool = Field(False, description="Enable development tools and debugging")
+        # Database
+        db_migrations: bool = Field(True, description="Enable database migrations")
+        db_postgresql: bool = Field(True, description="Enable PostgreSQL support")
+        db_sqlite: bool = Field(True, description="Enable SQLite support for dev/test")
 
     features: FeatureFlags = FeatureFlags()  # type: ignore[call-arg]
 
-    # ============================================================
-    # Email/SMTP Configuration
-    # ============================================================
 
-    class EmailSettings(BaseModel):
-        """Email configuration."""
-
-        enabled: bool = Field(False, description="Enable email")
-        smtp_host: Optional[str] = Field(None, description="SMTP host")
-        smtp_port: int = Field(587, description="SMTP port")
-        smtp_user: Optional[str] = Field(None, description="SMTP username")
-        smtp_password: Optional[str] = Field(None, description="SMTP password")
-        smtp_use_tls: bool = Field(True, description="Use TLS")
-        from_address: str = Field("noreply@example.com", description="From address")
-        from_name: str = Field("DotMac Platform", description="From name")
-
-    email: EmailSettings = EmailSettings()  # type: ignore[call-arg]
-
-    # ============================================================
-    # WebSocket Configuration
-    # ============================================================
-
-    class WebSocketSettings(BaseModel):
-        """WebSocket configuration."""
-
-        enabled: bool = Field(True, description="Enable WebSockets")
-        ping_interval: int = Field(30, description="Ping interval in seconds")
-        ping_timeout: int = Field(10, description="Ping timeout in seconds")
-        max_connections: int = Field(1000, description="Max connections")
-        max_message_size: int = Field(1024 * 1024, description="Max message size in bytes")
-
-    websocket: WebSocketSettings = WebSocketSettings()  # type: ignore[call-arg]
 
     # ============================================================
     # Validation & Helpers

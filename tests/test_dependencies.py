@@ -5,6 +5,7 @@ Tests dependency checking, error handling, feature flags, and decorators.
 """
 
 import importlib
+import sys
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -13,7 +14,7 @@ from dotmac.platform.dependencies import (
     DependencyChecker,
     require_dependency,
     safe_import,
-    require_boto3,
+    require_minio,
     require_meilisearch,
     require_cryptography,
 )
@@ -71,18 +72,17 @@ class TestDependencyChecker:
         """Test check_feature_dependency when all packages available."""
         mock_import.return_value = MagicMock()
 
-        result = DependencyChecker.check_feature_dependency("storage_s3_enabled")
+        result = DependencyChecker.check_feature_dependency("storage_enabled")
         assert result is True
 
-        # Should try to import both boto3 and botocore
-        assert mock_import.call_count >= 2
+        mock_import.assert_called_once_with("minio")
 
     @patch('dotmac.platform.dependencies.importlib.import_module')
     def test_check_feature_dependency_missing(self, mock_import):
         """Test check_feature_dependency when packages missing."""
         mock_import.side_effect = ImportError("Module not found")
 
-        result = DependencyChecker.check_feature_dependency("storage_s3_enabled")
+        result = DependencyChecker.check_feature_dependency("storage_enabled")
         assert result is False
 
     @patch('dotmac.platform.dependencies.importlib.import_module')
@@ -91,7 +91,7 @@ class TestDependencyChecker:
         # First package available, second missing
         mock_import.side_effect = [MagicMock(), ImportError("Module not found")]
 
-        result = DependencyChecker.check_feature_dependency("storage_s3_enabled")
+        result = DependencyChecker.check_feature_dependency("data_transfer_excel")
         assert result is False
 
     def test_check_feature_dependency_unknown_feature(self):
@@ -105,7 +105,7 @@ class TestDependencyChecker:
         mock_import.return_value = MagicMock()
 
         # Should not raise
-        DependencyChecker.require_feature_dependency("storage_s3_enabled")
+        DependencyChecker.require_feature_dependency("storage_enabled")
 
     @patch('dotmac.platform.dependencies.importlib.import_module')
     def test_require_feature_dependency_missing(self, mock_import):
@@ -113,10 +113,10 @@ class TestDependencyChecker:
         mock_import.side_effect = ImportError("Module not found")
 
         with pytest.raises(DependencyError) as exc_info:
-            DependencyChecker.require_feature_dependency("storage_s3_enabled")
+            DependencyChecker.require_feature_dependency("storage_enabled")
 
-        assert "storage_s3_enabled" in str(exc_info.value)
-        assert "boto3" in str(exc_info.value)
+        assert "storage_enabled" in str(exc_info.value)
+        assert "minio" in str(exc_info.value)
 
     def test_require_feature_dependency_unknown_feature(self):
         """Test require_feature_dependency with unknown feature."""
@@ -128,22 +128,22 @@ class TestDependencyChecker:
     def test_check_enabled_features(self, mock_check, mock_settings):
         """Test check_enabled_features method."""
         # Mock settings to have some features enabled
-        mock_settings.features.storage_s3_enabled = True
+        mock_settings.features.storage_enabled = True
         mock_settings.features.search_meilisearch_enabled = False
         mock_settings.features.encryption_fernet = True
 
         # Mock dependency checks
-        mock_check.side_effect = lambda feature: feature == "storage_s3_enabled"
+        mock_check.side_effect = lambda feature: feature == "storage_enabled"
 
         results = DependencyChecker.check_enabled_features()
 
         # Should only check enabled features
-        assert "storage_s3_enabled" in results
+        assert "storage_enabled" in results
         assert "encryption_fernet" in results
         assert "search_meilisearch_enabled" not in results  # Not enabled
 
         # Check results
-        assert results["storage_s3_enabled"] is True
+        assert results["storage_enabled"] is True
         assert results["encryption_fernet"] is False
 
     @patch('dotmac.platform.dependencies.settings')
@@ -152,20 +152,20 @@ class TestDependencyChecker:
         """Test validate_enabled_features when all pass."""
         # Mock all features as disabled except the one we're testing
         for feature in DependencyChecker.FEATURE_DEPENDENCIES.keys():
-            setattr(mock_settings.features, feature, feature == "storage_s3_enabled")
+            setattr(mock_settings.features, feature, feature == "storage_enabled")
 
         # Should not raise
         DependencyChecker.validate_enabled_features()
 
         # Should only check the enabled feature
-        mock_require.assert_called_once_with("storage_s3_enabled")
+        mock_require.assert_called_once_with("storage_enabled")
 
     @patch('dotmac.platform.dependencies.settings')
     @patch.object(DependencyChecker, 'require_feature_dependency')
     def test_validate_enabled_features_failure(self, mock_require, mock_settings):
         """Test validate_enabled_features when dependency missing."""
-        mock_settings.features.storage_s3_enabled = True
-        mock_require.side_effect = DependencyError("storage_s3_enabled", "boto3")
+        mock_settings.features.storage_enabled = True
+        mock_require.side_effect = DependencyError("storage_enabled", "minio")
 
         with pytest.raises(DependencyError):
             DependencyChecker.validate_enabled_features()
@@ -178,40 +178,40 @@ class TestRequireDependencyDecorator:
     @patch.object(DependencyChecker, 'require_feature_dependency')
     def test_decorator_feature_enabled_deps_available(self, mock_require, mock_settings):
         """Test decorator when feature enabled and dependencies available."""
-        mock_settings.features.storage_s3_enabled = True
+        mock_settings.features.storage_enabled = True
         mock_require.return_value = None  # Success
 
-        @require_dependency("storage_s3_enabled")
+        @require_dependency("storage_enabled")
         def test_func():
             return "success"
 
         result = test_func()
         assert result == "success"
-        mock_require.assert_called_once_with("storage_s3_enabled")
+        mock_require.assert_called_once_with("storage_enabled")
 
     @patch('dotmac.platform.dependencies.settings')
     def test_decorator_feature_disabled(self, mock_settings):
         """Test decorator when feature disabled."""
-        mock_settings.features.storage_s3_enabled = False
+        mock_settings.features.storage_enabled = False
 
-        @require_dependency("storage_s3_enabled")
+        @require_dependency("storage_enabled")
         def test_func():
             return "success"
 
         with pytest.raises(ValueError) as exc_info:
             test_func()
 
-        assert "storage_s3_enabled" in str(exc_info.value)
+        assert "storage_enabled" in str(exc_info.value)
         assert "not enabled in settings" in str(exc_info.value)
 
     @patch('dotmac.platform.dependencies.settings')
     @patch.object(DependencyChecker, 'require_feature_dependency')
     def test_decorator_deps_missing(self, mock_require, mock_settings):
         """Test decorator when dependencies missing."""
-        mock_settings.features.storage_s3_enabled = True
-        mock_require.side_effect = DependencyError("storage_s3_enabled", "boto3")
+        mock_settings.features.storage_enabled = True
+        mock_require.side_effect = DependencyError("storage_enabled", "minio")
 
-        @require_dependency("storage_s3_enabled")
+        @require_dependency("storage_enabled")
         def test_func():
             return "success"
 
@@ -222,9 +222,9 @@ class TestRequireDependencyDecorator:
     @patch.object(DependencyChecker, 'require_feature_dependency')
     def test_decorator_with_args(self, mock_require, mock_settings):
         """Test decorator preserves function args/kwargs."""
-        mock_settings.features.storage_s3_enabled = True
+        mock_settings.features.storage_enabled = True
 
-        @require_dependency("storage_s3_enabled")
+        @require_dependency("storage_enabled")
         def test_func(arg1, arg2, kwarg1=None):
             return f"{arg1}-{arg2}-{kwarg1}"
 
@@ -257,9 +257,9 @@ class TestSafeImport:
     def test_safe_import_failure_feature_disabled(self, mock_settings, mock_import):
         """Test safe_import when module missing but feature disabled."""
         mock_import.side_effect = ImportError("Module not found")
-        mock_settings.features.storage_s3_enabled = False
+        mock_settings.features.storage_enabled = False
 
-        result = safe_import("boto3", "storage_s3_enabled")
+        result = safe_import("minio", "storage_enabled")
         assert result is None
 
     @patch('dotmac.platform.dependencies.importlib.import_module')
@@ -268,51 +268,50 @@ class TestSafeImport:
     def test_safe_import_failure_feature_enabled(self, mock_require, mock_settings, mock_import):
         """Test safe_import when module missing and feature enabled."""
         mock_import.side_effect = ImportError("Module not found")
-        mock_settings.features.storage_s3_enabled = True
-        mock_require.side_effect = DependencyError("storage_s3_enabled", "boto3")
+        mock_settings.features.storage_enabled = True
+        mock_require.side_effect = DependencyError("storage_enabled", "minio")
 
         with pytest.raises(DependencyError):
-            safe_import("boto3", "storage_s3_enabled")
+            safe_import("minio", "storage_enabled")
 
 
 class TestConvenienceFunctions:
     """Test convenience functions for common dependencies."""
 
-    @patch('boto3.client')
     @patch('dotmac.platform.dependencies.settings')
     @patch.object(DependencyChecker, 'require_feature_dependency')
-    def test_require_boto3_enabled_available(self, mock_require, mock_settings, mock_client):
-        """Test require_boto3 when S3 enabled and boto3 available."""
-        mock_settings.features.storage_s3_enabled = True
+    def test_require_minio_enabled_available(self, mock_require, mock_settings):
+        """Test require_minio when storage enabled and minio available."""
+        mock_settings.features.storage_enabled = True
+        mock_require.return_value = None
 
-        # Mock successful import
-        with patch('builtins.__import__') as mock_import:
-            import boto3
-            mock_import.return_value = boto3
+        fake_minio = MagicMock(name="minio_module")
 
-            result = require_boto3()
-            assert result is boto3
-            mock_require.assert_called_once_with("storage_s3_enabled")
+        with patch.dict('sys.modules', {"minio": fake_minio}):
+            result = require_minio()
+
+        assert result is fake_minio
+        mock_require.assert_called_once_with("storage_enabled")
 
     @patch('dotmac.platform.dependencies.settings')
-    def test_require_boto3_disabled(self, mock_settings):
-        """Test require_boto3 when S3 disabled."""
-        mock_settings.features.storage_s3_enabled = False
+    def test_require_minio_disabled(self, mock_settings):
+        """Test require_minio when storage disabled."""
+        mock_settings.features.storage_enabled = False
 
         with pytest.raises(ValueError) as exc_info:
-            require_boto3()
+            require_minio()
 
-        assert "S3 storage is not enabled" in str(exc_info.value)
+        assert "Storage is not enabled" in str(exc_info.value)
 
     @patch('dotmac.platform.dependencies.settings')
     @patch.object(DependencyChecker, 'require_feature_dependency')
-    def test_require_boto3_missing(self, mock_require, mock_settings):
-        """Test require_boto3 when boto3 missing."""
-        mock_settings.features.storage_s3_enabled = True
-        mock_require.side_effect = DependencyError("storage_s3_enabled", "boto3")
+    def test_require_minio_missing(self, mock_require, mock_settings):
+        """Test require_minio when minio missing."""
+        mock_settings.features.storage_enabled = True
+        mock_require.side_effect = DependencyError("storage_enabled", "minio")
 
         with pytest.raises(DependencyError):
-            require_boto3()
+            require_minio()
 
     @patch('dotmac.platform.dependencies.settings')
     @patch.object(DependencyChecker, 'require_feature_dependency')
@@ -368,7 +367,7 @@ class TestFeatureDependencyIntegration:
         """Test checking multiple features at once."""
         # Mock all features as disabled except the ones we're testing
         for feature in DependencyChecker.FEATURE_DEPENDENCIES.keys():
-            enabled = feature in ["storage_s3_enabled", "encryption_fernet"]
+            enabled = feature in ["storage_enabled", "encryption_fernet"]
             setattr(mock_settings.features, feature, enabled)
 
         with patch.object(DependencyChecker, 'check_feature_dependency') as mock_check:
@@ -377,7 +376,7 @@ class TestFeatureDependencyIntegration:
 
             # Should only check enabled features
             assert len(results) == 2
-            assert "storage_s3_enabled" in results
+            assert "storage_enabled" in results
             assert "encryption_fernet" in results
 
     def test_feature_dependencies_completeness(self):

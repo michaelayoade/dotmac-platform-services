@@ -24,8 +24,6 @@ from pydantic import BaseModel, Field
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.file_storage.service import (
     FileMetadata,
-    FileStorageService,
-    StorageBackend,
     get_storage_service,
 )
 

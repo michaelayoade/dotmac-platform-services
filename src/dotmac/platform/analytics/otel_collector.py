@@ -26,55 +26,81 @@ BatchSpanProcessor = None
 Status = None
 StatusCode = None
 
-if settings.features.tracing_opentelemetry:
-    metrics = safe_import("opentelemetry.metrics", "tracing_opentelemetry")
-    trace = safe_import("opentelemetry.trace", "tracing_opentelemetry")
-    if trace:
-        Tracer = trace.Tracer
-        Status = trace.Status
-        StatusCode = trace.StatusCode
-
-    OTLPMetricExporter = (
-        safe_import(
-            "opentelemetry.exporter.otlp.proto.grpc.metric_exporter", "tracing_opentelemetry"
-        ).OTLPMetricExporter
-        if safe_import(
-            "opentelemetry.exporter.otlp.proto.grpc.metric_exporter", "tracing_opentelemetry"
-        )
-        else None
+if settings.observability.otel_enabled:
+    metrics_module = safe_import(
+        "opentelemetry.metrics",
+        "otel_enabled",
+        error_if_missing=False,
     )
+    if metrics_module:
+        metrics = metrics_module
+        CallbackOptions = metrics_module.CallbackOptions
+        Observation = metrics_module.Observation
 
-    OTLPSpanExporter = (
-        safe_import(
-            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter", "tracing_opentelemetry"
-        ).OTLPSpanExporter
-        if safe_import(
-            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter", "tracing_opentelemetry"
-        )
-        else None
+    trace_module = safe_import(
+        "opentelemetry.trace",
+        "otel_enabled",
+        error_if_missing=False,
     )
+    if trace_module:
+        trace = trace_module
+        Tracer = trace_module.Tracer
+        Status = trace_module.Status
+        StatusCode = trace_module.StatusCode
 
-    if metrics:
-        CallbackOptions = metrics.CallbackOptions
-        Observation = metrics.Observation
+    metric_exporter_module = safe_import(
+        "opentelemetry.exporter.otlp.proto.grpc.metric_exporter",
+        "otel_enabled",
+        error_if_missing=False,
+    )
+    if metric_exporter_module:
+        OTLPMetricExporter = metric_exporter_module.OTLPMetricExporter
 
-    sdk_metrics = safe_import("opentelemetry.sdk.metrics", "tracing_opentelemetry")
+    trace_exporter_module = safe_import(
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+        "otel_enabled",
+        error_if_missing=False,
+    )
+    if trace_exporter_module:
+        OTLPSpanExporter = trace_exporter_module.OTLPSpanExporter
+
+    sdk_metrics = safe_import(
+        "opentelemetry.sdk.metrics",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if sdk_metrics:
         MeterProvider = sdk_metrics.MeterProvider
 
-    metrics_export = safe_import("opentelemetry.sdk.metrics.export", "tracing_opentelemetry")
+    metrics_export = safe_import(
+        "opentelemetry.sdk.metrics.export",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if metrics_export:
         PeriodicExportingMetricReader = metrics_export.PeriodicExportingMetricReader
 
-    sdk_resources = safe_import("opentelemetry.sdk.resources", "tracing_opentelemetry")
+    sdk_resources = safe_import(
+        "opentelemetry.sdk.resources",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if sdk_resources:
         Resource = sdk_resources.Resource
 
-    sdk_trace = safe_import("opentelemetry.sdk.trace", "tracing_opentelemetry")
+    sdk_trace = safe_import(
+        "opentelemetry.sdk.trace",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if sdk_trace:
         TracerProvider = sdk_trace.TracerProvider
 
-    sdk_trace_export = safe_import("opentelemetry.sdk.trace.export", "tracing_opentelemetry")
+    sdk_trace_export = safe_import(
+        "opentelemetry.sdk.trace.export",
+        "otel_enabled",
+        error_if_missing=False,
+    )
     if sdk_trace_export:
         BatchSpanProcessor = sdk_trace_export.BatchSpanProcessor
 
@@ -663,7 +689,7 @@ def create_otel_collector(
         Configured analytics collector (OpenTelemetryCollector or SimpleAnalyticsCollector)
     """
     # Check if OpenTelemetry is available and enabled
-    if trace and metrics and Resource and settings.features.tracing_opentelemetry:
+    if trace and metrics and Resource and settings.observability.otel_enabled:
         config = OTelConfig(
             endpoint=endpoint or "localhost:4317",
             service_name=service_name,

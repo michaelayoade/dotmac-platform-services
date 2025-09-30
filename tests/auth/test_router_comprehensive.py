@@ -284,13 +284,13 @@ class TestRegisterEndpoint:
         assert data["refresh_token"] == "refresh_token"
         assert data["token_type"] == "bearer"
 
-        # Verify user created with correct params
+        # Verify user created with correct params (default role is 'guest')
         mock_user_service.create_user.assert_called_once_with(
             username="newuser",
             email="new@example.com",
             password="password123",
             full_name="New User",
-            roles=["user"],
+            roles=["guest"],
             is_active=True
         )
 
@@ -324,7 +324,7 @@ class TestRegisterEndpoint:
         )
 
         assert response.status_code == 400
-        assert "Username already exists" in response.json()["detail"]
+        assert "Registration failed. Please check your input and try again." == response.json()["detail"]
 
     @pytest.mark.asyncio
     @patch('dotmac.platform.auth.router.get_session_dependency')
@@ -357,7 +357,7 @@ class TestRegisterEndpoint:
         )
 
         assert response.status_code == 400
-        assert "Email already registered" in response.json()["detail"]
+        assert "Registration failed. Please check your input and try again." == response.json()["detail"]
 
     @pytest.mark.asyncio
     @patch('dotmac.platform.auth.router.get_session_dependency')
@@ -1100,9 +1100,9 @@ class TestRegisterWithWelcomeEmail:
         mock_session_manager.create_session = AsyncMock()
 
         # Email service fails
-        mock_email_svc = MagicMock()
-        mock_email_svc.send_welcome_email.side_effect = Exception("Email error")
-        mock_email_service.return_value = mock_email_svc
+        mock_email_facade = MagicMock()
+        mock_email_facade.send_welcome_email = AsyncMock(side_effect=Exception("Email error"))
+        mock_email_service.return_value = mock_email_facade
 
         response = test_client.post(
             "/auth/register",

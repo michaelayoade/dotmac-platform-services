@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 import structlog
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from authlib.jose import JoseError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import (
     APIKeyHeader,
     HTTPAuthorizationCredentials,
@@ -293,6 +293,31 @@ class JWTService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    async def revoke_user_tokens(self, user_id: str) -> int:
+        """Revoke all tokens associated with a user by removing any active JTIs.
+
+        This scans the redis blacklist/current tokens namespace for keys tagged with
+        the user ID and deletes them. Returns the count of revoked tokens.
+        """
+        redis_client = await self._get_redis()
+        if not redis_client:
+            logger.warning("Redis not available, cannot revoke user tokens")
+            return 0
+
+        revoked = 0
+        try:
+            pattern = f"tokens:{user_id}:*"
+            async for key in redis_client.scan_iter(match=pattern):
+                jti = await redis_client.get(key)
+                if jti:
+                    await redis_client.delete(f"blacklist:{jti}")
+                await redis_client.delete(key)
+                revoked += 1
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Failed to revoke user tokens", user_id=user_id, error=str(exc))
+
+        return revoked
+
 
 # ============================================
 # Session Management
@@ -300,25 +325,43 @@ class JWTService:
 
 
 class SessionManager:
-    """Redis-based session manager."""
+    """Redis-based session manager with fallback support."""
 
-    def __init__(self, redis_url: str | None = None):
+    def __init__(self, redis_url: str | None = None, fallback_enabled: bool = True):
         self.redis_url = redis_url or REDIS_URL
         self._redis = None
+        self._fallback_store: dict = {}  # In-memory fallback
+        self._fallback_enabled = fallback_enabled
+        self._redis_healthy = True
 
     async def _get_redis(self):
-        """Get Redis connection."""
+        """Get Redis connection with health check."""
         if not REDIS_AVAILABLE:
-            raise HTTPException(
-                status_code=500, detail="Redis not available. Install with: pip install redis"
-            )
+            logger.warning("Redis library not available, using in-memory fallback")
+            self._redis_healthy = False
+            return None
 
         if self._redis is None:
-            self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+            try:
+                self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+                # Verify connection
+                await self._redis.ping()
+                self._redis_healthy = True
+                logger.info("Redis connection established")
+            except Exception as e:
+                logger.error("Redis connection failed", error=str(e))
+                self._redis_healthy = False
+                self._redis = None
+
+                if not self._fallback_enabled:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="Session service unavailable (Redis connection failed)"
+                    )
         return self._redis
 
     async def create_session(self, user_id: str, data: dict, ttl: int = 3600) -> str:
-        """Create new session."""
+        """Create new session with Redis or fallback."""
         session_id = secrets.token_urlsafe(32)
         session_key = f"session:{session_id}"
 
@@ -329,24 +372,52 @@ class SessionManager:
         }
 
         client = await self._get_redis()
-        await client.setex(session_key, ttl, json.dumps(session_data))
-
-        # Track user sessions
-        user_key = f"user_sessions:{user_id}"
-        await client.sadd(user_key, session_id)
-        await client.expire(user_key, ttl)
+        if client:
+            try:
+                await client.setex(session_key, ttl, json.dumps(session_data))
+                # Track user sessions
+                user_key = f"user_sessions:{user_id}"
+                await client.sadd(user_key, session_id)
+                await client.expire(user_key, ttl)
+            except Exception as e:
+                logger.warning("Redis session write failed, using fallback", error=str(e))
+                if self._fallback_enabled:
+                    self._fallback_store[session_id] = session_data
+                else:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="Session service unavailable"
+                    )
+        else:
+            # Use fallback
+            if self._fallback_enabled:
+                logger.info("Using in-memory session store (single-server only)")
+                self._fallback_store[session_id] = session_data
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Session service unavailable (Redis not available)"
+                )
 
         return session_id
 
     async def get_session(self, session_id: str) -> Optional[dict]:
-        """Get session data."""
-        try:
-            client = await self._get_redis()
-            data = await client.get(f"session:{session_id}")
-            return json.loads(data) if data else None
-        except Exception as e:
-            logger.error("Failed to get session", session_id=session_id, error=str(e))
-            return None
+        """Get session data from Redis or fallback."""
+        client = await self._get_redis()
+        if client:
+            try:
+                data = await client.get(f"session:{session_id}")
+                if data:
+                    return json.loads(data)
+            except Exception as e:
+                logger.warning("Failed to get session from Redis", session_id=session_id, error=str(e))
+
+        # Check fallback store
+        if self._fallback_enabled and session_id in self._fallback_store:
+            logger.debug("Session retrieved from fallback store", session_id=session_id)
+            return self._fallback_store[session_id]
+
+        return None
 
     async def delete_session(self, session_id: str) -> bool:
         """Delete session."""
@@ -549,11 +620,12 @@ async def _verify_token_with_fallback(token: str) -> dict:
 
 
 async def get_current_user(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     api_key: Optional[str] = Depends(api_key_header),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> UserInfo:
-    """Get current authenticated user."""
+    """Get current authenticated user from Bearer token, OAuth2, API key, or HttpOnly cookie."""
 
     # Try Bearer token first
     if credentials and credentials.credentials:
@@ -567,6 +639,15 @@ async def get_current_user(
     if token:
         try:
             claims = await _verify_token_with_fallback(token)
+            return _claims_to_user_info(claims)
+        except HTTPException:
+            pass
+
+    # Try HttpOnly cookie access token
+    access_token = request.cookies.get("access_token")
+    if access_token:
+        try:
+            claims = await _verify_token_with_fallback(access_token)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
@@ -591,13 +672,14 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     api_key: Optional[str] = Depends(api_key_header),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> Optional[UserInfo]:
     """Get current user if authenticated, None otherwise."""
     try:
-        return await get_current_user(token, api_key, credentials)
+        return await get_current_user(request, token, api_key, credentials)
     except HTTPException:
         return None
 

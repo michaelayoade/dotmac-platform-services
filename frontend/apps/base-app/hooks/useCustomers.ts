@@ -1,63 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
-
-// Customer types based on our backend schemas
-export interface Customer {
-  id: string;
-  customer_number: string;
-  first_name: string;
-  last_name: string;
-  middle_name?: string;
-  display_name?: string;
-  company_name?: string;
-  email: string;
-  phone?: string;
-  mobile?: string;
-  customer_type: 'individual' | 'business' | 'enterprise' | 'partner' | 'vendor';
-  tier: 'free' | 'basic' | 'standard' | 'premium' | 'enterprise';
-  status: 'prospect' | 'active' | 'inactive' | 'suspended' | 'churned' | 'archived';
-  address_line1?: string;
-  address_line2?: string;
-  city?: string;
-  state_province?: string;
-  postal_code?: string;
-  country?: string;
-  lifetime_value: number;
-  total_purchases: number;
-  last_purchase_date?: string;
-  first_purchase_date?: string;
-  average_order_value: number;
-  created_at: string;
-  updated_at: string;
-  tags: string[];
-  metadata: Record<string, any>;
-  custom_fields: Record<string, any>;
-}
-
-export interface CustomerSearchParams {
-  query?: string;
-  email?: string;
-  status?: string;
-  customer_type?: string;
-  tier?: string;
-  country?: string;
-  city?: string;
-  tags?: string[];
-  page?: number;
-  page_size?: number;
-}
-
-export interface CustomerMetrics {
-  total_customers: number;
-  active_customers: number;
-  new_customers_this_month: number;
-  churn_rate: number;
-  average_lifetime_value: number;
-  total_revenue: number;
-  customers_by_status: Record<string, number>;
-  customers_by_tier: Record<string, number>;
-  customers_by_type: Record<string, number>;
-  top_segments: Array<{ name: string; count: number }>;
-}
+import { apiClient } from '@/lib/api-client';
+import { logger } from '@/lib/utils/logger';
+import {
+  Customer,
+  CustomerMetrics,
+  CustomerSearchParams,
+  CustomerCreateInput,
+  CustomerUpdateInput,
+  ApiResponse,
+  PaginatedResponse
+} from '@/types';
 
 export interface CustomerActivity {
   id: string;
@@ -65,7 +17,7 @@ export interface CustomerActivity {
   activity_type: string;
   title: string;
   description?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   performed_by?: string;
   created_at: string;
 }
@@ -80,29 +32,17 @@ export interface CustomerNote {
   created_at: string;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
-
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
-
-// Helper function to handle API responses
-const handleResponse = async (response: Response) => {
-  if (!response.ok) {
-    if (response.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('access_token');
+// Helper function to handle API errors
+const handleApiError = (error: unknown) => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const err = error as { response?: { status: number } };
+    if (err.response?.status === 401) {
+      // Token expired or invalid - redirect to login
       window.location.href = '/login';
       return;
     }
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  throw error;
 };
 
 export const useCustomers = () => {
@@ -121,14 +61,12 @@ export const useCustomers = () => {
   // Fetch customer metrics
   const fetchMetrics = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/metrics/overview`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await handleResponse(response);
-      setMetrics(data);
+      const response = await apiClient.get('/api/v1/customers/metrics/overview');
+      setMetrics(response.data);
     } catch (err) {
-      console.error('Failed to fetch metrics:', err);
+      logger.error('Failed to fetch metrics', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch customer metrics');
+      handleApiError(err);
     }
   }, []);
 
@@ -138,17 +76,13 @@ export const useCustomers = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/search`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          ...params,
-          page: params.page || 1,
-          page_size: params.page_size || 50,
-        }),
+      const response = await apiClient.post('/api/v1/customers/search', {
+        ...params,
+        page: params.page || 1,
+        page_size: params.page_size || 50,
       });
 
-      const data = await handleResponse(response);
+      const data = response.data;
       setCustomers(data.customers || []);
       setPagination({
         total: data.total || 0,
@@ -158,31 +92,27 @@ export const useCustomers = () => {
         has_prev: data.has_prev || false,
       });
     } catch (err) {
-      console.error('Failed to search customers:', err);
+      logger.error('Failed to search customers', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to search customers');
       setCustomers([]);
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   // Create customer
-  const createCustomer = useCallback(async (customerData: Partial<Customer>) => {
+  const createCustomer = useCallback(async (customerData: CustomerCreateInput): Promise<Customer> => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(customerData),
-      });
-
-      const newCustomer = await handleResponse(response);
-      return newCustomer;
+      const response = await apiClient.post('/api/v1/customers/', customerData);
+      return response.data;
     } catch (err) {
-      console.error('Failed to create customer:', err);
+      logger.error('Failed to create customer', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to create customer');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -190,18 +120,13 @@ export const useCustomers = () => {
   }, []);
 
   // Update customer
-  const updateCustomer = useCallback(async (customerId: string, customerData: Partial<Customer>) => {
+  const updateCustomer = useCallback(async (customerId: string, customerData: CustomerUpdateInput): Promise<Customer> => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(customerData),
-      });
-
-      const updatedCustomer = await handleResponse(response);
+      const response = await apiClient.patch(`/api/v1/customers/${customerId}`, customerData);
+      const updatedCustomer = response.data;
 
       // Update the customer in the local state
       setCustomers(prev =>
@@ -212,8 +137,9 @@ export const useCustomers = () => {
 
       return updatedCustomer;
     } catch (err) {
-      console.error('Failed to update customer:', err);
+      logger.error('Failed to update customer', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to update customer');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -226,19 +152,17 @@ export const useCustomers = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}?hard_delete=${hardDelete}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
+      await apiClient.delete(`/api/v1/customers/${customerId}`, {
+        params: { hard_delete: hardDelete }
       });
 
-      if (response.status === 204) {
-        // Remove from local state
-        setCustomers(prev => prev.filter(customer => customer.id !== customerId));
-        return true;
-      }
+      // Remove from local state
+      setCustomers(prev => prev.filter(customer => customer.id !== customerId));
+      return true;
     } catch (err) {
-      console.error('Failed to delete customer:', err);
+      logger.error('Failed to delete customer', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to delete customer');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -251,18 +175,20 @@ export const useCustomers = () => {
     setError(null);
 
     try {
-      const params = new URLSearchParams();
-      if (includeActivities) params.append('include_activities', 'true');
-      if (includeNotes) params.append('include_notes', 'true');
+      // Build query string manually to ensure compatibility
+      const queryParams = new URLSearchParams();
+      if (includeActivities) queryParams.append('include_activities', 'true');
+      if (includeNotes) queryParams.append('include_notes', 'true');
 
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}?${params}`, {
-        headers: getAuthHeaders(),
-      });
+      const queryString = queryParams.toString();
+      const url = `/api/v1/customers/${customerId}${queryString ? `?${queryString}` : ''}`;
 
-      return await handleResponse(response);
+      const response = await apiClient.get(url);
+      return response.data;
     } catch (err) {
-      console.error('Failed to get customer:', err);
+      logger.error('Failed to get customer', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to get customer');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -305,15 +231,20 @@ export const useCustomerActivities = (customerId: string) => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}/activities?limit=${limit}&offset=${offset}`, {
-        headers: getAuthHeaders(),
-      });
+      // Build query string manually to ensure compatibility
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', limit.toString());
+      queryParams.append('offset', offset.toString());
 
-      const data = await handleResponse(response);
-      setActivities(data || []);
+      const queryString = queryParams.toString();
+      const url = `/api/v1/customers/${customerId}/activities?${queryString}`;
+
+      const response = await apiClient.get(url);
+      setActivities(response.data || []);
     } catch (err) {
-      console.error('Failed to fetch activities:', err);
+      logger.error('Failed to fetch activities', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch activities');
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
@@ -324,18 +255,14 @@ export const useCustomerActivities = (customerId: string) => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}/activities`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(activityData),
-      });
-
-      const newActivity = await handleResponse(response);
+      const response = await apiClient.post(`/api/v1/customers/${customerId}/activities`, activityData);
+      const newActivity = response.data;
       setActivities(prev => [newActivity, ...prev]);
       return newActivity;
     } catch (err) {
-      console.error('Failed to add activity:', err);
+      logger.error('Failed to add activity', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to add activity');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -367,20 +294,21 @@ export const useCustomerNotes = (customerId: string) => {
     setError(null);
 
     try {
-      const params = new URLSearchParams();
-      params.append('include_internal', includeInternal.toString());
-      params.append('limit', limit.toString());
-      params.append('offset', offset.toString());
+      // Build query string manually to ensure compatibility
+      const queryParams = new URLSearchParams();
+      queryParams.append('include_internal', includeInternal.toString());
+      queryParams.append('limit', limit.toString());
+      queryParams.append('offset', offset.toString());
 
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}/notes?${params}`, {
-        headers: getAuthHeaders(),
-      });
+      const queryString = queryParams.toString();
+      const url = `/api/v1/customers/${customerId}/notes?${queryString}`;
 
-      const data = await handleResponse(response);
-      setNotes(data || []);
+      const response = await apiClient.get(url);
+      setNotes(response.data || []);
     } catch (err) {
-      console.error('Failed to fetch notes:', err);
+      logger.error('Failed to fetch notes', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch notes');
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
@@ -391,18 +319,14 @@ export const useCustomerNotes = (customerId: string) => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}/notes`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(noteData),
-      });
-
-      const newNote = await handleResponse(response);
+      const response = await apiClient.post(`/api/v1/customers/${customerId}/notes`, noteData);
+      const newNote = response.data;
       setNotes(prev => [newNote, ...prev]);
       return newNote;
     } catch (err) {
-      console.error('Failed to add note:', err);
+      logger.error('Failed to add note', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to add note');
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -421,5 +345,42 @@ export const useCustomerNotes = (customerId: string) => {
     error,
     fetchNotes,
     addNote,
+  };
+};
+
+// Standalone hook for getting single customer without duplicating state
+export const useCustomer = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getCustomer = useCallback(async (customerId: string, includeActivities = false, includeNotes = false) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Build query string manually to ensure compatibility
+      const queryParams = new URLSearchParams();
+      if (includeActivities) queryParams.append('include_activities', 'true');
+      if (includeNotes) queryParams.append('include_notes', 'true');
+
+      const queryString = queryParams.toString();
+      const url = `/api/v1/customers/${customerId}${queryString ? `?${queryString}` : ''}`;
+
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (err) {
+      logger.error('Failed to get customer', err instanceof Error ? err : new Error(String(err)));
+      setError('Failed to get customer');
+      handleApiError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    getCustomer,
+    loading,
+    error,
   };
 };

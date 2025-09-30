@@ -13,13 +13,11 @@ from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
     PaymentEntity,
     CreditNoteEntity,
-    TransactionEntity,
 )
 from dotmac.platform.billing.core.enums import (
     InvoiceStatus,
     PaymentStatus,
     CreditNoteStatus,
-    TransactionType,
 )
 
 logger = logging.getLogger(__name__)

@@ -3,8 +3,8 @@ Payment processing service with tenant support and idempotency
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,14 +22,14 @@ from dotmac.platform.billing.core.enums import (
     TransactionType,
 )
 from dotmac.platform.billing.core.exceptions import (
-    IdempotencyError,
     PaymentError,
     PaymentMethodNotFoundError,
     PaymentNotFoundError,
-    PaymentProcessingError,
 )
 from dotmac.platform.billing.core.models import Payment, PaymentMethod
-from dotmac.platform.billing.payments.providers import PaymentProvider, PaymentResult
+from dotmac.platform.billing.payments.providers import PaymentProvider
+from dotmac.platform.webhooks.events import get_event_bus
+from dotmac.platform.webhooks.models import WebhookEvent
 
 logger = logging.getLogger(__name__)
 
@@ -111,17 +111,17 @@ class PaymentService:
                 payment_entity.provider_fee = result.provider_fee
                 payment_entity.status = PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
                 payment_entity.failure_reason = result.error_message if not result.success else None
-                payment_entity.processed_at = datetime.utcnow()
+                payment_entity.processed_at = datetime.now(timezone.utc)
             else:
                 # Mock success for testing
                 payment_entity.status = PaymentStatus.SUCCEEDED
-                payment_entity.processed_at = datetime.utcnow()
+                payment_entity.processed_at = datetime.now(timezone.utc)
                 logger.warning(f"Payment provider {provider} not configured, mocking success")
 
         except Exception as e:
             payment_entity.status = PaymentStatus.FAILED
             payment_entity.failure_reason = str(e)
-            payment_entity.processed_at = datetime.utcnow()
+            payment_entity.processed_at = datetime.now(timezone.utc)
             logger.error(f"Payment processing error: {e}")
 
         # Update payment record
@@ -135,6 +135,47 @@ class PaymentService:
             # Link to invoices if provided
             if invoice_ids:
                 await self._link_payment_to_invoices(payment_entity, invoice_ids)
+
+            # Publish webhook event for successful payment
+            try:
+                await get_event_bus().publish(
+                    event_type=WebhookEvent.PAYMENT_SUCCEEDED.value,
+                    event_data={
+                        "payment_id": payment_entity.payment_id,
+                        "customer_id": customer_id,
+                        "amount": float(amount / 100),  # Convert to decimal
+                        "currency": currency,
+                        "payment_method_id": payment_method_id,
+                        "provider": provider,
+                        "provider_payment_id": payment_entity.provider_payment_id,
+                        "invoice_ids": invoice_ids,
+                        "processed_at": payment_entity.processed_at.isoformat() if payment_entity.processed_at else None,
+                    },
+                    tenant_id=tenant_id,
+                    db=self.db,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to publish payment.succeeded event: {e}")
+        elif payment_entity.status == PaymentStatus.FAILED:
+            # Publish webhook event for failed payment
+            try:
+                await get_event_bus().publish(
+                    event_type=WebhookEvent.PAYMENT_FAILED.value,
+                    event_data={
+                        "payment_id": payment_entity.payment_id,
+                        "customer_id": customer_id,
+                        "amount": float(amount / 100),
+                        "currency": currency,
+                        "payment_method_id": payment_method_id,
+                        "provider": provider,
+                        "failure_reason": payment_entity.failure_reason,
+                        "processed_at": payment_entity.processed_at.isoformat() if payment_entity.processed_at else None,
+                    },
+                    tenant_id=tenant_id,
+                    db=self.db,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to publish payment.failed event: {e}")
 
         return Payment.model_validate(payment_entity)
 
@@ -204,12 +245,12 @@ class PaymentService:
                 refund.status = PaymentStatus.REFUNDED
                 logger.warning(f"Payment provider {original_payment.provider} not configured, mocking refund")
 
-            refund.processed_at = datetime.utcnow()
+            refund.processed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             refund.status = PaymentStatus.FAILED
             refund.failure_reason = str(e)
-            refund.processed_at = datetime.utcnow()
+            refund.processed_at = datetime.now(timezone.utc)
             logger.error(f"Refund processing error: {e}")
 
         await self.db.commit()
@@ -224,6 +265,28 @@ class PaymentService:
             else:
                 original_payment.status = PaymentStatus.PARTIALLY_REFUNDED
             await self.db.commit()
+
+            # Publish webhook event for successful refund
+            try:
+                await get_event_bus().publish(
+                    event_type=WebhookEvent.PAYMENT_REFUNDED.value,
+                    event_data={
+                        "refund_id": refund.payment_id,
+                        "original_payment_id": payment_id,
+                        "customer_id": original_payment.customer_id,
+                        "amount": float(abs(refund_amount) / 100),  # Convert to decimal
+                        "currency": original_payment.currency,
+                        "reason": reason,
+                        "provider": original_payment.provider,
+                        "provider_refund_id": refund.provider_payment_id,
+                        "processed_at": refund.processed_at.isoformat() if refund.processed_at else None,
+                        "refund_type": "full" if refund_amount == original_payment.amount else "partial",
+                    },
+                    tenant_id=tenant_id,
+                    db=self.db,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to publish payment.refunded event: {e}")
 
         return Payment.model_validate(refund)
 
@@ -261,7 +324,7 @@ class PaymentService:
             bank_name=bank_name,
             is_default=False,
             auto_pay_enabled=False,
-            verified_at=datetime.utcnow() if payment_method_type == PaymentMethodType.CARD else None,
+            verified_at=datetime.now(timezone.utc) if payment_method_type == PaymentMethodType.CARD else None,
         )
 
         # Set as default if requested or if it's the first payment method
@@ -348,7 +411,7 @@ class PaymentService:
 
         # Soft delete
         payment_method.is_active = False
-        payment_method.deleted_at = datetime.utcnow()
+        payment_method.deleted_at = datetime.now(timezone.utc)
         payment_method.status = PaymentMethodStatus.INACTIVE
 
         await self.db.commit()
@@ -372,7 +435,7 @@ class PaymentService:
 
         # Update retry count and schedule
         payment.retry_count += 1
-        payment.next_retry_at = datetime.utcnow() + timedelta(hours=2 ** payment.retry_count)
+        payment.next_retry_at = datetime.now(timezone.utc) + timedelta(hours=2 ** payment.retry_count)
         payment.status = PaymentStatus.PROCESSING
 
         await self.db.commit()
@@ -395,7 +458,7 @@ class PaymentService:
 
                     payment.status = PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
                     payment.failure_reason = result.error_message if not result.success else None
-                    payment.processed_at = datetime.utcnow()
+                    payment.processed_at = datetime.now(timezone.utc)
 
                     if result.success:
                         payment.provider_payment_id = result.provider_payment_id
@@ -404,7 +467,7 @@ class PaymentService:
             else:
                 # Mock retry
                 payment.status = PaymentStatus.SUCCEEDED
-                payment.processed_at = datetime.utcnow()
+                payment.processed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             payment.status = PaymentStatus.FAILED

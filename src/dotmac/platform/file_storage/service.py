@@ -9,12 +9,11 @@ Provides a unified interface for file storage operations with support for:
 
 import hashlib
 import json
-import os
 import uuid
 from datetime import datetime, UTC
 from io import BytesIO
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 from pydantic import BaseModel, Field
@@ -491,7 +490,6 @@ class FileStorageService:
             # Try to use MinIO backend
             try:
                 # Check if MinIO/S3 dependencies are available
-                from .minio_storage import MinIOStorage
                 self.backend = MinIOFileStorage()
                 logger.info(f"Successfully initialized MinIO/S3 backend")
             except Exception as e:
@@ -596,8 +594,8 @@ def get_storage_service() -> FileStorageService:
     """Get the global storage service instance."""
     global _storage_service
     if _storage_service is None:
-        # Determine backend from settings.storage.provider
-        provider = settings.storage.provider.lower()
+        # Determine backend from "minio"
+        provider = "minio".lower()
 
         # Map provider to backend
         if provider == "minio":

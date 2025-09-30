@@ -1,0 +1,280 @@
+"""
+Comprehensive tests for communications metrics service.
+"""
+
+import pytest
+from unittest.mock import Mock, AsyncMock, MagicMock
+from datetime import datetime, timezone, timedelta
+from uuid import uuid4, UUID
+
+from dotmac.platform.communications.metrics_service import (
+    CommunicationMetricsService,
+    get_metrics_service
+)
+from dotmac.platform.communications.models import (
+    CommunicationLog,
+    CommunicationType,
+    CommunicationStatus,
+    CommunicationStats,
+)
+
+pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture
+def mock_db_session():
+    """Create mock database session."""
+    session = AsyncMock()
+    session.add = Mock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+    session.execute = AsyncMock()
+    return session
+
+
+@pytest.fixture
+def metrics_service(mock_db_session):
+    """Create metrics service instance."""
+    return CommunicationMetricsService(mock_db_session)
+
+
+class TestCommunicationMetricsService:
+    """Test CommunicationMetricsService class."""
+
+    async def test_log_communication_basic(self, metrics_service, mock_db_session):
+        """Test basic communication logging."""
+        # Mock refresh to set attributes
+        async def mock_refresh(obj):
+            obj.id = uuid4()
+            obj.created_at = datetime.now(timezone.utc)
+
+        mock_db_session.refresh.side_effect = mock_refresh
+
+        result = await metrics_service.log_communication(
+            type=CommunicationType.EMAIL,
+            recipient="test@example.com",
+            subject="Test Subject",
+            sender="sender@example.com"
+        )
+
+        assert mock_db_session.add.called
+        assert mock_db_session.commit.called
+        assert mock_db_session.refresh.called
+
+    async def test_log_communication_full_fields(self, metrics_service, mock_db_session):
+        """Test communication logging with all fields."""
+        user_id = uuid4()
+
+        async def mock_refresh(obj):
+            obj.id = uuid4()
+            obj.created_at = datetime.now(timezone.utc)
+
+        mock_db_session.refresh.side_effect = mock_refresh
+
+        result = await metrics_service.log_communication(
+            type=CommunicationType.EMAIL,
+            recipient="test@example.com",
+            subject="Full Test",
+            sender="sender@example.com",
+            text_body="Plain text",
+            html_body="<p>HTML</p>",
+            template_id="tpl_123",
+            template_name="welcome",
+            user_id=user_id,
+            job_id="job_123",
+            tenant_id="tenant_123",
+            metadata={"key": "value"}
+        )
+
+        assert mock_db_session.add.called
+        call_args = mock_db_session.add.call_args[0][0]
+        assert call_args.recipient == "test@example.com"
+        assert call_args.template_id == "tpl_123"
+        assert call_args.tenant_id == "tenant_123"
+
+    async def test_update_communication_status_success(self, metrics_service, mock_db_session):
+        """Test successful status update."""
+        comm_id = uuid4()
+        mock_log = Mock()
+        mock_log.id = comm_id
+        mock_log.status = CommunicationStatus.PENDING
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_log
+        mock_db_session.execute.return_value = mock_result
+
+        success = await metrics_service.update_communication_status(
+            communication_id=comm_id,
+            status=CommunicationStatus.SENT,
+            provider_message_id="msg_123"
+        )
+
+        assert success is True
+        assert mock_log.status == CommunicationStatus.SENT
+        assert mock_log.provider_message_id == "msg_123"
+        assert mock_db_session.commit.called
+
+    async def test_update_communication_status_not_found(self, metrics_service, mock_db_session):
+        """Test status update when communication not found."""
+        comm_id = uuid4()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
+        success = await metrics_service.update_communication_status(
+            communication_id=comm_id,
+            status=CommunicationStatus.SENT
+        )
+
+        assert success is False
+        assert not mock_db_session.commit.called
+
+    async def test_update_communication_status_with_error(self, metrics_service, mock_db_session):
+        """Test status update with error message."""
+        comm_id = uuid4()
+        mock_log = Mock()
+        mock_log.id = comm_id
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_log
+        mock_db_session.execute.return_value = mock_result
+
+        success = await metrics_service.update_communication_status(
+            communication_id=comm_id,
+            status=CommunicationStatus.FAILED,
+            error_message="SMTP connection failed"
+        )
+
+        assert success is True
+        assert mock_log.status == CommunicationStatus.FAILED
+        assert mock_log.error_message == "SMTP connection failed"
+
+    async def test_get_stats_default(self, metrics_service, mock_db_session):
+        """Test getting default statistics."""
+        # Mock result with status counts
+        mock_row1 = Mock()
+        mock_row1.status = CommunicationStatus.SENT
+        mock_row1.count = 80
+
+        mock_row2 = Mock()
+        mock_row2.status = CommunicationStatus.FAILED
+        mock_row2.count = 5
+
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([mock_row1, mock_row2]))
+        mock_db_session.execute.return_value = mock_result
+
+        stats = await metrics_service.get_stats()
+
+        assert stats["sent"] >= 80
+        assert stats["failed"] >= 5
+        assert mock_db_session.execute.called
+
+    async def test_get_stats_with_filters(self, metrics_service, mock_db_session):
+        """Test stats with tenant and date filters."""
+        start_date = datetime.now(timezone.utc) - timedelta(days=7)
+        end_date = datetime.now(timezone.utc)
+
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([]))
+        mock_db_session.execute.return_value = mock_result
+
+        stats = await metrics_service.get_stats(
+            tenant_id="tenant_123",
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        assert isinstance(stats, dict)
+        assert "sent" in stats
+        assert "failed" in stats
+
+    async def test_get_recent_activity(self, metrics_service, mock_db_session):
+        """Test retrieving recent activity."""
+        mock_logs = [
+            Mock(
+                id=uuid4(),
+                type=CommunicationType.EMAIL,
+                recipient=f"user{i}@example.com",
+                status=CommunicationStatus.SENT,
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=i)
+            )
+            for i in range(3)
+        ]
+
+        mock_result = Mock()
+        mock_result.scalars.return_value.all.return_value = mock_logs
+        mock_db_session.execute.return_value = mock_result
+
+        results = await metrics_service.get_recent_activity(limit=10)
+
+        assert len(results) == 3
+        assert mock_db_session.execute.called
+
+    async def test_get_recent_activity_with_filters(self, metrics_service, mock_db_session):
+        """Test activity with type and tenant filters."""
+        mock_result = Mock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        results = await metrics_service.get_recent_activity(
+            type_filter=CommunicationType.EMAIL,
+            tenant_id="tenant_123",
+            limit=5
+        )
+
+        assert isinstance(results, list)
+        assert mock_db_session.execute.called
+
+    async def test_aggregate_daily_stats(self, metrics_service, mock_db_session):
+        """Test daily statistics aggregation."""
+        # Mock count queries
+        mock_count_result = Mock()
+        mock_count_result.scalar.side_effect = [50, 45, 3, 2]  # total, sent, failed, pending
+
+        # Mock upsert result
+        mock_upsert_result = Mock()
+        mock_stats = Mock(spec=CommunicationStats)
+        mock_stats.date = datetime.now(timezone.utc).date()
+        mock_stats.total_sent = 45
+        mock_stats.total_failed = 3
+        mock_upsert_result.scalar_one.return_value = mock_stats
+
+        mock_db_session.execute.side_effect = [
+            mock_count_result,  # total count
+            mock_count_result,  # sent count
+            mock_count_result,  # failed count
+            mock_count_result,  # pending count
+            mock_upsert_result  # upsert
+        ]
+
+        result = await metrics_service.aggregate_daily_stats()
+
+        assert result.total_sent == 45
+        assert result.total_failed == 3
+        assert mock_db_session.commit.called
+
+
+class TestGetMetricsService:
+    """Test the get_metrics_service factory function."""
+
+    def test_get_metrics_service_creates_instance(self):
+        """Test that factory creates service instance."""
+        mock_db = Mock()
+        service = get_metrics_service(mock_db)
+
+        assert isinstance(service, CommunicationMetricsService)
+        assert service.db == mock_db
+
+    def test_get_metrics_service_returns_different_instances(self):
+        """Test that factory returns new instances."""
+        mock_db1 = Mock()
+        mock_db2 = Mock()
+
+        service1 = get_metrics_service(mock_db1)
+        service2 = get_metrics_service(mock_db2)
+
+        assert service1 is not service2
+        assert service1.db == mock_db1
+        assert service2.db == mock_db2

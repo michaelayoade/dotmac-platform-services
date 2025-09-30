@@ -14,7 +14,7 @@ from dotmac.platform.auth.core import UserInfo, get_current_user, get_current_us
 logger = structlog.get_logger(__name__)
 
 # Security scheme for bearer token
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def require_auth(user: UserInfo = Depends(get_current_user)) -> UserInfo:

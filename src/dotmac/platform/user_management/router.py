@@ -13,7 +13,8 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
-from dotmac.platform.auth.dependencies import get_current_user, require_admin
+from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.user_management.service import UserService
 
@@ -172,7 +173,7 @@ async def list_users(
     is_active: bool | None = Query(None, description="Filter by active status"),
     role: str | None = Query(None, description="Filter by role"),
     search: str | None = Query(None, description="Search term"),
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.read")),
     user_service: UserService = Depends(get_user_service),
 ) -> UserListResponse:
     """
@@ -200,7 +201,7 @@ async def list_users(
 @user_router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreateRequest,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.create")),
     user_service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
@@ -226,7 +227,7 @@ async def create_user(
 @user_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.read")),
     user_service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
@@ -247,7 +248,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     updates: UserUpdateRequest,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.update")),
     user_service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
@@ -272,7 +273,7 @@ async def update_user(
 @user_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: str,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.delete")),
     user_service: UserService = Depends(get_user_service),
 ) -> None:
     """
@@ -290,7 +291,7 @@ async def delete_user(
 @user_router.post("/{user_id}/disable")
 async def disable_user(
     user_id: str,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.update")),
     user_service: UserService = Depends(get_user_service),
 ) -> dict:
     """
@@ -310,7 +311,7 @@ async def disable_user(
 @user_router.post("/{user_id}/enable")
 async def enable_user(
     user_id: str,
-    admin_user: UserInfo = Depends(require_admin),
+    admin_user: UserInfo = Depends(require_permission("users.update")),
     user_service: UserService = Depends(get_user_service),
 ) -> dict:
     """

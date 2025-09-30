@@ -499,8 +499,24 @@ class TestMonitoringEdgeCases:
         )
         suite = BenchmarkSuite(config)
 
-        # Add benchmark that would normally take longer
-        suite.add_benchmark(CPUBenchmark(duration_seconds=1))
+        # Create a benchmark that will definitely take longer than 0.1s
+        class SlowBenchmark(PerformanceBenchmark):
+            def __init__(self):
+                super().__init__("Slow Benchmark", BenchmarkType.PERFORMANCE)
+
+            async def setup(self):
+                return True
+
+            async def execute(self):
+                # This will definitely take longer than 0.1 seconds
+                import asyncio
+                await asyncio.sleep(1.0)  # Sleep for 1 second
+                return {"completed": True}
+
+            async def teardown(self):
+                pass
+
+        suite.add_benchmark(SlowBenchmark())
 
         results = await suite.run_all()
 

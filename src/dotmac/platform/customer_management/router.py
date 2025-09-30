@@ -4,7 +4,7 @@ Customer Management API Router.
 Provides RESTful endpoints for customer management operations.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 import structlog
@@ -32,7 +32,20 @@ from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/customers", tags=["customers"])
+router = APIRouter(tags=["customers"])
+
+
+def _convert_customer_to_response(customer) -> CustomerResponse:
+    """Convert Customer model to CustomerResponse, handling metadata_ field."""
+    # Create a dict from the customer model
+    customer_dict = {}
+    for key in CustomerResponse.model_fields:
+        if key == 'metadata':
+            # Map metadata_ to metadata
+            customer_dict['metadata'] = customer.metadata_ if hasattr(customer, 'metadata_') else {}
+        elif hasattr(customer, key):
+            customer_dict[key] = getattr(customer, key)
+    return CustomerResponse.model_validate(customer_dict)
 
 
 # Dependency for customer service
@@ -67,16 +80,19 @@ async def create_customer(
             data=data,
             created_by=current_user.user_id,
         )
-        return CustomerResponse.model_validate(customer)
+        return _convert_customer_to_response(customer)
     except HTTPException:
         # Re-raise HTTPException as-is (for duplicate email check)
+        raise
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
         raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
         logger.error("Failed to create customer", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -107,7 +123,7 @@ async def get_customer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Customer {customer_id} not found",
         )
-    return CustomerResponse.model_validate(customer)
+    return _convert_customer_to_response(customer)
 
 
 @router.get("/by-number/{customer_number}", response_model=CustomerResponse)
@@ -127,7 +143,7 @@ async def get_customer_by_number(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Customer with number {customer_number} not found",
         )
-    return CustomerResponse.model_validate(customer)
+    return _convert_customer_to_response(customer)
 
 
 @router.patch("/{customer_id}", response_model=CustomerResponse)
@@ -153,7 +169,10 @@ async def update_customer(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found",
             )
-        return CustomerResponse.model_validate(customer)
+        return _convert_customer_to_response(customer)
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -210,13 +229,16 @@ async def search_customers(
         has_prev = params.page > 1
 
         return CustomerListResponse(
-            customers=[CustomerResponse.model_validate(c) for c in customers],
+            customers=[_convert_customer_to_response(c) for c in customers],
             total=total,
             page=params.page,
             page_size=params.page_size,
             has_next=has_next,
             has_prev=has_prev,
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
+        raise
     except Exception as e:
         logger.error("Failed to search customers", error=str(e))
         raise HTTPException(
@@ -243,7 +265,10 @@ async def add_customer_activity(
             data=data,
             performed_by=UUID(current_user.user_id),
         )
-        return CustomerActivityResponse.model_validate(activity)
+        return _convert_activity_to_response(activity)
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -255,6 +280,18 @@ async def add_customer_activity(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add activity",
         )
+
+
+def _convert_activity_to_response(activity) -> CustomerActivityResponse:
+    """Convert CustomerActivity model to CustomerActivityResponse, handling metadata_ field."""
+    activity_dict = {}
+    for key in CustomerActivityResponse.model_fields:
+        if key == 'metadata':
+            # Map metadata_ to metadata
+            activity_dict['metadata'] = activity.metadata_ if hasattr(activity, 'metadata_') else {}
+        elif hasattr(activity, key):
+            activity_dict[key] = getattr(activity, key)
+    return CustomerActivityResponse.model_validate(activity_dict)
 
 
 @router.get("/{customer_id}/activities", response_model=list[CustomerActivityResponse])
@@ -270,12 +307,12 @@ async def get_customer_activities(
 
     Requires authentication.
     """
-    activities = await service.get_activities(
+    activities = await service.get_customer_activities(
         customer_id=customer_id,
         limit=limit,
         offset=offset,
     )
-    return [CustomerActivityResponse.model_validate(a) for a in activities]
+    return [_convert_activity_to_response(a) for a in activities]
 
 
 @router.post("/{customer_id}/notes", response_model=CustomerNoteResponse, status_code=status.HTTP_201_CREATED)
@@ -294,9 +331,12 @@ async def add_customer_note(
         note = await service.add_note(
             customer_id=customer_id,
             data=data,
-            created_by_id=UUID(current_user.user_id),
+            created_by=current_user.user_id,
         )
-        return CustomerNoteResponse.model_validate(note)
+        return _convert_note_to_response(note)
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -308,6 +348,15 @@ async def add_customer_note(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add note",
         )
+
+
+def _convert_note_to_response(note) -> CustomerNoteResponse:
+    """Convert CustomerNote model to CustomerNoteResponse."""
+    note_dict = {}
+    for key in CustomerNoteResponse.model_fields:
+        if hasattr(note, key):
+            note_dict[key] = getattr(note, key)
+    return CustomerNoteResponse.model_validate(note_dict)
 
 
 @router.get("/{customer_id}/notes", response_model=list[CustomerNoteResponse])
@@ -324,13 +373,13 @@ async def get_customer_notes(
 
     Requires authentication.
     """
-    notes = await service.get_notes(
+    notes = await service.get_customer_notes(
         customer_id=customer_id,
         include_internal=include_internal,
         limit=limit,
         offset=offset,
     )
-    return [CustomerNoteResponse.model_validate(n) for n in notes]
+    return [_convert_note_to_response(n) for n in notes]
 
 
 @router.post("/{customer_id}/metrics/purchase", status_code=status.HTTP_204_NO_CONTENT)
@@ -364,7 +413,22 @@ async def create_segment(
     """
     try:
         segment = await service.create_segment(data)
-        return CustomerSegmentResponse.model_validate(segment)
+        # Convert the SQLAlchemy model to response schema
+        return CustomerSegmentResponse(
+            id=segment.id,
+            name=segment.name,
+            description=segment.description,
+            criteria=segment.criteria,
+            is_dynamic=segment.is_dynamic,
+            priority=segment.priority,
+            member_count=segment.member_count,
+            last_calculated=segment.last_calculated,
+            created_at=segment.created_at,
+            updated_at=segment.updated_at,
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions without wrapping
+        raise
     except Exception as e:
         logger.error("Failed to create segment", error=str(e))
         raise HTTPException(
@@ -400,16 +464,15 @@ async def get_customer_metrics(
     """
     metrics = await service.get_customer_metrics()
 
-    # This is simplified - you would expand this with real calculations
     return CustomerMetrics(
         total_customers=metrics["total_customers"],
         active_customers=metrics["active_customers"],
-        new_customers_this_month=0,  # Would calculate from data
+        new_customers_this_month=metrics.get("new_customers_this_month", 0),
         churn_rate=metrics["churn_rate"],
         average_lifetime_value=metrics["average_lifetime_value"],
         total_revenue=metrics["total_revenue"],
-        customers_by_status={},  # Would aggregate from data
-        customers_by_tier={},  # Would aggregate from data
-        customers_by_type={},  # Would aggregate from data
-        top_segments=[],  # Would fetch top segments
+        customers_by_status=metrics.get("customers_by_status", {}),
+        customers_by_tier=metrics.get("customers_by_tier", {}),
+        customers_by_type=metrics.get("customers_by_type", {}),
+        top_segments=metrics.get("top_segments", []),
     )

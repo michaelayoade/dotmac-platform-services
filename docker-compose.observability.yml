@@ -14,7 +14,7 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-      - "8888:8888"   # Prometheus metrics
+      - "8889:8889"   # Prometheus metrics
       - "13133:13133" # Health check
     volumes:
       - ./otel-config.yaml:/etc/otel-collector-config.yaml:ro
@@ -57,7 +57,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     ports:
-      - "3000:3000"
+      - "3400:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     networks:

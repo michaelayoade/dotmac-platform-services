@@ -242,9 +242,9 @@ class TestRegisterEndpoint:
         mock_jwt_service.create_refresh_token.return_value = "refresh_token"
         mock_session_manager.create_session = AsyncMock()
 
-        mock_email = MagicMock()
-        mock_email.send_welcome_email = MagicMock()
-        mock_email_service.return_value = mock_email
+        mock_facade = MagicMock()
+        mock_facade.send_welcome_email = AsyncMock()
+        mock_email_service.return_value = mock_facade
 
         # Make request
         response = client.post(
@@ -265,7 +265,7 @@ class TestRegisterEndpoint:
 
         # Verify calls
         mock_user_service.create_user.assert_called_once()
-        mock_email.send_welcome_email.assert_called_once()
+        mock_facade.send_welcome_email.assert_called_once()
 
     @patch('dotmac.platform.auth.router.get_auth_session')
     @patch('dotmac.platform.auth.router.UserService')
@@ -347,9 +347,9 @@ class TestRegisterEndpoint:
         mock_session_manager.create_session = AsyncMock()
 
         # Email service fails
-        mock_email = MagicMock()
-        mock_email.send_welcome_email.side_effect = Exception("Email error")
-        mock_email_service.return_value = mock_email
+        mock_facade = MagicMock()
+        mock_facade.send_welcome_email = AsyncMock(side_effect=Exception("Email error"))
+        mock_email_service.return_value = mock_facade
 
         response = client.post(
             "/auth/register",

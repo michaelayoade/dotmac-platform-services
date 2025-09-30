@@ -107,6 +107,98 @@ class BulkFlagUpdateRequest(BaseModel):
 
 
 # API Endpoints
+# NOTE: Specific routes MUST come before parameterized routes to avoid conflicts
+
+@feature_flags_router.post("/flags/check", response_model=FeatureFlagCheckResponse)
+async def check_flag(
+    request: FeatureFlagCheckRequest,
+    current_user: Optional[UserInfo] = Depends(get_current_user)
+) -> FeatureFlagCheckResponse:
+    """Check if a feature flag is enabled with context."""
+    try:
+        # Add user context if available
+        context = request.context or {}
+        if current_user:
+            context["user_id"] = current_user.user_id
+            context["user_roles"] = current_user.roles
+
+        enabled = await is_enabled(request.flag_name, context)
+        variant = await get_variant(request.flag_name, context)
+
+        return FeatureFlagCheckResponse(
+            flag_name=request.flag_name,
+            enabled=enabled,
+            variant=variant
+        )
+
+    except Exception as e:
+        logger.error("Failed to check feature flag", flag=request.flag_name, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check feature flag"
+        )
+
+
+@feature_flags_router.post("/flags/bulk", response_model=Dict[str, Any])
+async def bulk_update_flags(
+    request: BulkFlagUpdateRequest,
+    current_user: UserInfo = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Bulk create/update feature flags (admin only)."""
+    try:
+        if "admin" not in current_user.roles and "feature_flag_admin" not in current_user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions for bulk operations"
+            )
+
+        success_count = 0
+        failed_flags = []
+
+        for flag_name, flag_request in request.flags.items():
+            try:
+                # Validate flag name
+                if not flag_name.replace("_", "").replace("-", "").isalnum():
+                    failed_flags.append({"flag": flag_name, "error": "Invalid flag name"})
+                    continue
+
+                # Create enhanced context
+                enhanced_context = flag_request.context or {}
+                if flag_request.description:
+                    enhanced_context["_description"] = flag_request.description
+
+                enhanced_context["_created_by"] = current_user.user_id
+                enhanced_context["_bulk_updated_at"] = int(datetime.now(timezone.utc).timestamp())
+
+                await set_flag(flag_name, flag_request.enabled, enhanced_context)
+                success_count += 1
+
+            except Exception as e:
+                failed_flags.append({"flag": flag_name, "error": str(e)})
+
+        logger.info(
+            "Bulk feature flag update completed",
+            success=success_count,
+            failed=len(failed_flags),
+            user=current_user.user_id
+        )
+
+        return {
+            "message": f"Bulk update completed: {success_count} succeeded, {len(failed_flags)} failed",
+            "success_count": success_count,
+            "failed_count": len(failed_flags),
+            "failed_flags": failed_flags
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed bulk flag update", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to perform bulk update"
+        )
+
 
 @feature_flags_router.post("/flags/{flag_name}", response_model=FeatureFlagResponse)
 async def create_or_update_flag(
@@ -273,36 +365,6 @@ async def delete_feature_flag(
         )
 
 
-@feature_flags_router.post("/flags/check", response_model=FeatureFlagCheckResponse)
-async def check_flag(
-    request: FeatureFlagCheckRequest,
-    current_user: Optional[UserInfo] = Depends(get_current_user)
-) -> FeatureFlagCheckResponse:
-    """Check if a feature flag is enabled with context."""
-    try:
-        # Add user context if available
-        context = request.context or {}
-        if current_user:
-            context["user_id"] = current_user.user_id
-            context["user_roles"] = current_user.roles
-
-        enabled = await is_enabled(request.flag_name, context)
-        variant = await get_variant(request.flag_name, context)
-
-        return FeatureFlagCheckResponse(
-            flag_name=request.flag_name,
-            enabled=enabled,
-            variant=variant
-        )
-
-    except Exception as e:
-        logger.error("Failed to check feature flag", flag=request.flag_name, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to check feature flag"
-        )
-
-
 @feature_flags_router.get("/status", response_model=FlagStatusResponse)
 async def get_status(
     current_user: UserInfo = Depends(get_current_user)
@@ -392,67 +454,6 @@ async def sync_flags_from_redis(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync from Redis"
-        )
-
-
-@feature_flags_router.post("/flags/bulk", response_model=Dict[str, Any])
-async def bulk_update_flags(
-    request: BulkFlagUpdateRequest,
-    current_user: UserInfo = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """Bulk create/update feature flags (admin only)."""
-    try:
-        if "admin" not in current_user.roles and "feature_flag_admin" not in current_user.roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions for bulk operations"
-            )
-
-        success_count = 0
-        failed_flags = []
-
-        for flag_name, flag_request in request.flags.items():
-            try:
-                # Validate flag name
-                if not flag_name.replace("_", "").replace("-", "").isalnum():
-                    failed_flags.append({"flag": flag_name, "error": "Invalid flag name"})
-                    continue
-
-                # Create enhanced context
-                enhanced_context = flag_request.context or {}
-                if flag_request.description:
-                    enhanced_context["_description"] = flag_request.description
-
-                enhanced_context["_created_by"] = current_user.user_id
-                enhanced_context["_bulk_updated_at"] = int(datetime.now(timezone.utc).timestamp())
-
-                await set_flag(flag_name, flag_request.enabled, enhanced_context)
-                success_count += 1
-
-            except Exception as e:
-                failed_flags.append({"flag": flag_name, "error": str(e)})
-
-        logger.info(
-            "Bulk feature flag update completed",
-            success=success_count,
-            failed=len(failed_flags),
-            user=current_user.user_id
-        )
-
-        return {
-            "message": f"Bulk update completed: {success_count} succeeded, {len(failed_flags)} failed",
-            "success_count": success_count,
-            "failed_count": len(failed_flags),
-            "failed_flags": failed_flags
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed bulk flag update", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to perform bulk update"
         )
 
 

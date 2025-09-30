@@ -26,11 +26,17 @@ class TestCaching:
         memory_cache.clear()
         lru_cache.clear()
 
+    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.caching._redis_init_attempted", False)
     def test_get_redis(self):
         """Test get_redis returns redis client."""
-        result = get_redis()
-        # Should return the global redis_client (may be None)
-        assert result is redis_client
+        with patch("dotmac.platform.caching.redis.Redis.from_url") as mock_from_url:
+            mock_redis = MagicMock()
+            mock_from_url.return_value = mock_redis
+
+            result = get_redis()
+            # Should return the newly created redis client
+            assert result is mock_redis
 
     @patch("dotmac.platform.caching.redis_client")
     def test_cache_get_with_redis_success(self, mock_redis):

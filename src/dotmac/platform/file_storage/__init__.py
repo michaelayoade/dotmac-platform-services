@@ -2,7 +2,7 @@
 File storage module with multiple backend support.
 """
 
-from .minio_storage import FileInfo, MinIOStorage, get_storage
+from .minio_storage import FileInfo, MinIOStorage, get_storage, reset_storage
 from .router import file_storage_router, storage_router
 from .service import (
     FileMetadata,
@@ -19,6 +19,7 @@ __all__ = [
     "MinIOStorage",
     "FileInfo",
     "get_storage",
+    "reset_storage",
     # Service and backends
     "StorageBackend",
     "FileMetadata",

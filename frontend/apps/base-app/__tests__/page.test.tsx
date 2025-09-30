@@ -1,241 +1,175 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import HomePage from '../app/page';
-import * as httpClient from '@dotmac/http-client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 
-// Mock Next.js router
-jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(),
-}));
-
-const mockQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-    },
-  },
-});
-
-// Mock console.error to avoid noise in tests
-const originalConsoleError = console.error;
-beforeAll(() => {
-  console.error = jest.fn();
-});
-
-afterAll(() => {
-  console.error = originalConsoleError;
-});
-
-function Wrapper({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={mockQueryClient}>{children}</QueryClientProvider>;
-}
-
-jest.mock('@dotmac/http-client', () => ({
-  ...jest.requireActual('@dotmac/http-client'),
-  useApiQuery: jest.fn(),
-}));
+// Mock fetch globally
+global.fetch = jest.fn();
 
 describe('HomePage', () => {
-  const mockPush = jest.fn();
-
   beforeEach(() => {
-    (useRouter as jest.Mock).mockReturnValue({
-      push: mockPush,
-      replace: jest.fn(),
-      refresh: jest.fn(),
+    jest.clearAllMocks();
+  });
+
+  it('renders loading state initially', () => {
+    // Mock auth check to never resolve
+    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+
+    render(<HomePage />);
+
+    // Check for spinner
+    expect(screen.getByRole('main')).toHaveClass('min-h-screen flex items-center justify-center');
+    const spinner = screen.getByRole('main').querySelector('.animate-spin');
+    expect(spinner).toBeInTheDocument();
+  });
+
+  it('renders authenticated state when user is logged in', async () => {
+    // Mock successful auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'user123', email: 'user@example.com' }),
     });
-    mockPush.mockClear();
+
+    render(<HomePage />);
+
+    // Wait for auth check to complete
+    await waitFor(() => {
+      expect(screen.getByText('Go to Dashboard')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
+    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
+
+    // Check for authenticated UI - should show dashboard button
+    const dashboardButton = screen.getByRole('button', { name: 'Go to Dashboard' });
+    expect(dashboardButton).toBeInTheDocument();
+
+    // Should not show sign in/register buttons
+    expect(screen.queryByText('Sign In')).not.toBeInTheDocument();
+    expect(screen.queryByText('Create Account')).not.toBeInTheDocument();
   });
 
-  it('renders health cards when data is loaded', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: {
-        data: {
-          status: 'healthy',
-          service: 'api-gateway',
-          checks: {
-            cache: 'healthy',
-            auth: 'healthy',
-          },
-        },
-      },
-      isLoading: false,
-      error: null,
-    }) as any;
+  it('renders unauthenticated state when user is not logged in', async () => {
+    // Mock failed auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+    });
 
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
+    render(<HomePage />);
 
-    expect(screen.getByText('API health')).toBeInTheDocument();
-    expect(screen.getByText(/api-gateway/)).toBeInTheDocument();
-    expect(screen.getByText('cache')).toBeInTheDocument();
-    expect(screen.getByText('auth')).toBeInTheDocument();
+    // Wait for auth check to complete
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
+    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
+
+    // Check for unauthenticated UI - should show sign in and register buttons
+    const signInButton = screen.getByRole('button', { name: 'Sign In' });
+    const createAccountButton = screen.getByRole('button', { name: 'Create Account' });
+    expect(signInButton).toBeInTheDocument();
+    expect(createAccountButton).toBeInTheDocument();
+
+    // Should not show dashboard button
+    expect(screen.queryByText('Go to Dashboard')).not.toBeInTheDocument();
   });
 
-  it('displays loading state when health is fetching', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: true,
-      error: null,
-    }) as any;
+  it('handles auth check errors gracefully', async () => {
+    // Mock network error
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
+    render(<HomePage />);
 
-    expect(screen.getByText('Checking platform status…')).toBeInTheDocument();
+    // Wait for auth check to complete with error
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
+
+    // Should default to unauthenticated state
+    expect(screen.getByText('Sign In')).toBeInTheDocument();
+    expect(screen.getByText('Create Account')).toBeInTheDocument();
   });
 
-  it('displays error state when health check fails', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: { message: 'Connection timeout' },
-    }) as any;
+  it('renders main content elements', async () => {
+    // Mock auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+    });
 
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
+    render(<HomePage />);
 
-    expect(screen.getByText('Connection timeout')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
+
+    // Check main headings and content
+    expect(screen.getByText('🚀 DotMac Platform Services')).toBeInTheDocument();
+    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
+    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
+    expect(screen.getByText(/Complete business platform with authentication/)).toBeInTheDocument();
+
+    // Check test credentials section
+    expect(screen.getByText('Quick Start - Test Credentials:')).toBeInTheDocument();
+    expect(screen.getByText('admin@example.com / admin123')).toBeInTheDocument();
   });
 
-  it('displays fallback error message when error has no message', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: {},
-    }) as any;
+  it('renders feature cards', async () => {
+    // Mock auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+    });
 
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
+    render(<HomePage />);
 
-    expect(screen.getByText('Service unavailable')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
+
+    // Check feature cards
+    expect(screen.getByText('Authentication & Security')).toBeInTheDocument();
+    expect(screen.getByText('Business Operations')).toBeInTheDocument();
+    expect(screen.getByText('Developer Experience')).toBeInTheDocument();
+
+    // Check feature details
+    expect(screen.getByText(/JWT-based authentication/)).toBeInTheDocument();
+    expect(screen.getByText(/Role-based access control/)).toBeInTheDocument();
+    expect(screen.getByText(/Customer relationship management/)).toBeInTheDocument();
+    expect(screen.getByText(/Modern React\/Next.js frontend/)).toBeInTheDocument();
   });
 
-  it('renders main navigation elements', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-    }) as any;
+  it('renders API status indicators', async () => {
+    // Mock auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+    });
 
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
+    render(<HomePage />);
 
-    expect(screen.getByText('DotMac Platform Starter')).toBeInTheDocument();
-    expect(screen.getByText('Kick-start your next product with production-ready platform services')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Explore dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
-  });
-
-  it('renders feature cards', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-    }) as any;
-
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
-
-    expect(screen.getByText('Pre-integrated services')).toBeInTheDocument();
-    expect(screen.getByText('Next steps')).toBeInTheDocument();
-    expect(screen.getByText('Universal auth provider with session hydration')).toBeInTheDocument();
-    expect(screen.getByText('Set environment variables in')).toBeInTheDocument();
-  });
-
-  it('logs errors to console when health check fails', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const mockError = new Error('Network failure');
-
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: mockError,
-    }) as any;
-
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
-
-    expect(consoleSpy).toHaveBeenCalledWith('Health check failed', mockError);
-    consoleSpy.mockRestore();
-  });
-
-  it('handles navigation interactions', async () => {
-    const user = userEvent.setup();
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-    }) as any;
-
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
-
-    const dashboardLink = screen.getByRole('link', { name: 'Explore dashboard' });
-    const signInLink = screen.getByRole('link', { name: 'Sign in' });
-
-    expect(dashboardLink).toHaveAttribute('href', '/dashboard');
-    expect(signInLink).toHaveAttribute('href', '/auth/login');
-  });
-
-  it('renders health check details correctly', () => {
-    jest.spyOn(httpClient, 'useApiQuery').mockReturnValue({
-      data: {
-        data: {
-          status: 'healthy',
-          service: 'api-gateway',
-          checks: {
-            database: 'healthy',
-            cache: 'degraded',
-            auth: 'healthy',
-          },
-        },
-      },
-      isLoading: false,
-      error: null,
-    }) as any;
-
-    render(
-      <Wrapper>
-        <HomePage />
-      </Wrapper>,
-    );
-
-    expect(screen.getByText('healthy – api-gateway')).toBeInTheDocument();
-    expect(screen.getByText('DATABASE')).toBeInTheDocument();
-    expect(screen.getByText('CACHE')).toBeInTheDocument();
-    expect(screen.getByText('AUTH')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
 
     // Check status indicators
-    const healthyStatuses = screen.getAllByText('healthy');
-    expect(healthyStatuses.length).toBeGreaterThan(1);
-    expect(screen.getByText('degraded')).toBeInTheDocument();
+    expect(screen.getByText(/API:/)).toBeInTheDocument();
+    expect(screen.getByText('localhost:8000')).toBeInTheDocument();
+    expect(screen.getByText(/Frontend:/)).toBeInTheDocument();
+    expect(screen.getByText('localhost:3001')).toBeInTheDocument();
+  });
+
+  it('calls auth endpoint with correct parameters', async () => {
+    // Mock auth check
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+    });
+
+    render(<HomePage />);
+
+    // Wait for auth check
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/v1/auth/me', {
+        credentials: 'include',
+      });
+    });
   });
 });

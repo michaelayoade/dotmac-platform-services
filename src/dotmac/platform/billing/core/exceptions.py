@@ -11,6 +11,12 @@ class BillingError(DotMacError):
     pass
 
 
+class ValidationError(BillingError):
+    """Validation error for billing operations"""
+
+    pass
+
+
 class InvoiceError(BillingError):
     """Base exception for invoice-related errors"""
 

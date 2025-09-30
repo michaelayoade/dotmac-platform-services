@@ -5,7 +5,6 @@ This module defines rate limits for auth endpoints to prevent abuse.
 The limits are applied in production but gracefully skipped in tests.
 """
 
-from dotmac.platform.rate_limiting import limiter
 
 # Rate limits for auth endpoints
 # These are applied in production via the app configuration

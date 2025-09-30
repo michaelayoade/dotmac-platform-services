@@ -119,8 +119,19 @@ class HealthChecker:
             )
 
     def check_redis(self) -> ServiceHealth:
-        """Check Redis connectivity."""
+        """Check Redis connectivity with fallback awareness."""
         is_healthy, message = self._check_redis_url(settings.redis.redis_url, "Redis")
+
+        # Redis is critical but has fallback capabilities
+        if not is_healthy:
+            fallback_enabled = getattr(settings, 'redis_fallback_enabled', True)
+            if fallback_enabled:
+                return ServiceHealth(
+                    name="redis",
+                    status=ServiceStatus.DEGRADED,
+                    message=f"{message}. Running with in-memory fallback (single-server only)",
+                    required=True,
+                )
 
         return ServiceHealth(
             name="redis",
@@ -200,7 +211,19 @@ class HealthChecker:
 
     def check_storage(self) -> ServiceHealth:
         """Check MinIO/S3 storage connectivity."""
-        if settings.storage.provider == "local":
+        # Guard against missing storage settings
+        if not hasattr(settings, 'storage'):
+            return ServiceHealth(
+                name="storage",
+                status=ServiceStatus.HEALTHY,
+                message="Storage configuration not found, using defaults",
+                required=False,
+            )
+
+        # Get provider with fallback
+        provider = getattr(settings.storage, 'provider', 'local')
+
+        if provider == "local":
             # Local storage always available
             return ServiceHealth(
                 name="storage",
@@ -209,12 +232,12 @@ class HealthChecker:
                 required=False,
             )
 
-        if settings.storage.provider == "minio":
-            # MinIO health check would require boto3, but it's not needed for this project
+        if provider == "minio":
+            # MinIO health check would require the minio client; skip to avoid hard dependency
             return ServiceHealth(
                 name="storage",
                 status=ServiceStatus.HEALTHY,
-                message="MinIO health check skipped (boto3 not required)",
+                message="MinIO health check skipped (minio client not bundled)",
                 required=False,
             )
 
@@ -222,7 +245,7 @@ class HealthChecker:
         return ServiceHealth(
             name="storage",
             status=ServiceStatus.HEALTHY,
-            message=f"Storage provider '{settings.storage.provider}' assumed healthy",
+            message=f"Storage provider '{provider}' assumed healthy",
             required=False,
         )
 
@@ -283,7 +306,7 @@ class HealthChecker:
             self.check_database(),
             self.check_redis(),
             self.check_vault(),
-            self.check_storage(),
+            self.check_storage(),  # Re-enabled with proper guards
             self.check_celery_broker(),
             self.check_observability(),
         ]

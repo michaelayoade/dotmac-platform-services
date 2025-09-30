@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logger } from '@/lib/utils/logger';
 import {
   X,
   Key,
@@ -47,7 +48,7 @@ export function ApiKeyDetailModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      logger.error('Failed to copy to clipboard', error instanceof Error ? error : new Error(String(error)));
     }
   };
 

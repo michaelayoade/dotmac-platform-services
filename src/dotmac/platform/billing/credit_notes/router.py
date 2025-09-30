@@ -2,7 +2,6 @@
 Credit note API router
 """
 
-from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status

@@ -4,7 +4,6 @@ Tax report generation
 
 import csv
 import io
-import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -12,8 +11,8 @@ from typing import Dict, List, Optional
 from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
-from dotmac.platform.billing.core.enums import TransactionType, InvoiceStatus
+from dotmac.platform.billing.core.entities import InvoiceEntity
+from dotmac.platform.billing.core.enums import InvoiceStatus
 from dotmac.platform.billing.tax.service import TaxService
 
 logger = logging.getLogger(__name__)

@@ -237,11 +237,11 @@ class TestCommunicationsUserIntegration:
 
         # Mock template service
         template_service = Mock(spec=TemplateService)
-        template_service.render_template = AsyncMock(return_value="Welcome Test User!")
+        template_service.render_template = Mock(return_value="Welcome Test User!")
 
         # Test integration: template service uses user data
         template_name = "welcome_email"
-        rendered = await template_service.render_template(template_name, user_data)
+        rendered = template_service.render_template(template_name, user_data)
 
         assert "Test User" in rendered
         template_service.render_template.assert_called_once_with(template_name, user_data)

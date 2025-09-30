@@ -235,9 +235,9 @@ class TestUserServiceCoverage:
         mock_session.execute.return_value = mock_result
 
         # Test with various filter combinations
-        await user_service.list_users(is_active=True)
-        await user_service.list_users(role="admin")
-        await user_service.list_users(limit=10, skip=5)
+        await user_service.list_users(is_active=True, tenant_id="test-tenant")
+        await user_service.list_users(role="admin", tenant_id="test-tenant")
+        await user_service.list_users(limit=10, skip=5, tenant_id="test-tenant")
         await user_service.list_users(search="test", tenant_id="tenant-123")
 
         # Assert execute was called multiple times
