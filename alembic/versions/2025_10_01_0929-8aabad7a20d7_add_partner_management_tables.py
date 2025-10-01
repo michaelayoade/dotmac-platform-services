@@ -1,7 +1,7 @@
 """add_partner_management_tables
 
 Revision ID: 8aabad7a20d7
-Revises: f1c6e454da91
+Revises: b9f25627decc
 Create Date: 2025-10-01 09:29:24.115679
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "8aabad7a20d7"
-down_revision = "f1c6e454da91"
+down_revision = "b9f25627decc"
 branch_labels = None
 depends_on = None
 
