@@ -30,7 +30,7 @@ from dotmac.platform.data_import.schemas import (
 )
 from dotmac.platform.tenant.dependencies import get_tenant_id
 
-router = APIRouter(prefix="/api/v1/import", tags=["data-import"])
+router = APIRouter(tags=["data-import"])
 
 
 @router.post("/upload/{entity_type}")

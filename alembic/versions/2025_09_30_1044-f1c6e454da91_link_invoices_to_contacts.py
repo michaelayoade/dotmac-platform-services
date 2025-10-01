@@ -147,9 +147,13 @@ def upgrade() -> None:
     )
     op.create_index("idx_cash_register_active", "cash_registers", ["is_active"], unique=False)
     op.create_index("idx_cash_register_tenant", "cash_registers", ["tenant_id"], unique=False)
-    op.create_unique_constraint(
-        "uq_contact_label", "contact_to_labels", ["contact_id", "label_definition_id"]
-    )
+    # Try to create constraint, ignore if exists
+    try:
+        op.create_unique_constraint(
+            "uq_contact_label", "contact_to_labels", ["contact_id", "label_definition_id"]
+        )
+    except Exception:
+        pass  # Constraint already exists
     op.create_foreign_key(
         None, "contacts", "customers", ["customer_id"], ["id"], ondelete="CASCADE"
     )

@@ -27,7 +27,6 @@ from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.auth.core import UserInfo
 
 router = APIRouter(
-    prefix="/api/v1/admin/settings",
     tags=["admin", "settings"],
 )
 

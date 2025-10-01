@@ -856,5 +856,68 @@ async def get_current_user_endpoint(
         )
 
 
+# ========================================
+# Metrics Endpoint
+# ========================================
+
+
+@auth_router.get("/metrics")
+async def get_auth_metrics(
+    session: AsyncSession = Depends(get_auth_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
+    """
+    Get authentication metrics including failed login attempts.
+
+    Returns metrics for monitoring authentication security.
+    """
+    try:
+        # Query recent audit logs for failed login attempts (last hour)
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import select, func
+        from dotmac.platform.audit.models import AuditActivity
+
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        # Count failed login attempts in last hour
+        failed_login_query = select(func.count(AuditActivity.id)).where(
+            AuditActivity.activity_type == "login_failed",
+            AuditActivity.created_at >= one_hour_ago
+        )
+        result = await session.execute(failed_login_query)
+        failed_attempts = result.scalar() or 0
+
+        # Count successful logins in last hour
+        successful_login_query = select(func.count(AuditActivity.id)).where(
+            AuditActivity.activity_type == "login_success",
+            AuditActivity.created_at >= one_hour_ago
+        )
+        result = await session.execute(successful_login_query)
+        successful_logins = result.scalar() or 0
+
+        # Count total active sessions
+        # For now, return a placeholder - proper session counting would require session table query
+        active_sessions = 0
+
+        return {
+            "failedAttempts": failed_attempts,
+            "successfulLogins": successful_logins,
+            "activeSessions": active_sessions,
+            "timeWindow": "1h",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error("Failed to fetch auth metrics", error=str(e), exc_info=True)
+        # Return default values on error
+        return {
+            "failedAttempts": 0,
+            "successfulLogins": 0,
+            "activeSessions": 0,
+            "timeWindow": "1h",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
 # Export router
 __all__ = ["auth_router"]

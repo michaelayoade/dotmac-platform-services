@@ -12,6 +12,7 @@ from .settings.router import router as settings_router
 from .bank_accounts.router import router as bank_accounts_router
 from .catalog.router import router as catalog_router
 from .subscriptions.router import router as subscriptions_router
+from .payments.router import router as payments_router
 
 # Create main billing router - no prefix here as it's added in main router registration
 router = APIRouter(tags=["billing"])
@@ -24,7 +25,8 @@ router.include_router(credit_note_router, prefix="", tags=["credit-notes"])
 router.include_router(settings_router, prefix="", tags=["settings"])
 router.include_router(bank_accounts_router, prefix="", tags=["bank-accounts"])
 router.include_router(catalog_router, prefix="", tags=["catalog"])
-router.include_router(subscriptions_router, prefix="", tags=["subscriptions"])
+router.include_router(subscriptions_router, prefix="/subscriptions", tags=["subscriptions"])
+router.include_router(payments_router, prefix="", tags=["payments"])
 
 # Additional billing endpoints can be added here
 

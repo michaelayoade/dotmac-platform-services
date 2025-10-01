@@ -11,9 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.tenant import get_tenant_context
+from dotmac.platform.tenant import get_current_tenant_id
 from dotmac.platform.auth.core import UserInfo
-from dotmac.platform.core.models import TenantContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.db import get_async_session
 from dotmac.platform.billing.catalog.models import (
@@ -36,7 +35,6 @@ from dotmac.platform.billing.exceptions import (
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(
-    prefix="/api/v1/billing/catalog",
     tags=["Billing", "Products"],
     dependencies=[Depends(get_current_user)],  # All endpoints require authentication
 )
@@ -45,7 +43,7 @@ router = APIRouter(
 @router.post("/categories", response_model=ProductCategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_product_category(
     category_data: ProductCategoryCreateRequest,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> ProductCategoryResponse:
@@ -58,14 +56,14 @@ async def create_product_category(
     service = ProductService(db_session)
 
     try:
-        category = await service.create_category(category_data, tenant_context.tenant_id)
+        category = await service.create_category(category_data, tenant_id)
 
         logger.info(
             "Product category created",
             category_id=category.category_id,
             name=category.name,
             user_id=current_user.user_id,
-            tenant_id=tenant_context.tenant_id,
+            tenant_id=tenant_id,
         )
 
         return ProductCategoryResponse(
@@ -88,7 +86,7 @@ async def create_product_category(
 
 @router.get("/categories", response_model=List[ProductCategoryResponse])
 async def list_product_categories(
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> List[ProductCategoryResponse]:
     """
@@ -98,7 +96,7 @@ async def list_product_categories(
     """
 
     service = ProductService(db_session)
-    categories = await service.list_categories(tenant_context.tenant_id)
+    categories = await service.list_categories(tenant_id)
 
     return [
         ProductCategoryResponse(
@@ -118,7 +116,7 @@ async def list_product_categories(
 @router.get("/categories/{category_id}", response_model=ProductCategoryResponse)
 async def get_product_category(
     category_id: str,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> ProductCategoryResponse:
     """Get a specific product category by ID."""
@@ -126,7 +124,7 @@ async def get_product_category(
     service = ProductService(db_session)
 
     try:
-        category = await service.get_category(category_id, tenant_context.tenant_id)
+        category = await service.get_category(category_id, tenant_id)
 
         return ProductCategoryResponse(
             category_id=category.category_id,
@@ -149,7 +147,7 @@ async def get_product_category(
 @router.post("/products", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product(
     product_data: ProductCreateRequest,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> ProductResponse:
@@ -162,7 +160,7 @@ async def create_product(
     service = ProductService(db_session)
 
     try:
-        product = await service.create_product(product_data, tenant_context.tenant_id)
+        product = await service.create_product(product_data, tenant_id)
 
         logger.info(
             "Product created",
@@ -171,7 +169,7 @@ async def create_product(
             name=product.name,
             product_type=product.product_type.value,
             user_id=current_user.user_id,
-            tenant_id=tenant_context.tenant_id,
+            tenant_id=tenant_id,
         )
 
         return ProductResponse(
@@ -209,7 +207,7 @@ async def list_products(
     search: Optional[str] = Query(None, description="Search in name, description, or SKU"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> List[ProductResponse]:
     """
@@ -230,7 +228,7 @@ async def list_products(
     )
 
     products = await service.list_products(
-        tenant_context.tenant_id,
+        tenant_id,
         filters=filters,
         page=page,
         limit=limit
@@ -262,7 +260,7 @@ async def list_products(
 @router.get("/products/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: str,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> ProductResponse:
     """Get a specific product by ID."""
@@ -270,7 +268,7 @@ async def get_product(
     service = ProductService(db_session)
 
     try:
-        product = await service.get_product(product_id, tenant_context.tenant_id)
+        product = await service.get_product(product_id, tenant_id)
 
         return ProductResponse(
             product_id=product.product_id,
@@ -302,7 +300,7 @@ async def get_product(
 async def update_product(
     product_id: str,
     updates: ProductUpdateRequest,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> ProductResponse:
@@ -315,14 +313,14 @@ async def update_product(
     service = ProductService(db_session)
 
     try:
-        product = await service.update_product(product_id, updates, tenant_context.tenant_id)
+        product = await service.update_product(product_id, updates, tenant_id)
 
         logger.info(
             "Product updated",
             product_id=product.product_id,
             sku=product.sku,
             user_id=current_user.user_id,
-            tenant_id=tenant_context.tenant_id,
+            tenant_id=tenant_id,
         )
 
         return ProductResponse(
@@ -360,7 +358,7 @@ async def update_product(
 async def update_product_price(
     product_id: str,
     new_price: float = Query(..., ge=0, description="New price in major units (e.g., dollars)"),
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> JSONResponse:
@@ -382,7 +380,7 @@ async def update_product_price(
         product = await service.update_price(
             product_id,
             price_minor_units,
-            tenant_context.tenant_id
+            tenant_id
         )
 
         logger.info(
@@ -391,7 +389,7 @@ async def update_product_price(
             sku=product.sku,
             new_price=str(new_price),
             user_id=current_user.user_id,
-            tenant_id=tenant_context.tenant_id,
+            tenant_id=tenant_id,
         )
 
         return JSONResponse(
@@ -420,7 +418,7 @@ async def update_product_price(
 @router.delete("/products/{product_id}")
 async def deactivate_product(
     product_id: str,
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> JSONResponse:
@@ -434,14 +432,14 @@ async def deactivate_product(
     service = ProductService(db_session)
 
     try:
-        product = await service.deactivate_product(product_id, tenant_context.tenant_id)
+        product = await service.deactivate_product(product_id, tenant_id)
 
         logger.info(
             "Product deactivated",
             product_id=product.product_id,
             sku=product.sku,
             user_id=current_user.user_id,
-            tenant_id=tenant_context.tenant_id,
+            tenant_id=tenant_id,
         )
 
         return JSONResponse(
@@ -462,7 +460,7 @@ async def deactivate_product(
 
 @router.get("/products/usage-based", response_model=List[ProductResponse])
 async def list_usage_products(
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> List[ProductResponse]:
     """
@@ -473,7 +471,7 @@ async def list_usage_products(
     """
 
     service = ProductService(db_session)
-    products = await service.get_usage_products(tenant_context.tenant_id)
+    products = await service.get_usage_products(tenant_id)
 
     return [
         ProductResponse(
@@ -502,7 +500,7 @@ async def list_usage_products(
 async def list_products_by_category(
     category: str,
     active_only: bool = Query(True, description="Only return active products"),
-    tenant_context: TenantContext = Depends(get_tenant_context),
+    tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> List[ProductResponse]:
     """Get all products in a specific category."""
@@ -510,7 +508,7 @@ async def list_products_by_category(
     service = ProductService(db_session)
     products = await service.get_products_by_category(
         category,
-        tenant_context.tenant_id,
+        tenant_id,
         active_only
     )
 

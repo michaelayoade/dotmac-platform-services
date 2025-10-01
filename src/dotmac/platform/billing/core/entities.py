@@ -67,9 +67,6 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Customer
     customer_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    billing_contact_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, index=True
-    )  # Soft reference to contacts table (FK added when contacts module is available)
     billing_email: Mapped[str] = mapped_column(String(255), nullable=False)
     billing_address: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 

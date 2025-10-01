@@ -29,7 +29,8 @@ import {
   DollarSign,
   Server,
   Lock,
-  BarChart3
+  BarChart3,
+  Handshake
 } from 'lucide-react';
 import { TenantSelector } from '@/components/tenant-selector';
 import { apiClient } from '@/lib/api/client';
@@ -86,6 +87,7 @@ const sections: NavSection[] = [
       { name: 'Subscriptions', href: '/dashboard/billing-revenue/subscriptions', icon: Repeat, permission: 'billing.read' },
       { name: 'Payments', href: '/dashboard/billing-revenue/payments', icon: CreditCard, permission: 'billing.read' },
       { name: 'Plans', href: '/dashboard/billing-revenue/plans', icon: Package, permission: 'billing.read' },
+      { name: 'Partners', href: '/dashboard/partners', icon: Handshake, permission: 'partners.read' },
     ],
   },
   {

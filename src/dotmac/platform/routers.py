@@ -218,6 +218,30 @@ ROUTER_CONFIGS = [
         description="Distributed traces, metrics, and performance data",
         requires_auth=True,
     ),
+    RouterConfig(
+        module_path="dotmac.platform.partner_management.router",
+        router_name="router",
+        prefix="/api/v1/partners",
+        tags=["Partner Management"],
+        description="Partner relationship management",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.monitoring_metrics_router",
+        router_name="logs_router",
+        prefix="/api/v1/logs",
+        tags=["Logs"],
+        description="Application logs and error monitoring",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.monitoring_metrics_router",
+        router_name="metrics_router",
+        prefix="/api/v1/metrics",
+        tags=["Metrics"],
+        description="Performance and resource metrics",
+        requires_auth=True,
+    ),
 ]
 
 

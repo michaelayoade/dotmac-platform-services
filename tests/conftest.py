@@ -112,6 +112,23 @@ except ImportError:
 try:
     from dotmac.platform.db import Base
 
+    # Import all models to ensure they're registered with Base.metadata
+    # This is required for Base.metadata.create_all() to work properly
+    try:
+        from dotmac.platform.contacts import models as contact_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.customer_management import models as customer_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.partner_management import models as partner_models  # noqa: F401
+    except ImportError:
+        pass
+
     HAS_DATABASE_BASE = True
 except ImportError:
     HAS_DATABASE_BASE = False
@@ -237,57 +254,117 @@ if HAS_SQLALCHEMY:
                 pass
             session.close()
 
-    @pytest.fixture
-    async def async_db_engine():
-        """Async database engine for tests."""
-        db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
-        connect_args: dict[str, object] = {}
+    try:
+        import pytest_asyncio
 
-        try:
-            url = make_url(db_url)
-        except Exception:
-            url = None
+        @pytest_asyncio.fixture
+        async def async_db_engine():
+            """Async database engine for tests."""
+            db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+            connect_args: dict[str, object] = {}
 
-        if url is not None and url.get_backend_name().startswith("sqlite"):
-            database = url.database
-            if database and database != ":memory":
-                candidate = Path(database)
-                if not candidate.is_absolute():
-                    candidate = Path.cwd() / candidate
-                candidate.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                url = make_url(db_url)
+            except Exception:
+                url = None
 
-        engine = create_async_engine(
-            db_url,
-            connect_args=connect_args,
-            pool_size=20,  # Increase pool size for tests
-            max_overflow=30,  # Allow overflow connections
-            pool_pre_ping=True,  # Verify connections before use
-            pool_recycle=3600  # Recycle connections every hour
-        )
-        if HAS_DATABASE_BASE:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+            if url is not None and url.get_backend_name().startswith("sqlite"):
+                database = url.database
+                if database and database != ":memory":
+                    candidate = Path(database)
+                    if not candidate.is_absolute():
+                        candidate = Path.cwd() / candidate
+                    candidate.parent.mkdir(parents=True, exist_ok=True)
 
-        try:
-            yield engine
-        finally:
+            engine = create_async_engine(
+                db_url,
+                connect_args=connect_args,
+                pool_size=20,  # Increase pool size for tests
+                max_overflow=30,  # Allow overflow connections
+                pool_pre_ping=True,  # Verify connections before use
+                pool_recycle=3600  # Recycle connections every hour
+            )
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.drop_all)
-            await engine.dispose()
+                    await conn.run_sync(Base.metadata.create_all)
 
-    @pytest.fixture
-    async def async_db_session(async_db_engine):
-        """Async database session."""
-        SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
-        async with SessionMaker() as session:
             try:
-                yield session
+                yield engine
             finally:
+                if HAS_DATABASE_BASE:
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.drop_all)
+                await engine.dispose()
+    except ImportError:
+        # Fallback to regular pytest fixture
+        @pytest.fixture
+        async def async_db_engine():
+            """Async database engine for tests."""
+            db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+            connect_args: dict[str, object] = {}
+
+            try:
+                url = make_url(db_url)
+            except Exception:
+                url = None
+
+            if url is not None and url.get_backend_name().startswith("sqlite"):
+                database = url.database
+                if database and database != ":memory":
+                    candidate = Path(database)
+                    if not candidate.is_absolute():
+                        candidate = Path.cwd() / candidate
+                    candidate.parent.mkdir(parents=True, exist_ok=True)
+
+            engine = create_async_engine(
+                db_url,
+                connect_args=connect_args,
+                pool_size=20,  # Increase pool size for tests
+                max_overflow=30,  # Allow overflow connections
+                pool_pre_ping=True,  # Verify connections before use
+                pool_recycle=3600  # Recycle connections every hour
+            )
+            if HAS_DATABASE_BASE:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+
+            try:
+                yield engine
+            finally:
+                if HAS_DATABASE_BASE:
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.drop_all)
+                await engine.dispose()
+
+    try:
+        import pytest_asyncio
+
+        @pytest_asyncio.fixture
+        async def async_db_session(async_db_engine):
+            """Async database session."""
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
                 try:
-                    await session.rollback()
-                except Exception:
-                    pass
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
+    except ImportError:
+        # Fallback to regular pytest fixture
+        @pytest.fixture
+        async def async_db_session(async_db_engine):
+            """Async database session."""
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
+                try:
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
 
 else:
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from .core import UserInfo, get_current_user, api_key_service
 
-router = APIRouter(prefix="/api/v1/auth/api-keys", tags=["API Keys"])
+router = APIRouter(tags=["API Keys"])
 
 
 # ============================================

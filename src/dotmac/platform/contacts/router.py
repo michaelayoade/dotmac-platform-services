@@ -31,7 +31,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-router = APIRouter(prefix="/api/v1/contacts", tags=["contacts"])
+router = APIRouter(tags=["contacts"])
 
 
 # Contact endpoints

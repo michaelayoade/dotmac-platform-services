@@ -15,8 +15,26 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
+from sqlalchemy.types import TypeDecorator
 
 from dotmac.platform.db import Base
+
+
+# Type that uses JSONB on PostgreSQL and JSON on SQLite
+class JSONBType(TypeDecorator):
+    """Custom type that uses JSONB on PostgreSQL and JSON on other databases."""
+
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(JSONB())
+        else:
+            return dialect.type_descriptor(JSON())
+
+
+
 
 
 # Association table for many-to-many contact labels
@@ -131,10 +149,10 @@ class Contact(Base):
     tags: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=list)
 
     # Custom fields (JSONB for flexible schema)
-    custom_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True, default=dict)
+    custom_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONBType, nullable=True, default=dict)
 
     # Additional metadata
-    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True, default=dict)
+    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONBType, nullable=True, default=dict)
 
     # Important dates
     birthday: Mapped[Optional[DateTime]] = mapped_column(DateTime(timezone=True), nullable=True)

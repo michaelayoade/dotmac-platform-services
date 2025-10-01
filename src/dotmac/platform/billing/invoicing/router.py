@@ -147,22 +147,6 @@ async def create_invoice(
         )
 
 
-@router.get("/{invoice_id}", response_model=Invoice)
-async def get_invoice(
-    invoice_id: str, request: Request, db: AsyncSession = Depends(get_async_session), current_user=Depends(get_current_user)
-) -> Invoice:
-    """Get invoice by ID with tenant isolation"""
-
-    tenant_id = get_tenant_id_from_request(request)
-    invoice_service = InvoiceService(db)
-
-    invoice = await invoice_service.get_invoice(tenant_id, invoice_id)
-    if not invoice:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-
-    return invoice
-
-
 @router.get("", response_model=InvoiceListResponse)
 async def list_invoices(
     request: Request,
@@ -201,6 +185,22 @@ async def list_invoices(
         total_count=len(invoices),
         has_more=has_more,
     )
+
+
+@router.get("/{invoice_id}", response_model=Invoice)
+async def get_invoice(
+    invoice_id: str, request: Request, db: AsyncSession = Depends(get_async_session), current_user=Depends(get_current_user)
+) -> Invoice:
+    """Get invoice by ID with tenant isolation"""
+
+    tenant_id = get_tenant_id_from_request(request)
+    invoice_service = InvoiceService(db)
+
+    invoice = await invoice_service.get_invoice(tenant_id, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    return invoice
 
 
 @router.post("/{invoice_id}/finalize", response_model=Invoice)
