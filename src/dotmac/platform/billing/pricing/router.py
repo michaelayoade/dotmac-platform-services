@@ -28,6 +28,7 @@ router = APIRouter(tags=["billing-pricing"])
 
 # Pricing Rules Management
 
+
 @router.post(
     "/rules",
     response_model=PricingRuleResponse,
@@ -44,10 +45,7 @@ async def create_pricing_rule(
         rule = await service.create_rule(rule_data, tenant_id)
         return PricingRuleResponse.model_validate(rule.model_dump())
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/rules", response_model=List[PricingRuleResponse])
@@ -79,10 +77,7 @@ async def get_pricing_rule(
     service = PricingService()
     rule = await service.get_rule(rule_id, tenant_id)
     if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pricing rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     return PricingRuleResponse.model_validate(rule.model_dump())
 
 
@@ -99,15 +94,11 @@ async def update_pricing_rule(
         rule = await service.update_rule(rule_id, rule_data, tenant_id)
         if not rule:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Pricing rule not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found"
             )
         return PricingRuleResponse.model_validate(rule.model_dump())
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/rules/{rule_id}")
@@ -120,13 +111,9 @@ async def delete_pricing_rule(
     service = PricingService()
     success = await service.delete_rule(rule_id, tenant_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pricing rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     return JSONResponse(
-        content={"message": "Pricing rule deleted successfully"},
-        status_code=status.HTTP_200_OK
+        content={"message": "Pricing rule deleted successfully"}, status_code=status.HTTP_200_OK
     )
 
 
@@ -140,13 +127,9 @@ async def activate_pricing_rule(
     service = PricingService()
     success = await service.activate_rule(rule_id, tenant_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pricing rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     return JSONResponse(
-        content={"message": "Pricing rule activated successfully"},
-        status_code=status.HTTP_200_OK
+        content={"message": "Pricing rule activated successfully"}, status_code=status.HTTP_200_OK
     )
 
 
@@ -160,17 +143,14 @@ async def deactivate_pricing_rule(
     service = PricingService()
     success = await service.deactivate_rule(rule_id, tenant_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pricing rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     return JSONResponse(
-        content={"message": "Pricing rule deactivated successfully"},
-        status_code=status.HTTP_200_OK
+        content={"message": "Pricing rule deactivated successfully"}, status_code=status.HTTP_200_OK
     )
 
 
 # Price Calculation
+
 
 @router.post("/calculate", response_model=PriceCalculationResult)
 async def calculate_price(
@@ -184,10 +164,7 @@ async def calculate_price(
         result = await service.calculate_price(calculation_request, tenant_id)
         return result
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/calculate/{product_id}")
@@ -195,10 +172,7 @@ async def calculate_price_simple(
     product_id: str,
     customer_id: str = Query(..., description="Customer ID for pricing"),
     quantity: int = Query(1, description="Quantity", ge=1),
-    customer_segments: List[str] = Query(
-        [],
-        description="Customer segments for rule matching"
-    ),
+    customer_segments: List[str] = Query([], description="Customer segments for rule matching"),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
 ) -> PriceCalculationResult:
@@ -214,13 +188,11 @@ async def calculate_price_simple(
         result = await service.calculate_price(request, tenant_id)
         return result
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # Rule Analytics and Statistics
+
 
 @router.get("/rules/{rule_id}/usage")
 async def get_pricing_rule_usage(
@@ -234,15 +206,11 @@ async def get_pricing_rule_usage(
         usage_stats = await service.get_rule_usage_stats(rule_id, tenant_id)
         if not usage_stats:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Pricing rule not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found"
             )
         return usage_stats
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/rules/{rule_id}/reset-usage")
@@ -255,17 +223,14 @@ async def reset_pricing_rule_usage(
     service = PricingService()
     success = await service.reset_rule_usage(rule_id, tenant_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pricing rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     return JSONResponse(
-        content={"message": "Rule usage counter reset successfully"},
-        status_code=status.HTTP_200_OK
+        content={"message": "Rule usage counter reset successfully"}, status_code=status.HTTP_200_OK
     )
 
 
 # Rule Testing and Validation
+
 
 @router.post("/rules/test")
 async def test_pricing_rules(
@@ -294,10 +259,7 @@ async def test_pricing_rules(
             ],
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/rules/conflicts")
@@ -315,13 +277,11 @@ async def detect_rule_conflicts(
             "conflicts": conflicts,
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # Bulk Operations
+
 
 @router.post("/rules/bulk-activate")
 async def bulk_activate_rules(
@@ -340,10 +300,7 @@ async def bulk_activate_rules(
             "errors": results.get("errors", []),
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/rules/bulk-deactivate")
@@ -363,7 +320,4 @@ async def bulk_deactivate_rules(
             "errors": results.get("errors", []),
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

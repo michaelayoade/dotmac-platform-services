@@ -39,7 +39,9 @@ class CreateInvoiceRequest(BaseModel):
     notes: str | None = Field(None, max_length=2000)
     internal_notes: str | None = Field(None, max_length=2000)
     subscription_id: str | None = None
-    idempotency_key: str | None = Field(None, description="Idempotency key for duplicate prevention")
+    idempotency_key: str | None = Field(
+        None, description="Idempotency key for duplicate prevention"
+    )
     extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -143,7 +145,8 @@ async def create_invoice(
         return invoice
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create invoice: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create invoice: {str(e)}",
         )
 
 
@@ -189,7 +192,10 @@ async def list_invoices(
 
 @router.get("/{invoice_id}", response_model=Invoice)
 async def get_invoice(
-    invoice_id: str, request: Request, db: AsyncSession = Depends(get_async_session), current_user=Depends(get_current_user)
+    invoice_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+    current_user=Depends(get_current_user),
 ) -> Invoice:
     """Get invoice by ID with tenant isolation"""
 
@@ -263,7 +269,9 @@ async def mark_invoice_paid(
     invoice_service = InvoiceService(db)
 
     try:
-        invoice = await invoice_service.mark_invoice_paid(tenant_id, invoice_id, payment_id=payment_id)
+        invoice = await invoice_service.mark_invoice_paid(
+            tenant_id, invoice_id, payment_id=payment_id
+        )
         return invoice
     except InvoiceNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
@@ -293,7 +301,9 @@ async def apply_credit_to_invoice(
 
 @router.post("/check-overdue", response_model=list[Invoice])
 async def check_overdue_invoices(
-    request: Request, db: AsyncSession = Depends(get_async_session), current_user=Depends(get_current_user)
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+    current_user=Depends(get_current_user),
 ) -> list[Invoice]:
     """Check for overdue invoices and update their status"""
 

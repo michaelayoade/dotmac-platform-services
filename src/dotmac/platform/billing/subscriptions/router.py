@@ -33,6 +33,7 @@ router = APIRouter(tags=["billing-subscriptions"])
 
 # Subscription Plans Management
 
+
 @router.post(
     "/plans",
     response_model=SubscriptionPlanResponse,
@@ -50,10 +51,7 @@ async def create_subscription_plan(
         plan = await service.create_plan(plan_data, tenant_id)
         return SubscriptionPlanResponse.model_validate(plan.model_dump())
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/plans", response_model=List[SubscriptionPlanResponse])
@@ -86,8 +84,7 @@ async def get_subscription_plan(
     plan = await service.get_plan(plan_id, tenant_id)
     if not plan:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
         )
     return SubscriptionPlanResponse.model_validate(plan.model_dump())
 
@@ -106,15 +103,11 @@ async def update_subscription_plan(
         plan = await service.update_plan(plan_id, plan_data, tenant_id)
         if not plan:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription plan not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
             )
         return SubscriptionPlanResponse.model_validate(plan.model_dump())
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/plans/{plan_id}")
@@ -129,16 +122,16 @@ async def deactivate_subscription_plan(
     success = await service.deactivate_plan(plan_id, tenant_id)
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
         )
     return JSONResponse(
         content={"message": "Subscription plan deactivated successfully"},
-        status_code=status.HTTP_200_OK
+        status_code=status.HTTP_200_OK,
     )
 
 
 # Customer Subscriptions Management
+
 
 @router.post(
     "/",
@@ -161,10 +154,7 @@ async def create_subscription(
         response_data["days_until_renewal"] = subscription.days_until_renewal()
         return SubscriptionResponse.model_validate(response_data)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/", response_model=List[SubscriptionResponse])
@@ -197,7 +187,9 @@ async def list_subscriptions(
 
 @router.get("/expiring")
 async def get_expiring_subscriptions(
-    days: int = Query(default=30, description="Number of days ahead to check for expiring subscriptions"),
+    days: int = Query(
+        default=30, description="Number of days ahead to check for expiring subscriptions"
+    ),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
@@ -218,14 +210,14 @@ async def get_expiring_subscriptions(
 
         # Query subscriptions expiring in the next N days
         query = select(
-            func.count(Subscription.id).label('count'),
-            func.min(Subscription.current_period_end).label('soonest_expiration')
+            func.count(Subscription.id).label("count"),
+            func.min(Subscription.current_period_end).label("soonest_expiration"),
         ).where(
             and_(
                 Subscription.tenant_id == tenant_id,
                 Subscription.status == SubscriptionStatus.ACTIVE,
                 Subscription.current_period_end <= expiration_date,
-                Subscription.current_period_end > now
+                Subscription.current_period_end > now,
             )
         )
 
@@ -235,12 +227,15 @@ async def get_expiring_subscriptions(
         return {
             "count": row.count or 0,
             "days_ahead": days,
-            "soonest_expiration": row.soonest_expiration.isoformat() if row.soonest_expiration else None,
+            "soonest_expiration": (
+                row.soonest_expiration.isoformat() if row.soonest_expiration else None
+            ),
             "timestamp": now.isoformat(),
         }
 
     except Exception as e:
         import structlog
+
         logger = structlog.get_logger(__name__)
         logger.error("Failed to fetch expiring subscriptions", error=str(e), exc_info=True)
         # Return empty result on error
@@ -263,10 +258,7 @@ async def get_subscription(
     service = SubscriptionService(db_session)
     subscription = await service.get_subscription(subscription_id, tenant_id)
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     response_data = subscription.model_dump()
     response_data["is_in_trial"] = subscription.is_in_trial()
@@ -285,13 +277,10 @@ async def update_subscription(
     """Update a subscription."""
     service = SubscriptionService(db_session)
     try:
-        subscription = await service.update_subscription(
-            subscription_id, update_data, tenant_id
-        )
+        subscription = await service.update_subscription(subscription_id, update_data, tenant_id)
         if not subscription:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
         response_data = subscription.model_dump()
@@ -299,13 +288,11 @@ async def update_subscription(
         response_data["days_until_renewal"] = subscription.days_until_renewal()
         return SubscriptionResponse.model_validate(response_data)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # Subscription Lifecycle Operations
+
 
 @router.post("/{subscription_id}/cancel")
 async def cancel_subscription(
@@ -318,13 +305,10 @@ async def cancel_subscription(
     """Cancel a subscription."""
     service = SubscriptionService(db_session)
     try:
-        success = await service.cancel_subscription(
-            subscription_id, tenant_id, at_period_end
-        )
+        success = await service.cancel_subscription(subscription_id, tenant_id, at_period_end)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
         message = (
@@ -332,15 +316,9 @@ async def cancel_subscription(
             if at_period_end
             else "Subscription canceled immediately"
         )
-        return JSONResponse(
-            content={"message": message},
-            status_code=status.HTTP_200_OK
-        )
+        return JSONResponse(content={"message": message}, status_code=status.HTTP_200_OK)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{subscription_id}/reactivate")
@@ -357,18 +335,15 @@ async def reactivate_subscription(
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found or cannot be reactivated"
+                detail="Subscription not found or cannot be reactivated",
             )
 
         return JSONResponse(
             content={"message": "Subscription reactivated successfully"},
-            status_code=status.HTTP_200_OK
+            status_code=status.HTTP_200_OK,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{subscription_id}/change-plan", response_model=dict)
@@ -382,27 +357,22 @@ async def change_subscription_plan(
     """Change subscription plan with proration calculation."""
     service = SubscriptionService(db_session)
     try:
-        proration_result = await service.change_plan(
-            subscription_id, change_data, tenant_id
-        )
+        proration_result = await service.change_plan(subscription_id, change_data, tenant_id)
         if not proration_result:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
         return {
             "message": "Plan change completed successfully",
-            "proration": proration_result.model_dump()
+            "proration": proration_result.model_dump(),
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # Usage Tracking for Hybrid Plans
+
 
 @router.post("/{subscription_id}/usage")
 async def record_usage(
@@ -418,19 +388,14 @@ async def record_usage(
         success = await service.record_usage(usage_data, tenant_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
         return JSONResponse(
-            content={"message": "Usage recorded successfully"},
-            status_code=status.HTTP_201_CREATED
+            content={"message": "Usage recorded successfully"}, status_code=status.HTTP_201_CREATED
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/{subscription_id}/usage")
@@ -444,15 +409,13 @@ async def get_subscription_usage(
     service = SubscriptionService(db_session)
     usage = await service.get_usage(subscription_id, tenant_id)
     if usage is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     return {"subscription_id": subscription_id, "usage": usage}
 
 
 # Proration Preview
+
 
 @router.post("/proration-preview", response_model=ProrationResult)
 async def preview_plan_change_proration(
@@ -470,13 +433,9 @@ async def preview_plan_change_proration(
         )
         if not proration:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription or plan not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription or plan not found"
             )
 
         return proration
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

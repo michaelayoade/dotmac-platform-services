@@ -40,7 +40,9 @@ router = APIRouter(
 )
 
 
-@router.post("/categories", response_model=ProductCategoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/categories", response_model=ProductCategoryResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_product_category(
     category_data: ProductCategoryCreateRequest,
     tenant_id: str = Depends(get_current_tenant_id),
@@ -78,10 +80,7 @@ async def create_product_category(
         )
 
     except ProductError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/categories", response_model=List[ProductCategoryResponse])
@@ -138,10 +137,7 @@ async def get_product_category(
         )
 
     except CategoryNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.post("/products", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
@@ -192,10 +188,7 @@ async def create_product(
         )
 
     except ProductError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/products", response_model=List[ProductResponse])
@@ -227,12 +220,7 @@ async def list_products(
         search=search,
     )
 
-    products = await service.list_products(
-        tenant_id,
-        filters=filters,
-        page=page,
-        limit=limit
-    )
+    products = await service.list_products(tenant_id, filters=filters, page=page, limit=limit)
 
     return [
         ProductResponse(
@@ -290,10 +278,7 @@ async def get_product(
         )
 
     except ProductNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.put("/products/{product_id}", response_model=ProductResponse)
@@ -343,15 +328,9 @@ async def update_product(
         )
 
     except ProductNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ProductError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.patch("/products/{product_id}/price")
@@ -377,11 +356,7 @@ async def update_product_price(
         # Convert to minor units (cents) for storage
         price_minor_units = Decimal(str(new_price)) * 100
 
-        product = await service.update_price(
-            product_id,
-            price_minor_units,
-            tenant_id
-        )
+        product = await service.update_price(product_id, price_minor_units, tenant_id)
 
         logger.info(
             "Product price updated",
@@ -400,18 +375,14 @@ async def update_product_price(
                 "sku": product.sku,
                 "new_price": float(new_price),
                 "currency": product.currency,
-            }
+            },
         )
 
     except ProductNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (ValueError, TypeError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid price value: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid price value: {e}"
         )
 
 
@@ -448,14 +419,11 @@ async def deactivate_product(
                 "message": "Product deactivated successfully",
                 "product_id": product.product_id,
                 "sku": product.sku,
-            }
+            },
         )
 
     except ProductNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get("/products/usage-based", response_model=List[ProductResponse])
@@ -506,11 +474,7 @@ async def list_products_by_category(
     """Get all products in a specific category."""
 
     service = ProductService(db_session)
-    products = await service.get_products_by_category(
-        category,
-        tenant_id,
-        active_only
-    )
+    products = await service.get_products_by_category(category, tenant_id, active_only)
 
     return [
         ProductResponse(
