@@ -83,8 +83,8 @@ export function CreateCustomerModal({
         mobile: editingCustomer.mobile || '',
         customer_type: editingCustomer.customer_type,
         tier: editingCustomer.tier,
-        address_line1: editingCustomer.address_line1 || '',
-        address_line2: editingCustomer.address_line2 || '',
+        address_line1: editingCustomer.address_line_1 || '',
+        address_line2: editingCustomer.address_line_2 || '',
         city: editingCustomer.city || '',
         state_province: editingCustomer.state_province || '',
         postal_code: editingCustomer.postal_code || '',
@@ -139,9 +139,9 @@ export function CreateCustomerModal({
 
       let result;
       if (editingCustomer) {
-        result = await updateCustomer(editingCustomer.id, customerData);
+        result = await updateCustomer(editingCustomer.id, customerData as any);
       } else {
-        result = await createCustomer(customerData);
+        result = await createCustomer(customerData as any);
       }
 
       onCustomerCreated(result);

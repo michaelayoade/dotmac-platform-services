@@ -89,7 +89,7 @@ export interface AvailableEvents {
 
 // Helper to enrich backend data with UI-compatible fields
 const enrichSubscription = (sub: Record<string, unknown> & { custom_metadata?: Record<string, unknown>; description?: string; success_count: number; failure_count: number; last_triggered_at: string | null }): WebhookSubscription => ({
-  ...sub,
+  ...(sub as any),
   name: (sub.custom_metadata?.name as string) || sub.description || 'Webhook',
   user_id: 'current-user',
   headers: (sub.custom_metadata?.headers as Record<string, string>) || {},
@@ -97,15 +97,15 @@ const enrichSubscription = (sub: Record<string, unknown> & { custom_metadata?: R
   failed_deliveries: sub.failure_count,
   has_secret: true,
   last_delivery_at: sub.last_triggered_at,
-});
+} as WebhookSubscription);
 
 // Helper to enrich delivery data
 const enrichDelivery = (delivery: Record<string, unknown> & { response_code: number | null; created_at: string; attempt_number: number }): WebhookDelivery => ({
-  ...delivery,
+  ...(delivery as any),
   response_status: delivery.response_code,
   delivered_at: delivery.created_at,
   retry_count: delivery.attempt_number - 1,
-});
+} as WebhookDelivery);
 
 export function useWebhooks() {
   const [webhooks, setWebhooks] = useState<WebhookSubscription[]>([]);
@@ -134,7 +134,8 @@ export function useWebhooks() {
       }
 
       const response = await apiClient.get(`/api/v1/webhooks/subscriptions?${params.toString()}`);
-      const enriched = response.data.map(enrichSubscription);
+      const data = (response.data || []) as any[];
+      const enriched = data.map(enrichSubscription);
       setWebhooks(enriched);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch webhooks';
@@ -162,7 +163,7 @@ export function useWebhooks() {
       delete (payload as Record<string, unknown>).name; // Remove from root level
 
       const response = await apiClient.post('/api/v1/webhooks/subscriptions', payload);
-      const enriched = enrichSubscription(response.data);
+      const enriched = enrichSubscription(response.data as any);
 
       setWebhooks(prev => [enriched, ...prev]);
       return enriched;
@@ -184,7 +185,7 @@ export function useWebhooks() {
 
     try {
       const response = await apiClient.patch(`/api/v1/webhooks/subscriptions/${id}`, data);
-      const enriched = enrichSubscription(response.data);
+      const enriched = enrichSubscription(response.data as any);
 
       setWebhooks(prev => prev.map(webhook => webhook.id === id ? enriched : webhook));
       return enriched;
@@ -254,7 +255,8 @@ export function useWebhooks() {
       const response = await apiClient.get('/api/v1/webhooks/events');
       // Transform backend format to UI format
       const events: AvailableEvents = {};
-      const eventsData = response.data.events as Array<{ event_type: string; description: string }>;
+      const responseData = response.data as { events: Array<{ event_type: string; description: string }> };
+      const eventsData = responseData.events;
       eventsData.forEach((event) => {
         events[event.event_type] = {
           name: event.event_type.split('.').map((s: string) =>
@@ -312,7 +314,8 @@ export function useWebhookDeliveries(subscriptionId: string) {
       const response = await apiClient.get(
         `/api/v1/webhooks/subscriptions/${subscriptionId}/deliveries?${params.toString()}`
       );
-      const enriched = response.data.map(enrichDelivery);
+      const deliveryData = (response.data || []) as any[];
+      const enriched = deliveryData.map(enrichDelivery);
       setDeliveries(enriched);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch deliveries';

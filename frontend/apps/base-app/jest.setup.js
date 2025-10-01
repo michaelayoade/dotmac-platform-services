@@ -28,6 +28,15 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
+// Mock useToast hook (migration from sonner)
+jest.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({
+    toast: jest.fn(),
+    dismiss: jest.fn(),
+    toasts: [],
+  }),
+}))
+
 // Set up global test environment
 global.fetch = jest.fn()
 

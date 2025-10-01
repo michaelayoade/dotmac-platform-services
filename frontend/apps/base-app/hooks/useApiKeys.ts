@@ -60,7 +60,8 @@ export function useApiKeys() {
       params.append('limit', limit.toString());
 
       const response = await apiClient.get(`/api/v1/auth/api-keys?${params.toString()}`);
-      setApiKeys(response.data.api_keys || []);
+      const data = response.data as { api_keys?: APIKey[] };
+      setApiKeys(data.api_keys || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch API keys';
       setError(errorMessage);
@@ -75,7 +76,7 @@ export function useApiKeys() {
 
     try {
       const response = await apiClient.post('/api/v1/auth/api-keys', data);
-      const newApiKey = response.data;
+      const newApiKey = response.data as APIKeyCreateResponse;
 
       setApiKeys(prev => [newApiKey, ...prev]);
       return newApiKey;
@@ -94,7 +95,7 @@ export function useApiKeys() {
 
     try {
       const response = await apiClient.patch(`/api/v1/auth/api-keys/${id}`, data);
-      const updatedKey = response.data;
+      const updatedKey = response.data as APIKey;
 
       setApiKeys(prev => prev.map(key => key.id === id ? updatedKey : key));
       return updatedKey;
@@ -126,10 +127,10 @@ export function useApiKeys() {
   const getAvailableScopes = useCallback(async (): Promise<AvailableScopes> => {
     try {
       const response = await apiClient.get('/api/v1/auth/api-keys/scopes/available');
-      return response.data || {};
+      return (response.data as AvailableScopes) || {} as AvailableScopes;
     } catch (err) {
       console.error('Failed to fetch available scopes:', err);
-      return {};
+      return {} as AvailableScopes;
     }
   }, []);
 

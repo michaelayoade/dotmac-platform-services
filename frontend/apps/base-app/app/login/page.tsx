@@ -53,8 +53,17 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-slate-950">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <Link href="/" className="inline-block text-sm text-slate-400 hover:text-slate-300 mb-4">
+            ← Back to home
+          </Link>
           <h1 className="text-3xl font-bold text-slate-50 mb-2">Welcome back</h1>
           <p className="text-slate-400">Sign in to your DotMac Platform account</p>
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-xs text-blue-300 font-medium">Test Credentials:</p>
+              <p className="text-xs text-blue-200 mt-1">admin@example.com / admin123</p>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-8 space-y-6" data-testid="login-form">

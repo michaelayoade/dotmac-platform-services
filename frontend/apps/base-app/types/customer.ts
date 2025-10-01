@@ -185,8 +185,8 @@ export type ActivityType =
 
 // Type guards
 export function isBusinessCustomer(customer: Customer): boolean {
-  return customer.customerType === CustomerTypes.BUSINESS ||
-         customer.customerType === CustomerTypes.ENTERPRISE;
+  return customer.customer_type === CustomerTypes.BUSINESS ||
+         customer.customer_type === CustomerTypes.ENTERPRISE;
 }
 
 export function isActiveCustomer(customer: Customer): boolean {

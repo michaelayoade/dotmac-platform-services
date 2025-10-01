@@ -429,7 +429,7 @@ export default function PluginsPage() {
                   plugin={plugin}
                   instances={pluginInstances.filter(inst => inst.plugin_name === plugin.name)}
                   onInstall={(plugin) => {
-                    setSelectedPlugin(plugin);
+                    setSelectedPlugin(plugin as any);
                     setShowCreateForm(true);
                   }}
                 />

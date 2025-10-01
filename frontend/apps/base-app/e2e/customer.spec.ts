@@ -29,7 +29,8 @@ test.describe('Customer Management', () => {
     // Check for customer data
     await page.waitForSelector('[data-testid="customer-row"]');
     const customerRows = page.locator('[data-testid="customer-row"]');
-    await expect(customerRows).toHaveCount({ minimum: 1 });
+    const count = await customerRows.count();
+    expect(count).toBeGreaterThanOrEqual(1);
   });
 
   test('should search for customers', async ({ page }) => {
@@ -172,7 +173,7 @@ test.describe('Customer Management', () => {
     await expect(page.locator('[data-testid="payment-method-card"]')).toContainText('•••• 4242');
   });
 
-  test('should export customer data', async ({ page, download }) => {
+  test('should export customer data', async ({ page }) => {
     // Trigger export
     const downloadPromise = page.waitForEvent('download');
     await page.click('[data-testid="export-customers"]');
@@ -295,7 +296,8 @@ test.describe('Customer Metrics and Analytics', () => {
 
     // Check for activity items
     const activities = page.locator('[data-testid="activity-item"]');
-    await expect(activities).toHaveCount({ minimum: 1 });
+    const activityCount = await activities.count();
+    expect(activityCount).toBeGreaterThanOrEqual(1);
 
     // Filter by activity type
     await page.selectOption('[data-testid="activity-filter"]', 'payment');

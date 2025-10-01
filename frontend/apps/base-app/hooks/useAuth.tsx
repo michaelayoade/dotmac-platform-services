@@ -46,10 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch user permissions from RBAC endpoint
         try {
           const permissionsResponse = await apiClient.get('/auth/rbac/my-permissions');
-          setPermissions(permissionsResponse.data);
+          setPermissions(permissionsResponse.data as UserPermissions);
           logger.info('User permissions loaded', {
             userId: response.data.id,
-            permissionCount: permissionsResponse.data?.effective_permissions?.length || 0
+            permissionCount: (permissionsResponse.data as UserPermissions)?.effective_permissions?.length || 0
           });
         } catch (permErr) {
           logger.error('Failed to fetch permissions', permErr instanceof Error ? permErr : new Error(String(permErr)));
@@ -81,10 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch permissions after successful login
         try {
           const permissionsResponse = await apiClient.get('/auth/rbac/my-permissions');
-          setPermissions(permissionsResponse.data);
+          setPermissions(permissionsResponse.data as UserPermissions);
           logger.info('User permissions loaded after login', {
             userId: response.data.user.id,
-            permissionCount: permissionsResponse.data?.effective_permissions?.length || 0
+            permissionCount: (permissionsResponse.data as UserPermissions)?.effective_permissions?.length || 0
           });
         } catch (permErr) {
           logger.error('Failed to fetch permissions after login', permErr instanceof Error ? permErr : new Error(String(permErr)));
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const response = await authService.register(data);
+      const response = await authService.register(data as any);
 
       if (response.success) {
         router.push('/login?registered=true');

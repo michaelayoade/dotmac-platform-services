@@ -7,18 +7,24 @@ global.fetch = jest.fn();
 describe('auth utilities', () => {
   beforeEach(() => {
     fetch.mockReset();
+    // Mock environment for testing
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:8000';
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
   });
 
   test('login sends credentials with cookie support', async () => {
     const mockJson = { success: true };
+    const mockHeaders = new Map();
+    mockHeaders.entries = jest.fn(() => [].entries());
+
     const mockResponse = {
       ok: true,
       json: jest.fn().mockResolvedValue(mockJson),
-      headers: new Map(),
+      headers: mockHeaders,
       status: 200,
     };
     fetch.mockResolvedValue(mockResponse);
@@ -27,8 +33,10 @@ describe('auth utilities', () => {
 
     const result = await login({ email: 'user@example.com', password: 'secret' });
 
+    // In test environment (jsdom), platformConfig.apiBaseUrl is '' (empty string for client-side)
+    // So we expect relative URLs
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/auth/login/cookie',
+      '/api/v1/auth/login/cookie',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -41,10 +49,14 @@ describe('auth utilities', () => {
   });
 
   test('login throws with API error detail', async () => {
+    const mockHeaders = new Map();
+    mockHeaders.entries = jest.fn(() => [].entries());
+
     const mockResponse = {
       ok: false,
       json: jest.fn().mockResolvedValue({ detail: 'Invalid username or password' }),
       status: 401,
+      headers: mockHeaders,
     };
     fetch.mockResolvedValue(mockResponse);
 
@@ -71,7 +83,7 @@ describe('auth utilities', () => {
     const result = await register({ email: 'user@example.com', password: 'secret', name: 'User' });
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/auth/register',
+      '/api/v1/auth/register',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -100,7 +112,7 @@ describe('auth utilities', () => {
     const result = await getCurrentUser();
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/auth/me',
+      '/api/v1/auth/me',
       { credentials: 'include' }
     );
     expect(result).toEqual(mockUser);
@@ -124,7 +136,7 @@ describe('auth utilities', () => {
     await logout();
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/auth/logout',
+      '/api/v1/auth/logout',
       { method: 'POST', credentials: 'include' }
     );
   });
@@ -137,7 +149,7 @@ describe('auth utilities', () => {
 
     await expect(isAuthenticated()).resolves.toBe(true);
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/auth/verify',
+      '/api/v1/auth/verify',
       { credentials: 'include' }
     );
   });

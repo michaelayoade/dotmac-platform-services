@@ -230,12 +230,12 @@ function CustomerOverview({ customer }: { customer: Customer }) {
         </div>
 
         {/* Address */}
-        {(customer.address_line1 || customer.city) && (
+        {(customer.address_line_1 || customer.city) && (
           <div className="bg-slate-800 rounded-lg p-6">
             <h4 className="text-lg font-semibold text-white mb-4">Address</h4>
             <div className="space-y-1 text-slate-300">
-              {customer.address_line1 && <p>{customer.address_line1}</p>}
-              {customer.address_line2 && <p>{customer.address_line2}</p>}
+              {customer.address_line_1 && <p>{customer.address_line_1}</p>}
+              {customer.address_line_2 && <p>{customer.address_line_2}</p>}
               {(customer.city || customer.state_province || customer.postal_code) && (
                 <p>
                   {[customer.city, customer.state_province, customer.postal_code].filter(Boolean).join(', ')}
@@ -296,7 +296,7 @@ export function CustomerDetailModal({ customer, onClose, onEdit, onDelete }: Cus
     const loadDetailedCustomer = async () => {
       try {
         const detailed = await getCustomer(customer.id, true, true);
-        setDetailedCustomer(detailed);
+        setDetailedCustomer(detailed as Customer);
       } catch (error) {
         logger.error('Failed to load detailed customer', error instanceof Error ? error : new Error(String(error)));
       }

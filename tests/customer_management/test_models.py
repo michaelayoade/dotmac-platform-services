@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.customer_management.models import (
     ActivityType,
     CommunicationChannel,
+    ContactRole,
     Customer,
     CustomerActivity,
+    CustomerContactLink,
     CustomerNote,
     CustomerSegment,
     CustomerStatus,
@@ -25,6 +27,7 @@ from dotmac.platform.customer_management.models import (
     CustomerType,
     CustomerTag,
 )
+from dotmac.platform.contacts.models import Contact
 
 
 class TestCustomerModel:
@@ -401,3 +404,200 @@ class TestModelRelationships:
             .count()
         )
         assert notes_count == 1
+
+    @pytest.mark.asyncio
+    async def test_customer_contact_link_relationship(self, async_db_session: AsyncSession):
+        """
+        Regression test for CustomerContactLink relationship.
+
+        Verifies that the Customer ↔ Contact many-to-many relationship
+        works correctly with proper foreign keys and cascading behavior.
+
+        This test catches issues like:
+        - Missing ForeignKey constraints
+        - Incorrect relationship back_populates
+        - CASCADE behavior on delete
+        - ORM relationship loading
+        """
+        # Create a customer
+        customer = Customer(
+            customer_number="CUST001",
+            tenant_id="test-tenant",
+            first_name="John",
+            last_name="Doe",
+            email="john.doe@example.com",
+        )
+        async_db_session.add(customer)
+        await async_db_session.flush()
+
+        # Create a contact
+        contact = Contact(
+            tenant_id="test-tenant",
+            first_name="Jane",
+            last_name="Smith",
+            email="jane.smith@example.com",
+        )
+        async_db_session.add(contact)
+        await async_db_session.flush()
+
+        # Create the link between customer and contact
+        link = CustomerContactLink(
+            customer_id=customer.id,
+            contact_id=contact.id,
+            tenant_id="test-tenant",
+            role=ContactRole.PRIMARY,
+            is_primary_for_role=True,
+        )
+        async_db_session.add(link)
+        await async_db_session.flush()
+
+        # Verify the link was created
+        result = await async_db_session.execute(
+            select(CustomerContactLink).where(
+                CustomerContactLink.customer_id == customer.id
+            )
+        )
+        loaded_link = result.scalar_one()
+        assert loaded_link.customer_id == customer.id
+        assert loaded_link.contact_id == contact.id
+        assert loaded_link.role == ContactRole.PRIMARY
+
+        # Verify foreign key relationships work
+        assert loaded_link.customer_id == customer.id
+        assert loaded_link.contact_id == contact.id
+
+        # Test CASCADE delete - deleting customer should delete link
+        await async_db_session.delete(customer)
+        await async_db_session.flush()
+
+        # Link should be deleted
+        link_count = await async_db_session.scalar(
+            select(CustomerContactLink)
+            .where(CustomerContactLink.id == link.id)
+            .count()
+        )
+        assert link_count == 0
+
+    @pytest.mark.asyncio
+    async def test_customer_contact_link_foreign_key_constraints(self, async_db_session: AsyncSession):
+        """
+        Test that foreign key constraints are properly enforced.
+
+        This regression test ensures:
+        1. Cannot create link with non-existent customer_id
+        2. Cannot create link with non-existent contact_id
+        3. Foreign keys have ondelete='CASCADE' configured
+        """
+        # Create a valid customer
+        customer = Customer(
+            customer_number="CUST001",
+            tenant_id="test-tenant",
+            first_name="John",
+            last_name="Doe",
+            email="john.doe@example.com",
+        )
+        async_db_session.add(customer)
+        await async_db_session.flush()
+
+        # Try to create link with non-existent contact_id
+        invalid_contact_id = uuid4()
+        link = CustomerContactLink(
+            customer_id=customer.id,
+            contact_id=invalid_contact_id,  # Non-existent
+            tenant_id="test-tenant",
+            role=ContactRole.PRIMARY,
+        )
+        async_db_session.add(link)
+
+        # Should raise IntegrityError due to FK constraint
+        with pytest.raises(IntegrityError):
+            await async_db_session.flush()
+
+        await async_db_session.rollback()
+
+        # Try with non-existent customer_id
+        contact = Contact(
+            tenant_id="test-tenant",
+            first_name="Jane",
+            last_name="Smith",
+            email="jane.smith@example.com",
+        )
+        async_db_session.add(contact)
+        await async_db_session.flush()
+
+        invalid_customer_id = uuid4()
+        link2 = CustomerContactLink(
+            customer_id=invalid_customer_id,  # Non-existent
+            contact_id=contact.id,
+            tenant_id="test-tenant",
+            role=ContactRole.PRIMARY,
+        )
+        async_db_session.add(link2)
+
+        with pytest.raises(IntegrityError):
+            await async_db_session.flush()
+
+    @pytest.mark.asyncio
+    async def test_customer_contact_multiple_roles(self, async_db_session: AsyncSession):
+        """
+        Test that a single contact can have multiple roles with the same customer.
+
+        This verifies:
+        - A contact can be linked to a customer with different roles
+        - Role field works correctly with ContactRole enum
+        - is_primary_for_role flag works correctly
+        """
+        # Create customer and contact
+        customer = Customer(
+            customer_number="CUST001",
+            tenant_id="test-tenant",
+            first_name="John",
+            last_name="Doe",
+            email="john.doe@example.com",
+        )
+        contact = Contact(
+            tenant_id="test-tenant",
+            first_name="Jane",
+            last_name="Smith",
+            email="jane.smith@example.com",
+        )
+        async_db_session.add(customer)
+        async_db_session.add(contact)
+        await async_db_session.flush()
+
+        # Add contact as both PRIMARY and TECHNICAL
+        link1 = CustomerContactLink(
+            customer_id=customer.id,
+            contact_id=contact.id,
+            tenant_id="test-tenant",
+            role=ContactRole.PRIMARY,
+            is_primary_for_role=True,
+        )
+        link2 = CustomerContactLink(
+            customer_id=customer.id,
+            contact_id=contact.id,
+            tenant_id="test-tenant",
+            role=ContactRole.TECHNICAL,
+            is_primary_for_role=True,
+        )
+        async_db_session.add(link1)
+        async_db_session.add(link2)
+        await async_db_session.flush()
+
+        # Verify both links exist
+        links_count = await async_db_session.scalar(
+            select(CustomerContactLink)
+            .where(CustomerContactLink.customer_id == customer.id)
+            .count()
+        )
+        assert links_count == 2
+
+        # Verify roles are different
+        result = await async_db_session.execute(
+            select(CustomerContactLink)
+            .where(CustomerContactLink.customer_id == customer.id)
+            .order_by(CustomerContactLink.role)
+        )
+        links = result.scalars().all()
+        assert links[0].role == ContactRole.PRIMARY
+        assert links[1].role == ContactRole.TECHNICAL

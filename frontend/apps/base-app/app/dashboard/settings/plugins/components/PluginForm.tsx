@@ -84,7 +84,7 @@ const DynamicField = ({
         return (
           <input
             type="text"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.description}
             className={baseInputClasses}
@@ -100,7 +100,7 @@ const DynamicField = ({
           <div className="relative">
             <input
               type={showSecrets[field.key] ? 'text' : 'password'}
-              value={value || ''}
+              value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               placeholder="Enter secret value"
               className={`${baseInputClasses} pr-10`}
@@ -123,7 +123,7 @@ const DynamicField = ({
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={value || false}
+              checked={(value as boolean) || false}
               onChange={(e) => onChange(e.target.checked)}
               className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-sky-500"
             />
@@ -135,7 +135,7 @@ const DynamicField = ({
         return (
           <input
             type="number"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
             placeholder={field.description}
             className={baseInputClasses}
@@ -150,7 +150,7 @@ const DynamicField = ({
         return (
           <input
             type="number"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
             placeholder={field.description}
             className={baseInputClasses}
@@ -164,7 +164,7 @@ const DynamicField = ({
       case 'select':
         return (
           <select
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             className={baseInputClasses}
             required={field.required}
@@ -181,7 +181,7 @@ const DynamicField = ({
       case 'json':
         return (
           <textarea
-            value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value || ''}
+            value={typeof value === 'object' ? JSON.stringify(value, null, 2) : (value as string) || ''}
             onChange={(e) => {
               try {
                 const parsed = JSON.parse(e.target.value);
@@ -201,7 +201,7 @@ const DynamicField = ({
         return (
           <input
             type="url"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder="https://example.com"
             className={baseInputClasses}
@@ -213,7 +213,7 @@ const DynamicField = ({
         return (
           <input
             type="email"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder="user@example.com"
             className={baseInputClasses}
@@ -225,7 +225,7 @@ const DynamicField = ({
         return (
           <input
             type="tel"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder="+1234567890"
             className={baseInputClasses}
@@ -239,7 +239,7 @@ const DynamicField = ({
           <div className="relative">
             <input
               type="date"
-              value={value || ''}
+              value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               className={`${baseInputClasses} pr-10`}
               required={field.required}
@@ -253,7 +253,7 @@ const DynamicField = ({
           <div className="relative">
             <input
               type="datetime-local"
-              value={value || ''}
+              value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               className={`${baseInputClasses} pr-10`}
               required={field.required}
@@ -290,7 +290,7 @@ const DynamicField = ({
             </div>
             {value && (
               <div className="text-xs text-slate-400 truncate">
-                {value.slice(0, 50)}...
+                {(value as string).slice(0, 50)}...
               </div>
             )}
           </div>
@@ -300,7 +300,7 @@ const DynamicField = ({
         return (
           <input
             type="text"
-            value={value || ''}
+            value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.description}
             className={baseInputClasses}
@@ -490,8 +490,8 @@ export const PluginForm = ({
     try {
       const result = await onTestConnection(instance?.id || '', configuration);
       setTestResult({
-        success: result.success,
-        message: result.message
+        success: result.success as boolean,
+        message: result.message as string
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Connection test failed';

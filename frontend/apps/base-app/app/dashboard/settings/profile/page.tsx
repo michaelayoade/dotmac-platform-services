@@ -395,45 +395,39 @@ export default function ProfileSettingsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="timezone">Timezone</Label>
-                      <Select
+                      <select
+                        id="timezone"
                         value={formData.timezone}
-                        onValueChange={(value) => setFormData({ ...formData, timezone: value })}
+                        onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
                         disabled={!isEditing}
+                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                       >
-                        <SelectTrigger id="timezone">
-                          <SelectValue placeholder="Select timezone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                          <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                          <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                          <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                          <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                          <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                          <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                        <option value="America/Denver">Mountain Time (MT)</option>
+                        <option value="America/Chicago">Central Time (CT)</option>
+                        <option value="America/New_York">Eastern Time (ET)</option>
+                        <option value="Europe/London">London (GMT)</option>
+                        <option value="Europe/Paris">Paris (CET)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                      </select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="language">Language</Label>
-                      <Select
+                      <select
+                        id="language"
                         value={formData.language}
-                        onValueChange={(value) => setFormData({ ...formData, language: value })}
+                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
                         disabled={!isEditing}
+                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                       >
-                        <SelectTrigger id="language">
-                          <SelectValue placeholder="Select language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="en-US">English (US)</SelectItem>
-                          <SelectItem value="en-GB">English (UK)</SelectItem>
-                          <SelectItem value="es-ES">Español</SelectItem>
-                          <SelectItem value="fr-FR">Français</SelectItem>
-                          <SelectItem value="de-DE">Deutsch</SelectItem>
-                          <SelectItem value="ja-JP">日本語</SelectItem>
-                          <SelectItem value="zh-CN">中文</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="en-US">English (US)</option>
+                        <option value="en-GB">English (UK)</option>
+                        <option value="es-ES">Español</option>
+                        <option value="fr-FR">Français</option>
+                        <option value="de-DE">Deutsch</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="zh-CN">中文</option>
+                      </select>
                     </div>
                   </div>
                 </div>

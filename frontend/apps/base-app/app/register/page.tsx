@@ -46,7 +46,7 @@ export default function RegisterPage() {
     <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-slate-950">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-50 mb-2">Create an account</h1>
+          <h1 className="text-3xl font-bold text-slate-50 mb-2">Create your account</h1>
           <p className="text-slate-400">Join the DotMac Platform</p>
         </div>
 
@@ -69,6 +69,7 @@ export default function RegisterPage() {
                 errors.full_name ? 'border-red-500' : 'border-slate-700'
               } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="John Doe"
+              data-testid="full-name-input"
             />
             {errors.full_name && (
               <p className="mt-1 text-sm text-red-400">{errors.full_name.message}</p>
@@ -83,10 +84,12 @@ export default function RegisterPage() {
               id="email"
               type="email"
               {...register('email')}
+              required
               className={`w-full px-3 py-2 bg-slate-800 border ${
                 errors.email ? 'border-red-500' : 'border-slate-700'
               } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="you@example.com"
+              data-testid="email-input"
             />
             {errors.email && (
               <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>
@@ -105,6 +108,7 @@ export default function RegisterPage() {
                 errors.password ? 'border-red-500' : 'border-slate-700'
               } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="••••••••"
+              data-testid="password-input"
             />
             {errors.password && (
               <p className="mt-1 text-sm text-red-400">{errors.password.message}</p>
@@ -126,6 +130,7 @@ export default function RegisterPage() {
                 errors.confirmPassword ? 'border-red-500' : 'border-slate-700'
               } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="••••••••"
+              data-testid="confirm-password-input"
             />
             {errors.confirmPassword && (
               <p className="mt-1 text-sm text-red-400">{errors.confirmPassword.message}</p>
@@ -136,6 +141,7 @@ export default function RegisterPage() {
             type="submit"
             disabled={loading}
             className="w-full py-3 px-4 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+            data-testid="submit-button"
           >
             {loading ? 'Creating account...' : 'Sign up'}
           </button>

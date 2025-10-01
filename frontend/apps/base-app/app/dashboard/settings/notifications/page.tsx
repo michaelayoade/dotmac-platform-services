@@ -184,17 +184,22 @@ export default function NotificationSettingsPage() {
   };
 
   const handleCategoryToggle = (channel: string, category: string, enabled: boolean) => {
-    setPreferences({
-      ...preferences,
-      [channel]: {
-        ...preferences[channel as keyof typeof preferences],
-        categories: {
-          ...preferences[channel as keyof typeof preferences].categories,
-          [category]: enabled,
+    const channelPrefs = preferences[channel as keyof typeof preferences];
+
+    // Type guard to check if channel has categories
+    if (channelPrefs && typeof channelPrefs === 'object' && 'categories' in channelPrefs) {
+      setPreferences({
+        ...preferences,
+        [channel]: {
+          ...channelPrefs,
+          categories: {
+            ...(channelPrefs.categories as Record<string, boolean>),
+            [category]: enabled,
+          },
         },
-      },
-    });
-    setHasChanges(true);
+      });
+      setHasChanges(true);
+    }
   };
 
   const handleQuietHoursToggle = (enabled: boolean) => {
@@ -319,26 +324,59 @@ export default function NotificationSettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Email Digest</Label>
-                  <RadioGroup
-                    value={preferences.email.digest}
-                    onValueChange={(value) => {
-                      setPreferences({
-                        ...preferences,
-                        email: { ...preferences.email, digest: value },
-                      });
-                      setHasChanges(true);
-                    }}
-                  >
+                  <RadioGroup>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="instant" id="instant" />
+                      <RadioGroupItem
+                        value="instant"
+                        id="instant"
+                        name="email-digest"
+                        checked={preferences.email.digest === 'instant'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPreferences({
+                              ...preferences,
+                              email: { ...preferences.email, digest: 'instant' },
+                            });
+                            setHasChanges(true);
+                          }
+                        }}
+                      />
                       <Label htmlFor="instant">Instant</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="daily" id="daily" />
+                      <RadioGroupItem
+                        value="daily"
+                        id="daily"
+                        name="email-digest"
+                        checked={preferences.email.digest === 'daily'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPreferences({
+                              ...preferences,
+                              email: { ...preferences.email, digest: 'daily' },
+                            });
+                            setHasChanges(true);
+                          }
+                        }}
+                      />
                       <Label htmlFor="daily">Daily Digest</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="weekly" id="weekly" />
+                      <RadioGroupItem
+                        value="weekly"
+                        id="weekly"
+                        name="email-digest"
+                        checked={preferences.email.digest === 'weekly'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPreferences({
+                              ...preferences,
+                              email: { ...preferences.email, digest: 'weekly' },
+                            });
+                            setHasChanges(true);
+                          }
+                        }}
+                      />
                       <Label htmlFor="weekly">Weekly Summary</Label>
                     </div>
                   </RadioGroup>
@@ -612,49 +650,43 @@ export default function NotificationSettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="quiet-start">Start Time</Label>
-                      <Select
+                      <select
+                        id="quiet-start"
                         value={preferences.quietHours.start}
-                        onValueChange={(value) => {
+                        onChange={(e) => {
                           setPreferences({
                             ...preferences,
-                            quietHours: { ...preferences.quietHours, start: value },
+                            quietHours: { ...preferences.quietHours, start: e.target.value },
                           });
                           setHasChanges(true);
                         }}
+                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                       >
-                        <SelectTrigger id="quiet-start">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="20:00">8:00 PM</SelectItem>
-                          <SelectItem value="21:00">9:00 PM</SelectItem>
-                          <SelectItem value="22:00">10:00 PM</SelectItem>
-                          <SelectItem value="23:00">11:00 PM</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="20:00">8:00 PM</option>
+                        <option value="21:00">9:00 PM</option>
+                        <option value="22:00">10:00 PM</option>
+                        <option value="23:00">11:00 PM</option>
+                      </select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quiet-end">End Time</Label>
-                      <Select
+                      <select
+                        id="quiet-end"
                         value={preferences.quietHours.end}
-                        onValueChange={(value) => {
+                        onChange={(e) => {
                           setPreferences({
                             ...preferences,
-                            quietHours: { ...preferences.quietHours, end: value },
+                            quietHours: { ...preferences.quietHours, end: e.target.value },
                           });
                           setHasChanges(true);
                         }}
+                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                       >
-                        <SelectTrigger id="quiet-end">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="06:00">6:00 AM</SelectItem>
-                          <SelectItem value="07:00">7:00 AM</SelectItem>
-                          <SelectItem value="08:00">8:00 AM</SelectItem>
-                          <SelectItem value="09:00">9:00 AM</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="06:00">6:00 AM</option>
+                        <option value="07:00">7:00 AM</option>
+                        <option value="08:00">8:00 AM</option>
+                        <option value="09:00">9:00 AM</option>
+                      </select>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">

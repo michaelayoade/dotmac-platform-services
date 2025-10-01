@@ -16,7 +16,7 @@ test.describe('Authentication Flow', () => {
     // Check form elements exist
     await expect(page.locator('[data-testid="email-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="password-input"]')).toBeVisible();
-    await expect(page.locator('[data-testid="login-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="submit-button"]')).toBeVisible();
 
     // Check heading text
     await expect(page.locator('h1')).toContainText('Welcome back');
@@ -28,7 +28,7 @@ test.describe('Authentication Flow', () => {
     // Fill in invalid credentials
     await page.fill('[data-testid="email-input"]', 'invalid@example.com');
     await page.fill('[data-testid="password-input"]', 'wrong_password');
-    await page.click('[data-testid="login-button"]');
+    await page.click('[data-testid="submit-button"]');
 
     // Check for error message
     await expect(page.locator('[data-testid="error-message"]')).toBeVisible();
@@ -40,7 +40,7 @@ test.describe('Authentication Flow', () => {
     // Fill in valid test credentials
     await page.fill('[data-testid="email-input"]', 'admin@example.com');
     await page.fill('[data-testid="password-input"]', 'admin123');
-    await page.click('[data-testid="login-button"]');
+    await page.click('[data-testid="submit-button"]');
 
     // Should redirect to dashboard
     await expect(page).toHaveURL(/.*dashboard/);
@@ -54,7 +54,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/login');
     await page.fill('[data-testid="email-input"]', 'admin@example.com');
     await page.fill('[data-testid="password-input"]', 'admin123');
-    await page.click('[data-testid="login-button"]');
+    await page.click('[data-testid="submit-button"]');
     await page.waitForURL(/.*dashboard/);
 
     // Click logout button
@@ -91,7 +91,7 @@ test.describe('Registration Flow', () => {
     // Check that registration form has expected elements
     await expect(page.locator('h1')).toContainText('Create your account');
     await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('input[type="password"]').first()).toBeVisible();
   });
 
   test('should fill registration form', async ({ page }) => {
@@ -139,7 +139,7 @@ test.describe('Additional Auth Features', () => {
     await page.fill('[data-testid="password-input"]', 'admin123');
 
     // Click login and check for loading state
-    const loginButton = page.locator('[data-testid="login-button"]');
+    const loginButton = page.locator('[data-testid="submit-button"]');
     await loginButton.click();
 
     // Button should show loading state briefly

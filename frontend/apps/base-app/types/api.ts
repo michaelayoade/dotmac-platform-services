@@ -44,13 +44,6 @@ export interface SearchParams extends PaginationParams {
   filters?: Record<string, unknown>;
 }
 
-// Auth types for API
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken?: string;
-  expiresIn?: number;
-}
-
 export interface ApiClientConfig {
   baseURL: string;
   timeout?: number;

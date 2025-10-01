@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Customer, CustomerCreateRequest, CustomerUpdateRequest } from '@/types';
+import { Customer, CustomerCreateInput, CustomerUpdateInput } from '@/types';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys, optimisticHelpers, invalidateHelpers } from '@/lib/query-client';
 import { logger } from '@/lib/utils/logger';
@@ -37,25 +37,25 @@ const customerApi = {
     if (filters?.limit) params.append('limit', filters.limit.toString());
 
     const response = await apiClient.get(`/customers?${params.toString()}`);
-    return response.data;
+    return response.data as Customer[];
   },
 
   // Fetch single customer
   fetchCustomer: async (id: string): Promise<Customer> => {
     const response = await apiClient.get(`/customers/${id}`);
-    return response.data;
+    return response.data as Customer;
   },
 
   // Create customer
-  createCustomer: async (data: CustomerCreateRequest): Promise<Customer> => {
+  createCustomer: async (data: CustomerCreateInput): Promise<Customer> => {
     const response = await apiClient.post('/customers', data);
-    return response.data;
+    return response.data as Customer;
   },
 
   // Update customer
-  updateCustomer: async ({ id, ...data }: CustomerUpdateRequest & { id: string }): Promise<Customer> => {
+  updateCustomer: async ({ id, ...data }: CustomerUpdateInput & { id: string }): Promise<Customer> => {
     const response = await apiClient.put(`/customers/${id}`, data);
-    return response.data;
+    return response.data as Customer;
   },
 
   // Delete customer
@@ -121,6 +121,7 @@ export function useCustomer(id: string, enabled = true) {
  */
 export function useCreateCustomer() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: customerApi.createCustomer,
@@ -195,6 +196,7 @@ export function useCreateCustomer() {
  */
 export function useUpdateCustomer() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: customerApi.updateCustomer,
@@ -265,6 +267,7 @@ export function useUpdateCustomer() {
  */
 export function useDeleteCustomer() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: customerApi.deleteCustomer,
@@ -343,6 +346,7 @@ export function useCustomerNotes(customerId: string, enabled = true) {
  */
 export function useAddCustomerNote(customerId: string) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: (note: string) => customerApi.addCustomerNote(customerId, note),

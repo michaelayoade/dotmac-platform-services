@@ -54,7 +54,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
     try {
       const response = await apiClient.get('/api/v1/users');
       if (response.success && response.data) {
-        setUsers(response.data);
+        setUsers(response.data as User[]);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -67,7 +67,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
       setLoading(true);
       const response = await apiClient.get(`/api/v1/rbac/roles/${role.name}/users`);
       if (response.success && response.data) {
-        setAssignedUsers(response.data);
+        setAssignedUsers(response.data as (User & UserRoleAssignment)[]);
       }
     } catch (error) {
       console.error('Error fetching role assignments:', error);

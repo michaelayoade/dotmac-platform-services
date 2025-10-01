@@ -75,7 +75,7 @@ interface Integration {
   name: string;
   description: string;
   category: string;
-  icon: React.ElementType;
+  icon: React.ForwardRefExoticComponent<Omit<import('lucide-react').LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>;
   status?: string;
   connectedAt?: string;
   lastSync?: string;
@@ -235,8 +235,8 @@ const mockApiKeys = [
 export default function IntegrationsPage() {
   const { toast } = useToast();
 
-  const [connectedIntegrations, setConnectedIntegrations] = useState(mockIntegrations.connected);
-  const [availableIntegrations] = useState(mockIntegrations.available);
+  const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>(mockIntegrations.connected);
+  const [availableIntegrations] = useState<Integration[]>(mockIntegrations.available);
   const [webhooks, setWebhooks] = useState(mockWebhooks);
   const [apiKeys, setApiKeys] = useState(mockApiKeys);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
@@ -266,12 +266,13 @@ export default function IntegrationsPage() {
   const handleCompleteConnection = () => {
     if (!selectedIntegration) return;
 
-    const newConnection = {
+    const newConnection: Integration = {
       ...selectedIntegration,
       status: 'active',
       connectedAt: new Date().toISOString(),
       lastSync: new Date().toISOString(),
       config: {},
+      error: undefined,
     };
 
     setConnectedIntegrations([...connectedIntegrations, newConnection]);
@@ -405,7 +406,7 @@ export default function IntegrationsPage() {
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onClick={() => document.querySelector('[value="available"]')?.click()}
+                  onClick={() => (document.querySelector('[value="available"]') as HTMLElement)?.click()}
                 >
                   Browse Integrations
                 </Button>
@@ -431,12 +432,12 @@ export default function IntegrationsPage() {
                           </div>
                         </div>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                          <DropdownMenuTrigger>
                             <Button variant="ghost" className="h-8 w-8 p-0">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent>
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
@@ -493,7 +494,7 @@ export default function IntegrationsPage() {
                             <div key={key} className="flex items-center justify-between text-xs">
                               <span className="text-gray-500 capitalize">{key}:</span>
                               <span className="font-mono">
-                                {Array.isArray(value) ? value.length : value}
+                                {Array.isArray(value) ? value.length : String(value)}
                               </span>
                             </div>
                           ))}
@@ -652,12 +653,12 @@ export default function IntegrationsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger>
                               <Button variant="ghost" className="h-8 w-8 p-0">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent>
                               <DropdownMenuItem onClick={() => handleToggleWebhook(webhook.id)}>
                                 {webhook.status === 'active' ? (
                                   <>

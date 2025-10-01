@@ -3,9 +3,41 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { PluginForm } from '../../app/dashboard/settings/plugins/components/PluginForm';
 
-const mockPlugin = {
+// Import types for proper typing
+type PluginConfig = {
+  name: string;
+  type: 'notification' | 'integration' | 'payment' | 'storage';
+  version: string;
+  description: string;
+  author?: string;
+  homepage?: string;
+  tags?: string[];
+  dependencies?: string[];
+  supports_health_check: boolean;
+  supports_test_connection: boolean;
+  fields: Array<{
+    key: string;
+    label: string;
+    type: 'string' | 'secret' | 'boolean' | 'integer' | 'float' | 'select' | 'json' | 'url' | 'email' | 'phone' | 'date' | 'datetime' | 'file';
+    description?: string;
+    required?: boolean;
+    is_secret?: boolean;
+    default?: unknown;
+    min_value?: number;
+    max_value?: number;
+    min_length?: number;
+    max_length?: number;
+    pattern?: string;
+    validation_rules?: string[];
+    options?: Array<{ value: string; label: string }>;
+    group?: string;
+    order?: number;
+  }>;
+};
+
+const mockPlugin: PluginConfig = {
   name: "Coverage Plugin",
-  type: "integration" as const,
+  type: "integration",
   version: "1.0.0",
   description: "Test plugin for coverage",
   supports_health_check: true,
@@ -14,14 +46,14 @@ const mockPlugin = {
     {
       key: "secret_field",
       label: "Secret Field",
-      type: "secret" as const,
+      type: "secret",
       description: "Secret field for testing",
       required: true
     },
     {
       key: "boolean_field",
       label: "Boolean Field",
-      type: "boolean" as const,
+      type: "boolean",
       description: "Boolean field for testing",
       required: false,
       default: true
@@ -29,7 +61,7 @@ const mockPlugin = {
     {
       key: "integer_field",
       label: "Integer Field",
-      type: "integer" as const,
+      type: "integer",
       description: "Integer field",
       required: false,
       min_value: 1,
@@ -38,7 +70,7 @@ const mockPlugin = {
     {
       key: "float_field",
       label: "Float Field",
-      type: "float" as const,
+      type: "float",
       description: "Float field",
       required: false,
       min_value: 0.1,
@@ -47,43 +79,47 @@ const mockPlugin = {
     {
       key: "select_field",
       label: "Select Field",
-      type: "select" as const,
+      type: "select",
       description: "Select field",
       required: false,
-      options: ["option1", "option2", "option3"]
+      options: [
+        { value: "option1", label: "Option 1" },
+        { value: "option2", label: "Option 2" },
+        { value: "option3", label: "Option 3" }
+      ]
     },
     {
       key: "url_field",
       label: "URL Field",
-      type: "url" as const,
+      type: "url",
       description: "URL field",
       required: false
     },
     {
       key: "email_field",
       label: "Email Field",
-      type: "email" as const,
+      type: "email",
       description: "Email field",
       required: false
     },
     {
       key: "phone_field",
       label: "Phone Field",
-      type: "phone" as const,
+      type: "phone",
       description: "Phone field",
       required: false
     },
     {
       key: "date_field",
       label: "Date Field",
-      type: "date" as const,
+      type: "date",
       description: "Date field",
       required: false
     },
     {
       key: "datetime_field",
       label: "DateTime Field",
-      type: "datetime" as const,
+      type: "datetime",
       description: "DateTime field",
       required: false
     }

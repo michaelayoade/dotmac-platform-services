@@ -33,10 +33,12 @@ export const useHealth = () => {
     try {
       const response = await apiClient.get<HealthSummary>('/health/ready');
 
-      if (response.success && response.data) {
+      if ('success' in response && (response as any).success && (response as any).data) {
+        setHealth((response as any).data);
+      } else if ('error' in response && (response as any).error) {
+        setError((response as any).error.message);
+      } else if (response.data) {
         setHealth(response.data);
-      } else if (response.error) {
-        setError(response.error.message);
       }
     } catch (err) {
       logger.error('Failed to fetch health data', err instanceof Error ? err : new Error(String(err)));

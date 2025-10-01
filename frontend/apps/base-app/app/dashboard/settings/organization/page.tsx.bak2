@@ -398,37 +398,43 @@ export default function OrganizationSettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-industry">Industry</Label>
-                  <select
-                    id="org-industry"
+                  <Select
                     value={formData.industry}
-                    onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, industry: value })}
                     disabled={!isEditing}
-                    className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                   >
-                    <option value="Technology">Technology</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Education">Education</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Manufacturing">Manufacturing</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    <SelectTrigger id="org-industry">
+                      <SelectValue placeholder="Select industry" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Technology">Technology</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                      <SelectItem value="Healthcare">Healthcare</SelectItem>
+                      <SelectItem value="Education">Education</SelectItem>
+                      <SelectItem value="Retail">Retail</SelectItem>
+                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-size">Company Size</Label>
-                  <select
-                    id="org-size"
+                  <Select
                     value={formData.size}
-                    onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, size: value })}
                     disabled={!isEditing}
-                    className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
                   >
-                    <option value="1-10">1-10 employees</option>
-                    <option value="11-50">11-50 employees</option>
-                    <option value="50-200">50-200 employees</option>
-                    <option value="200-500">200-500 employees</option>
-                    <option value="500+">500+ employees</option>
-                  </select>
+                    <SelectTrigger id="org-size">
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1-10">1-10 employees</SelectItem>
+                      <SelectItem value="11-50">11-50 employees</SelectItem>
+                      <SelectItem value="50-200">50-200 employees</SelectItem>
+                      <SelectItem value="200-500">200-500 employees</SelectItem>
+                      <SelectItem value="500+">500+ employees</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-founded">Founded Year</Label>
@@ -571,21 +577,19 @@ export default function OrganizationSettingsPage() {
                       <TableCell>{member.lastActive}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
-                          <DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
+                          <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
-                                if (member.role !== 'Owner') {
-                                  setSelectedMember(member);
-                                  setIsMemberEditOpen(true);
-                                }
+                                setSelectedMember(member);
+                                setIsMemberEditOpen(true);
                               }}
-                              className={member.role === 'Owner' ? 'opacity-50 cursor-not-allowed' : ''}
+                              disabled={member.role === 'Owner'}
                             >
                               <Edit className="h-4 w-4 mr-2" />
                               Edit Role
@@ -597,12 +601,9 @@ export default function OrganizationSettingsPage() {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
-                              onClick={() => {
-                                if (member.role !== 'Owner') {
-                                  handleRemoveMember(member.id);
-                                }
-                              }}
-                              className={`text-red-600 ${member.role === 'Owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              onClick={() => handleRemoveMember(member.id)}
+                              disabled={member.role === 'Owner'}
+                              className="text-red-600"
                             >
                               <UserMinus className="h-4 w-4 mr-2" />
                               Remove
@@ -699,12 +700,12 @@ export default function OrganizationSettingsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
-                          <DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
+                          <DropdownMenuContent align="end">
                             <DropdownMenuItem>
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
@@ -813,16 +814,18 @@ export default function OrganizationSettingsPage() {
                   <Label>Session timeout</Label>
                   <p className="text-sm text-gray-500">Automatically log out inactive users</p>
                 </div>
-                <select
-                  defaultValue="30"
-                  className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
-                >
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="240">4 hours</option>
-                  <option value="never">Never</option>
-                </select>
+                <Select defaultValue="30">
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="240">4 hours</SelectItem>
+                    <SelectItem value="never">Never</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -878,13 +881,13 @@ export default function OrganizationSettingsPage() {
             <div className="space-y-2">
               <Label htmlFor="invite-role">Role</Label>
               <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
-              >
-                <option value="Member">Member</option>
-                <option value="Admin">Admin</option>
-              </select>
+  value={inviteRole}
+  onChange={setInviteRole}
+  className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+>
+                  <option value="Member">Member</option>
+                  <option value="Admin">Admin</option>
+                </select>
             </div>
           </div>
           <DialogFooter>
@@ -911,15 +914,18 @@ export default function OrganizationSettingsPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-role">Role</Label>
-                <select
-                  id="edit-role"
+                <Select
                   value={selectedMember.role}
-                  onChange={(e) => setSelectedMember({ ...selectedMember, role: e.target.value })}
-                  className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                  onValueChange={(value) => setSelectedMember({ ...selectedMember, role: value })}
                 >
-                  <option value="Member">Member</option>
-                  <option value="Admin">Admin</option>
-                </select>
+                  <SelectTrigger id="edit-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Member">Member</SelectItem>
+                    <SelectItem value="Admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -955,19 +961,21 @@ export default function OrganizationSettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="dept-head">Department Head</Label>
-              <select
-                id="dept-head"
+              <Select
                 value={newDepartment.head}
-                onChange={(e) => setNewDepartment({ ...newDepartment, head: e.target.value })}
-                className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                onValueChange={(value) => setNewDepartment({ ...newDepartment, head: value })}
               >
-                <option value="">Select head</option>
-                {members.filter(m => m.status === 'active').map(member => (
-                  <option key={member.id} value={member.name}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="dept-head">
+                  <SelectValue placeholder="Select head" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.filter(m => m.status === 'active').map(member => (
+                    <SelectItem key={member.id} value={member.name}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

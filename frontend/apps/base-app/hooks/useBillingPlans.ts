@@ -83,10 +83,12 @@ export const useBillingPlans = () => {
         `/api/v1/billing/subscriptions/plans?${params.toString()}`
       );
 
-      if (response.success && response.data) {
+      if ((response as any).success && (response as any).data) {
+        setPlans((response as any).data);
+      } else if ((response as any).error) {
+        setError((response as any).error.message);
+      } else if (Array.isArray(response.data)) {
         setPlans(response.data);
-      } else if (response.error) {
-        setError(response.error.message);
       }
     } catch (err) {
       logger.error('Failed to fetch billing plans', err instanceof Error ? err : new Error(String(err)));
@@ -103,7 +105,9 @@ export const useBillingPlans = () => {
         `/api/v1/billing/catalog/products${params}`
       );
 
-      if (response.success && response.data) {
+      if ((response as any).success && (response as any).data) {
+        setProducts((response as any).data);
+      } else if (Array.isArray(response.data)) {
         setProducts(response.data);
       }
     } catch (err) {
@@ -115,8 +119,11 @@ export const useBillingPlans = () => {
     try {
       const response = await apiClient.post('/api/v1/billing/subscriptions/plans', planData);
 
-      if (response.success && response.data) {
+      if ((response as any).success && (response as any).data) {
         await fetchPlans(); // Refresh list
+        return (response as any).data;
+      } else if (response.data) {
+        await fetchPlans();
         return response.data;
       }
       return null;
@@ -130,7 +137,7 @@ export const useBillingPlans = () => {
     try {
       const response = await apiClient.patch(`/api/v1/billing/subscriptions/plans/${planId}`, updates);
 
-      if (response.success) {
+      if ((response as any).success || response.data) {
         await fetchPlans(); // Refresh list
         return true;
       }
@@ -145,7 +152,7 @@ export const useBillingPlans = () => {
     try {
       const response = await apiClient.delete(`/api/v1/billing/subscriptions/plans/${planId}`);
 
-      if (response.success) {
+      if ((response as any).success || response.status === 204) {
         setPlans(prev => prev.filter(plan => plan.plan_id !== planId));
         return true;
       }

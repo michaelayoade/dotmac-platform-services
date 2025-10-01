@@ -484,13 +484,13 @@ class CustomerContactLink(Base, TimestampMixin, TenantMixin):
         index=True,
     )
 
-    # Contact reference - nullable for testing without contacts module
+    # Contact reference
     contact_id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True),
-        # FK will be added in migration when contacts module is available
+        ForeignKey("contacts.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="FK to contacts.id - constraint added when both modules are deployed"
+        comment="FK to contacts.id"
     )
 
     # Role this contact has for this customer
@@ -513,8 +513,7 @@ class CustomerContactLink(Base, TimestampMixin, TenantMixin):
 
     # Relationships
     customer = relationship("Customer", back_populates="contact_links")
-    # Contact relationship will be added when contacts module is fully integrated
-    # contact = relationship("Contact", back_populates="customer_links")
+    contact = relationship("Contact", back_populates="customer_links")
 
     __table_args__ = (
         UniqueConstraint("customer_id", "contact_id", "role", name="uq_customer_contact_role"),

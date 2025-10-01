@@ -81,7 +81,7 @@ function AddNoteModal({ onClose, onAdd }: AddNoteModalProps) {
 
     setLoading(true);
     try {
-      await onAdd(formData);
+      await onAdd(formData as any);
       onClose();
     } catch (error) {
       logger.error('Failed to add note', error instanceof Error ? error : new Error(String(error)));
@@ -269,13 +269,13 @@ function formatDate(dateString: string): string {
 function NoteItem({ note }: { note: CustomerNote }) {
   return (
     <div className="flex gap-3 p-4 bg-slate-800 rounded-lg">
-      <NoteIcon note_type={note.note_type} />
+      <NoteIcon note_type={(note as any).note_type || 'general'} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-slate-500 capitalize">
-                {note.note_type.replace(/_/g, ' ')}
+                {((note as any).note_type || 'general').replace(/_/g, ' ')}
               </span>
               {note.is_internal && (
                 <div className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-full text-xs">
@@ -287,9 +287,9 @@ function NoteItem({ note }: { note: CustomerNote }) {
             <div className="text-sm text-white whitespace-pre-wrap mb-2">
               {note.content}
             </div>
-            {note.tags && note.tags.length > 0 && (
+            {(note as any).tags && (note as any).tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-2">
-                {note.tags.map((tag, index) => (
+                {(note as any).tags.map((tag: string, index: number) => (
                   <span
                     key={index}
                     className="inline-flex items-center px-2 py-0.5 bg-slate-700 text-slate-300 rounded text-xs"
@@ -299,11 +299,11 @@ function NoteItem({ note }: { note: CustomerNote }) {
                 ))}
               </div>
             )}
-            {note.metadata && Object.keys(note.metadata).length > 0 && (
+            {(note as any).metadata && Object.keys((note as any).metadata).length > 0 && (
               <div className="mt-2">
                 <div className="text-xs text-slate-500 mb-1">Additional Details:</div>
                 <div className="bg-slate-700 rounded p-2 text-xs text-slate-300">
-                  {Object.entries(note.metadata).map(([key, value]) => (
+                  {Object.entries((note as any).metadata).map(([key, value]) => (
                     <div key={key} className="flex justify-between">
                       <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
                       <span>{String(value)}</span>
@@ -359,9 +359,9 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
 
     const matchesSearch = !searchQuery ||
       note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
+      ((note as any).tags && (note as any).tags.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase())));
 
-    const matchesType = noteTypeFilter === 'all' || note.note_type === noteTypeFilter;
+    const matchesType = noteTypeFilter === 'all' || (note as any).note_type === noteTypeFilter;
 
     return matchesVisibility && matchesSearch && matchesType;
   });

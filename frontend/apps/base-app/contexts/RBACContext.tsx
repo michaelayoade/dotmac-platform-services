@@ -114,28 +114,28 @@ const rbacApi = {
   fetchPermissions: async (category?: PermissionCategory): Promise<Permission[]> => {
     const params = category ? `?category=${category}` : '';
     const response = await apiClient.get(`/api/v1/auth/rbac/permissions${params}`);
-    return response.data;
+    return response.data as Permission[];
   },
 
   fetchPermission: async (name: string): Promise<Permission> => {
     const response = await apiClient.get(`/api/v1/auth/rbac/permissions/${name}`);
-    return response.data;
+    return response.data as Permission;
   },
 
   // Roles
   fetchRoles: async (activeOnly = true): Promise<Role[]> => {
     const response = await apiClient.get(`/api/v1/auth/rbac/roles?active_only=${activeOnly}`);
-    return response.data;
+    return response.data as Role[];
   },
 
   createRole: async (data: RoleCreateRequest): Promise<Role> => {
     const response = await apiClient.post('/api/v1/auth/rbac/roles', data);
-    return response.data;
+    return response.data as Role;
   },
 
   updateRole: async (name: string, data: RoleUpdateRequest): Promise<Role> => {
     const response = await apiClient.patch(`/api/v1/auth/rbac/roles/${name}`, data);
-    return response.data;
+    return response.data as Role;
   },
 
   deleteRole: async (name: string): Promise<void> => {
@@ -145,12 +145,12 @@ const rbacApi = {
   // User permissions
   fetchMyPermissions: async (): Promise<UserPermissions> => {
     const response = await apiClient.get('/api/v1/auth/rbac/my-permissions');
-    return response.data;
+    return response.data as UserPermissions;
   },
 
   fetchUserPermissions: async (userId: string): Promise<UserPermissions> => {
     const response = await apiClient.get(`/api/v1/auth/rbac/users/${userId}/permissions`);
-    return response.data;
+    return response.data as UserPermissions;
   },
 
   assignRoleToUser: async (data: UserRoleAssignment): Promise<void> => {

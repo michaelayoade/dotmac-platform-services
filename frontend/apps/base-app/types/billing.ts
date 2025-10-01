@@ -131,7 +131,7 @@ export interface UsageItem {
 }
 
 // Product catalog types
-export interface Product extends BaseEntity, WithMetadata {
+export interface Product extends BaseEntitySnake, WithMetadata {
   id: string;
   name: string;
   description?: string;
@@ -196,7 +196,7 @@ export interface ProductImage {
 }
 
 // Payment types
-export interface Payment extends BaseEntity, WithMetadata {
+export interface Payment extends BaseEntitySnake, WithMetadata {
   id: string;
   customerId: CustomerID;
   amount: Money;
@@ -262,17 +262,17 @@ export type DiscountType = 'percentage' | 'fixed' | 'trial';
 
 // Input types using utilities
 export type InvoiceCreateInput = RequiredBy<
-  PartialBy<Invoice, 'id' | 'invoiceNumber' | 'createdAt' | 'updatedAt' | 'amountDue' | 'amountPaid'>,
-  'customerId' | 'issueDate' | 'dueDate' | 'lineItems'
+  PartialBy<Invoice, 'invoice_id' | 'invoice_number' | 'created_at' | 'updated_at' | 'amount_due' | 'amount_paid'>,
+  'customer_id' | 'due_date' | 'line_items'
 >;
 
 export type SubscriptionCreateInput = RequiredBy<
-  PartialBy<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
-  'customerId' | 'planId' | 'startDate'
+  PartialBy<Subscription, 'id' | 'created_at' | 'updated_at' | 'status'>,
+  'customer_id' | 'plan_id' | 'startDate'
 >;
 
 export type ProductCreateInput = RequiredBy<
-  PartialBy<Product, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+  PartialBy<Product, 'id' | 'created_at' | 'updated_at' | 'status'>,
   'name' | 'type' | 'pricing'
 >;
 

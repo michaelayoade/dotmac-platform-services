@@ -57,7 +57,8 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
 
       const response = await apiClient.get('/api/v1/billing/invoices');
       if (response.success && response.data) {
-        setInvoices(response.data.invoices || []);
+        const data = response.data as { invoices?: Invoice[] };
+        setInvoices(data.invoices || []);
       } else {
         throw new Error(response.error?.message || 'Failed to fetch invoices');
       }

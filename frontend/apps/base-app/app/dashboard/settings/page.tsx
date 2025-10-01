@@ -208,11 +208,11 @@ function SettingsHubPageContent() {
         apiClient.get('/api/v1/organization').catch(() => ({ success: false }))
       ]);
 
-      if (userResponse.success) {
-        setUser(userResponse.data);
+      if (userResponse.success && 'data' in userResponse) {
+        setUser(userResponse.data as Record<string, unknown>);
       }
-      if (orgResponse.success) {
-        setOrganization(orgResponse.data);
+      if (orgResponse.success && 'data' in orgResponse) {
+        setOrganization(orgResponse.data as Record<string, unknown>);
       }
     } catch (err) {
       console.error('Failed to fetch settings data:', err);
@@ -225,7 +225,7 @@ function SettingsHubPageContent() {
     { label: 'Active Sessions', value: 3, icon: Smartphone },
     { label: 'API Calls Today', value: '1,234', icon: Zap },
     { label: 'Storage Used', value: '2.3 GB', icon: Cloud },
-    { label: 'Team Members', value: organization?.memberCount || 5, icon: Users }
+    { label: 'Team Members', value: (organization?.memberCount as number) || 5, icon: Users }
   ];
 
   return (
@@ -251,15 +251,15 @@ function SettingsHubPageContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white font-semibold text-lg">
-                  {user.username?.charAt(0).toUpperCase() || 'U'}
+                  {(user.username as string)?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">{user.full_name || user.username}</h2>
-                  <p className="text-sm text-slate-400">{user.email}</p>
+                  <h2 className="text-lg font-semibold text-white">{(user.full_name || user.username) as string}</h2>
+                  <p className="text-sm text-slate-400">{user.email as string}</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    Organization: {organization?.name || 'Personal'} •
-                    Plan: {organization?.plan || 'Free'} •
-                    Role: {user.roles?.join(', ') || 'User'}
+                    Organization: {(organization?.name as string) || 'Personal'} •
+                    Plan: {(organization?.plan as string) || 'Free'} •
+                    Role: {(user.roles as string[])?.join(', ') || 'User'}
                   </p>
                 </div>
               </div>

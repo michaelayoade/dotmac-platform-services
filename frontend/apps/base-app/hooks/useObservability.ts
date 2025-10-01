@@ -185,6 +185,7 @@ export function useTraces(filters: TracesFilter = {}) {
 }
 
 export function useMetrics(metricNames?: string[]) {
+  const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricSeries[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -233,6 +234,7 @@ export function useMetrics(metricNames?: string[]) {
 }
 
 export function useServiceMap() {
+  const { toast } = useToast();
   const [serviceMap, setServiceMap] = useState<ServiceMapResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -272,6 +274,7 @@ export function useServiceMap() {
 }
 
 export function usePerformance() {
+  const { toast } = useToast();
   const [performance, setPerformance] = useState<PerformanceResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

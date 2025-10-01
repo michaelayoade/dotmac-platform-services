@@ -62,7 +62,7 @@ export const useCustomers = () => {
   const fetchMetrics = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/v1/customers/metrics/overview');
-      setMetrics(response.data);
+      setMetrics(response.data as CustomerMetrics);
     } catch (err) {
       logger.error('Failed to fetch metrics', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch customer metrics');
@@ -79,10 +79,10 @@ export const useCustomers = () => {
       const response = await apiClient.post('/api/v1/customers/search', {
         ...params,
         page: params.page || 1,
-        page_size: params.page_size || 50,
+        page_size: (params as any).page_size || params.pageSize || 50,
       });
 
-      const data = response.data;
+      const data = response.data as any;
       setCustomers(data.customers || []);
       setPagination({
         total: data.total || 0,
@@ -108,7 +108,7 @@ export const useCustomers = () => {
 
     try {
       const response = await apiClient.post('/api/v1/customers/', customerData);
-      return response.data;
+      return response.data as Customer;
     } catch (err) {
       logger.error('Failed to create customer', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to create customer');
@@ -126,7 +126,7 @@ export const useCustomers = () => {
 
     try {
       const response = await apiClient.patch(`/api/v1/customers/${customerId}`, customerData);
-      const updatedCustomer = response.data;
+      const updatedCustomer = response.data as Customer;
 
       // Update the customer in the local state
       setCustomers(prev =>
@@ -240,7 +240,7 @@ export const useCustomerActivities = (customerId: string) => {
       const url = `/api/v1/customers/${customerId}/activities?${queryString}`;
 
       const response = await apiClient.get(url);
-      setActivities(response.data || []);
+      setActivities((response.data as CustomerActivity[]) || []);
     } catch (err) {
       logger.error('Failed to fetch activities', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch activities');
@@ -256,7 +256,7 @@ export const useCustomerActivities = (customerId: string) => {
 
     try {
       const response = await apiClient.post(`/api/v1/customers/${customerId}/activities`, activityData);
-      const newActivity = response.data;
+      const newActivity = response.data as CustomerActivity;
       setActivities(prev => [newActivity, ...prev]);
       return newActivity;
     } catch (err) {
@@ -304,7 +304,7 @@ export const useCustomerNotes = (customerId: string) => {
       const url = `/api/v1/customers/${customerId}/notes?${queryString}`;
 
       const response = await apiClient.get(url);
-      setNotes(response.data || []);
+      setNotes((response.data as CustomerNote[]) || []);
     } catch (err) {
       logger.error('Failed to fetch notes', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch notes');
@@ -320,7 +320,7 @@ export const useCustomerNotes = (customerId: string) => {
 
     try {
       const response = await apiClient.post(`/api/v1/customers/${customerId}/notes`, noteData);
-      const newNote = response.data;
+      const newNote = response.data as CustomerNote;
       setNotes(prev => [newNote, ...prev]);
       return newNote;
     } catch (err) {

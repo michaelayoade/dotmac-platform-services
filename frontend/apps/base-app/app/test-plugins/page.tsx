@@ -270,7 +270,7 @@ export default function TestPluginsPage() {
                 plugin={mockWhatsAppPlugin}
                 instances={mockInstances}
                 onInstall={(plugin) => {
-                  setSelectedPlugin(plugin);
+                  setSelectedPlugin(plugin as unknown as Record<string, unknown>);
                   setShowForm(true);
                 }}
               />
@@ -304,7 +304,7 @@ export default function TestPluginsPage() {
         {/* Form Modal */}
         {showForm && (
           <PluginForm
-            plugin={selectedPlugin}
+            plugin={selectedPlugin as any}
             availablePlugins={mockAvailablePlugins}
             onSubmit={handleSubmit}
             onCancel={() => {

@@ -81,6 +81,15 @@ export default function DashboardPage() {
     }
   };
 
+  const handleProfileClick = async () => {
+    // Trigger /api/v1/auth/me API call for testing
+    try {
+      await getCurrentUser();
+    } catch (err) {
+      logger.error('Failed to fetch user profile', err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -100,17 +109,27 @@ export default function DashboardPage() {
               Welcome back, {user?.email || 'User'}
             </p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            Sign out
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleProfileClick}
+              data-testid="user-profile-button"
+              className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Profile
+            </button>
+            <button
+              onClick={handleLogout}
+              data-testid="logout-button"
+              className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
+      <div className="max-w-7xl mx-auto px-6 py-12" data-testid="dashboard-content">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* User Info Card */}
           <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-6">

@@ -35,10 +35,14 @@ export const useFeatureFlags = () => {
         `/api/v1/feature-flags/flags${enabledOnly ? '?enabled_only=true' : ''}`
       );
 
-      if (response.success && response.data) {
+      // Check if wrapped response
+      if ('success' in response && (response as any).success && (response as any).data) {
+        setFlags((response as any).data);
+      } else if ('error' in response && (response as any).error) {
+        setError((response as any).error.message);
+      } else if (Array.isArray(response.data)) {
+        // Direct axios response
         setFlags(response.data);
-      } else if (response.error) {
-        setError(response.error.message);
       }
     } catch (err) {
       logger.error('Failed to fetch feature flags', err instanceof Error ? err : new Error(String(err)));
@@ -52,7 +56,9 @@ export const useFeatureFlags = () => {
     try {
       const response = await apiClient.get<FlagStatus>('/api/v1/feature-flags/status');
 
-      if (response.success && response.data) {
+      if ('success' in response && (response as any).success && (response as any).data) {
+        setStatus((response as any).data);
+      } else if (response.data) {
         setStatus(response.data);
       }
     } catch (err) {
@@ -66,7 +72,8 @@ export const useFeatureFlags = () => {
         enabled,
       });
 
-      if (response.success) {
+      const success = ('success' in response && (response as any).success) || response.status === 200;
+      if (success) {
         // Update local state
         setFlags(prev =>
           prev.map(flag =>
@@ -86,8 +93,11 @@ export const useFeatureFlags = () => {
     try {
       const response = await apiClient.post(`/api/v1/feature-flags/flags/${flagName}`, data);
 
-      if (response.success && response.data) {
+      if ('success' in response && (response as any).success && (response as any).data) {
         await fetchFlags(); // Refresh list
+        return (response as any).data;
+      } else if (response.data) {
+        await fetchFlags();
         return response.data;
       }
       return null;
@@ -101,7 +111,8 @@ export const useFeatureFlags = () => {
     try {
       const response = await apiClient.delete(`/api/v1/feature-flags/flags/${flagName}`);
 
-      if (response.success) {
+      const success = ('success' in response && (response as any).success) || response.status === 200 || response.status === 204;
+      if (success) {
         setFlags(prev => prev.filter(flag => flag.name !== flagName));
         return true;
       }

@@ -132,7 +132,8 @@ test.describe('Invoice Management', () => {
 
     // Check invoice rows
     const invoiceRows = page.locator('[data-testid="invoice-row"]');
-    await expect(invoiceRows).toHaveCount({ minimum: 1 });
+    const invoiceCount = await invoiceRows.count();
+    expect(invoiceCount).toBeGreaterThanOrEqual(1);
 
     // Check invoice details visible
     await expect(page.locator('[data-testid="invoice-number"]').first()).toBeVisible();
@@ -174,7 +175,7 @@ test.describe('Invoice Management', () => {
     await expect(page.locator('[data-testid="invoice-total"]')).toBeVisible();
   });
 
-  test('should download invoice PDF', async ({ page, download }) => {
+  test('should download invoice PDF', async ({ page }) => {
     // Click download on first invoice
     const downloadPromise = page.waitForEvent('download');
     await page.click('[data-testid="invoice-row"]:first-child [data-testid="download-invoice"]');
@@ -320,13 +321,14 @@ test.describe('Billing History and Reports', () => {
 
     // Check for history items
     const historyItems = page.locator('[data-testid="history-item"]');
-    await expect(historyItems).toHaveCount({ minimum: 1 });
+    const historyCount = await historyItems.count();
+    expect(historyCount).toBeGreaterThanOrEqual(1);
 
     // Check item details
     await expect(historyItems.first()).toContainText(/Payment|Invoice|Subscription/);
   });
 
-  test('should generate billing report', async ({ page, download }) => {
+  test('should generate billing report', async ({ page }) => {
     // Go to reports tab
     await page.click('[data-testid="reports-tab"]');
 
@@ -411,7 +413,7 @@ test.describe('Tax and Compliance', () => {
     await expect(page.locator('[data-testid="tax-status"]')).toContainText('Exempt');
   });
 
-  test('should download tax documents', async ({ page, download }) => {
+  test('should download tax documents', async ({ page }) => {
     // Go to tax documents
     await page.click('[data-testid="tax-documents-tab"]');
 
