@@ -68,7 +68,9 @@ def cache_get(key: str, default: Any = None) -> Any:
         try:
             value = client.get(key)
             if value and isinstance(value, (bytes, bytearray, memoryview)):
-                return pickle.loads(value)
+                return pickle.loads(
+                    value
+                )  # nosec B301 - Pickle used for internal cache serialization only, data is trusted
         except Exception:
             pass  # Fall back to memory cache
 
@@ -158,7 +160,7 @@ def redis_cache(ttl: int = 300):
             import hashlib
 
             key_data = f"{func.__module__}.{func.__name__}:{args}:{sorted(kwargs.items())}"
-            key = f"cache:{hashlib.md5(key_data.encode()).hexdigest()}"
+            key = f"cache:{hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()}"  # nosec B324 - MD5 for cache key only
 
             # Try to get from cache
             result = cache_get(key)

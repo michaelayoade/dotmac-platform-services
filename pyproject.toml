@@ -66,7 +66,7 @@ py-consul = {extras = ["asyncio"], version = "^1.6.0"}
 
 # Storage
 minio = "^7.2.0"
-python-multipart = "^0.0.7"
+python-multipart = "^0.0.18"
 
 # Search
 meilisearch = "^0.31.0"

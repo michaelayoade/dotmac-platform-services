@@ -102,7 +102,7 @@ def idempotent_task(ttl: int = 3600) -> Callable:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate unique key based on function name and arguments
             key_data = f"{func.__name__}:{args}:{sorted(kwargs.items())}"
-            task_key = f"task:idempotent:{hashlib.md5(key_data.encode()).hexdigest()}"
+            task_key = f"task:idempotent:{hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()}"  # nosec B324 - MD5 for task deduplication key
             result_key = f"{task_key}:result"
 
             if not redis_client:
@@ -187,7 +187,7 @@ def init_celery_instrumentation() -> None:
 
         # Check if already instrumented to avoid double-instrumentation
         instrumentor = CeleryInstrumentor()
-        if hasattr(instrumentor, '_instrumented') and instrumentor._instrumented:
+        if hasattr(instrumentor, "_instrumented") and instrumentor._instrumented:
             logger.debug("celery.instrumentation.already_enabled")
             return
 
@@ -203,11 +203,10 @@ def init_celery_instrumentation() -> None:
         return
 
 
-
-
 # Import tasks to register them with Celery
 try:
     from .communications.bulk_service import process_bulk_email_job
+
     logger.info("Bulk email tasks registered")
 except ImportError:
     logger.debug("Bulk email tasks not available")

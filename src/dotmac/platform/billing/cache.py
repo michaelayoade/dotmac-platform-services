@@ -121,7 +121,9 @@ class CacheKey:
     def generate_hash(data: Dict[str, Any]) -> str:
         """Generate hash from dictionary data for cache keys."""
         json_str = json.dumps(data, sort_keys=True)
-        return hashlib.md5(json_str.encode()).hexdigest()
+        return hashlib.md5(
+            json_str.encode(), usedforsecurity=False
+        ).hexdigest()  # nosec B324 - MD5 used for cache key generation, not security
 
 
 class BillingCacheMetrics:

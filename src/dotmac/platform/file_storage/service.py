@@ -26,6 +26,7 @@ logger = structlog.get_logger(__name__)
 
 class StorageBackend:
     """Storage backend types."""
+
     LOCAL = "local"
     S3 = "s3"
     MINIO = "minio"
@@ -67,7 +68,9 @@ class LocalFileStorage:
 
     def __init__(self, base_path: Optional[str] = None):
         """Initialize local storage."""
-        self.base_path = Path(base_path or settings.storage.local_path or "/tmp/dotmac-storage")
+        self.base_path = Path(
+            base_path or settings.storage.local_path or "/tmp/dotmac-storage"
+        )  # nosec B108 - Configurable via settings
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.metadata_path = self.base_path / ".metadata"
         self.metadata_path.mkdir(exist_ok=True)
@@ -86,7 +89,7 @@ class LocalFileStorage:
     def _save_metadata(self, file_id: str, metadata: FileMetadata) -> None:
         """Save file metadata."""
         metadata_file = self._get_metadata_path(file_id)
-        with open(metadata_file, 'w') as f:
+        with open(metadata_file, "w") as f:
             json.dump(metadata.to_dict(), f, default=str)
 
     def _load_metadata(self, file_id: str) -> Optional[FileMetadata]:
@@ -96,7 +99,7 @@ class LocalFileStorage:
             return None
 
         try:
-            with open(metadata_file, 'r') as f:
+            with open(metadata_file, "r") as f:
                 data = json.load(f)
                 return FileMetadata(
                     file_id=data["file_id"],
@@ -104,7 +107,11 @@ class LocalFileStorage:
                     file_size=data["file_size"],
                     content_type=data["content_type"],
                     created_at=datetime.fromisoformat(data["created_at"]),
-                    updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
+                    updated_at=(
+                        datetime.fromisoformat(data["updated_at"])
+                        if data.get("updated_at")
+                        else None
+                    ),
                     path=data.get("path"),
                     metadata=data.get("metadata", {}),
                     checksum=data.get("checksum"),
@@ -133,7 +140,7 @@ class LocalFileStorage:
         file_path = self._get_file_path(file_id, tenant_id)
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             f.write(file_data)
 
         # Create and save metadata
@@ -154,7 +161,9 @@ class LocalFileStorage:
         logger.info(f"Stored file {file_id} ({file_name}) - {len(file_data)} bytes")
         return file_id
 
-    async def retrieve(self, file_id: str, tenant_id: Optional[str] = None) -> Tuple[Optional[bytes], Optional[dict]]:
+    async def retrieve(
+        self, file_id: str, tenant_id: Optional[str] = None
+    ) -> Tuple[Optional[bytes], Optional[dict]]:
         """Retrieve a file."""
         file_path = self._get_file_path(file_id, tenant_id)
 
@@ -163,7 +172,7 @@ class LocalFileStorage:
             return None, None
 
         # Load file data
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             file_data = f.read()
 
         # Load metadata
@@ -285,7 +294,9 @@ class MemoryFileStorage:
         logger.info(f"Stored file {file_id} ({file_name}) in memory - {len(file_data)} bytes")
         return file_id
 
-    async def retrieve(self, file_id: str, tenant_id: Optional[str] = None) -> Tuple[Optional[bytes], Optional[dict]]:
+    async def retrieve(
+        self, file_id: str, tenant_id: Optional[str] = None
+    ) -> Tuple[Optional[bytes], Optional[dict]]:
         """Retrieve a file from memory."""
         file_data = self.files.get(file_id)
         metadata = self.metadata.get(file_id)
@@ -330,7 +341,7 @@ class MemoryFileStorage:
         files.sort(key=lambda f: f.created_at, reverse=True)
 
         # Apply pagination
-        return files[offset:offset + limit]
+        return files[offset : offset + limit]
 
     async def get_metadata(self, file_id: str) -> Optional[dict]:
         """Get file metadata."""
@@ -394,7 +405,9 @@ class MinIOFileStorage:
         logger.info(f"Stored file {file_id} ({file_name}) in MinIO - {len(file_data)} bytes")
         return file_id
 
-    async def retrieve(self, file_id: str, tenant_id: Optional[str] = None) -> Tuple[Optional[bytes], Optional[dict]]:
+    async def retrieve(
+        self, file_id: str, tenant_id: Optional[str] = None
+    ) -> Tuple[Optional[bytes], Optional[dict]]:
         """Retrieve a file from MinIO."""
         tenant_id = tenant_id or "default"
 
@@ -466,7 +479,7 @@ class MinIOFileStorage:
         files.sort(key=lambda f: f.created_at, reverse=True)
 
         # Apply pagination
-        return files[offset:offset + limit]
+        return files[offset : offset + limit]
 
     async def get_metadata(self, file_id: str) -> Optional[dict]:
         """Get file metadata."""
@@ -523,7 +536,9 @@ class FileStorageService:
             tenant_id=tenant_id,
         )
 
-    async def retrieve_file(self, file_id: str, tenant_id: Optional[str] = None) -> Tuple[Optional[bytes], Optional[dict]]:
+    async def retrieve_file(
+        self, file_id: str, tenant_id: Optional[str] = None
+    ) -> Tuple[Optional[bytes], Optional[dict]]:
         """Retrieve a file by ID."""
         return await self.backend.retrieve(file_id, tenant_id)
 
@@ -572,12 +587,12 @@ class FileStorageService:
 
         # In production, save to database
         # For now, update in-memory if applicable
-        if hasattr(self.backend, 'metadata_store'):
+        if hasattr(self.backend, "metadata_store"):
             file_meta = self.backend.metadata_store.get(file_id)
             if file_meta:
                 file_meta.metadata.update(metadata_updates)
                 file_meta.updated_at = datetime.now(UTC)
-        elif hasattr(self.backend, 'metadata'):
+        elif hasattr(self.backend, "metadata"):
             file_meta = self.backend.metadata.get(file_id)
             if file_meta:
                 file_meta.metadata.update(metadata_updates)

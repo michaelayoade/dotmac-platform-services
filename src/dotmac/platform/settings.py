@@ -59,7 +59,9 @@ class Settings(BaseSettings):
     testing: bool = Field(False, description="Testing mode")
 
     # Server configuration
-    host: str = Field("0.0.0.0", description="Server host")
+    host: str = Field(
+        "0.0.0.0", description="Server host"
+    )  # nosec B104 - Production deployments use proxy
     port: int = Field(8000, description="Server port")
     workers: int = Field(4, description="Number of worker processes")
     reload: bool = Field(False, description="Auto-reload on changes")
@@ -181,9 +183,9 @@ class Settings(BaseSettings):
                 "http://localhost:3001",  # Alternative frontend port
                 "http://localhost:8000",  # Backend (for Swagger UI)
                 "http://127.0.0.1:3000",
-                "http://127.0.0.1:8000"
+                "http://127.0.0.1:8000",
             ],
-            description="Allowed origins for CORS"
+            description="Allowed origins for CORS",
         )
         methods: list[str] = Field(default_factory=lambda: ["*"], description="Allowed methods")
         headers: list[str] = Field(default_factory=lambda: ["*"], description="Allowed headers")
@@ -241,7 +243,9 @@ class Settings(BaseSettings):
 
         # Tenant isolation
         strict_isolation: bool = Field(True, description="Enforce strict tenant isolation")
-        allow_cross_tenant_access: bool = Field(False, description="Allow cross-tenant access for admins")
+        allow_cross_tenant_access: bool = Field(
+            False, description="Allow cross-tenant access for admins"
+        )
 
         # Tenant limits
         max_users_per_tenant: int = Field(1000, description="Max users per tenant")
@@ -300,7 +304,8 @@ class Settings(BaseSettings):
         # OpenTelemetry
         otel_enabled: bool = Field(True, description="Enable OpenTelemetry")
         otel_endpoint: Optional[str] = Field(
-            "http://localhost:4318/v1/traces", description="OTLP endpoint (default: local OTEL collector)"
+            "http://localhost:4318/v1/traces",
+            description="OTLP endpoint (default: local OTEL collector)",
         )
         otel_service_name: str = Field("dotmac-platform", description="Service name")
         otel_resource_attributes: dict[str, str] = Field(
@@ -343,44 +348,70 @@ class Settings(BaseSettings):
         default_trial_days: int = Field(14, description="Default trial period in days")
         allow_plan_changes: bool = Field(True, description="Allow subscription plan changes")
         proration_enabled: bool = Field(True, description="Enable mid-cycle proration")
-        cancel_at_period_end_default: bool = Field(True, description="Default cancellation behavior")
+        cancel_at_period_end_default: bool = Field(
+            True, description="Default cancellation behavior"
+        )
 
         # Pricing settings
         pricing_rules_enabled: bool = Field(True, description="Enable pricing rules system")
         max_discount_percentage: int = Field(50, description="Maximum discount percentage allowed")
-        customer_specific_pricing_enabled: bool = Field(True, description="Enable customer-specific pricing")
+        customer_specific_pricing_enabled: bool = Field(
+            True, description="Enable customer-specific pricing"
+        )
         volume_discounts_enabled: bool = Field(True, description="Enable volume discount rules")
 
         # Usage billing settings
         usage_billing_enabled: bool = Field(True, description="Enable usage-based billing")
-        usage_calculation_precision: int = Field(2, description="Decimal places for usage calculations")
+        usage_calculation_precision: int = Field(
+            2, description="Decimal places for usage calculations"
+        )
         usage_aggregation_period: str = Field("monthly", description="Usage aggregation period")
-        overage_billing_enabled: bool = Field(True, description="Enable overage billing for hybrid plans")
+        overage_billing_enabled: bool = Field(
+            True, description="Enable overage billing for hybrid plans"
+        )
 
         # Processing settings
-        auto_invoice_subscriptions: bool = Field(True, description="Automatically create subscription invoices")
-        auto_process_renewals: bool = Field(False, description="Automatically process subscription renewals")
+        auto_invoice_subscriptions: bool = Field(
+            True, description="Automatically create subscription invoices"
+        )
+        auto_process_renewals: bool = Field(
+            False, description="Automatically process subscription renewals"
+        )
         invoice_due_days: int = Field(30, description="Default invoice due period in days")
         grace_period_days: int = Field(3, description="Grace period for failed payments")
         payment_retry_attempts: int = Field(3, description="Number of payment retry attempts")
         payment_retry_interval_hours: int = Field(24, description="Hours between payment retries")
 
         # Notification settings
-        send_renewal_reminders: bool = Field(True, description="Send subscription renewal reminders")
+        send_renewal_reminders: bool = Field(
+            True, description="Send subscription renewal reminders"
+        )
         renewal_reminder_days: int = Field(7, description="Days before renewal to send reminder")
-        send_payment_failure_notifications: bool = Field(True, description="Send payment failure notifications")
-        send_cancellation_confirmations: bool = Field(True, description="Send cancellation confirmations")
+        send_payment_failure_notifications: bool = Field(
+            True, description="Send payment failure notifications"
+        )
+        send_cancellation_confirmations: bool = Field(
+            True, description="Send cancellation confirmations"
+        )
 
         # Tax and compliance
         tax_inclusive_pricing: bool = Field(False, description="Display tax-inclusive prices")
-        require_tax_id_for_business: bool = Field(False, description="Require tax ID for business customers")
+        require_tax_id_for_business: bool = Field(
+            False, description="Require tax ID for business customers"
+        )
         enable_tax_exemptions: bool = Field(True, description="Allow tax exemptions")
 
         # Feature flags
-        enable_promotional_codes: bool = Field(True, description="Enable promotional discount codes")
-        enable_referral_discounts: bool = Field(False, description="Enable referral discount system")
+        enable_promotional_codes: bool = Field(
+            True, description="Enable promotional discount codes"
+        )
+        enable_referral_discounts: bool = Field(
+            False, description="Enable referral discount system"
+        )
         enable_multi_currency: bool = Field(False, description="Enable multi-currency support")
-        enable_dunning_management: bool = Field(True, description="Enable dunning management for failed payments")
+        enable_dunning_management: bool = Field(
+            True, description="Enable dunning management for failed payments"
+        )
 
     billing: BillingSettings = BillingSettings()  # type: ignore[call-arg]
 
@@ -487,8 +518,6 @@ class Settings(BaseSettings):
         db_sqlite: bool = Field(True, description="Enable SQLite support for dev/test")
 
     features: FeatureFlags = FeatureFlags()  # type: ignore[call-arg]
-
-
 
     # ============================================================
     # Validation & Helpers

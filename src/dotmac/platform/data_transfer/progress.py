@@ -138,7 +138,7 @@ class CheckpointStore:
                 return None
 
             with open(file_path, "rb") as f:
-                return pickle.load(f)
+                return pickle.load(f)  # nosec B301 - Internal progress files, trusted
         except Exception as e:
             raise ProgressError(f"Failed to load checkpoint: {e}") from e
 

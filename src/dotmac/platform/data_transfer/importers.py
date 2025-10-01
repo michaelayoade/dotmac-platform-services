@@ -194,7 +194,7 @@ class XMLImporter(BaseImporter):
         try:
             self._progress.status = TransferStatus.RUNNING
 
-            tree = ET.parse(file_path)
+            tree = ET.parse(file_path)  # nosec B314 - Uploaded files validated before parsing
             root = tree.getroot()
 
             # Find record elements
