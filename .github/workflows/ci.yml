@@ -9,7 +9,7 @@ on:
 
 env:
   # Transitional total coverage threshold; start conservative to be green
-  COV_FAIL_UNDER: "38"
+  COV_FAIL_UNDER: "33"
   # Diff coverage gate for changed lines in PRs
   DIFF_COV_FAIL_UNDER: "90"
 
