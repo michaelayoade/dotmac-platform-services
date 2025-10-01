@@ -1,0 +1,664 @@
+"""
+Invoice service with tenant support and idempotency
+"""
+
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from dotmac.platform.billing.core.entities import (
+    InvoiceEntity,
+    InvoiceLineItemEntity,
+    TransactionEntity,
+)
+from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus, TransactionType
+from dotmac.platform.billing.core.exceptions import (
+    InvalidInvoiceStatusError,
+    InvoiceNotFoundError,
+)
+from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
+from dotmac.platform.billing.metrics import get_billing_metrics
+from dotmac.platform.webhooks.events import get_event_bus
+from dotmac.platform.webhooks.models import WebhookEvent
+
+
+class InvoiceService:
+    """Invoice management service with tenant isolation"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db = db_session
+        self.metrics = get_billing_metrics()
+
+    async def create_invoice(
+        self,
+        tenant_id: str,
+        customer_id: str,
+        billing_email: str,
+        billing_address: dict[str, str],
+        line_items: list[dict[str, Any]],
+        currency: str = "USD",
+        due_days: int | None = None,
+        due_date: datetime | None = None,
+        notes: str | None = None,
+        internal_notes: str | None = None,
+        subscription_id: str | None = None,
+        created_by: str = "system",
+        idempotency_key: str | None = None,
+        extra_data: dict[str, Any] | None = None,
+    ) -> Invoice:
+        """Create a new invoice with idempotency support"""
+
+        # Check for existing invoice with same idempotency key
+        if idempotency_key:
+            existing = await self._get_invoice_by_idempotency_key(tenant_id, idempotency_key)
+            if existing:
+                return Invoice.model_validate(existing)
+
+        # Calculate due date
+        if not due_date:
+            due_days = due_days or 30
+            due_date = datetime.now(timezone.utc) + timedelta(days=due_days)
+
+        # Calculate totals
+        subtotal = 0
+        tax_amount = 0
+        discount_amount = 0
+
+        # Process line items
+        invoice_line_items = []
+        for item_data in line_items:
+            line_item = InvoiceLineItem.model_validate(item_data)
+            subtotal += line_item.total_price
+            tax_amount += line_item.tax_amount
+            discount_amount += line_item.discount_amount
+            invoice_line_items.append(line_item)
+
+        total_amount = subtotal + tax_amount - discount_amount
+
+        # Generate invoice number
+        invoice_number = await self._generate_invoice_number(tenant_id)
+
+        # Create invoice entity
+        invoice_entity = InvoiceEntity(
+            tenant_id=tenant_id,
+            invoice_number=invoice_number,
+            idempotency_key=idempotency_key,
+            created_by=created_by,
+            customer_id=customer_id,
+            billing_email=billing_email,
+            billing_address=billing_address,
+            issue_date=datetime.now(timezone.utc),
+            due_date=due_date,
+            currency=currency,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            discount_amount=discount_amount,
+            total_amount=total_amount,
+            remaining_balance=total_amount,
+            status=InvoiceStatus.DRAFT,
+            payment_status=PaymentStatus.PENDING,
+            subscription_id=subscription_id,
+            notes=notes,
+            internal_notes=internal_notes,
+            extra_data=extra_data or {},
+        )
+
+        # Add line items
+        for line_item in invoice_line_items:
+            line_item_entity = InvoiceLineItemEntity(
+                invoice_id=invoice_entity.invoice_id,
+                description=line_item.description,
+                quantity=line_item.quantity,
+                unit_price=line_item.unit_price,
+                total_price=line_item.total_price,
+                product_id=line_item.product_id,
+                subscription_id=line_item.subscription_id,
+                tax_rate=line_item.tax_rate,
+                tax_amount=line_item.tax_amount,
+                discount_percentage=line_item.discount_percentage,
+                discount_amount=line_item.discount_amount,
+                extra_data=line_item.extra_data,
+            )
+            invoice_entity.line_items.append(line_item_entity)
+
+        # Save to database
+        self.db.add(invoice_entity)
+        await self.db.commit()
+        # Refresh with eager loading of line_items for Pydantic validation
+        await self.db.refresh(invoice_entity, attribute_names=["line_items"])
+
+        # Create transaction record
+        await self._create_invoice_transaction(invoice_entity)
+
+        # Record metrics
+        self.metrics.record_invoice_created(
+            tenant_id=tenant_id,
+            amount=total_amount,
+            currency=currency,
+            customer_id=customer_id,
+        )
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.INVOICE_CREATED.value,
+                event_data={
+                    "invoice_id": invoice_entity.invoice_id,
+                    "invoice_number": invoice_entity.invoice_number,
+                    "customer_id": customer_id,
+                    "amount": float(total_amount),
+                    "currency": currency,
+                    "status": invoice_entity.status.value,
+                    "payment_status": invoice_entity.payment_status.value,
+                    "due_date": invoice_entity.due_date.isoformat(),
+                    "subscription_id": subscription_id,
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            # Log but don't fail invoice creation
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("Failed to publish invoice.created event", error=str(e))
+
+        return Invoice.model_validate(invoice_entity)
+
+    async def get_invoice(
+        self, tenant_id: str, invoice_id: str, include_line_items: bool = True
+    ) -> Invoice | None:
+        """Get invoice by ID with tenant isolation"""
+
+        query = select(InvoiceEntity).where(
+            and_(InvoiceEntity.tenant_id == tenant_id, InvoiceEntity.invoice_id == invoice_id)
+        )
+
+        if include_line_items:
+            query = query.options(selectinload(InvoiceEntity.line_items))
+
+        result = await self.db.execute(query)
+        invoice = result.scalar_one_or_none()
+
+        if invoice:
+            return Invoice.model_validate(invoice)
+        return None
+
+    async def list_invoices(
+        self,
+        tenant_id: str,
+        customer_id: str | None = None,
+        status: InvoiceStatus | None = None,
+        payment_status: PaymentStatus | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Invoice]:
+        """List invoices with filtering and tenant isolation"""
+
+        query = select(InvoiceEntity).where(InvoiceEntity.tenant_id == tenant_id)
+
+        if customer_id:
+            query = query.where(InvoiceEntity.customer_id == customer_id)
+        if status:
+            query = query.where(InvoiceEntity.status == status)
+        if payment_status:
+            query = query.where(InvoiceEntity.payment_status == payment_status)
+        if start_date:
+            query = query.where(InvoiceEntity.issue_date >= start_date)
+        if end_date:
+            query = query.where(InvoiceEntity.issue_date <= end_date)
+
+        query = query.order_by(InvoiceEntity.created_at.desc()).limit(limit).offset(offset)
+
+        result = await self.db.execute(query)
+        invoices = result.scalars().all()
+
+        return [Invoice.model_validate(invoice) for invoice in invoices]
+
+    async def finalize_invoice(self, tenant_id: str, invoice_id: str) -> Invoice:
+        """Finalize a draft invoice to open status"""
+
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        if invoice.status != InvoiceStatus.DRAFT:
+            raise InvalidInvoiceStatusError("Can only finalize draft invoices")
+
+        invoice.status = InvoiceStatus.OPEN
+        invoice.updated_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        # Send invoice notification
+        await self._send_invoice_notification(invoice)
+
+        # Record metrics
+        self.metrics.record_invoice_finalized(tenant_id, invoice_id)
+
+        return Invoice.model_validate(invoice)
+
+    async def void_invoice(
+        self, tenant_id: str, invoice_id: str, reason: str | None = None, voided_by: str = "system"
+    ) -> Invoice:
+        """Void an invoice"""
+
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        if invoice.status == InvoiceStatus.VOID:
+            return Invoice.model_validate(invoice)
+
+        if invoice.payment_status in [PaymentStatus.SUCCEEDED, PaymentStatus.PARTIALLY_REFUNDED]:
+            raise InvalidInvoiceStatusError("Cannot void paid or partially refunded invoices")
+
+        invoice.status = InvoiceStatus.VOID
+        invoice.voided_at = datetime.now(timezone.utc)
+        invoice.updated_at = datetime.now(timezone.utc)
+        invoice.updated_by = voided_by
+
+        if reason:
+            invoice.internal_notes = (invoice.internal_notes or "") + f"\nVoided: {reason}"
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        # Create void transaction
+        await self._create_void_transaction(invoice)
+
+        # Record metrics
+        self.metrics.record_invoice_voided(tenant_id, invoice_id)
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.INVOICE_VOIDED.value,
+                event_data={
+                    "invoice_id": invoice.invoice_id,
+                    "invoice_number": invoice.invoice_number,
+                    "customer_id": invoice.customer_id,
+                    "amount": float(invoice.total_amount),
+                    "currency": invoice.currency,
+                    "reason": reason,
+                    "voided_by": voided_by,
+                    "voided_at": invoice.voided_at.isoformat() if invoice.voided_at else None,
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("Failed to publish invoice.voided event", error=str(e))
+
+        return Invoice.model_validate(invoice)
+
+    async def mark_invoice_paid(
+        self, tenant_id: str, invoice_id: str, payment_id: str | None = None
+    ) -> Invoice:
+        """Mark invoice as paid"""
+
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        invoice.payment_status = PaymentStatus.SUCCEEDED
+        invoice.status = InvoiceStatus.PAID
+        invoice.paid_at = datetime.now(timezone.utc)
+        invoice.remaining_balance = 0
+        invoice.updated_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        # Record metrics if paid
+        if invoice.payment_status == PaymentStatus.SUCCEEDED:
+            self.metrics.record_invoice_paid(
+                tenant_id,
+                invoice_id,
+                invoice.total_amount,
+                invoice.currency
+            )
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.INVOICE_PAID.value,
+                event_data={
+                    "invoice_id": invoice.invoice_id,
+                    "invoice_number": invoice.invoice_number,
+                    "customer_id": invoice.customer_id,
+                    "amount": float(invoice.total_amount),
+                    "currency": invoice.currency,
+                    "payment_id": payment_id,
+                    "paid_at": invoice.paid_at.isoformat() if invoice.paid_at else None,
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.warning("Failed to publish invoice.paid event", error=str(e))
+
+        return Invoice.model_validate(invoice)
+
+    async def apply_credit_to_invoice(
+        self, tenant_id: str, invoice_id: str, credit_amount: int, credit_application_id: str
+    ) -> Invoice:
+        """Apply credit to invoice and update balances"""
+
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        # Update invoice with credit application
+        invoice.total_credits_applied += credit_amount
+        invoice.remaining_balance = max(0, invoice.total_amount - invoice.total_credits_applied)
+        invoice.credit_applications.append(credit_application_id)
+        invoice.updated_at = datetime.now(timezone.utc)
+
+        # Update payment status based on remaining balance
+        if invoice.remaining_balance <= 0:
+            invoice.payment_status = PaymentStatus.SUCCEEDED
+            invoice.status = InvoiceStatus.PAID
+        elif invoice.total_credits_applied > 0:
+            invoice.payment_status = PaymentStatus.PARTIALLY_REFUNDED
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        # Create transaction for credit application
+        transaction = TransactionEntity(
+            tenant_id=tenant_id,
+            amount=credit_amount,
+            currency=invoice.currency,
+            transaction_type=TransactionType.CREDIT,
+            description=f"Credit applied to invoice {invoice.invoice_number}",
+            customer_id=invoice.customer_id,
+            invoice_id=invoice_id,
+            extra_data={"credit_application_id": credit_application_id},
+        )
+        self.db.add(transaction)
+        await self.db.commit()
+
+        return Invoice.model_validate(invoice)
+
+    async def update_invoice_payment_status(
+        self, tenant_id: str, invoice_id: str, payment_status: PaymentStatus
+    ) -> Invoice:
+        """Update invoice payment status"""
+
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        invoice.payment_status = payment_status
+        invoice.updated_at = datetime.now(timezone.utc)
+
+        if payment_status == PaymentStatus.SUCCEEDED:
+            invoice.status = InvoiceStatus.PAID
+            invoice.paid_at = datetime.now(timezone.utc)
+            invoice.remaining_balance = 0
+        elif payment_status == PaymentStatus.PARTIALLY_REFUNDED:
+            invoice.status = InvoiceStatus.PARTIALLY_PAID
+
+        await self.db.commit()
+        await self.db.refresh(invoice)
+
+        return Invoice.model_validate(invoice)
+
+    async def check_overdue_invoices(self, tenant_id: str) -> list[Invoice]:
+        """Check for overdue invoices and update their status"""
+
+        current_date = datetime.now(timezone.utc)
+
+        query = select(InvoiceEntity).where(
+            and_(
+                InvoiceEntity.tenant_id == tenant_id,
+                InvoiceEntity.status == InvoiceStatus.OPEN,
+                InvoiceEntity.due_date < current_date,
+                InvoiceEntity.payment_status.not_in(
+                    [PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED]
+                ),
+            )
+        )
+
+        result = await self.db.execute(query)
+        overdue_invoices = result.scalars().all()
+
+        for invoice in overdue_invoices:
+            invoice.status = InvoiceStatus.OVERDUE
+            invoice.updated_at = datetime.now(timezone.utc)
+
+        if overdue_invoices:
+            await self.db.commit()
+
+        return [Invoice.model_validate(invoice) for invoice in overdue_invoices]
+
+    # ============================================================================
+    # Private helper methods
+    # ============================================================================
+
+    async def _get_invoice_entity(self, tenant_id: str, invoice_id: str) -> InvoiceEntity | None:
+        """Get invoice entity by ID with tenant isolation"""
+
+        query = select(InvoiceEntity).where(
+            and_(InvoiceEntity.tenant_id == tenant_id, InvoiceEntity.invoice_id == invoice_id)
+        )
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def _get_invoice_by_idempotency_key(
+        self, tenant_id: str, idempotency_key: str
+    ) -> InvoiceEntity | None:
+        """Get invoice by idempotency key"""
+
+        query = select(InvoiceEntity).where(
+            and_(
+                InvoiceEntity.tenant_id == tenant_id,
+                InvoiceEntity.idempotency_key == idempotency_key,
+            )
+        )
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def _generate_invoice_number(self, tenant_id: str) -> str:
+        """Generate unique invoice number for tenant"""
+
+        # Get tenant settings for invoice number format
+        # For now, use simple sequential numbering
+        year = datetime.now(timezone.utc).year
+
+        # Get the last invoice number for this tenant and year
+        query = (
+            select(InvoiceEntity)
+            .where(
+                and_(
+                    InvoiceEntity.tenant_id == tenant_id,
+                    InvoiceEntity.invoice_number.like(f"INV-{year}-%"),
+                )
+            )
+            .order_by(InvoiceEntity.invoice_number.desc())
+            .limit(1)
+        )
+
+        result = await self.db.execute(query)
+        last_invoice = result.scalar_one_or_none()
+
+        if last_invoice and last_invoice.invoice_number:
+            # Extract sequence number and increment
+            last_seq = int(last_invoice.invoice_number.split("-")[-1])
+            next_seq = last_seq + 1
+        else:
+            next_seq = 1
+
+        return f"INV-{year}-{next_seq:06d}"
+
+    async def _create_invoice_transaction(self, invoice: InvoiceEntity) -> None:
+        """Create transaction record for invoice creation"""
+
+        transaction = TransactionEntity(
+            tenant_id=invoice.tenant_id,
+            amount=invoice.total_amount,
+            currency=invoice.currency,
+            transaction_type=TransactionType.CHARGE,
+            description=f"Invoice {invoice.invoice_number} created",
+            customer_id=invoice.customer_id,
+            invoice_id=invoice.invoice_id,
+            extra_data={"invoice_number": invoice.invoice_number},
+        )
+        self.db.add(transaction)
+        await self.db.commit()
+
+    async def _create_void_transaction(self, invoice: InvoiceEntity) -> None:
+        """Create transaction record for invoice void"""
+
+        transaction = TransactionEntity(
+            tenant_id=invoice.tenant_id,
+            amount=-invoice.total_amount,
+            currency=invoice.currency,
+            transaction_type=TransactionType.ADJUSTMENT,
+            description=f"Invoice {invoice.invoice_number} voided",
+            customer_id=invoice.customer_id,
+            invoice_id=invoice.invoice_id,
+            extra_data={"action": "void", "invoice_number": invoice.invoice_number},
+        )
+        self.db.add(transaction)
+        await self.db.commit()
+
+    async def _send_invoice_notification(self, invoice: InvoiceEntity) -> None:
+        """Send invoice notification to customer via email"""
+        try:
+            # Check if notifications are enabled for this tenant
+            from dotmac.platform.billing.settings.service import BillingSettingsService
+
+            settings_service = BillingSettingsService(self.db)
+            billing_settings = await settings_service.get_settings(invoice.tenant_id)
+
+            # Check both invoice and notification settings
+            if not billing_settings.invoice_settings.send_invoice_emails:
+                logger.info(
+                    "Invoice emails disabled for tenant",
+                    tenant_id=invoice.tenant_id,
+                    invoice_id=str(invoice.id)
+                )
+                return
+
+            if not billing_settings.notification_settings.send_invoice_notifications:
+                logger.info(
+                    "Invoice notifications disabled for tenant",
+                    tenant_id=invoice.tenant_id,
+                    invoice_id=str(invoice.id)
+                )
+                return
+
+            from dotmac.platform.communications.email_service import EmailMessage, EmailService
+
+            # Initialize email service with default settings
+            email_service = EmailService()
+
+            # Format invoice details for email
+            invoice_url = f"https://platform.dotmac.com/invoices/{invoice.invoice_id}"
+
+            # Create email message
+            email_message = EmailMessage(
+                to=[invoice.billing_email],
+                subject=f"Invoice #{invoice.invoice_number} - {invoice.currency} {invoice.total_amount:.2f}",
+                html_body=f"""
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #333;">
+                    <h2>Invoice #{invoice.invoice_number}</h2>
+
+                    <p>Dear Customer,</p>
+
+                    <p>Your invoice has been finalized and is ready for your review.</p>
+
+                    <div style="background-color: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px;">
+                        <h3>Invoice Details:</h3>
+                        <p><strong>Invoice Number:</strong> {invoice.invoice_number}</p>
+                        <p><strong>Issue Date:</strong> {invoice.issue_date.strftime('%B %d, %Y')}</p>
+                        <p><strong>Due Date:</strong> {invoice.due_date.strftime('%B %d, %Y')}</p>
+                        <p><strong>Amount Due:</strong> {invoice.currency} {invoice.total_amount:.2f}</p>
+                    </div>
+
+                    <p>You can view and download your invoice at:</p>
+                    <p><a href="{invoice_url}" style="color: #007bff;">{invoice_url}</a></p>
+
+                    {f'<p><strong>Notes:</strong> {invoice.notes}</p>' if invoice.notes else ''}
+
+                    <p>If you have any questions about this invoice, please don't hesitate to contact our support team.</p>
+
+                    <p>Thank you for your business!</p>
+
+                    <hr style="margin-top: 40px; border: none; border-top: 1px solid #ddd;">
+                    <p style="color: #666; font-size: 12px;">
+                        This is an automated notification from DotMac Platform Billing.<br>
+                        Please do not reply to this email.
+                    </p>
+                </body>
+                </html>
+                """,
+                text_body=f"""
+Invoice #{invoice.invoice_number}
+
+Dear Customer,
+
+Your invoice has been finalized and is ready for your review.
+
+Invoice Details:
+- Invoice Number: {invoice.invoice_number}
+- Issue Date: {invoice.issue_date.strftime('%B %d, %Y')}
+- Due Date: {invoice.due_date.strftime('%B %d, %Y')}
+- Amount Due: {invoice.currency} {invoice.total_amount:.2f}
+
+You can view and download your invoice at:
+{invoice_url}
+
+{f'Notes: {invoice.notes}' if invoice.notes else ''}
+
+If you have any questions about this invoice, please don't hesitate to contact our support team.
+
+Thank you for your business!
+
+---
+This is an automated notification from DotMac Platform Billing.
+Please do not reply to this email.
+                """
+            )
+
+            # Send the email
+            await email_service.send_email(email_message)
+
+            # Log successful notification
+            from dotmac.platform.audit import log_api_activity, ActivityType
+            await log_api_activity(
+                tenant_id=invoice.tenant_id,
+                user_id=invoice.created_by,
+                activity_type=ActivityType.BILLING_UPDATED,
+                action="invoice_notification_sent",
+                resource_type="invoice",
+                resource_id=str(invoice.invoice_id),
+                request_data={"email": invoice.billing_email, "invoice_number": invoice.invoice_number}
+            )
+
+        except Exception as e:
+            # Log the error but don't fail the invoice finalization
+            import structlog
+            logger = structlog.get_logger(__name__)
+            logger.error(
+                "Failed to send invoice notification",
+                invoice_id=str(invoice.id),
+                invoice_number=invoice.invoice_number,
+                email=invoice.billing_email,
+                error=str(e)
+            )
+            # Continue without raising - invoice is still finalized even if email fails

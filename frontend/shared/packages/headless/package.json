@@ -1,0 +1,55 @@
+{
+  "name": "@dotmac/headless",
+  "version": "1.0.0",
+  "description": "Headless hooks and logic for DotMac platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./utils/csp": {
+      "types": "./dist/utils/csp.d.ts",
+      "import": "./dist/utils/csp.mjs",
+      "require": "./dist/utils/csp.js"
+    },
+    "./utils/production-data-guard": {
+      "types": "./dist/utils/production-data-guard.d.ts",
+      "import": "./dist/utils/production-data-guard.mjs",
+      "require": "./dist/utils/production-data-guard.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:old": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "biome check src/",
+    "lint:fix": "biome check src/ --write",
+    "format": "biome format src/ --write",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@dotmac/primitives": "workspace:*",
+    "@tanstack/react-query": "^5.28.4",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.2.73",
+    "lucide-react": "^0.263.1",
+    "socket.io-client": "^4.7.5",
+    "zod": "^3.25.76",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@dotmac/typescript-config": "workspace:*",
+    "react": "^18.2.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  }
+}

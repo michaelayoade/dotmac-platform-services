@@ -1,26 +1,140 @@
-"""Tenant configuration module."""
+"""
+Tenant configuration for single/multi-tenant deployments.
+
+This module provides configuration for running the platform in either:
+- Single-tenant mode: One organization using the entire platform
+- Multi-tenant mode: Multiple isolated organizations (SaaS)
+"""
+
+import os
+from enum import Enum
+from typing import Optional
 
 
-from pydantic import BaseModel, Field
+class TenantMode(str, Enum):
+    """Deployment mode for tenant isolation."""
+
+    SINGLE = "single"  # Single organization deployment
+    MULTI = "multi"    # Multi-tenant SaaS deployment
 
 
-class TenantConfig(BaseModel):
-    """Multi-tenant configuration."""
+class TenantConfiguration:
+    """
+    Configuration for tenant behavior.
 
-    # Tenant identification
-    enable_multitenancy: bool = Field(True, description="Enable multi-tenant support")
-    tenant_header: str = Field("X-Tenant-ID", description="HTTP header for tenant ID")
-    tenant_id_field: str = Field("tenant_id", description="Field name for tenant ID in models")
+    Controls how the platform handles tenant isolation and identification.
+    Can be configured via environment variables or direct instantiation.
+    """
 
-    # Isolation settings
-    isolation_level: str = Field("schema", description="Isolation level: schema, database, or row")
-    default_tenant: str | None = Field(None, description="Default tenant ID")
+    def __init__(
+        self,
+        mode: Optional[TenantMode] = None,
+        default_tenant_id: Optional[str] = None,
+        require_tenant_header: Optional[bool] = None,
+        tenant_header_name: str = "X-Tenant-ID",
+        tenant_query_param: str = "tenant_id",
+    ):
+        """
+        Initialize tenant configuration.
 
-    # Tenant limits
-    max_users_per_tenant: int = Field(1000, description="Maximum users per tenant")
-    max_storage_per_tenant: int = Field(10737418240, description="Max storage in bytes (10GB)")
-    max_api_calls_per_day: int = Field(100000, description="API rate limit per tenant per day")
+        Args:
+            mode: Tenant mode (single or multi). Defaults to env var or SINGLE.
+            default_tenant_id: Default tenant ID for single-tenant mode.
+            require_tenant_header: Whether to require tenant identification in multi-tenant mode.
+            tenant_header_name: HTTP header name for tenant ID.
+            tenant_query_param: Query parameter name for tenant ID.
+        """
+        # Determine mode from environment or parameter
+        if mode is None:
+            env_mode = os.getenv("TENANT_MODE", "single").lower()
+            self.mode = TenantMode.MULTI if env_mode == "multi" else TenantMode.SINGLE
+        else:
+            self.mode = mode
 
-    # Tenant features
-    enable_custom_domains: bool = Field(False, description="Allow custom domains per tenant")
-    enable_tenant_branding: bool = Field(True, description="Allow custom branding per tenant")
+        # Set default tenant ID
+        if default_tenant_id is None:
+            self.default_tenant_id = os.getenv("DEFAULT_TENANT_ID", "default")
+        else:
+            self.default_tenant_id = default_tenant_id
+
+        # Determine if tenant header is required
+        if require_tenant_header is None:
+            # In multi-tenant mode, require header by default
+            # Can be overridden by REQUIRE_TENANT_HEADER env var
+            env_require = os.getenv("REQUIRE_TENANT_HEADER")
+            if env_require is not None:
+                self.require_tenant_header = env_require.lower() in ("true", "1", "yes")
+            else:
+                self.require_tenant_header = (self.mode == TenantMode.MULTI)
+        else:
+            self.require_tenant_header = require_tenant_header
+
+        # Header and query param names
+        self.tenant_header_name = os.getenv("TENANT_HEADER_NAME", tenant_header_name)
+        self.tenant_query_param = os.getenv("TENANT_QUERY_PARAM", tenant_query_param)
+
+        # Additional settings from environment
+        self.enable_tenant_switching = os.getenv(
+            "ENABLE_TENANT_SWITCHING", "false"
+        ).lower() in ("true", "1", "yes")
+
+        self.enable_cross_tenant_queries = os.getenv(
+            "ENABLE_CROSS_TENANT_QUERIES", "false"
+        ).lower() in ("true", "1", "yes")
+
+    @property
+    def is_single_tenant(self) -> bool:
+        """Check if running in single-tenant mode."""
+        return self.mode == TenantMode.SINGLE
+
+    @property
+    def is_multi_tenant(self) -> bool:
+        """Check if running in multi-tenant mode."""
+        return self.mode == TenantMode.MULTI
+
+    def get_tenant_id_for_request(self, resolved_id: Optional[str] = None) -> str:
+        """
+        Get the tenant ID to use for a request.
+
+        Args:
+            resolved_id: Tenant ID resolved from request (header/query/state)
+
+        Returns:
+            The tenant ID to use
+        """
+        if self.is_single_tenant:
+            # Always use default tenant in single-tenant mode
+            return self.default_tenant_id
+
+        # Multi-tenant mode
+        if resolved_id:
+            return resolved_id
+        elif not self.require_tenant_header:
+            # Fall back to default if not required
+            return self.default_tenant_id
+        else:
+            # Will need to handle as error in middleware
+            return None
+
+    def __repr__(self) -> str:
+        return (
+            f"TenantConfiguration(mode={self.mode.value}, "
+            f"default_tenant_id='{self.default_tenant_id}', "
+            f"require_tenant_header={self.require_tenant_header})"
+        )
+
+
+# Global configuration instance
+# Can be replaced at startup based on deployment needs
+_global_config = TenantConfiguration()
+
+
+def get_tenant_config() -> TenantConfiguration:
+    """Get the global tenant configuration."""
+    return _global_config
+
+
+def set_tenant_config(config: TenantConfiguration) -> None:
+    """Set the global tenant configuration."""
+    global _global_config
+    _global_config = config

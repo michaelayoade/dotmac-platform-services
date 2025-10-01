@@ -147,6 +147,7 @@ cython_debug/
 
 # macOS
 .DS_Store
+**/.DS_Store
 .AppleDouble
 .LSOverride
 
@@ -284,3 +285,4 @@ coverage_strategy.md
 
 # Local shell scripts for testing
 run_example_api.sh
+node_modules

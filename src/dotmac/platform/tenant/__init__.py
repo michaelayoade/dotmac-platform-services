@@ -1,20 +1,33 @@
 """
 Tenant identity and middleware utilities for DotMac platform.
-Also exposes lightweight enums/functions for import-compatibility in tests.
+Configurable for both single-tenant and multi-tenant deployments.
 """
 
-from .config import TenantConfig
-from .identity import TenantIdentityResolver
-from .middleware import TenantMiddleware
+from .config import (
+    TenantConfiguration,
+    TenantMode,
+    get_tenant_config,
+    set_tenant_config,
+)
+from .tenant import TenantIdentityResolver, TenantMiddleware
 
 __all__ = [
-    "TenantConfig",
     "TenantIdentityResolver",
     "TenantMiddleware",
+    "TenantConfiguration",
+    "TenantMode",
+    "get_tenant_config",
+    "set_tenant_config",
 ]
 
 from enum import Enum
 from typing import Any
+import contextvars
+
+# Context variable to store the current tenant ID
+_tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "tenant_id", default=None
+)
 
 
 class TenantIsolationLevel(str, Enum):
@@ -34,7 +47,34 @@ class TenantResolutionStrategy(str, Enum):
 
 def get_tenant_context() -> Any:
     """Compatibility helper expected by imports tests."""
+    return _tenant_context.get()
+
+
+def get_current_tenant_id() -> str | None:
+    """Get current tenant ID from request context.
+
+    Returns the tenant ID from the context variable, which is set by
+    the TenantMiddleware or audit middleware based on the request.
+    """
+    tenant_id = _tenant_context.get()
+    if tenant_id:
+        return tenant_id
+
+    # Fallback to default tenant in single-tenant mode
+    from .config import get_tenant_config
+    config = get_tenant_config()
+    if config.is_single_tenant:
+        return config.default_tenant_id
+
     return None
 
 
-__all__ += ["TenantIsolationLevel", "TenantResolutionStrategy", "get_tenant_context"]
+def set_current_tenant_id(tenant_id: str | None) -> None:
+    """Set the current tenant ID in the context.
+
+    This should be called by middleware after resolving the tenant.
+    """
+    _tenant_context.set(tenant_id)
+
+
+__all__ += ["TenantIsolationLevel", "TenantResolutionStrategy", "get_tenant_context", "get_current_tenant_id", "set_current_tenant_id"]

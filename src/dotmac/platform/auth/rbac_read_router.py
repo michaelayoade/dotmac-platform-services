@@ -1,0 +1,154 @@
+"""
+Read-only RBAC endpoints for frontend integration.
+
+Provides simple endpoints that the React RBAC context expects.
+"""
+from typing import List
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.auth.core import get_current_user, UserInfo
+from dotmac.platform.auth.models import Role
+from dotmac.platform.db import get_session_dependency
+
+
+router = APIRouter(tags=["RBAC"])
+
+
+class PermissionInfo(BaseModel):
+    """Simple permission info for frontend"""
+    name: str
+    display_name: str = ""
+    description: str = ""
+    category: str = ""
+    resource: str = ""
+    action: str = ""
+    is_system: bool = False
+
+
+class RoleInfo(BaseModel):
+    """Simple role info for frontend"""
+    name: str
+    display_name: str
+    description: str = ""
+    parent_role: str = ""
+    is_system: bool = False
+    is_active: bool = True
+
+
+class UserPermissionsResponse(BaseModel):
+    """User permissions response matching frontend expectations"""
+    user_id: str
+    roles: List[RoleInfo]
+    direct_permissions: List[PermissionInfo]
+    effective_permissions: List[PermissionInfo]
+    is_superuser: bool = False
+
+
+@router.get("/my-permissions")
+async def get_my_permissions(
+    current_user: UserInfo = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session_dependency)
+) -> UserPermissionsResponse:
+    """Get current user's permissions.
+
+    Returns a UserPermissions object that the frontend RBACContext expects.
+    """
+    from sqlalchemy import select
+    from dotmac.platform.user_management.models import User
+
+    # Get the full user object to check is_superuser
+    user = await db.get(User, current_user.user_id)
+
+    # Convert role names to RoleInfo objects
+    roles = []
+    for role_name in (current_user.roles or []):
+        # Try to get the role from the database
+        role = await db.execute(select(Role).where(Role.name == role_name))
+        role_obj = role.scalar_one_or_none()
+        if role_obj:
+            roles.append(RoleInfo(
+                name=role_obj.name,
+                display_name=role_obj.display_name,
+                description=role_obj.description or "",
+                parent_role="",
+                is_system=role_obj.is_system,
+                is_active=role_obj.is_active
+            ))
+        else:
+            # Fallback if role not found
+            roles.append(RoleInfo(
+                name=role_name,
+                display_name=role_name.replace("_", " ").title(),
+                description="",
+                parent_role="",
+                is_system=False,
+                is_active=True
+            ))
+
+    # Convert permission names to PermissionInfo objects
+    permissions = []
+    for perm_name in (current_user.permissions or []):
+        # Parse permission name (e.g., "user.profile.read" -> category=user, resource=profile, action=read)
+        parts = perm_name.split(".")
+        category = parts[0] if len(parts) > 0 else ""
+        resource = parts[1] if len(parts) > 1 else ""
+        action = parts[2] if len(parts) > 2 else ""
+
+        permissions.append(PermissionInfo(
+            name=perm_name,
+            display_name=perm_name.replace(".", " ").title(),
+            description="",
+            category=category,
+            resource=resource,
+            action=action,
+            is_system=True
+        ))
+
+    return UserPermissionsResponse(
+        user_id=current_user.user_id,
+        roles=roles,
+        direct_permissions=permissions,  # All permissions are direct for now
+        effective_permissions=permissions,  # Same as direct
+        is_superuser=user.is_superuser if user else False
+    )
+
+
+@router.get("/roles")
+async def get_roles(
+    active_only: bool = True,
+    db: AsyncSession = Depends(get_session_dependency),
+    current_user: UserInfo = Depends(get_current_user)  # Just require authentication
+) -> List[RoleInfo]:
+    """Get available roles.
+
+    Returns basic role information for admin interfaces.
+    """
+    from sqlalchemy import select
+
+    # Query the database for roles
+    query = select(Role)
+    if active_only:
+        query = query.where(Role.is_active == True)
+
+    result = await db.execute(query)
+    roles = result.scalars().all()
+
+    return [
+        RoleInfo(
+            name=role.name,
+            display_name=role.display_name,
+            description=role.description or "",
+            is_active=role.is_active
+        )
+        for role in roles
+    ]
+
+
+@router.get("/my-roles")
+async def get_my_roles(
+    current_user: UserInfo = Depends(get_current_user)
+) -> List[str]:
+    """Get current user's roles."""
+    return current_user.roles or []

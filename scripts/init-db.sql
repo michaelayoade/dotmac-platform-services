@@ -1,16 +1,19 @@
--- DotMac Platform Services - Database Initialization
--- =====================================================
+-- Production Database Initialization Script for DotMac Platform
+-- Creates necessary database structures and initial configuration
 
--- Note: Database creation is handled by Docker environment variables
--- This script runs within the created database
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";  -- For text search
+CREATE EXTENSION IF NOT EXISTS "btree_gist";  -- For exclusion constraints
 
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS secrets;
 CREATE SCHEMA IF NOT EXISTS tenant;
-
--- Set search path
-SET search_path TO public, auth, secrets, tenant;
+CREATE SCHEMA IF NOT EXISTS audit;
+CREATE SCHEMA IF NOT EXISTS cache;
 
 -- =====================================================
 -- Auth Schema Tables
@@ -18,7 +21,7 @@ SET search_path TO public, auth, secrets, tenant;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS auth.users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -36,7 +39,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
 
 -- API Keys table
 CREATE TABLE IF NOT EXISTS auth.api_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     key_hash VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -52,7 +55,7 @@ CREATE TABLE IF NOT EXISTS auth.api_keys (
 
 -- Sessions table
 CREATE TABLE IF NOT EXISTS auth.sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_token VARCHAR(255) UNIQUE NOT NULL,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     tenant_id UUID,
@@ -66,7 +69,7 @@ CREATE TABLE IF NOT EXISTS auth.sessions (
 
 -- MFA Secrets table
 CREATE TABLE IF NOT EXISTS auth.mfa_secrets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     secret VARCHAR(255) NOT NULL,
     backup_codes TEXT[],
@@ -77,7 +80,7 @@ CREATE TABLE IF NOT EXISTS auth.mfa_secrets (
 
 -- OAuth Providers table
 CREATE TABLE IF NOT EXISTS auth.oauth_providers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     provider VARCHAR(50) NOT NULL,
     provider_user_id VARCHAR(255) NOT NULL,
@@ -91,7 +94,7 @@ CREATE TABLE IF NOT EXISTS auth.oauth_providers (
 
 -- Roles table
 CREATE TABLE IF NOT EXISTS auth.roles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     permissions TEXT[],
@@ -115,7 +118,7 @@ CREATE TABLE IF NOT EXISTS auth.user_roles (
 
 -- Tenants table
 CREATE TABLE IF NOT EXISTS tenant.tenants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) UNIQUE NOT NULL,
     domain VARCHAR(255) UNIQUE,
     is_active BOOLEAN DEFAULT true,
@@ -130,7 +133,7 @@ CREATE TABLE IF NOT EXISTS tenant.tenants (
 
 -- Tenant Invitations table
 CREATE TABLE IF NOT EXISTS tenant.invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID REFERENCES tenant.tenants(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'member',
@@ -147,7 +150,7 @@ CREATE TABLE IF NOT EXISTS tenant.invitations (
 
 -- Secret Stores table
 CREATE TABLE IF NOT EXISTS secrets.stores (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     tenant_id UUID,
     provider VARCHAR(50) NOT NULL, -- 'vault', 'env', 'file'
@@ -160,7 +163,7 @@ CREATE TABLE IF NOT EXISTS secrets.stores (
 
 -- Secret Metadata table (tracks secrets without storing values)
 CREATE TABLE IF NOT EXISTS secrets.metadata (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID REFERENCES secrets.stores(id) ON DELETE CASCADE,
     path VARCHAR(500) NOT NULL,
     version INTEGER DEFAULT 1,
@@ -174,7 +177,7 @@ CREATE TABLE IF NOT EXISTS secrets.metadata (
 
 -- Audit Log table
 CREATE TABLE IF NOT EXISTS secrets.audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID,
     user_id UUID REFERENCES auth.users(id),
     action VARCHAR(50) NOT NULL, -- 'read', 'write', 'delete', 'rotate'

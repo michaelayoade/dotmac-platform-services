@@ -12,9 +12,9 @@ Provides comprehensive service-to-service communication management:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -23,19 +23,30 @@ from typing import Any
 from uuid import uuid4
 
 import aiohttp
+import structlog
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Removed non-existent imports - these services are not in platform
-# from ..core.exceptions import EntityNotFoundError
-# from ..services.performance_optimization import PerformanceOptimizationService
-# from ..services.service_marketplace import ServiceMarketplace
+# Use core exceptions
+from ..core.exceptions import EntityNotFoundError
 
-class EntityNotFoundError(Exception):
-    """Entity not found error."""
+
+class PerformanceOptimizationService:
+    """Stub for performance optimization service."""
+
     pass
 
-logger = logging.getLogger(__name__)
+
+class ServiceMarketplace:
+    """Stub for service marketplace - discovers available services."""
+
+    async def discover_service(self):
+        """Discover available services."""
+        # Return empty list by default
+        return []
+
+
+logger = structlog.get_logger(__name__)
 
 
 class TrafficPolicy(str, Enum):
@@ -65,6 +76,15 @@ class EncryptionLevel(str, Enum):
     MTLS = "mtls"
 
 
+class ServiceStatus(str, Enum):
+    """Service health status."""
+
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+    UNKNOWN = "unknown"
+    DEGRADED = "degraded"
+
+
 @dataclass
 class ServiceEndpoint:
     """Service endpoint configuration."""
@@ -77,6 +97,7 @@ class ServiceEndpoint:
     weight: int = 100
     health_check_path: str = "/health"
     metadata: dict[str, Any] = field(default_factory=dict)
+    status: ServiceStatus = ServiceStatus.UNKNOWN
 
     @property
     def url(self) -> str:
@@ -140,7 +161,9 @@ class ServiceCall:
 class CircuitBreakerState:
     """Circuit breaker for service calls."""
 
-    def __init__(self, failure_threshold: int = 5, timeout_seconds: int = 60, service_name: str | None = None):
+    def __init__(
+        self, failure_threshold: int = 5, timeout_seconds: int = 60, service_name: str | None = None
+    ):
         self.failure_threshold = failure_threshold
         self.timeout_seconds = timeout_seconds
         self.service_name = service_name or ""
@@ -190,6 +213,7 @@ class ServiceRegistry:
         self.traffic_rules: dict[str, TrafficRule] = {}
         self.circuit_breakers: dict[str, CircuitBreakerState] = {}
         self.connection_counts: dict[str, int] = {}
+        self.health_status: dict[str, dict[str, Any]] = {}
 
     def register_endpoint(self, endpoint: ServiceEndpoint):
         """Register a service endpoint."""
@@ -210,7 +234,9 @@ class ServiceRegistry:
         """Unregister a service endpoint."""
         if service_name in self.endpoints:
             self.endpoints[service_name] = [
-                ep for ep in self.endpoints[service_name] if not (ep.host == host and ep.port == port)
+                ep
+                for ep in self.endpoints[service_name]
+                if not (ep.host == host and ep.port == port)
             ]
             logger.info(f"Unregistered endpoint: {service_name} at {host}:{port}")
 
@@ -243,7 +269,7 @@ class LoadBalancer:
         self.registry = registry
         self.round_robin_counters: dict[str, int] = {}
 
-    def select_endpoint(
+    async def select_endpoint(
         self,
         service_name: str,
         policy: TrafficPolicy,
@@ -255,7 +281,7 @@ class LoadBalancer:
             return None
 
         # Filter healthy endpoints
-        healthy_endpoints = [ep for ep in endpoints if self._is_healthy(ep)]
+        healthy_endpoints = [ep for ep in endpoints if await self._is_healthy(ep)]
         if not healthy_endpoints:
             # Fallback to all endpoints if none are healthy
             healthy_endpoints = endpoints
@@ -267,11 +293,13 @@ class LoadBalancer:
         elif policy == TrafficPolicy.LEAST_CONNECTIONS:
             return self._select_least_connections(healthy_endpoints)
         elif policy == TrafficPolicy.CONSISTENT_HASH:
-            return self._select_consistent_hash(healthy_endpoints, source_context)
+            return self._select_consistent_hash(healthy_endpoints, source_context or {})
         else:
             return healthy_endpoints[0]  # Default to first
 
-    def _select_round_robin(self, service_name: str, endpoints: list[ServiceEndpoint]) -> ServiceEndpoint:
+    def _select_round_robin(
+        self, service_name: str, endpoints: list[ServiceEndpoint]
+    ) -> ServiceEndpoint:
         """Select endpoint using round robin."""
         if service_name not in self.round_robin_counters:
             self.round_robin_counters[service_name] = 0
@@ -326,10 +354,49 @@ class LoadBalancer:
         index = hash_value % len(endpoints)
         return endpoints[index]
 
-    def _is_healthy(self, endpoint: ServiceEndpoint) -> bool:
-        """Check if endpoint is healthy (placeholder)."""
-        # In real implementation, this would check health status
-        return True
+    async def _is_healthy(self, endpoint: ServiceEndpoint) -> bool:
+        """Check if endpoint is healthy."""
+        # Check cached health status first
+        endpoint_key = f"{endpoint.host}:{endpoint.port}"
+        health_status = self.registry.health_status.get(endpoint_key, {})
+
+        # Check if we have recent health data (within 30 seconds)
+        last_check = health_status.get("last_check", 0)
+        if time.time() - last_check < 30:
+            return health_status.get("healthy", True)
+
+        # Perform health check
+        return await self._perform_health_check(endpoint)
+
+    async def _perform_health_check(self, endpoint: ServiceEndpoint) -> bool:
+        """Perform actual health check on endpoint."""
+        endpoint_key = f"{endpoint.host}:{endpoint.port}"
+
+        try:
+            # Make health check request
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                health_url = endpoint.health_url
+                async with session.get(health_url) as response:
+                    is_healthy = response.status == 200
+
+                    # Update health status
+                    self.registry.health_status[endpoint_key] = {
+                        "healthy": is_healthy,
+                        "last_check": time.time(),
+                        "status_code": response.status,
+                        "response_time_ms": 0,  # Would need timing logic
+                    }
+
+                    return is_healthy
+
+        except Exception as e:
+            logger.warning(f"Health check failed for {endpoint_key}: {e}")
+            self.registry.health_status[endpoint_key] = {
+                "healthy": False,
+                "last_check": time.time(),
+                "error": str(e),
+            }
+            return False
 
 
 class ServiceMesh:
@@ -363,6 +430,9 @@ class ServiceMesh:
         # HTTP session for service calls
         self.http_session: aiohttp.ClientSession | None = None
 
+        # Health monitoring
+        self.health_check_task: asyncio.Task | None = None
+
     async def initialize(self):
         """Initialize the service mesh."""
         self.http_session = aiohttp.ClientSession(
@@ -373,10 +443,21 @@ class ServiceMesh:
         # Discover and register services from marketplace
         await self._discover_services()
 
-        logger.info(f"Service mesh initialized for tenant: {self.tenant_id}")
+        # Start health monitoring
+        self.health_check_task = asyncio.create_task(self._health_monitoring_loop())
+
+        logger.info(f"Service mesh initialized with health monitoring for tenant: {self.tenant_id}")
 
     async def shutdown(self):
         """Shutdown the service mesh."""
+        # Cancel health monitoring
+        if self.health_check_task:
+            self.health_check_task.cancel()
+            try:
+                await self.health_check_task
+            except asyncio.CancelledError:
+                pass
+
         if self.http_session:
             await self.http_session.close()
         logger.info("Service mesh shutdown complete")
@@ -439,7 +520,7 @@ class ServiceMesh:
             )
 
         # Select endpoint
-        endpoint = self.load_balancer.select_endpoint(
+        endpoint = await self.load_balancer.select_endpoint(
             destination_service, traffic_rule.policy, {"source_service": source_service}
         )
 
@@ -463,7 +544,9 @@ class ServiceMesh:
         try:
             # Update connection count
             endpoint_key = f"{endpoint.host}:{endpoint.port}"
-            self.registry.connection_counts[endpoint_key] = self.registry.connection_counts.get(endpoint_key, 0) + 1
+            self.registry.connection_counts[endpoint_key] = (
+                self.registry.connection_counts.get(endpoint_key, 0) + 1
+            )
 
             # Make the actual HTTP call
             response = await self._make_http_call(
@@ -536,12 +619,15 @@ class ServiceMesh:
         if not self.http_session:
             raise RuntimeError("HTTP session not initialized")
 
+        # Convert timeout to ClientTimeout object
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
+
         async with self.http_session.request(
             method=method.upper(),
             url=url,
             headers=call_headers,
             data=body,
-            timeout=timeout,
+            timeout=client_timeout,
         ) as response:
             response_body = await response.read()
 
@@ -559,7 +645,9 @@ class ServiceMesh:
         # Update average latency
         current_avg = self.call_metrics["average_latency_ms"]
         total_calls = self.call_metrics["total_calls"]
-        self.call_metrics["average_latency_ms"] = (current_avg * (total_calls - 1) + duration * 1000) / total_calls
+        self.call_metrics["average_latency_ms"] = (
+            current_avg * (total_calls - 1) + duration * 1000
+        ) / total_calls
 
         # Update service-specific metrics
         service_key = f"{call.source_service}->{call.destination_service}"
@@ -604,7 +692,9 @@ class ServiceMesh:
         """Get service mesh metrics."""
         success_rate = 0.0
         if self.call_metrics["total_calls"] > 0:
-            success_rate = (self.call_metrics["successful_calls"] / self.call_metrics["total_calls"]) * 100
+            success_rate = (
+                self.call_metrics["successful_calls"] / self.call_metrics["total_calls"]
+            ) * 100
 
         return {
             "tenant_id": self.tenant_id,
@@ -617,7 +707,9 @@ class ServiceMesh:
             "registered_services": len(self.registry.endpoints),
             "total_endpoints": sum(len(eps) for eps in self.registry.endpoints.values()),
             "traffic_rules": len(self.registry.traffic_rules),
-            "circuit_breakers": {name: cb.state for name, cb in self.registry.circuit_breakers.items()},
+            "circuit_breakers": {
+                name: cb.state for name, cb in self.registry.circuit_breakers.items()
+            },
             "calls_by_service": self.call_metrics["calls_by_service"],
         }
 
@@ -655,6 +747,95 @@ class ServiceMesh:
 
         return topology
 
+    async def _health_monitoring_loop(self):
+        """Background task to monitor endpoint health."""
+        logger.info("Starting health monitoring loop")
+
+        while True:
+            try:
+                await asyncio.sleep(30)  # Check every 30 seconds
+                await self._check_all_endpoints_health()
+            except asyncio.CancelledError:
+                logger.info("Health monitoring loop cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Health monitoring error: {e}")
+
+    async def _check_all_endpoints_health(self):
+        """Check health of all registered endpoints."""
+        tasks = []
+        for _service_name, endpoints in self.registry.endpoints.items():
+            for endpoint in endpoints:
+                tasks.append(self._check_endpoint_health(endpoint))
+
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            healthy_count = sum(1 for r in results if r is True)
+            total_count = len(results)
+            logger.info(f"Health check complete: {healthy_count}/{total_count} endpoints healthy")
+
+    async def _check_endpoint_health(self, endpoint: ServiceEndpoint) -> bool:
+        """Check health of a single endpoint."""
+        endpoint_key = f"{endpoint.host}:{endpoint.port}"
+
+        try:
+            if not self.http_session:
+                return False
+
+            health_url = endpoint.health_url
+            async with self.http_session.get(health_url) as response:
+                is_healthy = response.status == 200
+                response_time = 0  # Would need actual timing
+
+                # Update health status
+                self.registry.health_status[endpoint_key] = {
+                    "healthy": is_healthy,
+                    "last_check": time.time(),
+                    "status_code": response.status,
+                    "response_time_ms": response_time,
+                    "endpoint": endpoint.service_name,
+                }
+
+                # Update endpoint status
+                endpoint.status = ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY
+
+                if not is_healthy:
+                    logger.warning(f"Endpoint {endpoint_key} is unhealthy: {response.status}")
+
+                return is_healthy
+
+        except Exception as e:
+            logger.error(f"Health check failed for {endpoint_key}: {e}")
+            self.registry.health_status[endpoint_key] = {
+                "healthy": False,
+                "last_check": time.time(),
+                "error": str(e),
+                "endpoint": endpoint.service_name,
+            }
+            endpoint.status = ServiceStatus.UNHEALTHY
+            return False
+
+    def get_health_status(self) -> dict[str, Any]:
+        """Get current health status of all endpoints."""
+        total_endpoints = sum(len(endpoints) for endpoints in self.registry.endpoints.values())
+        healthy_endpoints = sum(
+            1 for status in self.registry.health_status.values() if status.get("healthy", False)
+        )
+
+        return {
+            "total_endpoints": total_endpoints,
+            "healthy_endpoints": healthy_endpoints,
+            "unhealthy_endpoints": total_endpoints - healthy_endpoints,
+            "health_percentage": (
+                (healthy_endpoints / total_endpoints * 100) if total_endpoints > 0 else 0
+            ),
+            "endpoints": self.registry.health_status,
+            "last_check": max(
+                (status.get("last_check", 0) for status in self.registry.health_status.values()),
+                default=0,
+            ),
+        }
+
 
 class ServiceMeshFactory:
     """Factory for creating service mesh instances."""
@@ -676,7 +857,9 @@ class ServiceMeshFactory:
         return mesh
 
     @staticmethod
-    def create_traffic_rule(name: str, source_service: str, destination_service: str, **kwargs) -> TrafficRule:
+    def create_traffic_rule(
+        name: str, source_service: str, destination_service: str, **kwargs
+    ) -> TrafficRule:
         """Create a traffic rule with default settings."""
         return TrafficRule(
             name=name,
@@ -686,7 +869,9 @@ class ServiceMeshFactory:
         )
 
     @staticmethod
-    def create_service_endpoint(service_name: str, host: str, port: int, **kwargs) -> ServiceEndpoint:
+    def create_service_endpoint(
+        service_name: str, host: str, port: int, **kwargs
+    ) -> ServiceEndpoint:
         """Create a service endpoint configuration."""
         return ServiceEndpoint(service_name=service_name, host=host, port=port, **kwargs)
 
@@ -698,7 +883,9 @@ async def setup_service_mesh_for_consolidated_services(
     performance_service: PerformanceOptimizationService | None = None,
 ) -> ServiceMesh:
     """Setup service mesh with consolidated services from Phase 2."""
-    mesh = ServiceMeshFactory.create_service_mesh(db_session, tenant_id, marketplace, performance_service)
+    mesh = ServiceMeshFactory.create_service_mesh(
+        db_session, tenant_id, marketplace, performance_service
+    )
 
     await mesh.initialize()
 

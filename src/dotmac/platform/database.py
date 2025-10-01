@@ -1,0 +1,15 @@
+"""
+Database session dependencies for FastAPI
+"""
+
+from typing import AsyncIterator
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.db import AsyncSessionLocal
+
+
+async def get_async_session() -> AsyncIterator[AsyncSession]:
+    """Get async database session for dependency injection"""
+    async with AsyncSessionLocal() as session:
+        yield session

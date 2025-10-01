@@ -1,0 +1,15 @@
+node_modules
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+dist
+.storybook
+storybook-static
+coverage
+playwright-report
+reports
+.DS_Store
+apps/*/.next
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.production
