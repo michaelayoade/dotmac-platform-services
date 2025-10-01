@@ -1,0 +1,30 @@
+{
+  "instances": [
+    {
+      "id": "a939622f-750b-4acc-a1ab-28d469a3674b",
+      "plugin_name": "Failing Plugin",
+      "instance_name": "Test",
+      "config_schema": {
+        "name": "Failing Plugin",
+        "type": "integration",
+        "version": "1.0.0",
+        "description": "Always fails",
+        "author": null,
+        "homepage": null,
+        "fields": [],
+        "dependencies": [],
+        "tags": [],
+        "supports_health_check": true,
+        "supports_test_connection": true
+      },
+      "status": "error",
+      "last_health_check": null,
+      "last_error": "Configuration always fails",
+      "has_configuration": true,
+      "configuration_version": null
+    }
+  ],
+  "configurations": {
+    "a939622f-750b-4acc-a1ab-28d469a3674b": {}
+  }
+}

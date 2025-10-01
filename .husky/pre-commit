@@ -1,0 +1,43 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Python pre-commit checks
+echo "🔍 Running Python checks..."
+
+# Check for Python changes
+if git diff --cached --name-only | grep -q "\.py$"; then
+  echo "📝 Formatting Python code..."
+  poetry run black --check src/ tests/
+  if [ $? -ne 0 ]; then
+    echo "❌ Python formatting issues found. Run 'make format' to fix."
+    exit 1
+  fi
+
+  echo "🔍 Running Python linting..."
+  poetry run ruff check src/
+  if [ $? -ne 0 ]; then
+    echo "❌ Python linting issues found. Run 'make lint' to see details."
+    exit 1
+  fi
+
+  echo "🧪 Running fast Python tests..."
+  poetry run pytest tests/ -m "not integration and not slow" -x --tb=short -q
+  if [ $? -ne 0 ]; then
+    echo "❌ Python tests failed. Fix the tests before committing."
+    exit 1
+  fi
+fi
+
+# Check for TypeScript/JavaScript changes
+if git diff --cached --name-only | grep -q "\.\(ts\|tsx\|js\|jsx\)$"; then
+  echo "📝 Running frontend checks..."
+  cd frontend/apps/base-app
+  npx lint-staged
+  if [ $? -ne 0 ]; then
+    echo "❌ Frontend checks failed."
+    exit 1
+  fi
+  cd ../../..
+fi
+
+echo "✅ All pre-commit checks passed!"

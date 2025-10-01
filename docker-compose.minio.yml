@@ -1,0 +1,48 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: dotmac-minio
+    ports:
+      - "9000:9000"  # MinIO API
+      - "9001:9001"  # MinIO Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_DEFAULT_BUCKETS: dotmac
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minio-network
+
+  # Optional: MinIO Client for bucket creation
+  minio-mc:
+    image: minio/mc:latest
+    container_name: dotmac-minio-mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+      mc mb myminio/dotmac || true;
+      mc policy set public myminio/dotmac || true;
+      echo 'Bucket created and configured';
+      exit 0;
+      "
+    networks:
+      - minio-network
+
+volumes:
+  minio_data:
+    name: dotmac-minio-data
+
+networks:
+  minio-network:
+    name: dotmac-minio-network
+    driver: bridge

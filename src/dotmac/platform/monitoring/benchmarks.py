@@ -13,7 +13,7 @@ import statistics
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -60,7 +60,7 @@ class BenchmarkMetric:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -139,7 +139,7 @@ class PerformanceBenchmark(ABC):
             name=self.name,
             benchmark_type=self.benchmark_type,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
             metadata=self.metadata.copy(),
         )
 
@@ -158,7 +158,7 @@ class PerformanceBenchmark(ABC):
             await self._process_results(result, raw_results)
 
             result.status = BenchmarkStatus.COMPLETED
-            result.end_time = datetime.utcnow()
+            result.end_time = datetime.now(timezone.utc)
             # Ensure duration is populated after end_time is set
             try:
                 if result.start_time and result.end_time:
@@ -180,7 +180,7 @@ class PerformanceBenchmark(ABC):
 
         except asyncio.CancelledError:
             result.status = BenchmarkStatus.CANCELLED
-            result.end_time = datetime.utcnow()
+            result.end_time = datetime.now(timezone.utc)
             result.error_message = "Benchmark was cancelled"
             self.logger.warning("Benchmark cancelled")
             try:
@@ -190,7 +190,7 @@ class PerformanceBenchmark(ABC):
                 pass
         except Exception as e:
             result.status = BenchmarkStatus.FAILED
-            result.end_time = datetime.utcnow()
+            result.end_time = datetime.now(timezone.utc)
             result.error_message = str(e)
             self.logger.error("Benchmark failed", error=str(e))
             try:
@@ -478,8 +478,8 @@ class BenchmarkSuite:
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.utcnow(),
-                    end_time=datetime.utcnow(),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message="Benchmark execution timed out",
                 )
                 results.append(timeout_result)
@@ -504,8 +504,8 @@ class BenchmarkSuite:
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.utcnow(),
-                    end_time=datetime.utcnow(),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message="Benchmark execution timed out",
                 )
 
@@ -521,8 +521,8 @@ class BenchmarkSuite:
                     name=self.benchmarks[i].name,
                     benchmark_type=self.benchmarks[i].benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.utcnow(),
-                    end_time=datetime.utcnow(),
+                    start_time=datetime.now(timezone.utc),
+                    end_time=datetime.now(timezone.utc),
                     error_message=str(result),
                 )
                 final_results.append(error_result)

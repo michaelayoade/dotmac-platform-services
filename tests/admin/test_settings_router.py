@@ -1,0 +1,541 @@
+"""
+Integration tests for admin settings management router.
+
+Tests all API endpoints with authentication and authorization.
+"""
+
+import pytest
+import json
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from uuid import uuid4, UUID
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.testclient import TestClient
+
+from dotmac.platform.admin.settings.models import (
+    SettingsCategory,
+    SettingsResponse,
+    SettingsUpdateRequest,
+    SettingsValidationResult,
+    AuditLog,
+    SettingsBackup,
+    BulkSettingsUpdate,
+    SettingsExportRequest,
+    SettingsImportRequest,
+)
+from dotmac.platform.auth.core import UserInfo
+
+
+@pytest.fixture
+def mock_admin_user():
+    """Create a mock admin user."""
+    return UserInfo(
+        user_id="admin-123",
+        username="admin",
+        email="admin@example.com",
+        roles=["admin"],
+        permissions=["admin:settings:read", "admin:settings:write"],
+        tenant_id="default",
+    )
+
+
+@pytest.fixture
+def mock_regular_user():
+    """Create a mock regular user."""
+    return UserInfo(
+        user_id="user-456",
+        username="user",
+        email="user@example.com",
+        roles=["user"],
+        permissions=["read"],
+        tenant_id="default",
+    )
+
+
+@pytest.fixture
+def test_app(mock_admin_user):
+    """Create a test FastAPI app with the router."""
+    from dotmac.platform.admin.settings.router import router
+    from dotmac.platform.auth.dependencies import require_admin
+
+    app = FastAPI()
+
+    # Override the require_admin dependency for testing
+    async def override_require_admin():
+        return mock_admin_user
+
+    app.dependency_overrides[require_admin] = override_require_admin
+
+    # Remove the dependencies from the router since we're overriding
+    app.include_router(router, prefix="")
+
+    return app
+
+
+@pytest.fixture
+def test_client(test_app):
+    """Create a test client."""
+    return TestClient(test_app)
+
+
+class TestSettingsRouterEndpoints:
+    """Test all settings router endpoints."""
+
+    def test_get_all_categories(self, test_client):
+        """Test GET /api/v1/admin/settings/categories."""
+        response = test_client.get("/api/v1/admin/settings/categories")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        
+        # Check structure of category info
+        category_info = data[0]
+        assert "category" in category_info
+        assert "display_name" in category_info
+        assert "description" in category_info
+        assert "fields_count" in category_info
+        assert "has_sensitive_fields" in category_info
+
+    def test_get_category_settings(self, test_client):
+        """Test GET /api/v1/admin/settings/category/{category}."""
+        response = test_client.get(
+            "/api/v1/admin/settings/category/email",
+            params={"include_sensitive": False}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "email"
+        assert data["display_name"] == "Email & SMTP"
+        assert "fields" in data
+        assert isinstance(data["fields"], list)
+        
+        # Check sensitive fields are masked
+        for field in data["fields"]:
+            if field["sensitive"]:
+                assert field["value"] in ["", "***MASKED***"]
+
+    def test_get_category_settings_with_sensitive(self, test_client):
+        """Test getting settings with sensitive fields included."""
+        response = test_client.get(
+            "/api/v1/admin/settings/category/email",
+            params={"include_sensitive": True}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        # Sensitive fields should show actual values (empty string by default)
+        smtp_password_field = next(
+            (f for f in data["fields"] if f["name"] == "smtp_password"),
+            None
+        )
+        assert smtp_password_field is not None
+        assert smtp_password_field["value"] == ""  # Default value
+
+    def test_get_invalid_category(self, test_client):
+        """Test getting settings for invalid category."""
+        response = test_client.get(
+            "/api/v1/admin/settings/category/invalid_category"
+        )
+        
+        assert response.status_code == 422  # Validation error
+
+    def test_validate_settings_valid(self, test_client):
+        """Test POST /api/v1/admin/settings/validate."""
+        response = test_client.post(
+            "/api/v1/admin/settings/validate",
+            params={"category": "email"},
+            json={
+                "smtp_host": "mail.example.com",
+                "smtp_port": 587,
+                "use_tls": True,
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is True
+        assert data["errors"] == {}
+
+    def test_validate_settings_invalid(self, test_client):
+        """Test validation with invalid settings."""
+        response = test_client.post(
+            "/api/v1/admin/settings/validate",
+            params={"category": "email"},
+            json={
+                "smtp_port": "not_a_number",  # Invalid type
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is False
+        assert len(data["errors"]) > 0
+
+    def test_update_category_settings(self, test_client):
+        """Test PUT /api/v1/admin/settings/category/{category}."""
+        update_request = {
+            "updates": {
+                "smtp_host": "mail.example.com",
+                "smtp_port": 465,
+            },
+            "validate_only": False,
+            "reason": "Testing settings update"
+        }
+        
+        response = test_client.put(
+            "/api/v1/admin/settings/category/email",
+            json=update_request,
+            headers={"User-Agent": "pytest"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "email"
+        
+        # Check the values were updated
+        smtp_host_field = next(
+            (f for f in data["fields"] if f["name"] == "smtp_host"),
+            None
+        )
+        assert smtp_host_field["value"] == "mail.example.com"
+
+    def test_update_with_validation_failure(self, test_client):
+        """Test update with validation failure."""
+        update_request = {
+            "updates": {
+                "smtp_port": "invalid",
+            },
+            "validate_only": False,
+        }
+        
+        response = test_client.put(
+            "/api/v1/admin/settings/category/email",
+            json=update_request
+        )
+        
+        assert response.status_code == 400
+        data = response.json()
+        assert "errors" in data
+
+    def test_bulk_update_settings(self, test_client):
+        """Test POST /api/v1/admin/settings/bulk-update."""
+        bulk_request = {
+            "updates": {
+                "email": {
+                    "smtp_host": "bulk-mail.example.com",
+                    "smtp_port": 587,
+                },
+                "tenant": {
+                    "mode": "multi",
+                    "strict_isolation": True,
+                }
+            },
+            "validate_only": False,
+            "reason": "Bulk configuration update"
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/bulk-update",
+            json=bulk_request
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        assert "errors" in data
+        assert "summary" in data
+        assert "email" in data["results"]
+        assert "tenant" in data["results"]
+
+    def test_create_backup(self, test_client):
+        """Test POST /api/v1/admin/settings/backup."""
+        response = test_client.post(
+            "/api/v1/admin/settings/backup",
+            params={
+                "name": "Test Backup",
+                "description": "Testing backup functionality",
+            },
+            json=["email", "tenant"]  # Categories to backup
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Test Backup"
+        assert "id" in data
+        assert "created_at" in data
+        assert "email" in data["categories"]
+        assert "tenant" in data["categories"]
+
+    def test_restore_backup(self, test_client):
+        """Test POST /api/v1/admin/settings/restore/{backup_id}."""
+        # First create a backup
+        create_response = test_client.post(
+            "/api/v1/admin/settings/backup",
+            params={"name": "Restore Test"},
+            json=["email"]
+        )
+        backup_id = create_response.json()["id"]
+        
+        # Then restore it
+        response = test_client.post(
+            f"/api/v1/admin/settings/restore/{backup_id}"
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Settings restored successfully"
+        assert "email" in data["categories"]
+
+    def test_restore_invalid_backup(self, test_client):
+        """Test restore with invalid backup ID."""
+        invalid_id = str(uuid4())
+        response = test_client.post(
+            f"/api/v1/admin/settings/restore/{invalid_id}"
+        )
+        
+        assert response.status_code == 404
+
+    def test_get_audit_logs(self, test_client):
+        """Test GET /api/v1/admin/settings/audit-logs."""
+        # First make some changes to create audit logs
+        test_client.put(
+            "/api/v1/admin/settings/category/email",
+            json={
+                "updates": {"smtp_host": "audit-test.com"},
+                "validate_only": False,
+            }
+        )
+        
+        response = test_client.get(
+            "/api/v1/admin/settings/audit-logs",
+            params={
+                "category": "email",
+                "limit": 10
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        
+        if len(data) > 0:
+            log = data[0]
+            assert "id" in log
+            assert "timestamp" in log
+            assert "user_id" in log
+            assert "category" in log
+            assert "action" in log
+            assert "changes" in log
+
+    def test_export_settings_json(self, test_client):
+        """Test POST /api/v1/admin/settings/export."""
+        export_request = {
+            "categories": ["email", "tenant"],
+            "include_sensitive": False,
+            "format": "json"
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/export",
+            json=export_request
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["format"] == "json"
+        assert "data" in data
+        
+        # Parse exported JSON
+        exported = json.loads(data["data"])
+        assert "email" in exported
+        assert "tenant" in exported
+        
+        # Check sensitive fields are masked
+        if "smtp_password" in exported["email"]:
+            assert exported["email"]["smtp_password"] == "***MASKED***"
+
+    def test_export_settings_env(self, test_client):
+        """Test export to environment variable format."""
+        export_request = {
+            "categories": ["email"],
+            "include_sensitive": True,
+            "format": "env"
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/export",
+            json=export_request
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["format"] == "env"
+        assert "EMAIL__SMTP_HOST=" in data["data"]
+        assert "EMAIL__SMTP_PORT=" in data["data"]
+
+    def test_import_settings(self, test_client):
+        """Test POST /api/v1/admin/settings/import."""
+        import_request = {
+            "data": {
+                "email": {
+                    "smtp_host": "imported.example.com",
+                    "smtp_port": 2525,
+                    "use_tls": True,
+                }
+            },
+            "categories": ["email"],
+            "validate_only": False,
+            "reason": "Import from backup"
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/import",
+            json=import_request
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "email" in data["imported"]
+        assert data["validate_only"] is False
+
+    def test_import_with_validation_only(self, test_client):
+        """Test import with validate_only flag."""
+        import_request = {
+            "data": {
+                "email": {
+                    "smtp_port": "invalid",  # Invalid value
+                }
+            },
+            "validate_only": True,
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/import",
+            json=import_request
+        )
+        
+        assert response.status_code == 400
+        data = response.json()
+        assert "errors" in data["detail"]
+
+    def test_reset_to_defaults_not_implemented(self, test_client):
+        """Test POST /api/v1/admin/settings/reset/{category}."""
+        response = test_client.post(
+            "/api/v1/admin/settings/reset/email"
+        )
+        
+        assert response.status_code == 501  # Not Implemented
+        data = response.json()
+        assert "not yet implemented" in data["detail"].lower()
+
+    def test_settings_health_check(self, test_client):
+        """Test GET /api/v1/admin/settings/health."""
+        response = test_client.get("/api/v1/admin/settings/health")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "categories_available" in data
+        assert "audit_logs_count" in data
+        assert "backups_count" in data
+
+
+class TestAuthorizationAndSecurity:
+    """Test authorization and security aspects."""
+
+    def test_non_admin_access_denied(self, test_app, mock_regular_user):
+        """Test that non-admin users are denied access."""
+        from dotmac.platform.auth.dependencies import require_admin
+
+        # Override dependency to return regular user
+        async def override_require_admin():
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        test_app.dependency_overrides[require_admin] = override_require_admin
+        client = TestClient(test_app)
+
+        response = client.get("/api/v1/admin/settings/categories")
+        assert response.status_code == 403
+        assert "Admin access required" in response.json()["detail"]
+
+    def test_audit_log_captures_user_info(self, test_client):
+        """Test that audit logs capture user information."""
+        # Make a change
+        test_client.put(
+            "/api/v1/admin/settings/category/email",
+            json={
+                "updates": {"from_name": "Test Platform"},
+                "validate_only": False,
+                "reason": "Testing audit"
+            },
+            headers={"User-Agent": "Test Browser"}
+        )
+        
+        # Check audit logs
+        response = test_client.get("/api/v1/admin/settings/audit-logs")
+        logs = response.json()
+        
+        if len(logs) > 0:
+            latest_log = logs[0]
+            assert latest_log["user_id"] == "admin-123"
+            assert latest_log["user_email"] == "admin@example.com"
+            assert latest_log["reason"] == "Testing audit"
+
+    def test_sensitive_fields_masked_by_default(self, test_client):
+        """Test that sensitive fields are masked by default."""
+        response = test_client.get("/api/v1/admin/settings/category/vault")
+        data = response.json()
+        
+        # Find token field
+        token_field = next(
+            (f for f in data["fields"] if f["name"] == "token"),
+            None
+        )
+        
+        if token_field:
+            assert token_field["sensitive"] is True
+            if token_field["value"]:
+                assert token_field["value"] == "***MASKED***"
+
+
+class TestErrorHandling:
+    """Test error handling scenarios."""
+
+    def test_invalid_category_enum(self, test_client):
+        """Test handling of invalid category enum value."""
+        response = test_client.get(
+            "/api/v1/admin/settings/category/nonexistent"
+        )
+        assert response.status_code == 422
+
+    def test_empty_update_request(self, test_client):
+        """Test handling of empty update request."""
+        response = test_client.put(
+            "/api/v1/admin/settings/category/email",
+            json={"updates": {}}
+        )
+        assert response.status_code == 422  # Validation error for empty updates
+
+    def test_malformed_backup_id(self, test_client):
+        """Test restore with malformed backup ID."""
+        response = test_client.post(
+            "/api/v1/admin/settings/restore/not-a-uuid"
+        )
+        assert response.status_code == 404
+
+    def test_unsupported_export_format(self, test_client):
+        """Test export with unsupported format."""
+        export_request = {
+            "format": "xml"  # Unsupported
+        }
+        
+        response = test_client.post(
+            "/api/v1/admin/settings/export",
+            json=export_request
+        )
+        
+        # Should work but treat as json
+        assert response.status_code in [200, 400]

@@ -260,16 +260,8 @@ class AuthorizationError(AuthError):
         super().__init__(message, error_code, details)
 
 
-class ValidationError(AuthError):
-    """Data validation error"""
-
-    def __init__(
-        self,
-        message: str = "Validation failed",
-        error_code: str = "VALIDATION_ERROR",
-        details: Mapping[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message, error_code, details)
+# Use ValidationError from core module - no custom auth validation error needed
+from ..core import ValidationError
 
 
 class RateLimitError(AuthError):

@@ -6,12 +6,18 @@ Minimal version with graceful handling of missing dependencies.
 import asyncio
 import os
 import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+# Import shared fixtures and telemetry fixtures
+from tests.conftest_telemetry import *  # noqa: F401,F403
+from tests.shared_fixtures import *  # noqa: F401,F403
+from tests.test_utils import *  # noqa: F401,F403
 
 # Optional dependency imports with fallbacks
 # Optional fakeredis import with graceful fallback when unavailable
@@ -87,6 +93,7 @@ except ImportError:
 
 try:
     from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.orm import Session, sessionmaker
 
@@ -96,14 +103,31 @@ except ImportError:
 
 # Graceful imports from dotmac platform
 try:
-    from dotmac.platform.auth.jwt_service import JWTService
+    from dotmac.platform.auth.core import JWTService
 
     HAS_JWT_SERVICE = True
 except ImportError:
     HAS_JWT_SERVICE = False
 
 try:
-    from dotmac.platform.database.base import Base
+    from dotmac.platform.db import Base
+
+    # Import all models to ensure they're registered with Base.metadata
+    # This is required for Base.metadata.create_all() to work properly
+    try:
+        from dotmac.platform.contacts import models as contact_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.customer_management import models as customer_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.partner_management import models as partner_models  # noqa: F401
+    except ImportError:
+        pass
 
     HAS_DATABASE_BASE = True
 except ImportError:
@@ -191,19 +215,156 @@ if HAS_SQLALCHEMY:
     @pytest.fixture
     def db_engine():
         """Test database engine."""
-        engine = create_engine("sqlite:///:memory:")
+        db_url = os.environ.get("DOTMAC_DATABASE_URL", "sqlite:///:memory:")
+        connect_args: dict[str, object] = {}
+
+        try:
+            url = make_url(db_url)
+        except Exception:
+            url = None
+
+        if url is not None and url.get_backend_name() == "sqlite":
+            connect_args["check_same_thread"] = False
+            database = url.database
+            if database and database != ":memory":
+                candidate = Path(database)
+                if not candidate.is_absolute():
+                    candidate = Path.cwd() / candidate
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+
+        engine = create_engine(db_url, connect_args=connect_args)
         if HAS_DATABASE_BASE:
             Base.metadata.create_all(engine)
         yield engine
+        if HAS_DATABASE_BASE:
+            Base.metadata.drop_all(engine)
         engine.dispose()
 
     @pytest.fixture
     def db_session(db_engine):
         """Test database session."""
-        Session = sessionmaker(bind=db_engine)
-        session = Session()
-        yield session
-        session.close()
+        SessionLocal = sessionmaker(bind=db_engine, autoflush=False, autocommit=False)
+        session = SessionLocal()
+        try:
+            yield session
+        finally:
+            try:
+                session.rollback()
+            except Exception:
+                pass
+            session.close()
+
+    try:
+        import pytest_asyncio
+
+        @pytest_asyncio.fixture
+        async def async_db_engine():
+            """Async database engine for tests."""
+            db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+            connect_args: dict[str, object] = {}
+
+            try:
+                url = make_url(db_url)
+            except Exception:
+                url = None
+
+            if url is not None and url.get_backend_name().startswith("sqlite"):
+                database = url.database
+                if database and database != ":memory":
+                    candidate = Path(database)
+                    if not candidate.is_absolute():
+                        candidate = Path.cwd() / candidate
+                    candidate.parent.mkdir(parents=True, exist_ok=True)
+
+            engine = create_async_engine(
+                db_url,
+                connect_args=connect_args,
+                pool_size=20,  # Increase pool size for tests
+                max_overflow=30,  # Allow overflow connections
+                pool_pre_ping=True,  # Verify connections before use
+                pool_recycle=3600  # Recycle connections every hour
+            )
+            if HAS_DATABASE_BASE:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+
+            try:
+                yield engine
+            finally:
+                if HAS_DATABASE_BASE:
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.drop_all)
+                await engine.dispose()
+    except ImportError:
+        # Fallback to regular pytest fixture
+        @pytest.fixture
+        async def async_db_engine():
+            """Async database engine for tests."""
+            db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+            connect_args: dict[str, object] = {}
+
+            try:
+                url = make_url(db_url)
+            except Exception:
+                url = None
+
+            if url is not None and url.get_backend_name().startswith("sqlite"):
+                database = url.database
+                if database and database != ":memory":
+                    candidate = Path(database)
+                    if not candidate.is_absolute():
+                        candidate = Path.cwd() / candidate
+                    candidate.parent.mkdir(parents=True, exist_ok=True)
+
+            engine = create_async_engine(
+                db_url,
+                connect_args=connect_args,
+                pool_size=20,  # Increase pool size for tests
+                max_overflow=30,  # Allow overflow connections
+                pool_pre_ping=True,  # Verify connections before use
+                pool_recycle=3600  # Recycle connections every hour
+            )
+            if HAS_DATABASE_BASE:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+
+            try:
+                yield engine
+            finally:
+                if HAS_DATABASE_BASE:
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.drop_all)
+                await engine.dispose()
+
+    try:
+        import pytest_asyncio
+
+        @pytest_asyncio.fixture
+        async def async_db_session(async_db_engine):
+            """Async database session."""
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
+                try:
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
+    except ImportError:
+        # Fallback to regular pytest fixture
+        @pytest.fixture
+        async def async_db_session(async_db_engine):
+            """Async database session."""
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
+                try:
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
 
 else:
 
@@ -230,6 +391,37 @@ if HAS_FASTAPI:
     def test_client(test_app):
         """Test client for FastAPI app."""
         return TestClient(test_app)
+
+    @pytest.fixture
+    async def authenticated_client(test_app):
+        """Async test client with authentication for testing protected endpoints."""
+        from httpx import AsyncClient, ASGITransport
+        from dotmac.platform.auth.core import JWTService
+
+        # Create JWT service and generate a test token
+        jwt_service = JWTService(
+            algorithm="HS256",
+            secret="test-secret-key-for-testing-only"
+        )
+
+        # Create test token with user claims
+        test_token = jwt_service.create_access_token(
+            subject="test-user-123",
+            additional_claims={
+                "scopes": ["read", "write", "admin"],
+                "tenant_id": "test-tenant",
+                "email": "test@example.com"
+            }
+        )
+
+        # Create async client with auth headers
+        transport = ASGITransport(app=test_app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+            headers={"Authorization": f"Bearer {test_token}"}
+        ) as client:
+            yield client
 
 else:
 
@@ -271,16 +463,33 @@ def test_environment():
     """Set up test environment variables."""
     original_env = os.environ.copy()
 
+    tmp_dir = Path(os.getcwd()) / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    db_path = tmp_dir / "test_db.sqlite"
+    if db_path.exists():
+        db_path.unlink()
+
     # Set test environment
     os.environ["ENVIRONMENT"] = "test"
     os.environ["DOTMAC_ENV"] = "test"
     os.environ["TESTING"] = "true"
+    os.environ["DOTMAC_TEST_DB_PATH"] = str(db_path)
+    os.environ["DOTMAC_DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
+    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = f"sqlite+aiosqlite:///{db_path.as_posix()}"
 
-    yield
+    try:
+        yield
+    finally:
+        # Clean up temporary database file if it exists
+        try:
+            if db_path.exists():
+                db_path.unlink()
+        except OSError:
+            pass
 
-    # Restore original environment
-    os.environ.clear()
-    os.environ.update(original_env)
+        # Restore original environment
+        os.environ.clear()
+        os.environ.update(original_env)
 
 
 # Pytest configuration
@@ -293,19 +502,64 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: Slow test")
 
 
+# Communications config fixture for notification tests
+@pytest.fixture
+def communications_config():
+    """Mock communications configuration for testing."""
+    return {
+        "notifications": {
+            "email": {
+                "enabled": True,
+                "smtp_host": "localhost",
+                "smtp_port": 1025,
+                "from_address": "test@example.com",
+            },
+            "sms": {
+                "enabled": False,
+            },
+            "push": {
+                "enabled": False,
+            },
+        },
+        "webhooks": {
+            "enabled": True,
+            "timeout": 30,
+            "retry_attempts": 3,
+        },
+        "rate_limits": {
+            "email": 100,  # per minute
+            "sms": 10,
+            "push": 1000,
+        },
+    }
+
+
 # Event loop fixture for asyncio tests
 @pytest.fixture(scope="function")
 def event_loop():
     """Create a fresh event loop per test for isolation."""
     loop = asyncio.new_event_loop()
+    previous_loop = None
     try:
+        try:
+            previous_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            previous_loop = None
+
+        asyncio.set_event_loop(loop)
         yield loop
     finally:
         try:
+            # Allow pending callbacks a chance to finalize.
             loop.run_until_complete(asyncio.sleep(0))
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            if hasattr(loop, "shutdown_default_executor"):
+                loop.run_until_complete(loop.shutdown_default_executor())
         except Exception:
             pass
-        loop.close()
+        finally:
+            asyncio.set_event_loop(previous_loop)
+            loop.close()
 
 
 # Skip tests that require unavailable dependencies

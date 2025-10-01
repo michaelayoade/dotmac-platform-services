@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi import Request
 
-from dotmac.platform.tenant.identity import TenantIdentityResolver
+from dotmac.platform.tenant.tenant import TenantIdentityResolver
 
 
 class TestTenantIdentityResolver:

@@ -5,7 +5,7 @@ from fastapi import Request
 from starlette.datastructures import Headers
 from urllib.parse import urlencode
 
-from dotmac.platform.tenant.identity import TenantIdentityResolver
+from dotmac.platform.tenant.tenant import TenantIdentityResolver
 
 
 def make_request(headers=None, query=None, state_dict=None) -> Request:
@@ -30,7 +30,9 @@ async def test_resolve_prefers_header_then_query_then_state():
     r = TenantIdentityResolver()
 
     # Header wins
-    req = make_request(headers={"X-Tenant-ID": "H"}, query={"tenant_id": "Q"}, state_dict={"tenant_id": "S"})
+    req = make_request(
+        headers={"X-Tenant-ID": "H"}, query={"tenant_id": "Q"}, state_dict={"tenant_id": "S"}
+    )
     assert await r.resolve(req) == "H"
 
     # Query used when header missing

@@ -1,0 +1,400 @@
+name: Frontend Tests
+
+on:
+  push:
+    branches: [main, dev/*]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-tests.yml'
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+
+jobs:
+  # Lint and type check
+  lint-and-typecheck:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build
+
+      - name: Lint all packages
+        run: |
+          pnpm --filter "@dotmac/*" lint
+          pnpm --filter "@dotmac/base-app" lint
+
+      - name: Type check all packages
+        run: |
+          pnpm --filter "@dotmac/*" type-check
+          pnpm --filter "@dotmac/base-app" type-check
+
+  # Unit tests for shared packages
+  unit-tests-packages:
+    name: Unit Tests - Shared Packages
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build
+
+      - name: Run unit tests for shared packages
+        run: |
+          pnpm --filter "@dotmac/ui" test --coverage
+          pnpm --filter "@dotmac/hooks" test --coverage
+          pnpm --filter "@dotmac/http-client" test --coverage
+          pnpm --filter "@dotmac/auth" test --coverage
+          pnpm --filter "@dotmac/analytics" test --coverage
+          pnpm --filter "@dotmac/audit-trail" test --coverage
+          pnpm --filter "@dotmac/service-registry" test --coverage
+          pnpm --filter "@dotmac/distributed-locks" test --coverage
+          pnpm --filter "@dotmac/graphql-client" test --coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./frontend
+          flags: frontend-packages
+          fail_ci_if_error: false
+
+  # Unit tests for base app
+  unit-tests-base-app:
+    name: Unit Tests - Base App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build
+
+      - name: Run base app unit tests
+        run: pnpm --filter "@dotmac/base-app" test --coverage
+
+      - name: Upload base app coverage
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./frontend/apps/base-app
+          flags: frontend-base-app
+          fail_ci_if_error: false
+
+  # E2E tests
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-tests-packages, unit-tests-base-app]
+
+    services:
+      # Start backend services for E2E tests
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dotmac_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+
+      - name: Get pnpm store directory
+        shell: bash
+        working-directory: ./frontend
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install backend dependencies
+        run: poetry install --with dev --extras "all"
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend packages
+        working-directory: ./frontend
+        run: pnpm build
+
+      - name: Build base app
+        working-directory: ./frontend
+        run: pnpm --filter "@dotmac/base-app" build
+
+      - name: Setup test database
+        run: |
+          poetry run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dotmac_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Start backend server
+        run: |
+          poetry run uvicorn src.dotmac.platform.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dotmac_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-for-ci
+          ENVIRONMENT: test
+
+      - name: Start frontend server
+        working-directory: ./frontend
+        run: |
+          pnpm --filter "@dotmac/base-app" start &
+          sleep 10
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: pnpm exec playwright install --with-deps
+
+      - name: Run E2E tests
+        working-directory: ./frontend
+        run: pnpm e2e:ci
+        env:
+          BASE_URL: http://localhost:3000
+          API_BASE_URL: http://localhost:8000
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: |
+            frontend/e2e/test-results/
+            frontend/e2e/playwright-report/
+          retention-days: 30
+
+  # Build and deploy checks
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Build base app for production
+        run: pnpm --filter "@dotmac/base-app" build
+        env:
+          NODE_ENV: production
+
+      - name: Check bundle size
+        run: |
+          # Add bundle size analysis
+          pnpm --filter "@dotmac/base-app" exec next build --analyze || true
+
+  # Security audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security audit
+        run: pnpm audit --audit-level moderate
+
+      - name: Check for vulnerabilities
+        run: |
+          # Run additional security checks
+          pnpm exec npm-check-updates --target minor
