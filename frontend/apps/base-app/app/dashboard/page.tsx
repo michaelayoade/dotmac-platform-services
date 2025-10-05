@@ -92,20 +92,20 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="text-slate-400">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
+    <main className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="bg-slate-900/50 backdrop-blur border-b border-slate-800">
+      <header className="bg-card/50 backdrop-blur border-b border-border">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-xl font-semibold">DotMac Platform Dashboard</h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Welcome back, {user?.email || 'User'}
             </p>
           </div>
@@ -113,14 +113,14 @@ export default function DashboardPage() {
             <button
               onClick={handleProfileClick}
               data-testid="user-profile-button"
-              className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm bg-accent hover:bg-muted rounded-lg transition-colors"
             >
               Profile
             </button>
             <button
               onClick={handleLogout}
               data-testid="logout-button"
-              className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm bg-accent hover:bg-muted rounded-lg transition-colors"
             >
               Sign out
             </button>
@@ -132,20 +132,20 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-6 py-12" data-testid="dashboard-content">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* User Info Card */}
-          <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4 text-sky-400">User Profile</h2>
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 dark:text-blue-400">User Profile</h2>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="text-slate-400">Email:</span>
+                <span className="text-muted-foreground">Email:</span>
                 <span className="ml-2">{user?.email}</span>
               </div>
               <div>
-                <span className="text-slate-400">User ID:</span>
+                <span className="text-muted-foreground">User ID:</span>
                 <span className="ml-2 font-mono text-xs">{user?.id}</span>
               </div>
               {user?.roles && user.roles.length > 0 && (
                 <div>
-                  <span className="text-slate-400">Roles:</span>
+                  <span className="text-muted-foreground">Roles:</span>
                   <span className="ml-2">{user.roles.join(', ')}</span>
                 </div>
               )}
@@ -153,49 +153,49 @@ export default function DashboardPage() {
           </div>
 
           {/* API Health Card */}
-          <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4 text-emerald-400">API Status</h2>
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4 text-green-600 dark:text-green-400">API Status</h2>
             {health ? (
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                  <span className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></span>
                   <span>{health.status}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Service:</span>
+                  <span className="text-muted-foreground">Service:</span>
                   <span className="ml-2">{health.service}</span>
                 </div>
                 {health.version && (
                   <div>
-                    <span className="text-slate-400">Version:</span>
+                    <span className="text-muted-foreground">Version:</span>
                     <span className="ml-2">{health.version}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-slate-500 text-sm">Unable to fetch status</div>
+              <div className="text-muted-foreground text-sm">Unable to fetch status</div>
             )}
           </div>
 
           {/* Quick Actions Card */}
-          <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4 text-purple-400">Quick Actions</h2>
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4 text-purple-600 dark:text-purple-400">Quick Actions</h2>
             <div className="space-y-3">
               <Link
                 href="/dashboard/customers"
-                className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
+                className="block px-4 py-2 bg-accent hover:bg-muted rounded-lg text-sm text-center transition-colors"
               >
                 Manage Customers
               </Link>
               <Link
                 href="/dashboard/billing"
-                className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
+                className="block px-4 py-2 bg-accent hover:bg-muted rounded-lg text-sm text-center transition-colors"
               >
                 Billing Overview
               </Link>
               <Link
                 href="/dashboard/api-keys"
-                className="block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-center transition-colors"
+                className="block px-4 py-2 bg-accent hover:bg-muted rounded-lg text-sm text-center transition-colors"
               >
                 Manage API Keys
               </Link>
@@ -219,14 +219,14 @@ export default function DashboardPage() {
             ].map((service) => (
               <div
                 key={service.name}
-                className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-4 hover:border-slate-700 transition-colors"
+                className="bg-card/50 backdrop-blur border border-border rounded-lg p-4 hover:border-border transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl">{service.icon}</span>
-                  <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                  <span className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></span>
                 </div>
                 <h3 className="font-medium text-sm">{service.name}</h3>
-                <p className="text-xs text-slate-400 mt-1">Status: {service.status}</p>
+                <p className="text-xs text-muted-foreground mt-1">Status: {service.status}</p>
               </div>
             ))}
           </div>

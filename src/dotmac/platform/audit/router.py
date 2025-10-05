@@ -2,44 +2,46 @@
 FastAPI router for audit and activity endpoints.
 """
 
-from typing import Optional
+from datetime import UTC
 from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.core import UserInfo, get_current_user, get_current_user_optional
+from ..db import get_async_session
+from ..tenant import get_current_tenant_id
 from .models import (
+    ActivitySeverity,
+    ActivityType,
     AuditActivityList,
     AuditActivityResponse,
     AuditFilterParams,
-    ActivityType,
-    ActivitySeverity,
+    FrontendLogLevel,
+    FrontendLogsRequest,
+    FrontendLogsResponse,
 )
 from .service import AuditService, log_api_activity
-from ..auth.core import get_current_user, get_current_user_optional, UserInfo
-from ..tenant import get_current_tenant_id
-from ..db import get_async_session
-
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/audit", tags=["audit"])
+router = APIRouter(tags=["Audit"])
 
 
 @router.get("/activities", response_model=AuditActivityList)
 async def list_activities(
     request: Request,
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    activity_type: Optional[ActivityType] = Query(None, description="Filter by activity type"),
-    severity: Optional[ActivitySeverity] = Query(None, description="Filter by severity"),
-    resource_type: Optional[str] = Query(None, description="Filter by resource type"),
-    resource_id: Optional[str] = Query(None, description="Filter by resource ID"),
-    days: Optional[int] = Query(30, ge=1, le=365, description="Number of days to look back"),
+    user_id: str | None = Query(None, description="Filter by user ID"),
+    activity_type: ActivityType | None = Query(None, description="Filter by activity type"),
+    severity: ActivitySeverity | None = Query(None, description="Filter by severity"),
+    resource_type: str | None = Query(None, description="Filter by resource type"),
+    resource_id: str | None = Query(None, description="Filter by resource ID"),
+    days: int | None = Query(30, ge=1, le=365, description="Number of days to look back"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     session: AsyncSession = Depends(get_async_session),
-    current_user: Optional[UserInfo] = Depends(get_current_user_optional),
+    current_user: UserInfo | None = Depends(get_current_user_optional),
 ):
     """
     Get paginated list of audit activities.
@@ -50,7 +52,7 @@ async def list_activities(
         # Build filter parameters
         from datetime import datetime, timedelta
 
-        start_date = datetime.utcnow() - timedelta(days=days) if days else None
+        start_date = datetime.now(UTC) - timedelta(days=days) if days else None
 
         filters = AuditFilterParams(
             user_id=user_id,
@@ -94,7 +96,7 @@ async def get_recent_activities(
     limit: int = Query(20, ge=1, le=100, description="Maximum number of activities to return"),
     days: int = Query(7, ge=1, le=90, description="Number of days to look back"),
     session: AsyncSession = Depends(get_async_session),
-    current_user: Optional[UserInfo] = Depends(get_current_user_optional),
+    current_user: UserInfo | None = Depends(get_current_user_optional),
 ):
     """
     Get recent audit activities for dashboard/frontend views.
@@ -150,8 +152,7 @@ async def get_user_activities(
         # Security check: users can only view their own activities unless admin
         if user_id != current_user.user_id and "admin" not in current_user.roles:
             raise HTTPException(
-                status_code=403,
-                detail="Insufficient permissions to view other user's activities"
+                status_code=403, detail="Insufficient permissions to view other user's activities"
             )
 
         service = AuditService(session)
@@ -168,7 +169,9 @@ async def get_user_activities(
             request=request,
             action="get_user_activities",
             description=f"User {current_user.user_id} retrieved activities for user {user_id}",
-            severity=ActivitySeverity.MEDIUM if user_id != current_user.user_id else ActivitySeverity.LOW,
+            severity=(
+                ActivitySeverity.MEDIUM if user_id != current_user.user_id else ActivitySeverity.LOW
+            ),
             details={
                 "target_user_id": user_id,
                 "limit": limit,
@@ -182,7 +185,9 @@ async def get_user_activities(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error retrieving user activities", error=str(e), user_id=user_id, exc_info=True)
+        logger.error(
+            "Error retrieving user activities", error=str(e), user_id=user_id, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="Failed to retrieve user activities")
 
 
@@ -239,6 +244,7 @@ async def get_activity_details(
     """
     try:
         from sqlalchemy import select
+
         from .models import AuditActivity
 
         # Query for the specific activity
@@ -254,11 +260,9 @@ async def get_activity_details(
             raise HTTPException(status_code=404, detail="Activity not found")
 
         # Security check: users can only view activities they're involved in unless admin
-        if (activity.user_id != current_user.user_id and
-            "admin" not in current_user.roles):
+        if activity.user_id != current_user.user_id and "admin" not in current_user.roles:
             raise HTTPException(
-                status_code=403,
-                detail="Insufficient permissions to view this activity"
+                status_code=403, detail="Insufficient permissions to view this activity"
             )
 
         # Log this API access
@@ -278,5 +282,123 @@ async def get_activity_details(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error retrieving activity details", error=str(e), activity_id=activity_id, exc_info=True)
+        logger.error(
+            "Error retrieving activity details",
+            error=str(e),
+            activity_id=activity_id,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail="Failed to retrieve activity details")
+
+
+@router.post("/frontend-logs", response_model=FrontendLogsResponse)
+async def create_frontend_logs(
+    request: Request,
+    logs_request: FrontendLogsRequest,
+    session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo | None = Depends(get_current_user_optional),
+):
+    """
+    Accept batched frontend logs from the client application.
+
+    Stores frontend logs in the audit_activities table for centralized logging.
+    Logs are associated with the current user session if authenticated.
+
+    **Features:**
+    - Batched ingestion (up to 100 logs per request)
+    - Automatic user/tenant association from session
+    - Client metadata capture (userAgent, url, etc.)
+    - Log level mapping to activity severity
+
+    **Security:**
+    - Unauthenticated requests are accepted but marked appropriately
+    - Logs are tenant-isolated when user is authenticated
+    - Rate limiting should be applied at the API gateway level
+    """
+    try:
+        # Map frontend log levels to activity severities
+        severity_map = {
+            FrontendLogLevel.ERROR: ActivitySeverity.HIGH,
+            FrontendLogLevel.WARNING: ActivitySeverity.MEDIUM,
+            FrontendLogLevel.INFO: ActivitySeverity.LOW,
+            FrontendLogLevel.DEBUG: ActivitySeverity.LOW,
+        }
+
+        service = AuditService(session)
+        logs_stored = 0
+
+        # Process each log entry
+        for log_entry in logs_request.logs:
+            try:
+                # Extract client metadata
+                user_agent = log_entry.metadata.get("userAgent")
+                client_url = log_entry.metadata.get("url")
+                timestamp_str = log_entry.metadata.get("timestamp")
+
+                # Determine tenant_id (handle anonymous users)
+                tenant_id = None
+                if current_user:
+                    try:
+                        tenant_id = get_current_tenant_id()
+                    except Exception:
+                        # If tenant resolution fails, use user's tenant_id
+                        tenant_id = (
+                            current_user.tenant_id if hasattr(current_user, "tenant_id") else None
+                        )
+
+                # Skip if no tenant_id for anonymous users (tenant_id is NOT NULL in the table)
+                if not tenant_id:
+                    logger.warning(
+                        "Skipping frontend log without tenant_id",
+                        message=log_entry.message[:50],
+                        authenticated=current_user is not None,
+                    )
+                    continue
+
+                # Create audit activity
+                await service.log_activity(
+                    activity_type=ActivityType.FRONTEND_LOG,
+                    action=f"frontend.{log_entry.level.lower()}",
+                    description=log_entry.message,
+                    severity=severity_map.get(log_entry.level, ActivitySeverity.LOW),
+                    details={
+                        "service": log_entry.service,
+                        "level": log_entry.level,
+                        "url": client_url,
+                        "timestamp": timestamp_str,
+                        **log_entry.metadata,  # Include all metadata
+                    },
+                    user_id=current_user.user_id if current_user else None,
+                    tenant_id=tenant_id,
+                    ip_address=request.client.host if request.client else None,
+                    user_agent=user_agent,
+                )
+                logs_stored += 1
+
+            except Exception as log_error:
+                # Log individual entry failures but continue processing
+                logger.warning(
+                    "Failed to store individual frontend log entry",
+                    error=str(log_error),
+                    log_level=log_entry.level,
+                    log_message=log_entry.message[:100],  # Truncate for logging
+                )
+
+        # Log the batch ingestion
+        logger.info(
+            "frontend.logs.ingested",
+            logs_received=len(logs_request.logs),
+            logs_stored=logs_stored,
+            user_id=current_user.user_id if current_user else "anonymous",
+            tenant_id=get_current_tenant_id() if current_user else "anonymous",
+        )
+
+        return FrontendLogsResponse(
+            status="success",
+            logs_received=len(logs_request.logs),
+            logs_stored=logs_stored,
+        )
+
+    except Exception as e:
+        logger.error("Error processing frontend logs", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process frontend logs")

@@ -47,7 +47,10 @@ export default function CreateRoleModal({ permissions, roles, onClose, onCreate 
     if (!acc[permission.category]) {
       acc[permission.category] = [];
     }
-    acc[permission.category].push(permission);
+    const category = acc[permission.category];
+    if (category) {
+      category.push(permission);
+    }
     return acc;
   }, {} as Record<string, Permission[]>);
 

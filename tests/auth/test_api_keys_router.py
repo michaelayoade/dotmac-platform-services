@@ -65,13 +65,11 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_create_api_key_success(self, mock_user):
         """Test successful API key creation."""
-        with patch('dotmac.platform.auth.api_keys_router._enhanced_create_api_key') as mock_create:
+        with patch("dotmac.platform.auth.api_keys_router._enhanced_create_api_key") as mock_create:
             mock_create.return_value = ("sk_test123456789", "key_123")
 
             request = APIKeyCreateRequest(
-                name="Test API Key",
-                scopes=["read", "write"],
-                description="Test description"
+                name="Test API Key", scopes=["read", "write"], description="Test description"
             )
 
             result = await create_api_key(request, mock_user)
@@ -86,7 +84,7 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_create_api_key_exception(self, mock_user):
         """Test API key creation with exception."""
-        with patch('dotmac.platform.auth.api_keys_router._enhanced_create_api_key') as mock_create:
+        with patch("dotmac.platform.auth.api_keys_router._enhanced_create_api_key") as mock_create:
             mock_create.side_effect = Exception("Redis error")
 
             request = APIKeyCreateRequest(name="Test API Key", scopes=["read"])
@@ -101,7 +99,9 @@ class TestAPIKeyRouterFunctions:
         """Test successful API key listing."""
         mock_keys = [mock_api_key_data.copy()]
 
-        with patch('dotmac.platform.auth.api_keys_router._list_user_api_keys', return_value=mock_keys):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._list_user_api_keys", return_value=mock_keys
+        ):
             result = await list_api_keys(page=1, limit=50, current_user=mock_user)
 
             assert result.total == 1
@@ -126,7 +126,9 @@ class TestAPIKeyRouterFunctions:
             }
             mock_keys.append(key_data)
 
-        with patch('dotmac.platform.auth.api_keys_router._list_user_api_keys', return_value=mock_keys):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._list_user_api_keys", return_value=mock_keys
+        ):
             result = await list_api_keys(page=2, limit=3, current_user=mock_user)
 
             assert result.total == 10
@@ -137,7 +139,7 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_list_api_keys_exception(self, mock_user):
         """Test API key listing with exception."""
-        with patch('dotmac.platform.auth.api_keys_router._list_user_api_keys') as mock_list:
+        with patch("dotmac.platform.auth.api_keys_router._list_user_api_keys") as mock_list:
             mock_list.side_effect = Exception("Redis error")
 
             with pytest.raises(Exception) as exc_info:
@@ -148,7 +150,10 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_get_api_key_success(self, mock_user, mock_api_key_data):
         """Test successful API key retrieval."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=mock_api_key_data):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            return_value=mock_api_key_data,
+        ):
             result = await get_api_key(key_id="key_123", current_user=mock_user)
 
             assert result.id == "key_123"
@@ -158,7 +163,7 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_get_api_key_not_found(self, mock_user):
         """Test API key retrieval when key not found."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=None):
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id", return_value=None):
             with pytest.raises(Exception) as exc_info:
                 await get_api_key(key_id="nonexistent", current_user=mock_user)
 
@@ -170,7 +175,9 @@ class TestAPIKeyRouterFunctions:
         wrong_key_data = mock_api_key_data.copy()
         wrong_key_data["user_id"] = "other_user"
 
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=wrong_key_data):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id", return_value=wrong_key_data
+        ):
             with pytest.raises(Exception) as exc_info:
                 await get_api_key(key_id="key_123", current_user=mock_user)
 
@@ -182,17 +189,24 @@ class TestAPIKeyRouterFunctions:
         updated_data = mock_api_key_data.copy()
         updated_data["name"] = "Updated Name"
 
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', side_effect=[mock_api_key_data, updated_data]):
-            with patch('dotmac.platform.auth.api_keys_router._update_api_key_metadata', return_value=True):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            side_effect=[mock_api_key_data, updated_data],
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._update_api_key_metadata", return_value=True
+            ):
                 request = APIKeyUpdateRequest(name="Updated Name")
-                result = await update_api_key(key_id="key_123", request=request, current_user=mock_user)
+                result = await update_api_key(
+                    key_id="key_123", request=request, current_user=mock_user
+                )
 
                 assert result.name == "Updated Name"
 
     @pytest.mark.asyncio
     async def test_update_api_key_not_found(self, mock_user):
         """Test API key update when key not found."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=None):
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id", return_value=None):
             request = APIKeyUpdateRequest(name="Updated Name")
 
             with pytest.raises(Exception) as exc_info:
@@ -203,8 +217,13 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_update_api_key_failed(self, mock_user, mock_api_key_data):
         """Test API key update when update fails."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=mock_api_key_data):
-            with patch('dotmac.platform.auth.api_keys_router._update_api_key_metadata', return_value=False):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            return_value=mock_api_key_data,
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._update_api_key_metadata", return_value=False
+            ):
                 request = APIKeyUpdateRequest(name="Updated Name")
 
                 with pytest.raises(Exception) as exc_info:
@@ -215,15 +234,20 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_revoke_api_key_success(self, mock_user, mock_api_key_data):
         """Test successful API key revocation."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=mock_api_key_data):
-            with patch('dotmac.platform.auth.api_keys_router._revoke_api_key_by_id', return_value=True):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            return_value=mock_api_key_data,
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._revoke_api_key_by_id", return_value=True
+            ):
                 # Should not raise exception
                 await revoke_api_key(key_id="key_123", current_user=mock_user)
 
     @pytest.mark.asyncio
     async def test_revoke_api_key_not_found(self, mock_user):
         """Test API key revocation when key not found."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=None):
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id", return_value=None):
             with pytest.raises(Exception) as exc_info:
                 await revoke_api_key(key_id="nonexistent", current_user=mock_user)
 
@@ -232,8 +256,13 @@ class TestAPIKeyRouterFunctions:
     @pytest.mark.asyncio
     async def test_revoke_api_key_failed(self, mock_user, mock_api_key_data):
         """Test API key revocation when revocation fails."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=mock_api_key_data):
-            with patch('dotmac.platform.auth.api_keys_router._revoke_api_key_by_id', return_value=False):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            return_value=mock_api_key_data,
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._revoke_api_key_by_id", return_value=False
+            ):
                 with pytest.raises(Exception) as exc_info:
                     await revoke_api_key(key_id="key_123", current_user=mock_user)
 
@@ -258,16 +287,13 @@ class TestAPIKeyServiceFunctions:
         mock_redis = AsyncMock()
         mock_redis.set = AsyncMock()
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service.create_api_key = AsyncMock(return_value="sk_test123")
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service._serialize = lambda x: json.dumps(x)
 
             api_key, key_id = await _enhanced_create_api_key(
-                user_id="user123",
-                name="Test Key",
-                scopes=["read"],
-                description="Test"
+                user_id="user123", name="Test Key", scopes=["read"], description="Test"
             )
 
             assert api_key == "sk_test123"
@@ -277,25 +303,23 @@ class TestAPIKeyServiceFunctions:
     @pytest.mark.asyncio
     async def test_enhanced_create_api_key_memory_fallback(self):
         """Test enhanced API key creation with memory fallback."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service.create_api_key = AsyncMock(return_value="sk_test123")
             mock_service._get_redis = AsyncMock(return_value=None)
 
             api_key, key_id = await _enhanced_create_api_key(
-                user_id="user123",
-                name="Test Key",
-                scopes=["read"]
+                user_id="user123", name="Test Key", scopes=["read"]
             )
 
             assert api_key == "sk_test123"
             assert key_id is not None
-            assert hasattr(mock_service, '_memory_meta')
-            assert hasattr(mock_service, '_memory_lookup')
+            assert hasattr(mock_service, "_memory_meta")
+            assert hasattr(mock_service, "_memory_lookup")
 
     @pytest.mark.asyncio
     async def test_list_user_api_keys_memory_fallback(self):
         """Test listing user API keys with memory fallback."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_meta = {
                 "key1": {"user_id": "user123", "name": "Key 1"},
@@ -315,7 +339,7 @@ class TestAPIKeyServiceFunctions:
         key_data = {"id": "key123", "name": "Test Key"}
         mock_redis.get.return_value = json.dumps(key_data)
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service._deserialize = json.loads
 
@@ -327,7 +351,7 @@ class TestAPIKeyServiceFunctions:
     @pytest.mark.asyncio
     async def test_get_api_key_by_id_memory_fallback(self):
         """Test getting API key by ID with memory fallback."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             key_data = {"id": "key123", "name": "Test Key"}
             mock_service._memory_meta = {"key123": key_data}
@@ -344,7 +368,7 @@ class TestAPIKeyServiceFunctions:
         mock_redis.get.return_value = json.dumps(existing_data)
         mock_redis.set = AsyncMock()
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service._deserialize = json.loads
             mock_service._serialize = json.dumps
@@ -360,7 +384,7 @@ class TestAPIKeyServiceFunctions:
         mock_redis = AsyncMock()
         mock_redis.get.return_value = None
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
 
             result = await _update_api_key_metadata("nonexistent", {"name": "New Name"})
@@ -370,7 +394,7 @@ class TestAPIKeyServiceFunctions:
     @pytest.mark.asyncio
     async def test_update_api_key_metadata_memory_fallback(self):
         """Test updating API key metadata with memory fallback."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_meta = {"key123": {"name": "Old Name"}}
 
@@ -382,7 +406,7 @@ class TestAPIKeyServiceFunctions:
     @pytest.mark.asyncio
     async def test_revoke_api_key_by_id_memory_fallback(self):
         """Test revoking API key by ID with memory fallback."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_lookup = {"sk_testkey": "key123"}
             mock_service._memory_meta = {"key123": {"name": "Test Key"}}
@@ -398,7 +422,7 @@ class TestAPIKeyServiceFunctions:
     @pytest.mark.asyncio
     async def test_revoke_api_key_by_id_not_found(self):
         """Test revoking API key by ID when key not found."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_lookup = {}
 
@@ -432,9 +456,7 @@ class TestAPIKeyDataModels:
         """Test API key create request validation."""
         # Valid request
         request = APIKeyCreateRequest(
-            name="Test Key",
-            scopes=["read", "write"],
-            description="Test description"
+            name="Test Key", scopes=["read", "write"], description="Test description"
         )
         assert request.name == "Test Key"
         assert request.scopes == ["read", "write"]
@@ -458,10 +480,7 @@ class TestAPIKeyDataModels:
 
         # Full update
         full_request = APIKeyUpdateRequest(
-            name="Updated Name",
-            scopes=["read"],
-            description="Updated description",
-            is_active=False
+            name="Updated Name", scopes=["read"], description="Updated description", is_active=False
         )
         assert full_request.name == "Updated Name"
         assert full_request.scopes == ["read"]
@@ -475,24 +494,22 @@ class TestAPIKeyServiceCoverage:
     @pytest.mark.asyncio
     async def test_enhanced_create_api_key_memory_initialization(self):
         """Test enhanced API key creation when memory attributes don't exist."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service.create_api_key = AsyncMock(return_value="sk_test123")
             mock_service._get_redis = AsyncMock(return_value=None)
             # Ensure memory attributes don't exist initially
-            if hasattr(mock_service, '_memory_meta'):
-                delattr(mock_service, '_memory_meta')
-            if hasattr(mock_service, '_memory_lookup'):
-                delattr(mock_service, '_memory_lookup')
+            if hasattr(mock_service, "_memory_meta"):
+                delattr(mock_service, "_memory_meta")
+            if hasattr(mock_service, "_memory_lookup"):
+                delattr(mock_service, "_memory_lookup")
 
             api_key, key_id = await _enhanced_create_api_key(
-                user_id="user123",
-                name="Test Key",
-                scopes=["read"]
+                user_id="user123", name="Test Key", scopes=["read"]
             )
 
             # Should create memory attributes
-            assert hasattr(mock_service, '_memory_meta')
-            assert hasattr(mock_service, '_memory_lookup')
+            assert hasattr(mock_service, "_memory_meta")
+            assert hasattr(mock_service, "_memory_lookup")
             assert api_key == "sk_test123"
 
     @pytest.mark.asyncio
@@ -512,7 +529,7 @@ class TestAPIKeyServiceCoverage:
             json.dumps({"user_id": "user456", "name": "Key 2"}),
         ]
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service._deserialize = json.loads
 
@@ -533,7 +550,7 @@ class TestAPIKeyServiceCoverage:
         mock_redis.scan_iter = mock_scan_iter
         mock_redis.get.return_value = None
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
 
             keys = await _list_user_api_keys("user123")
@@ -546,7 +563,7 @@ class TestAPIKeyServiceCoverage:
         mock_redis = AsyncMock()
         mock_redis.get.return_value = None
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
 
             result = await _get_api_key_by_id("nonexistent")
@@ -556,7 +573,7 @@ class TestAPIKeyServiceCoverage:
     @pytest.mark.asyncio
     async def test_get_api_key_by_id_memory_not_found(self):
         """Test getting API key by ID when not found in memory."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_meta = {}
 
@@ -567,7 +584,7 @@ class TestAPIKeyServiceCoverage:
     @pytest.mark.asyncio
     async def test_update_api_key_metadata_memory_not_found(self):
         """Test updating API key metadata when not found in memory."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_meta = {}
 
@@ -588,7 +605,7 @@ class TestAPIKeyServiceCoverage:
         mock_redis.get.return_value = "key123"
         mock_redis.delete = AsyncMock()
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service.revoke_api_key = AsyncMock(return_value=True)
 
@@ -609,7 +626,7 @@ class TestAPIKeyServiceCoverage:
 
         mock_redis.scan_iter = mock_scan_iter
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
 
             result = await _revoke_api_key_by_id("nonexistent")
@@ -627,7 +644,7 @@ class TestAPIKeyServiceCoverage:
         mock_redis.scan_iter = mock_scan_iter
         mock_redis.get.return_value = "key123"
 
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=mock_redis)
             mock_service.revoke_api_key = AsyncMock(return_value=False)
 
@@ -640,7 +657,7 @@ class TestAPIKeyServiceCoverage:
     @pytest.mark.asyncio
     async def test_revoke_api_key_by_id_memory_revoke_failed(self):
         """Test revoking API key with memory fallback when revocation fails."""
-        with patch('dotmac.platform.auth.api_keys_router.api_key_service') as mock_service:
+        with patch("dotmac.platform.auth.api_keys_router.api_key_service") as mock_service:
             mock_service._get_redis = AsyncMock(return_value=None)
             mock_service._memory_lookup = {"sk_testkey": "key123"}
             mock_service._memory_meta = {"key123": {"name": "Test Key"}}
@@ -660,7 +677,7 @@ class TestAPIKeyRouterExceptionCoverage:
     @pytest.mark.asyncio
     async def test_get_api_key_generic_exception(self, mock_user):
         """Test get API key with generic exception (not HTTPException)."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id') as mock_get:
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id") as mock_get:
             mock_get.side_effect = Exception("Database error")
 
             with pytest.raises(Exception) as exc_info:
@@ -671,7 +688,7 @@ class TestAPIKeyRouterExceptionCoverage:
     @pytest.mark.asyncio
     async def test_update_api_key_generic_exception(self, mock_user):
         """Test update API key with generic exception (not HTTPException)."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id') as mock_get:
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id") as mock_get:
             mock_get.side_effect = Exception("Database error")
 
             request = APIKeyUpdateRequest(name="Updated Name")
@@ -684,7 +701,7 @@ class TestAPIKeyRouterExceptionCoverage:
     @pytest.mark.asyncio
     async def test_revoke_api_key_generic_exception(self, mock_user):
         """Test revoke API key with generic exception (not HTTPException)."""
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id') as mock_get:
+        with patch("dotmac.platform.auth.api_keys_router._get_api_key_by_id") as mock_get:
             mock_get.side_effect = Exception("Database error")
 
             with pytest.raises(Exception) as exc_info:
@@ -704,7 +721,10 @@ class TestAPIKeyRouterExceptionCoverage:
             "is_active": True,
         }
 
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', return_value=mock_api_key_data):
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            return_value=mock_api_key_data,
+        ):
             # Request with no actual updates (all None)
             request = APIKeyUpdateRequest()
             result = await update_api_key(key_id="key_123", request=request, current_user=mock_user)
@@ -728,11 +748,18 @@ class TestAPIKeyRouterExceptionCoverage:
         updated_data = mock_api_key_data.copy()
         updated_data["description"] = "New description"
 
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', side_effect=[mock_api_key_data, updated_data]):
-            with patch('dotmac.platform.auth.api_keys_router._update_api_key_metadata', return_value=True) as mock_update:
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            side_effect=[mock_api_key_data, updated_data],
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._update_api_key_metadata", return_value=True
+            ) as mock_update:
                 # Only update description
                 request = APIKeyUpdateRequest(description="New description")
-                result = await update_api_key(key_id="key_123", request=request, current_user=mock_user)
+                result = await update_api_key(
+                    key_id="key_123", request=request, current_user=mock_user
+                )
 
                 # Should have called update with only description
                 mock_update.assert_called_with("key_123", {"description": "New description"})
@@ -751,30 +778,39 @@ class TestAPIKeyRouterExceptionCoverage:
         }
 
         updated_data = mock_api_key_data.copy()
-        updated_data.update({
-            "name": "Updated Name",
-            "scopes": ["read"],
-            "description": "Updated description",
-            "is_active": False
-        })
+        updated_data.update(
+            {
+                "name": "Updated Name",
+                "scopes": ["read"],
+                "description": "Updated description",
+                "is_active": False,
+            }
+        )
 
-        with patch('dotmac.platform.auth.api_keys_router._get_api_key_by_id', side_effect=[mock_api_key_data, updated_data]):
-            with patch('dotmac.platform.auth.api_keys_router._update_api_key_metadata', return_value=True) as mock_update:
+        with patch(
+            "dotmac.platform.auth.api_keys_router._get_api_key_by_id",
+            side_effect=[mock_api_key_data, updated_data],
+        ):
+            with patch(
+                "dotmac.platform.auth.api_keys_router._update_api_key_metadata", return_value=True
+            ) as mock_update:
                 # Update all fields
                 request = APIKeyUpdateRequest(
                     name="Updated Name",
                     scopes=["read"],
                     description="Updated description",
-                    is_active=False
+                    is_active=False,
                 )
-                result = await update_api_key(key_id="key_123", request=request, current_user=mock_user)
+                result = await update_api_key(
+                    key_id="key_123", request=request, current_user=mock_user
+                )
 
                 # Should have called update with all fields
                 expected_updates = {
                     "name": "Updated Name",
                     "scopes": ["read"],
                     "description": "Updated description",
-                    "is_active": False
+                    "is_active": False,
                 }
                 mock_update.assert_called_with("key_123", expected_updates)
                 assert result.name == "Updated Name"

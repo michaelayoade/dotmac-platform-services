@@ -3,8 +3,8 @@ Receipt service for generating and managing payment receipts
 """
 
 import logging
-from datetime import datetime
-from typing import Any, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import and_, select
@@ -12,13 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from dotmac.platform.billing.core.entities import (
-    PaymentEntity,
     InvoiceEntity,
+    PaymentEntity,
 )
 from dotmac.platform.billing.core.enums import PaymentStatus
-from dotmac.platform.billing.receipts.models import Receipt, ReceiptLineItem
-from dotmac.platform.billing.receipts.generators import PDFReceiptGenerator, HTMLReceiptGenerator
 from dotmac.platform.billing.metrics import get_billing_metrics
+from dotmac.platform.billing.receipts.generators import HTMLReceiptGenerator, PDFReceiptGenerator
+from dotmac.platform.billing.receipts.models import Receipt, ReceiptLineItem
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class ReceiptService:
             payment_id=payment_id,
             invoice_id=payment.invoice_id,
             customer_id=payment.customer_id,
-            issue_date=datetime.utcnow(),
+            issue_date=datetime.now(UTC),
             currency=payment.currency,
             subtotal=payment.subtotal or payment.amount,
             tax_amount=payment.tax_amount or 0,
@@ -96,7 +96,7 @@ class ReceiptService:
         # Send email if requested
         if send_email and receipt.customer_email:
             await self._send_receipt_email(receipt)
-            receipt.sent_at = datetime.utcnow()
+            receipt.sent_at = datetime.now(UTC)
             receipt.delivery_method = "email"
 
         # Record metrics
@@ -131,17 +131,19 @@ class ReceiptService:
         # Build line items from invoice
         line_items = []
         for item in invoice.line_items:
-            line_items.append(ReceiptLineItem(
-                line_item_id=item.line_item_id,
-                description=item.description,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                total_price=item.total_price,
-                tax_rate=item.tax_rate,
-                tax_amount=item.tax_amount,
-                product_id=item.product_id,
-                sku=item.sku,
-            ))
+            line_items.append(
+                ReceiptLineItem(
+                    line_item_id=item.line_item_id,
+                    description=item.description,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    total_price=item.total_price,
+                    tax_rate=item.tax_rate,
+                    tax_amount=item.tax_amount,
+                    product_id=item.product_id,
+                    sku=item.sku,
+                )
+            )
 
         # Create receipt
         receipt = Receipt(
@@ -150,7 +152,7 @@ class ReceiptService:
             tenant_id=tenant_id,
             invoice_id=invoice_id,
             customer_id=invoice.customer_id,
-            issue_date=datetime.utcnow(),
+            issue_date=datetime.now(UTC),
             currency=invoice.currency,
             subtotal=invoice.subtotal,
             tax_amount=invoice.tax_amount,
@@ -176,9 +178,7 @@ class ReceiptService:
         logger.info(f"Receipt {receipt.receipt_number} generated for invoice {invoice_id}")
         return receipt
 
-    async def get_receipt(
-        self, tenant_id: str, receipt_id: str
-    ) -> Optional[Receipt]:
+    async def get_receipt(self, tenant_id: str, receipt_id: str) -> Receipt | None:
         """Get receipt by ID (this would typically be stored in database)"""
         # In a real implementation, this would query a receipts table
         # For now, this is a placeholder
@@ -188,12 +188,12 @@ class ReceiptService:
     async def list_receipts(
         self,
         tenant_id: str,
-        customer_id: Optional[str] = None,
-        payment_id: Optional[str] = None,
-        invoice_id: Optional[str] = None,
+        customer_id: str | None = None,
+        payment_id: str | None = None,
+        invoice_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[Receipt]:
+    ) -> list[Receipt]:
         """List receipts with filtering"""
         # In a real implementation, this would query a receipts table
         # For now, this is a placeholder
@@ -204,7 +204,7 @@ class ReceiptService:
     # Private helper methods
     # ============================================================================
 
-    async def _get_payment(self, tenant_id: str, payment_id: str) -> Optional[PaymentEntity]:
+    async def _get_payment(self, tenant_id: str, payment_id: str) -> PaymentEntity | None:
         """Get payment entity"""
         stmt = select(PaymentEntity).where(
             and_(
@@ -215,7 +215,7 @@ class ReceiptService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> Optional[InvoiceEntity]:
+    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> InvoiceEntity | None:
         """Get invoice entity"""
         stmt = (
             select(InvoiceEntity)
@@ -235,38 +235,43 @@ class ReceiptService:
         # This would typically query the database for the last receipt number
         # For now, generate a simple sequential number
         from datetime import datetime
-        year = datetime.utcnow().year
+
+        year = datetime.now(UTC).year
         # In production, this would be atomic and check existing numbers
         sequence = 1
         return f"REC-{year}-{sequence:06d}"
 
     async def _build_receipt_line_items(
-        self, payment: PaymentEntity, invoice: Optional[InvoiceEntity]
-    ) -> List[ReceiptLineItem]:
+        self, payment: PaymentEntity, invoice: InvoiceEntity | None
+    ) -> list[ReceiptLineItem]:
         """Build receipt line items from payment/invoice data"""
         line_items = []
 
         if invoice and invoice.line_items:
             # Use invoice line items
             for item in invoice.line_items:
-                line_items.append(ReceiptLineItem(
-                    line_item_id=item.line_item_id,
-                    description=item.description,
-                    quantity=item.quantity,
-                    unit_price=item.unit_price,
-                    total_price=item.total_price,
-                    tax_rate=item.tax_rate,
-                    tax_amount=item.tax_amount,
-                    product_id=item.product_id,
-                ))
+                line_items.append(
+                    ReceiptLineItem(
+                        line_item_id=item.line_item_id,
+                        description=item.description,
+                        quantity=item.quantity,
+                        unit_price=item.unit_price,
+                        total_price=item.total_price,
+                        tax_rate=item.tax_rate,
+                        tax_amount=item.tax_amount,
+                        product_id=item.product_id,
+                    )
+                )
         else:
             # Create simple line item from payment
-            line_items.append(ReceiptLineItem(
-                description=f"Payment {payment.payment_id}",
-                quantity=1,
-                unit_price=payment.amount,
-                total_price=payment.amount,
-            ))
+            line_items.append(
+                ReceiptLineItem(
+                    description=f"Payment {payment.payment_id}",
+                    quantity=1,
+                    unit_price=payment.amount,
+                    total_price=payment.amount,
+                )
+            )
 
         return line_items
 

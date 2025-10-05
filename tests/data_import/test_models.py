@@ -8,7 +8,7 @@ from dotmac.platform.data_import.models import (
     ImportJob,
     ImportJobType,
     ImportJobStatus,
-    ImportFailure
+    ImportFailure,
 )
 
 
@@ -50,8 +50,12 @@ class TestImportJobStatus:
         assert ImportJobStatus.PENDING != ImportJobStatus.COMPLETED
 
         # In progress should be between validating and completed
-        statuses = [ImportJobStatus.PENDING, ImportJobStatus.VALIDATING,
-                   ImportJobStatus.IN_PROGRESS, ImportJobStatus.COMPLETED]
+        statuses = [
+            ImportJobStatus.PENDING,
+            ImportJobStatus.VALIDATING,
+            ImportJobStatus.IN_PROGRESS,
+            ImportJobStatus.COMPLETED,
+        ]
         assert len(statuses) == 4
 
 
@@ -65,30 +69,30 @@ class TestImportJob:
     def test_job_type_enum_used(self):
         """Test ImportJobType enum is used for validation."""
         # Verify the enum values are accessible
-        assert hasattr(ImportJobType, 'CUSTOMERS')
-        assert hasattr(ImportJobType, 'INVOICES')
+        assert hasattr(ImportJobType, "CUSTOMERS")
+        assert hasattr(ImportJobType, "INVOICES")
 
     def test_status_enum_used(self):
         """Test ImportJobStatus enum is used for validation."""
-        assert hasattr(ImportJobStatus, 'PENDING')
-        assert hasattr(ImportJobStatus, 'COMPLETED')
+        assert hasattr(ImportJobStatus, "PENDING")
+        assert hasattr(ImportJobStatus, "COMPLETED")
 
     def test_job_required_fields(self):
         """Test job model has required fields."""
-        assert hasattr(ImportJob, 'job_type')
-        assert hasattr(ImportJob, 'status')
-        assert hasattr(ImportJob, 'file_name')
-        assert hasattr(ImportJob, 'file_size')
-        assert hasattr(ImportJob, 'tenant_id')
+        assert hasattr(ImportJob, "job_type")
+        assert hasattr(ImportJob, "status")
+        assert hasattr(ImportJob, "file_name")
+        assert hasattr(ImportJob, "file_size")
+        assert hasattr(ImportJob, "tenant_id")
 
     def test_job_optional_fields(self):
         """Test job model has optional tracking fields."""
-        assert hasattr(ImportJob, 'total_records')
-        assert hasattr(ImportJob, 'processed_records')
-        assert hasattr(ImportJob, 'successful_records')
-        assert hasattr(ImportJob, 'failed_records')
-        assert hasattr(ImportJob, 'started_at')
-        assert hasattr(ImportJob, 'completed_at')
+        assert hasattr(ImportJob, "total_records")
+        assert hasattr(ImportJob, "processed_records")
+        assert hasattr(ImportJob, "successful_records")
+        assert hasattr(ImportJob, "failed_records")
+        assert hasattr(ImportJob, "started_at")
+        assert hasattr(ImportJob, "completed_at")
 
 
 class TestImportFailure:
@@ -100,21 +104,21 @@ class TestImportFailure:
 
     def test_failure_required_fields(self):
         """Test failure model has required fields."""
-        assert hasattr(ImportFailure, 'job_id')
-        assert hasattr(ImportFailure, 'row_number')
-        assert hasattr(ImportFailure, 'error_message')
-        assert hasattr(ImportFailure, 'tenant_id')
+        assert hasattr(ImportFailure, "job_id")
+        assert hasattr(ImportFailure, "row_number")
+        assert hasattr(ImportFailure, "error_message")
+        assert hasattr(ImportFailure, "tenant_id")
 
     def test_failure_optional_fields(self):
         """Test failure model has optional fields."""
         # Check that ImportFailure has data-related attributes
-        assert hasattr(ImportFailure, '__tablename__')
-        assert hasattr(ImportFailure, 'job_id')
-        assert hasattr(ImportFailure, 'error_message')
+        assert hasattr(ImportFailure, "__tablename__")
+        assert hasattr(ImportFailure, "job_id")
+        assert hasattr(ImportFailure, "error_message")
 
     def test_failure_field_types(self):
         """Test failure fields have correct types."""
         # Verify field types are annotated
         annotations = ImportFailure.__annotations__
-        assert 'row_number' in str(annotations) or hasattr(ImportFailure, 'row_number')
-        assert 'error_message' in str(annotations) or hasattr(ImportFailure, 'error_message')
+        assert "row_number" in str(annotations) or hasattr(ImportFailure, "row_number")
+        assert "error_message" in str(annotations) or hasattr(ImportFailure, "error_message")

@@ -145,11 +145,11 @@ export const PluginHealthDashboard = ({
     <div className="space-y-6">
       {/* Health Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+        <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-slate-100">{healthPercentage}%</div>
-              <div className="text-sm text-slate-400">Overall Health</div>
+              <div className="text-2xl font-semibold text-foreground">{healthPercentage}%</div>
+              <div className="text-sm text-muted-foreground">Overall Health</div>
             </div>
             <div className={`p-2 rounded-full ${
               healthPercentage >= 90 ? 'bg-emerald-500/10' :
@@ -165,7 +165,7 @@ export const PluginHealthDashboard = ({
               )}
             </div>
           </div>
-          <div className="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div className="mt-2 h-2 bg-accent rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-500 ${
                 healthPercentage >= 90 ? 'bg-emerald-500' :
@@ -177,31 +177,31 @@ export const PluginHealthDashboard = ({
           </div>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+        <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-slate-100">{healthyCount}</div>
-              <div className="text-sm text-slate-400">Healthy</div>
+              <div className="text-2xl font-semibold text-foreground">{healthyCount}</div>
+              <div className="text-sm text-muted-foreground">Healthy</div>
             </div>
             <CheckCircle className="h-8 w-8 text-emerald-500" />
           </div>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+        <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-slate-100">{unhealthyCount}</div>
-              <div className="text-sm text-slate-400">Issues</div>
+              <div className="text-2xl font-semibold text-foreground">{unhealthyCount}</div>
+              <div className="text-sm text-muted-foreground">Issues</div>
             </div>
             <XCircle className="h-8 w-8 text-rose-500" />
           </div>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+        <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-slate-100">{formatResponseTime(avgResponseTime)}</div>
-              <div className="text-sm text-slate-400">Avg Response</div>
+              <div className="text-2xl font-semibold text-foreground">{formatResponseTime(avgResponseTime)}</div>
+              <div className="text-sm text-muted-foreground">Avg Response</div>
             </div>
             <Zap className="h-8 w-8 text-sky-500" />
           </div>
@@ -210,11 +210,11 @@ export const PluginHealthDashboard = ({
 
       {/* Controls */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-100">Plugin Health Status</h2>
+        <h2 className="text-lg font-semibold text-foreground">Plugin Health Status</h2>
         <button
           onClick={handleRefresh}
           disabled={loading}
-          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 text-white rounded-lg transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-muted text-white rounded-lg transition-colors flex items-center gap-2"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Checking...' : 'Refresh Health'}
@@ -228,10 +228,10 @@ export const PluginHealthDashboard = ({
           const isSelected = selectedInstance === instance.id;
 
           return (
-            <div key={instance.id} className="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+            <div key={instance.id} className="bg-card/50 border border-border rounded-lg overflow-hidden">
               <div
                 className={`p-4 cursor-pointer transition-colors ${
-                  isSelected ? 'bg-slate-800/50' : 'hover:bg-slate-800/30'
+                  isSelected ? 'bg-accent/50' : 'hover:bg-accent/30'
                 }`}
                 onClick={() => setSelectedInstance(isSelected ? null : instance.id)}
               >
@@ -239,15 +239,15 @@ export const PluginHealthDashboard = ({
                   <div className="flex items-center gap-3">
                     {getHealthStatusIcon(health?.status || 'unknown')}
                     <div>
-                      <h3 className="font-medium text-slate-100">{instance.instance_name}</h3>
-                      <p className="text-sm text-slate-400">{instance.plugin_name}</p>
+                      <h3 className="font-medium text-foreground">{instance.instance_name}</h3>
+                      <p className="text-sm text-muted-foreground">{instance.plugin_name}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-4">
                     <div className="text-right text-sm">
-                      <div className="text-slate-200">{formatResponseTime(health?.response_time_ms)}</div>
-                      <div className="text-slate-500">Response Time</div>
+                      <div className="text-foreground">{formatResponseTime(health?.response_time_ms)}</div>
+                      <div className="text-foreground0">Response Time</div>
                     </div>
 
                     <div className={`px-3 py-1 rounded-full border text-sm font-medium ${
@@ -259,12 +259,12 @@ export const PluginHealthDashboard = ({
                 </div>
 
                 {/* Health Message */}
-                <div className="mt-2 text-sm text-slate-400">
+                <div className="mt-2 text-sm text-muted-foreground">
                   {health?.message || 'No health data available'}
                 </div>
 
                 {/* Last Check Time */}
-                <div className="mt-1 text-xs text-slate-500 flex items-center gap-1">
+                <div className="mt-1 text-xs text-foreground0 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   Last checked: {health?.timestamp ? formatTimestamp(health.timestamp) : 'Never'}
                 </div>
@@ -272,8 +272,8 @@ export const PluginHealthDashboard = ({
 
               {/* Expanded Details */}
               {isSelected && health && (
-                <div className="border-t border-slate-800 p-4 bg-slate-800/20">
-                  <h4 className="text-sm font-medium text-slate-200 mb-3 flex items-center gap-2">
+                <div className="border-t border-border p-4 bg-accent/20">
+                  <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
                     <Info className="h-4 w-4" />
                     Health Check Details
                   </h4>
@@ -282,7 +282,7 @@ export const PluginHealthDashboard = ({
                     {/* Basic Info */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Status:</span>
+                        <span className="text-muted-foreground">Status:</span>
                         <span className={`font-medium ${
                           health.status === 'healthy' ? 'text-emerald-400' :
                           health.status === 'unhealthy' ? 'text-rose-400' :
@@ -293,29 +293,29 @@ export const PluginHealthDashboard = ({
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Response Time:</span>
-                        <span className="text-slate-200">{formatResponseTime(health.response_time_ms)}</span>
+                        <span className="text-muted-foreground">Response Time:</span>
+                        <span className="text-foreground">{formatResponseTime(health.response_time_ms)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Timestamp:</span>
-                        <span className="text-slate-200">{formatTimestamp(health.timestamp)}</span>
+                        <span className="text-muted-foreground">Timestamp:</span>
+                        <span className="text-foreground">{formatTimestamp(health.timestamp)}</span>
                       </div>
                     </div>
 
                     {/* Additional Details */}
                     <div className="space-y-2">
-                      <h5 className="text-sm font-medium text-slate-300">Additional Information</h5>
+                      <h5 className="text-sm font-medium text-muted-foreground">Additional Information</h5>
                       {Object.entries(health.details).length > 0 ? (
                         Object.entries(health.details).map(([key, value]) => (
                           <div key={key} className="flex justify-between text-sm">
-                            <span className="text-slate-400 capitalize">{key.replace(/_/g, ' ')}:</span>
-                            <span className="text-slate-200 max-w-48 truncate">
+                            <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
+                            <span className="text-foreground max-w-48 truncate">
                               {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                             </span>
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-slate-500">No additional details available</p>
+                        <p className="text-sm text-foreground0">No additional details available</p>
                       )}
                     </div>
                   </div>
@@ -340,9 +340,9 @@ export const PluginHealthDashboard = ({
 
         {sortedInstances.length === 0 && (
           <div className="text-center py-12">
-            <Activity className="h-12 w-12 text-slate-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-400 mb-2">No Plugin Instances</h3>
-            <p className="text-slate-500">Add some plugin instances to monitor their health status.</p>
+            <Activity className="h-12 w-12 text-foreground0 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">No Plugin Instances</h3>
+            <p className="text-foreground0">Add some plugin instances to monitor their health status.</p>
           </div>
         )}
       </div>

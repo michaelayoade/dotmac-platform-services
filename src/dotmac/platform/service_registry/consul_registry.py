@@ -5,7 +5,7 @@ Simple wrapper around HashiCorp Consul for service discovery.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import consul
 import consul.aio
@@ -52,10 +52,10 @@ class ConsulServiceRegistry:
         name: str,
         address: str,
         port: int,
-        service_id: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        meta: Optional[dict[str, str]] = None,
-        health_check: Optional[str] = None,
+        service_id: str | None = None,
+        tags: list[str] | None = None,
+        meta: dict[str, str] | None = None,
+        health_check: str | None = None,
         health_interval: str = "30s",
     ) -> str:
         """
@@ -166,7 +166,7 @@ class ConsulServiceRegistry:
 
 
 # Global instance
-_consul_registry: Optional[ConsulServiceRegistry] = None
+_consul_registry: ConsulServiceRegistry | None = None
 
 
 def get_consul_registry() -> ConsulServiceRegistry:
@@ -185,10 +185,10 @@ async def register_service(
     name: str,
     address: str,
     port: int,
-    service_id: Optional[str] = None,
-    tags: Optional[list[str]] = None,
-    meta: Optional[dict[str, str]] = None,
-    health_check: Optional[str] = None,
+    service_id: str | None = None,
+    tags: list[str] | None = None,
+    meta: dict[str, str] | None = None,
+    health_check: str | None = None,
 ) -> str:
     """Register a service with Consul."""
     registry = get_consul_registry()

@@ -3,7 +3,7 @@ Receipt data models
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -25,8 +25,8 @@ class ReceiptLineItem(BaseModel):
     tax_amount: int = Field(0)
 
     # Product reference
-    product_id: Optional[str] = None
-    sku: Optional[str] = None
+    product_id: str | None = None
+    sku: str | None = None
 
     # Metadata
     extra_data: dict[str, Any] = Field(default_factory=dict)
@@ -39,8 +39,8 @@ class Receipt(BillingBaseModel):
     receipt_number: str = Field(..., description="Human-readable receipt number")
 
     # References
-    payment_id: Optional[str] = Field(None, description="Associated payment")
-    invoice_id: Optional[str] = Field(None, description="Associated invoice")
+    payment_id: str | None = Field(None, description="Associated payment")
+    invoice_id: str | None = Field(None, description="Associated invoice")
     customer_id: str = Field(..., description="Customer ID")
 
     # Receipt details
@@ -65,15 +65,15 @@ class Receipt(BillingBaseModel):
     billing_address: dict[str, str] = Field(default_factory=dict)
 
     # Content
-    notes: Optional[str] = Field(None, max_length=1000)
+    notes: str | None = Field(None, max_length=1000)
 
     # Receipt generation
-    pdf_url: Optional[str] = Field(None, description="URL to PDF receipt")
-    html_content: Optional[str] = Field(None, description="HTML receipt content")
+    pdf_url: str | None = Field(None, description="URL to PDF receipt")
+    html_content: str | None = Field(None, description="HTML receipt content")
 
     # Delivery
-    sent_at: Optional[datetime] = Field(None, description="When receipt was sent")
-    delivery_method: Optional[str] = Field(None, description="How receipt was delivered")
+    sent_at: datetime | None = Field(None, description="When receipt was sent")
+    delivery_method: str | None = Field(None, description="How receipt was delivered")
 
     # Metadata
     extra_data: dict[str, Any] = Field(default_factory=dict)
@@ -101,8 +101,8 @@ class Receipt(BillingBaseModel):
                         "unit_price": 10000,
                         "total_price": 10000,
                         "tax_rate": 8.0,
-                        "tax_amount": 800
+                        "tax_amount": 800,
                     }
-                ]
+                ],
             }
         }

@@ -2,21 +2,21 @@
 Enhanced JWT token generation with RBAC permissions
 This module extends the existing JWT functionality to include permissions
 """
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
-from uuid import UUID
-import logging
 
-import jwt
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import UUID
+
 from jwt.exceptions import InvalidTokenError as JWTError
 from sqlalchemy.orm import Session
 
 from dotmac.platform.auth.core import JWTService
+from dotmac.platform.auth.exceptions import InvalidToken
 from dotmac.platform.auth.rbac_service import RBACService
-from dotmac.platform.auth.exceptions import TokenExpired, InvalidToken
+from dotmac.platform.core.caching import cache_get, cache_set
 from dotmac.platform.settings import Settings
 from dotmac.platform.user_management.models import User
-from dotmac.platform.caching import cache_manager
 
 logger = logging.getLogger(__name__)
 settings = Settings()
@@ -33,8 +33,8 @@ class RBACTokenService:
         self,
         user: User,
         db_session: Session,
-        expires_delta: Optional[timedelta] = None,
-        additional_claims: Optional[Dict[str, Any]] = None
+        expires_delta: timedelta | None = None,
+        additional_claims: dict[str, Any] | None = None,
     ) -> str:
         """
         Create an access token with user permissions and roles
@@ -53,7 +53,9 @@ class RBACTokenService:
             "username": user.username,
             "permissions": list(permissions),  # Convert set to list
             "roles": role_names,
-            "tenant_id": str(user.tenant_id) if hasattr(user, 'tenant_id') and user.tenant_id else None,
+            "tenant_id": (
+                str(user.tenant_id) if hasattr(user, "tenant_id") and user.tenant_id else None
+            ),
         }
 
         # Add any additional claims
@@ -62,12 +64,12 @@ class RBACTokenService:
 
         # Set expiration
         if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
+            expire = datetime.now(UTC) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+            expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
         claims["exp"] = expire
-        claims["iat"] = datetime.now(timezone.utc)
+        claims["iat"] = datetime.now(UTC)
         claims["type"] = "access"
 
         # Create token
@@ -75,50 +77,49 @@ class RBACTokenService:
 
         # Cache the token metadata for quick validation
         cache_key = f"token:{user.id}:{token[:20]}"  # Use first 20 chars as identifier
-        await cache_manager.set(
+        await cache_set(
             cache_key,
             {
                 "user_id": str(user.id),
                 "permissions": list(permissions),
                 "roles": role_names,
-                "expires_at": expire.isoformat()
+                "expires_at": expire.isoformat(),
             },
-            expire=int(expires_delta.total_seconds() if expires_delta else settings.access_token_expire_minutes * 60)
+            expire=int(
+                expires_delta.total_seconds()
+                if expires_delta
+                else settings.access_token_expire_minutes * 60
+            ),
         )
 
-        logger.info(f"Created access token for user {user.id} with {len(permissions)} permissions and {len(role_names)} roles")
+        logger.info(
+            f"Created access token for user {user.id} with {len(permissions)} permissions and {len(role_names)} roles"
+        )
         return token
 
-    async def create_refresh_token(
-        self,
-        user: User,
-        expires_delta: Optional[timedelta] = None
-    ) -> str:
+    async def create_refresh_token(self, user: User, expires_delta: timedelta | None = None) -> str:
         """
         Create a refresh token (doesn't include permissions for security)
         """
-        claims = {
-            "sub": str(user.id),
-            "type": "refresh"
-        }
+        claims = {"sub": str(user.id), "type": "refresh"}
 
         if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
+            expire = datetime.now(UTC) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+            expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
 
         claims["exp"] = expire
-        claims["iat"] = datetime.now(timezone.utc)
+        claims["iat"] = datetime.now(UTC)
 
         return self.jwt_service.create_token(claims)
 
     async def verify_token_with_permissions(
         self,
         token: str,
-        required_permissions: Optional[List[str]] = None,
-        required_roles: Optional[List[str]] = None,
-        require_all_permissions: bool = True
-    ) -> Dict[str, Any]:
+        required_permissions: list[str] | None = None,
+        required_roles: list[str] | None = None,
+        require_all_permissions: bool = True,
+    ) -> dict[str, Any]:
         """
         Verify token and check for required permissions/roles
         """
@@ -146,7 +147,9 @@ class RBACTokenService:
             else:
                 # User must have AT LEAST ONE required permission
                 if not any(perm in user_permissions for perm in required_permissions):
-                    raise InvalidToken(f"Requires at least one of: {', '.join(required_permissions)}")
+                    raise InvalidToken(
+                        f"Requires at least one of: {', '.join(required_permissions)}"
+                    )
 
         # Check for required roles
         if required_roles:
@@ -158,9 +161,7 @@ class RBACTokenService:
         return payload
 
     async def refresh_access_token(
-        self,
-        refresh_token: str,
-        db_session: Session
+        self, refresh_token: str, db_session: Session
     ) -> tuple[str, str]:
         """
         Use refresh token to get new access token with updated permissions
@@ -200,13 +201,11 @@ class RBACTokenService:
 
             if exp:
                 # Calculate TTL for blacklist entry
-                ttl = exp - datetime.now(timezone.utc).timestamp()
+                ttl = exp - datetime.now(UTC).timestamp()
                 if ttl > 0:
                     # Add to blacklist
-                    await cache_manager.set(
-                        f"blacklist:{token[:50]}",  # Use first 50 chars
-                        True,
-                        expire=int(ttl)
+                    await cache_set(
+                        f"blacklist:{token[:50]}", True, expire=int(ttl)  # Use first 50 chars
                     )
                     logger.info(f"Token revoked for user {payload.get('sub')}")
         except JWTError:
@@ -216,13 +215,11 @@ class RBACTokenService:
         """
         Check if token is in the blacklist
         """
-        return await cache_manager.get(f"blacklist:{token[:50]}") is not None
+        return await cache_get(f"blacklist:{token[:50]}") is not None
 
     async def get_user_from_token(
-        self,
-        token: str,
-        db_session: Session
-    ) -> tuple[User, List[str], List[str]]:
+        self, token: str, db_session: Session
+    ) -> tuple[User, list[str], list[str]]:
         """
         Get user, permissions, and roles from token
         Returns: (user, permissions, roles)
@@ -242,9 +239,6 @@ class RBACTokenService:
 
 
 # Factory function to create the service
-def get_rbac_token_service(
-    jwt_service: JWTService,
-    rbac_service: RBACService
-) -> RBACTokenService:
+def get_rbac_token_service(jwt_service: JWTService, rbac_service: RBACService) -> RBACTokenService:
     """Factory function to create RBAC token service"""
     return RBACTokenService(jwt_service, rbac_service)

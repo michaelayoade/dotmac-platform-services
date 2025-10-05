@@ -60,6 +60,7 @@ class TransactionType(str, Enum):
     ADJUSTMENT = "adjustment"  # Manual adjustment
     FEE = "fee"  # Processing or service fee
     WRITE_OFF = "write_off"  # Bad debt write-off
+    TAX = "tax"  # Tax transaction
 
 
 class CreditNoteStatus(str, Enum):
@@ -97,6 +98,7 @@ class CreditReason(str, Enum):
     OVERPAYMENT_REFUND = "overpayment_refund"
     PRICE_ADJUSTMENT = "price_adjustment"
     TAX_ADJUSTMENT = "tax_adjustment"
+    ORDER_CHANGE = "order_change"
     OTHER = "other"
 
 

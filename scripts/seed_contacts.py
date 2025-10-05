@@ -24,9 +24,14 @@ from dotmac.platform.settings import settings
 
 # Import models
 from dotmac.platform.contacts.models import (
-    Contact, ContactMethod, ContactMethodType,
-    ContactLabelDefinition, ContactFieldDefinition,
-    ContactFieldType, ContactStatus, ContactStage
+    Contact,
+    ContactMethod,
+    ContactMethodType,
+    ContactLabelDefinition,
+    ContactFieldDefinition,
+    ContactFieldType,
+    ContactStatus,
+    ContactStage,
 )
 from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.tenant.models import Tenant
@@ -67,13 +72,25 @@ class ContactSeeder:
             ("vip", "VIP", "High-value customer", "#FFD700", "star", "status"),
             ("new", "New", "Recently added contact", "#00FF00", "plus", "status"),
             ("inactive", "Inactive", "No recent activity", "#808080", "pause", "status"),
-
             # Relationship labels
-            ("decision_maker", "Decision Maker", "Can make purchasing decisions", "#FF4500", "crown", "relationship"),
-            ("influencer", "Influencer", "Influences decisions", "#FFA500", "users", "relationship"),
+            (
+                "decision_maker",
+                "Decision Maker",
+                "Can make purchasing decisions",
+                "#FF4500",
+                "crown",
+                "relationship",
+            ),
+            (
+                "influencer",
+                "Influencer",
+                "Influences decisions",
+                "#FFA500",
+                "users",
+                "relationship",
+            ),
             ("technical", "Technical", "Technical contact", "#4169E1", "code", "relationship"),
             ("billing", "Billing", "Billing contact", "#228B22", "dollar-sign", "relationship"),
-
             # Source labels
             ("referral", "Referral", "Referred by another customer", "#9370DB", "link", "source"),
             ("website", "Website", "From website signup", "#00CED1", "globe", "source"),
@@ -83,10 +100,11 @@ class ContactSeeder:
 
         print("Seeding contact label definitions...")
         for slug, name, description, color, icon, category in label_data:
-            existing = self.db.query(ContactLabelDefinition).filter_by(
-                tenant_id=self.tenant_id,
-                slug=slug
-            ).first()
+            existing = (
+                self.db.query(ContactLabelDefinition)
+                .filter_by(tenant_id=self.tenant_id, slug=slug)
+                .first()
+            )
 
             if not existing:
                 label = ContactLabelDefinition(
@@ -101,7 +119,7 @@ class ContactSeeder:
                     display_order=len(self.labels),
                     is_visible=True,
                     is_system=False,
-                    created_by=self.user_id
+                    created_by=self.user_id,
                 )
                 self.db.add(label)
                 self.labels[slug] = label
@@ -117,27 +135,55 @@ class ContactSeeder:
         """Seed custom field definitions."""
         field_data = [
             # Text fields
-            ("linkedin_url", "LinkedIn Profile", ContactFieldType.URL, "professional",
-             {"pattern": "^https://[a-z]{2,3}\\.linkedin\\.com/.*"}),
-            ("twitter_handle", "Twitter Handle", ContactFieldType.TEXT, "social",
-             {"pattern": "^@[a-zA-Z0-9_]+$"}),
-
+            (
+                "linkedin_url",
+                "LinkedIn Profile",
+                ContactFieldType.URL,
+                "professional",
+                {"pattern": "^https://[a-z]{2,3}\\.linkedin\\.com/.*"},
+            ),
+            (
+                "twitter_handle",
+                "Twitter Handle",
+                ContactFieldType.TEXT,
+                "social",
+                {"pattern": "^@[a-zA-Z0-9_]+$"},
+            ),
             # Select fields
-            ("industry", "Industry", ContactFieldType.SELECT, "professional",
-             None, ["Technology", "Finance", "Healthcare", "Retail", "Manufacturing", "Other"]),
-            ("lead_source", "Lead Source", ContactFieldType.SELECT, "sales",
-             None, ["Inbound", "Outbound", "Referral", "Event", "Partner", "Other"]),
-
+            (
+                "industry",
+                "Industry",
+                ContactFieldType.SELECT,
+                "professional",
+                None,
+                ["Technology", "Finance", "Healthcare", "Retail", "Manufacturing", "Other"],
+            ),
+            (
+                "lead_source",
+                "Lead Source",
+                ContactFieldType.SELECT,
+                "sales",
+                None,
+                ["Inbound", "Outbound", "Referral", "Event", "Partner", "Other"],
+            ),
             # Number fields
-            ("company_size", "Company Size", ContactFieldType.NUMBER, "professional",
-             {"min": 1, "max": 1000000}),
-            ("deal_size", "Potential Deal Size", ContactFieldType.CURRENCY, "sales",
-             {"min": 0}),
-
+            (
+                "company_size",
+                "Company Size",
+                ContactFieldType.NUMBER,
+                "professional",
+                {"min": 1, "max": 1000000},
+            ),
+            ("deal_size", "Potential Deal Size", ContactFieldType.CURRENCY, "sales", {"min": 0}),
             # Boolean fields
             ("has_budget", "Has Budget", ContactFieldType.BOOLEAN, "sales", None),
-            ("newsletter_subscriber", "Newsletter Subscriber", ContactFieldType.BOOLEAN, "marketing", None),
-
+            (
+                "newsletter_subscriber",
+                "Newsletter Subscriber",
+                ContactFieldType.BOOLEAN,
+                "marketing",
+                None,
+            ),
             # Date fields
             ("last_meeting", "Last Meeting Date", ContactFieldType.DATE, "activity", None),
             ("renewal_date", "Contract Renewal Date", ContactFieldType.DATE, "sales", None),
@@ -145,10 +191,11 @@ class ContactSeeder:
 
         print("Seeding custom field definitions...")
         for field_key, name, field_type, group, validation, *options in field_data:
-            existing = self.db.query(ContactFieldDefinition).filter_by(
-                tenant_id=self.tenant_id,
-                field_key=field_key
-            ).first()
+            existing = (
+                self.db.query(ContactFieldDefinition)
+                .filter_by(tenant_id=self.tenant_id, field_key=field_key)
+                .first()
+            )
 
             if not existing:
                 field = ContactFieldDefinition(
@@ -159,12 +206,14 @@ class ContactSeeder:
                     field_type=field_type,
                     field_group=group,
                     validation_rules=validation,
-                    options=[{"value": opt, "label": opt} for opt in options[0]] if options else None,
+                    options=(
+                        [{"value": opt, "label": opt} for opt in options[0]] if options else None
+                    ),
                     display_order=len(self.fields),
                     is_visible=True,
                     is_editable=True,
                     is_searchable=True,
-                    created_by=self.user_id
+                    created_by=self.user_id,
                 )
                 self.db.add(field)
                 self.fields[field_key] = field
@@ -180,7 +229,9 @@ class ContactSeeder:
         """Get some customers to associate with contacts."""
         self.customers = self.db.query(Customer).filter_by(tenant_id=self.tenant_id).limit(5).all()
         if not self.customers:
-            print("Warning: No customers found. Contacts will be created without customer associations.")
+            print(
+                "Warning: No customers found. Contacts will be created without customer associations."
+            )
         else:
             print(f"Found {len(self.customers)} customers to associate with contacts\n")
 
@@ -208,7 +259,7 @@ class ContactSeeder:
                     "company_size": 500,
                     "has_budget": True,
                     "deal_size": 250000,
-                }
+                },
             },
             {
                 "first_name": "Sarah",
@@ -230,7 +281,7 @@ class ContactSeeder:
                     "company_size": 1200,
                     "lead_source": "Referral",
                     "newsletter_subscriber": True,
-                }
+                },
             },
             {
                 "first_name": "Michael",
@@ -251,7 +302,7 @@ class ContactSeeder:
                     "industry": "Technology",
                     "company_size": 25,
                     "lead_source": "Inbound",
-                }
+                },
             },
             {
                 "first_name": "Emily",
@@ -278,8 +329,8 @@ class ContactSeeder:
                     "city": "Boston",
                     "state": "MA",
                     "postal": "02101",
-                    "country": "US"
-                }
+                    "country": "US",
+                },
             },
             {
                 "first_name": "Robert",
@@ -298,28 +349,36 @@ class ContactSeeder:
                     "industry": "Retail",
                     "company_size": 5000,
                     "lead_source": "Partner",
-                }
+                },
             },
         ]
 
         print("Seeding contacts...")
         for idx, contact_info in enumerate(contact_data):
             # Check if contact already exists
-            existing = self.db.query(Contact).filter_by(
-                tenant_id=self.tenant_id,
-                first_name=contact_info["first_name"],
-                last_name=contact_info["last_name"]
-            ).first()
+            existing = (
+                self.db.query(Contact)
+                .filter_by(
+                    tenant_id=self.tenant_id,
+                    first_name=contact_info["first_name"],
+                    last_name=contact_info["last_name"],
+                )
+                .first()
+            )
 
             if existing:
-                print(f"  - Contact exists: {contact_info['first_name']} {contact_info['last_name']}")
+                print(
+                    f"  - Contact exists: {contact_info['first_name']} {contact_info['last_name']}"
+                )
                 continue
 
             # Create contact
             contact = Contact(
                 id=uuid4(),
                 tenant_id=self.tenant_id,
-                customer_id=self.customers[idx % len(self.customers)].id if self.customers else None,
+                customer_id=(
+                    self.customers[idx % len(self.customers)].id if self.customers else None
+                ),
                 first_name=contact_info["first_name"],
                 last_name=contact_info["last_name"],
                 display_name=f"{contact_info['first_name']} {contact_info['last_name']}",
@@ -360,7 +419,9 @@ class ContactSeeder:
                     method.state_province = addr["state"]
                     method.postal_code = addr["postal"]
                     method.country = addr["country"]
-                    method.value = f"{addr['line1']}, {addr['city']}, {addr['state']} {addr['postal']}"
+                    method.value = (
+                        f"{addr['line1']}, {addr['city']}, {addr['state']} {addr['postal']}"
+                    )
 
                 self.db.add(method)
 
@@ -377,9 +438,9 @@ class ContactSeeder:
 
     def run(self):
         """Run the complete seeding process."""
-        print("="*60)
+        print("=" * 60)
         print("Contact System Seeding Process")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         if not self.get_tenant_and_user():
             return
@@ -389,9 +450,9 @@ class ContactSeeder:
         self.get_sample_customers()
         self.seed_contacts()
 
-        print("="*60)
+        print("=" * 60)
         print("✅ Contact seeding completed successfully!")
-        print("="*60)
+        print("=" * 60)
 
 
 def main():
@@ -421,6 +482,7 @@ def main():
         print("3. Tenant and user data exists")
         print("4. RBAC permissions have been seeded")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

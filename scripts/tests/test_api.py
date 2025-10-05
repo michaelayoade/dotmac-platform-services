@@ -9,6 +9,7 @@ from datetime import datetime
 
 BASE_URL = "http://localhost:8000"
 
+
 def test_endpoint(method, path, description, data=None, headers=None):
     """Test an endpoint and print results."""
     url = f"{BASE_URL}{path}"
@@ -26,12 +27,13 @@ def test_endpoint(method, path, description, data=None, headers=None):
 
         print(f"Status: {response.status_code}")
 
-        if response.headers.get('content-type', '').startswith('application/json'):
+        if response.headers.get("content-type", "").startswith("application/json"):
             print(f"Response: {json.dumps(response.json(), indent=2)}")
         else:
             print(f"Response: {response.text[:200]}")
     except Exception as e:
         print(f"Error: {e}")
+
 
 def main():
     print("DotMac Platform Services API Testing")
@@ -55,12 +57,11 @@ def main():
     test_endpoint("get", "/api/v1/search/", "Search", headers=headers)
 
     # Test data transfer with sample data
-    export_data = {
-        "data": [{"id": 1, "name": "Test Item"}],
-        "format": "json",
-        "options": {}
-    }
-    test_endpoint("post", "/api/v1/data-transfer/export", "Export Data", data=export_data, headers=headers)
+    export_data = {"data": [{"id": 1, "name": "Test Item"}], "format": "json", "options": {}}
+    test_endpoint(
+        "post", "/api/v1/data-transfer/export", "Export Data", data=export_data, headers=headers
+    )
+
 
 if __name__ == "__main__":
     main()

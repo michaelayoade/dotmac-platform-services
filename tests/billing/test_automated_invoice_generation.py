@@ -11,7 +11,15 @@ import asyncio
 from freezegun import freeze_time
 
 from dotmac.platform.billing.models import (
-    Customer, Subscription, Invoice, InvoiceItem, Product, Price
+
+pytestmark = pytest.mark.asyncio
+
+    Customer,
+    Subscription,
+    Invoice,
+    InvoiceItem,
+    Product,
+    Price,
 )
 from dotmac.platform.billing.services.invoice_generator import InvoiceGenerator
 from dotmac.platform.billing.services.pdf_generator import PDFGenerator
@@ -22,9 +30,7 @@ async def invoice_test_data(db):
     """Create test data for invoice generation."""
     # Create product and price
     product = Product(
-        name="Professional Plan",
-        description="Advanced features",
-        stripe_product_id="prod_test123"
+        name="Professional Plan", description="Advanced features", stripe_product_id="prod_test123"
     )
     db.add(product)
     await db.commit()
@@ -34,7 +40,7 @@ async def invoice_test_data(db):
         stripe_price_id="price_test123",
         amount=2999,  # $29.99
         currency="USD",
-        interval="month"
+        interval="month",
     )
     db.add(price)
     await db.commit()
@@ -50,8 +56,8 @@ async def invoice_test_data(db):
             "city": "Test City",
             "state": "CA",
             "postal_code": "12345",
-            "country": "US"
-        }
+            "country": "US",
+        },
     )
     db.add(customer)
     await db.commit()
@@ -63,17 +69,12 @@ async def invoice_test_data(db):
         stripe_subscription_id="sub_test123",
         status="active",
         current_period_start=datetime(2024, 1, 1),
-        current_period_end=datetime(2024, 2, 1)
+        current_period_end=datetime(2024, 2, 1),
     )
     db.add(subscription)
     await db.commit()
 
-    return {
-        "customer": customer,
-        "subscription": subscription,
-        "product": product,
-        "price": price
-    }
+    return {"customer": customer, "subscription": subscription, "product": product, "price": price}
 
 
 class TestInvoiceGeneration:
@@ -112,14 +113,14 @@ class TestInvoiceGeneration:
                 customer_id=customer.id,
                 metric="api_calls",
                 quantity=15000,  # Over 10k limit
-                recorded_at=datetime(2024, 1, 15)
+                recorded_at=datetime(2024, 1, 15),
             ),
             UsageRecord(
                 customer_id=customer.id,
                 metric="storage_gb",
                 quantity=150,  # Over 100GB limit
-                recorded_at=datetime(2024, 1, 20)
-            )
+                recorded_at=datetime(2024, 1, 20),
+            ),
         ]
 
         for record in usage_records:
@@ -133,7 +134,7 @@ class TestInvoiceGeneration:
             invoice = await generator.generate_invoice_with_usage(
                 customer.id,
                 billing_period_start=datetime(2024, 1, 1),
-                billing_period_end=datetime(2024, 2, 1)
+                billing_period_end=datetime(2024, 2, 1),
             )
 
             # Should include base subscription + overage charges
@@ -141,8 +142,7 @@ class TestInvoiceGeneration:
 
             # Check invoice items
             items = await db.execute(
-                "SELECT * FROM invoice_items WHERE invoice_id = ?",
-                (invoice.id,)
+                "SELECT * FROM invoice_items WHERE invoice_id = ?", (invoice.id,)
             )
             invoice_items = items.fetchall()
 
@@ -151,8 +151,7 @@ class TestInvoiceGeneration:
 
             # Verify overage calculations
             api_overage_item = next(
-                (item for item in invoice_items if "API" in item.description),
-                None
+                (item for item in invoice_items if "API" in item.description), None
             )
             assert api_overage_item is not None
             assert api_overage_item.quantity == 5000  # 15k - 10k limit
@@ -176,7 +175,7 @@ class TestInvoiceGeneration:
             new_amount=new_amount,
             change_date=upgrade_date,
             period_start=datetime(2024, 1, 1),
-            period_end=datetime(2024, 2, 1)
+            period_end=datetime(2024, 2, 1),
         )
 
         # Should prorate for remaining days in period
@@ -198,8 +197,7 @@ class TestInvoiceGeneration:
         for i in range(5):
             with freeze_time(f"2024-0{i+1}-01T00:00:00Z"):
                 invoice = await generator.generate_invoice(
-                    customer_id=data["customer"].id,
-                    amount=1000 + i * 500
+                    customer_id=data["customer"].id, amount=1000 + i * 500
                 )
                 invoices.append(invoice)
 
@@ -209,13 +207,14 @@ class TestInvoiceGeneration:
 
         # Should follow format INV-YYYY-NNN
         import re
+
         for number in numbers:
             assert re.match(r"INV-\d{4}-\d{3,}", number)
 
         # Should be in order
         for i in range(1, len(numbers)):
-            current_num = int(numbers[i].split('-')[-1])
-            previous_num = int(numbers[i-1].split('-')[-1])
+            current_num = int(numbers[i].split("-")[-1])
+            previous_num = int(numbers[i - 1].split("-")[-1])
             assert current_num > previous_num
 
     @pytest.mark.asyncio
@@ -233,16 +232,15 @@ class TestInvoiceGeneration:
 
         generator = InvoiceGenerator(db)
 
-        with patch.object(TaxCalculator, 'calculate_tax') as mock_tax:
+        with patch.object(TaxCalculator, "calculate_tax") as mock_tax:
             mock_tax.return_value = {
                 "amount": 240,  # $2.40 tax on $29.99
-                "rate": 0.08,   # 8% tax rate
-                "jurisdiction": "CA"
+                "rate": 0.08,  # 8% tax rate
+                "jurisdiction": "CA",
             }
 
             invoice = await generator.generate_invoice_with_tax(
-                customer_id=customer.id,
-                subtotal=2999
+                customer_id=customer.id, subtotal=2999
             )
 
             # Should include tax
@@ -261,11 +259,7 @@ class TestInvoiceGeneration:
         scheduler = InvoiceScheduler(db)
 
         # Schedule monthly invoices for next 3 months
-        future_dates = [
-            datetime(2024, 2, 1),
-            datetime(2024, 3, 1),
-            datetime(2024, 4, 1)
-        ]
+        future_dates = [datetime(2024, 2, 1), datetime(2024, 3, 1), datetime(2024, 4, 1)]
 
         scheduled_count = 0
         for date in future_dates:
@@ -276,9 +270,7 @@ class TestInvoiceGeneration:
         assert scheduled_count == 3
 
         # Check scheduled invoices exist
-        scheduled_invoices = await db.execute(
-            "SELECT * FROM invoices WHERE status = 'scheduled'"
-        )
+        scheduled_invoices = await db.execute("SELECT * FROM invoices WHERE status = 'scheduled'")
         invoices = scheduled_invoices.fetchall()
         assert len(invoices) >= 3
 
@@ -296,7 +288,7 @@ class TestInvoiceGeneration:
             amount_total=2999,
             status="payment_failed",
             attempt_count=1,
-            next_payment_attempt=datetime.now() + timedelta(days=3)
+            next_payment_attempt=datetime.now() + timedelta(days=3),
         )
         db.add(failed_invoice)
         await db.commit()
@@ -325,7 +317,7 @@ class TestInvoiceGeneration:
             customer_id=data["customer"].id,
             stripe_invoice_id="in_draft_123",
             amount_total=2999,
-            status="draft"
+            status="draft",
         )
         db.add(draft_invoice)
         await db.commit()
@@ -336,7 +328,7 @@ class TestInvoiceGeneration:
                 invoice_id=draft_invoice.id,
                 description="Professional Plan - Monthly",
                 amount=2999,
-                quantity=1
+                quantity=1,
             )
         ]
 
@@ -361,7 +353,7 @@ class TestInvoiceGeneration:
                 user_id=f"bulk_user_{i}",
                 stripe_customer_id=f"cus_bulk_{i}",
                 email=f"bulk{i}@example.com",
-                name=f"Bulk Customer {i}"
+                name=f"Bulk Customer {i}",
             )
             db.add(customer)
             customers.append(customer)
@@ -376,7 +368,7 @@ class TestInvoiceGeneration:
                 stripe_subscription_id=f"sub_bulk_{i}",
                 status="active",
                 current_period_start=datetime(2024, 1, 1),
-                current_period_end=datetime(2024, 2, 1)
+                current_period_end=datetime(2024, 2, 1),
             )
             db.add(subscription)
             subscriptions.append(subscription)
@@ -415,7 +407,7 @@ class TestInvoicePDFGeneration:
             amount_total=2999,
             tax_amount=240,
             status="paid",
-            paid_at=datetime.now()
+            paid_at=datetime.now(),
         )
         db.add(invoice)
         await db.commit()
@@ -425,7 +417,7 @@ class TestInvoicePDFGeneration:
             invoice_id=invoice.id,
             description="Professional Plan - Monthly",
             amount=2999,
-            quantity=1
+            quantity=1,
         )
         db.add(item)
         await db.commit()
@@ -437,7 +429,7 @@ class TestInvoicePDFGeneration:
 
         assert pdf_data is not None
         assert len(pdf_data) > 1000  # Should be reasonable PDF size
-        assert pdf_data.startswith(b'%PDF')  # PDF header
+        assert pdf_data.startswith(b"%PDF")  # PDF header
 
     @pytest.mark.asyncio
     async def test_pdf_content_validation(self, db, invoice_test_data):
@@ -459,7 +451,7 @@ class TestInvoicePDFGeneration:
                 customer_id=data["customer"].id,
                 invoice_number=f"INV-2024-{i:03d}",
                 amount_total=2999,
-                status="paid"
+                status="paid",
             )
             db.add(invoice)
             invoices.append(invoice)
@@ -471,10 +463,7 @@ class TestInvoicePDFGeneration:
         # Generate PDFs and measure time
         start_time = time.time()
 
-        pdf_tasks = [
-            pdf_generator.generate_invoice_pdf(invoice.id)
-            for invoice in invoices
-        ]
+        pdf_tasks = [pdf_generator.generate_invoice_pdf(invoice.id) for invoice in invoices]
 
         pdfs = await asyncio.gather(*pdf_tasks)
 
@@ -500,14 +489,14 @@ class TestInvoiceDelivery:
             customer_id=data["customer"].id,
             invoice_number="INV-2024-001",
             amount_total=2999,
-            status="open"
+            status="open",
         )
         db.add(invoice)
         await db.commit()
 
         delivery_service = InvoiceDelivery()
 
-        with patch.object(delivery_service, 'send_email') as mock_email:
+        with patch.object(delivery_service, "send_email") as mock_email:
             mock_email.return_value = True
 
             result = await delivery_service.deliver_invoice_email(invoice.id)
@@ -533,7 +522,7 @@ class TestInvoiceDelivery:
             invoice_number="INV-2024-OVERDUE",
             amount_total=2999,
             status="open",
-            due_date=datetime.now() - timedelta(days=5)  # 5 days overdue
+            due_date=datetime.now() - timedelta(days=5),  # 5 days overdue
         )
         db.add(overdue_invoice)
         await db.commit()
@@ -554,7 +543,7 @@ class TestInvoiceDelivery:
         data = invoice_test_data
         webhook_service = InvoiceWebhookService()
 
-        with patch.object(webhook_service, 'send_webhook') as mock_webhook:
+        with patch.object(webhook_service, "send_webhook") as mock_webhook:
             mock_webhook.return_value = True
 
             # Simulate invoice paid event
@@ -562,7 +551,7 @@ class TestInvoiceDelivery:
                 customer_id=data["customer"].id,
                 amount_total=2999,
                 status="paid",
-                paid_at=datetime.now()
+                paid_at=datetime.now(),
             )
             db.add(invoice)
             await db.commit()

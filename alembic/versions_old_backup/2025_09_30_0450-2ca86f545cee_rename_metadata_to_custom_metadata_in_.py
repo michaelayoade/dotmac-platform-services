@@ -20,7 +20,8 @@ depends_on = None
 def upgrade() -> None:
     """Rename metadata column to custom_metadata in webhook_subscriptions table."""
     # Check if column exists before renaming
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (
@@ -33,13 +34,15 @@ def upgrade() -> None:
                 RENAME COLUMN metadata TO custom_metadata;
             END IF;
         END $$;
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
     """Rename custom_metadata back to metadata."""
     # Check if column exists before renaming
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (
@@ -52,4 +55,5 @@ def downgrade() -> None:
                 RENAME COLUMN custom_metadata TO metadata;
             END IF;
         END $$;
-    """)
+    """
+    )

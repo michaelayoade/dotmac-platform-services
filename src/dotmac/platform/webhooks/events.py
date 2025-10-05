@@ -3,25 +3,28 @@ Event bus for webhook event publishing and dispatching.
 """
 
 import uuid
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .delivery import WebhookDeliveryService
 from .models import WebhookEvent
 from .service import WebhookSubscriptionService
-from .delivery import WebhookDeliveryService
 
 logger = structlog.get_logger(__name__)
 
 
 class EventSchema(BaseModel):
     """Schema for registering event types."""
+
     event_type: str
     description: str
-    schema: Optional[Dict[str, Any]] = None
-    example: Optional[Dict[str, Any]] = None
+    json_schema: dict[str, Any] | None = (
+        None  # Renamed from 'schema' to avoid shadowing BaseModel.schema()
+    )
+    example: dict[str, Any] | None = None
 
 
 class EventBus:
@@ -40,7 +43,7 @@ class EventBus:
     """
 
     def __init__(self):
-        self._registered_events: Dict[str, EventSchema] = {}
+        self._registered_events: dict[str, EventSchema] = {}
         self._initialize_standard_events()
 
     def _initialize_standard_events(self) -> None:
@@ -61,8 +64,8 @@ class EventBus:
         self,
         event_type: str,
         description: str,
-        schema: Optional[Dict[str, Any]] = None,
-        example: Optional[Dict[str, Any]] = None,
+        schema: dict[str, Any] | None = None,
+        example: dict[str, Any] | None = None,
     ) -> None:
         """
         Register a custom event type.
@@ -80,13 +83,13 @@ class EventBus:
         self._registered_events[event_type] = EventSchema(
             event_type=event_type,
             description=description,
-            schema=schema,
+            json_schema=schema,
             example=example,
         )
 
         logger.info("Event registered", event_type=event_type)
 
-    def get_registered_events(self) -> Dict[str, EventSchema]:
+    def get_registered_events(self) -> dict[str, EventSchema]:
         """Get all registered event types."""
         return self._registered_events.copy()
 
@@ -97,10 +100,10 @@ class EventBus:
     async def publish(
         self,
         event_type: str,
-        event_data: Dict[str, Any],
+        event_data: dict[str, Any],
         tenant_id: str,
-        db: Optional[AsyncSession] = None,
-        event_id: Optional[str] = None,
+        db: AsyncSession | None = None,
+        event_id: str | None = None,
     ) -> int:
         """
         Publish an event to all subscribed webhooks.
@@ -197,10 +200,10 @@ class EventBus:
 
     async def publish_batch(
         self,
-        events: list[Dict[str, Any]],
+        events: list[dict[str, Any]],
         tenant_id: str,
         db: AsyncSession,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Publish multiple events in batch.
 
@@ -237,7 +240,7 @@ class EventBus:
 
 
 # Global event bus instance
-_event_bus: Optional[EventBus] = None
+_event_bus: EventBus | None = None
 
 
 def get_event_bus() -> EventBus:
@@ -251,8 +254,8 @@ def get_event_bus() -> EventBus:
 def register_event(
     event_type: str,
     description: str,
-    schema: Optional[Dict[str, Any]] = None,
-    example: Optional[Dict[str, Any]] = None,
+    schema: dict[str, Any] | None = None,
+    example: dict[str, Any] | None = None,
 ) -> None:
     """
     Convenience function to register an event type.

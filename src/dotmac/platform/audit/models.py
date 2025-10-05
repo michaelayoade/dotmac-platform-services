@@ -2,21 +2,22 @@
 Audit and activity tracking models for the DotMac platform.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-from sqlalchemy import String, DateTime, Text, Index, JSON
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import JSON, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..db import Base, TimestampMixin, StrictTenantMixin
+from ..db import Base, StrictTenantMixin, TimestampMixin
 
 
 class ActivityType(str, Enum):
     """Types of activities that can be audited."""
+
     # Auth activities
     USER_LOGIN = "user.login"
     USER_LOGOUT = "user.logout"
@@ -55,9 +56,13 @@ class ActivityType(str, Enum):
     SYSTEM_STARTUP = "system.startup"
     SYSTEM_SHUTDOWN = "system.shutdown"
 
+    # Frontend activities
+    FRONTEND_LOG = "frontend.log"
+
 
 class ActivitySeverity(str, Enum):
     """Severity levels for activities."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -66,13 +71,11 @@ class ActivitySeverity(str, Enum):
 
 class AuditActivity(Base, TimestampMixin, StrictTenantMixin):
     """Audit activity tracking table."""
+
     __tablename__ = "audit_activities"
 
     id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4,
-        index=True
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, index=True
     )
 
     # Activity identification
@@ -80,90 +83,94 @@ class AuditActivity(Base, TimestampMixin, StrictTenantMixin):
     severity: Mapped[str] = mapped_column(String(20), default=ActivitySeverity.LOW, index=True)
 
     # Who and when
-    user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     # tenant_id is inherited from StrictTenantMixin and is NOT NULL
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
 
     # What and where
-    resource_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    resource_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Details
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    details: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # Context
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    request_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Indexes for common queries
     __table_args__ = (
-        Index('ix_audit_activities_user_timestamp', 'user_id', 'timestamp'),
-        Index('ix_audit_activities_tenant_timestamp', 'tenant_id', 'timestamp'),
-        Index('ix_audit_activities_type_timestamp', 'activity_type', 'timestamp'),
-        Index('ix_audit_activities_severity_timestamp', 'severity', 'timestamp'),
+        Index("ix_audit_activities_user_timestamp", "user_id", "timestamp"),
+        Index("ix_audit_activities_tenant_timestamp", "tenant_id", "timestamp"),
+        Index("ix_audit_activities_type_timestamp", "activity_type", "timestamp"),
+        Index("ix_audit_activities_severity_timestamp", "severity", "timestamp"),
     )
 
 
 # Pydantic models for API
 
+
 class AuditActivityCreate(BaseModel):
     """Model for creating audit activities."""
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        extra="forbid"
-    )
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     activity_type: ActivityType
     severity: ActivitySeverity = ActivitySeverity.LOW
-    user_id: Optional[str] = None
-    tenant_id: Optional[str] = None  # Will be auto-populated by validator
-    resource_type: Optional[str] = None
-    resource_id: Optional[str] = None
+    user_id: str | None = None
+    tenant_id: str | None = None  # Will be auto-populated by validator
+    resource_type: str | None = None
+    resource_id: str | None = None
 
-    @field_validator('tenant_id', mode='before')
+    @field_validator("tenant_id", mode="before")
     @classmethod
     def validate_tenant_id(cls, v):
         """Auto-populate tenant_id from context if not provided."""
         if v is None or v == "":
             from ..tenant import get_current_tenant_id
+
             v = get_current_tenant_id()
         if not v:
             raise ValueError("tenant_id is required and could not be resolved from context")
         return v
+
     action: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1)
-    details: Optional[Dict[str, Any]] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    request_id: Optional[str] = None
+    details: dict[str, Any] | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    request_id: str | None = None
 
 
 class AuditActivityResponse(BaseModel):
     """Model for audit activity responses."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     activity_type: str
     severity: str
-    user_id: Optional[str]
+    user_id: str | None
     tenant_id: str  # Always present
     timestamp: datetime
-    resource_type: Optional[str]
-    resource_id: Optional[str]
+    resource_type: str | None
+    resource_id: str | None
     action: str
     description: str
-    details: Optional[Dict[str, Any]]
-    ip_address: Optional[str]
-    user_agent: Optional[str]
-    request_id: Optional[str]
+    details: dict[str, Any] | None
+    ip_address: str | None
+    user_agent: str | None
+    request_id: str | None
 
 
 class AuditActivityList(BaseModel):
     """Model for paginated audit activity lists."""
+
     activities: list[AuditActivityResponse]
     total: int
     page: int = 1
@@ -174,19 +181,55 @@ class AuditActivityList(BaseModel):
 
 class AuditFilterParams(BaseModel):
     """Model for audit activity filtering parameters."""
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        extra="forbid"
-    )
 
-    user_id: Optional[str] = None
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
+
+    user_id: str | None = None
     tenant_id: str  # Required for filtering
-    activity_type: Optional[ActivityType] = None
-    severity: Optional[ActivitySeverity] = None
-    resource_type: Optional[str] = None
-    resource_id: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    activity_type: ActivityType | None = None
+    severity: ActivitySeverity | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=50, ge=1, le=1000)
+
+
+# Frontend logging models
+
+
+class FrontendLogLevel(str, Enum):
+    """Frontend log levels."""
+
+    ERROR = "ERROR"
+    WARNING = "WARNING"
+    INFO = "INFO"
+    DEBUG = "DEBUG"
+
+
+class FrontendLogEntry(BaseModel):
+    """Single frontend log entry from the client."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    level: FrontendLogLevel
+    message: str = Field(min_length=1, max_length=1000)
+    service: str = Field(default="frontend")
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class FrontendLogsRequest(BaseModel):
+    """Batch of frontend logs from the client."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    logs: list[FrontendLogEntry] = Field(min_length=1, max_length=100)
+
+
+class FrontendLogsResponse(BaseModel):
+    """Response for frontend log ingestion."""
+
+    status: str = "success"
+    logs_received: int
+    logs_stored: int

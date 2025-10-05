@@ -1,4 +1,5 @@
 """Tests for storage initialization module."""
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
@@ -136,6 +137,7 @@ class TestStorageInit:
         """Test get_storage creates new instance if none exists."""
         # Clear any existing global storage
         import dotmac.platform.storage_init
+
         dotmac.platform.storage_init._storage = None
 
         mock_storage = Mock()
@@ -151,6 +153,7 @@ class TestStorageInit:
         """Test get_storage returns existing instance."""
         # Set up existing global storage
         import dotmac.platform.storage_init
+
         mock_existing_storage = Mock()
         dotmac.platform.storage_init._storage = mock_existing_storage
 
@@ -167,5 +170,6 @@ class TestStorageInit:
     def test_module_imports(self):
         """Test that all required imports work."""
         from dotmac.platform.storage_init import init_storage, get_storage
+
         assert callable(init_storage)
         assert callable(get_storage)

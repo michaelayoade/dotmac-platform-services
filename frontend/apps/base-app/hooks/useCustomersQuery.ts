@@ -140,7 +140,7 @@ export function useCreateCustomer() {
         updated_at: new Date().toISOString(),
         status: 'active',
         lifetime_value: 0,
-        last_interaction: null,
+        last_interaction: undefined,
       } as Customer;
 
       optimisticHelpers.addToList(
@@ -398,7 +398,7 @@ export function useAddCustomerNote(customerId: string) {
           queryClient,
           queryKeys.customers.notes(customerId),
           context.optimisticNote.id,
-          data
+          data as Partial<unknown>
         );
       }
       toast({ title: 'Success', description: 'Note added successfully' });

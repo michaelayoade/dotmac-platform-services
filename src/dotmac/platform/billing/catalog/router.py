@@ -4,38 +4,36 @@ Product catalog API router.
 Provides REST endpoints for managing products and categories.
 """
 
-from typing import List, Optional
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-
-from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.tenant import get_current_tenant_id
-from dotmac.platform.auth.core import UserInfo
 from sqlalchemy.ext.asyncio import AsyncSession
-from dotmac.platform.db import get_async_session
+
+from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.catalog.models import (
-    ProductCreateRequest,
-    ProductUpdateRequest,
     ProductCategoryCreateRequest,
+    ProductCategoryResponse,
+    ProductCreateRequest,
     ProductFilters,
     ProductResponse,
-    ProductCategoryResponse,
     ProductType,
+    ProductUpdateRequest,
     UsageType,
 )
 from dotmac.platform.billing.catalog.service import ProductService
 from dotmac.platform.billing.exceptions import (
+    CategoryNotFoundError,
     ProductError,
     ProductNotFoundError,
-    CategoryNotFoundError,
 )
+from dotmac.platform.db import get_async_session
+from dotmac.platform.tenant import get_current_tenant_id
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(
-    tags=["Billing", "Products"],
+    tags=["Billing - Catalog"],
     dependencies=[Depends(get_current_user)],  # All endpoints require authentication
 )
 
@@ -83,11 +81,11 @@ async def create_product_category(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/categories", response_model=List[ProductCategoryResponse])
+@router.get("/categories", response_model=list[ProductCategoryResponse])
 async def list_product_categories(
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-) -> List[ProductCategoryResponse]:
+) -> list[ProductCategoryResponse]:
     """
     List all product categories for the current tenant.
 
@@ -191,18 +189,18 @@ async def create_product(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/products", response_model=List[ProductResponse])
+@router.get("/products", response_model=list[ProductResponse])
 async def list_products(
-    category: Optional[str] = Query(None, description="Filter by category"),
-    product_type: Optional[ProductType] = Query(None, description="Filter by product type"),
-    usage_type: Optional[UsageType] = Query(None, description="Filter by usage type"),
+    category: str | None = Query(None, description="Filter by category"),
+    product_type: ProductType | None = Query(None, description="Filter by product type"),
+    usage_type: UsageType | None = Query(None, description="Filter by usage type"),
     is_active: bool = Query(True, description="Filter by active status"),
-    search: Optional[str] = Query(None, description="Search in name, description, or SKU"),
+    search: str | None = Query(None, description="Search in name, description, or SKU"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-) -> List[ProductResponse]:
+) -> list[ProductResponse]:
     """
     List products with filtering and pagination.
 
@@ -221,6 +219,44 @@ async def list_products(
     )
 
     products = await service.list_products(tenant_id, filters=filters, page=page, limit=limit)
+
+    return [
+        ProductResponse(
+            product_id=product.product_id,
+            tenant_id=product.tenant_id,
+            sku=product.sku,
+            name=product.name,
+            description=product.description,
+            category=product.category,
+            product_type=product.product_type,
+            base_price=product.base_price,
+            currency=product.currency,
+            tax_class=product.tax_class,
+            usage_type=product.usage_type,
+            usage_unit_name=product.usage_unit_name,
+            is_active=product.is_active,
+            metadata=product.metadata,
+            created_at=product.created_at,
+            updated_at=product.updated_at,
+        )
+        for product in products
+    ]
+
+
+@router.get("/products/usage-based", response_model=list[ProductResponse])
+async def list_usage_products(
+    tenant_id: str = Depends(get_current_tenant_id),
+    db_session: AsyncSession = Depends(get_async_session),
+) -> list[ProductResponse]:
+    """
+    Get products configured for usage-based billing.
+
+    Returns products with product_type 'usage_based' or 'hybrid'.
+    Useful for usage tracking and billing integrations.
+    """
+
+    service = ProductService(db_session)
+    products = await service.get_usage_products(tenant_id)
 
     return [
         ProductResponse(
@@ -426,51 +462,13 @@ async def deactivate_product(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.get("/products/usage-based", response_model=List[ProductResponse])
-async def list_usage_products(
-    tenant_id: str = Depends(get_current_tenant_id),
-    db_session: AsyncSession = Depends(get_async_session),
-) -> List[ProductResponse]:
-    """
-    Get products configured for usage-based billing.
-
-    Returns products with product_type 'usage_based' or 'hybrid'.
-    Useful for usage tracking and billing integrations.
-    """
-
-    service = ProductService(db_session)
-    products = await service.get_usage_products(tenant_id)
-
-    return [
-        ProductResponse(
-            product_id=product.product_id,
-            tenant_id=product.tenant_id,
-            sku=product.sku,
-            name=product.name,
-            description=product.description,
-            category=product.category,
-            product_type=product.product_type,
-            base_price=product.base_price,
-            currency=product.currency,
-            tax_class=product.tax_class,
-            usage_type=product.usage_type,
-            usage_unit_name=product.usage_unit_name,
-            is_active=product.is_active,
-            metadata=product.metadata,
-            created_at=product.created_at,
-            updated_at=product.updated_at,
-        )
-        for product in products
-    ]
-
-
-@router.get("/categories/{category}/products", response_model=List[ProductResponse])
+@router.get("/categories/{category}/products", response_model=list[ProductResponse])
 async def list_products_by_category(
     category: str,
     active_only: bool = Query(True, description="Only return active products"),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-) -> List[ProductResponse]:
+) -> list[ProductResponse]:
     """Get all products in a specific category."""
 
     service = ProductService(db_session)

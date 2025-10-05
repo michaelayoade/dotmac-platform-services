@@ -32,7 +32,7 @@ from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, TypeVar
 
 import structlog
 
@@ -76,9 +76,9 @@ class IntegrationConfig:
     type: IntegrationType
     provider: str
     enabled: bool
-    settings: Dict[str, Any]
-    secrets_path: Optional[str] = None
-    required_packages: Optional[List[str]] = None
+    settings: dict[str, Any]
+    secrets_path: str | None = None
+    required_packages: list[str] | None = None
     health_check_interval: int = 300  # seconds
 
 
@@ -88,9 +88,9 @@ class IntegrationHealth:
 
     name: str
     status: IntegrationStatus
-    message: Optional[str] = None
-    last_check: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    message: str | None = None
+    last_check: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class BaseIntegration(ABC):
@@ -101,7 +101,7 @@ class BaseIntegration(ABC):
         self.name = config.name
         self.provider = config.provider
         self._status = IntegrationStatus.CONFIGURING
-        self._secrets: Dict[str, str] = {}
+        self._secrets: dict[str, str] = {}
 
     @property
     def status(self) -> IntegrationStatus:
@@ -158,7 +158,7 @@ class BaseIntegration(ABC):
             logger.error("Failed to load secrets", integration=self.name, error=str(e))
             raise
 
-    def get_secret(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get_secret(self, key: str, default: str | None = None) -> str | None:
         """Get a secret value."""
         return self._secrets.get(key, default)
 
@@ -176,13 +176,13 @@ class EmailIntegration(BaseIntegration):
     @abstractmethod
     async def send_email(
         self,
-        to: Union[str, List[str]],
+        to: str | list[str],
         subject: str,
         content: str,
-        from_email: Optional[str] = None,
-        html_content: Optional[str] = None,
-        attachments: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+        from_email: str | None = None,
+        html_content: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Send an email."""
         pass
 
@@ -227,13 +227,13 @@ class SendGridIntegration(EmailIntegration):
 
     async def send_email(
         self,
-        to: Union[str, List[str]],
+        to: str | list[str],
         subject: str,
         content: str,
-        from_email: Optional[str] = None,
-        html_content: Optional[str] = None,
-        attachments: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+        from_email: str | None = None,
+        html_content: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Send email via SendGrid."""
         if self._status != IntegrationStatus.READY:
             raise RuntimeError(f"SendGrid integration not ready: {self._status}")
@@ -309,8 +309,8 @@ class SMSIntegration(BaseIntegration):
         self,
         to: str,
         message: str,
-        from_number: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        from_number: str | None = None,
+    ) -> dict[str, Any]:
         """Send an SMS."""
         pass
 
@@ -358,8 +358,8 @@ class TwilioIntegration(SMSIntegration):
         self,
         to: str,
         message: str,
-        from_number: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        from_number: str | None = None,
+    ) -> dict[str, Any]:
         """Send SMS via Twilio."""
         if self._status != IntegrationStatus.READY:
             raise RuntimeError(f"Twilio integration not ready: {self._status}")
@@ -423,9 +423,9 @@ class IntegrationRegistry:
     """Registry for managing integrations."""
 
     def __init__(self):
-        self._integrations: Dict[str, BaseIntegration] = {}
-        self._configs: Dict[str, IntegrationConfig] = {}
-        self._providers: Dict[str, Type[BaseIntegration]] = {}
+        self._integrations: dict[str, BaseIntegration] = {}
+        self._configs: dict[str, IntegrationConfig] = {}
+        self._providers: dict[str, type[BaseIntegration]] = {}
         self._register_default_providers()
 
     def _register_default_providers(self):
@@ -439,7 +439,7 @@ class IntegrationRegistry:
         )
 
     def register_provider(
-        self, integration_type: str, provider: str, provider_class: Type[BaseIntegration]
+        self, integration_type: str, provider: str, provider_class: type[BaseIntegration]
     ):
         """Register a new integration provider."""
         key = f"{integration_type}:{provider}"
@@ -520,11 +520,11 @@ class IntegrationRegistry:
         except Exception as e:
             logger.error("Failed to register integration", integration=config.name, error=str(e))
 
-    def get_integration(self, name: str) -> Optional[BaseIntegration]:
+    def get_integration(self, name: str) -> BaseIntegration | None:
         """Get an integration by name."""
         return self._integrations.get(name)
 
-    async def health_check_all(self) -> Dict[str, IntegrationHealth]:
+    async def health_check_all(self) -> dict[str, IntegrationHealth]:
         """Check health of all integrations."""
         results = {}
 
@@ -555,7 +555,7 @@ class IntegrationRegistry:
 
 
 # Global registry instance
-_registry: Optional[IntegrationRegistry] = None
+_registry: IntegrationRegistry | None = None
 
 
 async def get_integration_registry() -> IntegrationRegistry:
@@ -567,14 +567,14 @@ async def get_integration_registry() -> IntegrationRegistry:
     return _registry
 
 
-def get_integration(name: str) -> Optional[BaseIntegration]:
+def get_integration(name: str) -> BaseIntegration | None:
     """Get an integration by name (sync version)."""
     if _registry is None:
         return None
     return _registry.get_integration(name)
 
 
-async def get_integration_async(name: str) -> Optional[BaseIntegration]:
+async def get_integration_async(name: str) -> BaseIntegration | None:
     """Get an integration by name (async version)."""
     registry = await get_integration_registry()
     return registry.get_integration(name)

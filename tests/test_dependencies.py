@@ -67,7 +67,7 @@ class TestDependencyChecker:
             if "install_cmd" in config:
                 assert isinstance(config["install_cmd"], str)
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_check_feature_dependency_success(self, mock_import):
         """Test check_feature_dependency when all packages available."""
         mock_import.return_value = MagicMock()
@@ -77,7 +77,7 @@ class TestDependencyChecker:
 
         mock_import.assert_called_once_with("minio")
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_check_feature_dependency_missing(self, mock_import):
         """Test check_feature_dependency when packages missing."""
         mock_import.side_effect = ImportError("Module not found")
@@ -85,7 +85,7 @@ class TestDependencyChecker:
         result = DependencyChecker.check_feature_dependency("storage_enabled")
         assert result is False
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_check_feature_dependency_partial_missing(self, mock_import):
         """Test check_feature_dependency when some packages missing."""
         # First package available, second missing
@@ -99,7 +99,7 @@ class TestDependencyChecker:
         result = DependencyChecker.check_feature_dependency("unknown_feature")
         assert result is True  # Should return True for unknown features
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_require_feature_dependency_success(self, mock_import):
         """Test require_feature_dependency when packages available."""
         mock_import.return_value = MagicMock()
@@ -107,7 +107,7 @@ class TestDependencyChecker:
         # Should not raise
         DependencyChecker.require_feature_dependency("storage_enabled")
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_require_feature_dependency_missing(self, mock_import):
         """Test require_feature_dependency when packages missing."""
         mock_import.side_effect = ImportError("Module not found")
@@ -123,8 +123,8 @@ class TestDependencyChecker:
         # Should not raise
         DependencyChecker.require_feature_dependency("unknown_feature")
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'check_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "check_feature_dependency")
     def test_check_enabled_features(self, mock_check, mock_settings):
         """Test check_enabled_features method."""
         # Mock settings to have some features enabled
@@ -146,8 +146,8 @@ class TestDependencyChecker:
         assert results["storage_enabled"] is True
         assert results["encryption_fernet"] is False
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_validate_enabled_features_success(self, mock_require, mock_settings):
         """Test validate_enabled_features when all pass."""
         # Mock all features as disabled except the one we're testing
@@ -160,8 +160,8 @@ class TestDependencyChecker:
         # Should only check the enabled feature
         mock_require.assert_called_once_with("storage_enabled")
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_validate_enabled_features_failure(self, mock_require, mock_settings):
         """Test validate_enabled_features when dependency missing."""
         mock_settings.features.storage_enabled = True
@@ -174,8 +174,8 @@ class TestDependencyChecker:
 class TestRequireDependencyDecorator:
     """Test require_dependency decorator."""
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_decorator_feature_enabled_deps_available(self, mock_require, mock_settings):
         """Test decorator when feature enabled and dependencies available."""
         mock_settings.features.storage_enabled = True
@@ -189,7 +189,7 @@ class TestRequireDependencyDecorator:
         assert result == "success"
         mock_require.assert_called_once_with("storage_enabled")
 
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.settings")
     def test_decorator_feature_disabled(self, mock_settings):
         """Test decorator when feature disabled."""
         mock_settings.features.storage_enabled = False
@@ -204,8 +204,8 @@ class TestRequireDependencyDecorator:
         assert "storage_enabled" in str(exc_info.value)
         assert "not enabled in settings" in str(exc_info.value)
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_decorator_deps_missing(self, mock_require, mock_settings):
         """Test decorator when dependencies missing."""
         mock_settings.features.storage_enabled = True
@@ -218,8 +218,8 @@ class TestRequireDependencyDecorator:
         with pytest.raises(DependencyError):
             test_func()
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_decorator_with_args(self, mock_require, mock_settings):
         """Test decorator preserves function args/kwargs."""
         mock_settings.features.storage_enabled = True
@@ -235,7 +235,7 @@ class TestRequireDependencyDecorator:
 class TestSafeImport:
     """Test safe_import function."""
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_safe_import_success(self, mock_import):
         """Test safe_import when module available."""
         mock_module = MagicMock()
@@ -244,7 +244,7 @@ class TestSafeImport:
         result = safe_import("test_module")
         assert result is mock_module
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
     def test_safe_import_failure_no_feature(self, mock_import):
         """Test safe_import when module missing and no feature flag."""
         mock_import.side_effect = ImportError("Module not found")
@@ -252,8 +252,8 @@ class TestSafeImport:
         result = safe_import("test_module")
         assert result is None
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
+    @patch("dotmac.platform.dependencies.settings")
     def test_safe_import_failure_feature_disabled(self, mock_settings, mock_import):
         """Test safe_import when module missing but feature disabled."""
         mock_import.side_effect = ImportError("Module not found")
@@ -262,9 +262,9 @@ class TestSafeImport:
         result = safe_import("minio", "storage_enabled")
         assert result is None
 
-    @patch('dotmac.platform.dependencies.importlib.import_module')
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.importlib.import_module")
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_safe_import_failure_feature_enabled(self, mock_require, mock_settings, mock_import):
         """Test safe_import when module missing and feature enabled."""
         mock_import.side_effect = ImportError("Module not found")
@@ -278,8 +278,8 @@ class TestSafeImport:
 class TestConvenienceFunctions:
     """Test convenience functions for common dependencies."""
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_require_minio_enabled_available(self, mock_require, mock_settings):
         """Test require_minio when storage enabled and minio available."""
         mock_settings.features.storage_enabled = True
@@ -287,13 +287,13 @@ class TestConvenienceFunctions:
 
         fake_minio = MagicMock(name="minio_module")
 
-        with patch.dict('sys.modules', {"minio": fake_minio}):
+        with patch.dict("sys.modules", {"minio": fake_minio}):
             result = require_minio()
 
         assert result is fake_minio
         mock_require.assert_called_once_with("storage_enabled")
 
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.settings")
     def test_require_minio_disabled(self, mock_settings):
         """Test require_minio when storage disabled."""
         mock_settings.features.storage_enabled = False
@@ -303,8 +303,8 @@ class TestConvenienceFunctions:
 
         assert "Storage is not enabled" in str(exc_info.value)
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_require_minio_missing(self, mock_require, mock_settings):
         """Test require_minio when minio missing."""
         mock_settings.features.storage_enabled = True
@@ -313,42 +313,42 @@ class TestConvenienceFunctions:
         with pytest.raises(DependencyError):
             require_minio()
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_require_meilisearch_enabled_available(self, mock_require, mock_settings):
         """Test require_meilisearch when search enabled and meilisearch available."""
-        mock_settings.features.search_meilisearch_enabled = True
+        mock_settings.features.search_enabled = True
 
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_meilisearch = MagicMock()
             mock_import.return_value = mock_meilisearch
 
             result = require_meilisearch()
             assert result is mock_meilisearch
-            mock_require.assert_called_once_with("search_meilisearch_enabled")
+            mock_require.assert_called_once_with("search_enabled")
 
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.settings")
     def test_require_meilisearch_disabled(self, mock_settings):
         """Test require_meilisearch when search disabled."""
-        mock_settings.features.search_meilisearch_enabled = False
+        mock_settings.features.search_enabled = False
 
         with pytest.raises(ValueError) as exc_info:
             require_meilisearch()
 
-        assert "MeiliSearch is not enabled" in str(exc_info.value)
+        assert "Search is not enabled" in str(exc_info.value)
 
-    @patch('dotmac.platform.dependencies.settings')
-    @patch.object(DependencyChecker, 'require_feature_dependency')
+    @patch("dotmac.platform.dependencies.settings")
+    @patch.object(DependencyChecker, "require_feature_dependency")
     def test_require_cryptography_enabled_available(self, mock_require, mock_settings):
         """Test require_cryptography when encryption enabled and cryptography available."""
         mock_settings.features.encryption_fernet = True
 
-        with patch('cryptography.fernet.Fernet') as mock_fernet:
+        with patch("cryptography.fernet.Fernet") as mock_fernet:
             result = require_cryptography()
             assert result is mock_fernet
             mock_require.assert_called_once_with("encryption_fernet")
 
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.settings")
     def test_require_cryptography_disabled(self, mock_settings):
         """Test require_cryptography when encryption disabled."""
         mock_settings.features.encryption_fernet = False
@@ -362,7 +362,7 @@ class TestConvenienceFunctions:
 class TestFeatureDependencyIntegration:
     """Integration tests for feature dependency system."""
 
-    @patch('dotmac.platform.dependencies.settings')
+    @patch("dotmac.platform.dependencies.settings")
     def test_multiple_features_check(self, mock_settings):
         """Test checking multiple features at once."""
         # Mock all features as disabled except the ones we're testing
@@ -370,7 +370,7 @@ class TestFeatureDependencyIntegration:
             enabled = feature in ["storage_enabled", "encryption_fernet"]
             setattr(mock_settings.features, feature, enabled)
 
-        with patch.object(DependencyChecker, 'check_feature_dependency') as mock_check:
+        with patch.object(DependencyChecker, "check_feature_dependency") as mock_check:
             mock_check.return_value = True
             results = DependencyChecker.check_enabled_features()
 
@@ -394,6 +394,8 @@ class TestFeatureDependencyIntegration:
                 assert len(packages) > 0, f"Feature {feature} has empty package string"
             elif isinstance(packages, list):
                 assert len(packages) > 0, f"Feature {feature} has empty package list"
-                assert all(isinstance(pkg, str) for pkg in packages), f"Feature {feature} has non-string packages"
+                assert all(
+                    isinstance(pkg, str) for pkg in packages
+                ), f"Feature {feature} has non-string packages"
             else:
                 assert False, f"Feature {feature} packages must be string or list"

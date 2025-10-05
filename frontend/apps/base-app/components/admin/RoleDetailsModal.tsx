@@ -53,7 +53,10 @@ export default function RoleDetailsModal({ role, permissions, onClose, onUpdate 
     if (!acc[permission.category]) {
       acc[permission.category] = [];
     }
-    acc[permission.category].push(permission);
+    const category = acc[permission.category];
+    if (category) {
+      category.push(permission);
+    }
     return acc;
   }, {} as Record<string, Permission[]>);
 

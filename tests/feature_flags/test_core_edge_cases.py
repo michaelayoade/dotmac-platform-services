@@ -38,7 +38,7 @@ class TestListFlagsErrorHandling:
         # Mock Redis data with invalid JSON
         redis_data = {
             b"valid_flag": b'{"enabled": true, "context": {}}',
-            b"invalid_flag": b'{"enabled": true, "context": incomplete json'
+            b"invalid_flag": b'{"enabled": true, "context": incomplete json',
         }
         mock_client.hgetall.return_value = redis_data
 
@@ -78,8 +78,12 @@ class TestFlagStatusErrorHandling:
 
         _flag_cache["test_flag"] = {"enabled": True, "context": {}}
 
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=True):
-            with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_client):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=True
+        ):
+            with patch(
+                "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_client
+            ):
                 with patch("dotmac.platform.feature_flags.core.settings") as mock_settings:
                     mock_settings.redis.redis_url = "redis://localhost:6379/0"
 
@@ -102,7 +106,7 @@ class TestSyncFromRedisErrorHandling:
 
         redis_data = {
             b"valid_flag": b'{"enabled": true, "context": {}}',
-            b"invalid_flag": b'{"enabled": true, "context": invalid json data'
+            b"invalid_flag": b'{"enabled": true, "context": invalid json data',
         }
         mock_client.hgetall.return_value = redis_data
 
@@ -140,7 +144,9 @@ class TestFeatureFlagDecorator:
             return "sync_result"
 
         # Mock is_enabled to return True
-        with patch("dotmac.platform.feature_flags.core.is_enabled", return_value=True) as mock_enabled:
+        with patch(
+            "dotmac.platform.feature_flags.core.is_enabled", return_value=True
+        ) as mock_enabled:
             # The decorator creates an event loop for sync functions
             with patch("asyncio.get_event_loop") as mock_loop:
                 mock_loop.return_value.run_until_complete.return_value = True
@@ -244,6 +250,7 @@ class TestRedisClientCreationEdgeCases:
 
                 # Clear cached values
                 import dotmac.platform.feature_flags.core
+
                 dotmac.platform.feature_flags.core._redis_client = None
                 dotmac.platform.feature_flags.core._redis_available = None
 
@@ -270,8 +277,8 @@ class TestContextMatchingEdgeCases:
             "context": {
                 "user_type": "premium",
                 "region": "US",
-                "features": ["beta", "experimental"]
-            }
+                "features": ["beta", "experimental"],
+            },
         }
 
         # Test exact match
@@ -279,7 +286,7 @@ class TestContextMatchingEdgeCases:
             "user_type": "premium",
             "region": "US",
             "features": ["beta", "experimental"],
-            "extra_field": "ignored"  # Extra fields are ignored
+            "extra_field": "ignored",  # Extra fields are ignored
         }
 
         result = await is_enabled("complex_flag", matching_context)
@@ -289,7 +296,7 @@ class TestContextMatchingEdgeCases:
         non_matching_context = {
             "user_type": "premium",
             "region": "EU",  # Different region
-            "features": ["beta", "experimental"]
+            "features": ["beta", "experimental"],
         }
 
         result = await is_enabled("complex_flag", non_matching_context)
@@ -301,10 +308,7 @@ class TestContextMatchingEdgeCases:
         from dotmac.platform.feature_flags.core import is_enabled
 
         # Flag with no context requirements
-        _flag_cache["no_context_flag"] = {
-            "enabled": True,
-            "context": {}
-        }
+        _flag_cache["no_context_flag"] = {"enabled": True, "context": {}}
 
         # User provides context - should still be enabled
         user_context = {"user_id": "123", "role": "admin"}
@@ -317,10 +321,7 @@ class TestContextMatchingEdgeCases:
         from dotmac.platform.feature_flags.core import is_enabled
 
         # Flag requires specific context
-        _flag_cache["requires_context_flag"] = {
-            "enabled": True,
-            "context": {"role": "admin"}
-        }
+        _flag_cache["requires_context_flag"] = {"enabled": True, "context": {"role": "admin"}}
 
         # The current implementation only checks context when both context and flag_context are truthy
         # When context is None, it doesn't enter the context matching block, so it returns enabled=True

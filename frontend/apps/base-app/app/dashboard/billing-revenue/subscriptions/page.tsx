@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -94,11 +94,7 @@ export default function SubscriptionsPage() {
     growthRate: 0,
   });
 
-  useEffect(() => {
-    fetchSubscriptions();
-  }, [statusFilter, billingCycleFilter]);
-
-  const fetchSubscriptions = async () => {
+  const fetchSubscriptions = useCallback(async () => {
     setLoading(true);
     try {
       // Simulated data - replace with actual API call
@@ -238,7 +234,11 @@ export default function SubscriptionsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, billingCycleFilter, toast]);
+
+  useEffect(() => {
+    fetchSubscriptions();
+  }, [fetchSubscriptions]);
 
   const handlePauseSubscription = async (subscription: Subscription) => {
     try {
@@ -311,7 +311,7 @@ export default function SubscriptionsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Subscriptions</h1>
-          <p className="text-gray-500">Manage recurring billing and subscription plans</p>
+          <p className="text-muted-foreground">Manage recurring billing and subscription plans</p>
         </div>
         <Button onClick={() => setShowNewSubscriptionDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -327,7 +327,7 @@ export default function SubscriptionsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics.total}</div>
-            <p className="text-xs text-gray-500">All time</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
         <Card>
@@ -335,8 +335,8 @@ export default function SubscriptionsPage() {
             <CardTitle className="text-sm font-medium">Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.active}</div>
-            <p className="text-xs text-gray-500">Currently active</p>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{metrics.active}</div>
+            <p className="text-xs text-muted-foreground">Currently active</p>
           </CardContent>
         </Card>
         <Card>
@@ -345,7 +345,7 @@ export default function SubscriptionsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(metrics.mrr, 'USD')}</div>
-            <p className="text-xs text-gray-500">Monthly recurring</p>
+            <p className="text-xs text-muted-foreground">Monthly recurring</p>
           </CardContent>
         </Card>
         <Card>
@@ -353,8 +353,8 @@ export default function SubscriptionsPage() {
             <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{metrics.churnRate}%</div>
-            <p className="text-xs text-gray-500">Last 30 days</p>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{metrics.churnRate}%</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
         <Card>
@@ -362,11 +362,11 @@ export default function SubscriptionsPage() {
             <CardTitle className="text-sm font-medium">Growth Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               <TrendingUp className="inline h-5 w-5 mr-1" />
               {metrics.growthRate}%
             </div>
-            <p className="text-xs text-gray-500">Month over month</p>
+            <p className="text-xs text-muted-foreground">Month over month</p>
           </CardContent>
         </Card>
       </div>
@@ -378,7 +378,7 @@ export default function SubscriptionsPage() {
             <CardTitle>Subscription List</CardTitle>
             <div className="flex gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="Search subscriptions..."
                   value={searchQuery}
@@ -389,7 +389,7 @@ export default function SubscriptionsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -401,7 +401,7 @@ export default function SubscriptionsPage() {
               <select
                 value={billingCycleFilter}
                 onChange={(e) => setBillingCycleFilter(e.target.value)}
-                className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
               >
                 <option value="all">All Cycles</option>
                 <option value="monthly">Monthly</option>
@@ -418,7 +418,7 @@ export default function SubscriptionsPage() {
           {loading ? (
             <div className="text-center py-8">Loading subscriptions...</div>
           ) : subscriptions.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No subscriptions found. Create your first subscription to get started.
             </div>
           ) : (
@@ -441,13 +441,13 @@ export default function SubscriptionsPage() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{subscription.customer_name}</div>
-                        <div className="text-sm text-gray-500">{subscription.customer_email}</div>
+                        <div className="text-sm text-muted-foreground">{subscription.customer_email}</div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
                         <div className="font-medium">{subscription.plan_name}</div>
-                        <div className="text-xs text-gray-500">{subscription.id}</div>
+                        <div className="text-xs text-muted-foreground">{subscription.id}</div>
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(subscription.status)}</TableCell>
@@ -456,7 +456,7 @@ export default function SubscriptionsPage() {
                         {formatCurrency(subscription.amount, subscription.currency)}
                       </div>
                       {subscription.mrr > 0 && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           MRR: {formatCurrency(subscription.mrr, subscription.currency)}
                         </div>
                       )}
@@ -466,7 +466,7 @@ export default function SubscriptionsPage() {
                       {subscription.status === 'trialing' && subscription.trial_end ? (
                         <div>
                           <div className="text-sm">Trial ends</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             {format(new Date(subscription.trial_end), 'MMM d, yyyy')}
                           </div>
                         </div>
@@ -478,7 +478,7 @@ export default function SubscriptionsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <CreditCard className="h-3 w-3 text-gray-400" />
+                        <CreditCard className="h-3 w-3 text-muted-foreground" />
                         <span className="text-sm">{subscription.payment_method}</span>
                       </div>
                     </TableCell>
@@ -543,7 +543,7 @@ export default function SubscriptionsPage() {
           <div className="space-y-4">
             <div>
               <Label>Customer</Label>
-              <select className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white">
+              <select className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground">
                 <option value="">Select customer</option>
                 <option value="cust1">Acme Corp</option>
                 <option value="cust2">TechStart Inc</option>
@@ -551,7 +551,7 @@ export default function SubscriptionsPage() {
             </div>
             <div>
               <Label>Plan</Label>
-              <select className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white">
+              <select className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground">
                 <option value="">Select plan</option>
                 <option value="starter">Starter - $29.99/mo</option>
                 <option value="pro">Professional - $99.99/mo</option>
@@ -560,7 +560,7 @@ export default function SubscriptionsPage() {
             </div>
             <div>
               <Label>Billing Cycle</Label>
-              <select className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white">
+              <select className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground">
                 <option value="">Select billing cycle</option>
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
@@ -641,14 +641,14 @@ export default function SubscriptionsPage() {
                 <div>
                   <Label>Payment Method</Label>
                   <div className="mt-1 flex items-center gap-1">
-                    <CreditCard className="h-4 w-4 text-gray-400" />
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
                     {selectedSubscription.payment_method}
                   </div>
                 </div>
               </div>
 
               {selectedSubscription.cancel_at_period_end && (
-                <div className="p-3 bg-yellow-50 text-yellow-800 rounded-md">
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-md">
                   <AlertCircle className="inline h-4 w-4 mr-2" />
                   This subscription will be cancelled at the end of the current billing period
                 </div>

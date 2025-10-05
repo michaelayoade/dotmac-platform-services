@@ -1,31 +1,31 @@
 """Payment router for billing management."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.core.entities import PaymentEntity
 from dotmac.platform.billing.core.models import PaymentStatus
 from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/payments", tags=["Billing Payments"])
+router = APIRouter(prefix="/payments", tags=["Billing - Payments"])
 
 
 class FailedPaymentsSummary(BaseModel):
     """Summary of failed payments."""
+
     count: int
     total_amount: float
-    oldest_failure: Optional[datetime] = None
-    newest_failure: Optional[datetime] = None
+    oldest_failure: datetime | None = None
+    newest_failure: datetime | None = None
 
 
 @router.get("/failed", response_model=FailedPaymentsSummary)
@@ -40,17 +40,17 @@ async def get_failed_payments(
     """
     try:
         # Query failed payments from last 30 days
-        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
 
         # Count and sum failed payments
         query = select(
-            func.count(PaymentEntity.payment_id).label('count'),
-            func.sum(PaymentEntity.amount).label('total_amount'),
-            func.min(PaymentEntity.created_at).label('oldest'),
-            func.max(PaymentEntity.created_at).label('newest')
+            func.count(PaymentEntity.payment_id).label("count"),
+            func.sum(PaymentEntity.amount).label("total_amount"),
+            func.min(PaymentEntity.created_at).label("oldest"),
+            func.max(PaymentEntity.created_at).label("newest"),
         ).where(
             PaymentEntity.status == PaymentStatus.FAILED,
-            PaymentEntity.created_at >= thirty_days_ago
+            PaymentEntity.created_at >= thirty_days_ago,
         )
 
         result = await session.execute(query)

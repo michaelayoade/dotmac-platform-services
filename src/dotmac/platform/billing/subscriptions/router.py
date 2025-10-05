@@ -4,31 +4,31 @@ Subscription management API router.
 Provides REST endpoints for managing subscription plans and customer subscriptions.
 """
 
-from typing import List
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-
 from sqlalchemy.ext.asyncio import AsyncSession
-from dotmac.platform.db import get_async_session
-from dotmac.platform.auth.dependencies import get_current_user
+
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
+from ..exceptions import PlanNotFoundError
 from .models import (
+    ProrationResult,
+    SubscriptionCreateRequest,
+    SubscriptionPlanChangeRequest,
     SubscriptionPlanCreateRequest,
     SubscriptionPlanResponse,
-    SubscriptionCreateRequest,
     SubscriptionResponse,
     SubscriptionUpdateRequest,
-    SubscriptionPlanChangeRequest,
     UsageRecordRequest,
-    ProrationResult,
 )
 from .service import SubscriptionService
 
-
-router = APIRouter(tags=["billing-subscriptions"])
+router = APIRouter(tags=["Billing - Subscriptions"])
 
 
 # Subscription Plans Management
@@ -54,14 +54,14 @@ async def create_subscription_plan(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/plans", response_model=List[SubscriptionPlanResponse])
+@router.get("/plans", response_model=list[SubscriptionPlanResponse])
 async def list_subscription_plans(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
     product_id: str | None = Query(None, description="Filter by product ID"),
     active_only: bool = Query(True, description="Show only active plans"),
-) -> List[SubscriptionPlanResponse]:
+) -> list[SubscriptionPlanResponse]:
     """List subscription plans."""
     service = SubscriptionService(db_session)
     plans = await service.list_plans(
@@ -81,12 +81,13 @@ async def get_subscription_plan(
 ) -> SubscriptionPlanResponse:
     """Get a specific subscription plan."""
     service = SubscriptionService(db_session)
-    plan = await service.get_plan(plan_id, tenant_id)
-    if not plan:
+    try:
+        plan = await service.get_plan(plan_id, tenant_id)
+        return SubscriptionPlanResponse.model_validate(plan.model_dump())
+    except PlanNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Subscription plan {plan_id} not found"
         )
-    return SubscriptionPlanResponse.model_validate(plan.model_dump())
 
 
 @router.patch("/plans/{plan_id}", response_model=SubscriptionPlanResponse)
@@ -157,7 +158,7 @@ async def create_subscription(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/", response_model=List[SubscriptionResponse])
+@router.get("/", response_model=list[SubscriptionResponse])
 async def list_subscriptions(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
@@ -165,7 +166,7 @@ async def list_subscriptions(
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     plan_id: str | None = Query(None, description="Filter by plan ID"),
     status: str | None = Query(None, description="Filter by status"),
-) -> List[SubscriptionResponse]:
+) -> list[SubscriptionResponse]:
     """List customer subscriptions."""
     service = SubscriptionService(db_session)
     subscriptions = await service.list_subscriptions(
@@ -200,12 +201,14 @@ async def get_expiring_subscriptions(
     Returns count and details of subscriptions approaching expiration.
     """
     try:
-        from datetime import datetime, timedelta, timezone
-        from sqlalchemy import select, func, and_
+        from datetime import datetime, timedelta
+
+        from sqlalchemy import and_, func, select
+
         from dotmac.platform.billing.core.models import Subscription, SubscriptionStatus
 
         # Calculate expiration window
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expiration_date = now + timedelta(days=days)
 
         # Query subscriptions expiring in the next N days
@@ -243,7 +246,7 @@ async def get_expiring_subscriptions(
             "count": 0,
             "days_ahead": days,
             "soonest_expiration": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 

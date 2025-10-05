@@ -7,15 +7,18 @@ with intelligent invalidation and multi-tier caching strategies.
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
+from typing import Any, TypeVar
 
 import structlog
 from cachetools import TTLCache
 
-from dotmac.platform.caching import cache_get, cache_set, get_redis
+# Re-export from core to maintain backwards compatibility
+from dotmac.platform.core.cache_decorators import CacheTier, cached_result
+from dotmac.platform.core.caching import cache_get, cache_set, get_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -30,14 +33,6 @@ class CacheStrategy(str, Enum):
     LFU = "lfu"  # Least frequently used
     WRITE_THROUGH = "write_through"  # Write to cache and database
     WRITE_BACK = "write_back"  # Write to cache, async to database
-
-
-class CacheTier(str, Enum):
-    """Cache tier levels."""
-
-    L1_MEMORY = "l1_memory"  # In-process memory cache
-    L2_REDIS = "l2_redis"  # Distributed Redis cache
-    L3_DATABASE = "l3_database"  # Database layer
 
 
 class BillingCacheConfig:
@@ -86,7 +81,7 @@ class CacheKey:
         return f"billing:pricing:rule:{tenant_id}:{rule_id}"
 
     @staticmethod
-    def pricing_rules(tenant_id: str, product_id: Optional[str] = None) -> str:
+    def pricing_rules(tenant_id: str, product_id: str | None = None) -> str:
         """Generate cache key for pricing rules list."""
         if product_id:
             return f"billing:pricing:rules:{tenant_id}:{product_id}"
@@ -118,7 +113,7 @@ class CacheKey:
         return f"billing:usage:{subscription_id}:{period}"
 
     @staticmethod
-    def generate_hash(data: Dict[str, Any]) -> str:
+    def generate_hash(data: dict[str, Any]) -> str:
         """Generate hash from dictionary data for cache keys."""
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.md5(
@@ -135,7 +130,7 @@ class BillingCacheMetrics:
         self.sets = 0
         self.deletes = 0
         self.errors = 0
-        self.last_reset = datetime.now(timezone.utc)
+        self.last_reset = datetime.now(UTC)
 
     def record_hit(self):
         """Record cache hit."""
@@ -164,7 +159,7 @@ class BillingCacheMetrics:
             return 0.0
         return (self.hits / total) * 100
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         return {
             "hits": self.hits,
@@ -183,7 +178,7 @@ class BillingCacheMetrics:
         self.sets = 0
         self.deletes = 0
         self.errors = 0
-        self.last_reset = datetime.now(timezone.utc)
+        self.last_reset = datetime.now(UTC)
 
 
 class BillingCache:
@@ -220,15 +215,15 @@ class BillingCache:
             self.subscription_cache = {}
 
         # Track cache dependencies for invalidation
-        self.dependencies: Dict[str, Set[str]] = {}
+        self.dependencies: dict[str, set[str]] = {}
 
     async def get(
         self,
         key: str,
-        loader: Optional[Callable] = None,
-        ttl: Optional[int] = None,
+        loader: Callable | None = None,
+        ttl: int | None = None,
         tier: CacheTier = CacheTier.L2_REDIS,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Get value from cache with multi-tier lookup.
 
@@ -285,9 +280,9 @@ class BillingCache:
         self,
         key: str,
         value: Any,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
         tier: CacheTier = CacheTier.L2_REDIS,
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
     ) -> bool:
         """
         Set value in cache with multi-tier storage.
@@ -394,7 +389,7 @@ class BillingCache:
             logger.error("Cache invalidation error", pattern=pattern, error=str(e))
             return 0
 
-    async def invalidate_by_tags(self, tags: List[str]) -> int:
+    async def invalidate_by_tags(self, tags: list[str]) -> int:
         """
         Invalidate cache entries by tags.
 
@@ -413,7 +408,7 @@ class BillingCache:
                 del self.dependencies[tag]
         return count
 
-    def _get_from_memory(self, key: str) -> Optional[Any]:
+    def _get_from_memory(self, key: str) -> Any | None:
         """Get value from L1 memory cache."""
         # Check appropriate cache based on key prefix
         if "product" in key:
@@ -471,7 +466,7 @@ class BillingCache:
         # Implementation would depend on actual service methods
         logger.info("Cache warming completed", tenant_id=tenant_id)
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get cache metrics and statistics."""
         metrics = self.metrics.get_stats()
 
@@ -495,7 +490,7 @@ class BillingCache:
 
 
 # Global cache instance
-_billing_cache: Optional[BillingCache] = None
+_billing_cache: BillingCache | None = None
 
 
 def get_billing_cache() -> BillingCache:
@@ -507,9 +502,9 @@ def get_billing_cache() -> BillingCache:
 
 
 def cached_result(
-    ttl: Optional[int] = None,
+    ttl: int | None = None,
     key_prefix: str = "",
-    key_params: Optional[List[str]] = None,
+    key_params: list[str] | None = None,
     tier: CacheTier = CacheTier.L2_REDIS,
 ):
     """
@@ -570,7 +565,7 @@ def cached_result(
     return decorator
 
 
-def invalidate_on_change(tags: Optional[List[str]] = None, patterns: Optional[List[str]] = None):
+def invalidate_on_change(tags: list[str] | None = None, patterns: list[str] | None = None):
     """
     Decorator to invalidate cache on data changes.
 

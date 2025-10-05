@@ -1,30 +1,96 @@
 {
   "instances": [
     {
-      "id": "a939622f-750b-4acc-a1ab-28d469a3674b",
-      "plugin_name": "Failing Plugin",
-      "instance_name": "Test",
+      "id": "1d9e7728-0e3c-4117-bffb-8591f378b725",
+      "plugin_name": "Test Notification",
+      "instance_name": "Valid",
       "config_schema": {
-        "name": "Failing Plugin",
-        "type": "integration",
+        "name": "Test Notification",
+        "type": "notification",
         "version": "1.0.0",
-        "description": "Always fails",
+        "description": "Test notification plugin for router testing",
         "author": null,
         "homepage": null,
-        "fields": [],
+        "fields": [
+          {
+            "key": "api_key",
+            "label": "API Key",
+            "type": "secret",
+            "description": null,
+            "required": true,
+            "default": null,
+            "validation_rules": [],
+            "min_length": null,
+            "max_length": null,
+            "min_value": null,
+            "max_value": null,
+            "pattern": null,
+            "options": [],
+            "placeholder": null,
+            "help_text": null,
+            "group": null,
+            "order": 0,
+            "is_secret": true
+          },
+          {
+            "key": "endpoint",
+            "label": "Endpoint URL",
+            "type": "url",
+            "description": null,
+            "required": true,
+            "default": null,
+            "validation_rules": [],
+            "min_length": null,
+            "max_length": null,
+            "min_value": null,
+            "max_value": null,
+            "pattern": null,
+            "options": [],
+            "placeholder": null,
+            "help_text": null,
+            "group": null,
+            "order": 0,
+            "is_secret": false
+          },
+          {
+            "key": "timeout",
+            "label": "Timeout (seconds)",
+            "type": "integer",
+            "description": null,
+            "required": false,
+            "default": 30,
+            "validation_rules": [],
+            "min_length": null,
+            "max_length": null,
+            "min_value": null,
+            "max_value": null,
+            "pattern": null,
+            "options": [],
+            "placeholder": null,
+            "help_text": null,
+            "group": null,
+            "order": 0,
+            "is_secret": false
+          }
+        ],
         "dependencies": [],
         "tags": [],
         "supports_health_check": true,
         "supports_test_connection": true
       },
-      "status": "error",
-      "last_health_check": null,
-      "last_error": "Configuration always fails",
+      "status": "active",
+      "last_health_check": "2025-10-05T09:02:26.988750+00:00",
+      "last_error": null,
       "has_configuration": true,
       "configuration_version": null
     }
   ],
   "configurations": {
-    "a939622f-750b-4acc-a1ab-28d469a3674b": {}
+    "1d9e7728-0e3c-4117-bffb-8591f378b725": {
+      "api_key": {
+        "__secret__": true
+      },
+      "endpoint": "https://test.com"
+    }
   }
 }

@@ -130,15 +130,19 @@ class TestEmailConvenienceHelpers:
     @pytest.mark.asyncio
     async def test_send_email_helper_uses_service(self):
         fake_service = EmailService()
-        async_mock = AsyncMock(return_value=EmailResponse(
-            id="test",
-            status="sent",
-            message="ok",
-            recipients_count=1,
-        ))
+        async_mock = AsyncMock(
+            return_value=EmailResponse(
+                id="test",
+                status="sent",
+                message="ok",
+                recipients_count=1,
+            )
+        )
 
-        with patch("dotmac.platform.communications.email_service._email_service", fake_service), \
-            patch.object(fake_service, "send_email", async_mock):
+        with (
+            patch("dotmac.platform.communications.email_service._email_service", fake_service),
+            patch.object(fake_service, "send_email", async_mock),
+        ):
             response = await send_email(["user@example.com"], "Test", text_body="Hi")
 
         async_mock.assert_awaited_once()
@@ -171,7 +175,7 @@ class TestTemplateService:
         template = TemplateData(
             name="Reminder",
             subject_template="Reminder for {{ event }}",
-            text_template="Dear {{ user }}, see you soon"
+            text_template="Dear {{ user }}, see you soon",
         )
 
         created = service.create_template(template)

@@ -129,6 +129,28 @@ try:
     except ImportError:
         pass
 
+    try:
+        from dotmac.platform.billing import models as billing_models  # noqa: F401
+        from dotmac.platform.billing.core import entities as billing_entities  # noqa: F401
+        from dotmac.platform.billing.bank_accounts import entities as bank_entities  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.tenant import models as tenant_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.audit import models as audit_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.user_management import models as user_models  # noqa: F401
+    except ImportError:
+        pass
+
     HAS_DATABASE_BASE = True
 except ImportError:
     HAS_DATABASE_BASE = False
@@ -282,7 +304,7 @@ if HAS_SQLALCHEMY:
                 pool_size=20,  # Increase pool size for tests
                 max_overflow=30,  # Allow overflow connections
                 pool_pre_ping=True,  # Verify connections before use
-                pool_recycle=3600  # Recycle connections every hour
+                pool_recycle=3600,  # Recycle connections every hour
             )
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
@@ -294,7 +316,11 @@ if HAS_SQLALCHEMY:
                 if HAS_DATABASE_BASE:
                     async with engine.begin() as conn:
                         await conn.run_sync(Base.metadata.drop_all)
-                await engine.dispose()
+                # Properly dispose of the engine with close flag to avoid RuntimeWarnings
+                await engine.dispose(close=False)
+                # Give asyncio a chance to clean up pending tasks
+                await asyncio.sleep(0)
+
     except ImportError:
         # Fallback to regular pytest fixture
         @pytest.fixture
@@ -322,7 +348,7 @@ if HAS_SQLALCHEMY:
                 pool_size=20,  # Increase pool size for tests
                 max_overflow=30,  # Allow overflow connections
                 pool_pre_ping=True,  # Verify connections before use
-                pool_recycle=3600  # Recycle connections every hour
+                pool_recycle=3600,  # Recycle connections every hour
             )
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
@@ -334,7 +360,10 @@ if HAS_SQLALCHEMY:
                 if HAS_DATABASE_BASE:
                     async with engine.begin() as conn:
                         await conn.run_sync(Base.metadata.drop_all)
-                await engine.dispose()
+                # Properly dispose of the engine with close flag to avoid RuntimeWarnings
+                await engine.dispose(close=False)
+                # Give asyncio a chance to clean up pending tasks
+                await asyncio.sleep(0)
 
     try:
         import pytest_asyncio
@@ -351,6 +380,11 @@ if HAS_SQLALCHEMY:
                         await session.rollback()
                     except Exception:
                         pass
+                    # Ensure session is properly closed
+                    await session.close()
+                    # Give asyncio a chance to clean up
+                    await asyncio.sleep(0)
+
     except ImportError:
         # Fallback to regular pytest fixture
         @pytest.fixture
@@ -365,6 +399,10 @@ if HAS_SQLALCHEMY:
                         await session.rollback()
                     except Exception:
                         pass
+                    # Ensure session is properly closed
+                    await session.close()
+                    # Give asyncio a chance to clean up
+                    await asyncio.sleep(0)
 
 else:
 
@@ -383,8 +421,317 @@ if HAS_FASTAPI:
 
     @pytest.fixture
     def test_app():
-        """Test FastAPI application."""
+        """Test FastAPI application with routers and auth configured.
+
+        This fixture provides a complete test app with:
+        - All routers registered
+        - Auth system configured with test user
+        - Proper dependency overrides for testing
+        - Tenant middleware for multi-tenant support
+
+        Can be used by ALL router tests across all modules.
+        """
+        from fastapi import FastAPI, Depends
+        from unittest.mock import Mock
+
         app = FastAPI(title="Test App")
+
+        # Add tenant middleware for multi-tenant support
+        try:
+            from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+
+            tenant_config = TenantConfiguration(
+                mode=TenantMode.MULTI,
+                require_tenant_header=True,
+                tenant_header_name="X-Tenant-ID",
+            )
+            app.add_middleware(TenantMiddleware, config=tenant_config)
+        except ImportError:
+            pass
+
+        # Setup auth override for testing
+        # Override get_current_user to return test user
+        try:
+            from dotmac.platform.auth.dependencies import get_current_user
+            from dotmac.platform.auth.core import UserInfo
+
+            async def override_get_current_user():
+                """Test user with admin permissions."""
+                return UserInfo(
+                    user_id="test-user-123",
+                    email="test@example.com",
+                    username="testuser",
+                    roles=["admin"],
+                    permissions=["read", "write", "admin"],
+                    tenant_id="test-tenant",
+                )
+
+            app.dependency_overrides[get_current_user] = override_get_current_user
+        except ImportError:
+            pass
+
+        # Override tenant dependency for testing
+        try:
+            from dotmac.platform.tenant import get_current_tenant_id
+
+            def override_get_current_tenant_id():
+                """Test tenant ID."""
+                return "test-tenant"
+
+            app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+        except ImportError:
+            pass
+
+        # ============================================================================
+        # Register ALL module routers for testing
+        # ============================================================================
+
+        # Auth routers
+        try:
+            from dotmac.platform.auth.router import router as auth_router
+
+            app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.auth.api_keys_router import router as api_keys_router
+
+            app.include_router(api_keys_router, prefix="/api/v1/auth/api-keys", tags=["API Keys"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.auth.rbac_router import router as rbac_router
+
+            app.include_router(rbac_router, prefix="/api/v1/auth/rbac", tags=["RBAC"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.auth.rbac_read_router import router as rbac_read_router
+
+            app.include_router(
+                rbac_read_router, prefix="/api/v1/auth/rbac/read", tags=["RBAC Read"]
+            )
+        except ImportError:
+            pass
+
+        # Tenant router
+        try:
+            from dotmac.platform.tenant.router import router as tenant_router
+
+            app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["Tenant Management"])
+        except ImportError:
+            pass
+
+        # Tenant usage billing router
+        try:
+            from dotmac.platform.tenant.usage_billing_router import router as usage_billing_router
+
+            app.include_router(usage_billing_router, tags=["Tenant Usage Billing"])
+        except ImportError:
+            pass
+
+        # Billing routers
+        try:
+            from dotmac.platform.billing.subscriptions.router import router as subscriptions_router
+
+            app.include_router(
+                subscriptions_router, prefix="/api/v1/billing/subscriptions", tags=["Subscriptions"]
+            )
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.catalog.router import router as catalog_router
+
+            app.include_router(catalog_router, prefix="/api/v1/billing/catalog", tags=["Catalog"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.pricing.router import router as pricing_router
+
+            app.include_router(pricing_router, prefix="/api/v1/billing/pricing", tags=["Pricing"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.receipts.router import router as receipts_router
+
+            app.include_router(
+                receipts_router, prefix="/api/v1/billing/receipts", tags=["Receipts"]
+            )
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.webhooks.router import router as webhooks_router
+
+            app.include_router(
+                webhooks_router, prefix="/api/v1/billing/webhooks", tags=["Webhooks"]
+            )
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.payments.router import router as payments_router
+
+            app.include_router(payments_router, prefix="/api/v1/billing", tags=["Payments"])
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.credit_notes.router import router as credit_notes_router
+
+            app.include_router(
+                credit_notes_router, prefix="/api/v1/billing/credit-notes", tags=["Credit Notes"]
+            )
+        except ImportError:
+            pass
+
+        try:
+            from dotmac.platform.billing.bank_accounts.router import router as bank_accounts_router
+
+            app.include_router(
+                bank_accounts_router, prefix="/api/v1/billing/bank-accounts", tags=["Bank Accounts"]
+            )
+        except ImportError:
+            pass
+
+        # Communications
+        try:
+            from dotmac.platform.communications.router import router as communications_router
+
+            app.include_router(
+                communications_router, prefix="/api/v1/communications", tags=["Communications"]
+            )
+        except ImportError:
+            pass
+
+        # Analytics
+        try:
+            from dotmac.platform.analytics.router import router as analytics_router
+
+            app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
+        except ImportError:
+            pass
+
+        # Audit
+        try:
+            from dotmac.platform.audit.router import router as audit_router
+
+            app.include_router(audit_router, prefix="/api/v1/audit", tags=["Audit"])
+        except ImportError:
+            pass
+
+        # Admin
+        try:
+            from dotmac.platform.admin.settings.router import router as admin_settings_router
+
+            app.include_router(
+                admin_settings_router, prefix="/api/v1/admin/settings", tags=["Admin Settings"]
+            )
+        except ImportError:
+            pass
+
+        # Contacts
+        try:
+            from dotmac.platform.contacts.router import router as contacts_router
+
+            app.include_router(contacts_router, prefix="/api/v1/contacts", tags=["Contacts"])
+        except ImportError:
+            pass
+
+        # Customer Management
+        try:
+            from dotmac.platform.customer_management.router import router as customer_router
+
+            app.include_router(customer_router, prefix="/api/v1/customers", tags=["Customers"])
+        except ImportError:
+            pass
+
+        # Data Import
+        try:
+            from dotmac.platform.data_import.router import router as data_import_router
+
+            app.include_router(
+                data_import_router, prefix="/api/v1/data-import", tags=["Data Import"]
+            )
+        except ImportError:
+            pass
+
+        # Data Transfer
+        try:
+            from dotmac.platform.data_transfer.router import router as data_transfer_router
+
+            app.include_router(
+                data_transfer_router, prefix="/api/v1/data-transfer", tags=["Data Transfer"]
+            )
+        except ImportError:
+            pass
+
+        # Feature Flags
+        try:
+            from dotmac.platform.feature_flags.router import router as feature_flags_router
+
+            app.include_router(
+                feature_flags_router, prefix="/api/v1/feature-flags", tags=["Feature Flags"]
+            )
+        except ImportError:
+            pass
+
+        # File Storage
+        try:
+            from dotmac.platform.file_storage.router import router as file_storage_router
+
+            app.include_router(file_storage_router, prefix="/api/v1/files", tags=["File Storage"])
+        except ImportError:
+            pass
+
+        # Partner Management
+        try:
+            from dotmac.platform.partner_management.router import router as partner_router
+
+            app.include_router(partner_router, prefix="/api/v1/partners", tags=["Partners"])
+        except ImportError:
+            pass
+
+        # Plugins
+        try:
+            from dotmac.platform.plugins.router import router as plugins_router
+
+            app.include_router(plugins_router, prefix="/api/v1/plugins", tags=["Plugins"])
+        except ImportError:
+            pass
+
+        # Search
+        try:
+            from dotmac.platform.search.router import router as search_router
+
+            app.include_router(search_router, prefix="/api/v1/search", tags=["Search"])
+        except ImportError:
+            pass
+
+        # User Management
+        try:
+            from dotmac.platform.user_management.router import router as user_router
+
+            app.include_router(user_router, prefix="/api/v1/users", tags=["Users"])
+        except ImportError:
+            pass
+
+        # Webhooks (platform-level)
+        try:
+            from dotmac.platform.webhooks.router import router as platform_webhooks_router
+
+            app.include_router(
+                platform_webhooks_router, prefix="/api/v1/webhooks", tags=["Webhooks"]
+            )
+        except ImportError:
+            pass
+
         return app
 
     @pytest.fixture
@@ -392,36 +739,66 @@ if HAS_FASTAPI:
         """Test client for FastAPI app."""
         return TestClient(test_app)
 
-    @pytest.fixture
-    async def authenticated_client(test_app):
-        """Async test client with authentication for testing protected endpoints."""
-        from httpx import AsyncClient, ASGITransport
-        from dotmac.platform.auth.core import JWTService
+    try:
+        import pytest_asyncio
 
-        # Create JWT service and generate a test token
-        jwt_service = JWTService(
-            algorithm="HS256",
-            secret="test-secret-key-for-testing-only"
-        )
+        @pytest_asyncio.fixture
+        async def authenticated_client(test_app):
+            """Async test client with authentication for testing protected endpoints."""
+            from httpx import AsyncClient, ASGITransport
+            from dotmac.platform.auth.core import JWTService
 
-        # Create test token with user claims
-        test_token = jwt_service.create_access_token(
-            subject="test-user-123",
-            additional_claims={
-                "scopes": ["read", "write", "admin"],
-                "tenant_id": "test-tenant",
-                "email": "test@example.com"
-            }
-        )
+            # Create JWT service and generate a test token
+            jwt_service = JWTService(algorithm="HS256", secret="test-secret-key-for-testing-only")
 
-        # Create async client with auth headers
-        transport = ASGITransport(app=test_app)
-        async with AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-            headers={"Authorization": f"Bearer {test_token}"}
-        ) as client:
-            yield client
+            # Create test token with user claims
+            test_token = jwt_service.create_access_token(
+                subject="test-user-123",
+                additional_claims={
+                    "scopes": ["read", "write", "admin"],
+                    "tenant_id": "test-tenant",
+                    "email": "test@example.com",
+                },
+            )
+
+            # Create async client with auth headers
+            transport = ASGITransport(app=test_app)
+            async with AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+                headers={"Authorization": f"Bearer {test_token}"},
+            ) as client:
+                yield client
+
+    except ImportError:
+        # Fallback if pytest_asyncio not available
+        @pytest.fixture
+        async def authenticated_client(test_app):
+            """Async test client with authentication for testing protected endpoints."""
+            from httpx import AsyncClient, ASGITransport
+            from dotmac.platform.auth.core import JWTService
+
+            # Create JWT service and generate a test token
+            jwt_service = JWTService(algorithm="HS256", secret="test-secret-key-for-testing-only")
+
+            # Create test token with user claims
+            test_token = jwt_service.create_access_token(
+                subject="test-user-123",
+                additional_claims={
+                    "scopes": ["read", "write", "admin"],
+                    "tenant_id": "test-tenant",
+                    "email": "test@example.com",
+                },
+            )
+
+            # Create async client with auth headers
+            transport = ASGITransport(app=test_app)
+            async with AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+                headers={"Authorization": f"Bearer {test_token}"},
+            ) as client:
+                yield client
 
 else:
 
@@ -550,8 +927,19 @@ def event_loop():
         yield loop
     finally:
         try:
-            # Allow pending callbacks a chance to finalize.
+            # Allow pending callbacks a chance to finalize
             loop.run_until_complete(asyncio.sleep(0))
+
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+
+            # Wait for all tasks to complete cancellation
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+            # Shutdown async generators and default executor
             loop.run_until_complete(loop.shutdown_asyncgens())
             if hasattr(loop, "shutdown_default_executor"):
                 loop.run_until_complete(loop.shutdown_default_executor())
@@ -581,3 +969,238 @@ def pytest_collection_modifyitems(config, items):
         # Skip FastAPI tests if FastAPI not available
         if "fastapi" in item.keywords and not HAS_FASTAPI:
             item.add_marker(skip_no_fastapi)
+
+
+# ============================================================================
+# Billing Integration Test Fixtures
+# ============================================================================
+
+if HAS_SQLALCHEMY:
+    try:
+        import pytest_asyncio
+
+        @pytest_asyncio.fixture
+        async def async_session(async_db_engine):
+            """Async database session for billing integration tests.
+
+            This is an alias for async_db_session that matches the naming
+            used in billing integration tests.
+            """
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
+                try:
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
+                    await session.close()
+                    await asyncio.sleep(0)
+
+        @pytest_asyncio.fixture
+        async def test_payment_method(async_session):
+            """Create test payment method in real database for integration tests."""
+            from dotmac.platform.billing.core.entities import PaymentMethodEntity
+            from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentMethodStatus
+
+            from uuid import uuid4
+
+            payment_method = PaymentMethodEntity(
+                payment_method_id=str(uuid4()),  # Generate valid UUID
+                tenant_id="test-tenant",
+                customer_id="cust_123",
+                type=PaymentMethodType.CARD,
+                status=PaymentMethodStatus.ACTIVE,
+                provider="stripe",  # Required field
+                provider_payment_method_id="stripe_pm_123",
+                display_name="Visa ending in 4242",  # Required field
+                last_four="4242",
+                brand="visa",
+                expiry_month=12,
+                expiry_year=2030,
+            )
+            async_session.add(payment_method)
+            await async_session.commit()
+            await async_session.refresh(payment_method)
+            return payment_method
+
+        @pytest_asyncio.fixture
+        def mock_stripe_provider():
+            """Mock Stripe payment provider for integration tests."""
+            from unittest.mock import AsyncMock, MagicMock
+
+            provider = AsyncMock()
+            provider.charge_payment_method = AsyncMock()
+            return provider
+
+        @pytest_asyncio.fixture
+        async def test_subscription_plan(async_session):
+            """Create test subscription plan in real database."""
+            from dotmac.platform.billing.models import BillingSubscriptionPlanTable
+            from dotmac.platform.billing.subscriptions.models import BillingCycle
+            from decimal import Decimal
+
+            plan = BillingSubscriptionPlanTable(
+                plan_id="plan_test_123",
+                tenant_id="test-tenant",
+                product_id="prod_123",
+                name="Test Plan",
+                description="Test subscription plan",
+                billing_cycle=BillingCycle.MONTHLY.value,
+                price=Decimal("29.99"),
+                currency="usd",
+                trial_days=14,
+                is_active=True,
+            )
+            async_session.add(plan)
+            await async_session.commit()
+            await async_session.refresh(plan)
+            return plan
+
+        @pytest_asyncio.fixture
+        async def client(test_app):
+            """Async HTTP client for integration tests.
+
+            This provides an authenticated async client for testing
+            billing API endpoints.
+            """
+            from httpx import AsyncClient, ASGITransport
+
+            transport = ASGITransport(app=test_app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                yield client
+
+        @pytest_asyncio.fixture
+        def auth_headers():
+            """Authentication headers for integration tests.
+
+            Includes both Authorization and X-Tenant-ID headers for tenant isolation.
+            """
+            from dotmac.platform.auth.core import JWTService
+
+            jwt_service = JWTService(algorithm="HS256", secret="test-secret-key-for-testing-only")
+
+            test_token = jwt_service.create_access_token(
+                subject="test-user-123",
+                additional_claims={
+                    "scopes": ["read", "write", "admin"],
+                    "tenant_id": "test-tenant",
+                    "email": "test@example.com",
+                },
+            )
+
+            return {
+                "Authorization": f"Bearer {test_token}",
+                "X-Tenant-ID": "test-tenant",
+            }
+
+    except ImportError:
+        # Fallback fixtures if pytest_asyncio not available
+        @pytest.fixture
+        async def async_session(async_db_engine):
+            """Async database session for billing integration tests."""
+            SessionMaker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+            async with SessionMaker() as session:
+                try:
+                    yield session
+                finally:
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
+                    await session.close()
+                    await asyncio.sleep(0)
+
+        @pytest.fixture
+        async def test_payment_method(async_session):
+            """Create test payment method in real database."""
+            from dotmac.platform.billing.core.entities import PaymentMethodEntity
+            from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentMethodStatus
+
+            from uuid import uuid4
+
+            payment_method = PaymentMethodEntity(
+                payment_method_id=str(uuid4()),  # Generate valid UUID
+                tenant_id="test-tenant",
+                customer_id="cust_123",
+                type=PaymentMethodType.CARD,
+                status=PaymentMethodStatus.ACTIVE,
+                provider="stripe",  # Required field
+                provider_payment_method_id="stripe_pm_123",
+                display_name="Visa ending in 4242",  # Required field
+                last_four="4242",
+                brand="visa",
+                expiry_month=12,
+                expiry_year=2030,
+            )
+            async_session.add(payment_method)
+            await async_session.commit()
+            await async_session.refresh(payment_method)
+            return payment_method
+
+        @pytest.fixture
+        def mock_stripe_provider():
+            """Mock Stripe payment provider."""
+            from unittest.mock import AsyncMock
+
+            provider = AsyncMock()
+            provider.charge_payment_method = AsyncMock()
+            return provider
+
+        @pytest.fixture
+        async def test_subscription_plan(async_session):
+            """Create test subscription plan."""
+            from dotmac.platform.billing.models import BillingSubscriptionPlanTable
+            from dotmac.platform.billing.subscriptions.models import BillingCycle
+            from decimal import Decimal
+
+            plan = BillingSubscriptionPlanTable(
+                plan_id="plan_test_123",
+                tenant_id="test-tenant",
+                product_id="prod_123",
+                name="Test Plan",
+                description="Test subscription plan",
+                billing_cycle=BillingCycle.MONTHLY.value,
+                price=Decimal("29.99"),
+                currency="usd",
+                trial_days=14,
+                is_active=True,
+            )
+            async_session.add(plan)
+            await async_session.commit()
+            await async_session.refresh(plan)
+            return plan
+
+        @pytest.fixture
+        async def client(test_app):
+            """Async HTTP client for integration tests."""
+            from httpx import AsyncClient, ASGITransport
+
+            transport = ASGITransport(app=test_app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                yield client
+
+        @pytest.fixture
+        def auth_headers():
+            """Authentication headers for integration tests.
+
+            Includes both Authorization and X-Tenant-ID headers for tenant isolation.
+            """
+            from dotmac.platform.auth.core import JWTService
+
+            jwt_service = JWTService(algorithm="HS256", secret="test-secret-key-for-testing-only")
+
+            test_token = jwt_service.create_access_token(
+                subject="test-user-123",
+                additional_claims={
+                    "scopes": ["read", "write", "admin"],
+                    "tenant_id": "test-tenant",
+                    "email": "test@example.com",
+                },
+            )
+
+            return {
+                "Authorization": f"Bearer {test_token}",
+                "X-Tenant-ID": "test-tenant",
+            }

@@ -77,7 +77,10 @@ class TestUserRouter:
 class TestUserProfileEndpoints:
     """Test user profile endpoints."""
 
-    async def test_get_current_user_profile_success(self, sample_user, current_user, mock_user_service):
+    @pytest.mark.asyncio
+    async def test_get_current_user_profile_success(
+        self, sample_user, current_user, mock_user_service
+    ):
         """Test getting current user profile successfully."""
         # Arrange
         from dotmac.platform.user_management.router import get_current_user_profile
@@ -93,6 +96,7 @@ class TestUserProfileEndpoints:
         assert response.email == sample_user.email
         mock_user_service.get_user_by_id.assert_called_once_with(current_user.user_id)
 
+    @pytest.mark.asyncio
     async def test_get_current_user_profile_not_found(self, current_user, mock_user_service):
         """Test getting current user profile when user not found."""
         # Arrange
@@ -107,7 +111,10 @@ class TestUserProfileEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert "User profile not found" in str(exc_info.value.detail)
 
-    async def test_update_current_user_profile_success(self, sample_user, current_user, mock_user_service):
+    @pytest.mark.asyncio
+    async def test_update_current_user_profile_success(
+        self, sample_user, current_user, mock_user_service
+    ):
         """Test updating current user profile successfully."""
         # Arrange
         from dotmac.platform.user_management.router import update_current_user_profile
@@ -134,6 +141,7 @@ class TestUserProfileEndpoints:
         call_args = mock_user_service.update_user.call_args
         assert "roles" not in call_args[1]
 
+    @pytest.mark.asyncio
     async def test_update_current_user_profile_not_found(self, current_user, mock_user_service):
         """Test updating current user profile when user not found."""
         # Arrange
@@ -149,6 +157,7 @@ class TestUserProfileEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert "User not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_change_password_success(self, current_user, mock_user_service):
         """Test changing password successfully."""
         # Arrange
@@ -173,6 +182,7 @@ class TestUserProfileEndpoints:
             new_password="newpassword123",
         )
 
+    @pytest.mark.asyncio
     async def test_change_password_mismatch(self, current_user, mock_user_service):
         """Test changing password with password mismatch."""
         # Arrange
@@ -191,6 +201,7 @@ class TestUserProfileEndpoints:
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "Passwords do not match" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_change_password_failure(self, current_user, mock_user_service):
         """Test changing password fails (wrong current password)."""
         # Arrange
@@ -215,6 +226,7 @@ class TestUserProfileEndpoints:
 class TestUserManagementEndpoints:
     """Test admin user management endpoints."""
 
+    @pytest.mark.asyncio
     async def test_list_users_success(self, admin_user, mock_user_service, sample_user):
         """Test listing users successfully."""
         # Arrange
@@ -249,6 +261,7 @@ class TestUserManagementEndpoints:
             tenant_id=admin_user.tenant_id,
         )
 
+    @pytest.mark.asyncio
     async def test_list_users_with_filters(self, admin_user, mock_user_service, sample_user):
         """Test listing users with filters."""
         # Arrange
@@ -281,6 +294,7 @@ class TestUserManagementEndpoints:
             tenant_id=admin_user.tenant_id,
         )
 
+    @pytest.mark.asyncio
     async def test_create_user_success(self, admin_user, mock_user_service, sample_user):
         """Test creating user successfully."""
         # Arrange
@@ -312,6 +326,7 @@ class TestUserManagementEndpoints:
             tenant_id=admin_user.tenant_id,
         )
 
+    @pytest.mark.asyncio
     async def test_create_user_validation_error(self, admin_user, mock_user_service):
         """Test creating user with validation error."""
         # Arrange
@@ -332,6 +347,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "Username already exists" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_get_user_success(self, admin_user, mock_user_service, sample_user):
         """Test getting specific user successfully."""
         # Arrange
@@ -346,6 +362,7 @@ class TestUserManagementEndpoints:
         assert response.user_id == str(sample_user.id)
         mock_user_service.get_user_by_id.assert_called_once_with(str(sample_user.id))
 
+    @pytest.mark.asyncio
     async def test_get_user_not_found(self, admin_user, mock_user_service):
         """Test getting user that doesn't exist."""
         # Arrange
@@ -361,6 +378,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert f"User {user_id} not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_update_user_success(self, admin_user, mock_user_service, sample_user):
         """Test updating user successfully."""
         # Arrange
@@ -383,6 +401,7 @@ class TestUserManagementEndpoints:
         assert response.roles == ["admin", "user"]
         mock_user_service.update_user.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_update_user_not_found(self, admin_user, mock_user_service):
         """Test updating user that doesn't exist."""
         # Arrange
@@ -399,6 +418,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert f"User {user_id} not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_update_user_validation_error(self, admin_user, mock_user_service, sample_user):
         """Test updating user with validation error."""
         # Arrange
@@ -414,6 +434,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "Email is already in use" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_delete_user_success(self, admin_user, mock_user_service, sample_user):
         """Test deleting user successfully."""
         # Arrange
@@ -428,6 +449,7 @@ class TestUserManagementEndpoints:
         assert response is None  # 204 No Content
         mock_user_service.delete_user.assert_called_once_with(str(sample_user.id))
 
+    @pytest.mark.asyncio
     async def test_delete_user_not_found(self, admin_user, mock_user_service):
         """Test deleting user that doesn't exist."""
         # Arrange
@@ -443,6 +465,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert f"User {user_id} not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_disable_user_success(self, admin_user, mock_user_service, sample_user):
         """Test disabling user successfully."""
         # Arrange
@@ -460,6 +483,7 @@ class TestUserManagementEndpoints:
             user_id=str(sample_user.id), is_active=False
         )
 
+    @pytest.mark.asyncio
     async def test_disable_user_not_found(self, admin_user, mock_user_service):
         """Test disabling user that doesn't exist."""
         # Arrange
@@ -475,6 +499,7 @@ class TestUserManagementEndpoints:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert f"User {user_id} not found" in str(exc_info.value.detail)
 
+    @pytest.mark.asyncio
     async def test_enable_user_success(self, admin_user, mock_user_service, sample_user):
         """Test enabling user successfully."""
         # Arrange
@@ -492,6 +517,7 @@ class TestUserManagementEndpoints:
             user_id=str(sample_user.id), is_active=True
         )
 
+    @pytest.mark.asyncio
     async def test_enable_user_not_found(self, admin_user, mock_user_service):
         """Test enabling user that doesn't exist."""
         # Arrange

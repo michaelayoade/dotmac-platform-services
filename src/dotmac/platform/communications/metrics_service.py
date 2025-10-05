@@ -4,21 +4,20 @@ Communication metrics service.
 Service layer for tracking and retrieving communication metrics.
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
     CommunicationLog,
     CommunicationStats,
-    CommunicationType,
     CommunicationStatus,
+    CommunicationType,
 )
-
 
 logger = structlog.get_logger(__name__)
 
@@ -38,16 +37,16 @@ class CommunicationMetricsService:
         self,
         type: CommunicationType,
         recipient: str,
-        subject: Optional[str] = None,
-        sender: Optional[str] = None,
-        text_body: Optional[str] = None,
-        html_body: Optional[str] = None,
-        template_id: Optional[str] = None,
-        template_name: Optional[str] = None,
-        user_id: Optional[UUID] = None,
-        job_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        subject: str | None = None,
+        sender: str | None = None,
+        text_body: str | None = None,
+        html_body: str | None = None,
+        template_id: str | None = None,
+        template_name: str | None = None,
+        user_id: UUID | None = None,
+        job_id: str | None = None,
+        tenant_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CommunicationLog:
         """Log a new communication.
 
@@ -101,8 +100,8 @@ class CommunicationMetricsService:
         self,
         communication_id: UUID,
         status: CommunicationStatus,
-        error_message: Optional[str] = None,
-        provider_message_id: Optional[str] = None,
+        error_message: str | None = None,
+        provider_message_id: str | None = None,
     ) -> bool:
         """Update communication status.
 
@@ -127,11 +126,11 @@ class CommunicationMetricsService:
 
         # Update timestamps based on status
         if status == CommunicationStatus.SENT:
-            log_entry.sent_at = datetime.now(timezone.utc)
+            log_entry.sent_at = datetime.now(UTC)
         elif status == CommunicationStatus.DELIVERED:
-            log_entry.delivered_at = datetime.now(timezone.utc)
+            log_entry.delivered_at = datetime.now(UTC)
         elif status == CommunicationStatus.FAILED:
-            log_entry.failed_at = datetime.now(timezone.utc)
+            log_entry.failed_at = datetime.now(UTC)
             log_entry.error_message = error_message
             log_entry.retry_count += 1
 
@@ -150,10 +149,10 @@ class CommunicationMetricsService:
 
     async def get_stats(
         self,
-        tenant_id: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-    ) -> Dict[str, int]:
+        tenant_id: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict[str, int]:
         """Get communication statistics.
 
         Args:
@@ -175,14 +174,11 @@ class CommunicationMetricsService:
 
         # Default to last 30 days if no date range specified
         if not start_date and not end_date:
-            thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+            thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
             conditions.append(CommunicationLog.created_at >= thirty_days_ago)
 
         # Count by status
-        base_query = select(
-            CommunicationLog.status,
-            func.count(CommunicationLog.id).label('count')
-        )
+        base_query = select(CommunicationLog.status, func.count(CommunicationLog.id).label("count"))
 
         if conditions:
             base_query = base_query.where(and_(*conditions))
@@ -195,13 +191,13 @@ class CommunicationMetricsService:
         # Return stats in expected format
         return {
             "sent": (
-                status_counts.get(CommunicationStatus.SENT.value, 0) +
-                status_counts.get(CommunicationStatus.DELIVERED.value, 0)
+                status_counts.get(CommunicationStatus.SENT.value, 0)
+                + status_counts.get(CommunicationStatus.DELIVERED.value, 0)
             ),
             "delivered": status_counts.get(CommunicationStatus.DELIVERED.value, 0),
             "failed": (
-                status_counts.get(CommunicationStatus.FAILED.value, 0) +
-                status_counts.get(CommunicationStatus.BOUNCED.value, 0)
+                status_counts.get(CommunicationStatus.FAILED.value, 0)
+                + status_counts.get(CommunicationStatus.BOUNCED.value, 0)
             ),
             "pending": status_counts.get(CommunicationStatus.PENDING.value, 0),
         }
@@ -210,9 +206,9 @@ class CommunicationMetricsService:
         self,
         limit: int = 10,
         offset: int = 0,
-        type_filter: Optional[CommunicationType] = None,
-        tenant_id: Optional[str] = None,
-    ) -> List[CommunicationLog]:
+        type_filter: CommunicationType | None = None,
+        tenant_id: str | None = None,
+    ) -> list[CommunicationLog]:
         """Get recent communication activity.
 
         Args:
@@ -245,8 +241,8 @@ class CommunicationMetricsService:
 
     async def aggregate_daily_stats(
         self,
-        date: Optional[datetime] = None,
-        tenant_id: Optional[str] = None,
+        date: datetime | None = None,
+        tenant_id: str | None = None,
     ) -> CommunicationStats:
         """Aggregate daily statistics.
 
@@ -262,7 +258,7 @@ class CommunicationMetricsService:
         """
         # Default to yesterday if no date provided
         if not date:
-            date = datetime.now(timezone.utc) - timedelta(days=1)
+            date = datetime.now(UTC) - timedelta(days=1)
 
         # Set to beginning of day
         start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -280,10 +276,11 @@ class CommunicationMetricsService:
                 conditions.append(CommunicationLog.tenant_id == tenant_id)
 
             # Count by status
-            status_query = select(
-                CommunicationLog.status,
-                func.count(CommunicationLog.id).label('count')
-            ).where(and_(*conditions)).group_by(CommunicationLog.status)
+            status_query = (
+                select(CommunicationLog.status, func.count(CommunicationLog.id).label("count"))
+                .where(and_(*conditions))
+                .group_by(CommunicationLog.status)
+            )
 
             result = await self.db.execute(status_query)
             status_counts = {row.status: row.count for row in result}
@@ -291,10 +288,7 @@ class CommunicationMetricsService:
             # Calculate average delivery time
             delivery_time_query = select(
                 func.avg(
-                    func.extract(
-                        'epoch',
-                        CommunicationLog.delivered_at - CommunicationLog.sent_at
-                    )
+                    func.extract("epoch", CommunicationLog.delivered_at - CommunicationLog.sent_at)
                 )
             ).where(
                 and_(
@@ -313,7 +307,11 @@ class CommunicationMetricsService:
                 and_(
                     CommunicationStats.stats_date == start_date,
                     CommunicationStats.type == comm_type,
-                    CommunicationStats.tenant_id == tenant_id if tenant_id else CommunicationStats.tenant_id.is_(None),
+                    (
+                        CommunicationStats.tenant_id == tenant_id
+                        if tenant_id
+                        else CommunicationStats.tenant_id.is_(None)
+                    ),
                 )
             )
 
@@ -348,7 +346,7 @@ class CommunicationMetricsService:
 
 
 # Singleton instance management
-_metrics_service: Optional[CommunicationMetricsService] = None
+_metrics_service: CommunicationMetricsService | None = None
 
 
 def get_metrics_service(db_session: AsyncSession) -> CommunicationMetricsService:

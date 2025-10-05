@@ -6,7 +6,6 @@ based on feature flags and file formats.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Type, Union
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings
@@ -25,8 +24,8 @@ class DataTransferRegistry:
     """Registry for data transfer implementations."""
 
     def __init__(self):
-        self._importers: Dict[DataFormat, Type[BaseImporter]] = {}
-        self._exporters: Dict[DataFormat, Type[BaseExporter]] = {}
+        self._importers: dict[DataFormat, type[BaseImporter]] = {}
+        self._exporters: dict[DataFormat, type[BaseExporter]] = {}
         self._register_core_formats()
 
     def _register_core_formats(self):
@@ -56,15 +55,15 @@ class DataTransferRegistry:
             }
         )
 
-    def register_importer(self, format: DataFormat, importer_class: Type[BaseImporter]):
+    def register_importer(self, format: DataFormat, importer_class: type[BaseImporter]):
         """Register an importer for a format."""
         self._importers[format] = importer_class
 
-    def register_exporter(self, format: DataFormat, exporter_class: Type[BaseExporter]):
+    def register_exporter(self, format: DataFormat, exporter_class: type[BaseExporter]):
         """Register an exporter for a format."""
         self._exporters[format] = exporter_class
 
-    def get_importer_class(self, format: DataFormat) -> Type[BaseImporter]:
+    def get_importer_class(self, format: DataFormat) -> type[BaseImporter]:
         """Get importer class for a format."""
         if format not in self._importers:
             available = list(self._importers.keys())
@@ -73,7 +72,7 @@ class DataTransferRegistry:
             )
         return self._importers[format]
 
-    def get_exporter_class(self, format: DataFormat) -> Type[BaseExporter]:
+    def get_exporter_class(self, format: DataFormat) -> type[BaseExporter]:
         """Get exporter class for a format."""
         if format not in self._exporters:
             available = list(self._exporters.keys())
@@ -82,14 +81,14 @@ class DataTransferRegistry:
             )
         return self._exporters[format]
 
-    def list_available_formats(self) -> Dict[str, List[DataFormat]]:
+    def list_available_formats(self) -> dict[str, list[DataFormat]]:
         """List all available formats."""
         return {
             "importers": list(self._importers.keys()),
             "exporters": list(self._exporters.keys()),
         }
 
-    def list_enabled_formats(self) -> Dict[str, List[DataFormat]]:
+    def list_enabled_formats(self) -> dict[str, list[DataFormat]]:
         """List formats that are enabled via feature flags."""
         enabled_importers = []
         enabled_exporters = []
@@ -144,9 +143,9 @@ class DataTransferFactory:
 
     @staticmethod
     def create_importer(
-        format: Union[DataFormat, str],
-        config: Optional[TransferConfig] = None,
-        options: Optional[ImportOptions] = None,
+        format: DataFormat | str,
+        config: TransferConfig | None = None,
+        options: ImportOptions | None = None,
         **kwargs,
     ) -> BaseImporter:
         """
@@ -194,9 +193,9 @@ class DataTransferFactory:
 
     @staticmethod
     def create_exporter(
-        format: Union[DataFormat, str],
-        config: Optional[TransferConfig] = None,
-        options: Optional[ExportOptions] = None,
+        format: DataFormat | str,
+        config: TransferConfig | None = None,
+        options: ExportOptions | None = None,
         **kwargs,
     ) -> BaseExporter:
         """
@@ -243,7 +242,7 @@ class DataTransferFactory:
         return exporter_class(config, options, **kwargs)
 
     @staticmethod
-    def detect_format(file_path: Union[str, Path]) -> DataFormat:
+    def detect_format(file_path: str | Path) -> DataFormat:
         """
         Auto-detect file format from extension.
 
@@ -279,7 +278,7 @@ class DataTransferFactory:
         return format_map[extension]
 
     @staticmethod
-    def list_available_formats() -> Dict[str, List[str]]:
+    def list_available_formats() -> dict[str, list[str]]:
         """List all available formats."""
         formats = _registry.list_available_formats()
         return {
@@ -288,7 +287,7 @@ class DataTransferFactory:
         }
 
     @staticmethod
-    def list_enabled_formats() -> Dict[str, List[str]]:
+    def list_enabled_formats() -> dict[str, list[str]]:
         """List formats that are enabled and have dependencies available."""
         formats = _registry.list_enabled_formats()
         return {
@@ -297,7 +296,7 @@ class DataTransferFactory:
         }
 
     @staticmethod
-    def validate_format(format: Union[DataFormat, str]) -> bool:
+    def validate_format(format: DataFormat | str) -> bool:
         """
         Check if a format is valid and its dependencies are available.
 
@@ -315,17 +314,17 @@ class DataTransferFactory:
 
 
 # Convenience functions
-def create_importer(format: Union[DataFormat, str], **kwargs) -> BaseImporter:
+def create_importer(format: DataFormat | str, **kwargs) -> BaseImporter:
     """Create a data importer. Convenience function."""
     return DataTransferFactory.create_importer(format, **kwargs)
 
 
-def create_exporter(format: Union[DataFormat, str], **kwargs) -> BaseExporter:
+def create_exporter(format: DataFormat | str, **kwargs) -> BaseExporter:
     """Create a data exporter. Convenience function."""
     return DataTransferFactory.create_exporter(format, **kwargs)
 
 
-def detect_format(file_path: Union[str, Path]) -> DataFormat:
+def detect_format(file_path: str | Path) -> DataFormat:
     """Auto-detect file format. Convenience function."""
     return DataTransferFactory.detect_format(file_path)
 

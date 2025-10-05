@@ -60,7 +60,7 @@ class ServiceClient:
     @retry(
         retry=retry_if_not_exception_type(httpx.HTTPStatusError),
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10)
+        wait=wait_exponential(multiplier=1, min=1, max=10),
     )
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Make HTTP request with service discovery and retry."""

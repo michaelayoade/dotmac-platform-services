@@ -1,38 +1,19 @@
 """Background task service using Celery with testable async helpers."""
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import structlog
-from celery import Celery
 from pydantic import BaseModel, Field
+
+from dotmac.platform.celery_app import celery_app
 
 from .email_service import EmailMessage, EmailResponse, get_email_service
 
 logger = structlog.get_logger(__name__)
-
-# Celery app configuration
-celery_app = Celery(
-    "dotmac_communications",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
-)
-
-# Configure Celery defaults (legacy values maintained)
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30 minutes
-    task_soft_time_limit=25 * 60,  # 25 minutes
-    worker_prefetch_multiplier=1,
-    worker_max_tasks_per_child=1000,
-)
 
 
 class BulkEmailJob(BaseModel):
@@ -40,8 +21,8 @@ class BulkEmailJob(BaseModel):
 
     id: str = Field(default_factory=lambda: f"bulk_{uuid4().hex[:8]}")
     name: str = Field(..., description="Job name")
-    messages: List[EmailMessage] = Field(..., description="Email messages to send")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    messages: list[EmailMessage] = Field(..., description="Email messages to send")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     status: str = Field(default="queued", description="Job status")
 
     model_config = {
@@ -59,9 +40,9 @@ class BulkEmailResult(BaseModel):
     total_emails: int = Field(..., description="Total emails to send")
     sent_count: int = Field(default=0, description="Successfully sent emails")
     failed_count: int = Field(default=0, description="Failed emails")
-    responses: List[EmailResponse] = Field(default_factory=list, description="Individual responses")
-    completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    responses: list[EmailResponse] = Field(default_factory=list, description="Individual responses")
+    completed_at: datetime | None = Field(None, description="Completion timestamp")
+    error_message: str | None = Field(None, description="Error message if failed")
 
 
 # ---------------------------------------------------------------------------
@@ -109,18 +90,18 @@ async def _send_email_async(email_service, message: EmailMessage) -> EmailRespon
         )
 
 
-ProgressCallback = Optional[Callable[[int, int, int, int], None]]
+ProgressCallback = Callable[[int, int, int, int], None] | None
 
 
 async def _process_bulk_email_job(
     job: BulkEmailJob,
     email_service,
-    progress_callback: ProgressCallback = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> BulkEmailResult:
     """Send all messages for the supplied bulk job."""
 
     total = len(job.messages)
-    responses: List[EmailResponse] = []
+    responses: list[EmailResponse] = []
     sent_count = 0
     failed_count = 0
 
@@ -148,7 +129,7 @@ async def _process_bulk_email_job(
         sent_count=sent_count,
         failed_count=failed_count,
         responses=responses,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(UTC),
     )
 
 
@@ -164,7 +145,7 @@ def _send_email_sync(email_service, message: EmailMessage) -> EmailResponse:
 
 
 @celery_app.task(bind=True, name="send_bulk_email")
-def send_bulk_email_task(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
+def send_bulk_email_task(self, job_data: dict[str, Any]) -> dict[str, Any]:
     """Celery task that delegates to the async bulk email processor."""
 
     try:
@@ -223,12 +204,12 @@ def send_bulk_email_task(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
             status="failed",
             total_emails=len(job_data.get("messages", [])),
             error_message=str(exc),
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
         ).model_dump()
 
 
 @celery_app.task(name="send_single_email")
-def send_single_email_task(message_data: Dict[str, Any]) -> Dict[str, Any]:
+def send_single_email_task(message_data: dict[str, Any]) -> dict[str, Any]:
     """Celery task for a single email."""
 
     try:
@@ -292,7 +273,7 @@ class TaskService:
         )
         return task.id
 
-    def get_task_status(self, task_id: str) -> Dict[str, Any]:
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
         result = self.celery.AsyncResult(task_id)
         return {
             "task_id": task_id,
@@ -312,7 +293,7 @@ class TaskService:
 
 
 # Global service instance
-_task_service: Optional[TaskService] = None
+_task_service: TaskService | None = None
 
 
 def get_task_service() -> TaskService:
@@ -323,10 +304,10 @@ def get_task_service() -> TaskService:
 
 
 def queue_email(
-    to: List[str],
+    to: list[str],
     subject: str,
-    text_body: Optional[str] = None,
-    html_body: Optional[str] = None,
+    text_body: str | None = None,
+    html_body: str | None = None,
 ) -> str:
     service = get_task_service()
     message = EmailMessage(
@@ -338,7 +319,7 @@ def queue_email(
     return service.send_email_async(message)
 
 
-def queue_bulk_emails(name: str, messages: List[EmailMessage]) -> str:
+def queue_bulk_emails(name: str, messages: list[EmailMessage]) -> str:
     service = get_task_service()
     job = BulkEmailJob(name=name, messages=messages)
     return service.send_bulk_emails_async(job)

@@ -31,17 +31,23 @@ class TestPaymentDataSecurity:
 
         # Check all tables for sensitive field names
         sensitive_patterns = [
-            r'card_number', r'cvv', r'cvc', r'security_code',
-            r'card_exp', r'expiry', r'card_data'
+            r"card_number",
+            r"cvv",
+            r"cvc",
+            r"security_code",
+            r"card_exp",
+            r"expiry",
+            r"card_data",
         ]
 
         for table_name in inspector.get_table_names():
             columns = inspector.get_columns(table_name)
             for column in columns:
-                col_name = column['name'].lower()
+                col_name = column["name"].lower()
                 for pattern in sensitive_patterns:
-                    assert not re.search(pattern, col_name), \
-                        f"Sensitive field '{col_name}' found in table '{table_name}'"
+                    assert not re.search(
+                        pattern, col_name
+                    ), f"Sensitive field '{col_name}' found in table '{table_name}'"
 
     @pytest.mark.security
     def test_payment_method_tokenization(self, client, auth_headers):
@@ -51,9 +57,9 @@ class TestPaymentDataSecurity:
             "/api/v1/billing/payment-methods",
             json={
                 "payment_method_id": "pm_test_token_123456",  # Stripe token only
-                "set_as_default": True
+                "set_as_default": True,
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code in [200, 201]
@@ -65,9 +71,9 @@ class TestPaymentDataSecurity:
                 "card_number": "4242424242424242",  # Raw card number
                 "exp_month": 12,
                 "exp_year": 2025,
-                "cvc": "123"
+                "cvc": "123",
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         # Should reject raw card data
@@ -78,6 +84,7 @@ class TestPaymentDataSecurity:
     def test_pii_data_masking_in_logs(self, client, auth_headers, caplog):
         """Test that PII data is masked in application logs."""
         import logging
+
         caplog.set_level(logging.INFO)
 
         # Make request with potentially sensitive data
@@ -87,12 +94,9 @@ class TestPaymentDataSecurity:
                 "email": "security.test@example.com",
                 "name": "Security Test User",
                 "phone": "+1234567890",
-                "billing_address": {
-                    "line1": "123 Secret Street",
-                    "city": "Private City"
-                }
+                "billing_address": {"line1": "123 Secret Street", "city": "Private City"},
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         # Check logs don't contain full sensitive data
@@ -115,21 +119,18 @@ class TestPaymentDataSecurity:
         webhook_payload = {
             "id": "evt_security_test",
             "type": "invoice.payment_succeeded",
-            "data": {"object": {"amount": 999999}}  # Malicious amount
+            "data": {"object": {"amount": 999999}},  # Malicious amount
         }
 
         # Test 1: No signature - should reject
-        response = client.post(
-            "/api/v1/billing/webhooks/stripe",
-            json=webhook_payload
-        )
+        response = client.post("/api/v1/billing/webhooks/stripe", json=webhook_payload)
         assert response.status_code == 400
 
         # Test 2: Invalid signature - should reject
         response = client.post(
             "/api/v1/billing/webhooks/stripe",
             json=webhook_payload,
-            headers={"Stripe-Signature": "invalid_signature"}
+            headers={"Stripe-Signature": "invalid_signature"},
         )
         assert response.status_code == 400
 
@@ -140,19 +141,18 @@ class TestPaymentDataSecurity:
         # Generate signature for original payload
         import hmac
         import hashlib
+
         secret = "whsec_test_secret"
         timestamp = str(int(datetime.now().timestamp()))
         signature = hmac.new(
-            secret.encode(),
-            f"{timestamp}.{json.dumps(original_payload)}".encode(),
-            hashlib.sha256
+            secret.encode(), f"{timestamp}.{json.dumps(original_payload)}".encode(), hashlib.sha256
         ).hexdigest()
 
         # Send tampered payload with original signature
         response = client.post(
             "/api/v1/billing/webhooks/stripe",
             json=tampered_payload,  # Different payload
-            headers={"Stripe-Signature": f"t={timestamp},v1={signature}"}
+            headers={"Stripe-Signature": f"t={timestamp},v1={signature}"},
         )
         assert response.status_code == 400
 
@@ -164,15 +164,12 @@ class TestPaymentDataSecurity:
             "'; DROP TABLE customers; --",
             "' OR 1=1 --",
             "' UNION SELECT * FROM secrets --",
-            "'; INSERT INTO invoices (amount_total) VALUES (999999); --"
+            "'; INSERT INTO invoices (amount_total) VALUES (999999); --",
         ]
 
         for pattern in injection_patterns:
             # Try injection in search parameter
-            response = client.get(
-                f"/api/v1/customers?search={pattern}",
-                headers=auth_headers
-            )
+            response = client.get(f"/api/v1/customers?search={pattern}", headers=auth_headers)
 
             # Should not crash and should return safe results
             assert response.status_code == 200
@@ -194,7 +191,7 @@ class TestPaymentDataSecurity:
             "GET /api/v1/billing/invoices",
             "POST /api/v1/billing/subscription/cancel",
             "GET /api/v1/customers",
-            "POST /api/v1/customers"
+            "POST /api/v1/customers",
         ]
 
         for endpoint in sensitive_endpoints:
@@ -210,8 +207,10 @@ class TestPaymentDataSecurity:
                 response = client.delete(path)
 
             # Should require authentication
-            assert response.status_code in [401, 403], \
-                f"Endpoint {endpoint} should require authentication"
+            assert response.status_code in [
+                401,
+                403,
+            ], f"Endpoint {endpoint} should require authentication"
 
     @pytest.mark.security
     def test_tenant_isolation_in_billing(self, client, db):
@@ -232,38 +231,30 @@ class TestPaymentDataSecurity:
             user_id="user1",
             stripe_customer_id="cus_tenant1",
             tenant_id=tenant1.id,
-            email="user1@tenant1.com"
+            email="user1@tenant1.com",
         )
         customer2 = Customer(
             user_id="user2",
             stripe_customer_id="cus_tenant2",
             tenant_id=tenant2.id,
-            email="user2@tenant2.com"
+            email="user2@tenant2.com",
         )
         db.add_all([customer1, customer2])
         await db.commit()
 
         # Create tokens for each tenant
-        token1 = jwt_service.create_access_token(
-            subject="user1",
-            tenant_id=tenant1.id
-        )
-        token2 = jwt_service.create_access_token(
-            subject="user2",
-            tenant_id=tenant2.id
-        )
+        token1 = jwt_service.create_access_token(subject="user1", tenant_id=tenant1.id)
+        token2 = jwt_service.create_access_token(subject="user2", tenant_id=tenant2.id)
 
         # Test tenant 1 user cannot access tenant 2 data
         response = client.get(
-            f"/api/v1/customers/{customer2.id}",
-            headers={"Authorization": f"Bearer {token1}"}
+            f"/api/v1/customers/{customer2.id}", headers={"Authorization": f"Bearer {token1}"}
         )
         assert response.status_code == 404  # Should not find other tenant's data
 
         # Test tenant 2 user cannot access tenant 1 data
         response = client.get(
-            f"/api/v1/customers/{customer1.id}",
-            headers={"Authorization": f"Bearer {token2}"}
+            f"/api/v1/customers/{customer1.id}", headers={"Authorization": f"Bearer {token2}"}
         )
         assert response.status_code == 404
 
@@ -276,7 +267,7 @@ class TestPaymentDataSecurity:
             response = client.post(
                 "/api/v1/billing/payment-methods",
                 json={"payment_method_id": f"pm_test_{i}"},
-                headers=auth_headers
+                headers=auth_headers,
             )
             responses.append(response.status_code)
 
@@ -293,32 +284,26 @@ class TestPaymentDataSecurity:
         webhook_payload = {
             "id": "evt_replay_test",
             "type": "invoice.payment_succeeded",
-            "data": {"object": {"id": "in_replay"}}
+            "data": {"object": {"id": "in_replay"}},
         }
 
         secret = "whsec_test_secret"
         timestamp = str(int(datetime.now().timestamp()))
         signature = hmac.new(
-            secret.encode(),
-            f"{timestamp}.{json.dumps(webhook_payload)}".encode(),
-            hashlib.sha256
+            secret.encode(), f"{timestamp}.{json.dumps(webhook_payload)}".encode(), hashlib.sha256
         ).hexdigest()
 
         headers = {"Stripe-Signature": f"t={timestamp},v1={signature}"}
 
         # First request should succeed
         response1 = client.post(
-            "/api/v1/billing/webhooks/stripe",
-            json=webhook_payload,
-            headers=headers
+            "/api/v1/billing/webhooks/stripe", json=webhook_payload, headers=headers
         )
         assert response1.status_code == 200
 
         # Replay same webhook - should be rejected or handled as duplicate
         response2 = client.post(
-            "/api/v1/billing/webhooks/stripe",
-            json=webhook_payload,
-            headers=headers
+            "/api/v1/billing/webhooks/stripe", json=webhook_payload, headers=headers
         )
         # Should either reject (400/409) or acknowledge as duplicate (200 with message)
         assert response2.status_code in [200, 400, 409]
@@ -334,7 +319,7 @@ class TestPaymentDataSecurity:
         webhook_payload = {
             "id": "evt_old_timestamp",
             "type": "invoice.created",
-            "data": {"object": {}}
+            "data": {"object": {}},
         }
 
         secret = "whsec_test_secret"
@@ -343,13 +328,13 @@ class TestPaymentDataSecurity:
         signature = hmac.new(
             secret.encode(),
             f"{old_timestamp}.{json.dumps(webhook_payload)}".encode(),
-            hashlib.sha256
+            hashlib.sha256,
         ).hexdigest()
 
         response = client.post(
             "/api/v1/billing/webhooks/stripe",
             json=webhook_payload,
-            headers={"Stripe-Signature": f"t={old_timestamp},v1={signature}"}
+            headers={"Stripe-Signature": f"t={old_timestamp},v1={signature}"},
         )
 
         # Should reject old timestamps
@@ -360,22 +345,25 @@ class TestPaymentDataSecurity:
     def test_sensitive_data_in_error_messages(self, client, auth_headers):
         """Test error messages don't leak sensitive information."""
         # Try to access non-existent customer
-        response = client.get(
-            "/api/v1/customers/99999",
-            headers=auth_headers
-        )
+        response = client.get("/api/v1/customers/99999", headers=auth_headers)
 
         error_message = response.json().get("detail", "").lower()
 
         # Error shouldn't contain database structure info
         sensitive_terms = [
-            "table", "column", "select", "from", "where",
-            "database", "sql", "query", "constraint"
+            "table",
+            "column",
+            "select",
+            "from",
+            "where",
+            "database",
+            "sql",
+            "query",
+            "constraint",
         ]
 
         for term in sensitive_terms:
-            assert term not in error_message, \
-                f"Error message contains sensitive term: {term}"
+            assert term not in error_message, f"Error message contains sensitive term: {term}"
 
     @pytest.mark.security
     def test_invoice_access_control(self, client, db):
@@ -392,14 +380,10 @@ class TestPaymentDataSecurity:
 
         # Create invoices
         invoice1 = Invoice(
-            customer_id=customer1.id,
-            stripe_invoice_id="in_user1",
-            amount_total=2999
+            customer_id=customer1.id, stripe_invoice_id="in_user1", amount_total=2999
         )
         invoice2 = Invoice(
-            customer_id=customer2.id,
-            stripe_invoice_id="in_user2",
-            amount_total=4999
+            customer_id=customer2.id, stripe_invoice_id="in_user2", amount_total=4999
         )
         db.add_all([invoice1, invoice2])
         await db.commit()
@@ -410,22 +394,19 @@ class TestPaymentDataSecurity:
 
         # User 1 tries to access user 2's invoice
         response = client.get(
-            f"/api/v1/billing/invoices/{invoice2.id}",
-            headers={"Authorization": f"Bearer {token1}"}
+            f"/api/v1/billing/invoices/{invoice2.id}", headers={"Authorization": f"Bearer {token1}"}
         )
         assert response.status_code == 404
 
         # User 2 tries to access user 1's invoice
         response = client.get(
-            f"/api/v1/billing/invoices/{invoice1.id}",
-            headers={"Authorization": f"Bearer {token2}"}
+            f"/api/v1/billing/invoices/{invoice1.id}", headers={"Authorization": f"Bearer {token2}"}
         )
         assert response.status_code == 404
 
         # Users can access their own invoices
         response = client.get(
-            f"/api/v1/billing/invoices/{invoice1.id}",
-            headers={"Authorization": f"Bearer {token1}"}
+            f"/api/v1/billing/invoices/{invoice1.id}", headers={"Authorization": f"Bearer {token1}"}
         )
         assert response.status_code == 200
 
@@ -435,32 +416,23 @@ class TestPaymentDataSecurity:
         # Test negative amounts
         response = client.post(
             "/api/v1/billing/invoices/1/pay",
-            json={
-                "amount": -100,  # Negative amount
-                "payment_method_id": "pm_test"
-            },
-            headers=auth_headers
+            json={"amount": -100, "payment_method_id": "pm_test"},  # Negative amount
+            headers=auth_headers,
         )
         assert response.status_code == 400
 
         # Test zero amounts
         response = client.post(
             "/api/v1/billing/invoices/1/pay",
-            json={
-                "amount": 0,  # Zero amount
-                "payment_method_id": "pm_test"
-            },
-            headers=auth_headers
+            json={"amount": 0, "payment_method_id": "pm_test"},  # Zero amount
+            headers=auth_headers,
         )
         assert response.status_code == 400
 
         # Test extremely large amounts
         response = client.post(
             "/api/v1/billing/invoices/1/pay",
-            json={
-                "amount": 999999999,  # Unrealistic amount
-                "payment_method_id": "pm_test"
-            },
-            headers=auth_headers
+            json={"amount": 999999999, "payment_method_id": "pm_test"},  # Unrealistic amount
+            headers=auth_headers,
         )
         assert response.status_code == 400

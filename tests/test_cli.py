@@ -58,7 +58,7 @@ class TestCLICommands:
             "run-migrations",
             "check-services",
             "cleanup-sessions",
-            "export-audit-logs"
+            "export-audit-logs",
         ]
 
         for command in expected_commands:
@@ -72,7 +72,7 @@ class TestInitDatabase:
     def runner(self):
         return CliRunner()
 
-    @patch('dotmac.platform.cli.init_db')
+    @patch("dotmac.platform.cli.init_db")
     def test_init_database_success(self, mock_init_db, runner):
         """Test successful database initialization."""
         result = runner.invoke(init_database)
@@ -82,7 +82,7 @@ class TestInitDatabase:
         assert "Database initialized successfully!" in result.output
         mock_init_db.assert_called_once()
 
-    @patch('dotmac.platform.cli.init_db')
+    @patch("dotmac.platform.cli.init_db")
     def test_init_database_failure(self, mock_init_db, runner):
         """Test database initialization failure."""
         mock_init_db.side_effect = Exception("Database connection failed")
@@ -101,8 +101,8 @@ class TestCreateAdmin:
     def runner(self):
         return CliRunner()
 
-    @patch('dotmac.platform.cli.get_session')
-    @patch('dotmac.platform.auth.core.hash_password')
+    @patch("dotmac.platform.cli.get_session")
+    @patch("dotmac.platform.auth.core.hash_password")
     def test_create_admin_success(self, mock_hash_password, mock_get_session, runner):
         """Test successful admin creation."""
         # Setup mocks
@@ -123,8 +123,8 @@ class TestCreateAdmin:
         assert "Admin user admin@example.com created successfully!" in result.output
         mock_hash_password.assert_called_once_with("password123")
 
-    @patch('dotmac.platform.cli.get_session')
-    @patch('dotmac.platform.auth.core.hash_password')
+    @patch("dotmac.platform.cli.get_session")
+    @patch("dotmac.platform.auth.core.hash_password")
     def test_create_admin_user_exists(self, mock_hash_password, mock_get_session, runner):
         """Test admin creation when user already exists."""
         # Setup mocks
@@ -144,7 +144,7 @@ class TestCreateAdmin:
         assert result.exit_code == 0
         assert "User with email admin@example.com already exists!" in result.output
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_create_admin_database_error(self, mock_get_session, runner):
         """Test admin creation with database error."""
         mock_get_session.side_effect = Exception("Database error")
@@ -185,7 +185,7 @@ class TestGenerateJWTKeys:
                 assert "-----BEGIN PUBLIC KEY-----" in public_key_content
                 assert "-----END PUBLIC KEY-----" in public_key_content
 
-    @patch('dotmac.platform.cli.Path')
+    @patch("dotmac.platform.cli.Path")
     def test_generate_jwt_keys_file_error(self, mock_path, runner):
         """Test JWT key generation with file write error."""
         mock_path.return_value.write_bytes.side_effect = PermissionError("Cannot write file")
@@ -203,13 +203,11 @@ class TestRunMigrations:
     def runner(self):
         return CliRunner()
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_run_migrations_success(self, mock_run, runner):
         """Test successful migration execution."""
         mock_run.return_value = Mock(
-            returncode=0,
-            stdout="Migration completed successfully",
-            stderr=""
+            returncode=0, stdout="Migration completed successfully", stderr=""
         )
 
         result = runner.invoke(run_migrations)
@@ -220,18 +218,14 @@ class TestRunMigrations:
         assert "Migration completed successfully" in result.output
 
         mock_run.assert_called_once_with(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True
+            ["alembic", "upgrade", "head"], capture_output=True, text=True
         )
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_run_migrations_failure(self, mock_run, runner):
         """Test migration execution failure."""
         mock_run.return_value = Mock(
-            returncode=1,
-            stdout="",
-            stderr="Migration failed: table already exists"
+            returncode=1, stdout="", stderr="Migration failed: table already exists"
         )
 
         result = runner.invoke(run_migrations)
@@ -249,9 +243,9 @@ class TestCheckServices:
     def runner(self):
         return CliRunner()
 
-    @patch('dotmac.platform.cli.get_session')
-    @patch('dotmac.platform.caching.redis_client')
-    @patch('httpx.AsyncClient')
+    @patch("dotmac.platform.cli.get_session")
+    @patch("dotmac.platform.core.caching.redis_client")
+    @patch("httpx.AsyncClient")
     def test_check_services_all_up(self, mock_http_client, mock_redis, mock_get_session, runner):
         """Test service check when all services are up."""
         # Mock database
@@ -280,7 +274,7 @@ class TestCheckServices:
         assert "redis" in result.output
         assert "vault" in result.output
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_check_services_database_down(self, mock_get_session, runner):
         """Test service check when database is down."""
         mock_get_session.side_effect = Exception("Connection refused")
@@ -290,8 +284,8 @@ class TestCheckServices:
         assert result.exit_code == 0  # Should still complete
         assert "✗ Failed: Connection refused" in result.output
 
-    @patch('dotmac.platform.cli.get_session')
-    @patch('dotmac.platform.caching.redis_client', None)  # Redis not configured
+    @patch("dotmac.platform.cli.get_session")
+    @patch("dotmac.platform.core.caching.redis_client", None)  # Redis not configured
     def test_check_services_redis_not_configured(self, mock_get_session, runner):
         """Test service check when Redis is not configured."""
         # Mock database success
@@ -321,7 +315,7 @@ class TestCleanupSessions:
     def runner(self):
         return CliRunner()
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_cleanup_sessions_default_days(self, mock_get_session, runner):
         """Test session cleanup with default retention period."""
         mock_session = AsyncMock()
@@ -340,7 +334,7 @@ class TestCleanupSessions:
         assert "DELETE FROM auth.sessions" in call_args[0][0].text
         assert "created_at < :cutoff" in call_args[0][0].text
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_cleanup_sessions_custom_days(self, mock_get_session, runner):
         """Test session cleanup with custom retention period."""
         mock_session = AsyncMock()
@@ -353,7 +347,7 @@ class TestCleanupSessions:
         assert result.exit_code == 0
         assert "Deleted expired sessions" in result.output
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_cleanup_sessions_database_error(self, mock_get_session, runner):
         """Test session cleanup with database error."""
         mock_get_session.side_effect = Exception("Database connection failed")
@@ -371,7 +365,7 @@ class TestExportAuditLogs:
     def runner(self):
         return CliRunner()
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_export_audit_logs_json(self, mock_get_session, runner):
         """Test audit log export in JSON format."""
         # Mock database response
@@ -382,12 +376,23 @@ class TestExportAuditLogs:
 
         # Create simple mock log data
         from unittest.mock import MagicMock
+
         mock_log_1 = MagicMock()
-        mock_log_1.__getitem__ = lambda self, key: {"id": 1, "user_id": "user1", "action": "login", "timestamp": "2023-01-01"}[key]
+        mock_log_1.__getitem__ = lambda self, key: {
+            "id": 1,
+            "user_id": "user1",
+            "action": "login",
+            "timestamp": "2023-01-01",
+        }[key]
         mock_log_1.keys = lambda: ["id", "user_id", "action", "timestamp"]
 
         mock_log_2 = MagicMock()
-        mock_log_2.__getitem__ = lambda self, key: {"id": 2, "user_id": "user2", "action": "logout", "timestamp": "2023-01-02"}[key]
+        mock_log_2.__getitem__ = lambda self, key: {
+            "id": 2,
+            "user_id": "user2",
+            "action": "logout",
+            "timestamp": "2023-01-02",
+        }[key]
         mock_log_2.keys = lambda: ["id", "user_id", "action", "timestamp"]
 
         mock_result = Mock()
@@ -408,7 +413,7 @@ class TestExportAuditLogs:
                 assert content[0]["action"] == "login"
                 assert content[1]["action"] == "logout"
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_export_audit_logs_csv(self, mock_get_session, runner):
         """Test audit log export in CSV format."""
         # Mock database response
@@ -419,8 +424,11 @@ class TestExportAuditLogs:
 
         # Create simple mock log data
         from unittest.mock import MagicMock
+
         mock_log = MagicMock()
-        mock_log.__getitem__ = lambda self, key: {"id": 1, "user_id": "user1", "action": "login"}[key]
+        mock_log.__getitem__ = lambda self, key: {"id": 1, "user_id": "user1", "action": "login"}[
+            key
+        ]
         mock_log.keys = lambda: ["id", "user_id", "action"]
 
         mock_result = Mock()
@@ -437,7 +445,7 @@ class TestExportAuditLogs:
                 # Check that CSV file was created
                 assert Path("audit_logs.csv").exists()
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_export_audit_logs_empty(self, mock_get_session, runner):
         """Test audit log export with no logs."""
         mock_session = AsyncMock()
@@ -455,7 +463,7 @@ class TestExportAuditLogs:
                 assert result.exit_code == 0
                 assert "Exported 0 logs to audit_logs.json" in result.output
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_export_audit_logs_database_error(self, mock_get_session, runner):
         """Test audit log export with database error."""
         mock_get_session.side_effect = Exception("Query failed")
@@ -482,7 +490,7 @@ class TestCLIIntegration:
             "run-migrations",
             "check-services",
             "cleanup-sessions",
-            "export-audit-logs"
+            "export-audit-logs",
         ]
 
         for command in commands:
@@ -496,7 +504,7 @@ class TestCLIIntegration:
         assert result.exit_code != 0
         assert "No such command" in result.output
 
-    @patch('dotmac.platform.cli.init_db')
+    @patch("dotmac.platform.cli.init_db")
     def test_multiple_command_execution(self, mock_init_db, runner):
         """Test that CLI can execute multiple commands."""
         # Test init-database
@@ -519,18 +527,18 @@ class TestCLIErrorHandling:
 
     def test_cli_keyboard_interrupt(self, runner):
         """Test CLI handling of keyboard interrupt."""
-        with patch('dotmac.platform.cli.init_db', side_effect=KeyboardInterrupt):
+        with patch("dotmac.platform.cli.init_db", side_effect=KeyboardInterrupt):
             result = runner.invoke(init_database)
             assert result.exit_code != 0
 
     def test_cli_unexpected_error(self, runner):
         """Test CLI handling of unexpected errors."""
-        with patch('dotmac.platform.cli.init_db', side_effect=RuntimeError("Unexpected error")):
+        with patch("dotmac.platform.cli.init_db", side_effect=RuntimeError("Unexpected error")):
             result = runner.invoke(init_database)
             assert result.exit_code != 0
             assert "Unexpected error" in str(result.exception)
 
-    @patch('dotmac.platform.cli.get_session')
+    @patch("dotmac.platform.cli.get_session")
     def test_async_command_error(self, mock_get_session, runner):
         """Test error handling in async commands."""
         # Mock the session to raise an exception during the async operation

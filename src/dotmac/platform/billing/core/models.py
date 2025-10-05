@@ -69,7 +69,7 @@ class InvoiceLineItem(BaseModel):
     @classmethod
     def to_minor_units(cls, value):
         """Convert Decimal/float monetary values to integer minor units (cents)."""
-        from decimal import Decimal, ROUND_HALF_UP
+        from decimal import ROUND_HALF_UP, Decimal
 
         if isinstance(value, Decimal):
             return int((value * 100).to_integral_value(rounding=ROUND_HALF_UP))

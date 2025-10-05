@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -54,6 +54,7 @@ import {
   Send,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { apiClient } from '@/lib/api/client';
 
 interface Payment {
   id: string;
@@ -99,115 +100,58 @@ export default function PaymentsPage() {
     failedAmount: 0,
   });
 
-  useEffect(() => {
-    fetchPayments();
-  }, [statusFilter, dateRange]);
-
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setLoading(true);
     try {
-      // Simulated data - replace with actual API call
-      const mockData: Payment[] = [
-        {
-          id: 'pay_001',
-          amount: 99.99,
-          currency: 'USD',
-          status: 'succeeded',
-          customer_name: 'Acme Corp',
-          customer_email: 'billing@acme.com',
-          payment_method: 'Visa **** 1234',
-          payment_method_type: 'card',
-          description: 'Monthly subscription - Professional',
-          invoice_id: 'inv_001',
-          subscription_id: 'sub_001',
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          processed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          fee_amount: 2.90,
-          net_amount: 97.09,
-        },
-        {
-          id: 'pay_002',
-          amount: 499.99,
-          currency: 'USD',
-          status: 'succeeded',
-          customer_name: 'TechStart Inc',
-          customer_email: 'admin@techstart.io',
-          payment_method: 'ACH Transfer',
-          payment_method_type: 'bank',
-          description: 'Annual subscription - Enterprise',
-          invoice_id: 'inv_002',
-          subscription_id: 'sub_002',
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          processed_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          fee_amount: 5.00,
-          net_amount: 494.99,
-        },
-        {
-          id: 'pay_003',
-          amount: 29.99,
-          currency: 'USD',
-          status: 'pending',
-          customer_name: 'Small Biz LLC',
-          customer_email: 'owner@smallbiz.com',
-          payment_method: 'Bank Transfer Pending',
-          payment_method_type: 'bank',
-          description: 'Monthly subscription - Starter',
-          invoice_id: 'inv_003',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'pay_004',
-          amount: 199.99,
-          currency: 'USD',
-          status: 'failed',
-          customer_name: 'Global Trade Co',
-          customer_email: 'finance@globaltrade.com',
-          payment_method: 'MasterCard **** 5678',
-          payment_method_type: 'card',
-          description: 'Monthly subscription - Professional',
-          invoice_id: 'inv_004',
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          failure_reason: 'Card declined - Insufficient funds',
-        },
-        {
-          id: 'pay_005',
-          amount: 149.99,
-          currency: 'USD',
-          status: 'refunded',
-          customer_name: 'Design Studio',
-          customer_email: 'team@designstudio.com',
-          payment_method: 'Visa **** 9012',
-          payment_method_type: 'card',
-          description: 'One-time purchase - Add-on package',
-          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          processed_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          refund_amount: 149.99,
-          fee_amount: 4.35,
-          net_amount: -149.99,
-        },
-        {
-          id: 'pay_006',
-          amount: 75.00,
-          currency: 'USD',
-          status: 'succeeded',
-          customer_name: 'StartUp Labs',
-          customer_email: 'accounting@startuplabs.com',
-          payment_method: 'Apple Pay',
-          payment_method_type: 'wallet',
-          description: 'Additional user licenses',
-          created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          processed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          fee_amount: 2.18,
-          net_amount: 72.82,
-        },
-      ];
-
-      // Apply filters
-      let filteredData = mockData;
+      // Build query parameters
+      const params = new URLSearchParams();
+      params.append('limit', '500'); // Get more for client-side filtering
 
       if (statusFilter !== 'all') {
-        filteredData = filteredData.filter(payment => payment.status === statusFilter);
+        params.append('status', statusFilter);
       }
+
+      // Fetch payments from backend API
+      const response = await apiClient.get<{
+        payments: Array<{
+          payment_id: string;
+          amount: number;
+          currency: string;
+          status: string;
+          customer_id: string;
+          payment_method_type: string;
+          provider: string;
+          created_at: string;
+          processed_at?: string;
+          failure_reason?: string;
+        }>;
+        total_count: number;
+        limit: number;
+        timestamp: string;
+      }>(`/api/v1/billing/payments?${params.toString()}`);
+
+      if (!response.success || !response.data?.payments) {
+        throw new Error('Failed to fetch payments');
+      }
+
+      // Transform API data to frontend Payment interface
+      const transformedPayments: Payment[] = response.data.payments.map(p => ({
+        id: p.payment_id,
+        amount: p.amount,
+        currency: p.currency,
+        status: p.status as Payment['status'],
+        customer_name: `Customer ${p.customer_id.substring(0, 8)}`, // TODO: Fetch customer name
+        customer_email: `customer-${p.customer_id.substring(0, 8)}@example.com`, // TODO: Fetch customer email
+        payment_method: p.provider,
+        payment_method_type: p.payment_method_type as Payment['payment_method_type'],
+        description: `Payment via ${p.provider}`,
+        created_at: p.created_at,
+        processed_at: p.processed_at,
+        failure_reason: p.failure_reason,
+      }));
+
+      // Apply client-side filters
+      let filteredData = transformedPayments;
 
       if (searchQuery) {
         filteredData = filteredData.filter(payment =>
@@ -218,7 +162,7 @@ export default function PaymentsPage() {
         );
       }
 
-      // Apply date range filter (simplified)
+      // Apply date range filter
       if (dateRange === 'last_7_days') {
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         filteredData = filteredData.filter(payment =>
@@ -233,10 +177,10 @@ export default function PaymentsPage() {
 
       setPayments(filteredData);
 
-      // Calculate metrics
-      const succeeded = mockData.filter(p => p.status === 'succeeded');
-      const pending = mockData.filter(p => p.status === 'pending');
-      const failed = mockData.filter(p => p.status === 'failed');
+      // Calculate metrics from all fetched data
+      const succeeded = transformedPayments.filter(p => p.status === 'succeeded');
+      const pending = transformedPayments.filter(p => p.status === 'pending');
+      const failed = transformedPayments.filter(p => p.status === 'failed');
 
       const totalRevenue = succeeded.reduce((sum, p) => sum + p.amount, 0);
       const pendingAmount = pending.reduce((sum, p) => sum + p.amount, 0);
@@ -244,14 +188,15 @@ export default function PaymentsPage() {
 
       setMetrics({
         totalRevenue,
-        totalPayments: mockData.length,
-        successRate: mockData.length > 0 ? (succeeded.length / mockData.length) * 100 : 0,
+        totalPayments: transformedPayments.length,
+        successRate: transformedPayments.length > 0 ? (succeeded.length / transformedPayments.length) * 100 : 0,
         avgPaymentSize: succeeded.length > 0 ? totalRevenue / succeeded.length : 0,
         pendingAmount,
         failedAmount,
       });
 
     } catch (error) {
+      console.error('Failed to fetch payments:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch payments',
@@ -260,9 +205,13 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, dateRange, searchQuery, toast]);
 
-  const handleRefund = async () => {
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
+
+  const handleRefund = useCallback(async () => {
     if (!selectedPayment || !refundAmount) {
       toast({
         title: 'Error',
@@ -289,9 +238,9 @@ export default function PaymentsPage() {
         variant: 'destructive',
       });
     }
-  };
+  }, [selectedPayment, refundAmount, toast, fetchPayments]);
 
-  const handleRetryPayment = async (payment: Payment) => {
+  const handleRetryPayment = useCallback(async (payment: Payment) => {
     try {
       // API call would go here
       toast({
@@ -306,7 +255,7 @@ export default function PaymentsPage() {
         variant: 'destructive',
       });
     }
-  };
+  }, [toast, fetchPayments]);
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -331,13 +280,13 @@ export default function PaymentsPage() {
   const getPaymentMethodIcon = (type: string) => {
     switch (type) {
       case 'card':
-        return <CreditCard className="h-4 w-4 text-gray-400" />;
+        return <CreditCard className="h-4 w-4 text-muted-foreground" />;
       case 'bank':
-        return <DollarSign className="h-4 w-4 text-gray-400" />;
+        return <DollarSign className="h-4 w-4 text-muted-foreground" />;
       case 'wallet':
-        return <CreditCard className="h-4 w-4 text-gray-400" />;
+        return <CreditCard className="h-4 w-4 text-muted-foreground" />;
       default:
-        return <DollarSign className="h-4 w-4 text-gray-400" />;
+        return <DollarSign className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -354,7 +303,7 @@ export default function PaymentsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Payments</h1>
-          <p className="text-gray-500">Track and manage payment transactions</p>
+          <p className="text-muted-foreground">Track and manage payment transactions</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -378,7 +327,7 @@ export default function PaymentsPage() {
             <div className="text-2xl font-bold">
               {formatCurrency(metrics.totalRevenue, 'USD')}
             </div>
-            <p className="text-xs text-gray-500 flex items-center mt-1">
+            <p className="text-xs text-muted-foreground flex items-center mt-1">
               <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
               From successful payments
             </p>
@@ -390,7 +339,7 @@ export default function PaymentsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics.totalPayments}</div>
-            <p className="text-xs text-gray-500">All transactions</p>
+            <p className="text-xs text-muted-foreground">All transactions</p>
           </CardContent>
         </Card>
         <Card>
@@ -401,7 +350,7 @@ export default function PaymentsPage() {
             <div className="text-2xl font-bold text-green-600">
               {metrics.successRate.toFixed(1)}%
             </div>
-            <p className="text-xs text-gray-500">Payment completion</p>
+            <p className="text-xs text-muted-foreground">Payment completion</p>
           </CardContent>
         </Card>
         <Card>
@@ -412,7 +361,7 @@ export default function PaymentsPage() {
             <div className="text-2xl font-bold">
               {formatCurrency(metrics.avgPaymentSize, 'USD')}
             </div>
-            <p className="text-xs text-gray-500">Per transaction</p>
+            <p className="text-xs text-muted-foreground">Per transaction</p>
           </CardContent>
         </Card>
         <Card>
@@ -423,7 +372,7 @@ export default function PaymentsPage() {
             <div className="text-2xl font-bold text-yellow-600">
               {formatCurrency(metrics.pendingAmount, 'USD')}
             </div>
-            <p className="text-xs text-gray-500">Awaiting processing</p>
+            <p className="text-xs text-muted-foreground">Awaiting processing</p>
           </CardContent>
         </Card>
         <Card>
@@ -434,7 +383,7 @@ export default function PaymentsPage() {
             <div className="text-2xl font-bold text-red-600">
               {formatCurrency(metrics.failedAmount, 'USD')}
             </div>
-            <p className="text-xs text-gray-500">Requires attention</p>
+            <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
       </div>
@@ -446,7 +395,7 @@ export default function PaymentsPage() {
             <CardTitle>Payment Transactions</CardTitle>
             <div className="flex gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="Search payments..."
                   value={searchQuery}
@@ -457,7 +406,7 @@ export default function PaymentsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="h-10 w-[150px] rounded-md border border-border bg-accent px-3 text-sm text-white"
               >
                 <option value="all">All Status</option>
                 <option value="succeeded">Succeeded</option>
@@ -469,7 +418,7 @@ export default function PaymentsPage() {
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
-                className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="h-10 w-[150px] rounded-md border border-border bg-accent px-3 text-sm text-white"
               >
                 <option value="last_7_days">Last 7 days</option>
                 <option value="last_30_days">Last 30 days</option>
@@ -483,7 +432,7 @@ export default function PaymentsPage() {
           {loading ? (
             <div className="text-center py-8">Loading payments...</div>
           ) : payments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No payments found for the selected filters.
             </div>
           ) : (
@@ -506,7 +455,7 @@ export default function PaymentsPage() {
                     <TableCell>
                       <div className="font-mono text-sm">{payment.id}</div>
                       {payment.invoice_id && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           Invoice: {payment.invoice_id}
                         </div>
                       )}
@@ -514,7 +463,7 @@ export default function PaymentsPage() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{payment.customer_name}</div>
-                        <div className="text-sm text-gray-500">{payment.customer_email}</div>
+                        <div className="text-sm text-muted-foreground">{payment.customer_email}</div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -522,7 +471,7 @@ export default function PaymentsPage() {
                         {formatCurrency(payment.amount, payment.currency)}
                       </div>
                       {payment.net_amount !== undefined && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           Net: {formatCurrency(payment.net_amount, payment.currency)}
                         </div>
                       )}
@@ -543,7 +492,7 @@ export default function PaymentsPage() {
                       <div className="text-sm">
                         {format(new Date(payment.created_at), 'MMM d, yyyy')}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-muted-foreground">
                         {format(new Date(payment.created_at), 'h:mm a')}
                       </div>
                     </TableCell>
@@ -625,7 +574,7 @@ export default function PaymentsPage() {
                   <Label>Customer</Label>
                   <div className="mt-1">
                     <div>{selectedPayment.customer_name}</div>
-                    <div className="text-sm text-gray-500">{selectedPayment.customer_email}</div>
+                    <div className="text-sm text-muted-foreground">{selectedPayment.customer_email}</div>
                   </div>
                 </div>
                 <div>
@@ -664,7 +613,7 @@ export default function PaymentsPage() {
               </div>
 
               {selectedPayment.invoice_id && (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-accent rounded-md">
                   <div className="text-sm">
                     <strong>Related Invoice:</strong> {selectedPayment.invoice_id}
                   </div>

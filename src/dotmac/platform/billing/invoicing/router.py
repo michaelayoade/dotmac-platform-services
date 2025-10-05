@@ -16,10 +16,9 @@ from dotmac.platform.billing.core.exceptions import (
     InvoiceNotFoundError,
 )
 from dotmac.platform.billing.core.models import Invoice
+from dotmac.platform.billing.dependencies import get_tenant_id
 from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.database import get_async_session
-from dotmac.platform.billing.dependencies import get_tenant_id
-
 
 # ============================================================================
 # Request/Response Models
@@ -84,7 +83,7 @@ class InvoiceListResponse(BaseModel):
 # Router Definition
 # ============================================================================
 
-router = APIRouter(prefix="/invoices", tags=["invoices"])
+router = APIRouter(prefix="/invoices", tags=["Billing - Invoices"])
 
 
 def get_tenant_id_from_request(request: Request) -> str:

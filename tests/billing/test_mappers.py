@@ -16,12 +16,7 @@ class TestInvoiceImportSchema:
 
     def test_valid_invoice_import(self):
         """Test valid invoice import data."""
-        data = {
-            "customer_id": "cust_123",
-            "amount": 100.50,
-            "currency": "usd",
-            "status": "PAID"
-        }
+        data = {"customer_id": "cust_123", "amount": 100.50, "currency": "usd", "status": "PAID"}
 
         schema = InvoiceImportSchema(**data)
         assert schema.customer_id == "cust_123"
@@ -31,42 +26,26 @@ class TestInvoiceImportSchema:
 
     def test_invoice_currency_uppercase_conversion(self):
         """Test currency is automatically converted to uppercase."""
-        schema = InvoiceImportSchema(
-            customer_id="cust_123",
-            amount=100.0,
-            currency="eur"
-        )
+        schema = InvoiceImportSchema(customer_id="cust_123", amount=100.0, currency="eur")
         assert schema.currency == "EUR"
 
     def test_invoice_status_lowercase_conversion(self):
         """Test status is automatically converted to lowercase."""
-        schema = InvoiceImportSchema(
-            customer_id="cust_123",
-            amount=100.0,
-            status="DRAFT"
-        )
+        schema = InvoiceImportSchema(customer_id="cust_123", amount=100.0, status="DRAFT")
         assert schema.status == "draft"
 
     def test_invoice_status_validation_success(self):
         """Test valid status values."""
-        valid_statuses = ['draft', 'sent', 'paid', 'overdue', 'canceled', 'refunded']
+        valid_statuses = ["draft", "sent", "paid", "overdue", "canceled", "refunded"]
 
         for status in valid_statuses:
-            schema = InvoiceImportSchema(
-                customer_id="cust_123",
-                amount=100.0,
-                status=status
-            )
+            schema = InvoiceImportSchema(customer_id="cust_123", amount=100.0, status=status)
             assert schema.status == status.lower()
 
     def test_invoice_status_validation_failure(self):
         """Test invalid status value raises error."""
         with pytest.raises(ValidationError) as exc_info:
-            InvoiceImportSchema(
-                customer_id="cust_123",
-                amount=100.0,
-                status="invalid_status"
-            )
+            InvoiceImportSchema(customer_id="cust_123", amount=100.0, status="invalid_status")
 
         assert "Invalid status" in str(exc_info.value)
 
@@ -91,11 +70,11 @@ class TestInvoiceImportSchema:
             "discount_amount": 150.08,
             "line_items": [
                 {"description": "Item 1", "amount": 500.0},
-                {"description": "Item 2", "amount": 1000.75}
+                {"description": "Item 2", "amount": 1000.75},
             ],
             "external_id": "ext_123",
             "source_system": "legacy_billing",
-            "import_batch_id": "batch_001"
+            "import_batch_id": "batch_001",
         }
 
         schema = InvoiceImportSchema(**data)
@@ -107,10 +86,7 @@ class TestInvoiceImportSchema:
 
     def test_invoice_defaults(self):
         """Test invoice import with default values."""
-        schema = InvoiceImportSchema(
-            customer_id="cust_123",
-            amount=100.0
-        )
+        schema = InvoiceImportSchema(customer_id="cust_123", amount=100.0)
 
         assert schema.currency == "USD"
         assert schema.status == "draft"
@@ -123,16 +99,10 @@ class TestInvoiceImportSchema:
     def test_invoice_amount_validation(self):
         """Test amount must be positive."""
         with pytest.raises(ValidationError):
-            InvoiceImportSchema(
-                customer_id="cust_123",
-                amount=-100.0
-            )
+            InvoiceImportSchema(customer_id="cust_123", amount=-100.0)
 
         with pytest.raises(ValidationError):
-            InvoiceImportSchema(
-                customer_id="cust_123",
-                amount=0
-            )
+            InvoiceImportSchema(customer_id="cust_123", amount=0)
 
     def test_invoice_tax_rate_validation(self):
         """Test tax rate must be between 0 and 100."""
@@ -177,7 +147,7 @@ class TestSubscriptionImportSchema:
             "plan_id": "plan_pro",
             "price": 29.99,
             "currency": "USD",
-            "status": "active"
+            "status": "active",
         }
 
         schema = SubscriptionImportSchema(**data)
@@ -190,23 +160,17 @@ class TestSubscriptionImportSchema:
     def test_subscription_currency(self):
         """Test currency field."""
         schema = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            currency="EUR"
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, currency="EUR"
         )
         assert schema.currency == "EUR"
 
     def test_subscription_status_validation_success(self):
         """Test valid subscription statuses."""
-        valid_statuses = ['trial', 'active', 'past_due', 'canceled', 'ended']
+        valid_statuses = ["trial", "active", "past_due", "canceled", "ended"]
 
         for status in valid_statuses:
             schema = SubscriptionImportSchema(
-                customer_id="cust_123",
-                plan_id="plan_pro",
-                price=29.99,
-                status=status
+                customer_id="cust_123", plan_id="plan_pro", price=29.99, status=status
             )
             assert schema.status == status.lower()
 
@@ -214,23 +178,17 @@ class TestSubscriptionImportSchema:
         """Test subscription status accepts any string (no validation)."""
         # Note: SubscriptionImportSchema doesn't validate status values
         schema = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            status="custom_status"
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, status="custom_status"
         )
         assert schema.status == "custom_status"
 
     def test_subscription_billing_cycle_validation(self):
         """Test valid billing cycles."""
-        valid_cycles = ['monthly', 'quarterly', 'annual']
+        valid_cycles = ["monthly", "quarterly", "annual"]
 
         for cycle in valid_cycles:
             schema = SubscriptionImportSchema(
-                customer_id="cust_123",
-                plan_id="plan_pro",
-                price=29.99,
-                billing_cycle=cycle
+                customer_id="cust_123", plan_id="plan_pro", price=29.99, billing_cycle=cycle
             )
             assert schema.billing_cycle == cycle
 
@@ -244,7 +202,7 @@ class TestSubscriptionImportSchema:
             start_date=now,
             trial_end_date=now + timedelta(days=14),
             next_billing_date=now + timedelta(days=30),
-            canceled_at=None
+            canceled_at=None,
         )
 
         assert schema.start_date == now
@@ -254,28 +212,18 @@ class TestSubscriptionImportSchema:
     def test_subscription_cancel_at_period_end(self):
         """Test cancel_at_period_end flag."""
         schema1 = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            cancel_at_period_end=True
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, cancel_at_period_end=True
         )
         assert schema1.cancel_at_period_end is True
 
         schema2 = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            cancel_at_period_end=False
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, cancel_at_period_end=False
         )
         assert schema2.cancel_at_period_end is False
 
     def test_subscription_defaults(self):
         """Test subscription defaults."""
-        schema = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99
-        )
+        schema = SubscriptionImportSchema(customer_id="cust_123", plan_id="plan_pro", price=29.99)
 
         assert schema.currency == "USD"
         assert schema.status == "active"
@@ -287,46 +235,29 @@ class TestSubscriptionImportSchema:
     def test_subscription_price_validation(self):
         """Test price must be positive."""
         with pytest.raises(ValidationError):
-            SubscriptionImportSchema(
-                customer_id="cust_123",
-                plan_id="plan_pro",
-                price=-29.99
-            )
+            SubscriptionImportSchema(customer_id="cust_123", plan_id="plan_pro", price=-29.99)
 
         with pytest.raises(ValidationError):
-            SubscriptionImportSchema(
-                customer_id="cust_123",
-                plan_id="plan_pro",
-                price=0
-            )
+            SubscriptionImportSchema(customer_id="cust_123", plan_id="plan_pro", price=0)
 
     def test_subscription_custom_price_validation(self):
         """Test custom_price can be zero or positive."""
         # Zero custom price is allowed
         schema1 = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            custom_price=0
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, custom_price=0
         )
         assert schema1.custom_price == 0
 
         # Positive custom price
         schema2 = SubscriptionImportSchema(
-            customer_id="cust_123",
-            plan_id="plan_pro",
-            price=29.99,
-            custom_price=19.99
+            customer_id="cust_123", plan_id="plan_pro", price=29.99, custom_price=19.99
         )
         assert schema2.custom_price == 19.99
 
         # Negative custom price not allowed
         with pytest.raises(ValidationError):
             SubscriptionImportSchema(
-                customer_id="cust_123",
-                plan_id="plan_pro",
-                price=29.99,
-                custom_price=-10
+                customer_id="cust_123", plan_id="plan_pro", price=29.99, custom_price=-10
             )
 
     def test_subscription_with_external_references(self):
@@ -336,7 +267,7 @@ class TestSubscriptionImportSchema:
             plan_id="plan_pro",
             price=29.99,
             external_id="ext_sub_789",
-            payment_method_id="pm_card_123"
+            payment_method_id="pm_card_123",
         )
 
         assert schema.external_id == "ext_sub_789"

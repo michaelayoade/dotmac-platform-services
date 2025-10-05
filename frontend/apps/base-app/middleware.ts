@@ -24,12 +24,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Skip middleware for static files and API routes
+  // Skip middleware for static files, health checks, and API routes
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
     pathname.includes('.') ||
-    pathname.startsWith('/api/health')
+    pathname.startsWith('/api/health') ||
+    pathname === '/health' ||
+    pathname === '/ready'
   ) {
     return NextResponse.next();
   }

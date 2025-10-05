@@ -7,13 +7,14 @@ and update the application settings with secure values at runtime.
 
 import inspect
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultClient, VaultError
 from dotmac.platform.settings import Settings, settings
 
 try:
-    from .vault_config import get_async_vault_client, get_vault_client
+    from .vault_config import get_async_vault_client
+
     HAS_VAULT_CONFIG = True
 except ImportError:
     HAS_VAULT_CONFIG = False
@@ -60,7 +61,7 @@ def set_nested_attr(obj: Any, path: str, value: Any) -> None:
     setattr(obj, parts[-1], value)
 
 
-def get_nested_attr(obj: Any, path: str, default: Any = None) -> Any:
+def get_nested_attr(obj: Any, path: str, default: Any | None = None) -> Any:
     """
     Get a nested attribute from an object using dot notation.
 
@@ -81,9 +82,81 @@ def get_nested_attr(obj: Any, path: str, default: Any = None) -> Any:
         return default
 
 
+def _extract_secret_value(secret_data: Any) -> str | None:
+    """
+    Extract secret value from various Vault data formats.
+
+    Args:
+        secret_data: Secret data from Vault (dict, string, or other)
+
+    Returns:
+        Extracted secret value or None
+    """
+    if isinstance(secret_data, dict) and "value" in secret_data:
+        return secret_data["value"]
+    elif isinstance(secret_data, str):
+        return secret_data
+    elif secret_data and isinstance(secret_data, dict):
+        # If it's a dict without 'value', take the first value
+        return next(iter(secret_data.values()), None) if secret_data else None
+    return None
+
+
+def _update_settings_with_secrets(settings_obj: Settings, secrets: dict[str, Any]) -> int:
+    """
+    Update settings object with fetched secrets.
+
+    Args:
+        settings_obj: Settings object to update
+        secrets: Dictionary of secrets fetched from Vault
+
+    Returns:
+        Number of settings updated
+    """
+    updated_count = 0
+    for setting_path, vault_path in SECRETS_MAPPING.items():
+        secret_data = secrets.get(vault_path, {})
+        secret_value = _extract_secret_value(secret_data)
+
+        if secret_value:
+            try:
+                set_nested_attr(settings_obj, setting_path, secret_value)
+                updated_count += 1
+                logger.debug(f"Updated {setting_path} from Vault")
+            except Exception as e:
+                logger.error(f"Failed to set {setting_path}: {e}")
+
+    return updated_count
+
+
+async def _cleanup_vault_client_async(vault_client: Any) -> None:
+    """
+    Clean up async vault client if needed.
+
+    Args:
+        vault_client: Vault client to clean up
+    """
+    if vault_client and hasattr(vault_client, "close"):
+        if inspect.iscoroutinefunction(vault_client.close):
+            await vault_client.close()
+        else:
+            vault_client.close()
+
+
+def _cleanup_vault_client_sync(vault_client: Any) -> None:
+    """
+    Clean up sync vault client if needed.
+
+    Args:
+        vault_client: Vault client to clean up
+    """
+    if vault_client and hasattr(vault_client, "close"):
+        vault_client.close()
+
+
 async def load_secrets_from_vault(
-    settings_obj: Optional[Settings] = None,
-    vault_client: Optional[AsyncVaultClient] = None,
+    settings_obj: Settings | None = None,
+    vault_client: AsyncVaultClient | None = None,
 ) -> None:
     """
     Load secrets from Vault/OpenBao and update settings.
@@ -126,37 +199,13 @@ async def load_secrets_from_vault(
 
         # Collect all Vault paths to fetch
         vault_paths = list(set(SECRETS_MAPPING.values()))
-
         logger.info(f"Fetching {len(vault_paths)} secrets from Vault")
 
         # Fetch all secrets in parallel
         secrets = await vault_client.get_secrets(vault_paths)
 
         # Update settings with fetched secrets
-        updated_count = 0
-        for setting_path, vault_path in SECRETS_MAPPING.items():
-            secret_data = secrets.get(vault_path, {})
-
-            # Vault stores key-value pairs, we need the 'value' key
-            # Or the secret could be stored directly as a string
-            if isinstance(secret_data, dict) and "value" in secret_data:
-                secret_value = secret_data["value"]
-            elif isinstance(secret_data, str):
-                secret_value = secret_data
-            elif secret_data:
-                # If it's a dict without 'value', take the first value
-                secret_value = next(iter(secret_data.values()), None) if secret_data else None
-            else:
-                secret_value = None
-
-            if secret_value:
-                try:
-                    set_nested_attr(settings_obj, setting_path, secret_value)
-                    updated_count += 1
-                    logger.debug(f"Updated {setting_path} from Vault")
-                except Exception as e:
-                    logger.error(f"Failed to set {setting_path}: {e}")
-
+        updated_count = _update_settings_with_secrets(settings_obj, secrets)
         logger.info(f"Successfully loaded {updated_count} secrets from Vault")
 
         # Validate critical secrets in production
@@ -170,16 +219,12 @@ async def load_secrets_from_vault(
             raise
     finally:
         # Clean up client if we created it
-        if vault_client and hasattr(vault_client, 'close'):
-            if inspect.iscoroutinefunction(vault_client.close):
-                await vault_client.close()
-            else:
-                vault_client.close()
+        await _cleanup_vault_client_async(vault_client)
 
 
 def load_secrets_from_vault_sync(
-    settings_obj: Optional[Settings] = None,
-    vault_client: Optional[VaultClient] = None,
+    settings_obj: Settings | None = None,
+    vault_client: VaultClient | None = None,
 ) -> None:
     """
     Synchronous version of load_secrets_from_vault.
@@ -208,32 +253,12 @@ def load_secrets_from_vault_sync(
             return
 
         vault_paths = list(set(SECRETS_MAPPING.values()))
-
         logger.info(f"Fetching {len(vault_paths)} secrets from Vault")
 
         secrets = vault_client.get_secrets(vault_paths)
 
-        updated_count = 0
-        for setting_path, vault_path in SECRETS_MAPPING.items():
-            secret_data = secrets.get(vault_path, {})
-
-            if isinstance(secret_data, dict) and "value" in secret_data:
-                secret_value = secret_data["value"]
-            elif isinstance(secret_data, str):
-                secret_value = secret_data
-            elif secret_data:
-                secret_value = next(iter(secret_data.values()), None) if secret_data else None
-            else:
-                secret_value = None
-
-            if secret_value:
-                try:
-                    set_nested_attr(settings_obj, setting_path, secret_value)
-                    updated_count += 1
-                    logger.debug(f"Updated {setting_path} from Vault")
-                except Exception as e:
-                    logger.error(f"Failed to set {setting_path}: {e}")
-
+        # Update settings with fetched secrets
+        updated_count = _update_settings_with_secrets(settings_obj, secrets)
         logger.info(f"Successfully loaded {updated_count} secrets from Vault")
 
         if settings_obj.environment == "production":
@@ -244,8 +269,7 @@ def load_secrets_from_vault_sync(
         if settings_obj.environment == "production":
             raise
     finally:
-        if vault_client and not isinstance(vault_client, VaultClient):
-            vault_client.close()
+        _cleanup_vault_client_sync(vault_client)
 
 
 def validate_production_secrets(settings_obj: Settings) -> None:
@@ -282,7 +306,7 @@ def validate_production_secrets(settings_obj: Settings) -> None:
         raise ValueError(error_msg)
 
 
-def get_vault_secret(path: str) -> Optional[Dict[str, Any]]:
+def get_vault_secret(path: str) -> dict[str, Any] | None:
     """
     Convenience function to fetch a single secret from Vault.
 
@@ -311,7 +335,7 @@ def get_vault_secret(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def get_vault_secret_async(path: str) -> Optional[Dict[str, Any]]:
+async def get_vault_secret_async(path: str) -> dict[str, Any] | None:
     """
     Async convenience function to fetch a single secret from Vault.
 

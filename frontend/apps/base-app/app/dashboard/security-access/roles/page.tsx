@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -143,7 +143,7 @@ export default function RolesPage() {
     if (canManageRoles) {
       loadPermissions();
     }
-  }, [getAllPermissions, canManageRoles]);
+  }, [getAllPermissions, canManageRoles, toast]);
 
   // Filter roles
   const filteredRoles = roles.filter(role => {
@@ -318,15 +318,15 @@ export default function RolesPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold">Roles & Permissions</h1>
-            <p className="text-gray-500 mt-2">Access denied - insufficient permissions</p>
+            <p className="text-muted-foreground mt-2">Access denied - insufficient permissions</p>
           </div>
         </div>
         <Card>
           <CardContent className="p-8">
             <div className="flex flex-col items-center justify-center text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-              <p className="text-slate-300 mb-2">Access Denied</p>
-              <p className="text-slate-500 text-sm">You do not have permission to manage roles and permissions.</p>
+              <AlertCircle className="h-12 w-12 text-red-600 dark:text-red-400 mb-4" />
+              <p className="text-muted-foreground mb-2">Access Denied</p>
+              <p className="text-foreground text-sm">You do not have permission to manage roles and permissions.</p>
             </div>
           </CardContent>
         </Card>
@@ -340,7 +340,7 @@ export default function RolesPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Roles & Permissions</h1>
-          <p className="text-gray-500 mt-2">Manage user roles and their permissions</p>
+          <p className="text-muted-foreground mt-2">Manage user roles and their permissions</p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -409,7 +409,7 @@ export default function RolesPage() {
                               >
                                 {permission.display_name}
                                 {permission.description && (
-                                  <span className="text-xs text-gray-500 block">
+                                  <span className="text-xs text-muted-foreground block">
                                     {permission.description}
                                   </span>
                                 )}
@@ -517,7 +517,7 @@ export default function RolesPage() {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
               >
                 <option value="all">All Types</option>
                 <option value="system">System</option>
@@ -551,7 +551,7 @@ export default function RolesPage() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{role.display_name}</div>
-                        <div className="text-sm text-gray-500">{role.description}</div>
+                        <div className="text-sm text-muted-foreground">{role.description}</div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -583,7 +583,7 @@ export default function RolesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="h-8 w-8 p-0 inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-slate-800" disabled={operationLoading}>
+                        <DropdownMenuTrigger className="h-8 w-8 p-0 inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent" disabled={operationLoading}>
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="absolute right-0">
@@ -631,7 +631,7 @@ export default function RolesPage() {
                                 setIsDeleteOpen(true);
                               }
                             }}
-                            className={`text-red-600 ${role.is_system || operationLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`text-red-600 dark:text-red-400 ${role.is_system || operationLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
@@ -711,7 +711,7 @@ export default function RolesPage() {
                               >
                                 {permission.display_name}
                                 {permission.description && (
-                                  <span className="text-xs text-gray-500 block">
+                                  <span className="text-xs text-muted-foreground block">
                                     {permission.description}
                                   </span>
                                 )}
@@ -749,14 +749,14 @@ export default function RolesPage() {
           </DialogHeader>
           {selectedRole && (
             <div className="py-4">
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="bg-red-100 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md p-4">
                 <div className="flex items-start">
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-3" />
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 mr-3" />
                   <div>
-                    <p className="text-sm text-red-800">
+                    <p className="text-sm text-red-800 dark:text-red-300">
                       <strong>{selectedRole.display_name}</strong> will be permanently deleted.
                     </p>
-                    <p className="text-sm text-red-700 mt-1">
+                    <p className="text-sm text-red-700 dark:text-red-400 mt-1">
                       This action cannot be undone.
                     </p>
                   </div>
@@ -793,8 +793,8 @@ export default function RolesPage() {
                 placeholder="Search by name or email..."
               />
             </div>
-            <div className="mt-4 border rounded-md p-4 bg-gray-50">
-              <p className="text-sm text-gray-600 text-center">
+            <div className="mt-4 border rounded-md p-4 bg-muted">
+              <p className="text-sm text-muted-foreground text-center">
                 User assignment interface would be implemented here
               </p>
             </div>

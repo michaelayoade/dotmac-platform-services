@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 # Async Testing Utilities
 # ============================================================================
 
+
 class ProperAsyncMock(AsyncMock):
     """
     Enhanced AsyncMock that properly handles common async patterns.
@@ -31,7 +32,7 @@ class ProperAsyncMock(AsyncMock):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Ensure return values are properly wrapped
-        if hasattr(self, 'return_value') and not asyncio.iscoroutine(self.return_value):
+        if hasattr(self, "return_value") and not asyncio.iscoroutine(self.return_value):
             self._return_value = self.return_value
 
     async def __call__(self, *args, **kwargs):
@@ -82,6 +83,7 @@ def create_async_session_mock() -> AsyncMock:
 # Service Mock Factories
 # ============================================================================
 
+
 def create_mock_user_service() -> Mock:
     """
     Create a comprehensive mock user service with common operations.
@@ -92,13 +94,15 @@ def create_mock_user_service() -> Mock:
     service.get_user = AsyncMock(return_value=None)
     service.get_user_by_username = AsyncMock(return_value=None)
     service.get_user_by_email = AsyncMock(return_value=None)
-    service.create_user = AsyncMock(return_value=Mock(
-        id=uuid4(),
-        username="testuser",
-        email="test@example.com",
-        is_active=True,
-        created_at=datetime.now(timezone.utc)
-    ))
+    service.create_user = AsyncMock(
+        return_value=Mock(
+            id=uuid4(),
+            username="testuser",
+            email="test@example.com",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
     service.update_user = AsyncMock(return_value=True)
     service.delete_user = AsyncMock(return_value=True)
     service.verify_password = Mock(return_value=True)
@@ -126,7 +130,7 @@ def create_mock_email_service() -> Mock:
         "username": "test@example.com",
         "password": "test_password",
         "use_tls": True,
-        "from_email": "noreply@example.com"
+        "from_email": "noreply@example.com",
     }
 
     return service
@@ -141,21 +145,25 @@ def create_mock_auth_service() -> Mock:
     # Token operations
     service.create_access_token = Mock(return_value="test_access_token")
     service.create_refresh_token = Mock(return_value="test_refresh_token")
-    service.verify_token = Mock(return_value={
-        "sub": "user123",
-        "type": "access",
-        "scopes": ["read", "write"],
-        "tenant_id": "tenant123"
-    })
+    service.verify_token = Mock(
+        return_value={
+            "sub": "user123",
+            "type": "access",
+            "scopes": ["read", "write"],
+            "tenant_id": "tenant123",
+        }
+    )
     service.revoke_token = AsyncMock(return_value=True)
 
     # Session operations
-    service.create_session = AsyncMock(return_value=Mock(
-        id=str(uuid4()),
-        user_id="user123",
-        token="session_token",
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=24)
-    ))
+    service.create_session = AsyncMock(
+        return_value=Mock(
+            id=str(uuid4()),
+            user_id="user123",
+            token="session_token",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+    )
     service.get_session = AsyncMock(return_value=None)
     service.delete_session = AsyncMock(return_value=True)
 
@@ -184,11 +192,12 @@ def create_mock_celery_app() -> Mock:
 # Datetime Utilities (Fix Deprecation Warnings)
 # ============================================================================
 
+
 def utcnow() -> datetime:
     """
     Get current UTC datetime with timezone awareness.
 
-    Replaces deprecated datetime.utcnow().
+    Replaces deprecated datetime.now(timezone.utc).
     """
     return datetime.now(timezone.utc)
 
@@ -209,6 +218,7 @@ def mock_utcnow(target_datetime: Optional[datetime] = None) -> Mock:
 # ============================================================================
 # Tenant Context Utilities
 # ============================================================================
+
 
 class TenantContext:
     """
@@ -238,6 +248,7 @@ def with_tenant_context(tenant_id: str = "test-tenant"):
     """
     Decorator to run tests with a specific tenant context.
     """
+
     def decorator(func):
         async def async_wrapper(*args, **kwargs):
             with TenantContext(tenant_id):
@@ -258,6 +269,7 @@ def with_tenant_context(tenant_id: str = "test-tenant"):
 # Integration Test Helpers
 # ============================================================================
 
+
 @asynccontextmanager
 async def database_transaction(session: AsyncSession):
     """
@@ -271,10 +283,7 @@ async def database_transaction(session: AsyncSession):
 
 
 def create_test_jwt(
-    user_id: str = "test-user",
-    scopes: list[str] = None,
-    tenant_id: str = "test-tenant",
-    **kwargs
+    user_id: str = "test-user", scopes: list[str] = None, tenant_id: str = "test-tenant", **kwargs
 ) -> str:
     """
     Create a test JWT token with standard claims.
@@ -292,7 +301,7 @@ def create_test_jwt(
         "exp": datetime.now(timezone.utc) + timedelta(hours=1),
         "iat": datetime.now(timezone.utc),
         "type": "access",
-        **kwargs
+        **kwargs,
     }
 
     return jwt.encode(payload, "test-secret", algorithm="HS256")
@@ -301,6 +310,7 @@ def create_test_jwt(
 # ============================================================================
 # Test Data Factories
 # ============================================================================
+
 
 class TestDataFactory:
     """
@@ -319,7 +329,7 @@ class TestDataFactory:
             "is_active": True,
             "is_verified": True,
             "created_at": utcnow(),
-            "updated_at": utcnow()
+            "updated_at": utcnow(),
         }
         if overrides:
             data.update(overrides)
@@ -340,7 +350,7 @@ class TestDataFactory:
             "tax_amount": 1000,  # $10.00
             "total_amount": 11000,  # $110.00
             "currency": "USD",
-            "line_items": []
+            "line_items": [],
         }
         if overrides:
             data.update(overrides)
@@ -359,7 +369,7 @@ class TestDataFactory:
             "failed_count": 0,
             "created_at": utcnow(),
             "scheduled_at": None,
-            "recipients": []
+            "recipients": [],
         }
         if overrides:
             data.update(overrides)
@@ -369,6 +379,7 @@ class TestDataFactory:
 # ============================================================================
 # Test Base Classes
 # ============================================================================
+
 
 class AsyncTestCase:
     """
@@ -395,7 +406,7 @@ class AsyncTestCase:
         async with AsyncClient(
             transport=transport,
             base_url="http://testserver",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         ) as client:
             return client
 
@@ -420,6 +431,7 @@ class ServiceTestCase:
 # Pytest Fixtures (Can be imported in conftest.py)
 # ============================================================================
 
+
 @pytest.fixture
 def async_session_mock():
     """Provide async session mock."""
@@ -433,7 +445,7 @@ def mock_services():
         "user": create_mock_user_service(),
         "email": create_mock_email_service(),
         "auth": create_mock_auth_service(),
-        "celery": create_mock_celery_app()
+        "celery": create_mock_celery_app(),
     }
 
 
@@ -457,35 +469,28 @@ __all__ = [
     # Async utilities
     "ProperAsyncMock",
     "create_async_session_mock",
-
     # Service mocks
     "create_mock_user_service",
     "create_mock_email_service",
     "create_mock_auth_service",
     "create_mock_celery_app",
-
     # Datetime utilities
     "utcnow",
     "mock_utcnow",
-
     # Tenant utilities
     "TenantContext",
     "with_tenant_context",
-
     # Integration helpers
     "database_transaction",
     "create_test_jwt",
-
     # Data factory
     "TestDataFactory",
-
     # Base classes
     "AsyncTestCase",
     "ServiceTestCase",
-
     # Fixtures
     "async_session_mock",
     "mock_services",
     "test_data_factory",
-    "tenant_context"
+    "tenant_context",
 ]

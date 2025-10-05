@@ -61,7 +61,7 @@ export function CreateApiKeyModal({
         name: editingApiKey.name,
         description: editingApiKey.description || '',
         scopes: editingApiKey.scopes,
-        expires_at: editingApiKey.expires_at ? new Date(editingApiKey.expires_at).toISOString().split('T')[0] : '',
+        expires_at: editingApiKey.expires_at ? (new Date(editingApiKey.expires_at).toISOString().split('T')[0] ?? '') : '',
         never_expires: !editingApiKey.expires_at,
       });
     }
@@ -183,7 +183,7 @@ export function CreateApiKeyModal({
                 <div>
                   <h4 className="font-medium text-yellow-400">Important Security Notice</h4>
                   <p className="text-sm text-slate-300 mt-1">
-                    This is the only time you'll see your API key. Store it securely and never share it publicly.
+                    This is the only time you&apos;ll see your API key. Store it securely and never share it publicly.
                   </p>
                 </div>
               </div>

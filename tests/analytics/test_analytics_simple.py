@@ -17,7 +17,7 @@ from dotmac.platform.analytics.base import (
     GaugeMetric,
     HistogramMetric,
     BaseAnalyticsCollector,
-    MetricRegistry
+    MetricRegistry,
 )
 from dotmac.platform.analytics.service import AnalyticsService
 
@@ -41,7 +41,7 @@ class TestAnalyticsBaseClasses:
             span_id="span456",
             parent_span_id="parent789",
             trace_flags=1,
-            trace_state={"key": "value"}
+            trace_state={"key": "value"},
         )
 
         assert context.trace_id == "trace123"
@@ -72,7 +72,7 @@ class TestAnalyticsBaseClasses:
             unit="count",
             description="API request counter",
             attributes={"endpoint": "/api/users"},
-            resource_attributes={"service": "api"}
+            resource_attributes={"service": "api"},
         )
 
         assert metric.tenant_id == "tenant123"
@@ -105,7 +105,12 @@ class TestAnalyticsBaseClasses:
         """Test metric OpenTelemetry attributes conversion."""
         metric = Metric(
             tenant_id="tenant123",
-            attributes={"endpoint_name": "/api/users", "method": "GET", "count": 5, "success": True}
+            attributes={
+                "endpoint_name": "/api/users",
+                "method": "GET",
+                "count": 5,
+                "success": True,
+            },
         )
 
         otel_attrs = metric.to_otel_attributes()
@@ -119,11 +124,7 @@ class TestAnalyticsBaseClasses:
 
     def test_counter_metric(self):
         """Test CounterMetric with positive delta."""
-        counter = CounterMetric(
-            name="requests",
-            delta=5.0,
-            tenant_id="tenant123"
-        )
+        counter = CounterMetric(name="requests", delta=5.0, tenant_id="tenant123")
 
         assert counter.type == MetricType.COUNTER
         assert counter.delta == 5.0
@@ -136,11 +137,7 @@ class TestAnalyticsBaseClasses:
 
     def test_gauge_metric(self):
         """Test GaugeMetric creation."""
-        gauge = GaugeMetric(
-            name="temperature",
-            value=23.5,
-            unit="celsius"
-        )
+        gauge = GaugeMetric(name="temperature", value=23.5, unit="celsius")
 
         assert gauge.type == MetricType.GAUGE
         assert gauge.value == 23.5
@@ -148,10 +145,7 @@ class TestAnalyticsBaseClasses:
 
     def test_histogram_metric(self):
         """Test HistogramMetric creation."""
-        histogram = HistogramMetric(
-            name="request_duration",
-            unit="seconds"
-        )
+        histogram = HistogramMetric(name="request_duration", unit="seconds")
 
         assert histogram.type == MetricType.HISTOGRAM
         assert len(histogram.bucket_boundaries) > 0
@@ -164,16 +158,14 @@ class TestAnalyticsBaseClasses:
     def test_histogram_metric_custom_boundaries(self):
         """Test HistogramMetric with custom bucket boundaries."""
         boundaries = [0.1, 0.5, 1.0, 5.0]
-        histogram = HistogramMetric(
-            name="custom_duration",
-            bucket_boundaries=boundaries
-        )
+        histogram = HistogramMetric(name="custom_duration", bucket_boundaries=boundaries)
 
         assert histogram.bucket_boundaries == boundaries
 
     def test_base_analytics_collector_abstract(self):
         """Test BaseAnalyticsCollector is abstract."""
         from abc import ABC
+
         assert issubclass(BaseAnalyticsCollector, ABC)
 
         # Should not be able to instantiate directly
@@ -199,7 +191,7 @@ class TestMetricRegistry:
             type=MetricType.COUNTER,
             unit="count",
             description="Number of API requests",
-            attributes=["endpoint", "method"]
+            attributes=["endpoint", "method"],
         )
 
         definition = registry.get("api_requests")
@@ -228,24 +220,19 @@ class TestMetricRegistry:
     def test_validate_metric_valid(self, registry):
         """Test validating a valid metric."""
         registry.register(
-            name="api_requests",
-            type=MetricType.COUNTER,
-            attributes=["endpoint", "method"]
+            name="api_requests", type=MetricType.COUNTER, attributes=["endpoint", "method"]
         )
 
         metric = CounterMetric(
             name="api_requests",
-            attributes={"endpoint": "/api/users", "method": "GET", "extra": "allowed"}
+            attributes={"endpoint": "/api/users", "method": "GET", "extra": "allowed"},
         )
 
         assert registry.validate(metric) is True
 
     def test_validate_metric_wrong_type(self, registry):
         """Test validating metric with wrong type."""
-        registry.register(
-            name="api_requests",
-            type=MetricType.COUNTER
-        )
+        registry.register(name="api_requests", type=MetricType.COUNTER)
 
         metric = GaugeMetric(name="api_requests")  # Wrong type
         assert registry.validate(metric) is False
@@ -253,14 +240,11 @@ class TestMetricRegistry:
     def test_validate_metric_missing_attributes(self, registry):
         """Test validating metric missing required attributes."""
         registry.register(
-            name="api_requests",
-            type=MetricType.COUNTER,
-            attributes=["endpoint", "method"]
+            name="api_requests", type=MetricType.COUNTER, attributes=["endpoint", "method"]
         )
 
         metric = CounterMetric(
-            name="api_requests",
-            attributes={"endpoint": "/api/users"}  # Missing method
+            name="api_requests", attributes={"endpoint": "/api/users"}  # Missing method
         )
 
         assert registry.validate(metric) is False
@@ -295,101 +279,71 @@ class TestAnalyticsService:
 
     def test_service_initialization_default_collector(self):
         """Test service initialization with default collector."""
-        with patch('dotmac.platform.analytics.service.create_otel_collector') as mock_create:
+        with patch("dotmac.platform.analytics.service.create_otel_collector") as mock_create:
             mock_collector = Mock()
             mock_create.return_value = mock_collector
 
             service = AnalyticsService()
 
-            mock_create.assert_called_once_with(
-                tenant_id="default",
-                service_name="platform"
-            )
+            mock_create.assert_called_once_with(tenant_id="default", service_name="platform")
             assert service.collector == mock_collector
 
     @pytest.mark.asyncio
     async def test_track_api_request(self, analytics_service, mock_collector):
         """Test tracking API requests."""
         await analytics_service.track_api_request(
-            endpoint="/api/users",
-            method="GET",
-            status_code=200
+            endpoint="/api/users", method="GET", status_code=200
         )
 
         mock_collector.record_metric.assert_called_once_with(
             name="api_request",
             value=1,
             metric_type="counter",
-            labels={
-                "endpoint": "/api/users",
-                "method": "GET",
-                "status_code": 200
-            }
+            labels={"endpoint": "/api/users", "method": "GET", "status_code": 200},
         )
 
     @pytest.mark.asyncio
     async def test_track_circuit_breaker(self, analytics_service, mock_collector):
         """Test tracking circuit breaker state."""
         await analytics_service.track_circuit_breaker(
-            service="user-service",
-            state="open",
-            failure_count=5
+            service="user-service", state="open", failure_count=5
         )
 
         mock_collector.record_metric.assert_called_once_with(
             name="circuit_breaker_state",
             value=1,
             metric_type="gauge",
-            labels={
-                "service": "user-service",
-                "state": "open",
-                "failure_count": 5
-            }
+            labels={"service": "user-service", "state": "open", "failure_count": 5},
         )
 
     @pytest.mark.asyncio
     async def test_track_rate_limit(self, analytics_service, mock_collector):
         """Test tracking rate limit metrics."""
-        await analytics_service.track_rate_limit(
-            client_id="client123",
-            remaining=45,
-            limit=100
-        )
+        await analytics_service.track_rate_limit(client_id="client123", remaining=45, limit=100)
 
         mock_collector.record_metric.assert_called_once_with(
             name="rate_limit",
             value=45,  # Uses remaining value
             metric_type="gauge",
-            labels={
-                "client_id": "client123",
-                "remaining": 45,
-                "limit": 100
-            }
+            labels={"client_id": "client123", "remaining": 45, "limit": 100},
         )
 
     @pytest.mark.asyncio
     async def test_track_rate_limit_no_remaining(self, analytics_service, mock_collector):
         """Test tracking rate limit without remaining value."""
-        await analytics_service.track_rate_limit(
-            client_id="client123",
-            limit=100
-        )
+        await analytics_service.track_rate_limit(client_id="client123", limit=100)
 
         mock_collector.record_metric.assert_called_once_with(
             name="rate_limit",
             value=0,  # Defaults to 0 when no remaining
             metric_type="gauge",
-            labels={
-                "client_id": "client123",
-                "limit": 100
-            }
+            labels={"client_id": "client123", "limit": 100},
         )
 
     def test_get_aggregated_metrics(self, analytics_service, mock_collector):
         """Test getting aggregated metrics."""
         result = analytics_service.get_aggregated_metrics(
-            aggregation_type="sum",
-            time_window_seconds=300
+            aggregation_type="sum", time_window_seconds=300
         )
 
         assert result == {"total_metrics": 10}
@@ -401,7 +355,7 @@ class TestAnalyticsService:
         event_data = {
             "event_type": "user_login",
             "user_id": "user123",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         event_id = await analytics_service.track_event(**event_data)
@@ -418,15 +372,11 @@ class TestAnalyticsService:
     async def test_track_multiple_events(self, analytics_service):
         """Test tracking multiple events."""
         # Track first event
-        event_id_1 = await analytics_service.track_event(
-            event_type="user_login",
-            user_id="user123"
-        )
+        event_id_1 = await analytics_service.track_event(event_type="user_login", user_id="user123")
 
         # Track second event
         event_id_2 = await analytics_service.track_event(
-            event_type="user_logout",
-            user_id="user123"
+            event_type="user_logout", user_id="user123"
         )
 
         assert event_id_1 == "event_1"
@@ -481,8 +431,8 @@ class TestAnalyticsErrorHandling:
                 "bool_attr": True,
                 "none_attr": None,
                 "list_attr": [1, 2, 3],
-                "dict_attr": {"nested": "value"}
-            }
+                "dict_attr": {"nested": "value"},
+            },
         )
 
         otel_attrs = metric.to_otel_attributes()
@@ -507,7 +457,7 @@ class TestAnalyticsErrorHandling:
             "event_type": "bulk_operation",
             "data": "x" * 1000,
             "items": list(range(50)),
-            "metadata": {"key" + str(i): f"value{i}" for i in range(20)}
+            "metadata": {"key" + str(i): f"value{i}" for i in range(20)},
         }
 
         event_id = await service.track_event(**large_data)
@@ -541,12 +491,23 @@ class TestAnalyticsErrorHandling:
 
         # Create a minimal concrete implementation for testing
         class TestCollector(BaseAnalyticsCollector):
-            async def collect(self, metric): pass
-            async def collect_batch(self, metrics): pass
-            async def record_metric(self, name, value, metric_type="gauge", labels=None, unit=None, description=None): pass
-            def get_metrics_summary(self): return {}
+            async def collect(self, metric):
+                pass
+
+            async def collect_batch(self, metrics):
+                pass
+
+            async def record_metric(
+                self, name, value, metric_type="gauge", labels=None, unit=None, description=None
+            ):
+                pass
+
+            def get_metrics_summary(self):
+                return {}
+
             @property
-            def tracer(self): return None
+            def tracer(self):
+                return None
 
         collector = TestCollector("test-tenant", "test-service")
 

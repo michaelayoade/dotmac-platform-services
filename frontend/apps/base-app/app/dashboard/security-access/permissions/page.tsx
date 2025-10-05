@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,14 +81,14 @@ function getCategoryColor(category: PermissionCategory): string {
     [PermissionCategory.BILLING]: 'bg-green-500/10 text-green-400 border-green-500/20',
     [PermissionCategory.ANALYTICS]: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     [PermissionCategory.COMMUNICATIONS]: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    [PermissionCategory.INFRASTRUCTURE]: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    [PermissionCategory.INFRASTRUCTURE]: 'bg-muted text-muted-foreground border-border',
     [PermissionCategory.SECRETS]: 'bg-red-500/10 text-red-400 border-red-500/20',
     [PermissionCategory.CUSTOMERS]: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
     [PermissionCategory.SETTINGS]: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
     [PermissionCategory.SYSTEM]: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
   };
 
-  return colors[category] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  return colors[category] || 'bg-muted text-muted-foreground border-border';
 }
 
 // Group permissions by category
@@ -147,7 +147,7 @@ export default function PermissionsPage() {
     if (canViewPermissions) {
       loadPermissions();
     }
-  }, [getAllPermissions, canViewPermissions]);
+  }, [getAllPermissions, canViewPermissions, toast]);
 
   // Filter permissions
   const filteredPermissions = allPermissions.filter(permission => {
@@ -197,15 +197,15 @@ export default function PermissionsPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold">Permissions</h1>
-            <p className="text-gray-500 mt-2">Access denied - insufficient permissions</p>
+            <p className="text-muted-foreground mt-2">Access denied - insufficient permissions</p>
           </div>
         </div>
         <Card>
           <CardContent className="p-8">
             <div className="flex flex-col items-center justify-center text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-              <p className="text-slate-300 mb-2">Access Denied</p>
-              <p className="text-slate-500 text-sm">You do not have permission to view system permissions.</p>
+              <AlertCircle className="h-12 w-12 text-red-600 dark:text-red-400 mb-4" />
+              <p className="text-muted-foreground mb-2">Access Denied</p>
+              <p className="text-foreground text-sm">You do not have permission to view system permissions.</p>
             </div>
           </CardContent>
         </Card>
@@ -219,7 +219,7 @@ export default function PermissionsPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Permissions</h1>
-          <p className="text-gray-500 mt-2">View and understand system permissions and their usage</p>
+          <p className="text-muted-foreground mt-2">View and understand system permissions and their usage</p>
         </div>
       </div>
 
@@ -307,7 +307,7 @@ export default function PermissionsPage() {
                   <select
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
-                    className="h-10 w-[180px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                    className="h-10 w-[180px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
                   >
                     <option value="all">All Categories</option>
                     {Object.values(PermissionCategory).map(category => (
@@ -319,7 +319,7 @@ export default function PermissionsPage() {
                   <select
                     value={filterSystemPermissions}
                     onChange={(e) => setFilterSystemPermissions(e.target.value)}
-                    className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                    className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
                   >
                     <option value="all">All Types</option>
                     <option value="system">System</option>
@@ -356,9 +356,9 @@ export default function PermissionsPage() {
                           <TableCell>
                             <div>
                               <div className="font-medium">{permission.display_name}</div>
-                              <div className="text-sm text-gray-500">{permission.name}</div>
+                              <div className="text-sm text-muted-foreground">{permission.name}</div>
                               {permission.description && (
-                                <div className="text-xs text-gray-400 mt-1">{permission.description}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{permission.description}</div>
                               )}
                             </div>
                           </TableCell>
@@ -371,7 +371,7 @@ export default function PermissionsPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <code className="text-sm bg-slate-800 px-2 py-1 rounded">
+                            <code className="text-sm bg-muted px-2 py-1 rounded">
                               {permission.resource || 'N/A'}
                             </code>
                           </TableCell>
@@ -383,7 +383,7 @@ export default function PermissionsPage() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className="text-sm">{usage}</span>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 {usage === 1 ? 'role' : 'roles'}
                               </span>
                             </div>
@@ -427,12 +427,12 @@ export default function PermissionsPage() {
                         .filter(p => p.category === stat.category)
                         .slice(0, 5)
                         .map(permission => (
-                          <div key={permission.name} className="text-xs text-gray-400 truncate">
+                          <div key={permission.name} className="text-xs text-muted-foreground truncate">
                             {permission.display_name}
                           </div>
                         ))}
                       {allPermissions.filter(p => p.category === stat.category).length > 5 && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           +{allPermissions.filter(p => p.category === stat.category).length - 5} more
                         </div>
                       )}

@@ -9,7 +9,7 @@ Provides configurable tenant resolution supporting both:
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,19 +24,32 @@ class TenantIdentityResolver:
     In multi-tenant mode: Resolves from header, query param, or state
     """
 
-    def __init__(self, config: Optional[TenantConfiguration] = None):
+    def __init__(self, config: TenantConfiguration | None = None):
         """Initialize resolver with configuration."""
         self.config = config or get_tenant_config()
         self.header_name = self.config.tenant_header_name
         self.query_param = self.config.tenant_query_param
 
     async def resolve(self, request: Request) -> str | None:
-        """Resolve tenant ID based on configuration mode."""
+        """Resolve tenant ID based on configuration mode.
+
+        Platform Admin Support:
+            - Platform admins can set X-Target-Tenant-ID header to impersonate tenants
+            - If no target tenant is specified, platform admins get tenant_id=None (cross-tenant mode)
+        """
         # Single-tenant mode: always return default
         if self.config.is_single_tenant:
             return self.config.default_tenant_id
 
         # Multi-tenant mode: resolve from request
+
+        # Check for platform admin tenant impersonation first
+        target_tenant = request.headers.get("X-Target-Tenant-ID")
+        if target_tenant:
+            # Platform admin is targeting a specific tenant
+            # Authorization check happens in the dependency layer
+            return target_tenant
+
         # Header
         try:
             tenant_id = request.headers.get(self.header_name)
@@ -72,10 +85,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: Any,
-        config: Optional[TenantConfiguration] = None,
-        resolver: Optional[TenantIdentityResolver] = None,
-        exempt_paths: Optional[set[str]] = None,
-        require_tenant: Optional[bool] = None,
+        config: TenantConfiguration | None = None,
+        resolver: TenantIdentityResolver | None = None,
+        exempt_paths: set[str] | None = None,
+        require_tenant: bool | None = None,
     ) -> None:
         super().__init__(app)
         self.config = config or get_tenant_config()
@@ -106,6 +119,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             if self.config.is_single_tenant:
                 request.state.tenant_id = self.config.default_tenant_id
                 from . import set_current_tenant_id
+
                 set_current_tenant_id(self.config.default_tenant_id)
             return await call_next(request)
 
@@ -115,13 +129,17 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Get final tenant ID based on configuration
         tenant_id = self.config.get_tenant_id_for_request(resolved_id)
 
+        # Check if this is a platform admin request (they can operate without tenant)
+        is_platform_admin_request = request.headers.get("X-Target-Tenant-ID") is not None
+
         if tenant_id:
             # Set tenant ID on request state and context var
             request.state.tenant_id = tenant_id
             from . import set_current_tenant_id
+
             set_current_tenant_id(tenant_id)
-        elif self.require_tenant:
-            # Only raise error if tenant is required (multi-tenant mode)
+        elif self.require_tenant and not is_platform_admin_request:
+            # Only raise error if tenant is required and NOT a platform admin
             from fastapi import status
             from starlette.responses import JSONResponse
 
@@ -132,9 +150,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 },
             )
         else:
-            # Fall back to default if available
-            request.state.tenant_id = self.config.default_tenant_id
+            # Fall back to default if available, or None for platform admins
+            request.state.tenant_id = (
+                self.config.default_tenant_id if not is_platform_admin_request else None
+            )
             from . import set_current_tenant_id
-            set_current_tenant_id(self.config.default_tenant_id)
+
+            set_current_tenant_id(
+                self.config.default_tenant_id if not is_platform_admin_request else None
+            )
 
         return await call_next(request)

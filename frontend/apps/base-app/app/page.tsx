@@ -42,12 +42,12 @@ export default function HomePage() {
           </span>
         </div>
 
-        <h1 className="text-5xl font-bold tracking-tight text-slate-50 mb-4">
+        <h1 className="text-5xl font-bold tracking-tight text-foreground mb-4">
           Enterprise Platform
           <span className="text-sky-400 block">Ready to Deploy</span>
         </h1>
 
-        <p className="text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
           Complete business platform with authentication, customer management, billing,
           analytics, and more. Built for scale with FastAPI and React.
         </p>
@@ -67,7 +67,7 @@ export default function HomePage() {
                 </button>
               </Link>
               <Link href="/register">
-                <button className="px-8 py-4 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors text-lg font-medium">
+                <button className="px-8 py-4 border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors text-lg font-medium">
                   Create Account
                 </button>
               </Link>
@@ -75,17 +75,17 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="bg-slate-900/30 backdrop-blur border border-slate-700/50 rounded-lg p-4 mt-8">
-          <p className="text-sm text-slate-400 mb-2">Quick Start - Test Credentials:</p>
+        <div className="bg-card/30 backdrop-blur border border-border/50 rounded-lg p-4 mt-8">
+          <p className="text-sm text-muted-foreground mb-2">Quick Start - Test Credentials:</p>
           <p className="text-sky-400 font-mono text-sm">admin@example.com / admin123</p>
         </div>
       </div>
 
       <section className="grid w-full max-w-6xl gap-6 md:grid-cols-3">
-        <div className="bg-slate-900/40 backdrop-blur border border-slate-700/40 rounded-xl p-8 hover:bg-slate-900/60 transition-all">
+        <div className="bg-card/40 backdrop-blur border border-border/40 rounded-xl p-8 hover:bg-card/60 transition-all">
           <div className="text-sky-400 mb-4 text-2xl">🔐</div>
-          <h3 className="text-xl font-semibold text-slate-100 mb-3">Authentication & Security</h3>
-          <ul className="space-y-2 text-slate-300 text-sm">
+          <h3 className="text-xl font-semibold text-foreground mb-3">Authentication & Security</h3>
+          <ul className="space-y-2 text-muted-foreground text-sm">
             <li>• JWT-based authentication</li>
             <li>• Role-based access control</li>
             <li>• Secure secrets management</li>
@@ -93,10 +93,10 @@ export default function HomePage() {
           </ul>
         </div>
 
-        <div className="bg-slate-900/40 backdrop-blur border border-slate-700/40 rounded-xl p-8 hover:bg-slate-900/60 transition-all">
+        <div className="bg-card/40 backdrop-blur border border-border/40 rounded-xl p-8 hover:bg-card/60 transition-all">
           <div className="text-green-400 mb-4 text-2xl">📊</div>
-          <h3 className="text-xl font-semibold text-slate-100 mb-3">Business Operations</h3>
-          <ul className="space-y-2 text-slate-300 text-sm">
+          <h3 className="text-xl font-semibold text-foreground mb-3">Business Operations</h3>
+          <ul className="space-y-2 text-muted-foreground text-sm">
             <li>• Customer relationship management</li>
             <li>• Billing & payment processing</li>
             <li>• Analytics & reporting</li>
@@ -104,10 +104,10 @@ export default function HomePage() {
           </ul>
         </div>
 
-        <div className="bg-slate-900/40 backdrop-blur border border-slate-700/40 rounded-xl p-8 hover:bg-slate-900/60 transition-all">
+        <div className="bg-card/40 backdrop-blur border border-border/40 rounded-xl p-8 hover:bg-card/60 transition-all">
           <div className="text-purple-400 mb-4 text-2xl">🚀</div>
-          <h3 className="text-xl font-semibold text-slate-100 mb-3">Developer Experience</h3>
-          <ul className="space-y-2 text-slate-300 text-sm">
+          <h3 className="text-xl font-semibold text-foreground mb-3">Developer Experience</h3>
+          <ul className="space-y-2 text-muted-foreground text-sm">
             <li>• Modern React/Next.js frontend</li>
             <li>• FastAPI backend with OpenAPI</li>
             <li>• Docker containerization</li>
@@ -116,12 +116,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="flex items-center gap-4 text-sm text-slate-400 mt-8">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-8">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
           <span>API: <span className="text-emerald-400">localhost:8000</span></span>
         </div>
-        <div className="w-px h-4 bg-slate-600"></div>
+        <div className="w-px h-4 bg-muted"></div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
           <span>Frontend: <span className="text-blue-400">localhost:3001</span></span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, UserPlus, Search, Users, Calendar, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api/client';
@@ -45,12 +45,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchRoleAssignments();
-  }, [role.name]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/v1/users');
       if (response.success && response.data) {
@@ -60,9 +55,9 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
     }
-  };
+  }, []);
 
-  const fetchRoleAssignments = async () => {
+  const fetchRoleAssignments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/v1/rbac/roles/${role.name}/users`);
@@ -74,9 +69,14 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
     } finally {
       setLoading(false);
     }
-  };
+  }, [role.name]);
 
-  const handleAssignRole = async () => {
+  useEffect(() => {
+    fetchUsers();
+    fetchRoleAssignments();
+  }, [fetchUsers, fetchRoleAssignments]);
+
+  const handleAssignRole = useCallback(async () => {
     if (selectedUsers.size === 0) {
       toast.error('Please select at least one user');
       return;
@@ -112,9 +112,9 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
     } finally {
       setAssigning(false);
     }
-  };
+  }, [selectedUsers, role.name, expiresAt, onAssign, fetchRoleAssignments]);
 
-  const handleRevokeRole = async (userId: string) => {
+  const handleRevokeRole = useCallback(async (userId: string) => {
     if (!confirm('Are you sure you want to revoke this role assignment?')) {
       return;
     }
@@ -136,7 +136,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
       console.error('Error revoking role:', error);
       toast.error('Failed to revoke role');
     }
-  };
+  }, [role.name, onAssign, fetchRoleAssignments]);
 
   const toggleUserSelection = (userId: string) => {
     const newSelected = new Set(selectedUsers);
@@ -168,7 +168,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
             <div>
               <h2 className="text-xl font-semibold text-white">Assign Role</h2>
               <p className="text-sm text-slate-400">
-                Assign "{role.display_name}" role to users
+                Assign &quot;{role.display_name}&quot; role to users
               </p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                        {(user.full_name || user.username)[0].toUpperCase()}
+                        {(user.full_name || user.username)?.[0]?.toUpperCase() ?? 'U'}
                       </div>
                       <div>
                         <p className="text-white font-medium">
@@ -288,7 +288,7 @@ export default function AssignRoleModal({ role, onClose, onAssign }: AssignRoleM
                       className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500"
                     />
                     <div className="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {(user.full_name || user.username)[0].toUpperCase()}
+                      {(user.full_name || user.username)?.[0]?.toUpperCase() ?? 'U'}
                     </div>
                     <div className="flex-1">
                       <p className="text-white font-medium">

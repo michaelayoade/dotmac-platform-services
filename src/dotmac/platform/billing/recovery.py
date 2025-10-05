@@ -8,9 +8,10 @@ and recovering from billing errors gracefully.
 import asyncio
 import random
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, TypeVar
+from collections.abc import Callable
+from datetime import UTC, datetime
 from functools import wraps
+from typing import Any, TypeVar
 
 import structlog
 
@@ -73,9 +74,9 @@ class BillingRetry:
     def __init__(
         self,
         max_attempts: int = 3,
-        strategy: Optional[RetryStrategy] = None,
+        strategy: RetryStrategy | None = None,
         retryable_exceptions: tuple = (PaymentError, WebhookError),
-        on_retry: Optional[Callable] = None,
+        on_retry: Callable | None = None,
     ):
         self.max_attempts = max_attempts
         self.strategy = strategy or ExponentialBackoff()
@@ -150,7 +151,7 @@ class BillingRetry:
 
 def with_retry(
     max_attempts: int = 3,
-    strategy: Optional[RetryStrategy] = None,
+    strategy: RetryStrategy | None = None,
     retryable_exceptions: tuple = (PaymentError, WebhookError),
 ):
     """
@@ -247,7 +248,7 @@ class CircuitBreaker:
         if self.last_failure_time is None:
             return False
 
-        time_since_failure = datetime.now(timezone.utc).timestamp() - self.last_failure_time
+        time_since_failure = datetime.now(UTC).timestamp() - self.last_failure_time
         return time_since_failure >= self.recovery_timeout
 
     def _on_success(self):
@@ -261,7 +262,7 @@ class CircuitBreaker:
     def _on_failure(self):
         """Handle failed call."""
         self.failure_count += 1
-        self.last_failure_time = datetime.now(timezone.utc).timestamp()
+        self.last_failure_time = datetime.now(UTC).timestamp()
 
         if self.failure_count >= self.failure_threshold:
             logger.warning(
@@ -285,22 +286,22 @@ class RecoveryContext:
             )
     """
 
-    def __init__(self, save_state: bool = True, state_key: Optional[str] = None):
+    def __init__(self, save_state: bool = True, state_key: str | None = None):
         self.save_state = save_state
         self.state_key = state_key or str(uuid.uuid4())
-        self.state: Dict[str, Any] = {}
+        self.state: dict[str, Any] = {}
         self.attempts: list = []
 
     async def __aenter__(self):
         """Enter recovery context."""
         if self.save_state:
-            self.state["started_at"] = datetime.now(timezone.utc)
+            self.state["started_at"] = datetime.now(UTC)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit recovery context and log results."""
         if self.save_state:
-            self.state["completed_at"] = datetime.now(timezone.utc)
+            self.state["completed_at"] = datetime.now(UTC)
             self.state["success"] = exc_type is None
 
             if exc_type:
@@ -377,7 +378,7 @@ class IdempotencyManager:
 
     def __init__(self, cache_ttl: int = 3600):
         self.cache_ttl = cache_ttl
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
 
     async def ensure_idempotent(self, key: str, func: Callable[..., T], *args, **kwargs) -> T:
         """
@@ -400,7 +401,7 @@ class IdempotencyManager:
 
         try:
             result = await func(*args, **kwargs)
-            self._cache[key] = {"result": result, "timestamp": datetime.now(timezone.utc)}
+            self._cache[key] = {"result": result, "timestamp": datetime.now(UTC)}
             return result
 
         except Exception as e:
@@ -412,7 +413,7 @@ class IdempotencyManager:
 
     def cleanup_expired(self):
         """Remove expired entries from cache."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired_keys = [
             key
             for key, value in self._cache.items()

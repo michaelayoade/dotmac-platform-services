@@ -77,11 +77,11 @@ class TestDatabaseModels:
     def test_soft_delete_soft_delete_method(self):
         """Test soft_delete method."""
 
-        class TestModel(SoftDeleteMixin, Base):
+        class TestDeleteModel(SoftDeleteMixin, Base):
             __tablename__ = "test_delete_method"
             id = Column(Integer, primary_key=True)
 
-        model = TestModel()
+        model = TestDeleteModel()
         assert model.deleted_at is None
 
         model.soft_delete()
@@ -91,11 +91,11 @@ class TestDatabaseModels:
     def test_soft_delete_restore_method(self):
         """Test restore method."""
 
-        class TestModel(SoftDeleteMixin, Base):
+        class TestRestoreModel(SoftDeleteMixin, Base):
             __tablename__ = "test_restore"
             id = Column(Integer, primary_key=True)
 
-        model = TestModel()
+        model = TestRestoreModel()
         model.soft_delete()
         assert model.is_deleted is True
 
@@ -113,6 +113,7 @@ class TestDatabaseConnection:
         """Test get_sync_engine creates engine correctly."""
         # Reset engine state
         import dotmac.platform.db as db_module
+
         db_module._sync_engine = None
 
         mock_settings.database.url = "postgresql://user:pass@localhost/db"
@@ -150,6 +151,7 @@ class TestDatabaseConnection:
         """Test get_async_engine creates async engine correctly."""
         # Reset engine state
         import dotmac.platform.db as db_module
+
         db_module._async_engine = None
 
         mock_settings.database.url = "postgresql://user:pass@localhost/db"
@@ -214,19 +216,21 @@ class TestDatabaseUrls:
 
     def test_get_async_database_url_postgresql(self):
         """Test get_async_database_url converts PostgreSQL to asyncpg."""
-        with patch('dotmac.platform.db.get_database_url', return_value="postgresql://user:pass@host/db"):
+        with patch(
+            "dotmac.platform.db.get_database_url", return_value="postgresql://user:pass@host/db"
+        ):
             result = get_async_database_url()
             assert result == "postgresql+asyncpg://user:pass@host/db"
 
     def test_get_async_database_url_sqlite(self):
         """Test get_async_database_url converts SQLite to aiosqlite."""
-        with patch('dotmac.platform.db.get_database_url', return_value="sqlite:///test.db"):
+        with patch("dotmac.platform.db.get_database_url", return_value="sqlite:///test.db"):
             result = get_async_database_url()
             assert result == "sqlite+aiosqlite:///test.db"
 
     def test_get_async_database_url_other(self):
         """Test get_async_database_url with other database types."""
-        with patch('dotmac.platform.db.get_database_url', return_value="mysql://user:pass@host/db"):
+        with patch("dotmac.platform.db.get_database_url", return_value="mysql://user:pass@host/db"):
             result = get_async_database_url()
             assert result == "mysql://user:pass@host/db"
 
@@ -236,6 +240,7 @@ class TestDatabaseMixins:
 
     def test_tenant_mixin(self):
         """Test TenantMixin."""
+
         class TestTenant(TenantMixin, Base):
             __tablename__ = "test_tenant_mixin"
             id = Column(Integer, primary_key=True)
@@ -246,6 +251,7 @@ class TestDatabaseMixins:
 
     def test_audit_mixin(self):
         """Test AuditMixin."""
+
         class TestAudit(AuditMixin, Base):
             __tablename__ = "test_audit_mixin"
             id = Column(Integer, primary_key=True)
@@ -258,7 +264,8 @@ class TestDatabaseMixins:
 
     def test_base_model_to_dict(self):
         """Test BaseModel to_dict method."""
-        class TestModel(BaseModel, Base):
+
+        class TestToDictModel(BaseModel, Base):
             __tablename__ = "test_to_dict"
             id = Column(Integer, primary_key=True)
             name = Column(String)
@@ -269,10 +276,10 @@ class TestDatabaseMixins:
         mock_column_name = MagicMock()
         mock_column_name.name = "name"
 
-        with patch.object(TestModel, '__table__') as mock_table:
+        with patch.object(TestToDictModel, "__table__") as mock_table:
             mock_table.columns = [mock_column_id, mock_column_name]
 
-            model = TestModel()
+            model = TestToDictModel()
             # Manually set attributes
             model.id = 1
             model.name = "test"
@@ -282,13 +289,14 @@ class TestDatabaseMixins:
 
     def test_base_model_repr(self):
         """Test BaseModel __repr__ method."""
-        class TestModel(BaseModel, Base):
+
+        class TestReprModel(BaseModel, Base):
             __tablename__ = "test_repr"
             name = Column(String)
 
-        model = TestModel(name="test")
+        model = TestReprModel(name="test")
         repr_str = repr(model)
-        assert "TestModel" in repr_str
+        assert "TestReprModel" in repr_str
 
 
 class TestSessionManagement:
@@ -355,9 +363,9 @@ class TestSessionManagement:
 
         mock_session.rollback.assert_called_once()
 
-    @patch("dotmac.platform.db.AsyncSessionLocal")
+    @patch("dotmac.platform.db._async_session_maker")
     @pytest.mark.asyncio
-    async def test_get_async_session(self, mock_session_local):
+    async def test_get_async_session(self, mock_session_maker):
         """Test get_async_session dependency function."""
         mock_session = AsyncMock()
 
@@ -365,7 +373,7 @@ class TestSessionManagement:
         async def mock_context():
             yield mock_session
 
-        mock_session_local.return_value = mock_context()
+        mock_session_maker.return_value = mock_context()
 
         async_gen = get_async_session()
         session = await async_gen.__anext__()
@@ -380,7 +388,7 @@ class TestSessionDependency:
         """Test get_session_dependency with AsyncMock."""
         mock_session = AsyncMock()
 
-        with patch('dotmac.platform.db.get_async_session', return_value=mock_session):
+        with patch("dotmac.platform.db.get_async_session", return_value=mock_session):
             async for session in get_session_dependency():
                 assert session == mock_session
                 break
@@ -388,10 +396,11 @@ class TestSessionDependency:
     @pytest.mark.asyncio
     async def test_get_session_dependency_with_async_generator(self):
         """Test get_session_dependency with async generator."""
+
         async def mock_generator():
             yield AsyncMock()
 
-        with patch('dotmac.platform.db.get_async_session', return_value=mock_generator()):
+        with patch("dotmac.platform.db.get_async_session", return_value=mock_generator()):
             session_count = 0
             async for session in get_session_dependency():
                 session_count += 1
@@ -408,7 +417,7 @@ class TestSessionDependency:
         async def mock_context():
             yield mock_session
 
-        with patch('dotmac.platform.db.get_async_session', return_value=mock_context()):
+        with patch("dotmac.platform.db.get_async_session", return_value=mock_context()):
             async for session in get_session_dependency():
                 assert session == mock_session
                 break
@@ -481,7 +490,7 @@ class TestDatabaseOperations:
 
     def test_init_db(self):
         """Test init_db function."""
-        with patch('dotmac.platform.db.create_all_tables') as mock_create:
+        with patch("dotmac.platform.db.create_all_tables") as mock_create:
             init_db()
             mock_create.assert_called_once()
 
@@ -521,13 +530,29 @@ class TestModuleExports:
     def test_all_exports_available(self):
         """Test that all __all__ exports are available."""
         expected_exports = [
-            "Base", "BaseModel", "TimestampMixin", "TenantMixin",
-            "SoftDeleteMixin", "AuditMixin", "get_db", "get_async_db",
-            "get_async_session", "get_database_session", "get_db_session",
-            "get_async_db_session", "get_session", "get_sync_engine",
-            "get_async_engine", "SyncSessionLocal", "AsyncSessionLocal",
-            "create_all_tables", "create_all_tables_async", "drop_all_tables",
-            "drop_all_tables_async", "check_database_health", "init_db"
+            "Base",
+            "BaseModel",
+            "TimestampMixin",
+            "TenantMixin",
+            "SoftDeleteMixin",
+            "AuditMixin",
+            "get_db",
+            "get_async_db",
+            "get_async_session",
+            "get_database_session",
+            "get_db_session",
+            "get_async_db_session",
+            "get_session",
+            "get_sync_engine",
+            "get_async_engine",
+            "SyncSessionLocal",
+            "AsyncSessionLocal",
+            "create_all_tables",
+            "create_all_tables_async",
+            "drop_all_tables",
+            "drop_all_tables_async",
+            "check_database_health",
+            "init_db",
         ]
 
         for export_name in expected_exports:
@@ -539,7 +564,7 @@ class TestModuleExports:
             get_database_session,
             get_db_session,
             get_async_db_session,
-            get_session
+            get_session,
         )
 
         # Test that aliases are callable

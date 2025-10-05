@@ -5,23 +5,25 @@ Provides comprehensive customer data models with full audit trail,
 multi-tenant support, and rich metadata capabilities.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -121,9 +123,9 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     # Basic Information
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    middle_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    display_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    company_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    middle_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    company_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     # Account Information
     status: Mapped[CustomerStatus] = mapped_column(
@@ -148,26 +150,24 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     # Contact Information
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    mobile: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    mobile: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Address Information
-    address_line1: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    address_line2: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    state_province: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    postal_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)  # ISO 3166-1 alpha-2
+    address_line1: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address_line2: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)  # ISO 3166-1 alpha-2
 
     # Business Information
-    tax_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    vat_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    industry: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    employee_count: Mapped[Optional[int]] = mapped_column(nullable=True)
-    annual_revenue: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(15, 2), nullable=True
-    )
+    tax_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    vat_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    employee_count: Mapped[int | None] = mapped_column(nullable=True)
+    annual_revenue: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
     # Communication Preferences
     preferred_channel: Mapped[CommunicationChannel] = mapped_column(
@@ -175,31 +175,27 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
         default=CommunicationChannel.EMAIL,
         nullable=False,
     )
-    preferred_language: Mapped[str] = mapped_column(
-        String(10), default="en", nullable=False
-    )
-    timezone: Mapped[str] = mapped_column(
-        String(50), default="UTC", nullable=False
-    )
+    preferred_language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC", nullable=False)
     opt_in_marketing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     opt_in_updates: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
-    user_id: Mapped[Optional[UUID]] = mapped_column(
+    user_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         comment="Link to auth user account",
     )
 
-    assigned_to: Mapped[Optional[UUID]] = mapped_column(
+    assigned_to: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         comment="Assigned account manager or support agent",
     )
 
-    segment_id: Mapped[Optional[UUID]] = mapped_column(
+    segment_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("customer_segments.id", ondelete="SET NULL"),
         nullable=True,
@@ -210,10 +206,10 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
         Numeric(15, 2), default=Decimal("0.00"), nullable=False
     )
     total_purchases: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_purchase_date: Mapped[Optional[datetime]] = mapped_column(
+    last_purchase_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    first_purchase_date: Mapped[Optional[datetime]] = mapped_column(
+    first_purchase_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     average_order_value: Mapped[Decimal] = mapped_column(
@@ -221,38 +217,32 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     )
 
     # Scoring and Risk
-    credit_score: Mapped[Optional[int]] = mapped_column(nullable=True)
+    credit_score: Mapped[int | None] = mapped_column(nullable=True)
     risk_score: Mapped[int] = mapped_column(default=0, nullable=False)
-    satisfaction_score: Mapped[Optional[int]] = mapped_column(nullable=True)
-    net_promoter_score: Mapped[Optional[int]] = mapped_column(nullable=True)
+    satisfaction_score: Mapped[int | None] = mapped_column(nullable=True)
+    net_promoter_score: Mapped[int | None] = mapped_column(nullable=True)
 
     # Dates
-    acquisition_date: Mapped[Optional[datetime]] = mapped_column(
+    acquisition_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    last_contact_date: Mapped[Optional[datetime]] = mapped_column(
+    last_contact_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    birthday: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    birthday: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Custom Fields (JSON for flexibility)
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSON, default=dict, nullable=False
     )
-    custom_fields: Mapped[dict[str, Any]] = mapped_column(
-        JSON, default=dict, nullable=False
-    )
-    tags: Mapped[list[str]] = mapped_column(
-        JSON, default=list, nullable=False
-    )
+    custom_fields: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
     # External System References
-    external_id: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, index=True
-    )
-    source_system: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    source_system: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Relationships
     activities = relationship("CustomerActivity", back_populates="customer", lazy="dynamic")
@@ -302,7 +292,7 @@ class CustomerSegment(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     )
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     criteria: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False, comment="Segmentation criteria/rules"
     )
@@ -313,16 +303,12 @@ class CustomerSegment(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     # Metrics
     member_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_calculated: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_calculated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     customers = relationship("Customer", back_populates="segment")
 
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "name", name="uq_tenant_segment_name"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_tenant_segment_name"),)
 
 
 class CustomerActivity(Base, TimestampMixin, TenantMixin):
@@ -349,7 +335,7 @@ class CustomerActivity(Base, TimestampMixin, TenantMixin):
     )
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Activity details
     metadata_: Mapped[dict[str, Any]] = mapped_column(
@@ -357,21 +343,19 @@ class CustomerActivity(Base, TimestampMixin, TenantMixin):
     )
 
     # User who performed the activity
-    performed_by: Mapped[Optional[UUID]] = mapped_column(
+    performed_by: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
     customer = relationship("Customer", back_populates="activities")
 
-    __table_args__ = (
-        Index("ix_activity_customer_time", "customer_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_activity_customer_time", "customer_id", "created_at"),)
 
 
 class CustomerNote(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -401,8 +385,8 @@ class CustomerNote(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     def __init__(self, **kwargs):
         """Initialize with defaults."""
         # Set is_internal default if not provided
-        if 'is_internal' not in kwargs:
-            kwargs['is_internal'] = True
+        if "is_internal" not in kwargs:
+            kwargs["is_internal"] = True
         super().__init__(**kwargs)
 
     # Author
@@ -415,9 +399,7 @@ class CustomerNote(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     # Relationships
     customer = relationship("Customer", back_populates="notes")
 
-    __table_args__ = (
-        Index("ix_note_customer_created", "customer_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_note_customer_created", "customer_id", "created_at"),)
 
 
 class CustomerTag(Base, TimestampMixin, TenantMixin):
@@ -438,7 +420,7 @@ class CustomerTag(Base, TimestampMixin, TenantMixin):
     )
 
     tag_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    tag_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    tag_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Relationships
     customer = relationship("Customer", back_populates="customer_tags")
@@ -490,7 +472,7 @@ class CustomerContactLink(Base, TimestampMixin, TenantMixin):
         ForeignKey("contacts.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="FK to contacts.id"
+        comment="FK to contacts.id",
     )
 
     # Role this contact has for this customer
@@ -509,7 +491,7 @@ class CustomerContactLink(Base, TimestampMixin, TenantMixin):
     )
 
     # Additional metadata
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     customer = relationship("Customer", back_populates="contact_links")

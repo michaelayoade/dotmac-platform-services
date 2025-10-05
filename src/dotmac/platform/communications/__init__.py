@@ -12,27 +12,24 @@ from .email_service import (
     get_email_service,
     send_email,
 )
-
-from .template_service import (
-    TemplateData,
-    RenderedTemplate,
-    TemplateService,
-    get_template_service,
-    create_template,
-    render_template,
-    quick_render,
-)
-
+from .router import router
 from .task_service import (
     BulkEmailJob,
     BulkEmailResult,
     TaskService,
     get_task_service,
-    queue_email,
     queue_bulk_emails,
+    queue_email,
 )
-
-from .router import router
+from .template_service import (
+    RenderedTemplate,
+    TemplateData,
+    TemplateService,
+    create_template,
+    get_template_service,
+    quick_render,
+    render_template,
+)
 
 # Version info
 __version__ = "2.0.0-simplified"
@@ -45,7 +42,6 @@ __all__ = [
     "EmailService",
     "get_email_service",
     "send_email",
-
     # Templates
     "TemplateData",
     "RenderedTemplate",
@@ -54,7 +50,6 @@ __all__ = [
     "create_template",
     "render_template",
     "quick_render",
-
     # Tasks
     "BulkEmailJob",
     "BulkEmailResult",
@@ -62,10 +57,8 @@ __all__ = [
     "get_task_service",
     "queue_email",
     "queue_bulk_emails",
-
     # Router
     "router",
-
     # Version
     "__version__",
 ]

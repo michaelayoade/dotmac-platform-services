@@ -97,23 +97,32 @@ export default function ObservabilityPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />;
       case 'error':
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
       case 'warning':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+        return <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />;
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   // Transform metrics for charts
-  const metricsHistory = metrics && metrics.length > 0 ? metrics[0].data_points.map((dp, index) => ({
+  const metricsHistory = metrics && metrics.length > 0 && metrics[0]?.data_points ? metrics[0].data_points.map((dp, index) => ({
     time: new Date(dp.timestamp).toLocaleTimeString(),
-    requests: metrics.find(m => m.name === 'request_count')?.data_points[index]?.value || 0,
-    errors: metrics.find(m => m.name === 'error_count')?.data_points[index]?.value || 0,
-    latency: metrics.find(m => m.name === 'latency_ms')?.data_points[index]?.value || 0,
+    requests: metrics.find(m => m.name === 'request_count')?.data_points?.[index]?.value || 0,
+    errors: metrics.find(m => m.name === 'error_count')?.data_points?.[index]?.value || 0,
+    latency: metrics.find(m => m.name === 'latency_ms')?.data_points?.[index]?.value || 0,
   })) : [];
+
+  // Calculate current metrics from data
+  const totalRequests = metrics.find(m => m.name === 'request_count')?.data_points?.reduce((sum, dp) => sum + dp.value, 0) || 0;
+  const totalErrors = metrics.find(m => m.name === 'error_count')?.data_points?.reduce((sum, dp) => sum + dp.value, 0) || 0;
+  const errorRate = totalRequests > 0 ? (totalErrors / totalRequests * 100) : 0;
+  const latencyMetric = metrics.find(m => m.name === 'latency_ms');
+  const latencySum = latencyMetric?.data_points?.reduce((sum, dp) => sum + dp.value, 0) ?? 0;
+  const latencyCount = latencyMetric?.data_points?.length ?? 1;
+  const avgLatency = latencySum / latencyCount;
 
   return (
     <div className="space-y-6">
@@ -121,13 +130,13 @@ export default function ObservabilityPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Observability</h1>
-          <p className="text-gray-500 mt-2">Monitor traces, metrics, and system performance</p>
+          <p className="text-muted-foreground mt-2">Monitor traces, metrics, and system performance</p>
         </div>
         <div className="flex gap-2">
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            className="h-10 w-[120px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+            className="h-10 w-[120px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
           >
             <option value="1h">Last Hour</option>
             <option value="6h">Last 6 Hours</option>
@@ -155,10 +164,10 @@ export default function ObservabilityPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : '14.2M'}
+              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalRequests >= 1000000 ? `${(totalRequests / 1000000).toFixed(1)}M` : totalRequests >= 1000 ? `${(totalRequests / 1000).toFixed(1)}K` : totalRequests}
             </div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 inline text-green-500" /> +12% from yesterday
+              {timeRange}
             </p>
           </CardContent>
         </Card>
@@ -170,10 +179,10 @@ export default function ObservabilityPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : '0.23%'}
+              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `${errorRate.toFixed(2)}%`}
             </div>
             <p className="text-xs text-muted-foreground">
-              <TrendingDown className="h-3 w-3 inline text-green-500" /> -0.05% from yesterday
+              {totalErrors} errors
             </p>
           </CardContent>
         </Card>
@@ -185,10 +194,10 @@ export default function ObservabilityPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : '87ms'}
+              {metricsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `${avgLatency.toFixed(0)}ms`}
             </div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 inline text-yellow-500" /> +5ms from yesterday
+              Average response time
             </p>
           </CardContent>
         </Card>
@@ -203,7 +212,7 @@ export default function ObservabilityPage() {
               {tracesLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : traces.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Across {serviceMap?.services.length || 12} services
+              Across {serviceMap?.services.length || 0} services
             </p>
           </CardContent>
         </Card>
@@ -226,7 +235,7 @@ export default function ObservabilityPage() {
                 <select
                   value={selectedService}
                   onChange={(e) => setSelectedService(e.target.value)}
-                  className="h-10 w-[200px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                  className="h-10 w-[200px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
                 >
                   <option value="all">All Services</option>
                   {serviceMap?.services.map((service) => (
@@ -238,8 +247,8 @@ export default function ObservabilityPage() {
             <CardContent>
               {tracesLoading ? (
                 <div className="flex items-center justify-center h-[400px]">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-500">Loading traces...</span>
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading traces...</span>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -250,7 +259,7 @@ export default function ObservabilityPage() {
                           {getStatusIcon(trace.status)}
                           <div>
                             <div className="font-semibold">{trace.operation}</div>
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-muted-foreground">
                               Service: {trace.service} • Trace ID: {trace.trace_id}
                             </div>
                             <div className="flex items-center gap-4 mt-2 text-sm">
@@ -278,12 +287,12 @@ export default function ObservabilityPage() {
                       </div>
                       {/* Trace Timeline */}
                       <div className="mt-4">
-                        <div className="text-xs text-gray-500 mb-2">Trace Timeline</div>
-                        <div className="h-8 bg-gray-100 rounded relative overflow-hidden">
+                        <div className="text-xs text-muted-foreground mb-2">Trace Timeline</div>
+                        <div className="h-8 bg-muted rounded relative overflow-hidden">
                           <div
                             className={`h-full ${
-                              trace.status === 'success' ? 'bg-green-400' :
-                              trace.status === 'error' ? 'bg-red-400' : 'bg-yellow-400'
+                              trace.status === 'success' ? 'bg-green-400 dark:bg-green-600' :
+                              trace.status === 'error' ? 'bg-red-400 dark:bg-red-600' : 'bg-yellow-400 dark:bg-yellow-600'
                             }`}
                             style={{ width: `${Math.min((trace.duration / 2000) * 100, 100)}%` }}
                           />
@@ -321,6 +330,7 @@ export default function ObservabilityPage() {
                         dataKey="requests"
                         stroke="#3b82f6"
                         fill="#93c5fd"
+                        fillOpacity={0.6}
                         strokeWidth={2}
                       />
                     </AreaChart>
@@ -417,7 +427,7 @@ export default function ObservabilityPage() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Server className="h-4 w-4 text-blue-500" />
+                            <Server className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             <span className="text-sm font-medium">Total Services</span>
                           </div>
                           <span className="text-2xl font-bold">{serviceMap?.services.length || 0}</span>
@@ -428,7 +438,7 @@ export default function ObservabilityPage() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Network className="h-4 w-4 text-green-500" />
+                            <Network className="h-4 w-4 text-green-600 dark:text-green-400" />
                             <span className="text-sm font-medium">Active Connections</span>
                           </div>
                           <span className="text-2xl font-bold">{serviceMap?.dependencies.length || 0}</span>
@@ -439,7 +449,7 @@ export default function ObservabilityPage() {
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Database className="h-4 w-4 text-purple-500" />
+                            <Database className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             <span className="text-sm font-medium">Avg Error Rate</span>
                           </div>
                           <span className="text-2xl font-bold">
@@ -459,7 +469,7 @@ export default function ObservabilityPage() {
                             <div className="font-medium">
                               {dep.from_service} → {dep.to_service}
                             </div>
-                            <div className="text-sm text-gray-500 mt-1">
+                            <div className="text-sm text-muted-foreground mt-1">
                               {dep.request_count.toLocaleString()} requests • {dep.avg_latency.toFixed(1)}ms avg latency
                             </div>
                           </div>
@@ -499,7 +509,7 @@ export default function ObservabilityPage() {
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="value" fill="#3b82f6" name="Actual" />
-                    <Bar dataKey="target" fill="#e5e7eb" name="Target" />
+                    <Bar dataKey="target" fill="hsl(var(--muted))" name="Target" />
                   </BarChart>
                 </ResponsiveContainer>
               )}

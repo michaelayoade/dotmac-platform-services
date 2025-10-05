@@ -9,17 +9,24 @@ from datetime import datetime, timedelta
 import asyncio
 from requests.exceptions import RequestException, Timeout, ConnectionError
 from stripe.error import (
-    CardError, RateLimitError, InvalidRequestError,
-    AuthenticationError, APIConnectionError, StripeError
+
+pytestmark = pytest.mark.asyncio
+
+    CardError,
+    RateLimitError,
+    InvalidRequestError,
+    AuthenticationError,
+    APIConnectionError,
+    StripeError,
 )
 
-from dotmac.platform.billing.models import (
-    Customer, Subscription, Invoice, PaymentMethod
-)
+from dotmac.platform.billing.models import Customer, Subscription, Invoice, PaymentMethod
 from dotmac.platform.billing.services.stripe_service import StripeService
 from dotmac.platform.billing.services.payment_processor import PaymentProcessor
 from dotmac.platform.billing.exceptions import (
-    BillingServiceError, PaymentFailedError, RetryableError
+    BillingServiceError,
+    PaymentFailedError,
+    RetryableError,
 )
 
 
@@ -31,17 +38,16 @@ class TestStripeAPIFailures:
         """Test handling of Stripe rate limit errors."""
         stripe_service = StripeService()
 
-        with patch.object(stripe_service.client.PaymentMethod, 'create') as mock_create:
+        with patch.object(stripe_service.client.PaymentMethod, "create") as mock_create:
             # Simulate rate limit error then success
             mock_create.side_effect = [
                 RateLimitError("Rate limit exceeded"),
-                MagicMock(id="pm_success_after_retry")
+                MagicMock(id="pm_success_after_retry"),
             ]
 
             # Should retry and succeed
             result = await stripe_service.create_payment_method_with_retry(
-                customer_id="cus_test",
-                payment_method_data={"card": {"number": "4242424242424242"}}
+                customer_id="cus_test", payment_method_data={"card": {"number": "4242424242424242"}}
             )
 
             assert result.id == "pm_success_after_retry"
@@ -52,11 +58,11 @@ class TestStripeAPIFailures:
         """Test recovery from Stripe connection timeouts."""
         stripe_service = StripeService()
 
-        with patch.object(stripe_service.client.Invoice, 'retrieve') as mock_retrieve:
+        with patch.object(stripe_service.client.Invoice, "retrieve") as mock_retrieve:
             # Simulate timeout then success
             mock_retrieve.side_effect = [
                 APIConnectionError("Connection timeout"),
-                MagicMock(id="in_success", status="paid")
+                MagicMock(id="in_success", status="paid"),
             ]
 
             result = await stripe_service.get_invoice_with_retry("in_test123")
@@ -69,14 +75,12 @@ class TestStripeAPIFailures:
         """Test that authentication errors are not retried."""
         stripe_service = StripeService()
 
-        with patch.object(stripe_service.client.Customer, 'create') as mock_create:
+        with patch.object(stripe_service.client.Customer, "create") as mock_create:
             mock_create.side_effect = AuthenticationError("Invalid API key")
 
             # Should not retry auth errors
             with pytest.raises(AuthenticationError):
-                await stripe_service.create_customer_with_retry({
-                    "email": "test@example.com"
-                })
+                await stripe_service.create_customer_with_retry({"email": "test@example.com"})
 
             assert mock_create.call_count == 1  # No retries
 
@@ -86,24 +90,17 @@ class TestStripeAPIFailures:
         payment_processor = PaymentProcessor()
         data = invoice_test_data
 
-        invoice = Invoice(
-            customer_id=data["customer"].id,
-            amount_total=2999,
-            status="open"
-        )
+        invoice = Invoice(customer_id=data["customer"].id, amount_total=2999, status="open")
         db.add(invoice)
         await db.commit()
 
-        with patch.object(payment_processor, '_process_stripe_payment') as mock_payment:
+        with patch.object(payment_processor, "_process_stripe_payment") as mock_payment:
             mock_payment.side_effect = CardError(
-                "Your card was declined.",
-                param="card",
-                code="card_declined"
+                "Your card was declined.", param="card", code="card_declined"
             )
 
             result = await payment_processor.process_payment_with_fallback(
-                invoice_id=invoice.id,
-                payment_method_id="pm_declined_card"
+                invoice_id=invoice.id, payment_method_id="pm_declined_card"
             )
 
             assert result["success"] is False
@@ -128,18 +125,14 @@ class TestStripeAPIFailures:
                 stripe_payment_method_id=f"pm_test_{i}",
                 type="card",
                 card_details={"last4": f"424{i}", "brand": "visa"},
-                is_default=(i == 0)
+                is_default=(i == 0),
             )
             db.add(pm)
             payment_methods.append(pm)
 
         await db.commit()
 
-        invoice = Invoice(
-            customer_id=customer.id,
-            amount_total=2999,
-            status="open"
-        )
+        invoice = Invoice(customer_id=customer.id, amount_total=2999, status="open")
         db.add(invoice)
         await db.commit()
 
@@ -153,12 +146,10 @@ class TestStripeAPIFailures:
             else:
                 return {"status": "succeeded", "id": "pi_success"}
 
-        with patch.object(payment_processor, '_process_stripe_payment') as mock_payment:
+        with patch.object(payment_processor, "_process_stripe_payment") as mock_payment:
             mock_payment.side_effect = mock_payment_side_effect
 
-            result = await payment_processor.process_payment_with_fallback(
-                invoice_id=invoice.id
-            )
+            result = await payment_processor.process_payment_with_fallback(invoice_id=invoice.id)
 
             # Should succeed with third payment method
             assert result["success"] is True
@@ -175,11 +166,11 @@ class TestDatabaseFailures:
 
         billing_service = BillingService()
 
-        with patch.object(billing_service, 'db') as mock_db:
+        with patch.object(billing_service, "db") as mock_db:
             # Simulate connection error then success
             mock_db.execute.side_effect = [
                 ConnectionError("Database connection lost"),
-                MagicMock()  # Success
+                MagicMock(),  # Success
             ]
 
             # Should retry and succeed
@@ -194,14 +185,14 @@ class TestDatabaseFailures:
 
         service = SubscriptionService(db)
 
-        with patch.object(service, '_create_stripe_subscription') as mock_stripe:
+        with patch.object(service, "_create_stripe_subscription") as mock_stripe:
             # Stripe call fails after database writes
             mock_stripe.side_effect = StripeError("Stripe service unavailable")
 
             customer = Customer(
                 user_id="rollback_test",
                 stripe_customer_id="cus_rollback",
-                email="rollback@test.com"
+                email="rollback@test.com",
             )
             db.add(customer)
             await db.commit()
@@ -212,8 +203,7 @@ class TestDatabaseFailures:
             # Attempt to create subscription (should fail and rollback)
             with pytest.raises(StripeError):
                 await service.create_subscription_with_rollback(
-                    customer_id=customer.id,
-                    price_id="price_test"
+                    customer_id=customer.id, price_id="price_test"
                 )
 
             # Database should be rolled back
@@ -232,7 +222,7 @@ class TestDatabaseFailures:
         customer = Customer(
             user_id="concurrent_test",
             stripe_customer_id="cus_concurrent",
-            email="concurrent@test.com"
+            email="concurrent@test.com",
         )
         db.add(customer)
         await db.commit()
@@ -243,9 +233,7 @@ class TestDatabaseFailures:
 
         # Run concurrently
         results = await asyncio.gather(
-            generate_invoice(),
-            generate_invoice(),
-            return_exceptions=True
+            generate_invoice(), generate_invoice(), return_exceptions=True
         )
 
         # One should succeed, one should fail gracefully
@@ -254,8 +242,7 @@ class TestDatabaseFailures:
 
         # Check database has only one invoice
         count = await db.execute(
-            "SELECT COUNT(*) FROM invoices WHERE customer_id = ?",
-            (customer.id,)
+            "SELECT COUNT(*) FROM invoices WHERE customer_id = ?", (customer.id,)
         )
         assert count.scalar() == 1
 
@@ -284,7 +271,7 @@ class TestWebhookResilience:
                 raise Exception("Database error")
             processed_events.append(event["id"])
 
-        with patch.object(processor, '_process_single_event', side_effect=mock_process_event):
+        with patch.object(processor, "_process_single_event", side_effect=mock_process_event):
             for event in webhook_events:
                 try:
                     await processor.process_webhook_event(event)
@@ -308,19 +295,16 @@ class TestWebhookResilience:
             event_type="invoice.payment_failed",
             retry_count=2,
             next_retry_at=datetime.now() - timedelta(minutes=5),  # Ready for retry
-            status="failed"
+            status="failed",
         )
         db.add(failed_event)
         await db.commit()
 
         retry_service = WebhookRetryService(db)
 
-        with patch.object(retry_service, '_process_webhook_event') as mock_process:
+        with patch.object(retry_service, "_process_webhook_event") as mock_process:
             # First retry fails, second succeeds
-            mock_process.side_effect = [
-                Exception("Temporary failure"),
-                {"status": "success"}
-            ]
+            mock_process.side_effect = [Exception("Temporary failure"), {"status": "success"}]
 
             await retry_service.process_failed_webhooks()
 
@@ -343,7 +327,7 @@ class TestWebhookResilience:
             event_type="subscription.deleted",
             retry_count=5,  # Max retries reached
             status="failed",
-            last_error="Max retries exceeded"
+            last_error="Max retries exceeded",
         )
         db.add(max_retry_event)
         await db.commit()
@@ -351,7 +335,7 @@ class TestWebhookResilience:
         retry_service = WebhookRetryService(db)
         dead_letter_service = retry_service.dead_letter_queue
 
-        with patch.object(dead_letter_service, 'send_to_dead_letter') as mock_dlq:
+        with patch.object(dead_letter_service, "send_to_dead_letter") as mock_dlq:
             mock_dlq.return_value = True
 
             await retry_service.handle_dead_letter_events()
@@ -381,7 +365,7 @@ class TestPaymentRecovery:
             amount_total=2999,
             status="payment_failed",
             attempt_count=1,
-            next_payment_attempt=datetime.now() + timedelta(days=3)
+            next_payment_attempt=datetime.now() + timedelta(days=3),
         )
         db.add(failed_invoice)
         await db.commit()
@@ -413,7 +397,7 @@ class TestPaymentRecovery:
                 amount_total=2999,
                 status="payment_failed",
                 attempt_count=3,  # Max attempts reached
-                created_at=datetime.now() - timedelta(days=i*7)
+                created_at=datetime.now() - timedelta(days=i * 7),
             )
             db.add(failed_invoice)
 
@@ -441,12 +425,9 @@ class TestPaymentRecovery:
                 raise PaymentFailedError("Card declined")
             return {"status": "success"}
 
-        with patch('asyncio.sleep') as mock_sleep:
+        with patch("asyncio.sleep") as mock_sleep:
             result = await retry_service.retry_with_backoff(
-                func=mock_payment_attempt,
-                max_attempts=3,
-                base_delay=1,
-                backoff_factor=2
+                func=mock_payment_attempt, max_attempts=3, base_delay=1, backoff_factor=2
             )
 
             # Should eventually succeed
@@ -462,9 +443,7 @@ class TestPaymentRecovery:
         from dotmac.platform.billing.services.payment_health_service import PaymentHealthService
 
         customer = Customer(
-            user_id="health_test",
-            stripe_customer_id="cus_health",
-            email="health@test.com"
+            user_id="health_test", stripe_customer_id="cus_health", email="health@test.com"
         )
         db.add(customer)
         await db.commit()
@@ -476,14 +455,14 @@ class TestPaymentRecovery:
             type="card",
             is_default=True,
             failure_count=3,  # Multiple recent failures
-            last_failure_at=datetime.now() - timedelta(hours=1)
+            last_failure_at=datetime.now() - timedelta(hours=1),
         )
         db.add(failing_pm)
         await db.commit()
 
         health_service = PaymentHealthService(db)
 
-        with patch.object(health_service, '_notify_customer_payment_issue') as mock_notify:
+        with patch.object(health_service, "_notify_customer_payment_issue") as mock_notify:
             unhealthy_methods = await health_service.check_payment_method_health()
 
             assert len(unhealthy_methods) == 1
@@ -503,7 +482,7 @@ class TestSystemRecovery:
 
         facade = BillingFacade()
 
-        with patch.object(facade.stripe_service, 'is_healthy') as mock_health:
+        with patch.object(facade.stripe_service, "is_healthy") as mock_health:
             mock_health.return_value = False  # Stripe is down
 
             # Should operate in degraded mode
@@ -519,9 +498,7 @@ class TestSystemRecovery:
         from dotmac.platform.billing.utils.circuit_breaker import CircuitBreaker
 
         circuit_breaker = CircuitBreaker(
-            failure_threshold=3,
-            recovery_timeout=60,
-            expected_exception=StripeError
+            failure_threshold=3, recovery_timeout=60, expected_exception=StripeError
         )
 
         failure_count = 0
@@ -553,7 +530,7 @@ class TestSystemRecovery:
         customer = Customer(
             user_id="consistency_test",
             stripe_customer_id="cus_consistency",
-            email="consistency@test.com"
+            email="consistency@test.com",
         )
         db.add(customer)
         await db.commit()
@@ -562,15 +539,13 @@ class TestSystemRecovery:
             customer_id=customer.id,
             stripe_invoice_id="in_orphaned_123",
             amount_total=2999,
-            status="open"
+            status="open",
         )
         db.add(orphaned_invoice)
         await db.commit()
 
-        with patch.object(checker.stripe_service, 'get_invoice') as mock_get:
-            mock_get.side_effect = InvalidRequestError(
-                "No such invoice", param="id"
-            )
+        with patch.object(checker.stripe_service, "get_invoice") as mock_get:
+            mock_get.side_effect = InvalidRequestError("No such invoice", param="id")
 
             # Check and fix consistency
             issues = await checker.check_invoice_consistency()

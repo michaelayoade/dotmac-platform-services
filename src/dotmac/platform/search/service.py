@@ -5,7 +5,7 @@ import contextlib
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -52,9 +52,9 @@ class InMemorySearchBackend(SearchBackend):
     """Simple in-memory search backend for development/testing."""
 
     def __init__(self):
-        self.indices: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.indices: dict[str, dict[str, dict[str, Any]]] = {}
 
-    async def index(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def index(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         """Index a document."""
         if index_name not in self.indices:
             self.indices[index_name] = {}
@@ -101,14 +101,14 @@ class InMemorySearchBackend(SearchBackend):
             return True
         return False
 
-    async def update(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def update(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         """Update a document."""
         if index_name in self.indices and doc_id in self.indices[index_name]:
             self.indices[index_name][doc_id].update(document)
             return True
         return False
 
-    async def bulk_index(self, index_name: str, documents: List[Dict[str, Any]]) -> int:
+    async def bulk_index(self, index_name: str, documents: list[dict[str, Any]]) -> int:
         """Bulk index documents."""
         if index_name not in self.indices:
             self.indices[index_name] = {}
@@ -121,9 +121,7 @@ class InMemorySearchBackend(SearchBackend):
                 count += 1
         return count
 
-    async def create_index(
-        self, index_name: str, mappings: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    async def create_index(self, index_name: str, mappings: dict[str, Any] | None = None) -> bool:
         """Create an index."""
         if index_name not in self.indices:
             self.indices[index_name] = {}
@@ -136,7 +134,7 @@ class InMemorySearchBackend(SearchBackend):
             return True
         return False
 
-    def _matches(self, doc: Dict[str, Any], query: SearchQuery) -> bool:
+    def _matches(self, doc: dict[str, Any], query: SearchQuery) -> bool:
         """Check if document matches query."""
         # Apply filters first
         for filter in query.filters:
@@ -159,7 +157,7 @@ class InMemorySearchBackend(SearchBackend):
 
         return True
 
-    def _apply_filter(self, doc: Dict[str, Any], filter: SearchFilter) -> bool:
+    def _apply_filter(self, doc: dict[str, Any], filter: SearchFilter) -> bool:
         """Apply a filter to a document."""
         value = doc.get(filter.field)
 
@@ -182,7 +180,7 @@ class InMemorySearchBackend(SearchBackend):
 
         return False
 
-    def _extract_text(self, doc: Dict[str, Any], fields: Optional[List[str]]) -> str:
+    def _extract_text(self, doc: dict[str, Any], fields: list[str] | None) -> str:
         """Extract searchable text from document."""
         if fields:
             text_parts = [str(doc.get(field, "")) for field in fields]
@@ -190,7 +188,7 @@ class InMemorySearchBackend(SearchBackend):
             text_parts = [str(v) for v in doc.values() if v]
         return " ".join(text_parts).lower()
 
-    def _calculate_score(self, doc: Dict[str, Any], query: SearchQuery) -> float:
+    def _calculate_score(self, doc: dict[str, Any], query: SearchQuery) -> float:
         """Calculate relevance score."""
         if not query.query:
             return 1.0
@@ -206,19 +204,21 @@ class InMemorySearchBackend(SearchBackend):
 class SearchService:
     """Business search service."""
 
-    def __init__(self, backend: Optional[SearchBackend | str] = None):
+    def __init__(self, backend: SearchBackend | str | None = None):
         if isinstance(backend, str):
             from .factory import create_search_backend_from_env
+
             self.backend = create_search_backend_from_env(backend)
         elif backend is None:
             from .factory import create_search_backend_from_env
+
             self.backend = create_search_backend_from_env()
         else:
             self.backend = backend
-        self.index_mappings: Dict[str, Dict[str, Any]] = {}
+        self.index_mappings: dict[str, dict[str, Any]] = {}
 
     async def index_business_entity(
-        self, entity_type: str, entity_id: str, entity_data: Dict[str, Any]
+        self, entity_type: str, entity_id: str, entity_data: dict[str, Any]
     ) -> bool:
         """Index a business entity."""
         index_name = f"business_{entity_type}"
@@ -237,13 +237,13 @@ class SearchService:
         return await self.backend.delete(index_name, entity_id)
 
     async def update_business_entity(
-        self, entity_type: str, entity_id: str, entity_data: Dict[str, Any]
+        self, entity_type: str, entity_id: str, entity_data: dict[str, Any]
     ) -> bool:
         """Update a business entity in search index."""
         index_name = f"business_{entity_type}"
         return await self.backend.update(index_name, entity_id, entity_data)
 
-    async def reindex_entity_type(self, entity_type: str, entities: List[Dict[str, Any]]) -> int:
+    async def reindex_entity_type(self, entity_type: str, entities: list[dict[str, Any]]) -> int:
         """Reindex all entities of a type."""
         index_name = f"business_{entity_type}"
 
@@ -278,8 +278,8 @@ class MeilisearchBackend(SearchBackend):
 
     def __init__(
         self,
-        host: Optional[str] = None,
-        api_key: Optional[str] = None,
+        host: str | None = None,
+        api_key: str | None = None,
         primary_key: str = "id",
         default_timeout: int | None = None,
     ) -> None:
@@ -296,7 +296,7 @@ class MeilisearchBackend(SearchBackend):
             try:
                 http_client = getattr(self.client, "http_client", None)
                 if http_client is not None:
-                    setattr(http_client, "timeout", default_timeout)
+                    http_client.timeout = default_timeout
             except (AttributeError, TypeError):
                 pass  # Ignore if timeout setting is not available
 
@@ -310,7 +310,7 @@ class MeilisearchBackend(SearchBackend):
         except Exception:  # MeilisearchError path may vary by version
             return self.client.index(index_name)
 
-    def _filters_to_expression(self, filters: List[SearchFilter]) -> Optional[str]:
+    def _filters_to_expression(self, filters: list[SearchFilter]) -> str | None:
         if not filters:
             return None
         expressions = []
@@ -329,7 +329,7 @@ class MeilisearchBackend(SearchBackend):
                 expressions.append(f'{field} CONTAINS "{value}"')
         return " AND ".join(expressions) if expressions else None
 
-    async def index(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def index(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         payload = {self.primary_key: doc_id, **document}
 
         def _op():
@@ -343,7 +343,7 @@ class MeilisearchBackend(SearchBackend):
     async def search(self, index_name: str, query: SearchQuery) -> SearchResponse:
         def _op():
             index = self._get_index(index_name)
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "offset": query.offset,
                 "limit": query.limit,
             }
@@ -364,7 +364,7 @@ class MeilisearchBackend(SearchBackend):
             response = await self._run(_op)
 
         hits = response.get("hits", [])
-        results: List[SearchResult] = []
+        results: list[SearchResult] = []
         for hit in hits:
             doc_id = str(hit.pop(self.primary_key, hit.get("id")))
             score = hit.pop("_rankingScore", None)
@@ -394,7 +394,7 @@ class MeilisearchBackend(SearchBackend):
             await self._run(_op)
         return True
 
-    async def update(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def update(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         payload = {self.primary_key: doc_id, **document}
 
         def _op():
@@ -405,8 +405,8 @@ class MeilisearchBackend(SearchBackend):
             await self._run(_op)
         return True
 
-    async def bulk_index(self, index_name: str, documents: List[Dict[str, Any]]) -> int:
-        payloads: List[Dict[str, Any]] = []
+    async def bulk_index(self, index_name: str, documents: list[dict[str, Any]]) -> int:
+        payloads: list[dict[str, Any]] = []
         for doc in documents:
             payload = dict(doc)
             if self.primary_key in payload:
@@ -426,9 +426,7 @@ class MeilisearchBackend(SearchBackend):
         with _search_span("search.meilisearch.bulk_index", index=index_name, count=len(payloads)):
             return await self._run(_op)
 
-    async def create_index(
-        self, index_name: str, mappings: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    async def create_index(self, index_name: str, mappings: dict[str, Any] | None = None) -> bool:
         def _op():
             try:
                 self.client.create_index(index_name, {"primaryKey": self.primary_key})

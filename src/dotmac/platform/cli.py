@@ -4,7 +4,7 @@ CLI management commands for DotMac Platform Services.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import click
@@ -139,7 +139,7 @@ def check_services(test: bool):
 
         # Check Redis
         try:
-            from dotmac.platform.caching import redis_client
+            from dotmac.platform.core.caching import redis_client
 
             if redis_client and redis_client.ping():
                 results["redis"] = "✓ Connected"
@@ -177,7 +177,7 @@ def cleanup_sessions(days: int):
 
     async def _cleanup():
         async with get_session() as session:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff = datetime.now(UTC) - timedelta(days=days)
             # Use raw SQL for DELETE operation
             await session.execute(
                 text("DELETE FROM auth.sessions WHERE created_at < :cutoff"), {"cutoff": cutoff}

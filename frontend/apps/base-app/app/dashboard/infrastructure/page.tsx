@@ -44,8 +44,8 @@ function SystemHealthPanel({ services }: { services: SystemHealthStatus[] }) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">System Health</h3>
+    <div className="rounded-lg border border-border bg-card p-6">
+      <h3 className="text-lg font-semibold text-foreground mb-4">System Health</h3>
       <div className="space-y-3">
         {services.map((service) => {
           const Icon = statusIcons[service.status];
@@ -55,11 +55,11 @@ function SystemHealthPanel({ services }: { services: SystemHealthStatus[] }) {
                 <div className={`p-1.5 rounded-lg ${statusColors[service.status]}`}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className="text-sm text-slate-300">{service.service}</span>
+                <span className="text-sm text-muted-foreground">{service.service}</span>
               </div>
               <div className="flex items-center gap-4">
                 {service.latency && (
-                  <span className="text-xs text-slate-500">{service.latency}ms</span>
+                  <span className="text-xs text-muted-foreground">{service.latency}ms</span>
                 )}
                 <span className={`text-xs font-medium ${
                   service.status === 'healthy' ? 'text-green-400' :
@@ -73,7 +73,7 @@ function SystemHealthPanel({ services }: { services: SystemHealthStatus[] }) {
           );
         })}
       </div>
-      <div className="mt-4 pt-4 border-t border-slate-800">
+      <div className="mt-4 pt-4 border-t border-border">
         <Link href="/dashboard/infrastructure/health" className="text-sm text-sky-400 hover:text-sky-300">
           View detailed health metrics →
         </Link>
@@ -96,11 +96,11 @@ function ResourceUsageCard({ resource, used, total, unit, icon: Icon }: Resource
   const isMedium = percentage > 60;
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-300">{resource}</span>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">{resource}</span>
         </div>
         <span className={`text-sm font-medium ${
           isHigh ? 'text-red-400' :
@@ -111,17 +111,17 @@ function ResourceUsageCard({ resource, used, total, unit, icon: Icon }: Resource
         </span>
       </div>
       <div className="space-y-2">
-        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-2 bg-accent rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              isHigh ? 'bg-red-500' :
-              isMedium ? 'bg-yellow-500' :
-              'bg-green-500'
+              isHigh ? 'bg-red-500 dark:bg-red-400' :
+              isMedium ? 'bg-yellow-500 dark:bg-yellow-400' :
+              'bg-green-500 dark:bg-green-400'
             }`}
             style={{ width: `${percentage}%` }}
           />
         </div>
-        <div className="flex justify-between text-xs text-slate-500">
+        <div className="flex justify-between text-xs text-muted-foreground">
           <span>{used.toFixed(1)} {unit}</span>
           <span>{total.toFixed(1)} {unit}</span>
         </div>
@@ -153,35 +153,35 @@ function IncidentsList({ incidents }: { incidents: IncidentItem[] }) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900">
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Recent Incidents</h3>
+    <div className="rounded-lg border border-border bg-card">
+      <div className="p-6 border-b border-border flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Recent Incidents</h3>
         <Link href="/dashboard/infrastructure/incidents" className="text-sm text-sky-400 hover:text-sky-300">
           View all →
         </Link>
       </div>
-      <div className="divide-y divide-slate-800 max-h-96 overflow-y-auto">
+      <div className="divide-y divide-border max-h-96 overflow-y-auto">
         {incidents.length === 0 ? (
-          <div className="p-6 text-center text-slate-500">
+          <div className="p-6 text-center text-muted-foreground">
             No active incidents
           </div>
         ) : (
           incidents.map((incident) => (
-            <div key={incident.id} className="p-4 hover:bg-slate-800/50 transition-colors">
+            <div key={incident.id} className="p-4 hover:bg-accent/50 transition-colors">
               <div className="flex items-start gap-3">
                 <div className={`p-1.5 rounded-lg ${severityColors[incident.severity]}`}>
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">{incident.title}</p>
+                  <p className="font-medium text-foreground">{incident.title}</p>
                   <div className="flex items-center gap-4 mt-1">
-                    <span className="text-xs text-slate-400">{incident.service}</span>
+                    <span className="text-xs text-muted-foreground">{incident.service}</span>
                     <span className={`text-xs ${statusColors[incident.status]}`}>
                       {incident.status}
                     </span>
                   </div>
                 </div>
-                <span className="text-xs text-slate-500 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {incident.timestamp}
                 </span>
               </div>
@@ -331,8 +331,8 @@ function InfrastructurePageContent() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Infrastructure</h1>
-        <p className="mt-2 text-slate-400">
+        <h1 className="text-3xl font-bold text-foreground">Infrastructure</h1>
+        <p className="mt-2 text-muted-foreground">
           Monitor system health, performance metrics, and manage infrastructure
         </p>
       </div>
@@ -342,9 +342,9 @@ function InfrastructurePageContent() {
 
       {/* Overall Status */}
       <div className={`rounded-lg border p-6 ${
-        overallHealth === 'healthy' ? 'border-green-900/20 bg-green-950/20' :
-        overallHealth === 'warning' ? 'border-yellow-900/20 bg-yellow-950/20' :
-        'border-red-900/20 bg-red-950/20'
+        overallHealth === 'healthy' ? 'border-green-900/20 bg-green-950/20 dark:border-green-800/30 dark:bg-green-900/20' :
+        overallHealth === 'warning' ? 'border-yellow-900/20 bg-yellow-950/20 dark:border-yellow-800/30 dark:bg-yellow-900/20' :
+        'border-red-900/20 bg-red-950/20 dark:border-red-800/30 dark:bg-red-900/20'
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -365,14 +365,14 @@ function InfrastructurePageContent() {
                                overallHealth === 'warning' ? 'Partial Service Disruption' :
                                'Major Service Outage'}
               </p>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Uptime: {metrics?.health.uptime || 0}% • RPS: {metrics?.performance.requestsPerSecond || 0}
               </p>
             </div>
           </div>
           <Link
             href="/dashboard/infrastructure/status"
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent hover:bg-muted text-foreground rounded-lg text-sm font-medium transition-colors"
           >
             View Status Page
           </Link>
@@ -381,7 +381,7 @@ function InfrastructurePageContent() {
 
       {/* Resource Usage */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">Resource Usage</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-4">Resource Usage</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {resourceUsage.map((resource) => (
             <ResourceUsageCard key={resource.resource} {...resource} />
@@ -396,62 +396,62 @@ function InfrastructurePageContent() {
 
           {/* Quick Actions */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Infrastructure Management</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Infrastructure Management</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Link
                 href="/dashboard/infrastructure/health"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
+                <div className="p-2 bg-accent rounded-lg">
                   <Activity className="h-5 w-5 text-sky-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Health Checks</p>
-                  <p className="text-sm text-slate-400">Service monitoring</p>
+                  <p className="font-medium text-foreground">Health Checks</p>
+                  <p className="text-sm text-muted-foreground">Service monitoring</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
               </Link>
 
               <Link
                 href="/dashboard/infrastructure/logs"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
+                <div className="p-2 bg-accent rounded-lg">
                   <BarChart3 className="h-5 w-5 text-sky-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Logs & Metrics</p>
-                  <p className="text-sm text-slate-400">{metrics?.logs.totalLogs || 0} logs • {metrics?.logs.errors || 0} errors</p>
+                  <p className="font-medium text-foreground">Logs & Metrics</p>
+                  <p className="text-sm text-muted-foreground">{metrics?.logs.totalLogs || 0} logs • {metrics?.logs.errors || 0} errors</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
               </Link>
 
               <Link
                 href="/dashboard/infrastructure/observability"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
+                <div className="p-2 bg-accent rounded-lg">
                   <Zap className="h-5 w-5 text-sky-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Observability</p>
-                  <p className="text-sm text-slate-400">Tracing & APM</p>
+                  <p className="font-medium text-foreground">Observability</p>
+                  <p className="text-sm text-muted-foreground">Tracing & APM</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
               </Link>
 
               <Link
                 href="/dashboard/infrastructure/feature-flags"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
+                <div className="p-2 bg-accent rounded-lg">
                   <Settings className="h-5 w-5 text-sky-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Feature Flags</p>
-                  <p className="text-sm text-slate-400">Toggle features</p>
+                  <p className="font-medium text-foreground">Feature Flags</p>
+                  <p className="text-sm text-muted-foreground">Toggle features</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
               </Link>
             </div>
           </div>

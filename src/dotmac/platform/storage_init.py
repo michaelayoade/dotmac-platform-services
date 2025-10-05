@@ -5,8 +5,6 @@ Initialize MinIO storage using settings directly.
 Integrates with secrets management for secure credential handling.
 """
 
-from typing import Optional
-
 import structlog
 
 from dotmac.platform.file_storage import MinIOStorage
@@ -48,7 +46,7 @@ def init_storage() -> MinIOStorage:
 
 
 # Global storage instance
-_storage: Optional[MinIOStorage] = None
+_storage: MinIOStorage | None = None
 
 
 def get_storage() -> MinIOStorage:

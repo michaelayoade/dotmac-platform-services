@@ -3,45 +3,45 @@ Bank account and manual payment API endpoints
 """
 
 import logging
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user, UserInfo
-from dotmac.platform.db import get_db
+from dotmac.platform.auth.dependencies import UserInfo, get_current_user
+from dotmac.platform.billing.bank_accounts.cash_register_service import (
+    CashRegisterService,
+)
+from dotmac.platform.billing.bank_accounts.models import (
+    BankAccountSummary,
+    BankTransferCreate,
+    CashPaymentCreate,
+    CashRegisterCreate,
+    CashRegisterReconciliationCreate,
+    CashRegisterResponse,
+    CheckPaymentCreate,
+    CompanyBankAccountCreate,
+    CompanyBankAccountResponse,
+    CompanyBankAccountUpdate,
+    ManualPaymentResponse,
+    MobileMoneyCreate,
+    PaymentSearchFilters,
+    ReconcilePaymentRequest,
+)
 from dotmac.platform.billing.bank_accounts.service import (
     BankAccountService,
     ManualPaymentService,
 )
-from dotmac.platform.billing.bank_accounts.cash_register_service import (
-    CashRegisterService,
-)
+from dotmac.platform.db import get_db
 from dotmac.platform.file_storage.service import FileStorageService
-from dotmac.platform.billing.bank_accounts.models import (
-    CompanyBankAccountCreate,
-    CompanyBankAccountUpdate,
-    CompanyBankAccountResponse,
-    BankAccountSummary,
-    CashPaymentCreate,
-    CheckPaymentCreate,
-    BankTransferCreate,
-    MobileMoneyCreate,
-    ManualPaymentResponse,
-    PaymentSearchFilters,
-    ReconcilePaymentRequest,
-    CashRegisterCreate,
-    CashRegisterResponse,
-    CashRegisterReconciliationCreate,
-)
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["bank-accounts"])
+router = APIRouter(tags=["Billing - Bank Accounts"])
 
 # ============================================================================
 # Company Bank Account Endpoints
 # ============================================================================
+
 
 @router.post("/bank-accounts", response_model=CompanyBankAccountResponse)
 async def create_bank_account(
@@ -56,20 +56,18 @@ async def create_bank_account(
 
     try:
         account = await service.create_bank_account(
-            tenant_id=tenant_id,
-            data=account_data,
-            created_by=user_id
+            tenant_id=tenant_id, data=account_data, created_by=user_id
         )
         return account
     except Exception as e:
         logger.error(f"Error creating bank account: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create bank account"
+            detail="Failed to create bank account",
         )
 
 
-@router.get("/bank-accounts", response_model=List[CompanyBankAccountResponse])
+@router.get("/bank-accounts", response_model=list[CompanyBankAccountResponse])
 async def list_bank_accounts(
     include_inactive: bool = Query(False, description="Include inactive accounts"),
     current_user: UserInfo = Depends(get_current_user),
@@ -81,15 +79,13 @@ async def list_bank_accounts(
 
     try:
         accounts = await service.get_bank_accounts(
-            tenant_id=tenant_id,
-            include_inactive=include_inactive
+            tenant_id=tenant_id, include_inactive=include_inactive
         )
         return accounts
     except Exception as e:
         logger.error(f"Error listing bank accounts: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list bank accounts"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to list bank accounts"
         )
 
 
@@ -106,8 +102,7 @@ async def get_bank_account(
     account = await service.get_bank_account(tenant_id, account_id)
     if not account:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Bank account {account_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Bank account {account_id} not found"
         )
 
     return account
@@ -130,7 +125,7 @@ async def get_bank_account_summary(
         logger.error(f"Error getting bank account summary: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get bank account summary"
+            detail="Failed to get bank account summary",
         )
 
 
@@ -148,24 +143,21 @@ async def update_bank_account(
 
     try:
         account = await service.update_bank_account(
-            tenant_id=tenant_id,
-            account_id=account_id,
-            data=update_data,
-            updated_by=user_id
+            tenant_id=tenant_id, account_id=account_id, data=update_data, updated_by=user_id
         )
         return account
     except Exception as e:
         logger.error(f"Error updating bank account: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update bank account"
+            detail="Failed to update bank account",
         )
 
 
 @router.post("/bank-accounts/{account_id}/verify", response_model=CompanyBankAccountResponse)
 async def verify_bank_account(
     account_id: int,
-    notes: Optional[str] = None,
+    notes: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -176,17 +168,14 @@ async def verify_bank_account(
 
     try:
         account = await service.verify_bank_account(
-            tenant_id=tenant_id,
-            account_id=account_id,
-            verified_by=user_id,
-            notes=notes
+            tenant_id=tenant_id, account_id=account_id, verified_by=user_id, notes=notes
         )
         return account
     except Exception as e:
         logger.error(f"Error verifying bank account: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to verify bank account"
+            detail="Failed to verify bank account",
         )
 
 
@@ -203,22 +192,21 @@ async def deactivate_bank_account(
 
     try:
         account = await service.deactivate_bank_account(
-            tenant_id=tenant_id,
-            account_id=account_id,
-            updated_by=user_id
+            tenant_id=tenant_id, account_id=account_id, updated_by=user_id
         )
         return account
     except Exception as e:
         logger.error(f"Error deactivating bank account: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to deactivate bank account"
+            detail="Failed to deactivate bank account",
         )
 
 
 # ============================================================================
 # Manual Payment Recording Endpoints
 # ============================================================================
+
 
 @router.post("/payments/cash", response_model=ManualPaymentResponse)
 async def record_cash_payment(
@@ -233,16 +221,14 @@ async def record_cash_payment(
 
     try:
         payment = await service.record_cash_payment(
-            tenant_id=tenant_id,
-            data=payment_data,
-            recorded_by=user_id
+            tenant_id=tenant_id, data=payment_data, recorded_by=user_id
         )
         return payment
     except Exception as e:
         logger.error(f"Error recording cash payment: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to record cash payment"
+            detail="Failed to record cash payment",
         )
 
 
@@ -259,16 +245,14 @@ async def record_check_payment(
 
     try:
         payment = await service.record_check_payment(
-            tenant_id=tenant_id,
-            data=payment_data,
-            recorded_by=user_id
+            tenant_id=tenant_id, data=payment_data, recorded_by=user_id
         )
         return payment
     except Exception as e:
         logger.error(f"Error recording check payment: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to record check payment"
+            detail="Failed to record check payment",
         )
 
 
@@ -285,16 +269,14 @@ async def record_bank_transfer(
 
     try:
         payment = await service.record_bank_transfer(
-            tenant_id=tenant_id,
-            data=payment_data,
-            recorded_by=user_id
+            tenant_id=tenant_id, data=payment_data, recorded_by=user_id
         )
         return payment
     except Exception as e:
         logger.error(f"Error recording bank transfer: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to record bank transfer"
+            detail="Failed to record bank transfer",
         )
 
 
@@ -311,20 +293,18 @@ async def record_mobile_money(
 
     try:
         payment = await service.record_mobile_money(
-            tenant_id=tenant_id,
-            data=payment_data,
-            recorded_by=user_id
+            tenant_id=tenant_id, data=payment_data, recorded_by=user_id
         )
         return payment
     except Exception as e:
         logger.error(f"Error recording mobile money payment: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to record mobile money payment"
+            detail="Failed to record mobile money payment",
         )
 
 
-@router.post("/payments/search", response_model=List[ManualPaymentResponse])
+@router.post("/payments/search", response_model=list[ManualPaymentResponse])
 async def search_manual_payments(
     filters: PaymentSearchFilters,
     limit: int = Query(100, ge=1, le=500),
@@ -338,24 +318,20 @@ async def search_manual_payments(
 
     try:
         payments = await service.search_payments(
-            tenant_id=tenant_id,
-            filters=filters,
-            limit=limit,
-            offset=offset
+            tenant_id=tenant_id, filters=filters, limit=limit, offset=offset
         )
         return payments
     except Exception as e:
         logger.error(f"Error searching payments: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search payments"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to search payments"
         )
 
 
 @router.post("/payments/{payment_id}/verify", response_model=ManualPaymentResponse)
 async def verify_payment(
     payment_id: int,
-    notes: Optional[str] = None,
+    notes: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -366,21 +342,17 @@ async def verify_payment(
 
     try:
         payment = await service.verify_payment(
-            tenant_id=tenant_id,
-            payment_id=payment_id,
-            verified_by=user_id,
-            notes=notes
+            tenant_id=tenant_id, payment_id=payment_id, verified_by=user_id, notes=notes
         )
         return payment
     except Exception as e:
         logger.error(f"Error verifying payment: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to verify payment"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to verify payment"
         )
 
 
-@router.post("/payments/reconcile", response_model=List[ManualPaymentResponse])
+@router.post("/payments/reconcile", response_model=list[ManualPaymentResponse])
 async def reconcile_payments(
     request: ReconcilePaymentRequest,
     current_user: UserInfo = Depends(get_current_user),
@@ -396,14 +368,13 @@ async def reconcile_payments(
             tenant_id=tenant_id,
             payment_ids=request.payment_ids,
             reconciled_by=user_id,
-            notes=request.reconciliation_notes
+            notes=request.reconciliation_notes,
         )
         return payments
     except Exception as e:
         logger.error(f"Error reconciling payments: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reconcile payments"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to reconcile payments"
         )
 
 
@@ -424,8 +395,7 @@ async def upload_payment_attachment(
         payment = await service.get_payment(tenant_id, payment_id)
         if not payment:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Payment {payment_id} not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Payment {payment_id} not found"
             )
 
         # Upload file to storage service
@@ -436,7 +406,8 @@ async def upload_payment_attachment(
 
         # Create unique filename
         import uuid
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'pdf'
+
+        file_extension = file.filename.split(".")[-1] if "." in file.filename else "pdf"
         unique_filename = f"payment_{payment_id}_{uuid.uuid4()}.{file_extension}"
 
         # Store file with metadata
@@ -451,11 +422,13 @@ async def upload_payment_attachment(
                 "uploaded_by": user_id,
                 "payment_reference": payment.payment_reference,
                 "payment_method": payment.payment_method,
-            }
+            },
         )
 
         # Update payment with attachment URL
-        attachment_url = f"/api/v1/billing/payments/{payment_id}/attachments/{file_metadata.file_id}"
+        attachment_url = (
+            f"/api/v1/billing/payments/{payment_id}/attachments/{file_metadata.file_id}"
+        )
         await service.add_attachment(tenant_id, payment_id, attachment_url)
 
         logger.info(
@@ -479,14 +452,14 @@ async def upload_payment_attachment(
     except Exception as e:
         logger.error(f"Error uploading payment attachment: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload attachment"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload attachment"
         )
 
 
 # ============================================================================
 # Cash Register Endpoints (for businesses with physical locations)
 # ============================================================================
+
 
 @router.post("/cash-registers", response_model=CashRegisterResponse)
 async def create_cash_register(
@@ -501,20 +474,18 @@ async def create_cash_register(
 
     try:
         register = await service.create_cash_register(
-            tenant_id=tenant_id,
-            data=register_data,
-            created_by=user_id
+            tenant_id=tenant_id, data=register_data, created_by=user_id
         )
         return register
     except Exception as e:
         logger.error(f"Error creating cash register: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create cash register"
+            detail="Failed to create cash register",
         )
 
 
-@router.get("/cash-registers", response_model=List[CashRegisterResponse])
+@router.get("/cash-registers", response_model=list[CashRegisterResponse])
 async def list_cash_registers(
     include_inactive: bool = Query(False, description="Include inactive registers"),
     current_user: UserInfo = Depends(get_current_user),
@@ -526,15 +497,14 @@ async def list_cash_registers(
 
     try:
         registers = await service.get_cash_registers(
-            tenant_id=tenant_id,
-            include_inactive=include_inactive
+            tenant_id=tenant_id, include_inactive=include_inactive
         )
         return registers
     except Exception as e:
         logger.error(f"Error listing cash registers: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list cash registers"
+            detail="Failed to list cash registers",
         )
 
 
@@ -551,8 +521,7 @@ async def get_cash_register(
     register = await service.get_cash_register(tenant_id, register_id)
     if not register:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cash register {register_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Cash register {register_id} not found"
         )
 
     return register
@@ -572,17 +541,14 @@ async def reconcile_cash_register(
 
     try:
         reconciliation = await service.reconcile_register(
-            tenant_id=tenant_id,
-            register_id=register_id,
-            data=data,
-            reconciled_by=user_id
+            tenant_id=tenant_id, register_id=register_id, data=data, reconciled_by=user_id
         )
         return reconciliation
     except Exception as e:
         logger.error(f"Error reconciling cash register: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reconcile cash register"
+            detail="Failed to reconcile cash register",
         )
 
 
@@ -605,14 +571,13 @@ async def update_cash_float(
             register_id=register_id,
             new_float=new_float,
             reason=reason,
-            updated_by=user_id
+            updated_by=user_id,
         )
         return register
     except Exception as e:
         logger.error(f"Error updating cash float: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update cash float"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update cash float"
         )
 
 
@@ -629,14 +594,12 @@ async def deactivate_cash_register(
 
     try:
         register = await service.deactivate_register(
-            tenant_id=tenant_id,
-            register_id=register_id,
-            deactivated_by=user_id
+            tenant_id=tenant_id, register_id=register_id, deactivated_by=user_id
         )
         return register
     except Exception as e:
         logger.error(f"Error deactivating cash register: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to deactivate cash register"
+            detail="Failed to deactivate cash register",
         )

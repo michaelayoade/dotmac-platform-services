@@ -13,7 +13,7 @@ import statistics
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -60,7 +60,7 @@ class BenchmarkMetric:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
+            self.timestamp = datetime.now(UTC)
 
 
 @dataclass
@@ -132,6 +132,65 @@ class PerformanceBenchmark(ABC):
         """Cleanup benchmark environment."""
         pass
 
+    def _calculate_duration(self, result: BenchmarkResult) -> None:
+        """Calculate and set benchmark duration."""
+        try:
+            if result.start_time and result.end_time:
+                result.duration = result.end_time - result.start_time
+        except Exception:
+            pass
+
+    def _finalize_successful_result(self, result: BenchmarkResult, setup_success: bool) -> None:
+        """Finalize result for successful benchmark execution."""
+        result.status = BenchmarkStatus.COMPLETED
+        result.end_time = datetime.now(UTC)
+        self._calculate_duration(result)
+
+        self.logger.info(
+            "Benchmark completed successfully",
+            duration_seconds=result.duration_seconds,
+            metrics_count=len(result.metrics),
+        )
+
+        # If setup indicated a problem but execution succeeded, mark as failed
+        if not setup_success:
+            result.status = BenchmarkStatus.FAILED
+            if not result.error_message:
+                result.error_message = "Benchmark setup failed"
+
+    def _handle_cancellation(self, result: BenchmarkResult) -> None:
+        """Handle benchmark cancellation."""
+        result.status = BenchmarkStatus.CANCELLED
+        result.end_time = datetime.now(UTC)
+        result.error_message = "Benchmark was cancelled"
+        self.logger.warning("Benchmark cancelled")
+        self._calculate_duration(result)
+
+    def _handle_failure(self, result: BenchmarkResult, error: Exception) -> None:
+        """Handle benchmark failure."""
+        result.status = BenchmarkStatus.FAILED
+        result.end_time = datetime.now(UTC)
+        result.error_message = str(error)
+        self.logger.error("Benchmark failed", error=str(error))
+        self._calculate_duration(result)
+
+    async def _execute_benchmark_steps(self, result: BenchmarkResult) -> bool:
+        """Execute benchmark setup, execution, and processing steps."""
+        self.logger.info("Starting benchmark setup")
+        result.status = BenchmarkStatus.RUNNING
+
+        # Setup
+        setup_success = await self.setup()
+
+        # Execute
+        self.logger.info("Executing benchmark")
+        raw_results = await self.execute()
+
+        # Process results
+        await self._process_results(result, raw_results)
+
+        return setup_success
+
     async def run(self) -> BenchmarkResult:
         """Run the complete benchmark lifecycle."""
         result = BenchmarkResult(
@@ -139,65 +198,17 @@ class PerformanceBenchmark(ABC):
             name=self.name,
             benchmark_type=self.benchmark_type,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
             metadata=self.metadata.copy(),
         )
 
         try:
-            self.logger.info("Starting benchmark setup")
-            result.status = BenchmarkStatus.RUNNING
-
-            # Setup
-            setup_success = await self.setup()
-
-            # Execute
-            self.logger.info("Executing benchmark")
-            raw_results = await self.execute()
-
-            # Process results
-            await self._process_results(result, raw_results)
-
-            result.status = BenchmarkStatus.COMPLETED
-            result.end_time = datetime.now(timezone.utc)
-            # Ensure duration is populated after end_time is set
-            try:
-                if result.start_time and result.end_time:
-                    result.duration = result.end_time - result.start_time
-            except Exception:
-                pass
-
-            self.logger.info(
-                "Benchmark completed successfully",
-                duration_seconds=result.duration_seconds,
-                metrics_count=len(result.metrics),
-            )
-
-            # If setup indicated a problem but execution succeeded, mark as failed
-            if not setup_success:
-                result.status = BenchmarkStatus.FAILED
-                if not result.error_message:
-                    result.error_message = "Benchmark setup failed"
-
+            setup_success = await self._execute_benchmark_steps(result)
+            self._finalize_successful_result(result, setup_success)
         except asyncio.CancelledError:
-            result.status = BenchmarkStatus.CANCELLED
-            result.end_time = datetime.now(timezone.utc)
-            result.error_message = "Benchmark was cancelled"
-            self.logger.warning("Benchmark cancelled")
-            try:
-                if result.start_time and result.end_time:
-                    result.duration = result.end_time - result.start_time
-            except Exception:
-                pass
+            self._handle_cancellation(result)
         except Exception as e:
-            result.status = BenchmarkStatus.FAILED
-            result.end_time = datetime.now(timezone.utc)
-            result.error_message = str(e)
-            self.logger.error("Benchmark failed", error=str(e))
-            try:
-                if result.start_time and result.end_time:
-                    result.duration = result.end_time - result.start_time
-            except Exception:
-                pass
+            self._handle_failure(result, e)
         finally:
             try:
                 await self.teardown()
@@ -466,7 +477,7 @@ class BenchmarkSuite:
                             results[-1] = retry_result  # Replace failed result
                             break
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.logger.error(
                     "Benchmark timed out",
                     benchmark=benchmark.name,
@@ -478,8 +489,8 @@ class BenchmarkSuite:
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(timezone.utc),
-                    end_time=datetime.now(timezone.utc),
+                    start_time=datetime.now(UTC),
+                    end_time=datetime.now(UTC),
                     error_message="Benchmark execution timed out",
                 )
                 results.append(timeout_result)
@@ -498,14 +509,14 @@ class BenchmarkSuite:
                     result.status = BenchmarkStatus.FAILED
                     result.error_message = "Benchmark execution timed out"
                 return result
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return BenchmarkResult(
                     id=str(uuid4()),
                     name=benchmark.name,
                     benchmark_type=benchmark.benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(timezone.utc),
-                    end_time=datetime.now(timezone.utc),
+                    start_time=datetime.now(UTC),
+                    end_time=datetime.now(UTC),
                     error_message="Benchmark execution timed out",
                 )
 
@@ -521,8 +532,8 @@ class BenchmarkSuite:
                     name=self.benchmarks[i].name,
                     benchmark_type=self.benchmarks[i].benchmark_type,
                     status=BenchmarkStatus.FAILED,
-                    start_time=datetime.now(timezone.utc),
-                    end_time=datetime.now(timezone.utc),
+                    start_time=datetime.now(UTC),
+                    end_time=datetime.now(UTC),
                     error_message=str(result),
                 )
                 final_results.append(error_result)

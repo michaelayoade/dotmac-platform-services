@@ -9,23 +9,25 @@ Provides comprehensive partner relationship management with:
 - Referral lead tracking
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -126,9 +128,9 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
 
     # Company Information
     company_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    legal_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    website: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    legal_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Partner Status and Tier
     status: Mapped[PartnerStatus] = mapped_column(
@@ -150,7 +152,7 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
         default=CommissionModel.REVENUE_SHARE,
         nullable=False,
     )
-    default_commission_rate: Mapped[Optional[Decimal]] = mapped_column(
+    default_commission_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 4),
         nullable=True,
         comment="Default commission rate (e.g., 0.1500 for 15%)",
@@ -158,48 +160,48 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
 
     # Contact Information
     primary_email: Mapped[str] = mapped_column(String(255), nullable=False)
-    billing_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    support_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    billing_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    support_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Address Information
-    address_line1: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    address_line2: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    state_province: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    postal_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    country: Mapped[Optional[str]] = mapped_column(
+    address_line1: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address_line2: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country: Mapped[str | None] = mapped_column(
         String(2), nullable=True, comment="ISO 3166-1 alpha-2"
     )
 
     # Business & Tax Information
-    tax_id: Mapped[Optional[str]] = mapped_column(
+    tax_id: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="Tax identification number"
     )
-    vat_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    business_registration: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    vat_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    business_registration: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # SLA Configuration
-    sla_response_hours: Mapped[Optional[int]] = mapped_column(
+    sla_response_hours: Mapped[int | None] = mapped_column(
         nullable=True, comment="Expected response time in hours"
     )
-    sla_uptime_percentage: Mapped[Optional[Decimal]] = mapped_column(
+    sla_uptime_percentage: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2), nullable=True, comment="Required uptime percentage"
     )
 
     # Partner Dates
-    partnership_start_date: Mapped[Optional[datetime]] = mapped_column(
+    partnership_start_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=True,
     )
-    partnership_end_date: Mapped[Optional[datetime]] = mapped_column(
+    partnership_end_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    last_review_date: Mapped[Optional[datetime]] = mapped_column(
+    last_review_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    next_review_date: Mapped[Optional[datetime]] = mapped_column(
+    next_review_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -224,7 +226,7 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     custom_fields: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     # External references
-    external_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
     # Relationships
     users: Mapped[list["PartnerUser"]] = relationship(
@@ -283,7 +285,7 @@ class PartnerUser(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Role within partner organization
     role: Mapped[str] = mapped_column(
@@ -294,7 +296,7 @@ class PartnerUser(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     is_primary_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Auth system link (optional)
-    user_id: Mapped[Optional[UUID]] = mapped_column(
+    user_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -355,23 +357,23 @@ class PartnerAccount(Base, TimestampMixin, TenantMixin):
     # Assignment dates
     start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
 
     # Commission override for this specific account
-    custom_commission_rate: Mapped[Optional[Decimal]] = mapped_column(
+    custom_commission_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 4),
         nullable=True,
         comment="Override partner's default commission rate for this account",
     )
 
     # Metadata
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSON, default=dict, nullable=False
     )
@@ -409,15 +411,15 @@ class PartnerCommission(Base, TimestampMixin, TenantMixin):
 
     # Rule identification
     rule_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Commission calculation
     commission_type: Mapped[CommissionModel] = mapped_column(
         SQLEnum(CommissionModel),
         nullable=False,
     )
-    commission_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 4), nullable=True)
-    flat_fee_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
+    commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    flat_fee_amount: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
     # Tier configuration (for tiered model)
     tier_config: Mapped[dict[str, Any]] = mapped_column(
@@ -428,20 +430,20 @@ class PartnerCommission(Base, TimestampMixin, TenantMixin):
     )
 
     # Applicability
-    applies_to_products: Mapped[Optional[list[str]]] = mapped_column(
+    applies_to_products: Mapped[list[str] | None] = mapped_column(
         JSON, nullable=True, comment="List of product IDs this rule applies to"
     )
-    applies_to_customers: Mapped[Optional[list[str]]] = mapped_column(
+    applies_to_customers: Mapped[list[str] | None] = mapped_column(
         JSON, nullable=True, comment="List of customer IDs this rule applies to"
     )
 
     # Effective dates
     effective_from: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    effective_to: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -474,13 +476,13 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
     )
 
     # Source reference
-    invoice_id: Mapped[Optional[UUID]] = mapped_column(
+    invoice_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         nullable=True,
         index=True,
         comment="Invoice that triggered this commission",
     )
-    customer_id: Mapped[Optional[UUID]] = mapped_column(
+    customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
@@ -495,10 +497,10 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
     )
 
     # Calculation details
-    base_amount: Mapped[Optional[Decimal]] = mapped_column(
+    base_amount: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2), nullable=True, comment="Base amount used for calculation"
     )
-    commission_rate: Mapped[Optional[Decimal]] = mapped_column(
+    commission_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 4), nullable=True, comment="Rate applied"
     )
 
@@ -518,21 +520,21 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
     )
     event_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
     # Payout tracking
-    payout_id: Mapped[Optional[UUID]] = mapped_column(
+    payout_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         nullable=True,
         index=True,
         comment="Reference to payout batch",
     )
-    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Metadata
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSON, default=dict, nullable=False
     )
@@ -568,16 +570,16 @@ class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     )
 
     # Lead information
-    company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_name: Mapped[str] = mapped_column(String(255), nullable=False)
     contact_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    contact_phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Referral details
-    estimated_value: Mapped[Optional[Decimal]] = mapped_column(
+    estimated_value: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2), nullable=True, comment="Estimated deal value"
     )
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Status tracking
     status: Mapped[ReferralStatus] = mapped_column(
@@ -588,37 +590,33 @@ class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     )
 
     # Conversion tracking
-    converted_customer_id: Mapped[Optional[UUID]] = mapped_column(
+    converted_customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
         comment="Customer ID if converted",
     )
-    conversion_date: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    actual_value: Mapped[Optional[Decimal]] = mapped_column(
+    conversion_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actual_value: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2), nullable=True, comment="Actual deal value after conversion"
     )
 
     # Timeline
     submitted_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    first_contact_date: Mapped[Optional[datetime]] = mapped_column(
+    first_contact_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    qualified_date: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    converted_at: Mapped[Optional[datetime]] = mapped_column(
+    qualified_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    converted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="When referral was converted to customer"
     )
 
     # Metadata
-    source: Mapped[Optional[str]] = mapped_column(
+    source: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Referral source/campaign"
     )
     metadata_: Mapped[dict[str, Any]] = mapped_column(

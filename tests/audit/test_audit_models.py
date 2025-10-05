@@ -1,17 +1,31 @@
 """
 Tests for audit models and database operations.
+
+This test file applies the fake implementation pattern by:
+1. Actually importing the module being tested
+2. Testing real Pydantic validators and model behavior
+3. Avoiding over-mocking that produces 0% coverage
 """
 
 import pytest
 from datetime import datetime, timezone
+from unittest.mock import patch
 from uuid import uuid4
 
+# Import the entire module to ensure it's loaded for coverage
+import dotmac.platform.audit.models as audit_models
 from dotmac.platform.audit.models import (
     AuditActivity,
     AuditActivityCreate,
     AuditActivityResponse,
+    AuditActivityList,
+    AuditFilterParams,
+    FrontendLogEntry,
+    FrontendLogsRequest,
+    FrontendLogsResponse,
     ActivityType,
     ActivitySeverity,
+    FrontendLogLevel,
 )
 from dotmac.platform.db import Base
 
@@ -135,3 +149,235 @@ class TestAuditModels:
         await async_db_session.commit()
 
         assert activity.id is not None
+
+    def test_tenant_id_validator_explicit_value(self):
+        """Test tenant_id validator accepts explicit value."""
+        # When tenant_id explicitly provided, should use that value
+        activity = AuditActivityCreate(
+            activity_type=ActivityType.USER_LOGIN,
+            tenant_id="explicit-tenant-456",
+            action="login",
+            description="User login",
+        )
+        assert activity.tenant_id == "explicit-tenant-456"
+
+    def test_tenant_id_can_be_none(self):
+        """Test tenant_id can be None (will be set at service layer)."""
+        activity = AuditActivityCreate(
+            activity_type=ActivityType.USER_LOGIN,
+            action="login",
+            description="User login",
+        )
+        # tenant_id can be None - it's optional at model level
+        assert activity.tenant_id is None
+
+    def test_audit_activity_list_model(self):
+        """Test AuditActivityList model."""
+        activities = [
+            AuditActivityResponse(
+                id=uuid4(),
+                activity_type=ActivityType.USER_LOGIN.value,
+                severity=ActivitySeverity.LOW.value,
+                user_id="user123",
+                tenant_id="tenant456",
+                timestamp=datetime.now(timezone.utc),
+                resource_type=None,
+                resource_id=None,
+                action="login",
+                description="User logged in",
+                details=None,
+                ip_address=None,
+                user_agent=None,
+                request_id=None,
+            )
+        ]
+
+        activity_list = AuditActivityList(
+            activities=activities,
+            total=100,
+            page=1,
+            per_page=50,
+            has_next=True,
+            has_prev=False,
+        )
+
+        assert len(activity_list.activities) == 1
+        assert activity_list.total == 100
+        assert activity_list.has_next is True
+
+    def test_audit_filter_params_validation(self):
+        """Test AuditFilterParams model validation."""
+        # Valid filter params
+        params = AuditFilterParams(
+            tenant_id="tenant123",
+            user_id="user456",
+            activity_type=ActivityType.SECRET_ACCESSED,
+            severity=ActivitySeverity.HIGH,
+            page=2,
+            per_page=100,
+        )
+
+        assert params.tenant_id == "tenant123"
+        assert params.user_id == "user456"
+        assert params.page == 2
+        assert params.per_page == 100
+
+        # Test page validation
+        with pytest.raises(ValueError):
+            AuditFilterParams(tenant_id="tenant123", page=0)  # page must be >= 1
+
+        # Test per_page validation
+        with pytest.raises(ValueError):
+            AuditFilterParams(tenant_id="tenant123", per_page=0)  # must be >= 1
+
+        with pytest.raises(ValueError):
+            AuditFilterParams(tenant_id="tenant123", per_page=2000)  # must be <= 1000
+
+    def test_frontend_log_entry_model(self):
+        """Test FrontendLogEntry model."""
+        log = FrontendLogEntry(
+            level=FrontendLogLevel.ERROR,
+            message="Frontend error occurred",
+            service="frontend",
+            metadata={"component": "LoginForm", "error_code": "AUTH_001"},
+        )
+
+        assert log.level == FrontendLogLevel.ERROR
+        assert log.message == "Frontend error occurred"
+        assert log.service == "frontend"
+        assert log.metadata["component"] == "LoginForm"
+
+        # Test message length validation
+        with pytest.raises(ValueError):
+            FrontendLogEntry(
+                level=FrontendLogLevel.ERROR,
+                message="",  # Empty message should fail
+            )
+
+        # Test message max length
+        with pytest.raises(ValueError):
+            FrontendLogEntry(
+                level=FrontendLogLevel.ERROR,
+                message="x" * 1001,  # Over 1000 chars should fail
+            )
+
+    def test_frontend_logs_request_model(self):
+        """Test FrontendLogsRequest batch model."""
+        logs = [
+            FrontendLogEntry(
+                level=FrontendLogLevel.ERROR,
+                message="Error 1",
+            ),
+            FrontendLogEntry(
+                level=FrontendLogLevel.WARNING,
+                message="Warning 1",
+            ),
+        ]
+
+        request = FrontendLogsRequest(logs=logs)
+        assert len(request.logs) == 2
+        assert request.logs[0].level == FrontendLogLevel.ERROR
+
+        # Test min_length validation
+        with pytest.raises(ValueError):
+            FrontendLogsRequest(logs=[])  # Empty list should fail
+
+        # Test max_length validation
+        too_many_logs = [
+            FrontendLogEntry(level=FrontendLogLevel.INFO, message=f"Log {i}") for i in range(101)
+        ]
+        with pytest.raises(ValueError):
+            FrontendLogsRequest(logs=too_many_logs)  # Over 100 logs should fail
+
+    def test_frontend_logs_response_model(self):
+        """Test FrontendLogsResponse model."""
+        response = FrontendLogsResponse(
+            status="success",
+            logs_received=10,
+            logs_stored=8,
+        )
+
+        assert response.status == "success"
+        assert response.logs_received == 10
+        assert response.logs_stored == 8
+
+        # Test default status
+        response2 = FrontendLogsResponse(logs_received=5, logs_stored=5)
+        assert response2.status == "success"
+
+    def test_frontend_log_level_enum(self):
+        """Test FrontendLogLevel enum values."""
+        assert FrontendLogLevel.ERROR == "ERROR"
+        assert FrontendLogLevel.WARNING == "WARNING"
+        assert FrontendLogLevel.INFO == "INFO"
+        assert FrontendLogLevel.DEBUG == "DEBUG"
+
+    def test_all_activity_types_defined(self):
+        """Test that all activity type categories are covered."""
+        activity_types = [t.value for t in ActivityType]
+
+        # Auth activities
+        assert "user.login" in activity_types
+        assert "user.logout" in activity_types
+        assert "user.created" in activity_types
+
+        # RBAC activities
+        assert "rbac.role.created" in activity_types
+        assert "rbac.permission.granted" in activity_types
+
+        # Secret activities
+        assert "secret.created" in activity_types
+        assert "secret.accessed" in activity_types
+
+        # File activities
+        assert "file.uploaded" in activity_types
+        assert "file.downloaded" in activity_types
+
+        # API activities
+        assert "api.request" in activity_types
+        assert "api.error" in activity_types
+
+        # System activities
+        assert "system.startup" in activity_types
+        assert "system.shutdown" in activity_types
+
+        # Frontend activities
+        assert "frontend.log" in activity_types
+
+    def test_pydantic_model_config(self):
+        """Test Pydantic model configuration settings."""
+        # Test AuditActivityCreate config
+        create_config = AuditActivityCreate.model_config
+        assert create_config["str_strip_whitespace"] is True
+        assert create_config["validate_assignment"] is True
+        assert create_config["extra"] == "forbid"
+
+        # Test AuditFilterParams config
+        filter_config = AuditFilterParams.model_config
+        assert filter_config["str_strip_whitespace"] is True
+        assert filter_config["validate_assignment"] is True
+        assert filter_config["extra"] == "forbid"
+
+        # Test AuditActivityResponse config
+        response_config = AuditActivityResponse.model_config
+        assert response_config["from_attributes"] is True
+
+    def test_audit_activity_create_field_constraints(self):
+        """Test field constraints on AuditActivityCreate."""
+        # Test action min_length
+        with pytest.raises(ValueError):
+            AuditActivityCreate(
+                activity_type=ActivityType.USER_LOGIN,
+                tenant_id="tenant123",
+                action="",  # Empty action should fail
+                description="Test",
+            )
+
+        # Test description min_length
+        with pytest.raises(ValueError):
+            AuditActivityCreate(
+                activity_type=ActivityType.USER_LOGIN,
+                tenant_id="tenant123",
+                action="login",
+                description="",  # Empty description should fail
+            )

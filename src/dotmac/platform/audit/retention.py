@@ -4,21 +4,20 @@ Audit log retention and archiving service.
 Manages automatic cleanup and archiving of audit logs based on retention policies.
 """
 
-import json
-import gzip
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
-from pathlib import Path
 import asyncio
+import gzip
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 import structlog
-from sqlalchemy import select, delete, and_, func
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import AuditActivity, ActivitySeverity
 from ..db import get_async_db
 from ..settings import settings
-
+from .models import ActivitySeverity, AuditActivity
 
 logger = structlog.get_logger(__name__)
 
@@ -32,7 +31,7 @@ class AuditRetentionPolicy:
         archive_enabled: bool = True,
         archive_location: str = "/var/audit/archive",
         batch_size: int = 1000,
-        severity_retention: Optional[Dict[str, int]] = None,
+        severity_retention: dict[str, int] | None = None,
     ):
         """
         Initialize retention policy.
@@ -61,7 +60,7 @@ class AuditRetentionPolicy:
 class AuditRetentionService:
     """Service for managing audit log retention and archiving."""
 
-    def __init__(self, policy: Optional[AuditRetentionPolicy] = None):
+    def __init__(self, policy: AuditRetentionPolicy | None = None):
         """Initialize retention service with policy."""
         self.policy = policy or AuditRetentionPolicy()
 
@@ -72,8 +71,8 @@ class AuditRetentionService:
     async def cleanup_old_logs(
         self,
         dry_run: bool = False,
-        tenant_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Clean up old audit logs based on retention policy.
 
@@ -94,7 +93,7 @@ class AuditRetentionService:
 
             # Process each severity level with its retention period
             for severity, retention_days in self.policy.severity_retention.items():
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+                cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
 
                 try:
                     # Build query for old records
@@ -140,9 +139,7 @@ class AuditRetentionService:
                             )
                         )
                         if tenant_id:
-                            delete_query = delete_query.where(
-                                AuditActivity.tenant_id == tenant_id
-                            )
+                            delete_query = delete_query.where(AuditActivity.tenant_id == tenant_id)
 
                         result = await session.execute(delete_query)
                         deleted_count = result.rowcount
@@ -190,13 +187,13 @@ class AuditRetentionService:
         archived_count = 0
 
         # Create archive file name
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         archive_file = self.policy.archive_location / f"audit_{severity}_{timestamp}.jsonl.gz"
 
         try:
             # Process in batches
             offset = 0
-            with gzip.open(archive_file, 'wt', encoding='utf-8') as f:
+            with gzip.open(archive_file, "wt", encoding="utf-8") as f:
                 while True:
                     batch_query = query.offset(offset).limit(self.policy.batch_size)
                     result = await session.execute(batch_query)
@@ -225,7 +222,7 @@ class AuditRetentionService:
                         }
 
                         # Write as JSON lines
-                        f.write(json.dumps(record_dict) + '\n')
+                        f.write(json.dumps(record_dict) + "\n")
                         archived_count += 1
 
                     offset += self.policy.batch_size
@@ -254,8 +251,8 @@ class AuditRetentionService:
     async def restore_from_archive(
         self,
         archive_file: str,
-        tenant_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Restore audit logs from archive file.
 
@@ -278,7 +275,7 @@ class AuditRetentionService:
 
         async with get_async_db() as session:
             try:
-                with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+                with gzip.open(file_path, "rt", encoding="utf-8") as f:
                     batch = []
 
                     for line in f:
@@ -292,8 +289,13 @@ class AuditRetentionService:
 
                             # Convert back to model
                             from uuid import UUID
+
                             activity = AuditActivity(
-                                id=UUID(record_dict["id"]) if isinstance(record_dict["id"], str) else record_dict["id"],
+                                id=(
+                                    UUID(record_dict["id"])
+                                    if isinstance(record_dict["id"], str)
+                                    else record_dict["id"]
+                                ),
                                 activity_type=record_dict["activity_type"],
                                 severity=record_dict["severity"],
                                 user_id=record_dict["user_id"],
@@ -345,8 +347,8 @@ class AuditRetentionService:
 
     async def get_retention_statistics(
         self,
-        tenant_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Get statistics about audit logs and retention.
 
@@ -374,14 +376,11 @@ class AuditRetentionService:
             stats["total_records"] = count_result.scalar()
 
             # Get count by severity
-            severity_query = (
-                select(AuditActivity.severity, func.count())
-                .group_by(AuditActivity.severity)
+            severity_query = select(AuditActivity.severity, func.count()).group_by(
+                AuditActivity.severity
             )
             if tenant_id:
-                severity_query = severity_query.where(
-                    AuditActivity.tenant_id == tenant_id
-                )
+                severity_query = severity_query.where(AuditActivity.tenant_id == tenant_id)
 
             severity_result = await session.execute(severity_query)
             stats["by_severity"] = dict(severity_result.all())
@@ -404,12 +403,16 @@ class AuditRetentionService:
 
             # Calculate records to be deleted
             for severity, retention_days in self.policy.severity_retention.items():
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+                cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
 
-                delete_count_query = select(func.count()).select_from(AuditActivity).where(
-                    and_(
-                        AuditActivity.severity == severity,
-                        AuditActivity.timestamp < cutoff_date,
+                delete_count_query = (
+                    select(func.count())
+                    .select_from(AuditActivity)
+                    .where(
+                        and_(
+                            AuditActivity.severity == severity,
+                            AuditActivity.timestamp < cutoff_date,
+                        )
                     )
                 )
                 if tenant_id:
@@ -439,9 +442,9 @@ async def cleanup_audit_logs_task():
     try:
         # Load policy from settings
         policy = AuditRetentionPolicy(
-            retention_days=getattr(settings, 'audit_retention_days', 90),
-            archive_enabled=getattr(settings, 'audit_archive_enabled', True),
-            archive_location=getattr(settings, 'audit_archive_location', '/var/audit/archive'),
+            retention_days=getattr(settings, "audit_retention_days", 90),
+            archive_enabled=getattr(settings, "audit_archive_enabled", True),
+            archive_location=getattr(settings, "audit_archive_location", "/var/audit/archive"),
         )
 
         service = AuditRetentionService(policy)

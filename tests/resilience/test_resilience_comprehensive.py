@@ -131,11 +131,7 @@ class TestServiceEndpoint:
 
     def test_service_endpoint_creation(self):
         """Test basic endpoint creation."""
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         assert endpoint.service_name == "test-service"
         assert endpoint.host == "localhost"
@@ -152,7 +148,7 @@ class TestServiceEndpoint:
             host="api.example.com",
             port=443,
             path="/api/v1",
-            protocol="https"
+            protocol="https",
         )
 
         assert endpoint.url == "https://api.example.com:443/api/v1"
@@ -160,10 +156,7 @@ class TestServiceEndpoint:
     def test_service_endpoint_health_url_property(self):
         """Test health URL property generation."""
         endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080,
-            health_check_path="/health"
+            service_name="test-service", host="localhost", port=8080, health_check_path="/health"
         )
 
         assert endpoint.health_url == "http://localhost:8080/health"
@@ -171,26 +164,15 @@ class TestServiceEndpoint:
     def test_service_endpoint_https_url(self):
         """Test HTTPS URL generation."""
         endpoint = ServiceEndpoint(
-            service_name="secure-service",
-            host="secure.example.com",
-            port=443,
-            protocol="https"
+            service_name="secure-service", host="secure.example.com", port=443, protocol="https"
         )
 
         assert endpoint.url == "https://secure.example.com:443/"
 
     def test_service_endpoint_equality(self):
         """Test endpoint equality comparison."""
-        endpoint1 = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
-        endpoint2 = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint1 = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
+        endpoint2 = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         # Dataclasses support equality by default
         assert endpoint1 == endpoint2
@@ -199,10 +181,7 @@ class TestServiceEndpoint:
         """Test endpoint with custom metadata."""
         metadata = {"region": "us-west", "zone": "az1"}
         endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080,
-            metadata=metadata
+            service_name="test-service", host="localhost", port=8080, metadata=metadata
         )
 
         assert endpoint.metadata == metadata
@@ -292,9 +271,7 @@ class TestTrafficRule:
     def test_traffic_rule_creation(self):
         """Test basic traffic rule creation."""
         rule = TrafficRule(
-            name="test-rule",
-            source_service="service-a",
-            destination_service="service-b"
+            name="test-rule", source_service="service-a", destination_service="service-b"
         )
 
         assert rule.name == "test-rule"
@@ -317,7 +294,7 @@ class TestTrafficRule:
             max_retries=5,
             timeout_seconds=60,
             circuit_breaker_enabled=False,
-            encryption_level=EncryptionLevel.MTLS
+            encryption_level=EncryptionLevel.MTLS,
         )
 
         assert rule.policy == TrafficPolicy.WEIGHTED
@@ -348,7 +325,7 @@ class TestServiceCall:
             body=b'{"test": true}',
             timestamp=timestamp,
             trace_id=trace_id,
-            span_id=span_id
+            span_id=span_id,
         )
 
         assert call.call_id == call_id
@@ -379,7 +356,7 @@ class TestServiceCall:
             body=None,
             timestamp=timestamp,
             trace_id=trace_id,
-            span_id=span_id
+            span_id=span_id,
         )
 
         call_dict = call.to_dict()
@@ -411,11 +388,7 @@ class TestServiceRegistry:
     def test_register_endpoint(self):
         """Test endpoint registration."""
         registry = ServiceRegistry()
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         registry.register_endpoint(endpoint)
 
@@ -426,16 +399,8 @@ class TestServiceRegistry:
     def test_register_multiple_endpoints(self):
         """Test registering multiple endpoints for same service."""
         registry = ServiceRegistry()
-        endpoint1 = ServiceEndpoint(
-            service_name="test-service",
-            host="host1",
-            port=8080
-        )
-        endpoint2 = ServiceEndpoint(
-            service_name="test-service",
-            host="host2",
-            port=8080
-        )
+        endpoint1 = ServiceEndpoint(service_name="test-service", host="host1", port=8080)
+        endpoint2 = ServiceEndpoint(service_name="test-service", host="host2", port=8080)
 
         registry.register_endpoint(endpoint1)
         registry.register_endpoint(endpoint2)
@@ -445,11 +410,7 @@ class TestServiceRegistry:
     def test_unregister_endpoint(self):
         """Test endpoint unregistration."""
         registry = ServiceRegistry()
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         registry.register_endpoint(endpoint)
         assert len(registry.endpoints["test-service"]) == 1
@@ -460,11 +421,7 @@ class TestServiceRegistry:
     def test_get_endpoints(self):
         """Test getting endpoints for a service."""
         registry = ServiceRegistry()
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         registry.register_endpoint(endpoint)
         endpoints = registry.get_endpoints("test-service")
@@ -483,9 +440,7 @@ class TestServiceRegistry:
         """Test adding traffic rule."""
         registry = ServiceRegistry()
         rule = TrafficRule(
-            name="test-rule",
-            source_service="service-a",
-            destination_service="service-b"
+            name="test-rule", source_service="service-a", destination_service="service-b"
         )
 
         registry.add_traffic_rule(rule)
@@ -498,9 +453,7 @@ class TestServiceRegistry:
         """Test getting traffic rule."""
         registry = ServiceRegistry()
         rule = TrafficRule(
-            name="test-rule",
-            source_service="service-a",
-            destination_service="service-b"
+            name="test-rule", source_service="service-a", destination_service="service-b"
         )
 
         registry.add_traffic_rule(rule)
@@ -559,14 +512,11 @@ class TestLoadBalancer:
         """Test round robin endpoint selection."""
         lb = LoadBalancer(registry_with_endpoints)
 
-        with patch.object(lb, '_is_healthy', return_value=True):
+        with patch.object(lb, "_is_healthy", return_value=True):
             # Select endpoints multiple times
             selected_hosts = []
             for _ in range(6):  # More than number of endpoints
-                endpoint = await lb.select_endpoint(
-                    "test-service",
-                    TrafficPolicy.ROUND_ROBIN
-                )
+                endpoint = await lb.select_endpoint("test-service", TrafficPolicy.ROUND_ROBIN)
                 assert endpoint is not None
                 selected_hosts.append(endpoint.host)
 
@@ -584,11 +534,8 @@ class TestLoadBalancer:
         endpoints[1].weight = 200
         endpoints[2].weight = 300
 
-        with patch.object(lb, '_is_healthy', return_value=True):
-            endpoint = await lb.select_endpoint(
-                "test-service",
-                TrafficPolicy.WEIGHTED
-            )
+        with patch.object(lb, "_is_healthy", return_value=True):
+            endpoint = await lb.select_endpoint("test-service", TrafficPolicy.WEIGHTED)
             assert endpoint is not None
             assert endpoint.host in ["host1", "host2", "host3"]
 
@@ -602,11 +549,8 @@ class TestLoadBalancer:
         registry_with_endpoints.connection_counts["host2:8080"] = 2
         registry_with_endpoints.connection_counts["host3:8080"] = 8
 
-        with patch.object(lb, '_is_healthy', return_value=True):
-            endpoint = await lb.select_endpoint(
-                "test-service",
-                TrafficPolicy.LEAST_CONNECTIONS
-            )
+        with patch.object(lb, "_is_healthy", return_value=True):
+            endpoint = await lb.select_endpoint("test-service", TrafficPolicy.LEAST_CONNECTIONS)
             assert endpoint is not None
             assert endpoint.host == "host2"  # Should select host with least connections
 
@@ -616,10 +560,7 @@ class TestLoadBalancer:
         registry = ServiceRegistry()
         lb = LoadBalancer(registry)
 
-        endpoint = await lb.select_endpoint(
-            "nonexistent-service",
-            TrafficPolicy.ROUND_ROBIN
-        )
+        endpoint = await lb.select_endpoint("nonexistent-service", TrafficPolicy.ROUND_ROBIN)
         assert endpoint is None
 
     @pytest.mark.asyncio
@@ -631,11 +572,8 @@ class TestLoadBalancer:
             # Only host2 is healthy
             return endpoint.host == "host2"
 
-        with patch.object(lb, '_is_healthy', side_effect=mock_health_check):
-            endpoint = await lb.select_endpoint(
-                "test-service",
-                TrafficPolicy.ROUND_ROBIN
-            )
+        with patch.object(lb, "_is_healthy", side_effect=mock_health_check):
+            endpoint = await lb.select_endpoint("test-service", TrafficPolicy.ROUND_ROBIN)
             assert endpoint is not None
             assert endpoint.host == "host2"
 
@@ -661,9 +599,7 @@ class TestServiceMesh:
     async def test_service_mesh_initialization(self, mock_db_session, mock_marketplace):
         """Test service mesh initialization."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         assert mesh.db_session == mock_db_session
@@ -677,9 +613,7 @@ class TestServiceMesh:
     async def test_service_mesh_initialize_and_shutdown(self, mock_db_session, mock_marketplace):
         """Test service mesh initialization and shutdown."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         await mesh.initialize()
@@ -693,15 +627,11 @@ class TestServiceMesh:
     async def test_add_traffic_rule(self, mock_db_session, mock_marketplace):
         """Test adding traffic rule to service mesh."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         rule = TrafficRule(
-            name="test-rule",
-            source_service="service-a",
-            destination_service="service-b"
+            name="test-rule", source_service="service-a", destination_service="service-b"
         )
 
         mesh.add_traffic_rule(rule)
@@ -712,16 +642,10 @@ class TestServiceMesh:
     async def test_register_service_endpoint(self, mock_db_session, mock_marketplace):
         """Test registering service endpoint."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
 
         mesh.register_service_endpoint(endpoint)
         endpoints = mesh.registry.get_endpoints("test-service")
@@ -731,9 +655,7 @@ class TestServiceMesh:
     def test_get_mesh_metrics(self, mock_db_session, mock_marketplace):
         """Test getting service mesh metrics."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         metrics = mesh.get_mesh_metrics()
@@ -750,17 +672,11 @@ class TestServiceMesh:
     def test_get_service_topology(self, mock_db_session, mock_marketplace):
         """Test getting service topology."""
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         # Add some endpoints
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
         mesh.register_service_endpoint(endpoint)
 
         topology = mesh.get_service_topology()
@@ -777,9 +693,7 @@ class TestServiceMeshFactory:
     def test_create_service_mesh(self, mock_db_session, mock_marketplace):
         """Test creating service mesh via factory."""
         mesh = ServiceMeshFactory.create_service_mesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         assert isinstance(mesh, ServiceMesh)
@@ -793,7 +707,7 @@ class TestServiceMeshFactory:
             name="test-rule",
             source_service="service-a",
             destination_service="service-b",
-            policy=TrafficPolicy.WEIGHTED
+            policy=TrafficPolicy.WEIGHTED,
         )
 
         assert isinstance(rule, TrafficRule)
@@ -805,10 +719,7 @@ class TestServiceMeshFactory:
     def test_create_service_endpoint(self):
         """Test creating service endpoint via factory."""
         endpoint = ServiceMeshFactory.create_service_endpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080,
-            protocol="https"
+            service_name="test-service", host="localhost", port=8080, protocol="https"
         )
 
         assert isinstance(endpoint, ServiceEndpoint)
@@ -824,11 +735,9 @@ class TestSetupFunction:
     @pytest.mark.asyncio
     async def test_setup_service_mesh_function(self, mock_db_session, mock_marketplace):
         """Test setup function for consolidated services."""
-        with patch.object(ServiceMesh, 'initialize') as mock_init:
+        with patch.object(ServiceMesh, "initialize") as mock_init:
             mesh = await setup_service_mesh_for_consolidated_services(
-                db_session=mock_db_session,
-                tenant_id="tenant-123",
-                marketplace=mock_marketplace
+                db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
             )
 
             assert isinstance(mesh, ServiceMesh)
@@ -860,24 +769,16 @@ class TestIntegration:
         """Test complete service mesh workflow."""
         # Create mesh
         mesh = ServiceMesh(
-            db_session=mock_db_session,
-            tenant_id="tenant-123",
-            marketplace=mock_marketplace
+            db_session=mock_db_session, tenant_id="tenant-123", marketplace=mock_marketplace
         )
 
         # Register endpoint
-        endpoint = ServiceEndpoint(
-            service_name="test-service",
-            host="localhost",
-            port=8080
-        )
+        endpoint = ServiceEndpoint(service_name="test-service", host="localhost", port=8080)
         mesh.register_service_endpoint(endpoint)
 
         # Add traffic rule
         rule = TrafficRule(
-            name="test-rule",
-            source_service="client-service",
-            destination_service="test-service"
+            name="test-rule", source_service="client-service", destination_service="test-service"
         )
         mesh.add_traffic_rule(rule)
 

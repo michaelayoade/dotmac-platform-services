@@ -42,7 +42,6 @@ class TestCreateApplication:
         assert test_app.debug is False
 
 
-
 class TestLifespan:
     """Test lifespan context manager."""
 
@@ -53,6 +52,7 @@ class TestLifespan:
     @patch("dotmac.platform.main.setup_telemetry")
     @patch("dotmac.platform.main.settings")
     @patch("builtins.print")
+    @pytest.mark.asyncio
     async def test_lifespan_startup_success(
         self,
         mock_print,
@@ -89,6 +89,7 @@ class TestLifespan:
     @patch("dotmac.platform.main.HealthChecker")
     @patch("dotmac.platform.main.settings")
     @patch("builtins.print")
+    @pytest.mark.asyncio
     async def test_lifespan_startup_deps_failed_production(
         self, mock_print, mock_settings, mock_health_checker
     ):
@@ -118,8 +119,15 @@ class TestLifespan:
     @patch("dotmac.platform.main.setup_telemetry")
     @patch("dotmac.platform.main.settings")
     @patch("builtins.print")
+    @pytest.mark.asyncio
     async def test_lifespan_secrets_loading_error_dev(
-        self, mock_print, mock_settings, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+        self,
+        mock_print,
+        mock_settings,
+        mock_setup_telemetry,
+        mock_init_db,
+        mock_load_secrets,
+        mock_health_checker,
     ):
         """Test lifespan continues when secrets loading fails in dev."""
         mock_settings.environment = "development"
@@ -142,6 +150,7 @@ class TestLifespan:
     @patch("dotmac.platform.main.HealthChecker")
     @patch("dotmac.platform.main.load_secrets_from_vault_sync")
     @patch("dotmac.platform.main.settings")
+    @pytest.mark.asyncio
     async def test_lifespan_secrets_loading_error_production(
         self, mock_settings, mock_load_secrets, mock_health_checker
     ):
@@ -262,7 +271,6 @@ class TestApplicationEndpoints:
             assert "# HELP" in content or "# TYPE" in content or len(content) == 0
 
 
-
 class TestAppInstance:
     """Test the app instance."""
 
@@ -284,15 +292,21 @@ class TestMissingCoverage:
         from dotmac.platform.main import rate_limit_handler
         from fastapi import Request
 
-        # Create mock request and exception
+        # Create mock request and mock exception
         request = MagicMock(spec=Request)
-        exc = Exception("Rate limit exceeded")
+        exc = MagicMock()  # Mock exception instead of creating real RateLimitExceeded
 
-        # Call rate limit handler - should not raise
-        result = rate_limit_handler(request, exc)
+        # Mock the _rate_limit_exceeded_handler to return a response
+        with patch("dotmac.platform.main._rate_limit_exceeded_handler") as mock_handler:
+            mock_response = MagicMock()
+            mock_handler.return_value = mock_response
 
-        # Should return a response (the _rate_limit_exceeded_handler return value)
-        assert result is not None
+            # Call rate limit handler - should not raise
+            result = rate_limit_handler(request, exc)
+
+            # Should return a response (the _rate_limit_exceeded_handler return value)
+            assert result is mock_response
+            mock_handler.assert_called_once_with(request, exc)
 
     @pytest.mark.asyncio
     @patch("dotmac.platform.main.HealthChecker")
@@ -301,8 +315,15 @@ class TestMissingCoverage:
     @patch("dotmac.platform.main.setup_telemetry")
     @patch("dotmac.platform.main.settings")
     @patch("builtins.print")
+    @pytest.mark.asyncio
     async def test_lifespan_degraded_startup_dev(
-        self, mock_print, mock_settings, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+        self,
+        mock_print,
+        mock_settings,
+        mock_setup_telemetry,
+        mock_init_db,
+        mock_load_secrets,
+        mock_health_checker,
     ):
         """Test lifespan with optional services failed in dev (line 86)."""
         mock_settings.environment = "development"
@@ -335,8 +356,16 @@ class TestMissingCoverage:
     @patch("dotmac.platform.main.init_db")
     @patch("dotmac.platform.main.setup_telemetry")
     @patch("dotmac.platform.main.settings")
+    @patch("builtins.print")
+    @pytest.mark.asyncio
     async def test_lifespan_database_init_failure(
-        self, mock_settings, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+        self,
+        mock_print,
+        mock_settings,
+        mock_setup_telemetry,
+        mock_init_db,
+        mock_load_secrets,
+        mock_health_checker,
     ):
         """Test lifespan when database init fails (lines 109-111)."""
         mock_settings.environment = "development"
@@ -351,13 +380,20 @@ class TestMissingCoverage:
 
         test_app = MagicMock(spec=FastAPI)
 
-        # Should raise when database init fails
-        with pytest.raises(Exception, match="Database connection failed"):
-            async with lifespan(test_app):
-                pass
+        # Should not raise in development, just log the error
+        async with lifespan(test_app):
+            pass
 
+        # Verify print was called with error message
+        print_calls = [str(call) for call in mock_print.call_args_list]
+        assert any("Database initialization failed" in str(call) for call in print_calls)
+
+    @patch("dotmac.platform.main.register_routers")
+    @patch("dotmac.platform.main.get_limiter")
     @patch("dotmac.platform.main.settings")
-    def test_create_application_cors_enabled(self, mock_settings):
+    def test_create_application_cors_enabled(
+        self, mock_settings, mock_get_limiter, mock_register_routers
+    ):
         """Test application creation with CORS enabled (line 141->152)."""
         # Enable CORS in settings
         mock_settings.app_version = "1.0.0"
@@ -370,10 +406,16 @@ class TestMissingCoverage:
         mock_settings.cors.max_age = 600
         mock_settings.observability.enable_metrics = False
 
+        # Mock the rate limiter
+        mock_get_limiter.return_value = MagicMock()
+
         test_app = create_application()
 
         # Should have CORS middleware - check for it in any middleware
-        has_cors = any('cors' in str(type(middleware.cls)).lower() for middleware in test_app.user_middleware)
+        # Check the middleware.cls directly, not type(middleware.cls)
+        has_cors = any(
+            "cors" in str(middleware.cls).lower() for middleware in test_app.user_middleware
+        )
         assert has_cors
 
     @patch("dotmac.platform.main.settings")
@@ -384,7 +426,7 @@ class TestMissingCoverage:
         mock_settings.cors.enabled = False
         mock_settings.observability.enable_metrics = True
 
-        with patch('prometheus_client.make_asgi_app') as mock_make_asgi:
+        with patch("prometheus_client.make_asgi_app") as mock_make_asgi:
             mock_make_asgi.return_value = MagicMock()
 
             test_app = create_application()
@@ -396,7 +438,9 @@ class TestMissingCoverage:
     @patch("dotmac.platform.main.load_secrets_from_vault_sync")
     @patch("dotmac.platform.main.init_db")
     @patch("dotmac.platform.main.setup_telemetry")
-    def test_liveness_endpoint(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+    def test_liveness_endpoint(
+        self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+    ):
         """Test /health/live endpoint (line 175)."""
         # Mock HealthChecker
         mock_checker_instance = MagicMock()
@@ -414,7 +458,9 @@ class TestMissingCoverage:
     @patch("dotmac.platform.main.load_secrets_from_vault_sync")
     @patch("dotmac.platform.main.init_db")
     @patch("dotmac.platform.main.setup_telemetry")
-    def test_api_info_endpoint(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+    def test_api_info_endpoint(
+        self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+    ):
         """Test /api endpoint (line 207)."""
         # Mock HealthChecker
         mock_checker_instance = MagicMock()
@@ -431,7 +477,9 @@ class TestMissingCoverage:
     @patch("dotmac.platform.main.load_secrets_from_vault_sync")
     @patch("dotmac.platform.main.init_db")
     @patch("dotmac.platform.main.setup_telemetry")
-    def test_readiness_endpoint_health_ready(self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker):
+    def test_readiness_endpoint_health_ready(
+        self, mock_setup_telemetry, mock_init_db, mock_load_secrets, mock_health_checker
+    ):
         """Test /health/ready endpoint."""
         # Mock HealthChecker for both lifespan and endpoint
         mock_checker_instance = MagicMock()

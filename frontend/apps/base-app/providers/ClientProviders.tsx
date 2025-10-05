@@ -11,6 +11,7 @@ import { MSWProvider } from './MSWProvider';
 import { platformConfig } from '@/lib/config';
 import { TenantProvider } from '@/lib/contexts/tenant-context';
 import { RBACProvider } from '@/contexts/RBACContext';
+import { AuthProvider } from '@/hooks/useAuth';
 import { ToastContainer } from '@/components/ui/toast';
 
 export function ClientProviders({ children }: { children: ReactNode }) {
@@ -31,13 +32,15 @@ export function ClientProviders({ children }: { children: ReactNode }) {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClient}>
           <TenantProvider>
-            {shouldWrapWithRBAC ? (
-              <RBACProvider>
-                {appProviders}
-              </RBACProvider>
-            ) : (
-              appProviders
-            )}
+            <AuthProvider>
+              {shouldWrapWithRBAC ? (
+                <RBACProvider>
+                  {appProviders}
+                </RBACProvider>
+              ) : (
+                appProviders
+              )}
+            </AuthProvider>
           </TenantProvider>
         </QueryClientProvider>
       </ThemeProvider>

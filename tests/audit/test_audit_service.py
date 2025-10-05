@@ -20,6 +20,8 @@ from dotmac.platform.audit.models import (
     AuditActivity,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture
 def audit_service():
@@ -284,7 +286,7 @@ class TestAuditService:
         audit_service._session = async_db_session
 
         # Should use tenant from context when available
-        with patch('dotmac.platform.tenant.get_current_tenant_id', return_value="context_tenant"):
+        with patch("dotmac.platform.tenant.get_current_tenant_id", return_value="context_tenant"):
             activity = await audit_service.log_activity(
                 activity_type=ActivityType.USER_LOGIN,
                 action="login",
@@ -300,13 +302,13 @@ class TestAuditService:
         audit_service._session = async_db_session
 
         # Configure the tenant system to require tenant_id
-        with patch('dotmac.platform.tenant.get_tenant_config') as mock_config:
+        with patch("dotmac.platform.tenant.get_tenant_config") as mock_config:
             mock_tenant_config = MagicMock()
             mock_tenant_config.is_single_tenant = False
             mock_tenant_config.default_tenant_id = None
             mock_config.return_value = mock_tenant_config
 
-            with patch('dotmac.platform.tenant.get_current_tenant_id', return_value=None):
+            with patch("dotmac.platform.tenant.get_current_tenant_id", return_value=None):
                 with pytest.raises(ValueError, match="tenant_id is required"):
                     await audit_service.log_activity(
                         activity_type=ActivityType.USER_LOGIN,
@@ -320,7 +322,7 @@ class TestAuditService:
         """Test that tenant_id is auto-populated from context."""
         audit_service._session = async_db_session
 
-        with patch('dotmac.platform.tenant.get_current_tenant_id', return_value="tenant456"):
+        with patch("dotmac.platform.tenant.get_current_tenant_id", return_value="tenant456"):
             activity = await audit_service.log_activity(
                 activity_type=ActivityType.USER_LOGIN,
                 action="login",
@@ -355,6 +357,7 @@ class TestAuditService:
 
         # Query activities for tenant1 only
         from dotmac.platform.audit.models import AuditFilterParams
+
         filters = AuditFilterParams(
             tenant_id="tenant1",
             page=1,
@@ -375,7 +378,7 @@ class TestAuditHelperFunctions:
     @pytest.mark.asyncio
     async def test_log_user_activity(self, async_db_session):
         """Test log_user_activity helper."""
-        with patch('dotmac.platform.audit.service.AuditService') as MockService:
+        with patch("dotmac.platform.audit.service.AuditService") as MockService:
             mock_service = AsyncMock()
             MockService.return_value = mock_service
             mock_service.log_activity = AsyncMock()
@@ -397,7 +400,7 @@ class TestAuditHelperFunctions:
     @pytest.mark.asyncio
     async def test_log_api_activity(self, mock_request):
         """Test log_api_activity helper."""
-        with patch('dotmac.platform.audit.service.AuditService') as MockService:
+        with patch("dotmac.platform.audit.service.AuditService") as MockService:
             mock_service = AsyncMock()
             MockService.return_value = mock_service
             mock_service.log_request_activity = AsyncMock()
@@ -413,7 +416,7 @@ class TestAuditHelperFunctions:
     @pytest.mark.asyncio
     async def test_log_system_activity(self):
         """Test log_system_activity helper."""
-        with patch('dotmac.platform.audit.service.AuditService') as MockService:
+        with patch("dotmac.platform.audit.service.AuditService") as MockService:
             mock_service = AsyncMock()
             MockService.return_value = mock_service
             mock_service.log_activity = AsyncMock()

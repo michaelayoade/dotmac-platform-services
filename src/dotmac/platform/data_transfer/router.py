@@ -1,6 +1,6 @@
 """Data transfer API router."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import structlog
@@ -42,7 +42,7 @@ async def import_data(
             type=TransferType.IMPORT,
             status=TransferStatus.PENDING,
             progress=0.0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             records_processed=0,
             records_failed=0,
             records_total=None,
@@ -79,7 +79,7 @@ async def export_data(
             type=TransferType.EXPORT,
             status=TransferStatus.PENDING,
             progress=0.0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             records_processed=0,
             records_failed=0,
             records_total=None,
@@ -99,7 +99,9 @@ async def export_data(
 
 
 @data_transfer_router.get("/jobs/{job_id}", response_model=TransferJobResponse)
-async def get_job_status(job_id: str, current_user: UserInfo = Depends(get_current_user)) -> TransferJobResponse:
+async def get_job_status(
+    job_id: str, current_user: UserInfo = Depends(get_current_user)
+) -> TransferJobResponse:
     """Get data transfer job status."""
     try:
         if current_user:
@@ -123,9 +125,9 @@ async def get_job_status(job_id: str, current_user: UserInfo = Depends(get_curre
             type=TransferType.IMPORT,
             status=TransferStatus.COMPLETED,
             progress=100.0,
-            created_at=datetime.now(timezone.utc) - timedelta(hours=1),
-            started_at=datetime.now(timezone.utc) - timedelta(minutes=55),
-            completed_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            created_at=datetime.now(UTC) - timedelta(hours=1),
+            started_at=datetime.now(UTC) - timedelta(minutes=55),
+            completed_at=datetime.now(UTC) - timedelta(minutes=5),
             records_processed=1000,
             records_failed=0,
             records_total=1000,

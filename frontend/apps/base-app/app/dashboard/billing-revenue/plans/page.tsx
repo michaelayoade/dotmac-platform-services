@@ -130,9 +130,8 @@ export default function PlansPage() {
     trial_days: 14,
   });
 
-  // Use backend plans directly or mock data as fallback
-  // TODO: Complete backend plan mapping when API is stabilized
-  const plans: Plan[] = backendPlans.length > 0 ? backendPlans.map(plan => ({
+  // Use backend plans directly - no mock fallback data
+  const plans: Plan[] = backendPlans.map(plan => ({
     id: plan.plan_id,
     name: plan.name || plan.display_name || 'Unknown Plan',
     description: plan.description || '',
@@ -151,100 +150,10 @@ export default function PlansPage() {
     updated_at: plan.updated_at,
     subscriber_count: 0,
     mrr: 0,
-  })) : [
-        {
-          id: 'plan-starter',
-          name: 'Starter',
-          description: 'Perfect for small teams just getting started',
-          price_monthly: 29,
-          price_annual: 290,
-          currency: 'USD',
-          status: 'active',
-          tier: 'starter',
-          features: [
-            { id: 'users', name: 'Up to 5 team members', included: true, limit: '5' },
-            { id: 'storage', name: '10 GB storage', included: true, limit: '10 GB' },
-            { id: 'api', name: '10,000 API calls/mo', included: true, limit: '10,000' },
-            { id: 'support', name: 'Email support', included: true },
-            { id: 'analytics', name: 'Basic analytics', included: true },
-            { id: 'sso', name: 'SSO Integration', included: false },
-            { id: 'audit', name: 'Audit Logs', included: false },
-            { id: 'custom', name: 'Custom Integrations', included: false },
-          ],
-          popular: false,
-          trial_days: 14,
-          max_users: 5,
-          storage_gb: 10,
-          api_calls: 10000,
-          created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          subscriber_count: 125,
-          mrr: 3625,
-        },
-        {
-          id: 'plan-pro',
-          name: 'Professional',
-          description: 'For growing teams that need more power and flexibility',
-          price_monthly: 99,
-          price_annual: 990,
-          currency: 'USD',
-          status: 'active',
-          tier: 'professional',
-          features: [
-            { id: 'users', name: 'Up to 20 team members', included: true, limit: '20' },
-            { id: 'storage', name: '100 GB storage', included: true, limit: '100 GB' },
-            { id: 'api', name: '100,000 API calls/mo', included: true, limit: '100,000' },
-            { id: 'support', name: 'Priority email support', included: true },
-            { id: 'analytics', name: 'Advanced analytics', included: true },
-            { id: 'sso', name: 'SSO Integration', included: true },
-            { id: 'audit', name: 'Audit Logs', included: true },
-            { id: 'custom', name: 'Custom Integrations', included: false },
-          ],
-          popular: true,
-          trial_days: 14,
-          max_users: 20,
-          storage_gb: 100,
-          api_calls: 100000,
-          created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-          subscriber_count: 89,
-          mrr: 8811,
-        },
-        {
-          id: 'plan-ent',
-          name: 'Enterprise',
-          description: 'Full-featured solution for large organizations',
-          price_monthly: 499,
-          price_annual: 4990,
-          currency: 'USD',
-          status: 'active',
-          tier: 'enterprise',
-          features: [
-            { id: 'users', name: 'Unlimited team members', included: true, limit: 'Unlimited' },
-            { id: 'storage', name: '1 TB storage', included: true, limit: '1 TB' },
-            { id: 'api', name: 'Unlimited API calls', included: true, limit: 'Unlimited' },
-            { id: 'support', name: '24/7 phone & email support', included: true },
-            { id: 'analytics', name: 'Advanced analytics & reporting', included: true },
-            { id: 'sso', name: 'SSO & SAML Integration', included: true },
-            { id: 'audit', name: 'Full audit logs & compliance', included: true },
-            { id: 'custom', name: 'Custom integrations', included: true },
-            { id: 'sla', name: '99.9% SLA', included: true },
-            { id: 'manager', name: 'Dedicated success manager', included: true },
-          ],
-          popular: false,
-          trial_days: 30,
-          max_users: -1,
-          storage_gb: 1000,
-          api_calls: -1,
-          created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          subscriber_count: 12,
-          mrr: 5988,
-        },
-      ];
+  }));
 
   const handleCreatePlan = async () => {
-    if (!newPlan.name || !newPlan.description || newPlan.price_monthly <= 0) {
+    if (!newPlan.name || !newPlan.description || (newPlan.price_monthly ?? 0) <= 0) {
       toast({
         title: 'Error',
         description: 'Please fill in all required fields',
@@ -314,13 +223,13 @@ export default function PlansPage() {
   const getTierColor = (tier: string) => {
     switch (tier) {
       case 'starter':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
       case 'professional':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
       case 'enterprise':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -341,7 +250,7 @@ export default function PlansPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Pricing Plans</h1>
-          <p className="text-gray-500">Manage your subscription tiers and pricing</p>
+          <p className="text-muted-foreground">Manage your subscription tiers and pricing</p>
         </div>
         <Button onClick={() => setShowNewPlanDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -357,7 +266,7 @@ export default function PlansPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{plans.filter(p => p.status === 'active').length}</div>
-            <p className="text-xs text-gray-500">Available for subscription</p>
+            <p className="text-xs text-muted-foreground">Available for subscription</p>
           </CardContent>
         </Card>
         <Card>
@@ -366,7 +275,7 @@ export default function PlansPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalSubscribers}</div>
-            <p className="text-xs text-gray-500">Across all plans</p>
+            <p className="text-xs text-muted-foreground">Across all plans</p>
           </CardContent>
         </Card>
         <Card>
@@ -375,7 +284,7 @@ export default function PlansPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalMRR, 'USD')}</div>
-            <p className="text-xs text-gray-500">Monthly recurring revenue</p>
+            <p className="text-xs text-muted-foreground">Monthly recurring revenue</p>
           </CardContent>
         </Card>
         <Card>
@@ -386,14 +295,14 @@ export default function PlansPage() {
             <div className="text-2xl font-bold">
               {totalSubscribers > 0 ? formatCurrency(totalMRR / totalSubscribers, 'USD') : '$0'}
             </div>
-            <p className="text-xs text-gray-500">ARPU</p>
+            <p className="text-xs text-muted-foreground">ARPU</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Billing Period Toggle */}
       <div className="flex justify-center">
-        <div className="inline-flex items-center space-x-2 p-1 bg-gray-100 rounded-lg">
+        <div className="inline-flex items-center space-x-2 p-1 bg-muted rounded-lg">
           <Button
             variant={billingPeriod === 'monthly' ? 'default' : 'ghost'}
             size="sm"
@@ -415,10 +324,10 @@ export default function PlansPage() {
       {/* Pricing Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans.map((plan) => (
-          <Card key={plan.id} className={`relative ${plan.popular ? 'border-purple-500 border-2' : ''}`}>
+          <Card key={plan.id} className={`relative ${plan.popular ? 'border-purple-500 dark:border-purple-400 border-2' : ''}`}>
             {plan.popular && (
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <Badge className="bg-purple-500 text-white">
+                <Badge className="bg-purple-500 text-white dark:bg-purple-600 dark:text-white">
                   <Star className="h-3 w-3 mr-1" />
                   Most Popular
                 </Badge>
@@ -442,27 +351,27 @@ export default function PlansPage() {
                     billingPeriod === 'monthly' ? plan.price_monthly : plan.price_annual,
                     plan.currency
                   )}
-                  <span className="text-lg font-normal text-gray-500">
+                  <span className="text-lg font-normal text-muted-foreground">
                     /{billingPeriod === 'monthly' ? 'month' : 'year'}
                   </span>
                 </div>
                 {billingPeriod === 'annual' && (
-                  <p className="text-sm text-green-600">
+                  <p className="text-sm text-green-600 dark:text-green-400">
                     Save {formatCurrency(plan.price_monthly * 12 - plan.price_annual, plan.currency)} per year
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-muted-foreground">
                   <Users className="h-4 w-4 mr-2" />
                   {plan.subscriber_count} active subscribers
                 </div>
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-muted-foreground">
                   <DollarSign className="h-4 w-4 mr-2" />
                   {formatCurrency(plan.mrr, plan.currency)} MRR
                 </div>
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-muted-foreground">
                   <Zap className="h-4 w-4 mr-2" />
                   {plan.trial_days} day free trial
                 </div>
@@ -474,11 +383,11 @@ export default function PlansPage() {
                   {plan.features.slice(0, 5).map((feature) => (
                     <li key={feature.id} className="flex items-start text-sm">
                       {feature.included ? (
-                        <Check className="h-4 w-4 text-green-500 mr-2 mt-0.5" />
+                        <Check className="h-4 w-4 text-green-500 dark:text-green-400 mr-2 mt-0.5" />
                       ) : (
-                        <X className="h-4 w-4 text-gray-300 mr-2 mt-0.5" />
+                        <X className="h-4 w-4 text-muted-foreground mr-2 mt-0.5" />
                       )}
-                      <span className={feature.included ? '' : 'text-gray-400'}>
+                      <span className={feature.included ? '' : 'text-muted-foreground'}>
                         {feature.name}
                       </span>
                     </li>
@@ -534,13 +443,13 @@ export default function PlansPage() {
               Set up a new subscription tier for your customers
             </DialogDescription>
           </DialogHeader>
-          <Tabs>
+          <Tabs defaultValue="general">
             <TabsList>
-              <TabsTrigger>General</TabsTrigger>
-              <TabsTrigger>Features</TabsTrigger>
-              <TabsTrigger>Limits</TabsTrigger>
+              <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="features">Features</TabsTrigger>
+              <TabsTrigger value="limits">Limits</TabsTrigger>
             </TabsList>
-            <TabsContent className="space-y-4">
+            <TabsContent value="general" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Plan Name</Label>
@@ -555,7 +464,7 @@ export default function PlansPage() {
                   <select
                     value={newPlan.tier}
                     onChange={(e) => setNewPlan({ ...newPlan, tier: e.target.value as 'starter' | 'professional' | 'enterprise' | 'custom' })}
-                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                    className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                   >
                     <option value="starter">Starter</option>
                     <option value="professional">Professional</option>
@@ -603,18 +512,21 @@ export default function PlansPage() {
                 />
               </div>
             </TabsContent>
-            <TabsContent className="space-y-4">
-              <p className="text-sm text-gray-500">Select which features are included in this plan</p>
+            <TabsContent value="features" className="space-y-4">
+              <p className="text-sm text-muted-foreground">Select which features are included in this plan</p>
               <div className="space-y-3">
-                {newPlan.features.map((feature, index) => (
+                {(newPlan.features ?? []).map((feature, index) => (
                   <div key={feature.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Switch
                         checked={feature.included}
                         onCheckedChange={(checked) => {
-                          const updated = [...newPlan.features];
-                          updated[index].included = checked;
-                          setNewPlan({ ...newPlan, features: updated });
+                          const updated = [...(newPlan.features ?? [])];
+                          const feature = updated[index];
+                          if (feature) {
+                            feature.included = checked;
+                            setNewPlan({ ...newPlan, features: updated });
+                          }
                         }}
                       />
                       <Label className="font-normal">{feature.name}</Label>
@@ -624,9 +536,12 @@ export default function PlansPage() {
                         className="w-32"
                         value={feature.limit}
                         onChange={(e) => {
-                          const updated = [...newPlan.features];
-                          updated[index].limit = e.target.value;
-                          setNewPlan({ ...newPlan, features: updated });
+                          const updated = [...(newPlan.features ?? [])];
+                          const feature = updated[index];
+                          if (feature) {
+                            feature.limit = e.target.value;
+                            setNewPlan({ ...newPlan, features: updated });
+                          }
                         }}
                         placeholder="Limit"
                       />
@@ -635,7 +550,7 @@ export default function PlansPage() {
                 ))}
               </div>
             </TabsContent>
-            <TabsContent className="space-y-4">
+            <TabsContent value="limits" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Max Users</Label>
@@ -698,7 +613,7 @@ export default function PlansPage() {
                 <Label>Status</Label>
                 <select
                   defaultValue={selectedPlan?.status || 'active'}
-                  className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                  className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>

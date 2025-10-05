@@ -99,6 +99,7 @@ class TestBaseModel:
 
     def test_base_model_creation(self):
         """Test creating a BaseModel instance."""
+
         class TestModel(BaseModel):
             name: str
             value: int
@@ -109,6 +110,7 @@ class TestBaseModel:
 
     def test_base_model_from_attributes(self):
         """Test BaseModel with from_attributes config."""
+
         class TestModel(BaseModel):
             name: str
             value: int
@@ -125,6 +127,7 @@ class TestBaseModel:
 
     def test_base_model_validate_assignment(self):
         """Test BaseModel with validate_assignment config."""
+
         class TestModel(BaseModel):
             name: str
             value: int
@@ -137,6 +140,7 @@ class TestBaseModel:
 
     def test_base_model_dict_export(self):
         """Test exporting BaseModel to dict."""
+
         class TestModel(BaseModel):
             name: str
             value: int
@@ -147,6 +151,7 @@ class TestBaseModel:
 
     def test_base_model_json_export(self):
         """Test exporting BaseModel to JSON."""
+
         class TestModel(BaseModel):
             name: str
             value: int
@@ -167,7 +172,7 @@ class TestTenantContext:
             tenant_name="Test Tenant",
             domain="test.example.com",
             is_active=True,
-            metadata={"key": "value"}
+            metadata={"key": "value"},
         )
         assert context.tenant_id == "tenant-123"
         assert context.tenant_name == "Test Tenant"
@@ -186,10 +191,7 @@ class TestTenantContext:
 
     def test_tenant_context_defaults(self):
         """Test TenantContext default values."""
-        context = TenantContext(
-            tenant_id="tenant-789",
-            tenant_name="Test"
-        )
+        context = TenantContext(tenant_id="tenant-789", tenant_name="Test")
         assert context.is_active is True
         assert context.metadata == {}
 
@@ -222,7 +224,7 @@ class TestTenantContext:
             tenant_name="Test Tenant",
             domain="test.example.com",
             is_active=False,
-            metadata={"env": "test"}
+            metadata={"env": "test"},
         )
 
         data = context.model_dump()
@@ -231,7 +233,7 @@ class TestTenantContext:
             "tenant_name": "Test Tenant",
             "domain": "test.example.com",
             "is_active": False,
-            "metadata": {"env": "test"}
+            "metadata": {"env": "test"},
         }
 
     def test_tenant_context_from_dict(self):
@@ -241,7 +243,7 @@ class TestTenantContext:
             "tenant_name": "Dict Tenant",
             "domain": "dict.example.com",
             "is_active": True,
-            "metadata": {"source": "dict"}
+            "metadata": {"source": "dict"},
         }
 
         context = TenantContext(**data)
@@ -258,8 +260,8 @@ class TestTenantContext:
                 "number": 42,
                 "bool": True,
                 "list": [1, 2, 3],
-                "nested": {"key": "value"}
-            }
+                "nested": {"key": "value"},
+            },
         )
 
         assert context.metadata["string"] == "value"
@@ -290,6 +292,7 @@ class TestCoreIntegration:
 
     def test_model_with_exception_handling(self):
         """Test using models with exception handling."""
+
         class UserModel(BaseModel):
             id: str
             name: str
@@ -318,17 +321,14 @@ class TestCoreIntegration:
 
     def test_tenant_context_with_models(self):
         """Test using TenantContext with other models."""
+
         class ResourceModel(BaseModel):
             id: str
             name: str
             tenant_context: TenantContext
 
         context = TenantContext(tenant_id="tenant-abc")
-        resource = ResourceModel(
-            id="resource-1",
-            name="Test Resource",
-            tenant_context=context
-        )
+        resource = ResourceModel(id="resource-1", name="Test Resource", tenant_context=context)
 
         assert resource.tenant_context.tenant_id == "tenant-abc"
         assert resource.tenant_context.is_active is True

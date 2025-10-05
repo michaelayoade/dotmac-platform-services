@@ -4,8 +4,8 @@ Analytics API router.
 Provides REST endpoints for analytics operations.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import structlog
@@ -30,16 +30,16 @@ from .models import (
 logger = structlog.get_logger(__name__)
 
 
-def _ensure_utc(value: Optional[Any]) -> datetime:
+def _ensure_utc(value: Any | None) -> datetime:
     """Normalize incoming datetime-like values to UTC-aware datetimes."""
 
     if value is None:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     if isinstance(value, str):
         cleaned = value.strip()
@@ -48,13 +48,13 @@ def _ensure_utc(value: Optional[Any]) -> datetime:
         try:
             parsed = datetime.fromisoformat(cleaned)
         except ValueError:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
         return _ensure_utc(parsed)
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def _isoformat(value: Optional[Any]) -> str:
+def _isoformat(value: Any | None) -> str:
     """Return a UTC ISO 8601 representation with trailing Z."""
 
     return format_datetime(_ensure_utc(value))
@@ -179,7 +179,7 @@ async def get_events(
     try:
         # Default time range if not specified
         if not end_date:
-            end_date = datetime.now(timezone.utc)
+            end_date = datetime.now(UTC)
         if not start_date:
             start_date = end_date - timedelta(days=7)
 
@@ -208,6 +208,68 @@ async def get_events(
         )
 
 
+def _extract_metrics_from_dict(metrics_summary: dict, metric_name: str | None) -> list[dict]:
+    """Extract metrics from summary dictionary."""
+    metrics_list = []
+    for metric_type in ["counters", "gauges", "histograms"]:
+        if metric_type in metrics_summary:
+            for name, value in metrics_summary[metric_type].items():
+                if metric_name is None or metric_name in name:
+                    metrics_list.append(
+                        {
+                            "name": name,
+                            "type": metric_type[:-1],  # Remove 's' from plural
+                            "value": value,
+                            "timestamp": _ensure_utc(metrics_summary.get("timestamp")),
+                        }
+                    )
+    return metrics_list
+
+
+def _convert_to_metrics_list(metrics_summary: dict | list, metric_name: str | None) -> list[dict]:
+    """Convert metrics summary to list format."""
+    if isinstance(metrics_summary, dict):
+        return _extract_metrics_from_dict(metrics_summary, metric_name)
+    else:
+        return metrics_summary if isinstance(metrics_summary, list) else []
+
+
+def _group_metrics_by_name(metrics_list: list[dict]) -> dict:
+    """Group metrics by name for series creation."""
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for metric in metrics_list:
+        grouped[metric["name"]].append(
+            {
+                "timestamp": _ensure_utc(metric.get("timestamp")),
+                "value": metric["value"],
+            }
+        )
+    return grouped
+
+
+def _create_metric_series(grouped_metrics: dict, aggregation: str) -> list[MetricSeries]:
+    """Create MetricSeries objects from grouped metrics."""
+    metrics = []
+    for name, data_points in grouped_metrics.items():
+        metrics.append(
+            MetricSeries(
+                metric_name=name,
+                unit="count",  # Default unit
+                data_points=[
+                    MetricDataPoint(
+                        timestamp=dp.get("timestamp", datetime.now(UTC)),
+                        value=dp["value"],
+                    )
+                    for dp in data_points
+                ],
+                aggregation=aggregation,
+            )
+        )
+    return metrics
+
+
 @analytics_router.get("/metrics", response_model=MetricsQueryResponse)
 async def get_metrics(
     current_user: CurrentUser = Depends(get_current_user),
@@ -225,7 +287,7 @@ async def get_metrics(
     try:
         # Default time range
         if not end_date:
-            end_date = datetime.now(timezone.utc)
+            end_date = datetime.now(UTC)
         if not start_date:
             start_date = end_date - timedelta(hours=24)
 
@@ -243,53 +305,13 @@ async def get_metrics(
         )
 
         # Convert metrics summary to list format
-        metrics_list = []
-        if isinstance(metrics_summary, dict):
-            # Extract metrics from the summary dict
-            for metric_type in ["counters", "gauges", "histograms"]:
-                if metric_type in metrics_summary:
-                    for name, value in metrics_summary[metric_type].items():
-                        if metric_name is None or metric_name in name:
-                            metrics_list.append(
-                                {
-                                    "name": name,
-                                    "type": metric_type[:-1],  # Remove 's' from plural
-                                    "value": value,
-                                    "timestamp": _ensure_utc(
-                                        metrics_summary.get("timestamp")
-                                    ),
-                                }
-                            )
-        else:
-            metrics_list = metrics_summary if isinstance(metrics_summary, list) else []
+        metrics_list = _convert_to_metrics_list(metrics_summary, metric_name)
 
         # Convert to MetricSeries format
         metrics = []
         if metrics_list:
-            # Group by metric name and create series
-            from collections import defaultdict
-
-            grouped = defaultdict(list)
-            for metric in metrics_list:
-                grouped[metric["name"]].append({
-                    "timestamp": _ensure_utc(metric.get("timestamp")),
-                    "value": metric["value"],
-                })
-
-            for name, data_points in grouped.items():
-                metrics.append(
-                    MetricSeries(
-                        metric_name=name,
-                        unit="count",  # Default unit
-                        data_points=[
-                            MetricDataPoint(
-                                timestamp=dp.get("timestamp", datetime.now(timezone.utc)),
-                                value=dp["value"]
-                            ) for dp in data_points
-                        ],
-                        aggregation=aggregation,
-                    )
-                )
+            grouped = _group_metrics_by_name(metrics_list)
+            metrics = _create_metric_series(grouped, aggregation)
 
         return MetricsQueryResponse(
             metrics=metrics,
@@ -370,7 +392,7 @@ async def generate_report(
     try:
         # Default time range
         if not end_date:
-            end_date = datetime.now(timezone.utc)
+            end_date = datetime.now(UTC)
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -386,6 +408,7 @@ async def generate_report(
         # Convert report type string to enum
         try:
             from .models import ReportType as ReportTypeEnum
+
             report_type_enum = ReportTypeEnum(report_type)
         except ValueError:
             report_type_enum = ReportTypeEnum.SUMMARY  # Default
@@ -400,7 +423,7 @@ async def generate_report(
                     data=report_data or {},
                 )
             ],
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             period={"start": start_date, "end": end_date},
         )
     except ValueError:
@@ -426,7 +449,7 @@ async def get_dashboard_data(
     """
     try:
         # Calculate period
-        end_date = datetime.now(timezone.utc)
+        end_date = datetime.now(UTC)
         if period == "hour":
             start_date = end_date - timedelta(hours=1)
         elif period == "day":

@@ -60,7 +60,7 @@ def mock_otel_settings():
 
     Returns a mock settings object with telemetry disabled by default.
     """
-    with patch('dotmac.platform.settings.settings') as mock_settings:
+    with patch("dotmac.platform.settings.settings") as mock_settings:
         # Configure observability settings to prevent exports
         mock_settings.observability.otel_enabled = False
         mock_settings.observability.enable_tracing = False
@@ -86,13 +86,13 @@ def mock_telemetry_disabled():
     Use this fixture when you need to completely disable telemetry
     for specific tests without any side effects.
     """
-    with patch('dotmac.platform.telemetry.setup_telemetry') as mock_setup:
+    with patch("dotmac.platform.telemetry.setup_telemetry") as mock_setup:
         mock_setup.return_value = None
 
-        with patch('opentelemetry.trace.set_tracer_provider') as mock_tracer:
+        with patch("opentelemetry.trace.set_tracer_provider") as mock_tracer:
             mock_tracer.return_value = None
 
-            with patch('opentelemetry.metrics.set_meter_provider') as mock_meter:
+            with patch("opentelemetry.metrics.set_meter_provider") as mock_meter:
                 mock_meter.return_value = None
                 yield
 
@@ -111,7 +111,7 @@ def mock_otel_collector():
     mock_collector.get_metrics_summary.return_value = {
         "counters": {},
         "gauges": {},
-        "histograms": {}
+        "histograms": {},
     }
     mock_collector.create_span.return_value = Mock()
     mock_collector.tracer = Mock()
@@ -133,6 +133,7 @@ def clean_otel_environment():
 
     try:
         from opentelemetry import trace, metrics
+
         original_tracer_provider = trace.get_tracer_provider()
         original_meter_provider = metrics.get_meter_provider()
     except ImportError:
@@ -155,6 +156,7 @@ def clean_otel_environment():
     if original_tracer_provider:
         try:
             from opentelemetry import trace
+
             trace.set_tracer_provider(original_tracer_provider)
         except ImportError:
             pass
@@ -162,12 +164,14 @@ def clean_otel_environment():
     if original_meter_provider:
         try:
             from opentelemetry import metrics
+
             metrics.set_meter_provider(original_meter_provider)
         except ImportError:
             pass
 
 
 # Test configuration utilities
+
 
 def configure_test_telemetry() -> dict:
     """
@@ -195,6 +199,7 @@ def is_telemetry_available() -> bool:
     """
     try:
         import opentelemetry  # noqa: F401
+
         return True
     except ImportError:
         return False

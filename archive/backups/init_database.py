@@ -15,6 +15,7 @@ from dotmac.platform.auth.models import Role, Permission, PermissionCategory
 from dotmac.platform.user_management.models import User
 from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.contacts.models import Contact
+
 try:
     from dotmac.platform.audit.models import AuditActivity
 except ImportError:
@@ -27,7 +28,9 @@ from dotmac.platform.auth.core import hash_password
 def create_tables():
     """Create all database tables."""
     # Get database URL from environment or settings
-    database_url = os.getenv("DATABASE_URL", "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac")
+    database_url = os.getenv(
+        "DATABASE_URL", "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac"
+    )
     engine = create_engine(database_url)
 
     # Create all tables
@@ -55,7 +58,7 @@ def seed_test_data(engine):
                 is_verified=True,
                 password_hash=hash_password("admin123"),
                 is_active=True,
-                is_superuser=True
+                is_superuser=True,
             ),
             User(
                 id=uuid4(),
@@ -64,7 +67,7 @@ def seed_test_data(engine):
                 is_verified=True,
                 password_hash=hash_password("password123"),
                 is_active=True,
-                is_superuser=False
+                is_superuser=False,
             ),
         ]
 
@@ -80,7 +83,7 @@ def seed_test_data(engine):
                 description="Full system access",
                 is_system=True,
                 is_active=True,
-                priority=100
+                priority=100,
             ),
             Role(
                 id=uuid4(),
@@ -90,7 +93,7 @@ def seed_test_data(engine):
                 is_system=True,
                 is_active=True,
                 is_default=True,
-                priority=10
+                priority=10,
             ),
         ]
 
@@ -106,7 +109,7 @@ def seed_test_data(engine):
                 description="Access admin features",
                 category=PermissionCategory.ADMIN,
                 is_active=True,
-                is_system=True
+                is_system=True,
             ),
             Permission(
                 id=uuid4(),
@@ -115,7 +118,7 @@ def seed_test_data(engine):
                 description="Read own profile",
                 category=PermissionCategory.CUSTOMER,
                 is_active=True,
-                is_system=True
+                is_system=True,
             ),
             Permission(
                 id=uuid4(),
@@ -124,7 +127,7 @@ def seed_test_data(engine):
                 description="Update own profile",
                 category=PermissionCategory.CUSTOMER,
                 is_active=True,
-                is_system=True
+                is_system=True,
             ),
         ]
 

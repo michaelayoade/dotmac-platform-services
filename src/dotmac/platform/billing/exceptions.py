@@ -5,7 +5,7 @@ Custom exceptions for billing operations with clear error messages.
 Provides comprehensive error handling with status codes, context, and recovery hints.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class BillingError(Exception):
@@ -23,10 +23,10 @@ class BillingError(Exception):
     def __init__(
         self,
         message: str,
-        error_code: str = None,
+        error_code: str | None = None,
         status_code: int = 400,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         self.message = message
         self.error_code = error_code or "BILLING_ERROR"
@@ -35,7 +35,7 @@ class BillingError(Exception):
         self.recovery_hint = recovery_hint
         super().__init__(self.message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for API responses."""
         return {
             "error_code": self.error_code,
@@ -52,8 +52,8 @@ class ProductError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message, "PRODUCT_ERROR", status_code=400, context=context, recovery_hint=recovery_hint
@@ -63,7 +63,7 @@ class ProductError(BillingError):
 class ProductNotFoundError(ProductError):
     """Product not found error."""
 
-    def __init__(self, message: str, product_id: Optional[str] = None, sku: Optional[str] = None):
+    def __init__(self, message: str, product_id: str | None = None, sku: str | None = None):
         context = {}
         if product_id:
             context["product_id"] = product_id
@@ -83,7 +83,7 @@ class CategoryNotFoundError(ProductError):
     """Category not found error."""
 
     def __init__(
-        self, message: str, category_id: Optional[str] = None, category_name: Optional[str] = None
+        self, message: str, category_id: str | None = None, category_name: str | None = None
     ):
         context = {}
         if category_id:
@@ -119,8 +119,8 @@ class SubscriptionError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message,
@@ -135,7 +135,7 @@ class SubscriptionNotFoundError(SubscriptionError):
     """Subscription not found error."""
 
     def __init__(
-        self, message: str, subscription_id: Optional[str] = None, customer_id: Optional[str] = None
+        self, message: str, subscription_id: str | None = None, customer_id: str | None = None
     ):
         context = {}
         if subscription_id:
@@ -167,7 +167,7 @@ class SubscriptionStateError(SubscriptionError):
 class PlanNotFoundError(SubscriptionError):
     """Subscription plan not found error."""
 
-    def __init__(self, message: str, plan_id: Optional[str] = None):
+    def __init__(self, message: str, plan_id: str | None = None):
         context = {}
         if plan_id:
             context["plan_id"] = plan_id
@@ -187,8 +187,8 @@ class PricingError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message, "PRICING_ERROR", status_code=400, context=context, recovery_hint=recovery_hint
@@ -201,8 +201,8 @@ class InvalidPricingRuleError(PricingError):
     def __init__(
         self,
         message: str,
-        rule_id: Optional[str] = None,
-        validation_errors: Optional[Dict[str, Any]] = None,
+        rule_id: str | None = None,
+        validation_errors: dict[str, Any] | None = None,
     ):
         context = {}
         if rule_id:
@@ -221,9 +221,7 @@ class InvalidPricingRuleError(PricingError):
 class PriceCalculationError(PricingError):
     """Error during price calculation."""
 
-    def __init__(
-        self, message: str, product_id: Optional[str] = None, quantity: Optional[int] = None
-    ):
+    def __init__(self, message: str, product_id: str | None = None, quantity: int | None = None):
         context = {}
         if product_id:
             context["product_id"] = product_id
@@ -244,8 +242,8 @@ class UsageTrackingError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message,
@@ -272,7 +270,7 @@ class BillingConfigurationError(BillingError):
     """Billing configuration errors."""
 
     def __init__(
-        self, message: str, config_key: Optional[str] = None, recovery_hint: Optional[str] = None
+        self, message: str, config_key: str | None = None, recovery_hint: str | None = None
     ):
         context = {}
         if config_key:
@@ -293,8 +291,8 @@ class PaymentError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message, "PAYMENT_ERROR", status_code=402, context=context, recovery_hint=recovery_hint
@@ -304,7 +302,7 @@ class PaymentError(BillingError):
 class PaymentMethodError(PaymentError):
     """Payment method errors."""
 
-    def __init__(self, message: str, payment_method_id: Optional[str] = None):
+    def __init__(self, message: str, payment_method_id: str | None = None):
         context = {}
         if payment_method_id:
             context["payment_method_id"] = payment_method_id
@@ -323,8 +321,8 @@ class InvoiceError(BillingError):
     def __init__(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        recovery_hint: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        recovery_hint: str | None = None,
     ):
         super().__init__(
             message, "INVOICE_ERROR", status_code=400, context=context, recovery_hint=recovery_hint
@@ -334,7 +332,7 @@ class InvoiceError(BillingError):
 class InvoiceNotFoundError(InvoiceError):
     """Invoice not found error."""
 
-    def __init__(self, message: str, invoice_id: Optional[str] = None):
+    def __init__(self, message: str, invoice_id: str | None = None):
         context = {}
         if invoice_id:
             context["invoice_id"] = invoice_id
@@ -349,9 +347,7 @@ class InvoiceNotFoundError(InvoiceError):
 class WebhookError(BillingError):
     """Webhook processing errors."""
 
-    def __init__(
-        self, message: str, webhook_type: Optional[str] = None, provider: Optional[str] = None
-    ):
+    def __init__(self, message: str, webhook_type: str | None = None, provider: str | None = None):
         context = {}
         if webhook_type:
             context["webhook_type"] = webhook_type

@@ -5,10 +5,9 @@ Provides email functionality using standard smtplib.
 """
 
 import smtplib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import List, Optional
 from uuid import uuid4
 
 import structlog
@@ -21,21 +20,17 @@ logger = structlog.get_logger(__name__)
 class EmailMessage(BaseModel):
     """Email message model."""
 
-    to: List[EmailStr] = Field(..., description="Recipient email addresses")
+    to: list[EmailStr] = Field(..., description="Recipient email addresses")
     subject: str = Field(..., min_length=1, description="Email subject")
-    text_body: Optional[str] = Field(None, description="Plain text body")
-    html_body: Optional[str] = Field(None, description="HTML body")
-    from_email: Optional[EmailStr] = Field(None, description="Sender email")
-    from_name: Optional[str] = Field(None, description="Sender name")
-    reply_to: Optional[EmailStr] = Field(None, description="Reply-to address")
-    cc: Optional[List[EmailStr]] = Field(default_factory=list, description="CC recipients")
-    bcc: Optional[List[EmailStr]] = Field(default_factory=list, description="BCC recipients")
+    text_body: str | None = Field(None, description="Plain text body")
+    html_body: str | None = Field(None, description="HTML body")
+    from_email: EmailStr | None = Field(None, description="Sender email")
+    from_name: str | None = Field(None, description="Sender name")
+    reply_to: EmailStr | None = Field(None, description="Reply-to address")
+    cc: list[EmailStr] | None = Field(default_factory=list, description="CC recipients")
+    bcc: list[EmailStr] | None = Field(default_factory=list, description="BCC recipients")
 
-    model_config = {
-        "str_strip_whitespace": True,
-        "validate_assignment": True,
-        "extra": "forbid"
-    }
+    model_config = {"str_strip_whitespace": True, "validate_assignment": True, "extra": "forbid"}
 
 
 class EmailResponse(BaseModel):
@@ -44,7 +39,7 @@ class EmailResponse(BaseModel):
     id: str = Field(..., description="Unique message ID")
     status: str = Field(..., description="Delivery status")
     message: str = Field(..., description="Status message")
-    sent_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sent_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     recipients_count: int = Field(..., description="Number of recipients")
 
 
@@ -55,12 +50,12 @@ class EmailService:
         self,
         smtp_host: str = "localhost",
         smtp_port: int = 587,
-        smtp_user: Optional[str] = None,
-        smtp_password: Optional[str] = None,
+        smtp_user: str | None = None,
+        smtp_password: str | None = None,
         use_tls: bool = True,
         default_from: str = "noreply@dotmac.com",
-        tenant_id: Optional[str] = None,
-        db: Optional[AsyncSession] = None,
+        tenant_id: str | None = None,
+        db: AsyncSession | None = None,
     ):
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
@@ -71,14 +66,14 @@ class EmailService:
         self.tenant_id = tenant_id
         self.db = db
 
-        logger.info(
-            "Email service initialized",
-            host=smtp_host,
-            port=smtp_port,
-            use_tls=use_tls
-        )
+        logger.info("Email service initialized", host=smtp_host, port=smtp_port, use_tls=use_tls)
 
-    async def send_email(self, message: EmailMessage, tenant_id: Optional[str] = None, db: Optional[AsyncSession] = None) -> EmailResponse:
+    async def send_email(
+        self,
+        message: EmailMessage,
+        tenant_id: str | None = None,
+        db: AsyncSession | None = None,
+    ) -> EmailResponse:
         """Send a single email message."""
         message_id = f"email_{uuid4().hex[:8]}"
 
@@ -93,14 +88,14 @@ class EmailService:
                 id=message_id,
                 status="sent",
                 message="Email sent successfully",
-                recipients_count=len(message.to) + len(message.cc) + len(message.bcc)
+                recipients_count=len(message.to) + len(message.cc) + len(message.bcc),
             )
 
             logger.info(
                 "Email sent successfully",
                 message_id=message_id,
                 recipients=len(message.to),
-                subject=message.subject
+                subject=message.subject,
             )
 
             # Publish webhook event if DB session provided
@@ -115,7 +110,9 @@ class EmailService:
                             "message_id": message_id,
                             "to": [str(email) for email in message.to],
                             "subject": message.subject,
-                            "from_email": str(message.from_email) if message.from_email else self.default_from,
+                            "from_email": (
+                                str(message.from_email) if message.from_email else self.default_from
+                            ),
                             "recipients_count": response.recipients_count,
                             "sent_at": response.sent_at.isoformat(),
                         },
@@ -129,17 +126,14 @@ class EmailService:
 
         except Exception as e:
             logger.error(
-                "Failed to send email",
-                message_id=message_id,
-                error=str(e),
-                subject=message.subject
+                "Failed to send email", message_id=message_id, error=str(e), subject=message.subject
             )
 
             response = EmailResponse(
                 id=message_id,
                 status="failed",
                 message=f"Failed to send email: {str(e)}",
-                recipients_count=len(message.to) + len(message.cc) + len(message.bcc)
+                recipients_count=len(message.to) + len(message.cc) + len(message.bcc),
             )
 
             # Publish webhook event for failed email if DB session provided
@@ -154,7 +148,9 @@ class EmailService:
                             "message_id": message_id,
                             "to": [str(email) for email in message.to],
                             "subject": message.subject,
-                            "from_email": str(message.from_email) if message.from_email else self.default_from,
+                            "from_email": (
+                                str(message.from_email) if message.from_email else self.default_from
+                            ),
                             "recipients_count": response.recipients_count,
                             "error": str(e),
                         },
@@ -168,37 +164,37 @@ class EmailService:
 
     def _create_mime_message(self, message: EmailMessage, message_id: str) -> MIMEMultipart:
         """Create MIME message from EmailMessage."""
-        msg = MIMEMultipart('alternative')
+        msg = MIMEMultipart("alternative")
 
         # Headers
-        msg['Subject'] = message.subject
-        msg['From'] = self._format_from_address(message.from_email, message.from_name)
-        msg['To'] = ', '.join(str(email) for email in message.to)
-        msg['Message-ID'] = f"<{message_id}@dotmac.com>"
-        msg['Date'] = datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S %z')
+        msg["Subject"] = message.subject
+        msg["From"] = self._format_from_address(message.from_email, message.from_name)
+        msg["To"] = ", ".join(str(email) for email in message.to)
+        msg["Message-ID"] = f"<{message_id}@dotmac.com>"
+        msg["Date"] = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S %z")
 
         if message.cc:
-            msg['Cc'] = ', '.join(str(email) for email in message.cc)
+            msg["Cc"] = ", ".join(str(email) for email in message.cc)
 
         if message.reply_to:
-            msg['Reply-To'] = str(message.reply_to)
+            msg["Reply-To"] = str(message.reply_to)
 
         # Body parts
         if message.text_body:
-            text_part = MIMEText(message.text_body, 'plain', 'utf-8')
+            text_part = MIMEText(message.text_body, "plain", "utf-8")
             msg.attach(text_part)
 
         if message.html_body:
-            html_part = MIMEText(message.html_body, 'html', 'utf-8')
+            html_part = MIMEText(message.html_body, "html", "utf-8")
             msg.attach(html_part)
 
         # If no body provided, add minimal text
         if not message.text_body and not message.html_body:
-            msg.attach(MIMEText("", 'plain'))
+            msg.attach(MIMEText("", "plain"))
 
         return msg
 
-    def _format_from_address(self, from_email: Optional[EmailStr], from_name: Optional[str]) -> str:
+    def _format_from_address(self, from_email: EmailStr | None, from_name: str | None) -> str:
         """Format the From header address."""
         email = str(from_email) if from_email else self.default_from
 
@@ -224,7 +220,7 @@ class EmailService:
 
             server.send_message(msg, to_addrs=all_recipients)
 
-    async def send_bulk_emails(self, messages: List[EmailMessage]) -> List[EmailResponse]:
+    async def send_bulk_emails(self, messages: list[EmailMessage]) -> list[EmailResponse]:
         """Send multiple emails (simplified bulk processing)."""
         responses = []
 
@@ -241,31 +237,30 @@ class EmailService:
 
             except Exception as e:
                 logger.error(
-                    "Bulk email failed for message",
-                    index=i,
-                    error=str(e),
-                    subject=message.subject
+                    "Bulk email failed for message", index=i, error=str(e), subject=message.subject
                 )
-                responses.append(EmailResponse(
-                    id=f"bulk_{i}_{uuid4().hex[:4]}",
-                    status="failed",
-                    message=f"Bulk send failed: {str(e)}",
-                    recipients_count=len(message.to)
-                ))
+                responses.append(
+                    EmailResponse(
+                        id=f"bulk_{i}_{uuid4().hex[:4]}",
+                        status="failed",
+                        message=f"Bulk send failed: {str(e)}",
+                        recipients_count=len(message.to),
+                    )
+                )
 
         success_count = sum(1 for r in responses if r.status == "sent")
         logger.info(
             "Bulk email completed",
             total=len(messages),
             success=success_count,
-            failed=len(messages) - success_count
+            failed=len(messages) - success_count,
         )
 
         return responses
 
 
 # Global service instance
-_email_service: Optional[EmailService] = None
+_email_service: EmailService | None = None
 
 
 def get_email_service() -> EmailService:
@@ -278,21 +273,17 @@ def get_email_service() -> EmailService:
 
 
 async def send_email(
-    to: List[str],
+    to: list[str],
     subject: str,
-    text_body: Optional[str] = None,
-    html_body: Optional[str] = None,
-    from_email: Optional[str] = None
+    text_body: str | None = None,
+    html_body: str | None = None,
+    from_email: str | None = None,
 ) -> EmailResponse:
     """Convenience function for sending simple emails."""
     service = get_email_service()
 
     message = EmailMessage(
-        to=to,
-        subject=subject,
-        text_body=text_body,
-        html_body=html_body,
-        from_email=from_email
+        to=to, subject=subject, text_body=text_body, html_body=html_body, from_email=from_email
     )
 
     return await service.send_email(message)

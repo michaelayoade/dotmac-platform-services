@@ -6,7 +6,6 @@ helpful error messages when they're missing.
 """
 
 import importlib
-from typing import Dict, List, Optional, Union
 
 from .settings import settings
 
@@ -14,9 +13,7 @@ from .settings import settings
 class DependencyError(ImportError):
     """Raised when a required dependency is missing."""
 
-    def __init__(
-        self, feature: str, packages: Union[str, List[str]], install_cmd: Optional[str] = None
-    ):
+    def __init__(self, feature: str, packages: str | list[str], install_cmd: str | None = None):
         if isinstance(packages, str):
             packages = [packages]
 
@@ -37,7 +34,7 @@ class DependencyChecker:
     """Utility for checking and managing optional dependencies."""
 
     # Mapping of feature flags to required packages
-    FEATURE_DEPENDENCIES: Dict[str, Dict[str, Union[str, List[str]]]] = {
+    FEATURE_DEPENDENCIES: dict[str, dict[str, str | list[str]]] = {
         # Storage - MinIO only
         "storage_enabled": {
             "packages": ["minio"],
@@ -164,7 +161,7 @@ class DependencyChecker:
             raise DependencyError(feature_flag, missing, install_cmd)
 
     @classmethod
-    def check_enabled_features(cls) -> Dict[str, bool]:
+    def check_enabled_features(cls) -> dict[str, bool]:
         """
         Check all enabled features and their dependency status.
 
@@ -245,7 +242,7 @@ def _is_feature_enabled(feature_flag: str) -> bool:
 
 def safe_import(
     module_name: str,
-    feature_flag: Optional[str] = None,
+    feature_flag: str | None = None,
     *,
     error_if_missing: bool = True,
 ):
@@ -280,6 +277,7 @@ def require_minio():
     if settings.features.storage_enabled:
         DependencyChecker.require_feature_dependency("storage_enabled")
         import minio
+
         return minio
     else:
         raise ValueError("Storage is not enabled. Set FEATURES__STORAGE_ENABLED=true")
@@ -290,11 +288,10 @@ def require_meilisearch():
     if settings.features.search_enabled:
         DependencyChecker.require_feature_dependency("search_enabled")
         import meilisearch
+
         return meilisearch
     else:
-        raise ValueError(
-            "Search is not enabled. Set FEATURES__SEARCH_ENABLED=true"
-        )
+        raise ValueError("Search is not enabled. Set FEATURES__SEARCH_ENABLED=true")
 
 
 def require_cryptography():

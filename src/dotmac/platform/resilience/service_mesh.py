@@ -17,7 +17,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -536,7 +536,7 @@ class ServiceMesh:
             path=path,
             headers=headers or {},
             body=body,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             trace_id=trace_id,
             span_id=span_id,
         )

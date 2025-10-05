@@ -1,6 +1,5 @@
 """Observability entry point bridging to the telemetry helpers."""
 
-from .manager import ObservabilityManager, ObservabilityMetricsRegistry, add_observability_middleware
 from dotmac.platform.telemetry import (
     configure_structlog,
     create_span_context,
@@ -8,6 +7,12 @@ from dotmac.platform.telemetry import (
     get_tracer,
     record_error,
     setup_telemetry,
+)
+
+from .manager import (
+    ObservabilityManager,
+    ObservabilityMetricsRegistry,
+    add_observability_middleware,
 )
 
 __all__ = [
@@ -21,4 +26,3 @@ __all__ = [
     "record_error",
     "create_span_context",
 ]
-

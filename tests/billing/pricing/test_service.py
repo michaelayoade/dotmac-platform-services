@@ -21,10 +21,9 @@ from dotmac.platform.billing.pricing.models import (
     PricingRuleUpdateRequest,
     PriceCalculationRequest,
 )
-from dotmac.platform.billing.exceptions import (
-    PricingError,
-    RuleNotFoundError,
-)
+from dotmac.platform.billing.exceptions import PricingError
+
+pytestmark = pytest.mark.asyncio
 
 
 class TestPricingEngineRules:
@@ -36,21 +35,16 @@ class TestPricingEngineRules:
         return PricingEngine()
 
     @pytest.mark.asyncio
-    async def test_create_rule_success(
-        self,
-        service,
-        pricing_rule_create_request,
-        tenant_id
-    ):
+    async def test_create_rule_success(self, service, pricing_rule_create_request, tenant_id):
         """Test successful rule creation."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
             mock_session_instance.commit = AsyncMock()
             mock_session_instance.refresh = AsyncMock()
 
-            with patch('dotmac.platform.billing.pricing.service.generate_rule_id') as mock_gen_id:
+            with patch("dotmac.platform.billing.pricing.service.generate_rule_id") as mock_gen_id:
                 mock_gen_id.return_value = "rule_test123"
 
                 result = await service.create_rule(pricing_rule_create_request, tenant_id)
@@ -66,7 +60,7 @@ class TestPricingEngineRules:
     @pytest.mark.asyncio
     async def test_get_rule_success(self, service, tenant_id):
         """Test successful rule retrieval."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -105,7 +99,7 @@ class TestPricingEngineRules:
     @pytest.mark.asyncio
     async def test_get_rule_not_found(self, service, tenant_id):
         """Test rule retrieval when rule doesn't exist."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -119,7 +113,7 @@ class TestPricingEngineRules:
     @pytest.mark.asyncio
     async def test_list_rules(self, service, tenant_id):
         """Test listing rules with filters."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -158,7 +152,7 @@ class TestPricingEngineRules:
     @pytest.mark.asyncio
     async def test_update_rule_success(self, service, tenant_id):
         """Test successful rule update."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -185,7 +179,7 @@ class TestPricingEngineRules:
     @pytest.mark.asyncio
     async def test_delete_rule_success(self, service, tenant_id):
         """Test successful rule deletion."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -214,19 +208,15 @@ class TestPricingEngineCalculations:
 
     @pytest.mark.asyncio
     async def test_calculate_price_no_rules(
-        self,
-        service,
-        price_calculation_request,
-        tenant_id,
-        sample_product
+        self, service, price_calculation_request, tenant_id, sample_product
     ):
         """Test price calculation with no applicable rules."""
-        with patch('dotmac.platform.billing.catalog.service.ProductService') as mock_catalog:
+        with patch("dotmac.platform.billing.catalog.service.ProductService") as mock_catalog:
             mock_catalog_instance = AsyncMock()
             mock_catalog.return_value = mock_catalog_instance
             mock_catalog_instance.get_product.return_value = sample_product
 
-            with patch.object(service, '_get_applicable_rules') as mock_get_rules:
+            with patch.object(service, "_get_applicable_rules") as mock_get_rules:
                 mock_get_rules.return_value = []  # No rules
 
                 result = await service.calculate_price(price_calculation_request, tenant_id)
@@ -239,26 +229,21 @@ class TestPricingEngineCalculations:
 
     @pytest.mark.asyncio
     async def test_calculate_price_with_percentage_rule(
-        self,
-        service,
-        price_calculation_request,
-        tenant_id,
-        sample_product,
-        sample_pricing_rule
+        self, service, price_calculation_request, tenant_id, sample_product, sample_pricing_rule
     ):
         """Test price calculation with percentage discount rule."""
-        with patch('dotmac.platform.billing.catalog.service.ProductService') as mock_catalog:
+        with patch("dotmac.platform.billing.catalog.service.ProductService") as mock_catalog:
             mock_catalog_instance = AsyncMock()
             mock_catalog.return_value = mock_catalog_instance
             mock_catalog_instance.get_product.return_value = sample_product
 
-            with patch.object(service, '_get_applicable_rules') as mock_get_rules:
+            with patch.object(service, "_get_applicable_rules") as mock_get_rules:
                 mock_get_rules.return_value = [sample_pricing_rule]
 
-                with patch.object(service, '_rule_applies') as mock_rule_applies:
+                with patch.object(service, "_rule_applies") as mock_rule_applies:
                     mock_rule_applies.return_value = True
 
-                    with patch.object(service, '_record_rule_usage') as mock_record_usage:
+                    with patch.object(service, "_record_rule_usage") as mock_record_usage:
                         result = await service.calculate_price(price_calculation_request, tenant_id)
 
                         assert result.product_id == price_calculation_request.product_id
@@ -269,13 +254,10 @@ class TestPricingEngineCalculations:
 
     @pytest.mark.asyncio
     async def test_calculate_price_product_not_found(
-        self,
-        service,
-        price_calculation_request,
-        tenant_id
+        self, service, price_calculation_request, tenant_id
     ):
         """Test price calculation when product not found."""
-        with patch('dotmac.platform.billing.catalog.service.ProductService') as mock_catalog:
+        with patch("dotmac.platform.billing.catalog.service.ProductService") as mock_catalog:
             mock_catalog_instance = AsyncMock()
             mock_catalog.return_value = mock_catalog_instance
             mock_catalog_instance.get_product.return_value = None
@@ -534,7 +516,7 @@ class TestPricingEngineHelpers:
             base_price=Decimal("100.00"),
         )
 
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -546,7 +528,7 @@ class TestPricingEngineHelpers:
             mock_session_instance.execute.return_value = mock_result
             mock_session_instance.commit = AsyncMock()
 
-            with patch('dotmac.platform.billing.pricing.service.generate_usage_id') as mock_gen_id:
+            with patch("dotmac.platform.billing.pricing.service.generate_usage_id") as mock_gen_id:
                 mock_gen_id.return_value = "usage_123"
 
                 await service._record_rule_usage(rule, context, tenant_id)
@@ -568,7 +550,7 @@ class TestPricingEngineAdvanced:
     @pytest.mark.asyncio
     async def test_activate_rule(self, service, tenant_id):
         """Test rule activation."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -588,7 +570,7 @@ class TestPricingEngineAdvanced:
     @pytest.mark.asyncio
     async def test_deactivate_rule(self, service, tenant_id):
         """Test rule deactivation."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -608,7 +590,7 @@ class TestPricingEngineAdvanced:
     @pytest.mark.asyncio
     async def test_reset_rule_usage(self, service, tenant_id):
         """Test resetting rule usage counter."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -628,7 +610,7 @@ class TestPricingEngineAdvanced:
     @pytest.mark.asyncio
     async def test_detect_rule_conflicts(self, service, tenant_id):
         """Test detecting rule conflicts."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -670,7 +652,7 @@ class TestPricingEngineAdvanced:
         """Test bulk rule activation."""
         rule_ids = ["rule_1", "rule_2", "rule_3"]
 
-        with patch.object(service, 'activate_rule') as mock_activate:
+        with patch.object(service, "activate_rule") as mock_activate:
             # Mock successful activation for first two, failure for third
             mock_activate.side_effect = [True, True, False]
 
@@ -686,7 +668,7 @@ class TestPricingEngineAdvanced:
         """Test bulk rule deactivation."""
         rule_ids = ["rule_1", "rule_2"]
 
-        with patch.object(service, 'deactivate_rule') as mock_deactivate:
+        with patch.object(service, "deactivate_rule") as mock_deactivate:
             mock_deactivate.return_value = True
 
             results = await service.bulk_deactivate_rules(rule_ids, tenant_id)
@@ -708,7 +690,7 @@ class TestPricingEngineErrorHandling:
     @pytest.mark.asyncio
     async def test_database_error_handling(self, service, pricing_rule_create_request, tenant_id):
         """Test handling of database errors."""
-        with patch('dotmac.platform.billing.pricing.service.get_async_session') as mock_session:
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 

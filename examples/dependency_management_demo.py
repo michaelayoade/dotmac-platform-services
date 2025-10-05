@@ -39,11 +39,7 @@ def demonstrate_dependency_checking():
     print("-" * 40)
 
     # Check core features that are typically enabled
-    core_features = [
-        "encryption_fernet",
-        "db_postgresql",
-        "db_sqlite"
-    ]
+    core_features = ["encryption_fernet", "db_postgresql", "db_sqlite"]
 
     for feature in core_features:
         enabled = getattr(settings.features, feature, False)
@@ -56,7 +52,7 @@ def demonstrate_dependency_checking():
         "search_meilisearch_enabled",
         "storage_enabled",
         "tracing_opentelemetry",
-        "graphql_enabled"
+        "graphql_enabled",
     ]
 
     print(f"\n🔧 Optional Features:")
@@ -138,7 +134,9 @@ def demonstrate_search_backends():
             except Exception as e:
                 print(f"❌ Failed: {e}")
         else:
-            print(f"\n⭕ MeiliSearch disabled (set FEATURES__SEARCH_MEILISEARCH_ENABLED=true to enable)")
+            print(
+                f"\n⭕ MeiliSearch disabled (set FEATURES__SEARCH_MEILISEARCH_ENABLED=true to enable)"
+            )
 
     except Exception as e:
         print(f"❌ Search factory error: {e}")
@@ -158,6 +156,7 @@ def demonstrate_error_messages():
         print(f"\n🔄 Trying to require MeiliSearch when disabled...")
         try:
             from dotmac.platform.dependencies import require_meilisearch
+
             require_meilisearch()
         except Exception as e:
             print(f"❌ Expected error: {e}")
@@ -167,6 +166,7 @@ def demonstrate_error_messages():
         print(f"\n🔄 Trying to require MinIO when disabled...")
         try:
             from dotmac.platform.dependencies import require_minio
+
             require_minio()
         except Exception as e:
             print(f"❌ Expected error: {e}")

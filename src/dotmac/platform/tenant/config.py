@@ -8,14 +8,13 @@ This module provides configuration for running the platform in either:
 
 import os
 from enum import Enum
-from typing import Optional
 
 
 class TenantMode(str, Enum):
     """Deployment mode for tenant isolation."""
 
     SINGLE = "single"  # Single organization deployment
-    MULTI = "multi"    # Multi-tenant SaaS deployment
+    MULTI = "multi"  # Multi-tenant SaaS deployment
 
 
 class TenantConfiguration:
@@ -28,9 +27,9 @@ class TenantConfiguration:
 
     def __init__(
         self,
-        mode: Optional[TenantMode] = None,
-        default_tenant_id: Optional[str] = None,
-        require_tenant_header: Optional[bool] = None,
+        mode: TenantMode | None = None,
+        default_tenant_id: str | None = None,
+        require_tenant_header: bool | None = None,
         tenant_header_name: str = "X-Tenant-ID",
         tenant_query_param: str = "tenant_id",
     ):
@@ -65,7 +64,7 @@ class TenantConfiguration:
             if env_require is not None:
                 self.require_tenant_header = env_require.lower() in ("true", "1", "yes")
             else:
-                self.require_tenant_header = (self.mode == TenantMode.MULTI)
+                self.require_tenant_header = self.mode == TenantMode.MULTI
         else:
             self.require_tenant_header = require_tenant_header
 
@@ -74,9 +73,11 @@ class TenantConfiguration:
         self.tenant_query_param = os.getenv("TENANT_QUERY_PARAM", tenant_query_param)
 
         # Additional settings from environment
-        self.enable_tenant_switching = os.getenv(
-            "ENABLE_TENANT_SWITCHING", "false"
-        ).lower() in ("true", "1", "yes")
+        self.enable_tenant_switching = os.getenv("ENABLE_TENANT_SWITCHING", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
 
         self.enable_cross_tenant_queries = os.getenv(
             "ENABLE_CROSS_TENANT_QUERIES", "false"
@@ -92,7 +93,7 @@ class TenantConfiguration:
         """Check if running in multi-tenant mode."""
         return self.mode == TenantMode.MULTI
 
-    def get_tenant_id_for_request(self, resolved_id: Optional[str] = None) -> str:
+    def get_tenant_id_for_request(self, resolved_id: str | None = None) -> str:
         """
         Get the tenant ID to use for a request.
 

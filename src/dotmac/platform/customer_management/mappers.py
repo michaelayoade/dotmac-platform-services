@@ -5,19 +5,18 @@ Transforms between database models, API schemas, and import formats.
 Reusable by import scripts, tests, and API endpoints.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.customer_management.models import (
+    CommunicationChannel,
     Customer,
     CustomerStatus,
-    CustomerType,
     CustomerTier,
-    CommunicationChannel
+    CustomerType,
 )
 
 
@@ -30,79 +29,79 @@ class CustomerImportSchema(BaseModel):
     email: str = Field(min_length=3, max_length=255)
 
     # Optional identification
-    customer_number: Optional[str] = Field(None, max_length=50)
-    external_id: Optional[str] = Field(None, max_length=100)
+    customer_number: str | None = Field(None, max_length=50)
+    external_id: str | None = Field(None, max_length=100)
 
     # Optional name fields
-    middle_name: Optional[str] = Field(None, max_length=100)
-    display_name: Optional[str] = Field(None, max_length=200)
-    company_name: Optional[str] = Field(None, max_length=200)
+    middle_name: str | None = Field(None, max_length=100)
+    display_name: str | None = Field(None, max_length=200)
+    company_name: str | None = Field(None, max_length=200)
 
     # Account information
-    status: Optional[CustomerStatus] = CustomerStatus.PROSPECT
-    customer_type: Optional[CustomerType] = CustomerType.INDIVIDUAL
-    tier: Optional[CustomerTier] = CustomerTier.FREE
+    status: CustomerStatus | None = CustomerStatus.PROSPECT
+    customer_type: CustomerType | None = CustomerType.INDIVIDUAL
+    tier: CustomerTier | None = CustomerTier.FREE
 
     # Contact information
-    phone: Optional[str] = Field(None, max_length=30)
-    mobile: Optional[str] = Field(None, max_length=30)
+    phone: str | None = Field(None, max_length=30)
+    mobile: str | None = Field(None, max_length=30)
 
     # Address (accepts both snake_case and camelCase)
-    address_line1: Optional[str] = Field(None, max_length=200, alias="addressLine1")
-    address_line2: Optional[str] = Field(None, max_length=200, alias="addressLine2")
-    city: Optional[str] = Field(None, max_length=100)
-    state_province: Optional[str] = Field(None, max_length=100, alias="stateProvince")
-    postal_code: Optional[str] = Field(None, max_length=20, alias="postalCode")
-    country: Optional[str] = Field(None, max_length=2)  # ISO 3166-1 alpha-2
+    address_line1: str | None = Field(None, max_length=200, alias="addressLine1")
+    address_line2: str | None = Field(None, max_length=200, alias="addressLine2")
+    city: str | None = Field(None, max_length=100)
+    state_province: str | None = Field(None, max_length=100, alias="stateProvince")
+    postal_code: str | None = Field(None, max_length=20, alias="postalCode")
+    country: str | None = Field(None, max_length=2)  # ISO 3166-1 alpha-2
 
     # Business information
-    tax_id: Optional[str] = Field(None, max_length=50, alias="taxId")
-    vat_number: Optional[str] = Field(None, max_length=50, alias="vatNumber")
-    industry: Optional[str] = Field(None, max_length=100)
-    employee_count: Optional[int] = Field(None, ge=0)
-    annual_revenue: Optional[float] = Field(None, ge=0)
+    tax_id: str | None = Field(None, max_length=50, alias="taxId")
+    vat_number: str | None = Field(None, max_length=50, alias="vatNumber")
+    industry: str | None = Field(None, max_length=100)
+    employee_count: int | None = Field(None, ge=0)
+    annual_revenue: float | None = Field(None, ge=0)
 
     # Communication preferences
-    preferred_channel: Optional[CommunicationChannel] = CommunicationChannel.EMAIL
-    preferred_language: Optional[str] = Field(default="en", max_length=10)
-    timezone: Optional[str] = Field(default="UTC", max_length=50)
-    opt_in_marketing: Optional[bool] = False
-    opt_in_updates: Optional[bool] = True
+    preferred_channel: CommunicationChannel | None = CommunicationChannel.EMAIL
+    preferred_language: str | None = Field(default="en", max_length=10)
+    timezone: str | None = Field(default="UTC", max_length=50)
+    opt_in_marketing: bool | None = False
+    opt_in_updates: bool | None = True
 
     # Metrics (for existing customers)
-    lifetime_value: Optional[float] = Field(default=0, ge=0)
-    total_purchases: Optional[int] = Field(default=0, ge=0)
-    average_order_value: Optional[float] = Field(default=0, ge=0)
+    lifetime_value: float | None = Field(default=0, ge=0)
+    total_purchases: int | None = Field(default=0, ge=0)
+    average_order_value: float | None = Field(default=0, ge=0)
 
     # Custom fields and tags
-    tags: Optional[List[str]] = Field(default_factory=list)
-    custom_fields: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    tags: list[str] | None = Field(default_factory=list)
+    custom_fields: dict[str, Any] | None = Field(default_factory=dict)
+    metadata: dict[str, Any] | None = Field(default_factory=dict)
 
     # Import metadata
-    source_system: Optional[str] = Field(None, max_length=50)
-    import_batch_id: Optional[str] = Field(None, max_length=100)
+    source_system: str | None = Field(None, max_length=50)
+    import_batch_id: str | None = Field(None, max_length=100)
 
     model_config = ConfigDict(
         populate_by_name=True,  # Allow both snake_case and camelCase field names
         str_strip_whitespace=True,
-        validate_assignment=True
+        validate_assignment=True,
     )
 
-    @field_validator('email')
+    @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
         """Basic email validation."""
-        if '@' not in v:
-            raise ValueError('Invalid email format')
+        if "@" not in v:
+            raise ValueError("Invalid email format")
         return v.lower()
 
-    @field_validator('country')
+    @field_validator("country")
     @classmethod
-    def validate_country(cls, v: Optional[str]) -> Optional[str]:
+    def validate_country(cls, v: str | None) -> str | None:
         """Validate country code."""
         if v and len(v) != 2:
-            raise ValueError('Country must be 2-letter ISO code')
+            raise ValueError("Country must be 2-letter ISO code")
         return v.upper() if v else None
 
 
@@ -113,9 +112,9 @@ class CustomerExportSchema(BaseModel):
     customer_number: str
     first_name: str
     last_name: str
-    middle_name: Optional[str] = None
-    display_name: Optional[str] = None
-    company_name: Optional[str] = None
+    middle_name: str | None = None
+    display_name: str | None = None
+    company_name: str | None = None
 
     # Status and type
     status: str
@@ -124,43 +123,40 @@ class CustomerExportSchema(BaseModel):
 
     # Contact
     email: str
-    phone: Optional[str] = None
-    mobile: Optional[str] = None
+    phone: str | None = None
+    mobile: str | None = None
 
     # Address (using snake_case to match frontend)
-    address_line_1: Optional[str] = None
-    address_line_2: Optional[str] = None
-    city: Optional[str] = None
-    state_province: Optional[str] = None
-    postal_code: Optional[str] = None
-    country: Optional[str] = None
+    address_line_1: str | None = None
+    address_line_2: str | None = None
+    city: str | None = None
+    state_province: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
 
     # Business
-    tax_id: Optional[str] = None
-    vat_number: Optional[str] = None
+    tax_id: str | None = None
+    vat_number: str | None = None
 
     # Metrics
     lifetime_value: float = 0
     total_purchases: int = 0
     average_order_value: float = 0
-    last_purchase_date: Optional[datetime] = None
-    first_purchase_date: Optional[datetime] = None
+    last_purchase_date: datetime | None = None
+    first_purchase_date: datetime | None = None
 
     # Metadata
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    custom_fields: Dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
 
     # Timestamps
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat() if v else None,
-            UUID: str,
-            Decimal: float
-        }
+        # Pydantic V2: json_encoders is deprecated, use model_serializer or field serializers instead
+        # For now, remove deprecated config - serialization works with defaults
     )
 
 
@@ -169,10 +165,8 @@ class CustomerMapper:
 
     @staticmethod
     def from_import_to_model(
-        import_data: CustomerImportSchema,
-        tenant_id: str,
-        generate_customer_number: bool = True
-    ) -> Dict[str, Any]:
+        import_data: CustomerImportSchema, tenant_id: str, generate_customer_number: bool = True
+    ) -> dict[str, Any]:
         """
         Convert import schema to database model format.
 
@@ -201,7 +195,7 @@ class CustomerMapper:
             "opt_in_updates": import_data.opt_in_updates,
             "tags": import_data.tags or [],
             "custom_fields": import_data.custom_fields or {},
-            "metadata_": import_data.metadata or {}
+            "metadata_": import_data.metadata or {},
         }
 
         # Generate customer number if needed
@@ -212,11 +206,23 @@ class CustomerMapper:
 
         # Map optional fields
         optional_fields = [
-            "external_id", "middle_name", "display_name", "company_name",
-            "phone", "mobile", "address_line1", "address_line2",
-            "city", "state_province", "postal_code", "country",
-            "tax_id", "vat_number", "industry", "employee_count",
-            "source_system"
+            "external_id",
+            "middle_name",
+            "display_name",
+            "company_name",
+            "phone",
+            "mobile",
+            "address_line1",
+            "address_line2",
+            "city",
+            "state_province",
+            "postal_code",
+            "country",
+            "tax_id",
+            "vat_number",
+            "industry",
+            "employee_count",
+            "source_system",
         ]
 
         for field in optional_fields:
@@ -240,7 +246,7 @@ class CustomerMapper:
         # Add import metadata
         if import_data.import_batch_id:
             data["metadata_"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_"]["imported_at"] = datetime.utcnow().isoformat()
+            data["metadata_"]["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 
@@ -286,14 +292,13 @@ class CustomerMapper:
             metadata=customer.metadata_ or {},
             custom_fields=customer.custom_fields or {},
             created_at=customer.created_at,
-            updated_at=customer.updated_at
+            updated_at=customer.updated_at,
         )
 
     @staticmethod
     def validate_import_row(
-        row: Dict[str, Any],
-        row_number: int
-    ) -> Union[CustomerImportSchema, Dict[str, Any]]:
+        row: dict[str, Any], row_number: int
+    ) -> CustomerImportSchema | dict[str, Any]:
         """
         Validate a single row of import data.
 
@@ -319,16 +324,12 @@ class CustomerMapper:
             # Validate using schema
             return CustomerImportSchema(**cleaned_row)
         except Exception as e:
-            return {
-                "row_number": row_number,
-                "error": str(e),
-                "data": row
-            }
+            return {"row_number": row_number, "error": str(e), "data": row}
 
     @staticmethod
     def batch_validate(
-        rows: List[Dict[str, Any]]
-    ) -> tuple[List[CustomerImportSchema], List[Dict[str, Any]]]:
+        rows: list[dict[str, Any]]
+    ) -> tuple[list[CustomerImportSchema], list[dict[str, Any]]]:
         """
         Validate multiple rows of import data.
 

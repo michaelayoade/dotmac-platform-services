@@ -3,8 +3,8 @@ Credit note service for managing refunds and credits
 """
 
 import logging
-from datetime import datetime
-from typing import Any, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import and_, select
@@ -14,20 +14,20 @@ from sqlalchemy.orm import selectinload
 from dotmac.platform.billing.core.entities import (
     CreditNoteEntity,
     CreditNoteLineItemEntity,
-    TransactionEntity,
     InvoiceEntity,
+    TransactionEntity,
 )
 from dotmac.platform.billing.core.enums import (
     CreditNoteStatus,
     CreditReason,
     CreditType,
-    TransactionType,
     PaymentStatus,
+    TransactionType,
 )
 from dotmac.platform.billing.core.exceptions import (
     CreditNoteNotFoundError,
-    InvalidCreditNoteStatusError,
     InsufficientCreditError,
+    InvalidCreditNoteStatusError,
 )
 from dotmac.platform.billing.core.models import CreditNote
 from dotmac.platform.billing.metrics import get_billing_metrics
@@ -47,14 +47,14 @@ class CreditNoteService:
         tenant_id: str,
         invoice_id: str,
         reason: CreditReason,
-        line_items: List[dict[str, Any]],
-        notes: Optional[str] = None,
-        internal_notes: Optional[str] = None,
+        line_items: list[dict[str, Any]],
+        notes: str | None = None,
+        internal_notes: str | None = None,
         created_by: str = "system",
         auto_apply: bool = True,
     ) -> CreditNote:
         """Create a new credit note for an invoice"""
-        
+
         # Get the original invoice
         invoice = await self._get_invoice(tenant_id, invoice_id)
         if not invoice:
@@ -62,7 +62,7 @@ class CreditNoteService:
 
         # Calculate total credit amount
         total_amount = sum(item.get("amount", 0) for item in line_items)
-        
+
         # Validate credit amount doesn't exceed invoice amount
         if total_amount > invoice.total_amount:
             raise ValueError(
@@ -79,7 +79,7 @@ class CreditNoteService:
             credit_note_number=credit_note_number,
             invoice_id=invoice_id,
             customer_id=invoice.customer_id,
-            issue_date=datetime.utcnow(),
+            issue_date=datetime.now(UTC),
             credit_type=CreditType.REFUND,  # Default to refund type
             reason=reason,
             status=CreditNoteStatus.DRAFT,
@@ -93,8 +93,8 @@ class CreditNoteService:
             internal_notes=internal_notes,
             extra_data={},
             created_by=created_by,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
         # Add line items
@@ -139,11 +139,9 @@ class CreditNoteService:
 
         return CreditNote.model_validate(credit_note_entity)
 
-    async def get_credit_note(
-        self, tenant_id: str, credit_note_id: str
-    ) -> Optional[CreditNote]:
+    async def get_credit_note(self, tenant_id: str, credit_note_id: str) -> CreditNote | None:
         """Get credit note by ID with tenant isolation"""
-        
+
         stmt = (
             select(CreditNoteEntity)
             .where(
@@ -154,10 +152,10 @@ class CreditNoteService:
             )
             .options(selectinload(CreditNoteEntity.line_items))
         )
-        
+
         result = await self.db.execute(stmt)
         credit_note = result.scalar_one_or_none()
-        
+
         if credit_note:
             return CreditNote.model_validate(credit_note)
         return None
@@ -165,110 +163,106 @@ class CreditNoteService:
     async def list_credit_notes(
         self,
         tenant_id: str,
-        customer_id: Optional[str] = None,
-        invoice_id: Optional[str] = None,
-        status: Optional[CreditNoteStatus] = None,
+        customer_id: str | None = None,
+        invoice_id: str | None = None,
+        status: CreditNoteStatus | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[CreditNote]:
+    ) -> list[CreditNote]:
         """List credit notes with filtering"""
-        
+
         stmt = select(CreditNoteEntity).where(CreditNoteEntity.tenant_id == tenant_id)
-        
+
         if customer_id:
             stmt = stmt.where(CreditNoteEntity.customer_id == customer_id)
         if invoice_id:
             stmt = stmt.where(CreditNoteEntity.invoice_id == invoice_id)
         if status:
             stmt = stmt.where(CreditNoteEntity.status == status)
-        
+
         stmt = (
             stmt.options(selectinload(CreditNoteEntity.line_items))
             .order_by(CreditNoteEntity.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
-        
+
         result = await self.db.execute(stmt)
         credit_notes = result.scalars().all()
-        
+
         return [CreditNote.model_validate(cn) for cn in credit_notes]
 
-    async def issue_credit_note(
-        self, tenant_id: str, credit_note_id: str
-    ) -> CreditNote:
+    async def issue_credit_note(self, tenant_id: str, credit_note_id: str) -> CreditNote:
         """Issue a draft credit note"""
-        
+
         credit_note = await self._get_credit_note_entity(tenant_id, credit_note_id)
         if not credit_note:
             raise CreditNoteNotFoundError(f"Credit note {credit_note_id} not found")
-        
+
         if credit_note.status != CreditNoteStatus.DRAFT:
             raise InvalidCreditNoteStatusError(
                 f"Cannot issue credit note in {credit_note.status.value} status"
             )
-        
+
         # Update status
         credit_note.status = CreditNoteStatus.ISSUED
-        credit_note.issued_at = datetime.utcnow()
-        credit_note.updated_at = datetime.utcnow()
-        
+        credit_note.issued_at = datetime.now(UTC)
+        credit_note.updated_at = datetime.now(UTC)
+
         await self.db.commit()
         await self.db.refresh(credit_note)
-        
+
         # Record metrics
         self.metrics.record_credit_note_issued(
             tenant_id=tenant_id,
             credit_note_id=credit_note_id,
         )
-        
+
         return CreditNote.model_validate(credit_note)
 
     async def void_credit_note(
-        self, 
-        tenant_id: str, 
+        self,
+        tenant_id: str,
         credit_note_id: str,
         reason: str,
         voided_by: str = "system",
     ) -> CreditNote:
         """Void a credit note"""
-        
+
         credit_note = await self._get_credit_note_entity(tenant_id, credit_note_id)
         if not credit_note:
             raise CreditNoteNotFoundError(f"Credit note {credit_note_id} not found")
-        
+
         if credit_note.status == CreditNoteStatus.VOIDED:
             raise InvalidCreditNoteStatusError("Credit note is already voided")
-        
+
         if credit_note.status == CreditNoteStatus.APPLIED:
-            raise InvalidCreditNoteStatusError(
-                "Cannot void fully applied credit note"
-            )
-        
+            raise InvalidCreditNoteStatusError("Cannot void fully applied credit note")
+
         # Update status
         credit_note.status = CreditNoteStatus.VOIDED
-        credit_note.voided_at = datetime.utcnow()
+        credit_note.voided_at = datetime.now(UTC)
         credit_note.voided_by = voided_by
-        credit_note.updated_at = datetime.utcnow()
-        
+        credit_note.updated_at = datetime.now(UTC)
+
         # Add void reason to internal notes
         if credit_note.internal_notes:
             credit_note.internal_notes += f"\nVoided: {reason}"
         else:
             credit_note.internal_notes = f"Voided: {reason}"
-        
+
         await self.db.commit()
         await self.db.refresh(credit_note)
-        
+
         # Create void transaction
         await self._create_void_transaction(credit_note)
-        
+
         # Record metrics
         self.metrics.record_credit_note_voided(
             tenant_id=tenant_id,
             credit_note_id=credit_note_id,
         )
-        
+
         return CreditNote.model_validate(credit_note)
 
     async def apply_credit_to_invoice(
@@ -279,16 +273,16 @@ class CreditNoteService:
         amount: int,
     ) -> CreditNote:
         """Apply credit note to an invoice"""
-        
+
         credit_note = await self._get_credit_note_entity(tenant_id, credit_note_id)
         if not credit_note:
             raise CreditNoteNotFoundError(f"Credit note {credit_note_id} not found")
-        
+
         if credit_note.status not in [CreditNoteStatus.ISSUED, CreditNoteStatus.PARTIALLY_APPLIED]:
             raise InvalidCreditNoteStatusError(
                 f"Cannot apply credit note in {credit_note.status.value} status"
             )
-        
+
         if amount > credit_note.remaining_credit_amount:
             raise InsufficientCreditError(
                 f"Requested amount {amount} exceeds remaining credit {credit_note.remaining_credit_amount}"
@@ -300,62 +294,62 @@ class CreditNoteService:
             credit_note.status = CreditNoteStatus.APPLIED
         else:
             credit_note.status = CreditNoteStatus.PARTIALLY_APPLIED
-        
-        credit_note.updated_at = datetime.utcnow()
-        
+
+        credit_note.updated_at = datetime.now(UTC)
+
         # Add application record
-        if not hasattr(credit_note, 'applications'):
+        if not hasattr(credit_note, "applications"):
             credit_note.applications = []
-        credit_note.applications.append({
-            "invoice_id": invoice_id,
-            "amount": amount,
-            "applied_at": datetime.utcnow().isoformat(),
-        })
-        
+        credit_note.applications.append(
+            {
+                "invoice_id": invoice_id,
+                "amount": amount,
+                "applied_at": datetime.now(UTC).isoformat(),
+            }
+        )
+
         await self.db.commit()
         await self.db.refresh(credit_note)
-        
+
         # Create application transaction
-        await self._create_application_transaction(
-            credit_note, invoice_id, amount
-        )
-        
+        await self._create_application_transaction(credit_note, invoice_id, amount)
+
         # Update invoice balance
         await self._update_invoice_balance(tenant_id, invoice_id, amount)
-        
+
         return CreditNote.model_validate(credit_note)
 
-    async def get_available_credits(
-        self, tenant_id: str, customer_id: str
-    ) -> List[CreditNote]:
+    async def get_available_credits(self, tenant_id: str, customer_id: str) -> list[CreditNote]:
         """Get all available credit notes for a customer"""
-        
+
         stmt = (
             select(CreditNoteEntity)
             .where(
                 and_(
                     CreditNoteEntity.tenant_id == tenant_id,
                     CreditNoteEntity.customer_id == customer_id,
-                    CreditNoteEntity.status.in_([
-                        CreditNoteStatus.ISSUED,
-                        CreditNoteStatus.PARTIALLY_APPLIED,
-                    ]),
+                    CreditNoteEntity.status.in_(
+                        [
+                            CreditNoteStatus.ISSUED,
+                            CreditNoteStatus.PARTIALLY_APPLIED,
+                        ]
+                    ),
                     CreditNoteEntity.remaining_credit_amount > 0,
                 )
             )
             .order_by(CreditNoteEntity.created_at.asc())
         )
-        
+
         result = await self.db.execute(stmt)
         credit_notes = result.scalars().all()
-        
+
         return [CreditNote.model_validate(cn) for cn in credit_notes]
 
     # ============================================================================
     # Private helper methods
     # ============================================================================
 
-    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> Optional[InvoiceEntity]:
+    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> InvoiceEntity | None:
         """Get invoice entity"""
         stmt = select(InvoiceEntity).where(
             and_(
@@ -368,7 +362,7 @@ class CreditNoteService:
 
     async def _get_credit_note_entity(
         self, tenant_id: str, credit_note_id: str
-    ) -> Optional[CreditNoteEntity]:
+    ) -> CreditNoteEntity | None:
         """Get credit note entity"""
         stmt = (
             select(CreditNoteEntity)
@@ -394,7 +388,7 @@ class CreditNoteService:
         )
         result = await self.db.execute(stmt)
         last_number = result.scalar_one_or_none()
-        
+
         if last_number:
             # Extract sequence number and increment
             try:
@@ -404,9 +398,9 @@ class CreditNoteService:
                 sequence = 1
         else:
             sequence = 1
-        
+
         # Format: CN-{year}-{sequence:06d}
-        year = datetime.utcnow().year
+        year = datetime.now(UTC).year
         return f"CN-{year}-{sequence:06d}"
 
     async def _create_credit_note_transaction(self, credit_note: CreditNoteEntity) -> None:
@@ -414,13 +408,13 @@ class CreditNoteService:
         transaction = TransactionEntity(
             tenant_id=credit_note.tenant_id,
             transaction_id=str(uuid4()),
-            type=TransactionType.CREDIT,
+            transaction_type=TransactionType.CREDIT,
             amount=credit_note.total_amount,
             currency=credit_note.currency,
-            reference_id=credit_note.credit_note_id,
-            reference_type="credit_note",
+            customer_id=credit_note.customer_id,
+            credit_note_id=credit_note.credit_note_id,
             description=f"Credit note {credit_note.credit_note_number} created",
-            created_at=datetime.utcnow(),
+            transaction_date=datetime.now(UTC),
         )
         self.db.add(transaction)
         await self.db.commit()
@@ -430,13 +424,13 @@ class CreditNoteService:
         transaction = TransactionEntity(
             tenant_id=credit_note.tenant_id,
             transaction_id=str(uuid4()),
-            type=TransactionType.VOID,
+            transaction_type=TransactionType.VOID,
             amount=credit_note.total_amount,
             currency=credit_note.currency,
-            reference_id=credit_note.credit_note_id,
-            reference_type="credit_note",
+            customer_id=credit_note.customer_id,
+            credit_note_id=credit_note.credit_note_id,
             description=f"Credit note {credit_note.credit_note_number} voided",
-            created_at=datetime.utcnow(),
+            transaction_date=datetime.now(UTC),
         )
         self.db.add(transaction)
         await self.db.commit()
@@ -448,14 +442,14 @@ class CreditNoteService:
         transaction = TransactionEntity(
             tenant_id=credit_note.tenant_id,
             transaction_id=str(uuid4()),
-            type=TransactionType.CREDIT,
+            transaction_type=TransactionType.CREDIT,
             amount=amount,
             currency=credit_note.currency,
-            reference_id=credit_note.credit_note_id,
-            reference_type="credit_application",
+            customer_id=credit_note.customer_id,
+            credit_note_id=credit_note.credit_note_id,
+            invoice_id=invoice_id,
             description=f"Credit {credit_note.credit_note_number} applied to invoice",
-            extra_data={"invoice_id": invoice_id},
-            created_at=datetime.utcnow(),
+            transaction_date=datetime.now(UTC),
         )
         self.db.add(transaction)
         await self.db.commit()
@@ -466,18 +460,14 @@ class CreditNoteService:
         """Update invoice balance after credit application"""
         invoice = await self._get_invoice(tenant_id, invoice_id)
         if invoice:
-            invoice.total_credits_applied = (
-                invoice.total_credits_applied or 0
-            ) + credit_amount
-            invoice.remaining_balance = max(
-                0, invoice.total_amount - invoice.total_credits_applied
-            )
-            
+            invoice.total_credits_applied = (invoice.total_credits_applied or 0) + credit_amount
+            invoice.remaining_balance = max(0, invoice.total_amount - invoice.total_credits_applied)
+
             # Update payment status if fully paid via credits
             if invoice.remaining_balance == 0:
                 invoice.payment_status = PaymentStatus.SUCCEEDED
             elif invoice.total_credits_applied > 0:
                 invoice.payment_status = PaymentStatus.PARTIALLY_REFUNDED
-            
-            invoice.updated_at = datetime.utcnow()
+
+            invoice.updated_at = datetime.now(UTC)
             await self.db.commit()

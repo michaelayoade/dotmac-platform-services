@@ -10,10 +10,10 @@ Provides a unified interface for file storage operations with support for:
 import hashlib
 import json
 import uuid
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import structlog
 from pydantic import BaseModel, Field
@@ -41,11 +41,11 @@ class FileMetadata(BaseModel):
     file_size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME type")
     created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
-    path: Optional[str] = Field(None, description="Storage path")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    checksum: Optional[str] = Field(None, description="File checksum")
-    tenant_id: Optional[str] = Field(None, description="Tenant identifier")
+    updated_at: datetime | None = Field(None, description="Last update timestamp")
+    path: str | None = Field(None, description="Storage path")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    checksum: str | None = Field(None, description="File checksum")
+    tenant_id: str | None = Field(None, description="Tenant identifier")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
@@ -66,7 +66,7 @@ class FileMetadata(BaseModel):
 class LocalFileStorage:
     """Local filesystem storage backend."""
 
-    def __init__(self, base_path: Optional[str] = None):
+    def __init__(self, base_path: str | None = None):
         """Initialize local storage."""
         self.base_path = Path(
             base_path or settings.storage.local_path or "/tmp/dotmac-storage"
@@ -76,7 +76,7 @@ class LocalFileStorage:
         self.metadata_path.mkdir(exist_ok=True)
         logger.info(f"Local storage initialized at {self.base_path}")
 
-    def _get_file_path(self, file_id: str, tenant_id: Optional[str] = None) -> Path:
+    def _get_file_path(self, file_id: str, tenant_id: str | None = None) -> Path:
         """Get full file path."""
         if tenant_id:
             return self.base_path / tenant_id / file_id
@@ -92,14 +92,14 @@ class LocalFileStorage:
         with open(metadata_file, "w") as f:
             json.dump(metadata.to_dict(), f, default=str)
 
-    def _load_metadata(self, file_id: str) -> Optional[FileMetadata]:
+    def _load_metadata(self, file_id: str) -> FileMetadata | None:
         """Load file metadata."""
         metadata_file = self._get_metadata_path(file_id)
         if not metadata_file.exists():
             return None
 
         try:
-            with open(metadata_file, "r") as f:
+            with open(metadata_file) as f:
                 data = json.load(f)
                 return FileMetadata(
                     file_id=data["file_id"],
@@ -126,9 +126,9 @@ class LocalFileStorage:
         file_data: bytes,
         file_name: str,
         content_type: str,
-        path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tenant_id: Optional[str] = None,
+        path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """Store a file."""
         file_id = str(uuid.uuid4())
@@ -162,8 +162,8 @@ class LocalFileStorage:
         return file_id
 
     async def retrieve(
-        self, file_id: str, tenant_id: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[dict]]:
+        self, file_id: str, tenant_id: str | None = None
+    ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file."""
         file_path = self._get_file_path(file_id, tenant_id)
 
@@ -187,7 +187,7 @@ class LocalFileStorage:
                 "file_size": len(file_data),
             }
 
-    async def delete(self, file_id: str, tenant_id: Optional[str] = None) -> bool:
+    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file."""
         file_path = self._get_file_path(file_id, tenant_id)
         metadata_path = self._get_metadata_path(file_id)
@@ -208,11 +208,11 @@ class LocalFileStorage:
 
     async def list_files(
         self,
-        path: Optional[str] = None,
+        path: str | None = None,
         limit: int = 100,
         offset: int = 0,
-        tenant_id: Optional[str] = None,
-    ) -> List[FileMetadata]:
+        tenant_id: str | None = None,
+    ) -> list[FileMetadata]:
         """List files."""
         files = []
 
@@ -243,7 +243,7 @@ class LocalFileStorage:
 
         return files
 
-    async def get_metadata(self, file_id: str) -> Optional[dict]:
+    async def get_metadata(self, file_id: str) -> dict | None:
         """Get file metadata."""
         metadata = self._load_metadata(file_id)
         return metadata.to_dict() if metadata else None
@@ -254,8 +254,8 @@ class MemoryFileStorage:
 
     def __init__(self):
         """Initialize memory storage."""
-        self.files: Dict[str, bytes] = {}
-        self.metadata: Dict[str, FileMetadata] = {}
+        self.files: dict[str, bytes] = {}
+        self.metadata: dict[str, FileMetadata] = {}
         logger.info("Memory storage initialized")
 
     async def store(
@@ -263,9 +263,9 @@ class MemoryFileStorage:
         file_data: bytes,
         file_name: str,
         content_type: str,
-        path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tenant_id: Optional[str] = None,
+        path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """Store a file in memory."""
         file_id = str(uuid.uuid4())
@@ -295,8 +295,8 @@ class MemoryFileStorage:
         return file_id
 
     async def retrieve(
-        self, file_id: str, tenant_id: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[dict]]:
+        self, file_id: str, tenant_id: str | None = None
+    ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file from memory."""
         file_data = self.files.get(file_id)
         metadata = self.metadata.get(file_id)
@@ -306,7 +306,7 @@ class MemoryFileStorage:
 
         return None, None
 
-    async def delete(self, file_id: str, tenant_id: Optional[str] = None) -> bool:
+    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file from memory."""
         deleted = False
 
@@ -321,11 +321,11 @@ class MemoryFileStorage:
 
     async def list_files(
         self,
-        path: Optional[str] = None,
+        path: str | None = None,
         limit: int = 100,
         offset: int = 0,
-        tenant_id: Optional[str] = None,
-    ) -> List[FileMetadata]:
+        tenant_id: str | None = None,
+    ) -> list[FileMetadata]:
         """List files in memory."""
         files = list(self.metadata.values())
 
@@ -343,7 +343,7 @@ class MemoryFileStorage:
         # Apply pagination
         return files[offset : offset + limit]
 
-    async def get_metadata(self, file_id: str) -> Optional[dict]:
+    async def get_metadata(self, file_id: str) -> dict | None:
         """Get file metadata."""
         metadata = self.metadata.get(file_id)
         return metadata.to_dict() if metadata else None
@@ -352,7 +352,7 @@ class MemoryFileStorage:
 class MinIOFileStorage:
     """MinIO/S3 storage backend wrapper."""
 
-    def __init__(self, minio_client: Optional[MinIOStorage] = None):
+    def __init__(self, minio_client: MinIOStorage | None = None):
         """Initialize MinIO storage."""
         self.client = minio_client or get_storage()
         self.metadata_store = {}  # In production, use database or MinIO metadata
@@ -363,9 +363,9 @@ class MinIOFileStorage:
         file_data: bytes,
         file_name: str,
         content_type: str,
-        path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tenant_id: Optional[str] = None,
+        path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """Store a file in MinIO."""
         file_id = str(uuid.uuid4())
@@ -379,7 +379,7 @@ class MinIOFileStorage:
 
         # Store in MinIO
         content = BytesIO(file_data)
-        object_name = self.client.save_file(
+        self.client.save_file(
             file_path=full_path,
             content=content,
             tenant_id=tenant_id,
@@ -406,8 +406,8 @@ class MinIOFileStorage:
         return file_id
 
     async def retrieve(
-        self, file_id: str, tenant_id: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[dict]]:
+        self, file_id: str, tenant_id: str | None = None
+    ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file from MinIO."""
         tenant_id = tenant_id or "default"
 
@@ -430,7 +430,7 @@ class MinIOFileStorage:
             logger.warning(f"File not found in MinIO: {file_id}")
             return None, None
 
-    async def delete(self, file_id: str, tenant_id: Optional[str] = None) -> bool:
+    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file from MinIO."""
         tenant_id = tenant_id or "default"
 
@@ -456,11 +456,11 @@ class MinIOFileStorage:
 
     async def list_files(
         self,
-        path: Optional[str] = None,
+        path: str | None = None,
         limit: int = 100,
         offset: int = 0,
-        tenant_id: Optional[str] = None,
-    ) -> List[FileMetadata]:
+        tenant_id: str | None = None,
+    ) -> list[FileMetadata]:
         """List files in MinIO."""
         tenant_id = tenant_id or "default"
 
@@ -481,7 +481,7 @@ class MinIOFileStorage:
         # Apply pagination
         return files[offset : offset + limit]
 
-    async def get_metadata(self, file_id: str) -> Optional[dict]:
+    async def get_metadata(self, file_id: str) -> dict | None:
         """Get file metadata."""
         metadata = self.metadata_store.get(file_id)
         return metadata.to_dict() if metadata else None
@@ -504,10 +504,16 @@ class FileStorageService:
             try:
                 # Check if MinIO/S3 dependencies are available
                 self.backend = MinIOFileStorage()
-                logger.info(f"Successfully initialized MinIO/S3 backend")
+                logger.info("Successfully initialized MinIO/S3 backend")
             except Exception as e:
-                logger.warning(f"Failed to initialize MinIO backend: {e}")
-                logger.warning("Falling back to local storage")
+                logger.error(
+                    f"Failed to initialize MinIO backend: {e}",
+                    exc_info=True,
+                    backend=backend,
+                    endpoint=settings.storage.endpoint,
+                    bucket=settings.storage.bucket,
+                )
+                logger.warning("Falling back to local storage due to MinIO initialization failure")
                 self.backend = LocalFileStorage()
                 self.backend_type = StorageBackend.LOCAL
         else:
@@ -522,9 +528,9 @@ class FileStorageService:
         file_data: bytes,
         file_name: str,
         content_type: str,
-        path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tenant_id: Optional[str] = None,
+        path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
         """Store a file and return its ID."""
         return await self.backend.store(
@@ -537,22 +543,22 @@ class FileStorageService:
         )
 
     async def retrieve_file(
-        self, file_id: str, tenant_id: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[dict]]:
+        self, file_id: str, tenant_id: str | None = None
+    ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file by ID."""
         return await self.backend.retrieve(file_id, tenant_id)
 
-    async def delete_file(self, file_id: str, tenant_id: Optional[str] = None) -> bool:
+    async def delete_file(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file by ID."""
         return await self.backend.delete(file_id, tenant_id)
 
     async def list_files(
         self,
-        path: Optional[str] = None,
+        path: str | None = None,
         limit: int = 100,
         offset: int = 0,
-        tenant_id: Optional[str] = None,
-    ) -> List[FileMetadata]:
+        tenant_id: str | None = None,
+    ) -> list[FileMetadata]:
         """List files."""
         return await self.backend.list_files(
             path=path,
@@ -561,15 +567,15 @@ class FileStorageService:
             tenant_id=tenant_id,
         )
 
-    async def get_file_metadata(self, file_id: str) -> Optional[dict]:
+    async def get_file_metadata(self, file_id: str) -> dict | None:
         """Get file metadata."""
         return await self.backend.get_metadata(file_id)
 
     async def update_file_metadata(
         self,
         file_id: str,
-        metadata_updates: Dict[str, Any],
-        tenant_id: Optional[str] = None,
+        metadata_updates: dict[str, Any],
+        tenant_id: str | None = None,
     ) -> bool:
         """Update file metadata."""
         # Get existing metadata
@@ -602,7 +608,7 @@ class FileStorageService:
 
 
 # Global service instance
-_storage_service: Optional[FileStorageService] = None
+_storage_service: FileStorageService | None = None
 
 
 def get_storage_service() -> FileStorageService:

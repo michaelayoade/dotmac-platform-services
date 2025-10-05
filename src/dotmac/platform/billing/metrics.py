@@ -4,12 +4,13 @@ Billing module metrics and monitoring
 
 import contextlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 try:
     from opentelemetry import metrics, trace
     from opentelemetry.metrics import Counter, Histogram, Meter
-    from opentelemetry.trace import Tracer, SpanKind, Status, StatusCode
+    from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
+
     OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     metrics = trace = None
@@ -37,7 +38,7 @@ class _NoopInstrument:
 class BillingMetrics:
     """Billing metrics collector"""
 
-    def __init__(self, meter: Optional[Meter] = None, tracer: Optional[Tracer] = None):
+    def __init__(self, meter: Meter | None = None, tracer: Tracer | None = None):
         """Initialize billing metrics"""
 
         try:
@@ -169,9 +170,7 @@ class BillingMetrics:
         }
         self.invoice_created_counter.add(1, attributes)
         self.invoice_amount_histogram.record(amount, attributes)
-        logger.info(
-            f"Invoice created - tenant: {tenant_id}, amount: {amount} {currency}"
-        )
+        logger.info(f"Invoice created - tenant: {tenant_id}, amount: {amount} {currency}")
 
     def record_invoice_finalized(self, tenant_id: str, invoice_id: str) -> None:
         """Record invoice finalization"""
@@ -415,7 +414,7 @@ class BillingMetrics:
 
 
 # Global metrics instance
-_billing_metrics: Optional[BillingMetrics] = None
+_billing_metrics: BillingMetrics | None = None
 
 
 def get_billing_metrics() -> BillingMetrics:

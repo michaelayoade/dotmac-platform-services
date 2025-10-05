@@ -4,9 +4,9 @@ Base classes for unified analytics with OpenTelemetry support.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 
@@ -27,9 +27,9 @@ class SpanContext:
 
     trace_id: str
     span_id: str
-    parent_span_id: Optional[str] = None
+    parent_span_id: str | None = None
     trace_flags: int = 0
-    trace_state: Optional[Dict[str, str]] = None
+    trace_state: dict[str, str] | None = None
 
 
 @dataclass
@@ -38,19 +38,19 @@ class Metric:
 
     id: UUID = field(default_factory=uuid4)
     tenant_id: str = field(default="")
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     name: str = field(default="")
     type: MetricType = field(default=MetricType.GAUGE)
     value: Any = field(default=0)
-    unit: Optional[str] = None
-    description: Optional[str] = None
-    attributes: Dict[str, Any] = field(default_factory=dict)
-    resource_attributes: Dict[str, Any] = field(default_factory=dict)
-    span_context: Optional[SpanContext] = None
+    unit: str | None = None
+    description: str | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
+    resource_attributes: dict[str, Any] = field(default_factory=dict)
+    span_context: SpanContext | None = None
 
-    def to_otel_attributes(self) -> Dict[str, Any]:
+    def to_otel_attributes(self) -> dict[str, Any]:
         """Convert to OpenTelemetry attributes format."""
-        attrs: Dict[str, Any] = {
+        attrs: dict[str, Any] = {
             "tenant.id": self.tenant_id,
             "metric.id": str(self.id),
         }
@@ -93,7 +93,7 @@ class HistogramMetric(Metric):
     """Histogram metric for value distributions."""
 
     type: MetricType = field(default=MetricType.HISTOGRAM, init=False)
-    bucket_boundaries: List[float] = field(
+    bucket_boundaries: list[float] = field(
         default_factory=lambda: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
     )
 
@@ -109,7 +109,7 @@ class AnalyticsCollector(Protocol):
         """Collect a single metric."""
         ...
 
-    async def collect_batch(self, metrics: List[Metric]) -> None:
+    async def collect_batch(self, metrics: list[Metric]) -> None:
         """Collect multiple metrics in batch."""
         ...
 
@@ -135,7 +135,7 @@ class BaseAnalyticsCollector(ABC):
         """
         self.tenant_id = tenant_id
         self.service_name = service_name
-        self.pending_metrics: List[Metric] = []
+        self.pending_metrics: list[Metric] = []
         self.batch_size = 100
 
     @abstractmethod
@@ -144,7 +144,7 @@ class BaseAnalyticsCollector(ABC):
         pass
 
     @abstractmethod
-    async def collect_batch(self, metrics: List[Metric]) -> None:
+    async def collect_batch(self, metrics: list[Metric]) -> None:
         """Collect multiple metrics in batch."""
         pass
 
@@ -154,9 +154,9 @@ class BaseAnalyticsCollector(ABC):
         name: str,
         value: float,
         metric_type: str = "gauge",
-        labels: Optional[Dict[str, Any]] = None,
-        unit: Optional[str] = None,
-        description: Optional[str] = None,
+        labels: dict[str, Any] | None = None,
+        unit: str | None = None,
+        description: str | None = None,
     ) -> None:
         """
         Record a metric.
@@ -172,7 +172,7 @@ class BaseAnalyticsCollector(ABC):
         pass
 
     @abstractmethod
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """
         Get a summary of collected metrics.
 
@@ -228,15 +228,15 @@ class MetricRegistry:
 
     def __init__(self):
         """Initialize the registry."""
-        self._metrics: Dict[str, Dict[str, Any]] = {}
+        self._metrics: dict[str, dict[str, Any]] = {}
 
     def register(
         self,
         name: str,
         type: MetricType,
-        unit: Optional[str] = None,
-        description: Optional[str] = None,
-        attributes: Optional[List[str]] = None,
+        unit: str | None = None,
+        description: str | None = None,
+        attributes: list[str] | None = None,
     ) -> None:
         """
         Register a metric definition.
@@ -255,7 +255,7 @@ class MetricRegistry:
             "attributes": attributes or [],
         }
 
-    def get(self, name: str) -> Optional[Dict[str, Any]]:
+    def get(self, name: str) -> dict[str, Any] | None:
         """Get metric definition."""
         return self._metrics.get(name)
 

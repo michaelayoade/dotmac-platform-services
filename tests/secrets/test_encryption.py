@@ -1,4 +1,5 @@
 """Tests for secrets encryption module."""
+
 import base64
 import hashlib
 import pytest
@@ -43,7 +44,7 @@ class TestEncryptedField:
         field = EncryptedField(
             algorithm="fernet",
             encrypted_data="encrypted_data_here",
-            classification=DataClassification.INTERNAL
+            classification=DataClassification.INTERNAL,
         )
 
         assert field.algorithm == "fernet"
@@ -59,7 +60,7 @@ class TestEncryptedField:
             algorithm="base64",
             encrypted_data="data",
             classification=DataClassification.CONFIDENTIAL,
-            metadata=metadata
+            metadata=metadata,
         )
 
         assert field.metadata == metadata
@@ -68,9 +69,7 @@ class TestEncryptedField:
         """Test that default timestamp is recent."""
         before = datetime.now(timezone.utc)
         field = EncryptedField(
-            algorithm="test",
-            encrypted_data="data",
-            classification=DataClassification.PUBLIC
+            algorithm="test", encrypted_data="data", classification=DataClassification.PUBLIC
         )
         after = datetime.now(timezone.utc)
 
@@ -83,7 +82,7 @@ class TestEncryptedField:
             algorithm="test",
             encrypted_data="data",
             classification=DataClassification.RESTRICTED,
-            created_at=custom_time
+            created_at=custom_time,
         )
 
         assert field.created_at == custom_time
@@ -109,7 +108,7 @@ class TestSymmetricEncryptionService:
         assert service._prefer_fernet is False
         assert service._fernet is None
 
-    @patch('dotmac.platform.secrets.encryption.Fernet')
+    @patch("dotmac.platform.secrets.encryption.Fernet")
     def test_init_with_fernet_available(self, mock_fernet_class):
         """Test initialization when Fernet is available."""
         mock_fernet_instance = Mock()
@@ -123,7 +122,7 @@ class TestSymmetricEncryptionService:
         mock_fernet_class.assert_called_once_with(expected_fernet_key)
         assert service._fernet == mock_fernet_instance
 
-    @patch('dotmac.platform.secrets.encryption.Fernet')
+    @patch("dotmac.platform.secrets.encryption.Fernet")
     def test_init_fernet_creation_fails(self, mock_fernet_class):
         """Test initialization when Fernet creation fails."""
         mock_fernet_class.side_effect = Exception("Fernet creation failed")
@@ -140,7 +139,7 @@ class TestSymmetricEncryptionService:
 
     def test_encrypt_with_fernet(self):
         """Test encryption using Fernet."""
-        with patch('dotmac.platform.secrets.encryption.Fernet') as mock_fernet_class:
+        with patch("dotmac.platform.secrets.encryption.Fernet") as mock_fernet_class:
             mock_fernet = Mock()
             mock_fernet.encrypt.return_value = b"encrypted_token"
             mock_fernet_class.return_value = mock_fernet
@@ -185,7 +184,7 @@ class TestSymmetricEncryptionService:
 
     def test_decrypt_fernet(self):
         """Test decryption using Fernet."""
-        with patch('dotmac.platform.secrets.encryption.Fernet') as mock_fernet_class:
+        with patch("dotmac.platform.secrets.encryption.Fernet") as mock_fernet_class:
             mock_fernet = Mock()
             mock_fernet.decrypt.return_value = b"decrypted_plaintext"
             mock_fernet_class.return_value = mock_fernet
@@ -195,7 +194,7 @@ class TestSymmetricEncryptionService:
             field = EncryptedField(
                 algorithm="fernet",
                 encrypted_data="encrypted_token",
-                classification=DataClassification.INTERNAL
+                classification=DataClassification.INTERNAL,
             )
 
             result = service.decrypt(field)
@@ -204,7 +203,7 @@ class TestSymmetricEncryptionService:
 
     def test_decrypt_fernet_invalid_token(self):
         """Test decryption with invalid Fernet token."""
-        with patch('dotmac.platform.secrets.encryption.Fernet') as mock_fernet_class:
+        with patch("dotmac.platform.secrets.encryption.Fernet") as mock_fernet_class:
             from dotmac.platform.secrets.encryption import FernetInvalidToken
 
             mock_fernet = Mock()
@@ -216,7 +215,7 @@ class TestSymmetricEncryptionService:
             field = EncryptedField(
                 algorithm="fernet",
                 encrypted_data="invalid_token",
-                classification=DataClassification.INTERNAL
+                classification=DataClassification.INTERNAL,
             )
 
             with pytest.raises(ValueError, match="invalid fernet token"):
@@ -251,9 +250,7 @@ class TestSymmetricEncryptionService:
         service = SymmetricEncryptionService("test-secret")
 
         field = EncryptedField(
-            algorithm="unknown",
-            encrypted_data="data",
-            classification=DataClassification.INTERNAL
+            algorithm="unknown", encrypted_data="data", classification=DataClassification.INTERNAL
         )
 
         with pytest.raises(ValueError, match="Unsupported algorithm 'unknown'"):
@@ -285,15 +282,12 @@ class TestSymmetricEncryptionService:
         result = SymmetricEncryptionService._xor_bytes(data, key)
 
         # Manually verify XOR cycling
-        expected = bytes(
-            data[i] ^ key[i % len(key)]
-            for i in range(len(data))
-        )
+        expected = bytes(data[i] ^ key[i % len(key)] for i in range(len(data)))
         assert result == expected
 
     def test_round_trip_encryption_fernet(self):
         """Test complete round-trip encryption/decryption with Fernet."""
-        with patch('dotmac.platform.secrets.encryption.Fernet') as mock_fernet_class:
+        with patch("dotmac.platform.secrets.encryption.Fernet") as mock_fernet_class:
             mock_fernet = Mock()
             # Make encrypt/decrypt actually work for round-trip
             mock_fernet.encrypt.return_value = b"mock_encrypted"

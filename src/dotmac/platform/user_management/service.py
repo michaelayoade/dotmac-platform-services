@@ -5,13 +5,12 @@ Production-ready user service with proper database operations.
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
 from passlib.context import CryptContext
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import Text, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,25 +28,56 @@ class UserService:
         # Configure password hashing
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    async def get_user_by_id(self, user_id: str | UUID) -> Optional[User]:
-        """Get user by ID."""
+    async def get_user_by_id(
+        self, user_id: str | UUID, tenant_id: str | None = None
+    ) -> User | None:
+        """Get user by ID.
+
+        Args:
+            user_id: User ID to search for
+            tenant_id: Optional tenant ID to filter by. If provided, only returns
+                      the user if they belong to the specified tenant.
+        """
         if isinstance(user_id, str):
             try:
                 user_id = UUID(user_id)
             except ValueError:
                 return None
 
-        result = await self.session.execute(select(User).where(User.id == user_id))
+        query = select(User).where(User.id == user_id)
+        if tenant_id is not None:
+            query = query.where(User.tenant_id == tenant_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_user_by_username(self, username: str) -> Optional[User]:
-        """Get user by username."""
-        result = await self.session.execute(select(User).where(User.username == username))
+    async def get_user_by_username(
+        self, username: str, tenant_id: str | None = None
+    ) -> User | None:
+        """Get user by username.
+
+        Args:
+            username: Username to search for
+            tenant_id: Optional tenant ID to filter by. If provided, only returns
+                      users in the specified tenant.
+        """
+        query = select(User).where(User.username == username)
+        if tenant_id is not None:
+            query = query.where(User.tenant_id == tenant_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Get user by email."""
-        result = await self.session.execute(select(User).where(User.email == email.lower()))
+    async def get_user_by_email(self, email: str, tenant_id: str | None = None) -> User | None:
+        """Get user by email.
+
+        Args:
+            email: Email to search for
+            tenant_id: Optional tenant ID to filter by. If provided, only returns
+                      users in the specified tenant.
+        """
+        query = select(User).where(User.email == email.lower())
+        if tenant_id is not None:
+            query = query.where(User.tenant_id == tenant_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
     async def create_user(
@@ -55,10 +85,10 @@ class UserService:
         username: str,
         email: str,
         password: str,
-        full_name: Optional[str] = None,
-        roles: Optional[List[str]] = None,
+        full_name: str | None = None,
+        roles: list[str] | None = None,
         is_active: bool = True,
-        tenant_id: Optional[str] = None,
+        tenant_id: str | None = None,
     ) -> User:
         """Create a new user."""
         # Check if user exists
@@ -96,47 +126,82 @@ class UserService:
             logger.error(f"Failed to create user {username}: {e}")
             raise ValueError("User creation failed - username or email may already exist")
 
+    async def _update_email(self, user: User, email: str) -> None:
+        """Update user email with uniqueness check."""
+        existing = await self.get_user_by_email(email)
+        if existing and existing.id != user.id:
+            raise ValueError(f"Email {email} is already in use")
+        user.email = email.lower()
+
+    def _update_profile_fields(
+        self,
+        user: User,
+        full_name: str | None,
+        phone_number: str | None,
+    ) -> None:
+        """Update user profile fields."""
+        if full_name is not None:
+            user.full_name = full_name
+        if phone_number is not None:
+            user.phone_number = phone_number
+
+    def _update_authorization_fields(
+        self,
+        user: User,
+        roles: list[str] | None,
+        permissions: list[str] | None,
+    ) -> None:
+        """Update user authorization fields."""
+        if roles is not None:
+            user.roles = roles
+        if permissions is not None:
+            user.permissions = permissions
+
+    def _update_status_fields(
+        self,
+        user: User,
+        is_active: bool | None,
+        is_verified: bool | None,
+    ) -> None:
+        """Update user status fields."""
+        if is_active is not None:
+            user.is_active = is_active
+        if is_verified is not None:
+            user.is_verified = is_verified
+
+    def _update_metadata(self, user: User, metadata: dict) -> None:
+        """Update user metadata."""
+        user.metadata_ = metadata
+
     async def update_user(
         self,
         user_id: str | UUID,
-        email: Optional[str] = None,
-        full_name: Optional[str] = None,
-        roles: Optional[List[str]] = None,
-        permissions: Optional[List[str]] = None,
-        is_active: Optional[bool] = None,
-        is_verified: Optional[bool] = None,
-        phone_number: Optional[str] = None,
-        metadata: Optional[dict] = None,
-    ) -> Optional[User]:
+        email: str | None = None,
+        full_name: str | None = None,
+        roles: list[str] | None = None,
+        permissions: list[str] | None = None,
+        is_active: bool | None = None,
+        is_verified: bool | None = None,
+        phone_number: str | None = None,
+        metadata: dict | None = None,
+    ) -> User | None:
         """Update user information."""
         user = await self.get_user_by_id(user_id)
         if not user:
             return None
 
-        # Update fields if provided
+        # Update fields using grouped helpers
         if email is not None:
-            # Check if email is already taken
-            existing = await self.get_user_by_email(email)
-            if existing and existing.id != user.id:
-                raise ValueError(f"Email {email} is already in use")
-            user.email = email.lower()
+            await self._update_email(user, email)
 
-        if full_name is not None:
-            user.full_name = full_name
-        if roles is not None:
-            user.roles = roles
-        if permissions is not None:
-            user.permissions = permissions
-        if is_active is not None:
-            user.is_active = is_active
-        if is_verified is not None:
-            user.is_verified = is_verified
-        if phone_number is not None:
-            user.phone_number = phone_number
+        self._update_profile_fields(user, full_name, phone_number)
+        self._update_authorization_fields(user, roles, permissions)
+        self._update_status_fields(user, is_active, is_verified)
+
         if metadata is not None:
-            user.metadata_ = metadata
+            self._update_metadata(user, metadata)
 
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = datetime.now(UTC)
 
         try:
             await self.session.commit()
@@ -163,12 +228,12 @@ class UserService:
         self,
         skip: int = 0,
         limit: int = 100,
-        is_active: Optional[bool] = None,
-        role: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        search: Optional[str] = None,
+        is_active: bool | None = None,
+        role: str | None = None,
+        tenant_id: str | None = None,
+        search: str | None = None,
         require_tenant: bool = True,  # Default to requiring tenant for safety
-    ) -> tuple[List[User], int]:
+    ) -> tuple[list[User], int]:
         """List users with pagination and filters."""
         # Enforce tenant isolation by default
         if require_tenant and (not tenant_id or not tenant_id.strip()):
@@ -181,7 +246,11 @@ class UserService:
         if is_active is not None:
             conditions.append(User.is_active == is_active)
         if role:
-            conditions.append(func.jsonb_contains(User.roles, f'["{role}"]'))
+            # Database-agnostic role filtering: convert JSON array to text and search
+            # Works in both PostgreSQL and SQLite
+            # Matches role as exact element in the JSON array
+            role_pattern = f'%"{role}"%'
+            conditions.append(func.cast(User.roles, Text).like(role_pattern))
         if tenant_id:
             conditions.append(User.tenant_id == tenant_id)
         if search:
@@ -235,7 +304,7 @@ class UserService:
 
         # Update password
         user.password_hash = self._hash_password(new_password)
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = datetime.now(UTC)
 
         await self.session.commit()
         logger.info(f"Password changed for user: {user.username}")
@@ -245,8 +314,16 @@ class UserService:
         self,
         username_or_email: str,
         password: str,
-    ) -> Optional[User]:
-        """Authenticate user with username/email and password."""
+        tenant_id: str | None = None,
+    ) -> User | None:
+        """Authenticate user with username/email and password.
+
+        Args:
+            username_or_email: Username or email to authenticate
+            password: Password to verify
+            tenant_id: Optional tenant ID for multi-tenant isolation.
+                      If provided, only users in this tenant can authenticate.
+        """
         # Try to find user by username or email
         user = await self.get_user_by_username(username_or_email)
         if not user:
@@ -256,8 +333,16 @@ class UserService:
             logger.debug(f"User not found: {username_or_email}")
             return None
 
+        # SECURITY: Validate tenant isolation
+        if tenant_id and user.tenant_id != tenant_id:
+            logger.warning(
+                f"Tenant isolation: User {username_or_email} belongs to tenant {user.tenant_id}, "
+                f"but authentication attempted for tenant {tenant_id}"
+            )
+            return None
+
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+        if user.locked_until and user.locked_until > datetime.now(UTC):
             logger.warning(f"Account locked for user: {user.username}")
             return None
 
@@ -268,7 +353,7 @@ class UserService:
 
             # Lock account after 5 failed attempts
             if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.now(timezone.utc) + timedelta(hours=1)
+                user.locked_until = datetime.now(UTC) + timedelta(hours=1)
                 logger.warning(f"Account locked due to failed attempts: {user.username}")
 
             await self.session.commit()
@@ -316,7 +401,7 @@ class UserService:
         logger.info(f"MFA disabled for user: {user.username}")
         return True
 
-    async def add_role(self, user_id: str | UUID, role: str) -> Optional[User]:
+    async def add_role(self, user_id: str | UUID, role: str) -> User | None:
         """Add role to user."""
         user = await self.get_user_by_id(user_id)
         if not user:
@@ -329,7 +414,7 @@ class UserService:
 
         return user
 
-    async def remove_role(self, user_id: str | UUID, role: str) -> Optional[User]:
+    async def remove_role(self, user_id: str | UUID, role: str) -> User | None:
         """Remove role from user."""
         user = await self.get_user_by_id(user_id)
         if not user:
@@ -343,10 +428,8 @@ class UserService:
         return user
 
     async def update_last_login(
-        self,
-        user_id: str | UUID,
-        ip_address: Optional[str] = None
-    ) -> Optional[User]:
+        self, user_id: str | UUID, ip_address: str | None = None
+    ) -> User | None:
         """Update user's last login timestamp and IP address.
 
         Args:
@@ -356,14 +439,14 @@ class UserService:
         Returns:
             Updated user object or None if user not found
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         user = await self.get_user_by_id(user_id)
         if not user:
             return None
 
         # Update last login fields
-        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+        user.last_login = datetime.now(UTC).replace(tzinfo=None)
         if ip_address:
             user.last_login_ip = ip_address
 

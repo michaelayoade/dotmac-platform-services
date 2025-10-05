@@ -218,11 +218,11 @@ export default function TestPluginsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-100 mb-2">Plugin UI Test Page</h1>
-          <p className="text-slate-400">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Plugin UI Test Page</h1>
+          <p className="text-muted-foreground">
             Testing the dynamic plugin system with WhatsApp Business API example
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function TestPluginsPage() {
             className={`px-4 py-2 rounded-lg transition-colors ${
               view === 'card'
                 ? 'bg-sky-500 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-accent text-muted-foreground hover:bg-muted'
             }`}
           >
             Plugin Card
@@ -244,7 +244,7 @@ export default function TestPluginsPage() {
             className={`px-4 py-2 rounded-lg transition-colors ${
               view === 'form'
                 ? 'bg-sky-500 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-accent text-muted-foreground hover:bg-muted'
             }`}
           >
             Plugin Form
@@ -254,7 +254,7 @@ export default function TestPluginsPage() {
             className={`px-4 py-2 rounded-lg transition-colors ${
               view === 'health'
                 ? 'bg-sky-500 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-accent text-muted-foreground hover:bg-muted'
             }`}
           >
             Health Dashboard
@@ -316,40 +316,40 @@ export default function TestPluginsPage() {
         )}
 
         {/* Field Types Demo */}
-        <div className="mt-12 p-6 bg-slate-900/50 border border-slate-800 rounded-lg">
+        <div className="mt-12 p-6 bg-card/50 border border-border rounded-lg">
           <h3 className="text-lg font-semibold mb-4">Supported Field Types in WhatsApp Plugin</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="space-y-1">
               <span className="font-medium text-sky-400">String Fields:</span>
-              <p className="text-slate-400">Business Account ID</p>
+              <p className="text-muted-foreground">Business Account ID</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-amber-400">Secret Fields:</span>
-              <p className="text-slate-400">API Token, Webhook Token</p>
+              <p className="text-muted-foreground">API Token, Webhook Token</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-emerald-400">Phone Fields:</span>
-              <p className="text-slate-400">Phone Number (E.164 format)</p>
+              <p className="text-muted-foreground">Phone Number (E.164 format)</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-purple-400">Select Fields:</span>
-              <p className="text-slate-400">API Version options</p>
+              <p className="text-muted-foreground">API Version options</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-rose-400">Boolean Fields:</span>
-              <p className="text-slate-400">Sandbox Mode toggle</p>
+              <p className="text-muted-foreground">Sandbox Mode toggle</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-indigo-400">URL Fields:</span>
-              <p className="text-slate-400">Webhook URL</p>
+              <p className="text-muted-foreground">Webhook URL</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-orange-400">Integer Fields:</span>
-              <p className="text-slate-400">Retry Count, Timeout</p>
+              <p className="text-muted-foreground">Retry Count, Timeout</p>
             </div>
             <div className="space-y-1">
               <span className="font-medium text-teal-400">JSON Fields:</span>
-              <p className="text-slate-400">Custom Headers</p>
+              <p className="text-muted-foreground">Custom Headers</p>
             </div>
           </div>
         </div>

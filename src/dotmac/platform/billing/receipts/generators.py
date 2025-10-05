@@ -147,7 +147,7 @@ class PDFReceiptGenerator(ReceiptGenerator):
         pdf_content = self._generate_simple_pdf_content(receipt)
 
         # Convert to bytes (in real implementation this would be actual PDF bytes)
-        return pdf_content.encode('utf-8')
+        return pdf_content.encode("utf-8")
 
     def _generate_simple_pdf_content(self, receipt: Receipt) -> str:
         """Generate simple text content (placeholder for real PDF)"""

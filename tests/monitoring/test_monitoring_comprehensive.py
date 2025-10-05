@@ -62,7 +62,7 @@ class TestMonitoringModuleIntegration:
         # Should be able to access settings without error
         assert settings is not None
         # Settings should have expected structure (basic validation)
-        assert hasattr(settings, '__dict__') or hasattr(settings, '__getattribute__')
+        assert hasattr(settings, "__dict__") or hasattr(settings, "__getattribute__")
 
     @pytest.mark.asyncio
     async def test_benchmark_to_metrics_integration(self):
@@ -78,9 +78,7 @@ class TestMonitoringModuleIntegration:
         # Convert benchmark results to metrics
         for metric in result.metrics:
             prometheus.record_metric(
-                f"test_{metric.name}",
-                metric.value,
-                {"benchmark_id": result.id}
+                f"test_{metric.name}", metric.value, {"benchmark_id": result.id}
             )
 
         # Verify metrics were recorded
@@ -128,6 +126,7 @@ class TestMonitoringErrorHandling:
     @pytest.mark.asyncio
     async def test_benchmark_failure_propagation(self):
         """Test that benchmark failures are properly handled across components."""
+
         class FailingBenchmark(PerformanceBenchmark):
             def __init__(self):
                 super().__init__("Failing Benchmark", BenchmarkType.PERFORMANCE)
@@ -159,6 +158,7 @@ class TestMonitoringErrorHandling:
     @pytest.mark.asyncio
     async def test_suite_partial_failure_handling(self):
         """Test handling of partial failures in benchmark suites."""
+
         class MixedSuite:
             @staticmethod
             def create_good_benchmark():
@@ -268,9 +268,7 @@ class TestMonitoringPerformance:
         num_metrics = 1000
         for i in range(num_metrics):
             prometheus.record_metric(
-                f"scalability_metric_{i}",
-                i * 1.5,
-                {"batch": str(i // 100), "index": str(i)}
+                f"scalability_metric_{i}", i * 1.5, {"batch": str(i // 100), "index": str(i)}
             )
 
         # Verify all metrics were recorded
@@ -279,6 +277,7 @@ class TestMonitoringPerformance:
 
         # Test format conversion performance
         import time
+
         start_time = time.time()
         prometheus_format = prometheus.to_prometheus_format()
         format_time = time.time() - start_time
@@ -287,7 +286,7 @@ class TestMonitoringPerformance:
         assert format_time < 2.0  # Less than 2 seconds
 
         # Verify format correctness
-        lines = prometheus_format.strip().split('\n')
+        lines = prometheus_format.strip().split("\n")
         assert len(lines) == num_metrics
 
     @pytest.mark.asyncio
@@ -298,18 +297,14 @@ class TestMonitoringPerformance:
 
         # Sequential suite
         sequential_config = BenchmarkSuiteConfig(
-            name="Sequential Perf Test",
-            parallel_execution=False
+            name="Sequential Perf Test", parallel_execution=False
         )
         sequential_suite = BenchmarkSuite(sequential_config)
         for benchmark in benchmarks:
             sequential_suite.add_benchmark(benchmark)
 
         # Parallel suite
-        parallel_config = BenchmarkSuiteConfig(
-            name="Parallel Perf Test",
-            parallel_execution=True
-        )
+        parallel_config = BenchmarkSuiteConfig(name="Parallel Perf Test", parallel_execution=True)
         parallel_suite = BenchmarkSuite(parallel_config)
         for benchmark in [CPUBenchmark(duration_seconds=0.5) for _ in range(4)]:
             parallel_suite.add_benchmark(benchmark)
@@ -350,7 +345,7 @@ class TestMonitoringConfigurationAndSettings:
                 timeout_seconds=60,
                 parallel_execution=True,
                 retry_failed=True,
-                retry_count=3
+                retry_count=3,
             ),
         ]
 
@@ -459,9 +454,7 @@ class TestMonitoringEdgeCases:
         assert len(history) == 0
 
         history_filtered = manager.get_benchmark_history(
-            benchmark_type=BenchmarkType.CPU,
-            status=BenchmarkStatus.COMPLETED,
-            limit=10
+            benchmark_type=BenchmarkType.CPU, status=BenchmarkStatus.COMPLETED, limit=10
         )
         assert len(history_filtered) == 0
 
@@ -493,10 +486,7 @@ class TestMonitoringEdgeCases:
     async def test_benchmark_timeout_edge_cases(self):
         """Test benchmark behavior at timeout boundaries."""
         # Test very short timeout
-        config = BenchmarkSuiteConfig(
-            name="Short Timeout Suite",
-            timeout_seconds=0.1  # Very short
-        )
+        config = BenchmarkSuiteConfig(name="Short Timeout Suite", timeout_seconds=0.1)  # Very short
         suite = BenchmarkSuite(config)
 
         # Create a benchmark that will definitely take longer than 0.1s
@@ -510,6 +500,7 @@ class TestMonitoringEdgeCases:
             async def execute(self):
                 # This will definitely take longer than 0.1 seconds
                 import asyncio
+
                 await asyncio.sleep(1.0)  # Sleep for 1 second
                 return {"completed": True}
 

@@ -4,26 +4,28 @@ Database models for data import tracking.
 Stores import job metadata, status, and failure records.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from dotmac.platform.db import Base, TimestampMixin, TenantMixin
+from dotmac.platform.db import Base, TenantMixin, TimestampMixin
 
 
 class ImportJobType(str, Enum):
@@ -88,15 +90,11 @@ class ImportJob(Base, TimestampMixin, TenantMixin):
     failed_records: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Timing
-    started_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # User who initiated the import
-    initiated_by: Mapped[Optional[UUID]] = mapped_column(
+    initiated_by: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -119,10 +117,10 @@ class ImportJob(Base, TimestampMixin, TenantMixin):
     )
 
     # Error details if failed
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Celery task ID if using background processing
-    celery_task_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Relationships
     failures = relationship("ImportFailure", back_populates="job", lazy="dynamic")
@@ -149,11 +147,11 @@ class ImportJob(Base, TimestampMixin, TenantMixin):
         return (self.successful_records / self.processed_records) * 100
 
     @property
-    def duration_seconds(self) -> Optional[float]:
+    def duration_seconds(self) -> float | None:
         """Calculate job duration in seconds."""
         if not self.started_at:
             return None
-        end_time = self.completed_at or datetime.now(timezone.utc)
+        end_time = self.completed_at or datetime.now(UTC)
         return (end_time - self.started_at).total_seconds()
 
 

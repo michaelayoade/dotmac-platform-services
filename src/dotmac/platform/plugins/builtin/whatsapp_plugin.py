@@ -6,8 +6,8 @@ This plugin integrates with WhatsApp Business API for notifications.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import httpx
@@ -31,12 +31,12 @@ class WhatsAppProvider(NotificationProvider):
     """WhatsApp Business API notification provider."""
 
     def __init__(self):
-        self.api_token: Optional[str] = None
-        self.phone_number: Optional[str] = None
+        self.api_token: str | None = None
+        self.phone_number: str | None = None
         self.base_url = "https://graph.facebook.com/v18.0"
         self.sandbox_mode = True
-        self.webhook_verify_token: Optional[str] = None
-        self.business_account_id: Optional[str] = None
+        self.webhook_verify_token: str | None = None
+        self.business_account_id: str | None = None
         self.configured = False
 
     def get_config_schema(self) -> PluginConfig:
@@ -60,14 +60,14 @@ class WhatsAppProvider(NotificationProvider):
                     help_text="Your verified WhatsApp Business phone number",
                     group="Basic Configuration",
                     order=1,
-                    pattern=r'^\+[1-9]\d{1,14}$',
+                    pattern=r"^\+[1-9]\d{1,14}$",
                     validation_rules=[
                         ValidationRule(
                             type="pattern",
-                            value=r'^\+[1-9]\d{1,14}$',
-                            message="Phone number must start with + and country code"
+                            value=r"^\+[1-9]\d{1,14}$",
+                            message="Phone number must start with + and country code",
                         )
-                    ]
+                    ],
                 ),
                 FieldSpec(
                     key="api_token",
@@ -91,7 +91,6 @@ class WhatsAppProvider(NotificationProvider):
                     group="Basic Configuration",
                     order=3,
                 ),
-
                 # Environment Settings
                 FieldSpec(
                     key="sandbox_mode",
@@ -114,12 +113,17 @@ class WhatsAppProvider(NotificationProvider):
                     group="Environment",
                     order=2,
                     options=[
-                        SelectOption(value="v18.0", label="v18.0 (Latest)", description="Latest stable version"),
-                        SelectOption(value="v17.0", label="v17.0", description="Previous stable version"),
+                        SelectOption(
+                            value="v18.0",
+                            label="v18.0 (Latest)",
+                            description="Latest stable version",
+                        ),
+                        SelectOption(
+                            value="v17.0", label="v17.0", description="Previous stable version"
+                        ),
                         SelectOption(value="v16.0", label="v16.0", description="Legacy version"),
-                    ]
+                    ],
                 ),
-
                 # Message Settings
                 FieldSpec(
                     key="default_template",
@@ -130,9 +134,17 @@ class WhatsAppProvider(NotificationProvider):
                     group="Message Settings",
                     order=1,
                     options=[
-                        SelectOption(value="hello_world", label="Hello World", description="Basic greeting template"),
-                        SelectOption(value="custom", label="Custom Template", description="Use custom template"),
-                    ]
+                        SelectOption(
+                            value="hello_world",
+                            label="Hello World",
+                            description="Basic greeting template",
+                        ),
+                        SelectOption(
+                            value="custom",
+                            label="Custom Template",
+                            description="Use custom template",
+                        ),
+                    ],
                 ),
                 FieldSpec(
                     key="message_retry_count",
@@ -158,7 +170,6 @@ class WhatsAppProvider(NotificationProvider):
                     group="Message Settings",
                     order=3,
                 ),
-
                 # Webhook Configuration
                 FieldSpec(
                     key="webhook_url",
@@ -180,7 +191,6 @@ class WhatsAppProvider(NotificationProvider):
                     group="Webhooks",
                     order=2,
                 ),
-
                 # Advanced Settings
                 FieldSpec(
                     key="rate_limit_per_second",
@@ -221,7 +231,7 @@ class WhatsAppProvider(NotificationProvider):
             supports_test_connection=True,
         )
 
-    async def configure(self, config: Dict[str, Any]) -> bool:
+    async def configure(self, config: dict[str, Any]) -> bool:
         """Configure the WhatsApp provider."""
         try:
             self.phone_number = config.get("phone_number")
@@ -255,8 +265,8 @@ class WhatsAppProvider(NotificationProvider):
         self,
         recipient: str,
         message: str,
-        subject: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        subject: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Send a WhatsApp notification."""
         if not self.configured:
@@ -268,7 +278,7 @@ class WhatsAppProvider(NotificationProvider):
                 "messaging_product": "whatsapp",
                 "to": recipient,
                 "type": "text",
-                "text": {"body": message}
+                "text": {"body": message},
             }
 
             # Add custom headers if configured
@@ -303,7 +313,7 @@ class WhatsAppProvider(NotificationProvider):
 
     async def health_check(self) -> PluginHealthCheck:
         """Perform health check of WhatsApp provider."""
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         try:
             if not self.configured:
@@ -365,9 +375,9 @@ class WhatsAppProvider(NotificationProvider):
                 timestamp=start_time.isoformat(),
             )
 
-    async def test_connection(self, config: Dict[str, Any]) -> PluginTestResult:
+    async def test_connection(self, config: dict[str, Any]) -> PluginTestResult:
         """Test WhatsApp connection with provided configuration."""
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         try:
             # Temporarily configure with test config
@@ -421,7 +431,7 @@ class WhatsAppProvider(NotificationProvider):
             try:
                 error_response = e.response.json()
                 error_details.update(error_response)
-            except:
+            except Exception:
                 error_details["response_text"] = e.response.text
 
             return PluginTestResult(

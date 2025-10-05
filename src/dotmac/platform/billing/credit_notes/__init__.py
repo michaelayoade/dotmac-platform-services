@@ -1,6 +1,6 @@
 """Credit note management module"""
 
-from .service import CreditNoteService
 from .router import router
+from .service import CreditNoteService
 
 __all__ = ["CreditNoteService", "router"]

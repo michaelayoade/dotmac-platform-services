@@ -10,6 +10,9 @@ from locust import HttpUser, task, between
 import pytest
 from unittest.mock import patch
 
+pytestmark = pytest.mark.asyncio
+
+
 # Install: pip install locust
 
 
@@ -21,26 +24,35 @@ class BillingLoadTestUser(HttpUser):
     def on_start(self):
         """Setup - login and get auth token."""
         # Login
-        response = self.client.post("/api/v1/auth/login", json={
-            "username": f"loadtest_user_{random.randint(1000, 9999)}",
-            "password": "LoadTest123!@#"
-        })
+        response = self.client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": f"loadtest_user_{random.randint(1000, 9999)}",
+                "password": "LoadTest123!@#",
+            },
+        )
 
         if response.status_code == 200:
             self.auth_token = response.json()["access_token"]
             self.headers = {"Authorization": f"Bearer {self.auth_token}"}
         else:
             # Create test user if doesn't exist
-            self.client.post("/api/v1/auth/register", json={
-                "username": f"loadtest_user_{random.randint(1000, 9999)}",
-                "email": f"loadtest{random.randint(1000, 9999)}@example.com",
-                "password": "LoadTest123!@#"
-            })
+            self.client.post(
+                "/api/v1/auth/register",
+                json={
+                    "username": f"loadtest_user_{random.randint(1000, 9999)}",
+                    "email": f"loadtest{random.randint(1000, 9999)}@example.com",
+                    "password": "LoadTest123!@#",
+                },
+            )
             # Retry login
-            response = self.client.post("/api/v1/auth/login", json={
-                "username": f"loadtest_user_{random.randint(1000, 9999)}",
-                "password": "LoadTest123!@#"
-            })
+            response = self.client.post(
+                "/api/v1/auth/login",
+                json={
+                    "username": f"loadtest_user_{random.randint(1000, 9999)}",
+                    "password": "LoadTest123!@#",
+                },
+            )
             self.auth_token = response.json()["access_token"]
             self.headers = {"Authorization": f"Bearer {self.auth_token}"}
 
@@ -48,58 +60,48 @@ class BillingLoadTestUser(HttpUser):
     def get_current_subscription(self):
         """Test fetching current subscription - most common operation."""
         self.client.get(
-            "/api/v1/billing/subscription",
-            headers=self.headers,
-            name="Get Current Subscription"
+            "/api/v1/billing/subscription", headers=self.headers, name="Get Current Subscription"
         )
 
     @task(8)
     def get_billing_usage(self):
         """Test usage tracking endpoint."""
-        self.client.get(
-            "/api/v1/billing/usage",
-            headers=self.headers,
-            name="Get Billing Usage"
-        )
+        self.client.get("/api/v1/billing/usage", headers=self.headers, name="Get Billing Usage")
 
     @task(6)
     def list_invoices(self):
         """Test invoice listing."""
         self.client.get(
-            "/api/v1/billing/invoices?page=1&limit=10",
-            headers=self.headers,
-            name="List Invoices"
+            "/api/v1/billing/invoices?page=1&limit=10", headers=self.headers, name="List Invoices"
         )
 
     @task(4)
     def get_payment_methods(self):
         """Test payment methods listing."""
         self.client.get(
-            "/api/v1/billing/payment-methods",
-            headers=self.headers,
-            name="Get Payment Methods"
+            "/api/v1/billing/payment-methods", headers=self.headers, name="Get Payment Methods"
         )
 
     @task(3)
     def view_invoice_detail(self):
         """Test invoice detail view."""
         # Use a common invoice ID from seeded data
-        invoice_id = random.choice(['1', '2', '3'])
+        invoice_id = random.choice(["1", "2", "3"])
         self.client.get(
             f"/api/v1/billing/invoices/{invoice_id}",
             headers=self.headers,
-            name="View Invoice Detail"
+            name="View Invoice Detail",
         )
 
     @task(2)
     def download_invoice_pdf(self):
         """Test PDF generation - resource intensive."""
-        invoice_id = random.choice(['1', '2', '3'])
+        invoice_id = random.choice(["1", "2", "3"])
         with self.client.get(
             f"/api/v1/billing/invoices/{invoice_id}/pdf",
             headers=self.headers,
             name="Download Invoice PDF",
-            catch_response=True
+            catch_response=True,
         ) as response:
             if response.status_code == 200:
                 response.success()
@@ -109,12 +111,12 @@ class BillingLoadTestUser(HttpUser):
     @task(2)
     def subscription_upgrade_preview(self):
         """Test subscription upgrade calculation."""
-        new_price_id = random.choice(['3', '5'])  # Professional or Enterprise
+        new_price_id = random.choice(["3", "5"])  # Professional or Enterprise
         self.client.post(
             "/api/v1/billing/subscription/preview-upgrade",
             json={"price_id": new_price_id},
             headers=self.headers,
-            name="Preview Subscription Upgrade"
+            name="Preview Subscription Upgrade",
         )
 
     @task(1)
@@ -134,10 +136,10 @@ class BillingLoadTestUser(HttpUser):
                 "exp_month": random.randint(1, 12),
                 "exp_year": random.randint(2024, 2029),
                 "cvc": str(random.randint(100, 999)),
-                "name": f"Test User {random.randint(1, 100)}"
+                "name": f"Test User {random.randint(1, 100)}",
             },
             headers=self.headers,
-            name="Add Payment Method"
+            name="Add Payment Method",
         )
 
     @task(1)
@@ -149,7 +151,7 @@ class BillingLoadTestUser(HttpUser):
         self.client.get(
             f"/api/v1/billing/reports/revenue?start_date={start_date}&end_date={end_date}",
             headers=self.headers,
-            name="Generate Revenue Report"
+            name="Generate Revenue Report",
         )
 
 
@@ -166,7 +168,7 @@ class WebhookLoadTestUser(HttpUser):
             "customer.subscription.updated",
             "invoice.created",
             "payment_method.attached",
-            "customer.updated"
+            "customer.updated",
         ]
 
         webhook_payload = {
@@ -176,20 +178,19 @@ class WebhookLoadTestUser(HttpUser):
             "data": {
                 "object": {
                     "id": f"obj_{random.randint(100000, 999999)}",
-                    "customer": f"cus_{random.randint(100000, 999999)}"
+                    "customer": f"cus_{random.randint(100000, 999999)}",
                 }
-            }
+            },
         }
 
         # Generate mock signature
         import hmac
         import hashlib
+
         payload_json = json.dumps(webhook_payload)
         timestamp = int(datetime.now().timestamp())
         signature = hmac.new(
-            "test_webhook_secret".encode(),
-            f"{timestamp}.{payload_json}".encode(),
-            hashlib.sha256
+            "test_webhook_secret".encode(), f"{timestamp}.{payload_json}".encode(), hashlib.sha256
         ).hexdigest()
 
         self.client.post(
@@ -197,9 +198,9 @@ class WebhookLoadTestUser(HttpUser):
             data=payload_json,
             headers={
                 "Content-Type": "application/json",
-                "Stripe-Signature": f"t={timestamp},v1={signature}"
+                "Stripe-Signature": f"t={timestamp},v1={signature}",
             },
-            name="Process Stripe Webhook"
+            name="Process Stripe Webhook",
         )
 
 
@@ -241,9 +242,7 @@ class TestBillingPerformance:
         from dotmac.platform.billing.models import Invoice, Customer
 
         customer = Customer(
-            user_id="perf_test_user",
-            stripe_customer_id="cus_perftest",
-            email="perf@test.com"
+            user_id="perf_test_user", stripe_customer_id="cus_perftest", email="perf@test.com"
         )
         db.add(customer)
         await db.commit()
@@ -255,7 +254,7 @@ class TestBillingPerformance:
                 stripe_invoice_id=f"in_perf_{i}",
                 amount_total=2999,
                 currency="USD",
-                status="paid"
+                status="paid",
             )
             db.add(invoice)
             invoices.append(invoice)
@@ -287,13 +286,13 @@ class TestBillingPerformance:
             webhook_payload = {
                 "id": f"evt_rate_test_{threading.current_thread().ident}",
                 "type": "invoice.payment_succeeded",
-                "data": {"object": {"id": "test"}}
+                "data": {"object": {"id": "test"}},
             }
 
             response = client.post(
                 "/api/v1/billing/webhooks/stripe",
                 json=webhook_payload,
-                headers={"Stripe-Signature": "test_signature"}
+                headers={"Stripe-Signature": "test_signature"},
             )
             results.put(response.status_code)
 
@@ -334,9 +333,7 @@ class TestBillingPerformance:
 
         async def database_operation():
             # Simulate typical billing query
-            result = await db.execute(
-                "SELECT COUNT(*) FROM invoices WHERE status = 'paid'"
-            )
+            result = await db.execute("SELECT COUNT(*) FROM invoices WHERE status = 'paid'")
             return result.scalar() >= 0
 
         # Test 100 concurrent database operations

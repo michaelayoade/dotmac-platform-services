@@ -3,7 +3,6 @@ Billing module SQLAlchemy entities with tenant support
 """
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -16,7 +15,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -44,7 +42,6 @@ from .enums import (
     PaymentStatus,
     TransactionType,
 )
-
 
 # ============================================================================
 # Invoice Entities
@@ -502,95 +499,3 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
 
     # Composite primary key
     __table_args__ = (Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),)
-
-
-class CashRegister(Base, SoftDeleteMixin, TenantMixin):
-    """
-    Cash register entity for physical cash management.
-    """
-
-    __tablename__ = "cash_registers"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    register_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    register_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    location: Mapped[str | None] = mapped_column(String(200))
-
-    # Float management
-    initial_float: Mapped[Decimal] = mapped_column(
-        Numeric(19, 4), nullable=False, default=Decimal("0.00")
-    )
-    current_float: Mapped[Decimal] = mapped_column(
-        Numeric(19, 4), nullable=False, default=Decimal("0.00")
-    )
-    max_cash_limit: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
-
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    requires_daily_reconciliation: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True
-    )
-    last_reconciled: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # Audit
-    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
-    updated_by: Mapped[str | None] = mapped_column(String(255))
-
-    # Metadata
-    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-
-
-class CashReconciliation(Base, TenantMixin):
-    """
-    Cash reconciliation records for cash registers.
-    """
-
-    __tablename__ = "cash_reconciliations"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    register_id: Mapped[str] = mapped_column(
-        String(50), ForeignKey("cash_registers.register_id"), nullable=False
-    )
-    reconciliation_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    # Amounts
-    opening_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-    closing_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-    expected_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-    actual_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-    discrepancy: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-
-    # Details
-    reconciled_by: Mapped[str] = mapped_column(String(255), nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text)
-    shift_id: Mapped[str | None] = mapped_column(String(50))
-
-    # Metadata
-    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-
-
-class CashTransaction(Base, TenantMixin):
-    """
-    Individual cash transactions for a register.
-    """
-
-    __tablename__ = "cash_transactions"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    register_id: Mapped[str] = mapped_column(
-        String(50), ForeignKey("cash_registers.register_id"), nullable=False
-    )
-
-    # Transaction details
-    transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-    balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
-
-    reference: Mapped[str | None] = mapped_column(String(100))
-    description: Mapped[str | None] = mapped_column(String(500))
-
-    # Audit
-    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
-
-    # Metadata
-    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

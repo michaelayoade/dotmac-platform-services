@@ -9,7 +9,7 @@ interface CustomerEditModalProps {
   customer?: Customer | null;
   onClose: () => void;
   onCustomerUpdated: (customer: Customer) => void;
-  updateCustomer?: (id: string, data: Partial<Customer>) => Promise<Customer>;
+  updateCustomer?: (id: string, data: any) => Promise<Customer>;
   loading?: boolean;
 }
 

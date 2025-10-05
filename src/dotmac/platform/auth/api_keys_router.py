@@ -1,13 +1,12 @@
 """API Key management endpoints."""
 
-from datetime import datetime, UTC
-from typing import List, Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from .core import UserInfo, get_current_user, api_key_service
+from .core import UserInfo, api_key_service, get_current_user
 
 router = APIRouter(tags=["API Keys"])
 
@@ -19,21 +18,27 @@ router = APIRouter(tags=["API Keys"])
 
 class APIKeyCreateRequest(BaseModel):
     """Request to create API key."""
-    name: str = Field(min_length=1, max_length=255, description="Human-readable name for the API key")
-    scopes: List[str] = Field(default_factory=list, description="List of permissions/scopes for the key")
-    expires_at: Optional[datetime] = Field(None, description="Optional expiration date")
-    description: Optional[str] = Field(None, max_length=500, description="Optional description")
+
+    name: str = Field(
+        min_length=1, max_length=255, description="Human-readable name for the API key"
+    )
+    scopes: list[str] = Field(
+        default_factory=list, description="List of permissions/scopes for the key"
+    )
+    expires_at: datetime | None = Field(None, description="Optional expiration date")
+    description: str | None = Field(None, max_length=500, description="Optional description")
 
 
 class APIKeyResponse(BaseModel):
     """API key information."""
+
     id: str = Field(description="API key identifier")
     name: str = Field(description="Human-readable name")
-    scopes: List[str] = Field(description="Assigned permissions/scopes")
+    scopes: list[str] = Field(description="Assigned permissions/scopes")
     created_at: datetime = Field(description="Creation timestamp")
-    expires_at: Optional[datetime] = Field(None, description="Expiration timestamp")
-    description: Optional[str] = Field(None, description="Optional description")
-    last_used_at: Optional[datetime] = Field(None, description="Last usage timestamp")
+    expires_at: datetime | None = Field(None, description="Expiration timestamp")
+    description: str | None = Field(None, description="Optional description")
+    last_used_at: datetime | None = Field(None, description="Last usage timestamp")
     is_active: bool = Field(description="Whether the key is active")
 
     # Don't expose the actual key value in list responses
@@ -42,12 +47,14 @@ class APIKeyResponse(BaseModel):
 
 class APIKeyCreateResponse(APIKeyResponse):
     """Response when creating API key - includes full key value."""
+
     api_key: str = Field(description="Full API key value (only shown once)")
 
 
 class APIKeyListResponse(BaseModel):
     """List of API keys."""
-    api_keys: List[APIKeyResponse]
+
+    api_keys: list[APIKeyResponse]
     total: int
     page: int
     limit: int
@@ -55,10 +62,11 @@ class APIKeyListResponse(BaseModel):
 
 class APIKeyUpdateRequest(BaseModel):
     """Request to update API key."""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    scopes: Optional[List[str]] = Field(None)
-    description: Optional[str] = Field(None, max_length=500)
-    is_active: Optional[bool] = Field(None)
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    scopes: list[str] | None = Field(None)
+    description: str | None = Field(None, max_length=500)
+    is_active: bool | None = Field(None)
 
 
 # ============================================
@@ -69,9 +77,9 @@ class APIKeyUpdateRequest(BaseModel):
 async def _enhanced_create_api_key(
     user_id: str,
     name: str,
-    scopes: List[str] | None = None,
-    expires_at: Optional[datetime] = None,
-    description: Optional[str] = None,
+    scopes: list[str] | None = None,
+    expires_at: datetime | None = None,
+    description: str | None = None,
 ) -> tuple[str, str]:
     """Create API key with enhanced metadata."""
     key_id = str(uuid4())
@@ -105,14 +113,14 @@ async def _enhanced_create_api_key(
     return api_key, key_id
 
 
-async def _list_user_api_keys(user_id: str) -> List[dict]:
+async def _list_user_api_keys(user_id: str) -> list[dict]:
     """List all API keys for a user."""
     client = await api_key_service._get_redis()
     keys = []
 
     if client:
         # Scan for user's API key metadata
-        async for key in client.scan_iter(match=f"api_key_meta:*"):
+        async for key in client.scan_iter(match="api_key_meta:*"):
             data_str = await client.get(key)
             if data_str:
                 data = api_key_service._deserialize(data_str)
@@ -128,7 +136,7 @@ async def _list_user_api_keys(user_id: str) -> List[dict]:
     return keys
 
 
-async def _get_api_key_by_id(key_id: str) -> Optional[dict]:
+async def _get_api_key_by_id(key_id: str) -> dict | None:
     """Get API key metadata by ID."""
     client = await api_key_service._get_redis()
 
@@ -171,7 +179,7 @@ async def _revoke_api_key_by_id(key_id: str) -> bool:
 
     if client:
         # Find the API key from lookup
-        async for lookup_key in client.scan_iter(match=f"api_key_lookup:*"):
+        async for lookup_key in client.scan_iter(match="api_key_lookup:*"):
             stored_key_id = await client.get(lookup_key)
             if stored_key_id == key_id:
                 api_key = lookup_key.replace("api_key_lookup:", "")
@@ -212,8 +220,9 @@ def _mask_api_key(api_key: str) -> str:
 
 
 # Monkey patch serialization methods to APIKeyService if not present
-if not hasattr(api_key_service, '_serialize'):
+if not hasattr(api_key_service, "_serialize"):
     import json
+
     api_key_service._serialize = json.dumps
     api_key_service._deserialize = json.loads
 
@@ -253,7 +262,7 @@ async def create_api_key(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create API key: {str(e)}"
+            detail=f"Failed to create API key: {str(e)}",
         )
 
 
@@ -277,17 +286,27 @@ async def list_api_keys(
 
         api_keys = []
         for key_data in paginated_keys:
-            api_keys.append(APIKeyResponse(
-                id=key_data["id"],
-                name=key_data["name"],
-                scopes=key_data["scopes"],
-                created_at=datetime.fromisoformat(key_data["created_at"]),
-                expires_at=datetime.fromisoformat(key_data["expires_at"]) if key_data.get("expires_at") else None,
-                description=key_data.get("description"),
-                last_used_at=datetime.fromisoformat(key_data["last_used_at"]) if key_data.get("last_used_at") else None,
-                is_active=key_data.get("is_active", True),
-                key_preview=f"sk_****{key_data['id'][-4:]}"
-            ))
+            api_keys.append(
+                APIKeyResponse(
+                    id=key_data["id"],
+                    name=key_data["name"],
+                    scopes=key_data["scopes"],
+                    created_at=datetime.fromisoformat(key_data["created_at"]),
+                    expires_at=(
+                        datetime.fromisoformat(key_data["expires_at"])
+                        if key_data.get("expires_at")
+                        else None
+                    ),
+                    description=key_data.get("description"),
+                    last_used_at=(
+                        datetime.fromisoformat(key_data["last_used_at"])
+                        if key_data.get("last_used_at")
+                        else None
+                    ),
+                    is_active=key_data.get("is_active", True),
+                    key_preview=f"sk_****{key_data['id'][-4:]}",
+                )
+            )
 
         return APIKeyListResponse(
             api_keys=api_keys,
@@ -298,7 +317,7 @@ async def list_api_keys(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list API keys: {str(e)}"
+            detail=f"Failed to list API keys: {str(e)}",
         )
 
 
@@ -312,28 +331,33 @@ async def get_api_key(
         key_data = await _get_api_key_by_id(key_id)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API key not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
         return APIKeyResponse(
             id=key_data["id"],
             name=key_data["name"],
             scopes=key_data["scopes"],
             created_at=datetime.fromisoformat(key_data["created_at"]),
-            expires_at=datetime.fromisoformat(key_data["expires_at"]) if key_data.get("expires_at") else None,
+            expires_at=(
+                datetime.fromisoformat(key_data["expires_at"])
+                if key_data.get("expires_at")
+                else None
+            ),
             description=key_data.get("description"),
-            last_used_at=datetime.fromisoformat(key_data["last_used_at"]) if key_data.get("last_used_at") else None,
+            last_used_at=(
+                datetime.fromisoformat(key_data["last_used_at"])
+                if key_data.get("last_used_at")
+                else None
+            ),
             is_active=key_data.get("is_active", True),
-            key_preview=f"sk_****{key_data['id'][-4:]}"
+            key_preview=f"sk_****{key_data['id'][-4:]}",
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get API key: {str(e)}"
+            detail=f"Failed to get API key: {str(e)}",
         )
 
 
@@ -348,10 +372,7 @@ async def update_api_key(
         key_data = await _get_api_key_by_id(key_id)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API key not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
         # Prepare updates
         updates = {}
@@ -369,7 +390,7 @@ async def update_api_key(
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to update API key"
+                    detail="Failed to update API key",
                 )
 
         # Get updated data
@@ -380,18 +401,26 @@ async def update_api_key(
             name=updated_data["name"],
             scopes=updated_data["scopes"],
             created_at=datetime.fromisoformat(updated_data["created_at"]),
-            expires_at=datetime.fromisoformat(updated_data["expires_at"]) if updated_data.get("expires_at") else None,
+            expires_at=(
+                datetime.fromisoformat(updated_data["expires_at"])
+                if updated_data.get("expires_at")
+                else None
+            ),
             description=updated_data.get("description"),
-            last_used_at=datetime.fromisoformat(updated_data["last_used_at"]) if updated_data.get("last_used_at") else None,
+            last_used_at=(
+                datetime.fromisoformat(updated_data["last_used_at"])
+                if updated_data.get("last_used_at")
+                else None
+            ),
             is_active=updated_data.get("is_active", True),
-            key_preview=f"sk_****{updated_data['id'][-4:]}"
+            key_preview=f"sk_****{updated_data['id'][-4:]}",
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update API key: {str(e)}"
+            detail=f"Failed to update API key: {str(e)}",
         )
 
 
@@ -405,23 +434,19 @@ async def revoke_api_key(
         key_data = await _get_api_key_by_id(key_id)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API key not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
         success = await _revoke_api_key_by_id(key_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to revoke API key"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to revoke API key"
             )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to revoke API key: {str(e)}"
+            detail=f"Failed to revoke API key: {str(e)}",
         )
 
 
@@ -437,33 +462,21 @@ async def get_available_scopes(
     """Get available API key scopes."""
     # Define available scopes based on your application's permissions
     scopes = {
-        "read": {
-            "name": "Read Access",
-            "description": "Read-only access to resources"
-        },
-        "write": {
-            "name": "Write Access",
-            "description": "Create and update resources"
-        },
-        "delete": {
-            "name": "Delete Access",
-            "description": "Delete resources"
-        },
-        "customers:read": {
-            "name": "Read Customers",
-            "description": "View customer information"
-        },
+        "read": {"name": "Read Access", "description": "Read-only access to resources"},
+        "write": {"name": "Write Access", "description": "Create and update resources"},
+        "delete": {"name": "Delete Access", "description": "Delete resources"},
+        "customers:read": {"name": "Read Customers", "description": "View customer information"},
         "customers:write": {
             "name": "Manage Customers",
-            "description": "Create and update customers"
+            "description": "Create and update customers",
         },
         "webhooks:manage": {
             "name": "Manage Webhooks",
-            "description": "Create and manage webhook subscriptions"
+            "description": "Create and manage webhook subscriptions",
         },
         "analytics:read": {
             "name": "Read Analytics",
-            "description": "Access analytics and reporting data"
+            "description": "Access analytics and reporting data",
         },
     }
 

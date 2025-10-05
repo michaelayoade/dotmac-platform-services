@@ -3,10 +3,11 @@ Core classes and types for simplified data transfer using pandas.
 """
 
 from abc import abstractmethod
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncGenerator, Optional, Protocol, Union
+from typing import Any, Protocol
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field
@@ -81,18 +82,18 @@ class ProgressInfo(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     operation_id: str = Field(default_factory=lambda: str(uuid4()))
-    total_records: Optional[int] = None
+    total_records: int | None = None
     processed_records: int = 0
     failed_records: int = 0
     current_batch: int = 0
-    total_batches: Optional[int] = None
+    total_batches: int | None = None
     bytes_processed: int = 0
-    bytes_total: Optional[int] = None
+    bytes_total: int | None = None
     start_time: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_update: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    estimated_completion: Optional[datetime] = None
+    estimated_completion: datetime | None = None
     status: TransferStatus = TransferStatus.PENDING
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     @property
     def progress_percentage(self) -> float:
@@ -158,7 +159,7 @@ class TransferConfig(BaseModel):
     validate_data: bool = True
     skip_invalid: bool = False
     resume_on_failure: bool = True
-    timeout: Optional[int] = None
+    timeout: int | None = None
     retry_attempts: int = 3
     retry_delay: float = 1.0
 
@@ -167,12 +168,12 @@ class ImportOptions(BaseModel):
     """Import-specific options."""
 
     delimiter: str = ","
-    header_row: Optional[int] = 0
+    header_row: int | None = 0
     skip_rows: int = 0
     type_inference: bool = True
-    sheet_name: Optional[Union[str, int]] = None
+    sheet_name: str | int | None = None
     json_lines: bool = False
-    xml_record_element: Optional[str] = None
+    xml_record_element: str | None = None
     encoding: str = "utf-8"
     na_values: list[str] = Field(default_factory=list)
     parse_dates: bool = False
@@ -183,7 +184,7 @@ class ExportOptions(BaseModel):
 
     delimiter: str = ","
     include_headers: bool = True
-    json_indent: Optional[int] = 2
+    json_indent: int | None = 2
     json_ensure_ascii: bool = False
     json_sort_keys: bool = False
     json_lines: bool = False
@@ -192,7 +193,7 @@ class ExportOptions(BaseModel):
     xml_record_element: str = "record"
     xml_pretty_print: bool = True
     auto_filter: bool = True
-    freeze_panes: Optional[str] = "A2"
+    freeze_panes: str | None = "A2"
     encoding: str = "utf-8"
     quoting: int = 1  # csv.QUOTE_MINIMAL
 
@@ -228,7 +229,7 @@ class BaseDataProcessor:
     def __init__(
         self,
         config: TransferConfig,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: ProgressCallback | None = None,
     ):
         self.config = config
         self.progress_callback = progress_callback
@@ -238,7 +239,7 @@ class BaseDataProcessor:
         self,
         processed: int = 0,
         failed: int = 0,
-        batch: Optional[int] = None,
+        batch: int | None = None,
     ) -> None:
         """Update progress information."""
         self._progress.processed_records += processed
@@ -258,7 +259,7 @@ class BaseImporter(BaseDataProcessor):
         self,
         config: TransferConfig,
         options: ImportOptions,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: ProgressCallback | None = None,
     ):
         super().__init__(config, progress_callback)
         self.options = options
@@ -285,7 +286,7 @@ class BaseExporter(BaseDataProcessor):
         self,
         config: TransferConfig,
         options: ExportOptions,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: ProgressCallback | None = None,
     ):
         super().__init__(config, progress_callback)
         self.options = options

@@ -31,7 +31,9 @@ class MoneyLineItemRequest(BaseModel):
     quantity: int = Field(..., ge=1)
     unit_price: str = Field(..., description="Unit price as decimal string (e.g., '19.99')")
     tax_rate: float = Field(0, ge=0, le=1, description="Tax rate (0-1, e.g., 0.1 for 10%)")
-    discount_percentage: float = Field(0, ge=0, le=1, description="Discount (0-1, e.g., 0.2 for 20%)")
+    discount_percentage: float = Field(
+        0, ge=0, le=1, description="Discount (0-1, e.g., 0.2 for 20%)"
+    )
     product_id: str | None = None
 
 
@@ -55,7 +57,9 @@ class PDFGenerationRequest(BaseModel):
     """PDF generation options."""
 
     company_info: dict[str, Any] | None = Field(None, description="Company information for invoice")
-    customer_info: dict[str, Any] | None = Field(None, description="Additional customer information")
+    customer_info: dict[str, Any] | None = Field(
+        None, description="Additional customer information"
+    )
     payment_instructions: str | None = Field(None, description="Payment instructions text")
     locale: str = Field("en_US", description="Locale for currency formatting")
     include_qr_code: bool = Field(False, description="Include QR code for payment")
@@ -80,7 +84,7 @@ class InvoiceDiscountRequest(BaseModel):
 # Router Definition
 # ============================================================================
 
-router = APIRouter(prefix="/money", tags=["money-invoices"])
+router = APIRouter(prefix="/money", tags=["Billing - Money Invoices"])
 
 
 def get_tenant_id_from_request(request: Request) -> str:
@@ -126,14 +130,16 @@ async def create_money_invoice(
     # Convert line items to dict format
     line_items = []
     for item in invoice_data.line_items:
-        line_items.append({
-            "description": item.description,
-            "quantity": item.quantity,
-            "unit_price": item.unit_price,
-            "tax_rate": item.tax_rate,
-            "discount_percentage": item.discount_percentage,
-            "product_id": item.product_id,
-        })
+        line_items.append(
+            {
+                "description": item.description,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "tax_rate": item.tax_rate,
+                "discount_percentage": item.discount_percentage,
+                "product_id": item.product_id,
+            }
+        )
 
     try:
         invoice = await service.create_money_invoice(
@@ -155,7 +161,7 @@ async def create_money_invoice(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create invoice: {str(e)}"
+            detail=f"Failed to create invoice: {str(e)}",
         )
 
 
@@ -173,8 +179,7 @@ async def get_money_invoice(
     invoice = await service.get_money_invoice(tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Invoice {invoice_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found"
         )
 
     return invoice
@@ -218,14 +223,12 @@ async def generate_invoice_pdf(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate PDF: {str(e)}"
+            detail=f"Failed to generate PDF: {str(e)}",
         )
 
 
@@ -255,14 +258,12 @@ async def preview_invoice_pdf(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": "inline"
-            }
+            headers={"Content-Disposition": "inline"},
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate PDF preview: {str(e)}"
+            detail=f"Failed to generate PDF preview: {str(e)}",
         )
 
 
@@ -304,12 +305,12 @@ async def generate_batch_pdfs(
             "count": len(output_paths),
             "message": f"Generated {len(output_paths)} PDF files",
             "temp_directory": temp_dir,
-            "files": [os.path.basename(path) for path in output_paths]
+            "files": [os.path.basename(path) for path in output_paths],
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate batch PDFs: {str(e)}"
+            detail=f"Failed to generate batch PDFs: {str(e)}",
         )
 
 
@@ -343,14 +344,11 @@ async def apply_discount(
         )
         return invoice
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to apply discount: {str(e)}"
+            detail=f"Failed to apply discount: {str(e)}",
         )
 
 
@@ -373,9 +371,9 @@ async def recalculate_tax(
     # Default tax rates - in production, would look up from tax service
     tax_rates = {
         "default": 0.10,  # 10% default
-        "CA": 0.0875,     # California
-        "NY": 0.08,       # New York
-        "TX": 0.0625,     # Texas
+        "CA": 0.0875,  # California
+        "NY": 0.08,  # New York
+        "TX": 0.0625,  # Texas
     }
 
     try:
@@ -383,20 +381,15 @@ async def recalculate_tax(
             tenant_id=tenant_id,
             invoice_id=invoice_id,
             tax_jurisdiction=tax_jurisdiction,
-            tax_rates={
-                "default": tax_rates.get(tax_jurisdiction, 0.10)
-            }
+            tax_rates={"default": tax_rates.get(tax_jurisdiction, 0.10)},
         )
         return invoice
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to recalculate tax: {str(e)}"
+            detail=f"Failed to recalculate tax: {str(e)}",
         )
 
 

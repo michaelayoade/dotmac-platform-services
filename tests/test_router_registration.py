@@ -1,14 +1,11 @@
 """Integration tests for router registration system."""
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from fastapi import FastAPI, APIRouter
 from importlib import import_module
 
-from dotmac.platform.routers import (
-    RouterConfig,
-    ROUTER_CONFIGS,
-    register_routers
-)
+from dotmac.platform.routers import RouterConfig, ROUTER_CONFIGS, register_routers
 
 
 class TestRouterRegistration:
@@ -28,23 +25,23 @@ class TestRouterRegistration:
             try:
                 module = import_module(config.module_path)
                 router = getattr(module, config.router_name)
-                assert isinstance(router, APIRouter), f"{config.module_path}.{config.router_name} is not an APIRouter"
+                assert isinstance(
+                    router, APIRouter
+                ), f"{config.module_path}.{config.router_name} is not an APIRouter"
             except (ImportError, AttributeError) as e:
-                failed_imports.append({
-                    "module": config.module_path,
-                    "router": config.router_name,
-                    "error": str(e)
-                })
+                failed_imports.append(
+                    {"module": config.module_path, "router": config.router_name, "error": str(e)}
+                )
 
         # Report findings
         if skipped_configs:
             print(f"Skipped {len(skipped_configs)} commented configs: {skipped_configs}")
 
-        assert len(failed_imports) == 0, (
-            f"Failed to import {len(failed_imports)} routers:\n" +
-            "\n".join([f"  - {f['module']}.{f['router']}: {f['error']}" for f in failed_imports])
+        assert (
+            len(failed_imports) == 0
+        ), f"Failed to import {len(failed_imports)} routers:\n" + "\n".join(
+            [f"  - {f['module']}.{f['router']}: {f['error']}" for f in failed_imports]
         )
-
 
     def test_register_routers_does_not_fail(self):
         """Test that register_routers function executes without errors."""
@@ -89,7 +86,6 @@ class TestRouterRegistration:
         unique_duplicates = list(set(duplicates))
 
         assert len(unique_duplicates) == 0, f"Duplicate prefixes found: {unique_duplicates}"
-
 
     def test_router_requires_auth_flag(self):
         """Test routers that require authentication have the flag set."""

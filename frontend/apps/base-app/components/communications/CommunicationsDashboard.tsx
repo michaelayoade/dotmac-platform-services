@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Mail,
   MessageSquare,
@@ -14,17 +14,20 @@ import {
   Webhook,
   RefreshCw,
   X,
-  Inbox
-} from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
-import { useToast } from '@/components/ui/use-toast';
-import { logger } from '@/lib/utils/logger';
-
-// Migrated from sonner to useToast hook
-// Note: toast options have changed:
-// - sonner: toast.success('msg') -> useToast: toast({ title: 'Success', description: 'msg' })
-// - sonner: toast.error('msg') -> useToast: toast({ title: 'Error', description: 'msg', variant: 'destructive' })
-// - For complex options, refer to useToast documentation
+  Inbox,
+} from "lucide-react";
+import { apiClient } from "@/lib/api/client";
+import { useToast } from "@/components/ui/use-toast";
+import { logger } from "@/lib/utils/logger";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface EmailStats {
   sent: number;
@@ -35,10 +38,10 @@ interface EmailStats {
 
 interface RecentActivity {
   id: string;
-  type: 'email' | 'webhook' | 'sms';
+  type: "email" | "webhook" | "sms";
   recipient: string;
   subject?: string;
-  status: 'sent' | 'delivered' | 'failed' | 'pending';
+  status: "sent" | "delivered" | "failed" | "pending";
   timestamp: string;
 }
 
@@ -49,7 +52,7 @@ export function CommunicationsDashboard() {
     sent: 0,
     delivered: 0,
     failed: 0,
-    pending: 0
+    pending: 0,
   });
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,10 +60,10 @@ export function CommunicationsDashboard() {
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [messageForm, setMessageForm] = useState({
-    type: 'email',
-    recipient: '',
-    subject: '',
-    message: ''
+    type: "email",
+    recipient: "",
+    subject: "",
+    message: "",
   });
 
   useEffect(() => {
@@ -73,25 +76,42 @@ export function CommunicationsDashboard() {
       setError(null);
 
       // Fetch stats from API
-      const statsResponse = await apiClient.get<EmailStats>('/api/v1/communications/stats');
+      const statsResponse = await apiClient.get<EmailStats>(
+        "/api/v1/communications/stats",
+      );
 
       if (statsResponse.success && statsResponse.data) {
         setStats(statsResponse.data);
       } else {
-        logger.error('Failed to fetch stats', new Error(statsResponse.error?.message || 'Failed to fetch stats'), { error: statsResponse.error });
+        logger.error(
+          "Failed to fetch stats",
+          new Error(statsResponse.error?.message || "Failed to fetch stats"),
+          { error: statsResponse.error },
+        );
       }
 
       // Fetch recent activity from API
-      const activityResponse = await apiClient.get<RecentActivity[]>('/api/v1/communications/activity?limit=20');
+      const activityResponse = await apiClient.get<RecentActivity[]>(
+        "/api/v1/communications/activity?limit=20",
+      );
 
       if (activityResponse.success && activityResponse.data) {
         setRecentActivity(activityResponse.data);
       } else {
-        logger.error('Failed to fetch activity', new Error(activityResponse.error?.message || 'Failed to fetch activity'), { error: activityResponse.error });
+        logger.error(
+          "Failed to fetch activity",
+          new Error(
+            activityResponse.error?.message || "Failed to fetch activity",
+          ),
+          { error: activityResponse.error },
+        );
       }
     } catch (err) {
-      logger.error('Failed to fetch communication data', err instanceof Error ? err : new Error(String(err)));
-      setError('Failed to load communication data');
+      logger.error(
+        "Failed to fetch communication data",
+        err instanceof Error ? err : new Error(String(err)),
+      );
+      setError("Failed to load communication data");
     } finally {
       setLoading(false);
     }
@@ -99,29 +119,57 @@ export function CommunicationsDashboard() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'delivered':
-        return <CheckCircle className="h-4 w-4 text-green-400" />;
-      case 'sent':
-        return <Send className="h-4 w-4 text-sky-400" />;
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-400" />;
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-400" />;
+      case "delivered":
+        return (
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+        );
+      case "sent":
+        return <Send className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+      case "failed":
+        return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
+      case "pending":
+        return (
+          <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+        );
       default:
-        return <AlertCircle className="h-4 w-4 text-slate-400" />;
+        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getStatusVariant = (
+    status: string,
+  ):
+    | "default"
+    | "secondary"
+    | "destructive"
+    | "outline"
+    | "success"
+    | "warning"
+    | "info" => {
+    switch (status) {
+      case "delivered":
+        return "success";
+      case "sent":
+        return "info";
+      case "failed":
+        return "destructive";
+      case "pending":
+        return "warning";
+      default:
+        return "default";
     }
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'email':
-        return <Mail className="h-4 w-4 text-slate-400" />;
-      case 'webhook':
-        return <Webhook className="h-4 w-4 text-slate-400" />;
-      case 'sms':
-        return <MessageSquare className="h-4 w-4 text-slate-400" />;
+      case "email":
+        return <Mail className="h-4 w-4 text-muted-foreground" />;
+      case "webhook":
+        return <Webhook className="h-4 w-4 text-muted-foreground" />;
+      case "sms":
+        return <MessageSquare className="h-4 w-4 text-muted-foreground" />;
       default:
-        return <AlertCircle className="h-4 w-4 text-slate-400" />;
+        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -144,7 +192,9 @@ export function CommunicationsDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-400">Loading communications data...</div>
+        <div className="text-muted-foreground">
+          Loading communications data...
+        </div>
       </div>
     );
   }
@@ -152,7 +202,7 @@ export function CommunicationsDashboard() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-red-400">{error}</div>
+        <div className="text-destructive">{error}</div>
       </div>
     );
   }
@@ -160,161 +210,218 @@ export function CommunicationsDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-50">Communications</h1>
-        <button
-          onClick={() => setShowComposeModal(true)}
-          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors flex items-center gap-2"
-        >
-          <Send className="h-4 w-4" />
+        <h1 className="text-2xl font-bold text-foreground">Communications</h1>
+        <Button onClick={() => setShowComposeModal(true)}>
+          <Send className="h-4 w-4 mr-2" />
           Send Message
-        </button>
+        </Button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Total Sent</p>
-              <p className="text-2xl font-bold text-slate-50 mt-2">{stats.sent.toLocaleString()}</p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Sent</p>
+                <p className="text-2xl font-bold text-foreground mt-2">
+                  {stats.sent.toLocaleString()}
+                </p>
+              </div>
+              <Send className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             </div>
-            <Send className="h-8 w-8 text-sky-400" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Delivered</p>
-              <p className="text-2xl font-bold text-slate-50 mt-2">{stats.delivered.toLocaleString()}</p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Delivered</p>
+                <p className="text-2xl font-bold text-foreground mt-2">
+                  {stats.delivered.toLocaleString()}
+                </p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
-            <CheckCircle className="h-8 w-8 text-green-400" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Failed</p>
-              <p className="text-2xl font-bold text-slate-50 mt-2">{stats.failed.toLocaleString()}</p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Failed</p>
+                <p className="text-2xl font-bold text-foreground mt-2">
+                  {stats.failed.toLocaleString()}
+                </p>
+              </div>
+              <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
             </div>
-            <XCircle className="h-8 w-8 text-red-400" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400">Pending</p>
-              <p className="text-2xl font-bold text-slate-50 mt-2">{stats.pending.toLocaleString()}</p>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold text-foreground mt-2">
+                  {stats.pending.toLocaleString()}
+                </p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
             </div>
-            <Clock className="h-8 w-8 text-yellow-400" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-slate-900 border border-slate-800 rounded-lg">
-        <div className="p-6 border-b border-slate-800">
-          <h2 className="text-lg font-semibold text-slate-50">Recent Activity</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-800">
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Recipient</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Subject</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {recentActivity.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <Inbox className="h-12 w-12 text-slate-600 mb-4" />
-                      <p className="text-slate-400 text-lg font-medium">No recent activity</p>
-                      <p className="text-slate-500 text-sm mt-2">Communications will appear here once sent</p>
-                    </div>
-                  </td>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Recipient
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Subject
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Time
+                  </th>
                 </tr>
-              ) : recentActivity.map((activity) => (
-                <tr key={activity.id} className="hover:bg-slate-800/50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {getTypeIcon(activity.type)}
-                      <span className="text-sm text-slate-300 capitalize">{activity.type}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-300">{activity.recipient}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-300">{activity.subject || '-'}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(activity.status)}
-                      <span className="text-sm text-slate-300 capitalize">{activity.status}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-400">{formatTimestamp(activity.timestamp)}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {recentActivity.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Inbox className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                        <p className="text-muted-foreground text-lg font-medium">
+                          No recent activity
+                        </p>
+                        <p className="text-muted-foreground/70 text-sm mt-2">
+                          Communications will appear here once sent
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  recentActivity.map((activity) => (
+                    <tr
+                      key={activity.id}
+                      className="hover:bg-muted/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(activity.type)}
+                          <span className="text-sm text-foreground capitalize">
+                            {activity.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-foreground">
+                          {activity.recipient}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-foreground">
+                          {activity.subject || "-"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={getStatusVariant(activity.status)}>
+                          {activity.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-muted-foreground">
+                          {formatTimestamp(activity.timestamp)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button className="bg-slate-900 border border-slate-800 rounded-lg p-6 hover:bg-slate-800 transition-colors text-left">
-          <Mail className="h-8 w-8 text-sky-400 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-50 mb-2">Email Templates</h3>
-          <p className="text-sm text-slate-400">Manage and create email templates</p>
-        </button>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardContent className="p-6">
+            <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400 mb-4" />
+            <CardTitle className="text-lg mb-2">Email Templates</CardTitle>
+            <CardDescription>Manage and create email templates</CardDescription>
+          </CardContent>
+        </Card>
 
-        <button className="bg-slate-900 border border-slate-800 rounded-lg p-6 hover:bg-slate-800 transition-colors text-left">
-          <Users className="h-8 w-8 text-green-400 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-50 mb-2">Recipient Lists</h3>
-          <p className="text-sm text-slate-400">Manage recipient groups and lists</p>
-        </button>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardContent className="p-6">
+            <Users className="h-8 w-8 text-green-600 dark:text-green-400 mb-4" />
+            <CardTitle className="text-lg mb-2">Recipient Lists</CardTitle>
+            <CardDescription>Manage recipient groups and lists</CardDescription>
+          </CardContent>
+        </Card>
 
-        <button className="bg-slate-900 border border-slate-800 rounded-lg p-6 hover:bg-slate-800 transition-colors text-left">
-          <BarChart className="h-8 w-8 text-purple-400 mb-4" />
-          <h3 className="text-lg font-semibold text-slate-50 mb-2">Analytics</h3>
-          <p className="text-sm text-slate-400">View detailed communication analytics</p>
-        </button>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardContent className="p-6">
+            <BarChart className="h-8 w-8 text-purple-600 dark:text-purple-400 mb-4" />
+            <CardTitle className="text-lg mb-2">Analytics</CardTitle>
+            <CardDescription>
+              View detailed communication analytics
+            </CardDescription>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Compose Message Modal */}
       {showComposeModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800">
-              <h2 className="text-xl font-semibold text-slate-50">Compose Message</h2>
-              <button
-                onClick={() => setShowComposeModal(false)}
-                className="text-slate-400 hover:text-slate-300 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            <CardHeader className="border-b border-border">
+              <div className="flex items-center justify-between">
+                <CardTitle>Compose Message</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowComposeModal(false)}
+                  aria-label="Close compose modal"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </CardHeader>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <CardContent className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-200px)]">
               {/* Message Type */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Type</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Type
+                </label>
                 <select
                   value={messageForm.type}
-                  onChange={(e) => setMessageForm({ ...messageForm, type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  onChange={(e) =>
+                    setMessageForm({ ...messageForm, type: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 >
                   <option value="email">Email</option>
                   <option value="sms">SMS</option>
@@ -323,86 +430,118 @@ export function CommunicationsDashboard() {
               </div>
 
               {/* Recipient */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {messageForm.type === 'email' ? 'Email Address' :
-                   messageForm.type === 'sms' ? 'Phone Number' :
-                   'Webhook URL'}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {messageForm.type === "email"
+                    ? "Email Address"
+                    : messageForm.type === "sms"
+                      ? "Phone Number"
+                      : "Webhook URL"}
                 </label>
                 <input
-                  type={messageForm.type === 'email' ? 'email' : 'text'}
+                  type={messageForm.type === "email" ? "email" : "text"}
                   value={messageForm.recipient}
-                  onChange={(e) => setMessageForm({ ...messageForm, recipient: e.target.value })}
-                  placeholder={
-                    messageForm.type === 'email' ? 'recipient@example.com' :
-                    messageForm.type === 'sms' ? '+1234567890' :
-                    'https://api.example.com/webhook'
+                  onChange={(e) =>
+                    setMessageForm({
+                      ...messageForm,
+                      recipient: e.target.value,
+                    })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  placeholder={
+                    messageForm.type === "email"
+                      ? "recipient@example.com"
+                      : messageForm.type === "sms"
+                        ? "+1234567890"
+                        : "https://api.example.com/webhook"
+                  }
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 />
               </div>
 
               {/* Subject (for email only) */}
-              {messageForm.type === 'email' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Subject</label>
+              {messageForm.type === "email" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Subject
+                  </label>
                   <input
                     type="text"
                     value={messageForm.subject}
-                    onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
+                    onChange={(e) =>
+                      setMessageForm({
+                        ...messageForm,
+                        subject: e.target.value,
+                      })
+                    }
                     placeholder="Enter subject"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   />
                 </div>
               )}
 
               {/* Message */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {messageForm.type === 'webhook' ? 'Payload (JSON)' : 'Message'}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {messageForm.type === "webhook"
+                    ? "Payload (JSON)"
+                    : "Message"}
                 </label>
                 <textarea
                   value={messageForm.message}
-                  onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
+                  onChange={(e) =>
+                    setMessageForm({ ...messageForm, message: e.target.value })
+                  }
                   placeholder={
-                    messageForm.type === 'webhook' ?
-                    '{\n  "event": "notification",\n  "data": {}\n}' :
-                    'Enter your message here...'
+                    messageForm.type === "webhook"
+                      ? '{\n  "event": "notification",\n  "data": {}\n}'
+                      : "Enter your message here..."
                   }
                   rows={8}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono"
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent font-mono"
                 />
               </div>
-            </div>
+            </CardContent>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-800">
-              <button
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+              <Button
+                variant="outline"
                 onClick={() => setShowComposeModal(false)}
-                className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
                 disabled={sending}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={async () => {
                   if (!messageForm.recipient) {
-                    toast({ title: 'Error', description: 'Please enter a recipient', variant: 'destructive' });
+                    toast({
+                      title: "Error",
+                      description: "Please enter a recipient",
+                      variant: "destructive",
+                    });
                     return;
                   }
-                  if (messageForm.type === 'email' && !messageForm.subject) {
-                    toast({ title: 'Error', description: 'Please enter a subject', variant: 'destructive' });
+                  if (messageForm.type === "email" && !messageForm.subject) {
+                    toast({
+                      title: "Error",
+                      description: "Please enter a subject",
+                      variant: "destructive",
+                    });
                     return;
                   }
                   if (!messageForm.message) {
-                    toast({ title: 'Error', description: 'Please enter a message', variant: 'destructive' });
+                    toast({
+                      title: "Error",
+                      description: "Please enter a message",
+                      variant: "destructive",
+                    });
                     return;
                   }
 
                   setSending(true);
                   try {
                     // Simulate API call
-                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
 
                     // Add to recent activity
                     const newActivity: RecentActivity = {
@@ -410,39 +549,50 @@ export function CommunicationsDashboard() {
                       type: messageForm.type as any,
                       recipient: messageForm.recipient,
                       subject: messageForm.subject,
-                      status: 'sent',
-                      timestamp: new Date().toISOString()
+                      status: "sent",
+                      timestamp: new Date().toISOString(),
                     };
 
                     setRecentActivity([newActivity, ...recentActivity]);
                     setStats({ ...stats, sent: stats.sent + 1 });
 
-                    toast({ title: 'Success', description: `${messageForm.type === 'email' ? 'Email' : messageForm.type === 'sms' ? 'SMS' : 'Webhook'} sent successfully` });
+                    toast({
+                      title: "Success",
+                      description: `${messageForm.type === "email" ? "Email" : messageForm.type === "sms" ? "SMS" : "Webhook"} sent successfully`,
+                    });
                     setShowComposeModal(false);
-                    setMessageForm({ type: 'email', recipient: '', subject: '', message: '' });
+                    setMessageForm({
+                      type: "email",
+                      recipient: "",
+                      subject: "",
+                      message: "",
+                    });
                   } catch (error) {
-                    toast({ title: 'Error', description: 'Failed to send message. Please try again.', variant: 'destructive' });
+                    toast({
+                      title: "Error",
+                      description: "Failed to send message. Please try again.",
+                      variant: "destructive",
+                    });
                   } finally {
                     setSending(false);
                   }
                 }}
                 disabled={sending}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-500/50 text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 {sending ? (
                   <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     Sending...
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4" />
+                    <Send className="h-4 w-4 mr-2" />
                     Send Message
                   </>
                 )}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

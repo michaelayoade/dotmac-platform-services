@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { platformConfig } from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = platformConfig.apiBaseUrl;
 
 // Types
 export interface Partner {
@@ -42,7 +43,7 @@ export interface CreatePartnerInput {
   primary_email: string;
   billing_email?: string;
   phone?: string;
-  tier?: "bronze" | "silver" | "gold" | "platinum";
+  tier?: "bronze" | "silver" | "gold" | "platinum" | "direct";
   commission_model?: "revenue_share" | "flat_fee" | "tiered" | "hybrid";
   default_commission_rate?: number;
   address_line1?: string;
@@ -54,7 +55,7 @@ export interface CreatePartnerInput {
 export interface UpdatePartnerInput {
   company_name?: string;
   status?: "pending" | "active" | "suspended" | "terminated";
-  tier?: "bronze" | "silver" | "gold" | "platinum";
+  tier?: "bronze" | "silver" | "gold" | "platinum" | "direct";
   default_commission_rate?: number;
   billing_email?: string;
   phone?: string;

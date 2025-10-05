@@ -5,9 +5,9 @@ from __future__ import annotations
 import base64
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:  # pragma: no cover - optional dependency
     from cryptography.fernet import Fernet
@@ -33,8 +33,8 @@ class EncryptedField:
     algorithm: str
     encrypted_data: str
     classification: DataClassification
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SymmetricEncryptionService:
@@ -53,7 +53,7 @@ class SymmetricEncryptionService:
 
         self._secret = secret.encode()
         self._prefer_fernet = prefer_fernet
-        self._fernet: Optional[Fernet] = None
+        self._fernet: Fernet | None = None
 
         if prefer_fernet and Fernet is not None:  # pragma: no branch
             key_material = hashlib.sha256(self._secret).digest()
@@ -77,7 +77,7 @@ class SymmetricEncryptionService:
             raise TypeError("plaintext must be a string")
 
         algorithm = (algorithm or "fernet").lower()
-        metadata: Dict[str, Any] = {
+        metadata: dict[str, Any] = {
             "classification": classification.value,
             "fingerprint": hashlib.sha1(
                 self._secret, usedforsecurity=False

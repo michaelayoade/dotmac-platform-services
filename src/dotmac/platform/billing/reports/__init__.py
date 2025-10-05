@@ -1,11 +1,11 @@
 """Billing reports module"""
 
-from .service import BillingReportService
 from .generators import (
-    RevenueReportGenerator,
-    CustomerReportGenerator,
     AgingReportGenerator,
+    CustomerReportGenerator,
+    RevenueReportGenerator,
 )
+from .service import BillingReportService
 
 __all__ = [
     "BillingReportService",

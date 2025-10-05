@@ -18,6 +18,8 @@ from dotmac.platform.customer_management.models import (
     CustomerSegment,
     CustomerStatus,
     CustomerTier,
+    CustomerType,
+    CommunicationChannel,
     ActivityType,
 )
 from dotmac.platform.customer_management.router import (
@@ -43,58 +45,19 @@ from dotmac.platform.customer_management.schemas import (
     CustomerResponse,
     CustomerSearchParams,
     CustomerActivityCreate,
+    CustomerActivityResponse,
     CustomerNoteCreate,
+    CustomerNoteResponse,
     CustomerSegmentCreate,
+    CustomerSegmentResponse,
+    CustomerMetrics,
 )
 from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.auth.core import UserInfo
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.fixture
-def mock_session():
-    """Create a mock async database session."""
-    session = AsyncMock(spec=AsyncSession)
-    return session
-
-
-@pytest.fixture
-def mock_service():
-    """Create a mock customer service."""
-    service = AsyncMock(spec=CustomerService)
-    return service
-
-
-@pytest.fixture
-def mock_user():
-    """Create a mock current user."""
-    return UserInfo(
-        user_id="user123",
-        username="testuser",
-        email="test@example.com",
-        roles=["user"],
-        tenant_id="test-tenant",
-    )
-
-
-@pytest.fixture
-def sample_customer():
-    """Create a sample customer."""
-    return Customer(
-        id=uuid4(),
-        tenant_id="test-tenant",
-        customer_number="CUST-001",
-        email="customer@example.com",
-        first_name="John",
-        last_name="Doe",
-        phone="+1234567890",
-        company_name="Test Corp",
-        status=CustomerStatus.ACTIVE,
-        tier=CustomerTier.STANDARD,
-        lifetime_value=Decimal("1000.00"),
-        total_purchases=5,
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-    )
+# Fixtures are now in conftest.py
 
 
 class TestRouterDependencies:
@@ -121,6 +84,8 @@ class TestCustomerCRUD:
             phone="+9876543210",
         )
 
+        # Mock the email check to return None (no existing customer)
+        mock_service.get_customer_by_email.return_value = None
         mock_service.create_customer.return_value = sample_customer
 
         result = await create_customer(
@@ -131,7 +96,7 @@ class TestCustomerCRUD:
 
         assert isinstance(result, CustomerResponse)
         assert result.email == sample_customer.email
-        mock_service.create_customer.assert_called_once_with(create_data)
+        mock_service.get_customer_by_email.assert_called_once_with(create_data.email)
 
     @pytest.mark.asyncio
     async def test_get_customer_success(self, mock_service, mock_user, sample_customer):
@@ -143,11 +108,17 @@ class TestCustomerCRUD:
             customer_id=customer_id,
             service=mock_service,
             current_user=mock_user,
+            include_activities=False,
+            include_notes=False,
         )
 
         assert isinstance(result, CustomerResponse)
         assert result.id == customer_id
-        mock_service.get_customer.assert_called_once_with(customer_id)
+        mock_service.get_customer.assert_called_once_with(
+            customer_id=customer_id,
+            include_activities=False,
+            include_notes=False,
+        )
 
     @pytest.mark.asyncio
     async def test_get_customer_not_found(self, mock_service, mock_user):
@@ -160,10 +131,12 @@ class TestCustomerCRUD:
                 customer_id=customer_id,
                 service=mock_service,
                 current_user=mock_user,
+                include_activities=False,
+                include_notes=False,
             )
 
         assert exc.value.status_code == 404
-        assert "Customer not found" in str(exc.value.detail)
+        assert "not found" in str(exc.value.detail)
 
     @pytest.mark.asyncio
     async def test_update_customer_success(self, mock_service, mock_user, sample_customer):
@@ -188,7 +161,11 @@ class TestCustomerCRUD:
 
         assert isinstance(result, CustomerResponse)
         assert result.first_name == "Updated"
-        mock_service.update_customer.assert_called_once_with(customer_id, update_data)
+        mock_service.update_customer.assert_called_once_with(
+            customer_id=customer_id,
+            data=update_data,
+            updated_by=mock_user.user_id,
+        )
 
     @pytest.mark.asyncio
     async def test_update_customer_not_found(self, mock_service, mock_user):
@@ -220,8 +197,12 @@ class TestCustomerCRUD:
             current_user=mock_user,
         )
 
-        assert result == {"success": True, "message": "Customer deleted successfully"}
-        mock_service.delete_customer.assert_called_once_with(customer_id, hard_delete=False)
+        # Router returns None (status 204 No Content)
+        assert result is None
+        mock_service.delete_customer.assert_called_once_with(
+            customer_id=customer_id,
+            hard_delete=False,
+        )
 
     @pytest.mark.asyncio
     async def test_delete_customer_not_found(self, mock_service, mock_user):
@@ -243,9 +224,8 @@ class TestCustomerCRUD:
 class TestCustomerList:
     """Test customer listing endpoints."""
 
-
     @pytest.mark.asyncio
-    async def test_search_customers(self, mock_service, mock_user):
+    async def test_search_customers(self, mock_service, mock_user, sample_customers):
         """Test POST /customers/search endpoint."""
         search_params = CustomerSearchParams(
             query="john",
@@ -254,8 +234,8 @@ class TestCustomerList:
             page_size=10,
         )
 
-        mock_customers = [MagicMock(spec=Customer) for _ in range(2)]
-        mock_service.search_customers.return_value = (mock_customers, 2)
+        # Use actual customer objects instead of MagicMock
+        mock_service.search_customers.return_value = (sample_customers[:2], 2)
 
         result = await search_customers(
             params=search_params,
@@ -300,9 +280,12 @@ class TestCustomerActivities:
         mock_activity = CustomerActivity(
             id=uuid4(),
             customer_id=customer_id,
+            tenant_id="test-tenant",
             activity_type=ActivityType.UPDATED,
             title="Profile Updated",
             description="Customer updated their profile",
+            metadata_={},  # Add required metadata field
+            created_at=datetime.now(UTC),
         )
 
         mock_service.add_activity.return_value = mock_activity
@@ -316,7 +299,12 @@ class TestCustomerActivities:
 
         assert isinstance(result, CustomerActivityResponse)
         assert result.activity_type == ActivityType.UPDATED
+        # Router passes user_id as string, service handles UUID conversion
         mock_service.add_activity.assert_called_once()
+        call_args = mock_service.add_activity.call_args
+        assert call_args.kwargs["customer_id"] == customer_id
+        assert call_args.kwargs["data"] == activity_data
+        assert isinstance(call_args.kwargs["performed_by"], str)
 
     @pytest.mark.asyncio
     async def test_get_activities(self, mock_service, mock_user):
@@ -326,8 +314,11 @@ class TestCustomerActivities:
             CustomerActivity(
                 id=uuid4(),
                 customer_id=customer_id,
+                tenant_id="test-tenant",
                 activity_type=ActivityType.CREATED,
                 title=f"Activity {i}",
+                metadata_={},  # Add required metadata field
+                created_at=datetime.now(UTC),
             )
             for i in range(3)
         ]
@@ -344,7 +335,9 @@ class TestCustomerActivities:
 
         assert len(result) == 3
         mock_service.get_customer_activities.assert_called_once_with(
-            customer_id, limit=50, offset=0
+            customer_id=customer_id,
+            limit=50,
+            offset=0,
         )
 
 
@@ -363,9 +356,11 @@ class TestCustomerNotes:
         mock_note = CustomerNote(
             id=uuid4(),
             customer_id=customer_id,
+            tenant_id="test-tenant",
             subject="Support Request",
             content="Customer needs help with billing",
-            created_by=mock_user.user_id,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
         mock_service.add_note.return_value = mock_note
@@ -379,7 +374,11 @@ class TestCustomerNotes:
 
         assert isinstance(result, CustomerNoteResponse)
         assert result.subject == "Support Request"
-        mock_service.add_note.assert_called_once()
+        mock_service.add_note.assert_called_once_with(
+            customer_id=customer_id,
+            data=note_data,
+            created_by=mock_user.user_id,
+        )
 
     @pytest.mark.asyncio
     async def test_get_notes(self, mock_service, mock_user):
@@ -389,9 +388,12 @@ class TestCustomerNotes:
             CustomerNote(
                 id=uuid4(),
                 customer_id=customer_id,
+                tenant_id="test-tenant",
                 subject=f"Note {i}",
                 content=f"Content {i}",
                 is_internal=i % 2 == 0,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             for i in range(3)
         ]
@@ -409,7 +411,10 @@ class TestCustomerNotes:
 
         assert len(result) == 3
         mock_service.get_customer_notes.assert_called_once_with(
-            customer_id, include_internal=True, limit=50, offset=0
+            customer_id=customer_id,
+            include_internal=True,
+            limit=50,
+            offset=0,
         )
 
 
@@ -420,9 +425,9 @@ class TestCustomerMetrics:
     async def test_record_purchase(self, mock_service, mock_user):
         """Test POST /customers/{customer_id}/purchase endpoint."""
         customer_id = uuid4()
-        amount = Decimal("150.00")
+        amount = 150.00  # Float, not Decimal
 
-        mock_service.record_purchase.return_value = None
+        mock_service.update_metrics.return_value = None
 
         result = await record_purchase(
             customer_id=customer_id,
@@ -431,40 +436,59 @@ class TestCustomerMetrics:
             current_user=mock_user,
         )
 
-        assert result == {"success": True, "message": "Purchase recorded successfully"}
-        mock_service.record_purchase.assert_called_once_with(customer_id, amount)
+        # Router returns None (status 204 No Content)
+        assert result is None
+        mock_service.update_metrics.assert_called_once_with(
+            customer_id=customer_id,
+            purchase_amount=amount,
+        )
 
     @pytest.mark.asyncio
-    async def test_get_metrics(self, mock_service, mock_user, sample_customer):
-        """Test GET /customers/{customer_id}/metrics endpoint."""
-        customer_id = sample_customer.id
-        mock_service.get_customer.return_value = sample_customer
+    async def test_get_metrics(self, mock_service, mock_user):
+        """Test GET /metrics endpoint for aggregated customer metrics."""
+        # get_customer_metrics returns aggregate metrics, not per-customer
+        mock_metrics = {
+            "total_customers": 100,
+            "active_customers": 85,
+            "new_customers_this_month": 10,
+            "churn_rate": 0.05,
+            "average_lifetime_value": 1500.00,
+            "total_revenue": 150000.00,
+        }
+        mock_service.get_customer_metrics.return_value = mock_metrics
 
         result = await get_customer_metrics(
-            customer_id=customer_id,
             service=mock_service,
             current_user=mock_user,
         )
 
         assert isinstance(result, CustomerMetrics)
-        assert result.lifetime_value == sample_customer.lifetime_value
-        assert result.total_purchases == sample_customer.total_purchases
-        mock_service.get_customer.assert_called_once_with(customer_id)
+        assert result.total_customers == 100
+        assert result.active_customers == 85
+        assert result.average_lifetime_value == 1500.00
+        assert result.total_revenue == 150000.00
+        mock_service.get_customer_metrics.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_metrics_not_found(self, mock_service, mock_user):
-        """Test GET /customers/{customer_id}/metrics when customer doesn't exist."""
-        customer_id = uuid4()
-        mock_service.get_customer.return_value = None
+    async def test_get_metrics_handles_missing_fields(self, mock_service, mock_user):
+        """Test GET /metrics handles missing optional fields."""
+        mock_metrics = {
+            "total_customers": 50,
+            "active_customers": 40,
+            "churn_rate": 0.1,
+            "average_lifetime_value": 1200.00,
+            "total_revenue": 60000.00,
+            # new_customers_this_month is optional, defaults to 0
+        }
+        mock_service.get_customer_metrics.return_value = mock_metrics
 
-        with pytest.raises(HTTPException) as exc:
-            await get_customer_metrics(
-                customer_id=customer_id,
-                service=mock_service,
-                current_user=mock_user,
-            )
+        result = await get_customer_metrics(
+            service=mock_service,
+            current_user=mock_user,
+        )
 
-        assert exc.value.status_code == 404
+        assert result.new_customers_this_month == 0  # Default value
+        assert result.total_customers == 50
 
 
 class TestCustomerSegments:
@@ -485,6 +509,11 @@ class TestCustomerSegments:
             name="VIP Customers",
             description="High value customers",
             criteria={"min_lifetime_value": 5000},
+            is_dynamic=False,
+            priority=0,
+            member_count=0,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
         mock_service.create_segment.return_value = mock_segment
@@ -499,7 +528,6 @@ class TestCustomerSegments:
         assert result.name == "VIP Customers"
         mock_service.create_segment.assert_called_once_with(segment_data)
 
-
     @pytest.mark.asyncio
     async def test_recalculate_segment(self, mock_service, mock_user):
         """Test POST /segments/{segment_id}/recalculate endpoint."""
@@ -513,9 +541,9 @@ class TestCustomerSegments:
             current_user=mock_user,
         )
 
+        # Router returns {"segment_id": str(segment_id), "member_count": member_count}
         assert result == {
-            "success": True,
-            "message": "Segment recalculated successfully",
-            "customers_count": 10,
+            "segment_id": str(segment_id),
+            "member_count": 10,
         }
         mock_service.recalculate_segment.assert_called_once_with(segment_id)

@@ -6,7 +6,7 @@ Provides request/response validation models following project patterns.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import (
@@ -38,24 +38,24 @@ class CustomerBase(BaseModel):
 
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
-    middle_name: Optional[str] = Field(None, max_length=100)
-    display_name: Optional[str] = Field(None, max_length=200)
-    company_name: Optional[str] = Field(None, max_length=200)
+    middle_name: str | None = Field(None, max_length=100)
+    display_name: str | None = Field(None, max_length=200)
+    company_name: str | None = Field(None, max_length=200)
 
     email: EmailStr
-    phone: Optional[str] = Field(None, max_length=30)
-    mobile: Optional[str] = Field(None, max_length=30)
+    phone: str | None = Field(None, max_length=30)
+    mobile: str | None = Field(None, max_length=30)
 
     customer_type: CustomerType = Field(default=CustomerType.INDIVIDUAL)
     tier: CustomerTier = Field(default=CustomerTier.FREE)
 
     # Address
-    address_line1: Optional[str] = Field(None, max_length=200)
-    address_line2: Optional[str] = Field(None, max_length=200)
-    city: Optional[str] = Field(None, max_length=100)
-    state_province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=20)
-    country: Optional[str] = Field(None, pattern="^[A-Z]{2}$", description="ISO 3166-1 alpha-2")
+    address_line1: str | None = Field(None, max_length=200)
+    address_line2: str | None = Field(None, max_length=200)
+    city: str | None = Field(None, max_length=100)
+    state_province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=20)
+    country: str | None = Field(None, pattern="^[A-Z]{2}$", description="ISO 3166-1 alpha-2")
 
     # Preferences
     preferred_channel: CommunicationChannel = Field(default=CommunicationChannel.EMAIL)
@@ -65,13 +65,13 @@ class CustomerBase(BaseModel):
     opt_in_updates: bool = Field(default=True)
 
     # Business fields
-    tax_id: Optional[str] = Field(None, max_length=50)
-    vat_number: Optional[str] = Field(None, max_length=50)
-    industry: Optional[str] = Field(None, max_length=100)
+    tax_id: str | None = Field(None, max_length=50)
+    vat_number: str | None = Field(None, max_length=50)
+    industry: str | None = Field(None, max_length=100)
 
     @field_validator("phone", "mobile")
     @classmethod
-    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+    def validate_phone(cls, v: str | None) -> str | None:
         if v and not v.replace("+", "").replace("-", "").replace(" ", "").isdigit():
             raise ValueError("Phone number must contain only digits, +, -, and spaces")
         return v
@@ -85,15 +85,15 @@ class CustomerBase(BaseModel):
 class CustomerCreate(CustomerBase):
     """Schema for creating a new customer."""
 
-    external_id: Optional[str] = Field(None, max_length=100)
-    source_system: Optional[str] = Field(None, max_length=50)
+    external_id: str | None = Field(None, max_length=100)
+    source_system: str | None = Field(None, max_length=50)
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     custom_fields: dict[str, Any] = Field(default_factory=dict)
 
     # Optional assignment
-    assigned_to: Optional[UUID] = None
-    segment_id: Optional[UUID] = None
+    assigned_to: UUID | None = None
+    segment_id: UUID | None = None
 
 
 class CustomerUpdate(BaseModel):
@@ -106,49 +106,49 @@ class CustomerUpdate(BaseModel):
     )
 
     # All fields optional for partial updates
-    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    middle_name: Optional[str] = Field(None, max_length=100)
-    display_name: Optional[str] = Field(None, max_length=200)
-    company_name: Optional[str] = Field(None, max_length=200)
+    first_name: str | None = Field(None, min_length=1, max_length=100)
+    last_name: str | None = Field(None, min_length=1, max_length=100)
+    middle_name: str | None = Field(None, max_length=100)
+    display_name: str | None = Field(None, max_length=200)
+    company_name: str | None = Field(None, max_length=200)
 
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=30)
-    mobile: Optional[str] = Field(None, max_length=30)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=30)
+    mobile: str | None = Field(None, max_length=30)
 
-    status: Optional[CustomerStatus] = None
-    customer_type: Optional[CustomerType] = None
-    tier: Optional[CustomerTier] = None
+    status: CustomerStatus | None = None
+    customer_type: CustomerType | None = None
+    tier: CustomerTier | None = None
 
     # Address
-    address_line1: Optional[str] = Field(None, max_length=200)
-    address_line2: Optional[str] = Field(None, max_length=200)
-    city: Optional[str] = Field(None, max_length=100)
-    state_province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=20)
-    country: Optional[str] = Field(None, pattern="^[A-Z]{2}$")
+    address_line1: str | None = Field(None, max_length=200)
+    address_line2: str | None = Field(None, max_length=200)
+    city: str | None = Field(None, max_length=100)
+    state_province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=20)
+    country: str | None = Field(None, pattern="^[A-Z]{2}$")
 
     # Preferences
-    preferred_channel: Optional[CommunicationChannel] = None
-    preferred_language: Optional[str] = Field(None, max_length=10)
-    timezone: Optional[str] = Field(None, max_length=50)
-    opt_in_marketing: Optional[bool] = None
-    opt_in_updates: Optional[bool] = None
+    preferred_channel: CommunicationChannel | None = None
+    preferred_language: str | None = Field(None, max_length=10)
+    timezone: str | None = Field(None, max_length=50)
+    opt_in_marketing: bool | None = None
+    opt_in_updates: bool | None = None
 
     # Business fields
-    tax_id: Optional[str] = Field(None, max_length=50)
-    vat_number: Optional[str] = Field(None, max_length=50)
-    industry: Optional[str] = Field(None, max_length=100)
-    employee_count: Optional[int] = Field(None, ge=0)
+    tax_id: str | None = Field(None, max_length=50)
+    vat_number: str | None = Field(None, max_length=50)
+    industry: str | None = Field(None, max_length=100)
+    employee_count: int | None = Field(None, ge=0)
 
     # Relationships
-    assigned_to: Optional[UUID] = None
-    segment_id: Optional[UUID] = None
+    assigned_to: UUID | None = None
+    segment_id: UUID | None = None
 
     # Metadata
-    metadata: Optional[dict[str, Any]] = None
-    custom_fields: Optional[dict[str, Any]] = None
-    tags: Optional[list[str]] = None
+    metadata: dict[str, Any] | None = None
+    custom_fields: dict[str, Any] | None = None
+    tags: list[str] | None = None
 
 
 class CustomerResponse(CustomerBase):
@@ -166,24 +166,24 @@ class CustomerResponse(CustomerBase):
     lifetime_value: Decimal
     total_purchases: int
     average_order_value: Decimal
-    last_purchase_date: Optional[datetime] = None
-    first_purchase_date: Optional[datetime] = None
+    last_purchase_date: datetime | None = None
+    first_purchase_date: datetime | None = None
 
     # Scoring
     risk_score: int
-    satisfaction_score: Optional[int] = None
-    net_promoter_score: Optional[int] = None
+    satisfaction_score: int | None = None
+    net_promoter_score: int | None = None
 
     # Dates
     acquisition_date: datetime
-    last_contact_date: Optional[datetime] = None
+    last_contact_date: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
     # Relationships
-    user_id: Optional[UUID] = None
-    assigned_to: Optional[UUID] = None
-    segment_id: Optional[UUID] = None
+    user_id: UUID | None = None
+    assigned_to: UUID | None = None
+    segment_id: UUID | None = None
 
     # Metadata
     tags: list[str]
@@ -205,24 +205,24 @@ class CustomerListResponse(BaseModel):
 class CustomerSearchParams(BaseModel):
     """Parameters for searching customers."""
 
-    query: Optional[str] = Field(None, description="Search query")
-    status: Optional[CustomerStatus] = None
-    customer_type: Optional[CustomerType] = None
-    tier: Optional[CustomerTier] = None
-    country: Optional[str] = Field(None, pattern="^[A-Z]{2}$")
-    assigned_to: Optional[UUID] = None
-    segment_id: Optional[UUID] = None
-    tags: Optional[list[str]] = None
+    query: str | None = Field(None, description="Search query")
+    status: CustomerStatus | None = None
+    customer_type: CustomerType | None = None
+    tier: CustomerTier | None = None
+    country: str | None = Field(None, pattern="^[A-Z]{2}$")
+    assigned_to: UUID | None = None
+    segment_id: UUID | None = None
+    tags: list[str] | None = None
 
     # Date filters
-    created_after: Optional[datetime] = None
-    created_before: Optional[datetime] = None
-    last_purchase_after: Optional[datetime] = None
-    last_purchase_before: Optional[datetime] = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    last_purchase_after: datetime | None = None
+    last_purchase_before: datetime | None = None
 
     # Value filters
-    min_lifetime_value: Optional[Decimal] = Field(None, ge=0)
-    max_lifetime_value: Optional[Decimal] = Field(None, ge=0)
+    min_lifetime_value: Decimal | None = Field(None, ge=0)
+    max_lifetime_value: Decimal | None = Field(None, ge=0)
 
     # Pagination
     page: int = Field(default=1, ge=1)
@@ -242,10 +242,10 @@ class CustomerActivityCreate(BaseModel):
 
     activity_type: ActivityType
     title: str = Field(min_length=1, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    ip_address: Optional[str] = Field(None, max_length=45)
-    user_agent: Optional[str] = Field(None, max_length=500)
+    ip_address: str | None = Field(None, max_length=45)
+    user_agent: str | None = Field(None, max_length=500)
 
 
 class CustomerActivityResponse(BaseModel):
@@ -257,11 +257,11 @@ class CustomerActivityResponse(BaseModel):
     customer_id: UUID
     activity_type: ActivityType
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     metadata: dict[str, Any]
-    performed_by: Optional[UUID] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    performed_by: UUID | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
     created_at: datetime
 
 
@@ -289,7 +289,7 @@ class CustomerNoteResponse(BaseModel):
     subject: str
     content: str
     is_internal: bool
-    created_by_id: Optional[UUID] = None
+    created_by_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -304,7 +304,7 @@ class CustomerSegmentCreate(BaseModel):
     )
 
     name: str = Field(min_length=1, max_length=100)
-    description: Optional[str] = None
+    description: str | None = None
     criteria: dict[str, Any] = Field(default_factory=dict)
     is_dynamic: bool = Field(default=False)
     priority: int = Field(default=0, ge=0)
@@ -317,14 +317,21 @@ class CustomerSegmentResponse(BaseModel):
 
     id: UUID
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     criteria: dict[str, Any]
     is_dynamic: bool
     priority: int
     member_count: int
-    last_calculated: Optional[datetime] = None
+    last_calculated: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class CustomerSegmentSummary(BaseModel):
+    """Summary of a customer segment for metrics."""
+
+    name: str
+    count: int
 
 
 class CustomerMetrics(BaseModel):
@@ -347,4 +354,4 @@ class CustomerMetrics(BaseModel):
     customers_by_type: dict[str, int]
 
     # Top segments
-    top_segments: list[dict[str, Any]]
+    top_segments: list[CustomerSegmentSummary]

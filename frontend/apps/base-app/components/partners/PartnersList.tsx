@@ -32,9 +32,9 @@ export default function PartnersList({
 }: PartnersListProps) {
   if (partners.length === 0) {
     return (
-      <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
-        <p className="text-slate-400">No partners found</p>
-        <p className="text-sm text-slate-500 mt-2">
+      <div className="text-center py-12 bg-card rounded-lg border border-border">
+        <p className="text-muted-foreground">No partners found</p>
+        <p className="text-sm text-muted-foreground mt-2">
           Create your first partner to get started
         </p>
       </div>
@@ -46,14 +46,14 @@ export default function PartnersList({
       {partners.map((partner) => (
         <div
           key={partner.id}
-          className="bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
+          className="bg-card p-4 rounded-lg border border-border hover:border-accent-foreground transition-colors"
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <Link
                   href={`/dashboard/partners/${partner.id}`}
-                  className="text-lg font-semibold text-white hover:text-blue-400 transition-colors"
+                  className="text-lg font-semibold text-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                 >
                   {partner.company_name}
                 </Link>
@@ -75,22 +75,22 @@ export default function PartnersList({
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <span className="text-slate-400">Partner #:</span>
-                  <span className="ml-2 text-white">{partner.partner_number}</span>
+                  <span className="text-muted-foreground">Partner #:</span>
+                  <span className="ml-2 text-foreground">{partner.partner_number}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Customers:</span>
-                  <span className="ml-2 text-white">{partner.total_customers}</span>
+                  <span className="text-muted-foreground">Customers:</span>
+                  <span className="ml-2 text-foreground">{partner.total_customers}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Revenue:</span>
-                  <span className="ml-2 text-white">
+                  <span className="text-muted-foreground">Revenue:</span>
+                  <span className="ml-2 text-foreground">
                     ${partner.total_revenue_generated.toLocaleString()}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Pending:</span>
-                  <span className="ml-2 text-yellow-400">
+                  <span className="text-muted-foreground">Pending:</span>
+                  <span className="ml-2 text-yellow-600 dark:text-yellow-400">
                     $
                     {(
                       partner.total_commissions_earned -
@@ -100,7 +100,7 @@ export default function PartnersList({
                 </div>
               </div>
 
-              <div className="mt-2 text-sm text-slate-400">
+              <div className="mt-2 text-sm text-muted-foreground">
                 <span>{partner.primary_email}</span>
                 {partner.phone && (
                   <>
@@ -110,7 +110,7 @@ export default function PartnersList({
                 )}
               </div>
 
-              <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+              <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
                 <div>
                   Referrals: {partner.converted_referrals}/{partner.total_referrals}
                 </div>

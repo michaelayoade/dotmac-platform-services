@@ -32,7 +32,9 @@ class TestTenantResolution:
 
     def test_resolve_tenant_with_context(self, customer_service):
         """Test tenant resolution when context is available."""
-        with patch("dotmac.platform.customer_management.service.get_current_tenant_id") as mock_get_tenant:
+        with patch(
+            "dotmac.platform.customer_management.service.get_current_tenant_id"
+        ) as mock_get_tenant:
             mock_get_tenant.return_value = "tenant-123"
 
             tenant_id = customer_service._resolve_tenant_id()
@@ -42,7 +44,9 @@ class TestTenantResolution:
 
     def test_resolve_tenant_without_context(self, customer_service):
         """Test tenant resolution falls back to default when no context."""
-        with patch("dotmac.platform.customer_management.service.get_current_tenant_id") as mock_get_tenant:
+        with patch(
+            "dotmac.platform.customer_management.service.get_current_tenant_id"
+        ) as mock_get_tenant:
             mock_get_tenant.return_value = None
 
             with patch("dotmac.platform.customer_management.service.logger") as mock_logger:
@@ -59,7 +63,9 @@ class TestTenantResolution:
         # Mock the tenant resolution
         with patch.object(customer_service, "_resolve_tenant_id", return_value="tenant-456"):
             # Mock customer number generation
-            with patch.object(customer_service, "_generate_customer_number", return_value="CUST-001"):
+            with patch.object(
+                customer_service, "_generate_customer_number", return_value="CUST-001"
+            ):
                 # Setup mock query results
                 mock_result = MagicMock()
                 mock_result.scalar_one_or_none.return_value = None
@@ -130,6 +136,7 @@ class TestTenantResolution:
             mock_session.execute.side_effect = [mock_count_result, mock_result]
 
             from dotmac.platform.customer_management.schemas import CustomerSearchParams
+
             search_params = CustomerSearchParams()
 
             # Search customers
@@ -153,7 +160,11 @@ class TestTenantResolution:
         mock_customer.lifetime_value = 1000.0
 
         with patch.object(customer_service, "_resolve_tenant_id", return_value="tenant-purchase"):
-            with patch.object(customer_service, "_validate_and_get_tenant", return_value=(customer_id, "tenant-purchase")):
+            with patch.object(
+                customer_service,
+                "_validate_and_get_tenant",
+                return_value=(customer_id, "tenant-purchase"),
+            ):
                 # Setup mock query
                 mock_result = MagicMock()
                 mock_result.scalar_one_or_none.return_value = mock_customer
@@ -161,9 +172,7 @@ class TestTenantResolution:
 
                 # Record purchase
                 await customer_service.record_purchase(
-                    str(customer_id),
-                    amount=100.0,
-                    performed_by="test-user"
+                    str(customer_id), amount=100.0, performed_by="test-user"
                 )
 
                 # Verify the activity was added with correct tenant_id

@@ -2,8 +2,6 @@
 Credit note API router
 """
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,8 +10,8 @@ from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.core.enums import CreditNoteStatus, CreditReason
 from dotmac.platform.billing.core.exceptions import (
     CreditNoteNotFoundError,
-    InvalidCreditNoteStatusError,
     InsufficientCreditError,
+    InvalidCreditNoteStatusError,
 )
 from dotmac.platform.billing.core.models import CreditNote
 from dotmac.platform.billing.credit_notes.service import CreditNoteService
@@ -30,9 +28,9 @@ class CreateCreditNoteRequest(BaseModel):
 
     invoice_id: str = Field(..., description="Invoice to credit")
     reason: CreditReason = Field(..., description="Reason for credit")
-    line_items: List[dict] = Field(..., min_length=1, description="Credit line items")
-    notes: Optional[str] = Field(None, max_length=2000, description="Customer-visible notes")
-    internal_notes: Optional[str] = Field(None, max_length=2000, description="Internal notes")
+    line_items: list[dict] = Field(..., min_length=1, description="Credit line items")
+    notes: str | None = Field(None, max_length=2000, description="Customer-visible notes")
+    internal_notes: str | None = Field(None, max_length=2000, description="Internal notes")
     auto_apply: bool = Field(True, description="Auto-apply credit to invoice")
 
 
@@ -58,7 +56,7 @@ class ApplyCreditRequest(BaseModel):
 class CreditNoteListResponse(BaseModel):
     """Credit note list response"""
 
-    credit_notes: List[CreditNote]
+    credit_notes: list[CreditNote]
     total_count: int
     has_more: bool
     total_available_credit: int = Field(0, description="Total available credit in minor units")
@@ -68,7 +66,7 @@ class CreditNoteListResponse(BaseModel):
 # Router Definition
 # ============================================================================
 
-router = APIRouter(prefix="/credit-notes", tags=["credit-notes"])
+router = APIRouter(prefix="/credit-notes", tags=["Billing - Credit Notes"])
 
 
 # ============================================================================
@@ -137,9 +135,9 @@ async def get_credit_note(
 @router.get("", response_model=CreditNoteListResponse)
 async def list_credit_notes(
     request: Request,
-    customer_id: Optional[str] = Query(None, description="Filter by customer ID"),
-    invoice_id: Optional[str] = Query(None, description="Filter by invoice ID"),
-    status: Optional[CreditNoteStatus] = Query(None, description="Filter by status"),
+    customer_id: str | None = Query(None, description="Filter by customer ID"),
+    invoice_id: str | None = Query(None, description="Filter by invoice ID"),
+    status: CreditNoteStatus | None = Query(None, description="Filter by status"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),
@@ -165,7 +163,8 @@ async def list_credit_notes(
 
     # Calculate total available credit
     total_available = sum(
-        cn.remaining_credit_amount for cn in credit_notes
+        cn.remaining_credit_amount
+        for cn in credit_notes
         if cn.status in [CreditNoteStatus.ISSUED, CreditNoteStatus.PARTIALLY_APPLIED]
     )
 
@@ -271,13 +270,13 @@ async def apply_credit_note(
         )
 
 
-@router.get("/customer/{customer_id}/available", response_model=List[CreditNote])
+@router.get("/customer/{customer_id}/available", response_model=list[CreditNote])
 async def get_available_credits(
     customer_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
     current_user=Depends(get_current_user),
-) -> List[CreditNote]:
+) -> list[CreditNote]:
     """Get available credit notes for a customer"""
 
     tenant_id = get_tenant_id_from_request(request)

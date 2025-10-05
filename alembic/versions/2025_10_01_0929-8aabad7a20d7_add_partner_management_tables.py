@@ -91,9 +91,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "commission_model",
-            sa.Enum(
-                "revenue_share", "flat_fee", "tiered", "hybrid", name="commissionmodel"
-            ),
+            sa.Enum("revenue_share", "flat_fee", "tiered", "hybrid", name="commissionmodel"),
             nullable=False,
         ),
         sa.Column("default_commission_rate", sa.Numeric(5, 4), nullable=True),
@@ -134,13 +132,24 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("partner_number", name=op.f("uq_partners_partner_number")),
     )
-    op.create_index("ix_partner_dates", "partners", ["partnership_start_date", "partnership_end_date"], unique=False)
+    op.create_index(
+        "ix_partner_dates",
+        "partners",
+        ["partnership_start_date", "partnership_end_date"],
+        unique=False,
+    )
     op.create_index("ix_partner_status_tier", "partners", ["status", "tier"], unique=False)
     op.create_index(op.f("ix_partners_external_id"), "partners", ["external_id"], unique=False)
-    op.create_index(op.f("ix_partners_partner_number"), "partners", ["partner_number"], unique=False)
+    op.create_index(
+        op.f("ix_partners_partner_number"), "partners", ["partner_number"], unique=False
+    )
     op.create_index(op.f("ix_partners_tenant_id"), "partners", ["tenant_id"], unique=False)
-    op.create_index("uq_tenant_company_name", "partners", ["tenant_id", "company_name"], unique=True)
-    op.create_index("uq_tenant_partner_number", "partners", ["tenant_id", "partner_number"], unique=True)
+    op.create_index(
+        "uq_tenant_company_name", "partners", ["tenant_id", "company_name"], unique=True
+    )
+    op.create_index(
+        "uq_tenant_partner_number", "partners", ["tenant_id", "partner_number"], unique=True
+    )
 
     # Create partner_users table
     op.create_table(
@@ -163,10 +172,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_partner_user_partner", "partner_users", ["partner_id", "is_active"], unique=False)
+    op.create_index(
+        "ix_partner_user_partner", "partner_users", ["partner_id", "is_active"], unique=False
+    )
     op.create_index(op.f("ix_partner_users_email"), "partner_users", ["email"], unique=False)
-    op.create_index(op.f("ix_partner_users_partner_id"), "partner_users", ["partner_id"], unique=False)
-    op.create_index(op.f("ix_partner_users_tenant_id"), "partner_users", ["tenant_id"], unique=False)
+    op.create_index(
+        op.f("ix_partner_users_partner_id"), "partner_users", ["partner_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_users_tenant_id"), "partner_users", ["tenant_id"], unique=False
+    )
     op.create_index("uq_partner_user_email", "partner_users", ["partner_id", "email"], unique=True)
 
     # Create partner_accounts table
@@ -189,13 +204,30 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["partner_id"], ["partners.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_partner_account_active", "partner_accounts", ["partner_id", "is_active"], unique=False)
-    op.create_index("ix_partner_account_dates", "partner_accounts", ["partner_id", "start_date", "end_date"], unique=False)
-    op.create_index(op.f("ix_partner_accounts_customer_id"), "partner_accounts", ["customer_id"], unique=False)
-    op.create_index(op.f("ix_partner_accounts_is_active"), "partner_accounts", ["is_active"], unique=False)
-    op.create_index(op.f("ix_partner_accounts_partner_id"), "partner_accounts", ["partner_id"], unique=False)
-    op.create_index(op.f("ix_partner_accounts_tenant_id"), "partner_accounts", ["tenant_id"], unique=False)
-    op.create_index("uq_partner_customer", "partner_accounts", ["partner_id", "customer_id"], unique=True)
+    op.create_index(
+        "ix_partner_account_active", "partner_accounts", ["partner_id", "is_active"], unique=False
+    )
+    op.create_index(
+        "ix_partner_account_dates",
+        "partner_accounts",
+        ["partner_id", "start_date", "end_date"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_accounts_customer_id"), "partner_accounts", ["customer_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_accounts_is_active"), "partner_accounts", ["is_active"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_accounts_partner_id"), "partner_accounts", ["partner_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_accounts_tenant_id"), "partner_accounts", ["tenant_id"], unique=False
+    )
+    op.create_index(
+        "uq_partner_customer", "partner_accounts", ["partner_id", "customer_id"], unique=True
+    )
 
     # Create partner_commission_rules table
     op.create_table(
@@ -206,9 +238,7 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column(
             "commission_type",
-            sa.Enum(
-                "revenue_share", "flat_fee", "tiered", "hybrid", name="commissionmodel"
-            ),
+            sa.Enum("revenue_share", "flat_fee", "tiered", "hybrid", name="commissionmodel"),
             nullable=False,
         ),
         sa.Column("commission_rate", sa.Numeric(5, 4), nullable=True),
@@ -225,10 +255,30 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["partner_id"], ["partners.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_commission_rule_dates", "partner_commission_rules", ["effective_from", "effective_to"], unique=False)
-    op.create_index("ix_commission_rule_partner_active", "partner_commission_rules", ["partner_id", "is_active"], unique=False)
-    op.create_index(op.f("ix_partner_commission_rules_partner_id"), "partner_commission_rules", ["partner_id"], unique=False)
-    op.create_index(op.f("ix_partner_commission_rules_tenant_id"), "partner_commission_rules", ["tenant_id"], unique=False)
+    op.create_index(
+        "ix_commission_rule_dates",
+        "partner_commission_rules",
+        ["effective_from", "effective_to"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_commission_rule_partner_active",
+        "partner_commission_rules",
+        ["partner_id", "is_active"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_rules_partner_id"),
+        "partner_commission_rules",
+        ["partner_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_rules_tenant_id"),
+        "partner_commission_rules",
+        ["tenant_id"],
+        unique=False,
+    )
 
     # Create partner_commission_events table
     op.create_table(
@@ -261,14 +311,54 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["partner_id"], ["partners.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_commission_event_dates", "partner_commission_events", ["event_date", "paid_at"], unique=False)
-    op.create_index("ix_commission_event_partner_status", "partner_commission_events", ["partner_id", "status"], unique=False)
-    op.create_index("ix_commission_event_payout", "partner_commission_events", ["payout_id", "status"], unique=False)
-    op.create_index(op.f("ix_partner_commission_events_invoice_id"), "partner_commission_events", ["invoice_id"], unique=False)
-    op.create_index(op.f("ix_partner_commission_events_partner_id"), "partner_commission_events", ["partner_id"], unique=False)
-    op.create_index(op.f("ix_partner_commission_events_payout_id"), "partner_commission_events", ["payout_id"], unique=False)
-    op.create_index(op.f("ix_partner_commission_events_status"), "partner_commission_events", ["status"], unique=False)
-    op.create_index(op.f("ix_partner_commission_events_tenant_id"), "partner_commission_events", ["tenant_id"], unique=False)
+    op.create_index(
+        "ix_commission_event_dates",
+        "partner_commission_events",
+        ["event_date", "paid_at"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_commission_event_partner_status",
+        "partner_commission_events",
+        ["partner_id", "status"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_commission_event_payout",
+        "partner_commission_events",
+        ["payout_id", "status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_events_invoice_id"),
+        "partner_commission_events",
+        ["invoice_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_events_partner_id"),
+        "partner_commission_events",
+        ["partner_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_events_payout_id"),
+        "partner_commission_events",
+        ["payout_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_events_status"),
+        "partner_commission_events",
+        ["status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_commission_events_tenant_id"),
+        "partner_commission_events",
+        ["tenant_id"],
+        unique=False,
+    )
 
     # Create partner_referrals table
     op.create_table(
@@ -284,7 +374,13 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "new", "contacted", "qualified", "converted", "lost", "invalid", name="referralstatus"
+                "new",
+                "contacted",
+                "qualified",
+                "converted",
+                "lost",
+                "invalid",
+                name="referralstatus",
             ),
             nullable=False,
         ),
@@ -304,13 +400,31 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["partner_id"], ["partners.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_referral_dates", "partner_referrals", ["submitted_date", "conversion_date"], unique=False)
+    op.create_index(
+        "ix_referral_dates",
+        "partner_referrals",
+        ["submitted_date", "conversion_date"],
+        unique=False,
+    )
     op.create_index("ix_referral_email", "partner_referrals", ["contact_email"], unique=False)
-    op.create_index("ix_referral_partner_status", "partner_referrals", ["partner_id", "status"], unique=False)
-    op.create_index(op.f("ix_partner_referrals_contact_email"), "partner_referrals", ["contact_email"], unique=False)
-    op.create_index(op.f("ix_partner_referrals_partner_id"), "partner_referrals", ["partner_id"], unique=False)
-    op.create_index(op.f("ix_partner_referrals_status"), "partner_referrals", ["status"], unique=False)
-    op.create_index(op.f("ix_partner_referrals_tenant_id"), "partner_referrals", ["tenant_id"], unique=False)
+    op.create_index(
+        "ix_referral_partner_status", "partner_referrals", ["partner_id", "status"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_referrals_contact_email"),
+        "partner_referrals",
+        ["contact_email"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_partner_referrals_partner_id"), "partner_referrals", ["partner_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_referrals_status"), "partner_referrals", ["status"], unique=False
+    )
+    op.create_index(
+        op.f("ix_partner_referrals_tenant_id"), "partner_referrals", ["tenant_id"], unique=False
+    )
 
 
 def downgrade() -> None:

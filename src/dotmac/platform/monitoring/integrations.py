@@ -6,7 +6,7 @@ can be added later via settings configuration.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -24,7 +24,7 @@ class MetricData:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
+            self.timestamp = datetime.now(UTC)
         if self.labels is None:
             self.labels = {}
 

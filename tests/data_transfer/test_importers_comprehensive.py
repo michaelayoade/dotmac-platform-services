@@ -205,7 +205,9 @@ class TestCSVImporter:
             file_path.unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_csv_import_progress_callback(self, transfer_config, import_options, sample_csv_data):
+    async def test_csv_import_progress_callback(
+        self, transfer_config, import_options, sample_csv_data
+    ):
         """Test CSV import with progress callback."""
         progress_updates = []
 
@@ -280,7 +282,9 @@ class TestJSONImporter:
         options = ImportOptions(json_lines=True)
         importer = JSONImporter(transfer_config, options)
 
-        jsonl_data = '{"id": 1, "name": "Alice"}\n{"id": 2, "name": "Bob"}\n{"id": 3, "name": "Charlie"}'
+        jsonl_data = (
+            '{"id": 1, "name": "Alice"}\n{"id": 2, "name": "Bob"}\n{"id": 3, "name": "Charlie"}'
+        )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
             tmp.write(jsonl_data)
@@ -396,7 +400,9 @@ class TestExcelImporter:
             file_path.unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_excel_import_multiple_sheets(self, transfer_config, import_options, sample_json_data):
+    async def test_excel_import_multiple_sheets(
+        self, transfer_config, import_options, sample_json_data
+    ):
         """Test Excel import with multiple sheets (should use first sheet)."""
         importer = ExcelImporter(transfer_config, import_options)
 
@@ -934,6 +940,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_concurrent_imports(self, sample_csv_data):
         """Test concurrent import operations."""
+
         async def run_import(file_suffix):
             with tempfile.NamedTemporaryFile(mode="w", suffix=file_suffix, delete=False) as tmp:
                 tmp.write(sample_csv_data)

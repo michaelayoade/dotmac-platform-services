@@ -5,27 +5,20 @@ Handles chunked processing of large import files with progress tracking.
 """
 
 import csv
-import io
 import json
-import logging
-import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 import structlog
 from celery import current_task
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from dotmac.platform.database import get_db_url
-from dotmac.platform.tasks import app, idempotent_task
-from dotmac.platform.data_import.service import DataImportService, ImportResult
-from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
+from dotmac.platform.core.tasks import app, idempotent_task
 from dotmac.platform.customer_management.service import CustomerService
-from dotmac.platform.billing.invoicing.service import InvoiceService
-from dotmac.platform.billing.subscriptions.service import SubscriptionService
-from dotmac.platform.billing.payments.service import PaymentService
+from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
+from dotmac.platform.db import get_async_database_url
 
 logger = structlog.get_logger(__name__)
 
@@ -36,12 +29,8 @@ MAX_CHUNK_SIZE = 5000
 
 def get_async_session():
     """Create async database session for Celery tasks."""
-    engine = create_async_engine(get_db_url(), echo=False)
-    async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+    engine = create_async_engine(get_async_database_url(), echo=False)
+    async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     return async_session_maker()
 
 
@@ -52,9 +41,9 @@ def process_import_job(
     file_path: str,
     job_type: str,
     tenant_id: str,
-    user_id: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    user_id: str | None = None,
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Process a data import job in the background.
 
@@ -80,27 +69,19 @@ def process_import_job(
         # Process based on job type
         if job_type == ImportJobType.CUSTOMERS.value:
             result = asyncio.run(
-                _process_customer_import(
-                    job_id, file_path, tenant_id, user_id, config
-                )
+                _process_customer_import(job_id, file_path, tenant_id, user_id, config)
             )
         elif job_type == ImportJobType.INVOICES.value:
             result = asyncio.run(
-                _process_invoice_import(
-                    job_id, file_path, tenant_id, user_id, config
-                )
+                _process_invoice_import(job_id, file_path, tenant_id, user_id, config)
             )
         elif job_type == ImportJobType.SUBSCRIPTIONS.value:
             result = asyncio.run(
-                _process_subscription_import(
-                    job_id, file_path, tenant_id, user_id, config
-                )
+                _process_subscription_import(job_id, file_path, tenant_id, user_id, config)
             )
         elif job_type == ImportJobType.PAYMENTS.value:
             result = asyncio.run(
-                _process_payment_import(
-                    job_id, file_path, tenant_id, user_id, config
-                )
+                _process_payment_import(job_id, file_path, tenant_id, user_id, config)
             )
         else:
             raise ValueError(f"Unsupported job type: {job_type}")
@@ -118,13 +99,13 @@ def process_import_job(
 def process_import_chunk(
     self,
     job_id: str,
-    chunk_data: List[Dict[str, Any]],
+    chunk_data: list[dict[str, Any]],
     chunk_number: int,
     total_chunks: int,
     job_type: str,
     tenant_id: str,
-    config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Process a single chunk of import data.
 
@@ -144,28 +125,22 @@ def process_import_chunk(
     """
     import asyncio
 
-    logger.info(
-        f"Processing chunk {chunk_number}/{total_chunks} for job {job_id}"
-    )
+    logger.info(f"Processing chunk {chunk_number}/{total_chunks} for job {job_id}")
 
     # Update progress
     progress = (chunk_number / total_chunks) * 100
     current_task.update_state(
-        state='PROGRESS',
+        state="PROGRESS",
         meta={
-            'current': chunk_number,
-            'total': total_chunks,
-            'progress': progress,
-            'status': f'Processing chunk {chunk_number} of {total_chunks}'
-        }
+            "current": chunk_number,
+            "total": total_chunks,
+            "progress": progress,
+            "status": f"Processing chunk {chunk_number} of {total_chunks}",
+        },
     )
 
     try:
-        result = asyncio.run(
-            _process_chunk_data(
-                job_id, chunk_data, job_type, tenant_id, config
-            )
-        )
+        result = asyncio.run(_process_chunk_data(job_id, chunk_data, job_type, tenant_id, config))
 
         logger.info(
             f"Chunk {chunk_number} processed: "
@@ -195,7 +170,7 @@ async def _mark_job_failed(job_id: str, error_message: str) -> None:
         if job:
             job.status = ImportJobStatus.FAILED
             job.error_message = error_message
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             await session.commit()
 
 
@@ -203,9 +178,9 @@ async def _process_customer_import(
     job_id: str,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
-    config: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    user_id: str | None,
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Process customer import job."""
     async with get_async_session() as session:
         # Get the job
@@ -215,37 +190,35 @@ async def _process_customer_import(
 
         # Update status
         job.status = ImportJobStatus.IN_PROGRESS
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         await session.commit()
 
         # Read file and process
         file_ext = Path(file_path).suffix.lower()
-        chunk_size = (config or {}).get('chunk_size', DEFAULT_CHUNK_SIZE)
+        chunk_size = (config or {}).get("chunk_size", DEFAULT_CHUNK_SIZE)
 
         try:
-            if file_ext == '.csv':
+            if file_ext == ".csv":
                 result = await _process_csv_in_chunks(
-                    session, job, file_path, tenant_id, user_id,
-                    ImportJobType.CUSTOMERS, chunk_size
+                    session, job, file_path, tenant_id, user_id, ImportJobType.CUSTOMERS, chunk_size
                 )
-            elif file_ext == '.json':
+            elif file_ext == ".json":
                 result = await _process_json_in_chunks(
-                    session, job, file_path, tenant_id, user_id,
-                    ImportJobType.CUSTOMERS, chunk_size
+                    session, job, file_path, tenant_id, user_id, ImportJobType.CUSTOMERS, chunk_size
                 )
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}")
 
             # Update job status
-            if result['failed_records'] == 0:
+            if result["failed_records"] == 0:
                 job.status = ImportJobStatus.COMPLETED
             else:
                 job.status = ImportJobStatus.PARTIALLY_COMPLETED
 
-            job.completed_at = datetime.now(timezone.utc)
-            job.successful_records = result['successful_records']
-            job.failed_records = result['failed_records']
-            job.processed_records = result['total_records']
+            job.completed_at = datetime.now(UTC)
+            job.successful_records = result["successful_records"]
+            job.failed_records = result["failed_records"]
+            job.processed_records = result["total_records"]
             job.summary = result
 
             await session.commit()
@@ -254,7 +227,7 @@ async def _process_customer_import(
         except Exception as e:
             job.status = ImportJobStatus.FAILED
             job.error_message = str(e)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             await session.commit()
             raise
 
@@ -264,20 +237,18 @@ async def _process_csv_in_chunks(
     job: ImportJob,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
+    user_id: str | None,
     job_type: ImportJobType,
     chunk_size: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process CSV file in chunks."""
-    from dotmac.platform.customer_management.mappers import CustomerMapper
-    from dotmac.platform.billing.mappers import BillingMapper
 
     total_records = 0
     successful_records = 0
     failed_records = 0
     errors = []
 
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, encoding="utf-8") as f:
         csv_reader = csv.DictReader(f)
 
         chunk = []
@@ -285,20 +256,18 @@ async def _process_csv_in_chunks(
 
         for row_num, row in enumerate(csv_reader, start=1):
             total_records += 1
-            chunk.append({'row_number': row_num, 'data': row})
+            chunk.append({"row_number": row_num, "data": row})
 
             if len(chunk) >= chunk_size:
                 chunk_number += 1
                 logger.info(f"Processing chunk {chunk_number} with {len(chunk)} records")
 
                 # Process chunk
-                result = await _process_data_chunk(
-                    session, job, chunk, job_type, tenant_id
-                )
+                result = await _process_data_chunk(session, job, chunk, job_type, tenant_id)
 
-                successful_records += result['successful']
-                failed_records += result['failed']
-                errors.extend(result['errors'])
+                successful_records += result["successful"]
+                failed_records += result["failed"]
+                errors.extend(result["errors"])
 
                 # Update job progress
                 job.processed_records = total_records
@@ -309,14 +278,14 @@ async def _process_csv_in_chunks(
                 # Report progress if in Celery task
                 if current_task:
                     current_task.update_state(
-                        state='PROGRESS',
+                        state="PROGRESS",
                         meta={
-                            'total_records': total_records,
-                            'processed': total_records,
-                            'successful': successful_records,
-                            'failed': failed_records,
-                            'status': f'Processed {total_records} records'
-                        }
+                            "total_records": total_records,
+                            "processed": total_records,
+                            "successful": successful_records,
+                            "failed": failed_records,
+                            "status": f"Processed {total_records} records",
+                        },
                     )
 
                 chunk = []
@@ -324,22 +293,20 @@ async def _process_csv_in_chunks(
         # Process remaining records
         if chunk:
             chunk_number += 1
-            result = await _process_data_chunk(
-                session, job, chunk, job_type, tenant_id
-            )
-            successful_records += result['successful']
-            failed_records += result['failed']
-            errors.extend(result['errors'])
+            result = await _process_data_chunk(session, job, chunk, job_type, tenant_id)
+            successful_records += result["successful"]
+            failed_records += result["failed"]
+            errors.extend(result["errors"])
 
     job.total_records = total_records
 
     return {
-        'job_id': str(job.id),
-        'total_records': total_records,
-        'successful_records': successful_records,
-        'failed_records': failed_records,
-        'errors': errors[:100],  # Limit errors
-        'success_rate': (successful_records / total_records * 100) if total_records > 0 else 0
+        "job_id": str(job.id),
+        "total_records": total_records,
+        "successful_records": successful_records,
+        "failed_records": failed_records,
+        "errors": errors[:100],  # Limit errors
+        "success_rate": (successful_records / total_records * 100) if total_records > 0 else 0,
     }
 
 
@@ -348,12 +315,12 @@ async def _process_json_in_chunks(
     job: ImportJob,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
+    user_id: str | None,
     job_type: ImportJobType,
     chunk_size: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process JSON file in chunks."""
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, encoding="utf-8") as f:
         data = json.load(f)
 
     if not isinstance(data, list):
@@ -370,16 +337,14 @@ async def _process_json_in_chunks(
     # Process in chunks
     for i in range(0, total_records, chunk_size):
         chunk_data = []
-        for row_num, record in enumerate(data[i:i+chunk_size], start=i+1):
-            chunk_data.append({'row_number': row_num, 'data': record})
+        for row_num, record in enumerate(data[i : i + chunk_size], start=i + 1):
+            chunk_data.append({"row_number": row_num, "data": record})
 
-        result = await _process_data_chunk(
-            session, job, chunk_data, job_type, tenant_id
-        )
+        result = await _process_data_chunk(session, job, chunk_data, job_type, tenant_id)
 
-        successful_records += result['successful']
-        failed_records += result['failed']
-        errors.extend(result['errors'])
+        successful_records += result["successful"]
+        failed_records += result["failed"]
+        errors.extend(result["errors"])
 
         # Update progress
         job.processed_records = min(i + chunk_size, total_records)
@@ -391,37 +356,36 @@ async def _process_json_in_chunks(
         if current_task:
             progress = (job.processed_records / total_records) * 100
             current_task.update_state(
-                state='PROGRESS',
+                state="PROGRESS",
                 meta={
-                    'total_records': total_records,
-                    'processed': job.processed_records,
-                    'successful': successful_records,
-                    'failed': failed_records,
-                    'progress': progress,
-                    'status': f'Processed {job.processed_records}/{total_records} records'
-                }
+                    "total_records": total_records,
+                    "processed": job.processed_records,
+                    "successful": successful_records,
+                    "failed": failed_records,
+                    "progress": progress,
+                    "status": f"Processed {job.processed_records}/{total_records} records",
+                },
             )
 
     return {
-        'job_id': str(job.id),
-        'total_records': total_records,
-        'successful_records': successful_records,
-        'failed_records': failed_records,
-        'errors': errors[:100],
-        'success_rate': (successful_records / total_records * 100) if total_records > 0 else 0
+        "job_id": str(job.id),
+        "total_records": total_records,
+        "successful_records": successful_records,
+        "failed_records": failed_records,
+        "errors": errors[:100],
+        "success_rate": (successful_records / total_records * 100) if total_records > 0 else 0,
     }
 
 
 async def _process_data_chunk(
     session: AsyncSession,
     job: ImportJob,
-    chunk_data: List[Dict[str, Any]],
+    chunk_data: list[dict[str, Any]],
     job_type: ImportJobType,
     tenant_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process a chunk of data records."""
     from dotmac.platform.customer_management.mappers import CustomerMapper
-    from dotmac.platform.billing.mappers import BillingMapper
 
     successful = 0
     failed = 0
@@ -436,20 +400,25 @@ async def _process_data_chunk(
         raise ValueError(f"Unsupported job type: {job_type}")
 
     for item in chunk_data:
-        row_number = item['row_number']
-        row_data = item['data']
+        row_number = item["row_number"]
+        row_data = item["data"]
 
         try:
             # Validate and transform data
             if job_type == ImportJobType.CUSTOMERS:
                 validated_data = mapper.validate_import_row(row_data, row_number)
-                if isinstance(validated_data, dict) and 'error' in validated_data:
+                if isinstance(validated_data, dict) and "error" in validated_data:
                     # Validation error
                     failed += 1
                     errors.append(validated_data)
                     await _record_failure(
-                        session, job, row_number,
-                        "validation", validated_data['error'], row_data, tenant_id
+                        session,
+                        job,
+                        row_number,
+                        "validation",
+                        validated_data["error"],
+                        row_data,
+                        tenant_id,
                     )
                 else:
                     # Create entity
@@ -462,21 +431,12 @@ async def _process_data_chunk(
         except Exception as e:
             failed += 1
             error_msg = str(e)
-            errors.append({
-                'row_number': row_number,
-                'error': error_msg,
-                'data': row_data
-            })
+            errors.append({"row_number": row_number, "error": error_msg, "data": row_data})
             await _record_failure(
-                session, job, row_number,
-                "creation", error_msg, row_data, tenant_id
+                session, job, row_number, "creation", error_msg, row_data, tenant_id
             )
 
-    return {
-        'successful': successful,
-        'failed': failed,
-        'errors': errors
-    }
+    return {"successful": successful, "failed": failed, "errors": errors}
 
 
 async def _record_failure(
@@ -485,7 +445,7 @@ async def _record_failure(
     row_number: int,
     error_type: str,
     error_message: str,
-    row_data: Dict[str, Any],
+    row_data: dict[str, Any],
     tenant_id: str,
 ) -> None:
     """Record an import failure."""
@@ -497,7 +457,7 @@ async def _record_failure(
         error_type=error_type,
         error_message=error_message,
         row_data=row_data,
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
     )
     session.add(failure)
     await session.commit()
@@ -507,9 +467,9 @@ async def _process_invoice_import(
     job_id: str,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
-    config: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    user_id: str | None,
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Process invoice import job."""
     # Similar structure to customer import
     # Implementation will follow the same pattern
@@ -520,9 +480,9 @@ async def _process_subscription_import(
     job_id: str,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
-    config: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    user_id: str | None,
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Process subscription import job."""
     # Similar structure to customer import
     pass
@@ -532,9 +492,9 @@ async def _process_payment_import(
     job_id: str,
     file_path: str,
     tenant_id: str,
-    user_id: Optional[str],
-    config: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    user_id: str | None,
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Process payment import job."""
     # Similar structure to customer import
     pass
@@ -542,11 +502,11 @@ async def _process_payment_import(
 
 async def _process_chunk_data(
     job_id: str,
-    chunk_data: List[Dict[str, Any]],
+    chunk_data: list[dict[str, Any]],
     job_type: str,
     tenant_id: str,
-    config: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Process a chunk of data for any job type."""
     async with get_async_session() as session:
         job = await session.get(ImportJob, UUID(job_id))
@@ -554,16 +514,14 @@ async def _process_chunk_data(
             raise ValueError(f"Job {job_id} not found")
 
         job_type_enum = ImportJobType(job_type)
-        result = await _process_data_chunk(
-            session, job, chunk_data, job_type_enum, tenant_id
-        )
+        result = await _process_data_chunk(session, job, chunk_data, job_type_enum, tenant_id)
 
         return result
 
 
 @app.task
 @idempotent_task(ttl=300)
-def check_import_health() -> Dict[str, Any]:
+def check_import_health() -> dict[str, Any]:
     """
     Periodic health check for import system.
 
@@ -573,22 +531,19 @@ def check_import_health() -> Dict[str, Any]:
 
     async def _check_health():
         async with get_async_session() as session:
-            from sqlalchemy import select, func
+            from sqlalchemy import func, select
 
             # Count jobs by status
             result = await session.execute(
-                select(
-                    ImportJob.status,
-                    func.count(ImportJob.id).label('count')
-                ).group_by(ImportJob.status)
+                select(ImportJob.status, func.count(ImportJob.id).label("count")).group_by(
+                    ImportJob.status
+                )
             )
 
             status_counts = {row.status.value: row.count for row in result}
 
             # Count recent failures (last hour)
-            one_hour_ago = datetime.now(timezone.utc).replace(
-                minute=datetime.now().minute - 60
-            )
+            one_hour_ago = datetime.now(UTC).replace(minute=datetime.now().minute - 60)
 
             result = await session.execute(
                 select(func.count(ImportJob.id))
@@ -598,9 +553,9 @@ def check_import_health() -> Dict[str, Any]:
             recent_failures = result.scalar() or 0
 
             return {
-                'status_counts': status_counts,
-                'recent_failures': recent_failures,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                "status_counts": status_counts,
+                "recent_failures": recent_failures,
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     return asyncio.run(_check_health())
@@ -610,8 +565,8 @@ def check_import_health() -> Dict[str, Any]:
 from celery.schedules import crontab
 
 app.conf.beat_schedule = {
-    'check-import-health': {
-        'task': 'dotmac.platform.data_import.tasks.check_import_health',
-        'schedule': crontab(minute='*/5'),  # Every 5 minutes
+    "check-import-health": {
+        "task": "dotmac.platform.data_import.tasks.check_import_health",
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
     },
 }

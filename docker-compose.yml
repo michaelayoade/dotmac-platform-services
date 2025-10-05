@@ -59,7 +59,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: dotmac-celery-worker
-    command: celery -A dotmac.platform.tasks worker --loglevel=info
+    command: celery -A dotmac.platform.celery_app worker --loglevel=info
     environment:
       CELERY__BROKER_URL: redis://redis:6379/0
       CELERY__RESULT_BACKEND: redis://redis:6379/1
@@ -77,7 +77,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: dotmac-celery-beat
-    command: celery -A dotmac.platform.tasks beat --loglevel=info
+    command: celery -A dotmac.platform.celery_app beat --loglevel=info
     environment:
       CELERY__BROKER_URL: redis://redis:6379/0
       CELERY__RESULT_BACKEND: redis://redis:6379/1

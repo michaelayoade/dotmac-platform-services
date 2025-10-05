@@ -2,30 +2,30 @@
 Webhook handlers for payment providers with complete subscription integration
 """
 
+import base64
 import hashlib
 import hmac
 import json
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
-import httpx
-import base64
+from datetime import UTC, datetime
+from typing import Any
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.config import BillingConfig, get_billing_config
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
+from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.invoicing.service import InvoiceService
+from dotmac.platform.billing.metrics import get_billing_metrics
 from dotmac.platform.billing.payments.service import PaymentService
-from dotmac.platform.billing.subscriptions.service import SubscriptionService
 from dotmac.platform.billing.subscriptions.models import (
     SubscriptionCreateRequest,
-    SubscriptionUpdateRequest,
-    SubscriptionStatus,
     SubscriptionEventType,
+    SubscriptionStatus,
+    SubscriptionUpdateRequest,
 )
-from dotmac.platform.billing.metrics import get_billing_metrics
+from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -33,29 +33,32 @@ logger = logging.getLogger(__name__)
 class WebhookHandler(ABC):
     """Base webhook handler interface with subscription support"""
 
-    def __init__(self, db: AsyncSession, config: Optional[BillingConfig] = None):
+    def __init__(self, db: AsyncSession, config: BillingConfig | None = None):
         self.db = db
         self.config = config or get_billing_config()
         self.invoice_service = InvoiceService(db)
         self.payment_service = PaymentService(db)
-        self.subscription_service = SubscriptionService()  # Initialize subscription service
+        self.subscription_service = SubscriptionService(db)  # Initialize subscription service
         self.metrics = get_billing_metrics()
 
     @abstractmethod
-    async def verify_signature(self, payload: bytes, signature: str, headers: Dict[str, str] = None) -> bool:
+    async def verify_signature(
+        self, payload: bytes, signature: str, headers: dict[str, str] | None = None
+    ) -> bool:
         """Verify webhook signature"""
         pass
 
     @abstractmethod
-    async def process_event(self, event_type: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_event(self, event_type: str, event_data: dict[str, Any]) -> dict[str, Any]:
         """Process webhook event"""
         pass
 
     async def handle_webhook(
-        self, payload: bytes, signature: str, headers: Dict[str, str]
-    ) -> Dict[str, Any]:
+        self, payload: bytes, signature: str, headers: dict[str, str]
+    ) -> dict[str, Any]:
         """Handle webhook request"""
         import time
+
         start_time = time.time()
 
         # Verify signature
@@ -99,12 +102,12 @@ class WebhookHandler(ABC):
             raise
 
     @abstractmethod
-    def _extract_event_type(self, data: Dict[str, Any], headers: Dict[str, str]) -> str:
+    def _extract_event_type(self, data: dict[str, Any], headers: dict[str, str]) -> str:
         """Extract event type from webhook data"""
         pass
 
     @abstractmethod
-    def _extract_event_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_event_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Extract event data from webhook payload"""
         pass
 
@@ -121,7 +124,9 @@ class StripeWebhookHandler(WebhookHandler):
         """Get the payment provider name"""
         return "stripe"
 
-    async def verify_signature(self, payload: bytes, signature: str, headers: Dict[str, str] = None) -> bool:
+    async def verify_signature(
+        self, payload: bytes, signature: str, headers: dict[str, str] | None = None
+    ) -> bool:
         """Verify Stripe webhook signature using webhook secret"""
         if not self.config.stripe or not self.config.stripe.webhook_secret:
             logger.error("Stripe webhook secret not configured")
@@ -158,49 +163,47 @@ class StripeWebhookHandler(WebhookHandler):
             logger.error(f"Failed to verify Stripe signature: {e}")
             return False
 
-    def _extract_event_type(self, data: Dict[str, Any], headers: Dict[str, str]) -> str:
+    def _extract_event_type(self, data: dict[str, Any], headers: dict[str, str]) -> str:
         """Extract Stripe event type"""
         return data.get("type", "")
 
-    def _extract_event_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_event_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Extract Stripe event data"""
         return data.get("data", {}).get("object", {})
 
-    async def process_event(self, event_type: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_event_handlers(self) -> dict[str, Any]:
+        """Get event type to handler method mapping."""
+        return {
+            # Payment events
+            "payment_intent.succeeded": self._handle_payment_succeeded,
+            "payment_intent.payment_failed": self._handle_payment_failed,
+            "charge.refunded": self._handle_charge_refunded,
+            # Invoice events
+            "invoice.payment_succeeded": self._handle_invoice_paid,
+            "invoice.payment_failed": self._handle_invoice_payment_failed,
+            "invoice.finalized": self._handle_invoice_finalized,
+            # Customer subscription events
+            "customer.subscription.created": self._handle_subscription_created,
+            "customer.subscription.updated": self._handle_subscription_updated,
+            "customer.subscription.deleted": self._handle_subscription_cancelled,
+            "customer.subscription.trial_will_end": self._handle_subscription_trial_ending,
+        }
+
+    async def process_event(self, event_type: str, event_data: dict[str, Any]) -> dict[str, Any]:
         """Process Stripe webhook events"""
         logger.info(f"Processing Stripe event: {event_type}")
 
-        # Payment events
-        if event_type == "payment_intent.succeeded":
-            return await self._handle_payment_succeeded(event_data)
-        elif event_type == "payment_intent.payment_failed":
-            return await self._handle_payment_failed(event_data)
-        elif event_type == "charge.refunded":
-            return await self._handle_charge_refunded(event_data)
+        # Get handler for event type
+        handlers = self._get_event_handlers()
+        handler = handlers.get(event_type)
 
-        # Invoice events
-        elif event_type == "invoice.payment_succeeded":
-            return await self._handle_invoice_paid(event_data)
-        elif event_type == "invoice.payment_failed":
-            return await self._handle_invoice_payment_failed(event_data)
-        elif event_type == "invoice.finalized":
-            return await self._handle_invoice_finalized(event_data)
-
-        # Customer subscription events
-        elif event_type == "customer.subscription.created":
-            return await self._handle_subscription_created(event_data)
-        elif event_type == "customer.subscription.updated":
-            return await self._handle_subscription_updated(event_data)
-        elif event_type == "customer.subscription.deleted":
-            return await self._handle_subscription_cancelled(event_data)
-        elif event_type == "customer.subscription.trial_will_end":
-            return await self._handle_subscription_trial_ending(event_data)
-
+        if handler:
+            return await handler(event_data)
         else:
             logger.info(f"Unhandled Stripe event type: {event_type}")
             return {"status": "ignored", "event_type": event_type}
 
-    async def _handle_payment_succeeded(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_payment_succeeded(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle successful payment"""
         payment_intent_id = event_data.get("id")
         amount = event_data.get("amount")
@@ -235,7 +238,7 @@ class StripeWebhookHandler(WebhookHandler):
             "currency": currency,
         }
 
-    async def _handle_payment_failed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_payment_failed(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle failed payment"""
         payment_intent_id = event_data.get("id")
         error_message = event_data.get("last_payment_error", {}).get("message")
@@ -260,7 +263,7 @@ class StripeWebhookHandler(WebhookHandler):
             "error": error_message,
         }
 
-    async def _handle_charge_refunded(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_charge_refunded(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle charge refund"""
         charge_id = event_data.get("id")
         amount_refunded = event_data.get("amount_refunded")
@@ -284,7 +287,7 @@ class StripeWebhookHandler(WebhookHandler):
             "amount_refunded": amount_refunded,
         }
 
-    async def _handle_invoice_paid(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_invoice_paid(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle invoice payment succeeded"""
         stripe_invoice_id = event_data.get("id")
         metadata = event_data.get("metadata", {})
@@ -300,7 +303,7 @@ class StripeWebhookHandler(WebhookHandler):
             "invoice_id": invoice_id,
         }
 
-    async def _handle_invoice_payment_failed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_invoice_payment_failed(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle invoice payment failed"""
         stripe_invoice_id = event_data.get("id")
         metadata = event_data.get("metadata", {})
@@ -320,7 +323,7 @@ class StripeWebhookHandler(WebhookHandler):
             "invoice_id": invoice_id,
         }
 
-    async def _handle_invoice_finalized(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_invoice_finalized(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle invoice finalized"""
         stripe_invoice_id = event_data.get("id")
         metadata = event_data.get("metadata", {})
@@ -339,7 +342,7 @@ class StripeWebhookHandler(WebhookHandler):
             "invoice_id": invoice_id,
         }
 
-    async def _handle_subscription_created(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_created(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription created with full integration"""
         subscription_id = event_data.get("id")
         customer_id = event_data.get("customer")
@@ -361,13 +364,12 @@ class StripeWebhookHandler(WebhookHandler):
                     metadata={
                         "stripe_customer_id": customer_id,
                         "stripe_subscription_id": subscription_id,
-                        "created_via": "stripe_webhook"
-                    }
+                        "created_via": "stripe_webhook",
+                    },
                 )
 
                 subscription = await self.subscription_service.create_subscription(
-                    subscription_data=subscription_request,
-                    tenant_id=tenant_id
+                    subscription_data=subscription_request, tenant_id=tenant_id
                 )
 
                 # Record subscription created event
@@ -377,11 +379,13 @@ class StripeWebhookHandler(WebhookHandler):
                     event_type=SubscriptionEventType.CREATED,
                     event_data={
                         "source": "stripe_webhook",
-                        "stripe_subscription_id": subscription_id
-                    }
+                        "stripe_subscription_id": subscription_id,
+                    },
                 )
 
-                logger.info(f"Created subscription {subscription.subscription_id} from Stripe webhook")
+                logger.info(
+                    f"Created subscription {subscription.subscription_id} from Stripe webhook"
+                )
 
                 return {
                     "status": "processed",
@@ -399,10 +403,10 @@ class StripeWebhookHandler(WebhookHandler):
         return {
             "status": "acknowledged",
             "subscription_id": subscription_id,
-            "message": "Missing metadata for full integration"
+            "message": "Missing metadata for full integration",
         }
 
-    async def _handle_subscription_updated(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_updated(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription updated with full integration"""
         stripe_subscription_id = event_data.get("id")
         status = event_data.get("status")
@@ -431,21 +435,21 @@ class StripeWebhookHandler(WebhookHandler):
                 if new_status:
                     # Update subscription status
                     subscription = await self.subscription_service.get_subscription(
-                        subscription_id=subscription_id,
-                        tenant_id=tenant_id
+                        subscription_id=subscription_id, tenant_id=tenant_id
                     )
 
                     if subscription and subscription.status != new_status:
                         update_request = SubscriptionUpdateRequest(
-                            status=new_status,
-                            metadata=subscription.metadata or {}
+                            status=new_status, metadata=subscription.metadata or {}
                         )
-                        update_request.metadata["last_stripe_update"] = datetime.now(timezone.utc).isoformat()
+                        update_request.metadata["last_stripe_update"] = datetime.now(
+                            UTC
+                        ).isoformat()
 
                         await self.subscription_service.update_subscription(
                             subscription_id=subscription_id,
                             tenant_id=tenant_id,
-                            update_data=update_request
+                            update_data=update_request,
                         )
 
                         # Record status change event
@@ -456,16 +460,18 @@ class StripeWebhookHandler(WebhookHandler):
                             event_data={
                                 "old_status": subscription.status.value,
                                 "new_status": new_status.value,
-                                "source": "stripe_webhook"
-                            }
+                                "source": "stripe_webhook",
+                            },
                         )
 
-                        logger.info(f"Updated subscription {subscription_id} status to {new_status.value}")
+                        logger.info(
+                            f"Updated subscription {subscription_id} status to {new_status.value}"
+                        )
 
                 return {
                     "status": "processed",
                     "subscription_id": subscription_id,
-                    "new_status": new_status.value if new_status else status
+                    "new_status": new_status.value if new_status else status,
                 }
             except Exception as e:
                 logger.error(f"Failed to update subscription from webhook: {e}")
@@ -477,7 +483,7 @@ class StripeWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": stripe_subscription_id}
 
-    async def _handle_subscription_cancelled(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_cancelled(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription cancelled with full integration"""
         stripe_subscription_id = event_data.get("id")
         metadata = event_data.get("metadata", {})
@@ -494,7 +500,7 @@ class StripeWebhookHandler(WebhookHandler):
                     subscription_id=subscription_id,
                     tenant_id=tenant_id,
                     reason="Cancelled via Stripe",
-                    immediate=True  # Stripe already cancelled it
+                    immediate=True,  # Stripe already cancelled it
                 )
 
                 # Record cancellation event
@@ -505,8 +511,8 @@ class StripeWebhookHandler(WebhookHandler):
                     event_data={
                         "source": "stripe_webhook",
                         "stripe_subscription_id": stripe_subscription_id,
-                        "reason": "Cancelled via Stripe"
-                    }
+                        "reason": "Cancelled via Stripe",
+                    },
                 )
 
                 logger.info(f"Cancelled subscription {subscription_id} from Stripe webhook")
@@ -514,7 +520,7 @@ class StripeWebhookHandler(WebhookHandler):
                 return {
                     "status": "processed",
                     "subscription_id": subscription_id,
-                    "message": "Subscription cancelled"
+                    "message": "Subscription cancelled",
                 }
             except Exception as e:
                 logger.error(f"Failed to cancel subscription from webhook: {e}")
@@ -526,7 +532,7 @@ class StripeWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": stripe_subscription_id}
 
-    async def _handle_subscription_trial_ending(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_trial_ending(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription trial ending notification"""
         stripe_subscription_id = event_data.get("id")
         trial_end = event_data.get("trial_end")
@@ -543,10 +549,7 @@ class StripeWebhookHandler(WebhookHandler):
                 subscription_id=subscription_id,
                 tenant_id=tenant_id,
                 event_type=SubscriptionEventType.TRIAL_ENDING,
-                event_data={
-                    "trial_end": trial_end,
-                    "source": "stripe_webhook"
-                }
+                event_data={"trial_end": trial_end, "source": "stripe_webhook"},
             )
 
             # Could trigger notifications to customer here
@@ -554,7 +557,7 @@ class StripeWebhookHandler(WebhookHandler):
             return {
                 "status": "processed",
                 "subscription_id": subscription_id,
-                "trial_end": trial_end
+                "trial_end": trial_end,
             }
 
         return {"status": "acknowledged", "subscription_id": stripe_subscription_id}
@@ -567,50 +570,99 @@ class PayPalWebhookHandler(WebhookHandler):
         """Get the payment provider name"""
         return "paypal"
 
-    async def verify_signature(self, payload: bytes, signature: str, headers: Dict[str, str] = None) -> bool:
-        """Verify PayPal webhook signature with full implementation"""
+    def _validate_paypal_config(self) -> tuple[bool, bool]:
+        """Validate PayPal configuration and return (is_valid, is_sandbox)."""
         if not self.config.paypal:
             logger.error("PayPal configuration not found")
-            return False
+            return False, False
 
-        # PayPal webhook verification requires API call to PayPal
-        if self.config.paypal.environment == "sandbox":
+        is_sandbox = self.config.paypal.environment == "sandbox"
+
+        if is_sandbox:
             logger.warning("PayPal webhook signature verification in sandbox mode")
-            # In sandbox, optionally verify if webhook_id is configured
             if not self.config.paypal.webhook_id:
                 logger.warning("PayPal webhook ID not configured, skipping verification in sandbox")
+                return False, True  # Skip verification in sandbox without webhook_id
+
+        return True, is_sandbox
+
+    def _extract_paypal_headers(
+        self, headers: dict[str, str] | None, signature: str
+    ) -> dict[str, str] | None:
+        """Extract and validate PayPal webhook headers."""
+        if not headers:
+            logger.error("Missing headers for PayPal webhook verification")
+            return None
+
+        extracted = {
+            "transmission_id": headers.get("paypal-transmission-id", ""),
+            "transmission_time": headers.get("paypal-transmission-time", ""),
+            "cert_url": headers.get("paypal-cert-url", ""),
+            "auth_algo": headers.get("paypal-auth-algo", ""),
+            "transmission_sig": headers.get("paypal-transmission-sig", signature),
+        }
+
+        if not all(extracted.values()):
+            logger.error("Missing required PayPal webhook headers")
+            return None
+
+        return extracted
+
+    def _build_verification_data(
+        self, extracted_headers: dict[str, str], payload: bytes
+    ) -> dict[str, Any]:
+        """Build PayPal verification request data."""
+        return {
+            "auth_algo": extracted_headers["auth_algo"],
+            "cert_url": extracted_headers["cert_url"],
+            "transmission_id": extracted_headers["transmission_id"],
+            "transmission_sig": extracted_headers["transmission_sig"],
+            "transmission_time": extracted_headers["transmission_time"],
+            "webhook_id": self.config.paypal.webhook_id,
+            "webhook_event": json.loads(payload),
+        }
+
+    def _handle_verification_response(self, response: httpx.Response, is_sandbox: bool) -> bool:
+        """Handle PayPal verification response."""
+        if response.status_code == 200:
+            result = response.json()
+            verification_status = result.get("verification_status")
+
+            if verification_status == "SUCCESS":
+                logger.info("PayPal webhook signature verified successfully")
                 return True
+            else:
+                logger.warning(f"PayPal webhook verification failed: {verification_status}")
+                return False
+        else:
+            logger.error(f"PayPal verification API error: {response.status_code}")
+            if is_sandbox:
+                logger.warning("Allowing webhook in sandbox despite verification failure")
+                return True
+            return False
+
+    async def verify_signature(
+        self, payload: bytes, signature: str, headers: dict[str, str] | None = None
+    ) -> bool:
+        """Verify PayPal webhook signature with full implementation"""
+        # Validate configuration
+        config_valid, is_sandbox = self._validate_paypal_config()
+        if not config_valid:
+            return is_sandbox  # True in sandbox without webhook_id, False otherwise
 
         try:
-            # Extract required headers for PayPal verification
-            if not headers:
-                logger.error("Missing headers for PayPal webhook verification")
+            # Extract headers
+            extracted_headers = self._extract_paypal_headers(headers, signature)
+            if not extracted_headers:
                 return False
 
-            transmission_id = headers.get("paypal-transmission-id", "")
-            transmission_time = headers.get("paypal-transmission-time", "")
-            cert_url = headers.get("paypal-cert-url", "")
-            auth_algo = headers.get("paypal-auth-algo", "")
-            transmission_sig = headers.get("paypal-transmission-sig", signature)
+            # Build verification request
+            verification_url = (
+                f"{self._get_paypal_base_url()}/v1/notifications/verify-webhook-signature"
+            )
+            verification_data = self._build_verification_data(extracted_headers, payload)
 
-            if not all([transmission_id, transmission_time, cert_url, auth_algo, transmission_sig]):
-                logger.error("Missing required PayPal webhook headers")
-                return False
-
-            # Construct verification request
-            verification_url = f"{self._get_paypal_base_url()}/v1/notifications/verify-webhook-signature"
-
-            verification_data = {
-                "auth_algo": auth_algo,
-                "cert_url": cert_url,
-                "transmission_id": transmission_id,
-                "transmission_sig": transmission_sig,
-                "transmission_time": transmission_time,
-                "webhook_id": self.config.paypal.webhook_id,
-                "webhook_event": json.loads(payload)
-            }
-
-            # Get PayPal access token
+            # Get access token
             access_token = await self._get_paypal_access_token()
 
             # Make verification request
@@ -620,36 +672,18 @@ class PayPalWebhookHandler(WebhookHandler):
                     json=verification_data,
                     headers={
                         "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     },
-                    timeout=10.0
+                    timeout=10.0,
                 )
 
-                if response.status_code == 200:
-                    result = response.json()
-                    verification_status = result.get("verification_status")
-
-                    if verification_status == "SUCCESS":
-                        logger.info("PayPal webhook signature verified successfully")
-                        return True
-                    else:
-                        logger.warning(f"PayPal webhook verification failed: {verification_status}")
-                        return False
-                else:
-                    logger.error(f"PayPal verification API error: {response.status_code}")
-                    # In production, we should fail closed (return False)
-                    # But for development/testing, we might want to be more lenient
-                    if self.config.paypal.environment == "sandbox":
-                        logger.warning("Allowing webhook in sandbox despite verification failure")
-                        return True
-                    return False
+                return self._handle_verification_response(response, is_sandbox)
 
         except Exception as e:
             logger.error(f"Failed to verify PayPal signature: {e}")
-            # Fail closed in production
+            # Fail closed in production, lenient in sandbox
             if self.config.paypal.environment == "production":
                 return False
-            # Be lenient in sandbox for development
             logger.warning("Allowing webhook in sandbox despite verification error")
             return True
 
@@ -673,9 +707,9 @@ class PayPalWebhookHandler(WebhookHandler):
                 data={"grant_type": "client_credentials"},
                 headers={
                     "Authorization": f"Basic {encoded_credentials}",
-                    "Content-Type": "application/x-www-form-urlencoded"
+                    "Content-Type": "application/x-www-form-urlencoded",
                 },
-                timeout=10.0
+                timeout=10.0,
             )
 
             if response.status_code == 200:
@@ -684,15 +718,15 @@ class PayPalWebhookHandler(WebhookHandler):
             else:
                 raise Exception(f"Failed to get PayPal access token: {response.status_code}")
 
-    def _extract_event_type(self, data: Dict[str, Any], headers: Dict[str, str]) -> str:
+    def _extract_event_type(self, data: dict[str, Any], headers: dict[str, str]) -> str:
         """Extract PayPal event type"""
         return data.get("event_type", "")
 
-    def _extract_event_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_event_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Extract PayPal event data"""
         return data.get("resource", {})
 
-    async def process_event(self, event_type: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_event(self, event_type: str, event_data: dict[str, Any]) -> dict[str, Any]:
         """Process PayPal webhook events"""
         logger.info(f"Processing PayPal event: {event_type}")
 
@@ -722,7 +756,7 @@ class PayPalWebhookHandler(WebhookHandler):
             logger.info(f"Unhandled PayPal event type: {event_type}")
             return {"status": "ignored", "event_type": event_type}
 
-    async def _handle_payment_completed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_payment_completed(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle payment completed"""
         capture_id = event_data.get("id")
         amount = event_data.get("amount", {}).get("value")
@@ -751,7 +785,7 @@ class PayPalWebhookHandler(WebhookHandler):
             "currency": currency,
         }
 
-    async def _handle_payment_denied(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_payment_denied(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle payment denied"""
         capture_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
@@ -774,7 +808,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "processed", "capture_id": capture_id}
 
-    async def _handle_payment_refunded(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_payment_refunded(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle payment refunded"""
         refund_id = event_data.get("id")
         amount = event_data.get("amount", {}).get("value")
@@ -797,7 +831,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "processed", "refund_id": refund_id, "amount": amount}
 
-    async def _handle_subscription_created(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_created(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription created with full integration"""
         paypal_subscription_id = event_data.get("id")
         plan_id = event_data.get("plan_id")
@@ -822,13 +856,12 @@ class PayPalWebhookHandler(WebhookHandler):
                         metadata={
                             "paypal_subscription_id": paypal_subscription_id,
                             "paypal_plan_id": plan_id,
-                            "created_via": "paypal_webhook"
-                        }
+                            "created_via": "paypal_webhook",
+                        },
                     )
 
                     subscription = await self.subscription_service.create_subscription(
-                        subscription_data=subscription_request,
-                        tenant_id=tenant_id
+                        subscription_data=subscription_request, tenant_id=tenant_id
                     )
 
                     # Record subscription created event
@@ -838,11 +871,13 @@ class PayPalWebhookHandler(WebhookHandler):
                         event_type=SubscriptionEventType.CREATED,
                         event_data={
                             "source": "paypal_webhook",
-                            "paypal_subscription_id": paypal_subscription_id
-                        }
+                            "paypal_subscription_id": paypal_subscription_id,
+                        },
                     )
 
-                    logger.info(f"Created subscription {subscription.subscription_id} from PayPal webhook")
+                    logger.info(
+                        f"Created subscription {subscription.subscription_id} from PayPal webhook"
+                    )
 
                     return {
                         "status": "processed",
@@ -859,7 +894,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": paypal_subscription_id}
 
-    async def _handle_subscription_activated(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_activated(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription activated"""
         paypal_subscription_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
@@ -874,13 +909,13 @@ class PayPalWebhookHandler(WebhookHandler):
                     # Update subscription status to active
                     update_request = SubscriptionUpdateRequest(
                         status=SubscriptionStatus.ACTIVE,
-                        metadata={"paypal_activated": datetime.now(timezone.utc).isoformat()}
+                        metadata={"paypal_activated": datetime.now(UTC).isoformat()},
                     )
 
                     await self.subscription_service.update_subscription(
                         subscription_id=subscription_id,
                         tenant_id=tenant_id,
-                        update_data=update_request
+                        update_data=update_request,
                     )
 
                     # Record activation event
@@ -890,14 +925,14 @@ class PayPalWebhookHandler(WebhookHandler):
                         event_type=SubscriptionEventType.ACTIVATED,
                         event_data={
                             "source": "paypal_webhook",
-                            "paypal_subscription_id": paypal_subscription_id
-                        }
+                            "paypal_subscription_id": paypal_subscription_id,
+                        },
                     )
 
                     return {
                         "status": "processed",
                         "subscription_id": subscription_id,
-                        "message": "Subscription activated"
+                        "message": "Subscription activated",
                     }
                 except Exception as e:
                     logger.error(f"Failed to activate subscription: {e}")
@@ -905,7 +940,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": paypal_subscription_id}
 
-    async def _handle_subscription_updated(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_updated(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription updated"""
         paypal_subscription_id = event_data.get("id")
         status = event_data.get("status")
@@ -933,13 +968,13 @@ class PayPalWebhookHandler(WebhookHandler):
                     if new_status:
                         update_request = SubscriptionUpdateRequest(
                             status=new_status,
-                            metadata={"last_paypal_update": datetime.now(timezone.utc).isoformat()}
+                            metadata={"last_paypal_update": datetime.now(UTC).isoformat()},
                         )
 
                         await self.subscription_service.update_subscription(
                             subscription_id=subscription_id,
                             tenant_id=tenant_id,
-                            update_data=update_request
+                            update_data=update_request,
                         )
 
                         # Record status change event
@@ -947,16 +982,13 @@ class PayPalWebhookHandler(WebhookHandler):
                             subscription_id=subscription_id,
                             tenant_id=tenant_id,
                             event_type=SubscriptionEventType.STATUS_CHANGED,
-                            event_data={
-                                "new_status": new_status.value,
-                                "source": "paypal_webhook"
-                            }
+                            event_data={"new_status": new_status.value, "source": "paypal_webhook"},
                         )
 
                         return {
                             "status": "processed",
                             "subscription_id": subscription_id,
-                            "new_status": new_status.value
+                            "new_status": new_status.value,
                         }
                 except Exception as e:
                     logger.error(f"Failed to update subscription: {e}")
@@ -964,7 +996,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": paypal_subscription_id}
 
-    async def _handle_subscription_cancelled(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_cancelled(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription cancelled with full integration"""
         paypal_subscription_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
@@ -983,7 +1015,7 @@ class PayPalWebhookHandler(WebhookHandler):
                         subscription_id=subscription_id,
                         tenant_id=tenant_id,
                         reason="Cancelled via PayPal",
-                        immediate=True  # PayPal already cancelled it
+                        immediate=True,  # PayPal already cancelled it
                     )
 
                     # Record cancellation event
@@ -994,14 +1026,14 @@ class PayPalWebhookHandler(WebhookHandler):
                         event_data={
                             "source": "paypal_webhook",
                             "paypal_subscription_id": paypal_subscription_id,
-                            "reason": "Cancelled via PayPal"
-                        }
+                            "reason": "Cancelled via PayPal",
+                        },
                     )
 
                     return {
                         "status": "processed",
                         "subscription_id": subscription_id,
-                        "message": "Subscription cancelled"
+                        "message": "Subscription cancelled",
                     }
                 except Exception as e:
                     logger.error(f"Failed to cancel subscription: {e}")
@@ -1009,7 +1041,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": paypal_subscription_id}
 
-    async def _handle_subscription_suspended(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_suspended(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle subscription suspended"""
         paypal_subscription_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
@@ -1024,13 +1056,13 @@ class PayPalWebhookHandler(WebhookHandler):
                     # Update subscription status to suspended
                     update_request = SubscriptionUpdateRequest(
                         status=SubscriptionStatus.SUSPENDED,
-                        metadata={"paypal_suspended": datetime.now(timezone.utc).isoformat()}
+                        metadata={"paypal_suspended": datetime.now(UTC).isoformat()},
                     )
 
                     await self.subscription_service.update_subscription(
                         subscription_id=subscription_id,
                         tenant_id=tenant_id,
-                        update_data=update_request
+                        update_data=update_request,
                     )
 
                     # Record suspension event
@@ -1040,14 +1072,14 @@ class PayPalWebhookHandler(WebhookHandler):
                         event_type=SubscriptionEventType.SUSPENDED,
                         event_data={
                             "source": "paypal_webhook",
-                            "paypal_subscription_id": paypal_subscription_id
-                        }
+                            "paypal_subscription_id": paypal_subscription_id,
+                        },
                     )
 
                     return {
                         "status": "processed",
                         "subscription_id": subscription_id,
-                        "message": "Subscription suspended"
+                        "message": "Subscription suspended",
                     }
                 except Exception as e:
                     logger.error(f"Failed to suspend subscription: {e}")
@@ -1055,7 +1087,9 @@ class PayPalWebhookHandler(WebhookHandler):
 
         return {"status": "acknowledged", "subscription_id": paypal_subscription_id}
 
-    async def _handle_subscription_payment_failed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_subscription_payment_failed(
+        self, event_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Handle subscription payment failed"""
         paypal_subscription_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
@@ -1070,13 +1104,13 @@ class PayPalWebhookHandler(WebhookHandler):
                     # Update subscription status to past due
                     update_request = SubscriptionUpdateRequest(
                         status=SubscriptionStatus.PAST_DUE,
-                        metadata={"last_payment_failed": datetime.now(timezone.utc).isoformat()}
+                        metadata={"last_payment_failed": datetime.now(UTC).isoformat()},
                     )
 
                     await self.subscription_service.update_subscription(
                         subscription_id=subscription_id,
                         tenant_id=tenant_id,
-                        update_data=update_request
+                        update_data=update_request,
                     )
 
                     # Record payment failed event
@@ -1086,14 +1120,14 @@ class PayPalWebhookHandler(WebhookHandler):
                         event_type=SubscriptionEventType.PAYMENT_FAILED,
                         event_data={
                             "source": "paypal_webhook",
-                            "paypal_subscription_id": paypal_subscription_id
-                        }
+                            "paypal_subscription_id": paypal_subscription_id,
+                        },
                     )
 
                     return {
                         "status": "processed",
                         "subscription_id": subscription_id,
-                        "message": "Subscription payment failed, status updated to past_due"
+                        "message": "Subscription payment failed, status updated to past_due",
                     }
                 except Exception as e:
                     logger.error(f"Failed to update subscription after payment failure: {e}")

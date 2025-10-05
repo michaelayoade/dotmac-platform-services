@@ -12,6 +12,8 @@ from tenacity import RetryError
 from dotmac.platform.service_registry.client import ServiceClient
 from dotmac.platform.service_registry.consul_registry import ConsulServiceInfo
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestServiceClient:
     """Test ServiceClient HTTP client with service discovery."""
@@ -27,7 +29,7 @@ class TestServiceClient:
                 service_id="test-1",
                 tags=["api", "v1"],
                 meta={"zone": "us-east-1a"},
-                health="passing"
+                health="passing",
             ),
             ConsulServiceInfo(
                 name="test-service",
@@ -36,7 +38,7 @@ class TestServiceClient:
                 service_id="test-2",
                 tags=["api", "v1"],
                 meta={"zone": "us-east-1b"},
-                health="passing"
+                health="passing",
             ),
         ]
 
@@ -54,7 +56,9 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_get_service_url_success(self, client, mock_services):
         """Test successful service URL retrieval."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
             url = await client._get_service_url()
@@ -66,24 +70,30 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_get_service_url_no_services(self, client):
         """Test service URL retrieval with no healthy services."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = []
 
-            with pytest.raises(ConnectionError, match="No healthy instances for service: test-service"):
+            with pytest.raises(
+                ConnectionError, match="No healthy instances for service: test-service"
+            ):
                 await client._get_service_url()
 
     @pytest.mark.asyncio
     async def test_get_service_url_load_balancing(self, client, mock_services):
         """Test load balancing in service URL selection."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
             # Mock random.choice to make it predictable
-            with patch.object(random, 'choice', side_effect=lambda x: x[0]):
+            with patch.object(random, "choice", side_effect=lambda x: x[0]):
                 url = await client._get_service_url()
                 assert url == "http://10.0.1.1:8080"
 
-            with patch.object(random, 'choice', side_effect=lambda x: x[1]):
+            with patch.object(random, "choice", side_effect=lambda x: x[1]):
                 url = await client._get_service_url()
                 assert url == "http://10.0.1.2:8080"
 
@@ -94,10 +104,12 @@ class TestServiceClient:
         mock_response.status_code = 200
         mock_response.json.return_value = {"result": "success"}
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = mock_response
 
                 response = await client.get("/api/data", params={"id": 123})
@@ -117,10 +129,12 @@ class TestServiceClient:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 201
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = mock_response
 
                 response = await client.post("/api/create", json={"name": "test"})
@@ -137,10 +151,12 @@ class TestServiceClient:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = mock_response
 
                 response = await client.put("/api/update/123", json={"status": "updated"})
@@ -155,10 +171,12 @@ class TestServiceClient:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 204
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = mock_response
 
                 response = await client.delete("/api/items/123")
@@ -176,10 +194,12 @@ class TestServiceClient:
             "Server Error", request=MagicMock(), response=mock_response
         )
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_request.return_value = mock_response
 
                 with pytest.raises(httpx.HTTPStatusError):
@@ -188,10 +208,12 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_connection_error(self, client, mock_services):
         """Test request with connection error and retry."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 # Simulate connection error that triggers retry
                 mock_request.side_effect = httpx.ConnectError("Connection failed")
 
@@ -207,14 +229,16 @@ class TestServiceClient:
         mock_success_response = MagicMock(spec=httpx.Response)
         mock_success_response.status_code = 200
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 # First call fails, second call succeeds
                 mock_request.side_effect = [
                     httpx.ConnectError("Connection failed"),
-                    mock_success_response
+                    mock_success_response,
                 ]
 
                 response = await client.get("/api/data")
@@ -225,7 +249,9 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_service_discovery_failure(self, client):
         """Test request when service discovery fails."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.side_effect = Exception("Consul connection failed")
 
             with pytest.raises(RetryError):
@@ -234,11 +260,13 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_service_discovery_retry(self, client, mock_services):
         """Test that service discovery is called on each retry."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             # First call returns empty, subsequent calls return services
             mock_get_services.side_effect = [[], mock_services, mock_services]
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -254,20 +282,24 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_url_construction(self, client):
         """Test proper URL construction."""
-        single_service = [ConsulServiceInfo(
-            name="test-service",
-            address="api.example.com",
-            port=9000,
-            service_id="test-1",
-            tags=[],
-            meta={},
-            health="passing"
-        )]
+        single_service = [
+            ConsulServiceInfo(
+                name="test-service",
+                address="api.example.com",
+                port=9000,
+                service_id="test-1",
+                tags=[],
+                meta={},
+                health="passing",
+            )
+        ]
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = single_service
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -280,10 +312,12 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_path_starting_slash(self, client, mock_services):
         """Test request with path that starts with slash."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -299,10 +333,12 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_path_no_starting_slash(self, client, mock_services):
         """Test request with path that doesn't start with slash."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -316,18 +352,22 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_client_close(self, client):
         """Test client cleanup."""
-        with patch.object(client._client, 'aclose', new_callable=AsyncMock) as mock_close:
+        with patch.object(client._client, "aclose", new_callable=AsyncMock) as mock_close:
             await client.close()
             mock_close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_async_context_manager(self, mock_services):
         """Test ServiceClient as async context manager."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
             async with ServiceClient("test-service") as client:
-                with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+                with patch.object(
+                    client._client, "request", new_callable=AsyncMock
+                ) as mock_request:
                     mock_response = MagicMock(spec=httpx.Response)
                     mock_response.status_code = 200
                     mock_request.return_value = mock_response
@@ -352,10 +392,12 @@ class TestServiceClient:
     @pytest.mark.asyncio
     async def test_request_with_custom_headers(self, client, mock_services):
         """Test request with custom headers."""
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = mock_services
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -378,7 +420,7 @@ class TestServiceClient:
                 service_id="test-1",
                 tags=[],
                 meta={},
-                health="passing"
+                health="passing",
             ),
             ConsulServiceInfo(
                 name="test-service",
@@ -387,7 +429,7 @@ class TestServiceClient:
                 service_id="test-2",
                 tags=[],
                 meta={},
-                health="passing"
+                health="passing",
             ),
             ConsulServiceInfo(
                 name="test-service",
@@ -396,17 +438,19 @@ class TestServiceClient:
                 service_id="test-3",
                 tags=[],
                 meta={},
-                health="passing"
+                health="passing",
             ),
         ]
 
-        with patch('dotmac.platform.service_registry.client.get_healthy_services') as mock_get_services:
+        with patch(
+            "dotmac.platform.service_registry.client.get_healthy_services"
+        ) as mock_get_services:
             mock_get_services.return_value = services
 
             # Mock random to return different choices
             selected_urls = set()
 
-            with patch.object(client._client, 'request', new_callable=AsyncMock) as mock_request:
+            with patch.object(client._client, "request", new_callable=AsyncMock) as mock_request:
                 mock_response = MagicMock(spec=httpx.Response)
                 mock_response.status_code = 200
                 mock_request.return_value = mock_response
@@ -425,7 +469,7 @@ class TestServiceClient:
                 available_urls = {
                     "http://10.0.1.1:8080/test",
                     "http://10.0.1.2:8080/test",
-                    "http://10.0.1.3:8080/test"
+                    "http://10.0.1.3:8080/test",
                 }
                 assert selected_urls.issubset(available_urls)
 

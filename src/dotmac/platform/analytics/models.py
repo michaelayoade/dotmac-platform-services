@@ -2,9 +2,9 @@
 Analytics request and response models with proper validation.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
@@ -28,9 +28,9 @@ def _format_datetime(value: datetime) -> str:
     """Format datetimes in UTC with a trailing Z for consistent API responses."""
 
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     else:
-        value = value.astimezone(timezone.utc)
+        value = value.astimezone(UTC)
     return value.isoformat().replace("+00:00", "Z")
 
 
@@ -116,9 +116,9 @@ class EventTrackRequest(BaseModel):
         default_factory=dict,
         description="Event properties (max 50 properties)",
     )
-    user_id: Optional[str] = Field(None, max_length=255, description="User ID")
-    session_id: Optional[str] = Field(None, max_length=255, description="Session ID")
-    timestamp: Optional[datetime] = Field(None, description="Event timestamp (defaults to now)")
+    user_id: str | None = Field(None, max_length=255, description="User ID")
+    session_id: str | None = Field(None, max_length=255, description="Session ID")
+    timestamp: datetime | None = Field(None, description="Event timestamp (defaults to now)")
 
     @field_validator("properties")
     @classmethod
@@ -156,7 +156,7 @@ class MetricRecordRequest(BaseModel):
         default_factory=dict,
         description="Metric tags (max 20 tags)",
     )
-    timestamp: Optional[datetime] = Field(None, description="Metric timestamp")
+    timestamp: datetime | None = Field(None, description="Metric timestamp")
 
     @field_validator("value")
     @classmethod
@@ -198,12 +198,12 @@ class AnalyticsQueryRequest(BaseModel):
         default_factory=dict,
         description="Query filters",
     )
-    group_by: Optional[list[str]] = Field(
+    group_by: list[str] | None = Field(
         None,
         max_length=10,
         description="Fields to group by (max 10)",
     )
-    order_by: Optional[str] = Field(
+    order_by: str | None = Field(
         None,
         max_length=50,
         description="Order by field",
@@ -235,7 +235,7 @@ class EventTrackResponse(BaseModel):
     event_name: str = Field(..., description="Event name")
     timestamp: datetime = Field(..., description="Event timestamp")
     status: str = Field("tracked", description="Tracking status")
-    message: Optional[str] = Field(None, description="Optional status message")
+    message: str | None = Field(None, description="Optional status message")
 
     @field_serializer("timestamp")
     def _serialize_timestamp(self, value: datetime) -> str:
@@ -264,7 +264,7 @@ class MetricDataPoint(BaseModel):
 
     timestamp: datetime = Field(..., description="Data point timestamp")
     value: float = Field(..., description="Metric value")
-    tags: Optional[dict[str, str]] = Field(None, description="Associated tags")
+    tags: dict[str, str] | None = Field(None, description="Associated tags")
 
     @field_serializer("timestamp")
     def _serialize_timestamp(self, value: datetime) -> str:
@@ -277,7 +277,7 @@ class MetricSeries(BaseModel):
     metric_name: str = Field(..., description="Metric name")
     unit: str = Field(..., description="Metric unit")
     data_points: list[MetricDataPoint] = Field(..., description="Time series data")
-    aggregation: Optional[str] = Field(None, description="Aggregation applied")
+    aggregation: str | None = Field(None, description="Aggregation applied")
 
 
 class EventData(BaseModel):
@@ -287,8 +287,8 @@ class EventData(BaseModel):
     event_name: str = Field(..., description="Event name")
     event_type: str = Field(..., description="Event type")
     timestamp: datetime = Field(..., description="Event timestamp")
-    user_id: Optional[str] = Field(None, description="User ID")
-    session_id: Optional[str] = Field(None, description="Session ID")
+    user_id: str | None = Field(None, description="User ID")
+    session_id: str | None = Field(None, description="Session ID")
     properties: dict[str, Any] = Field(default_factory=dict, description="Event properties")
 
 
@@ -302,7 +302,7 @@ class EventsQueryResponse(BaseModel):
     page: int = Field(1, description="Current page")
     page_size: int = Field(100, description="Page size")
     has_more: bool = Field(False, description="More results available")
-    query_time_ms: Optional[float] = Field(None, description="Query execution time")
+    query_time_ms: float | None = Field(None, description="Query execution time")
 
 
 class MetricsQueryResponse(BaseModel):
@@ -313,7 +313,7 @@ class MetricsQueryResponse(BaseModel):
     metrics: list[MetricSeries] = Field(..., description="Metric time series data")
     period: dict[str, Any] = Field(..., description="Query time period")
     total_series: int = Field(..., description="Total metric series")
-    query_time_ms: Optional[float] = Field(None, description="Query execution time")
+    query_time_ms: float | None = Field(None, description="Query execution time")
 
     @field_serializer("period")
     def _serialize_period(self, value: dict[str, Any]) -> dict[str, Any]:
@@ -326,7 +326,7 @@ class MetricsQueryResponse(BaseModel):
 class AggregationResult(BaseModel):
     """Single aggregation result."""
 
-    group_key: Optional[dict[str, Any]] = Field(None, description="Group by key values")
+    group_key: dict[str, Any] | None = Field(None, description="Group by key values")
     aggregation: str = Field(..., description="Aggregation type")
     value: float = Field(..., description="Aggregated value")
     count: int = Field(..., description="Number of records in aggregation")
@@ -340,7 +340,7 @@ class AggregationQueryResponse(BaseModel):
     results: list[AggregationResult] = Field(..., description="Aggregation results")
     total_records: int = Field(..., description="Total records processed")
     query_time_ms: float = Field(..., description="Query execution time")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
 
 
 class ReportSection(BaseModel):
@@ -348,7 +348,7 @@ class ReportSection(BaseModel):
 
     title: str = Field(..., description="Section title")
     data: dict[str, Any] = Field(..., description="Section data")
-    charts: Optional[list[dict[str, Any]]] = Field(None, description="Chart configurations")
+    charts: list[dict[str, Any]] | None = Field(None, description="Chart configurations")
 
 
 class ReportResponse(BaseModel):
@@ -362,7 +362,7 @@ class ReportResponse(BaseModel):
     sections: list[ReportSection] = Field(..., description="Report sections")
     generated_at: datetime = Field(..., description="Report generation timestamp")
     period: dict[str, datetime] = Field(..., description="Report time period")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Report metadata")
+    metadata: dict[str, Any] | None = Field(None, description="Report metadata")
 
     @field_serializer("generated_at")
     def _serialize_generated_at(self, value: datetime) -> str:
@@ -380,7 +380,7 @@ class DashboardWidget(BaseModel):
     widget_type: str = Field(..., description="Widget type (chart, metric, table)")
     title: str = Field(..., description="Widget title")
     data: dict[str, Any] = Field(..., description="Widget data")
-    config: Optional[dict[str, Any]] = Field(None, description="Widget configuration")
+    config: dict[str, Any] | None = Field(None, description="Widget configuration")
 
 
 class DashboardResponse(BaseModel):
@@ -392,7 +392,7 @@ class DashboardResponse(BaseModel):
     period: DashboardPeriod = Field(..., description="Dashboard time period")
     widgets: list[DashboardWidget] = Field(..., description="Dashboard widgets")
     generated_at: datetime = Field(..., description="Dashboard generation timestamp")
-    refresh_interval: Optional[int] = Field(60, description="Refresh interval in seconds")
+    refresh_interval: int | None = Field(60, description="Refresh interval in seconds")
 
     @field_serializer("generated_at")
     def _serialize_dashboard_generated_at(self, value: datetime) -> str:
@@ -409,9 +409,11 @@ class AnalyticsErrorResponse(BaseModel):
 
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
-    details: Optional[dict[str, Any]] = Field(None, description="Error details")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
-    request_id: Optional[str] = Field(None, description="Request ID for debugging")
+    details: dict[str, Any] | None = Field(None, description="Error details")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), description="Error timestamp"
+    )
+    request_id: str | None = Field(None, description="Request ID for debugging")
 
 
 __all__ = [

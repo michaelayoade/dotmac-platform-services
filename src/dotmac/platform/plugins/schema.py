@@ -6,7 +6,7 @@ allowing plugins to describe their configuration requirements dynamically.
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -35,7 +35,7 @@ class ValidationRule(BaseModel):
 
     type: str = Field(description="Type of validation rule")
     value: Any = Field(description="Validation parameter")
-    message: Optional[str] = Field(None, description="Custom error message")
+    message: str | None = Field(None, description="Custom error message")
 
 
 class SelectOption(BaseModel):
@@ -43,7 +43,7 @@ class SelectOption(BaseModel):
 
     value: str = Field(description="Option value")
     label: str = Field(description="Display label")
-    description: Optional[str] = Field(None, description="Option description")
+    description: str | None = Field(None, description="Option description")
 
 
 class FieldSpec(BaseModel):
@@ -52,25 +52,29 @@ class FieldSpec(BaseModel):
     key: str = Field(description="Field identifier")
     label: str = Field(description="Display label")
     type: FieldType = Field(description="Field type")
-    description: Optional[str] = Field(None, description="Field description")
+    description: str | None = Field(None, description="Field description")
     required: bool = Field(False, description="Whether field is required")
     default: Any = Field(None, description="Default value")
 
     # Validation
-    validation_rules: List[ValidationRule] = Field(default_factory=list, description="Validation rules")
-    min_length: Optional[int] = Field(None, description="Minimum string length")
-    max_length: Optional[int] = Field(None, description="Maximum string length")
-    min_value: Optional[Union[int, float]] = Field(None, description="Minimum numeric value")
-    max_value: Optional[Union[int, float]] = Field(None, description="Maximum numeric value")
-    pattern: Optional[str] = Field(None, description="Regex pattern for validation")
+    validation_rules: list[ValidationRule] = Field(
+        default_factory=list, description="Validation rules"
+    )
+    min_length: int | None = Field(None, description="Minimum string length")
+    max_length: int | None = Field(None, description="Maximum string length")
+    min_value: int | float | None = Field(None, description="Minimum numeric value")
+    max_value: int | float | None = Field(None, description="Maximum numeric value")
+    pattern: str | None = Field(None, description="Regex pattern for validation")
 
     # Select field options
-    options: List[SelectOption] = Field(default_factory=list, description="Options for select fields")
+    options: list[SelectOption] = Field(
+        default_factory=list, description="Options for select fields"
+    )
 
     # UI hints
-    placeholder: Optional[str] = Field(None, description="Placeholder text")
-    help_text: Optional[str] = Field(None, description="Help text")
-    group: Optional[str] = Field(None, description="Field group for organization")
+    placeholder: str | None = Field(None, description="Placeholder text")
+    help_text: str | None = Field(None, description="Help text")
+    group: str | None = Field(None, description="Field group for organization")
     order: int = Field(0, description="Display order within group")
 
     # Secret field properties
@@ -87,8 +91,8 @@ class FieldSpec(BaseModel):
     def __init__(self, **data):
         """Initialize field spec and auto-set is_secret for SECRET type."""
         # Auto-set is_secret for SECRET field type
-        if data.get('type') == FieldType.SECRET and 'is_secret' not in data:
-            data['is_secret'] = True
+        if data.get("type") == FieldType.SECRET and "is_secret" not in data:
+            data["is_secret"] = True
         super().__init__(**data)
 
 
@@ -122,31 +126,35 @@ class PluginConfig(BaseModel):
     type: PluginType = Field(description="Plugin type")
     version: str = Field(description="Plugin version")
     description: str = Field(description="Plugin description")
-    author: Optional[str] = Field(None, description="Plugin author")
-    homepage: Optional[str] = Field(None, description="Plugin homepage URL")
+    author: str | None = Field(None, description="Plugin author")
+    homepage: str | None = Field(None, description="Plugin homepage URL")
 
     # Configuration fields
-    fields: List[FieldSpec] = Field(description="Configuration field specifications")
+    fields: list[FieldSpec] = Field(description="Configuration field specifications")
 
     # Plugin metadata
-    dependencies: List[str] = Field(default_factory=list, description="Required dependencies")
-    tags: List[str] = Field(default_factory=list, description="Plugin tags")
+    dependencies: list[str] = Field(default_factory=list, description="Required dependencies")
+    tags: list[str] = Field(default_factory=list, description="Plugin tags")
 
     # Feature flags
     supports_health_check: bool = Field(True, description="Whether plugin supports health checks")
-    supports_test_connection: bool = Field(True, description="Whether plugin supports connection testing")
+    supports_test_connection: bool = Field(
+        True, description="Whether plugin supports connection testing"
+    )
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
         """Validate plugin name format."""
         if not v or not v.replace("_", "").replace("-", "").replace(" ", "").isalnum():
-            raise ValueError("Plugin name must be alphanumeric with spaces, underscores, or hyphens")
+            raise ValueError(
+                "Plugin name must be alphanumeric with spaces, underscores, or hyphens"
+            )
         return v
 
     @field_validator("fields")
     @classmethod
-    def validate_unique_field_keys(cls, v: List[FieldSpec]) -> List[FieldSpec]:
+    def validate_unique_field_keys(cls, v: list[FieldSpec]) -> list[FieldSpec]:
         """Ensure field keys are unique."""
         keys = [field.key for field in v]
         if len(keys) != len(set(keys)):
@@ -164,12 +172,12 @@ class PluginInstance(BaseModel):
 
     # Current state
     status: PluginStatus = Field(PluginStatus.REGISTERED, description="Current plugin status")
-    last_health_check: Optional[str] = Field(None, description="Last health check timestamp")
-    last_error: Optional[str] = Field(None, description="Last error message")
+    last_health_check: str | None = Field(None, description="Last health check timestamp")
+    last_error: str | None = Field(None, description="Last error message")
 
     # Configuration (values are stored separately in secure storage)
     has_configuration: bool = Field(False, description="Whether plugin has been configured")
-    configuration_version: Optional[str] = Field(None, description="Configuration version/hash")
+    configuration_version: str | None = Field(None, description="Configuration version/hash")
 
 
 class PluginConfigurationValue(BaseModel):
@@ -191,10 +199,10 @@ class PluginHealthCheck(BaseModel):
 
     plugin_instance_id: UUID = Field(description="Plugin instance ID")
     status: str = Field(description="Health status (healthy/unhealthy/unknown)")
-    message: Optional[str] = Field(None, description="Status message")
-    details: Dict[str, Any] = Field(default_factory=dict, description="Additional details")
+    message: str | None = Field(None, description="Status message")
+    details: dict[str, Any] = Field(default_factory=dict, description="Additional details")
     timestamp: str = Field(description="Check timestamp")
-    response_time_ms: Optional[int] = Field(None, description="Response time in milliseconds")
+    response_time_ms: int | None = Field(None, description="Response time in milliseconds")
 
 
 class PluginTestResult(BaseModel):
@@ -202,27 +210,28 @@ class PluginTestResult(BaseModel):
 
     success: bool = Field(description="Whether test was successful")
     message: str = Field(description="Test result message")
-    details: Dict[str, Any] = Field(default_factory=dict, description="Test details")
+    details: dict[str, Any] = Field(default_factory=dict, description="Test details")
     timestamp: str = Field(description="Test timestamp")
-    response_time_ms: Optional[int] = Field(None, description="Response time in milliseconds")
+    response_time_ms: int | None = Field(None, description="Response time in milliseconds")
 
 
 # API Response Models
+
 
 class PluginConfigurationResponse(BaseModel):
     """Response model for plugin configuration."""
 
     plugin_instance_id: UUID = Field(description="Plugin instance ID")
-    configuration: Dict[str, Any] = Field(description="Configuration values (secrets masked)")
+    configuration: dict[str, Any] = Field(description="Configuration values (secrets masked)")
     config_schema: PluginConfig = Field(description="Configuration schema", alias="schema")
     status: PluginStatus = Field(description="Plugin status")
-    last_updated: Optional[str] = Field(None, description="Last configuration update")
+    last_updated: str | None = Field(None, description="Last configuration update")
 
 
 class PluginListResponse(BaseModel):
     """Response model for plugin list."""
 
-    plugins: List[PluginInstance] = Field(description="Registered plugin instances")
+    plugins: list[PluginInstance] = Field(description="Registered plugin instances")
     total: int = Field(description="Total number of plugins")
 
 
@@ -230,4 +239,4 @@ class PluginSchemaResponse(BaseModel):
     """Response model for plugin schema."""
 
     config_schema: PluginConfig = Field(description="Plugin configuration schema", alias="schema")
-    instance_id: Optional[UUID] = Field(None, description="Plugin instance ID if configured")
+    instance_id: UUID | None = Field(None, description="Plugin instance ID if configured")

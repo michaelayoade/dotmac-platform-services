@@ -2,8 +2,8 @@
 
 from .currency import (
     CurrencyFormatter,
-    get_currency_formatter,
     format_money,
+    get_currency_formatter,
     parse_money,
 )
 

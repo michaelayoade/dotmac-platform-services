@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useToast } from '@/components/ui/use-toast';
+import { platformConfig } from '@/lib/config';
 
 // Migrated from sonner to useToast hook
 // Note: toast options have changed:
@@ -8,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 // - sonner: toast.error('msg') -> useToast: toast({ title: 'Error', description: 'msg', variant: 'destructive' })
 // - For complex options, refer to useToast documentation
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = platformConfig.apiBaseUrl;
 
 export interface LogMetadata {
   request_id?: string;

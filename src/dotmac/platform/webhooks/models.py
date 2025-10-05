@@ -4,12 +4,12 @@ Webhook database models and schemas.
 
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
-from sqlalchemy import Boolean, Integer, JSON, String, Text, ForeignKey
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,6 +18,7 @@ from dotmac.platform.db import Base, TenantMixin, TimestampMixin
 
 class DeliveryStatus(str, Enum):
     """Webhook delivery status."""
+
     PENDING = "pending"
     SUCCESS = "success"
     FAILED = "failed"
@@ -93,16 +94,14 @@ class WebhookSubscription(Base, TenantMixin, TimestampMixin):
 
     __tablename__ = "webhook_subscriptions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Endpoint configuration
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Event filtering
-    events: Mapped[List[str]] = mapped_column(
+    events: Mapped[list[str]] = mapped_column(
         JSON, nullable=False, default=list
     )  # List of event types to subscribe to
 
@@ -112,7 +111,7 @@ class WebhookSubscription(Base, TenantMixin, TimestampMixin):
     )  # For HMAC signature generation
 
     # Custom headers (e.g., authorization tokens)
-    headers: Mapped[Dict[str, str]] = mapped_column(JSON, default=dict, nullable=False)
+    headers: Mapped[dict[str, str]] = mapped_column(JSON, default=dict, nullable=False)
 
     # Delivery configuration
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -123,12 +122,12 @@ class WebhookSubscription(Base, TenantMixin, TimestampMixin):
     # Statistics
     success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_triggered_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    last_success_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    last_failure_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Custom metadata (renamed from 'metadata' to avoid SQLAlchemy reserved attribute)
-    custom_metadata: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    custom_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     def __repr__(self) -> str:
         return f"<WebhookSubscription(id={self.id}, url={self.url}, events={len(self.events)})>"
@@ -139,15 +138,13 @@ class WebhookDelivery(Base, TenantMixin, TimestampMixin):
 
     __tablename__ = "webhook_deliveries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     subscription_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("webhook_subscriptions.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Event details
@@ -155,22 +152,22 @@ class WebhookDelivery(Base, TenantMixin, TimestampMixin):
     event_id: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True
     )  # Idempotency key
-    event_data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)
+    event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     # Delivery details
     status: Mapped[DeliveryStatus] = mapped_column(
         String(50), nullable=False, default=DeliveryStatus.PENDING, index=True
     )
-    response_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    response_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    response_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Retry tracking
     attempt_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    next_retry_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    next_retry_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Timing
-    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     def __repr__(self) -> str:
         return (
@@ -181,6 +178,7 @@ class WebhookDelivery(Base, TenantMixin, TimestampMixin):
 
 # Pydantic schemas for API
 
+
 class WebhookSubscriptionCreate(BaseModel):
     """Request to create webhook subscription."""
 
@@ -190,28 +188,23 @@ class WebhookSubscriptionCreate(BaseModel):
     )
 
     url: HttpUrl = Field(..., description="Webhook endpoint URL")
-    description: Optional[str] = Field(None, max_length=500, description="Description")
-    events: List[str] = Field(..., min_length=1, description="Event types to subscribe to")
-    headers: Dict[str, str] = Field(
-        default_factory=dict, description="Custom headers for requests"
-    )
+    description: str | None = Field(None, max_length=500, description="Description")
+    events: list[str] = Field(..., min_length=1, description="Event types to subscribe to")
+    headers: dict[str, str] = Field(default_factory=dict, description="Custom headers for requests")
     retry_enabled: bool = Field(default=True, description="Enable retry on failure")
     max_retries: int = Field(default=3, ge=0, le=10, description="Max retry attempts")
-    timeout_seconds: int = Field(
-        default=30, ge=5, le=300, description="Request timeout in seconds"
-    )
-    custom_metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    timeout_seconds: int = Field(default=30, ge=5, le=300, description="Request timeout in seconds")
+    custom_metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
     @field_validator("events")
     @classmethod
-    def validate_events(cls, v: List[str]) -> List[str]:
+    def validate_events(cls, v: list[str]) -> list[str]:
         """Validate event types."""
         valid_events = {e.value for e in WebhookEvent}
         invalid_events = [evt for evt in v if evt not in valid_events]
         if invalid_events:
             raise ValueError(
-                f"Invalid event types: {invalid_events}. "
-                f"Valid events: {sorted(valid_events)}"
+                f"Invalid event types: {invalid_events}. " f"Valid events: {sorted(valid_events)}"
             )
         return v
 
@@ -224,21 +217,19 @@ class WebhookSubscriptionUpdate(BaseModel):
         validate_assignment=True,
     )
 
-    url: Optional[HttpUrl] = Field(None, description="Webhook endpoint URL")
-    description: Optional[str] = Field(None, max_length=500, description="Description")
-    events: Optional[List[str]] = Field(None, description="Event types to subscribe to")
-    headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
-    is_active: Optional[bool] = Field(None, description="Enable/disable subscription")
-    retry_enabled: Optional[bool] = Field(None, description="Enable retry on failure")
-    max_retries: Optional[int] = Field(None, ge=0, le=10, description="Max retry attempts")
-    timeout_seconds: Optional[int] = Field(
-        None, ge=5, le=300, description="Request timeout"
-    )
-    custom_metadata: Optional[Dict[str, Any]] = Field(None, description="Custom metadata")
+    url: HttpUrl | None = Field(None, description="Webhook endpoint URL")
+    description: str | None = Field(None, max_length=500, description="Description")
+    events: list[str] | None = Field(None, description="Event types to subscribe to")
+    headers: dict[str, str] | None = Field(None, description="Custom headers")
+    is_active: bool | None = Field(None, description="Enable/disable subscription")
+    retry_enabled: bool | None = Field(None, description="Enable retry on failure")
+    max_retries: int | None = Field(None, ge=0, le=10, description="Max retry attempts")
+    timeout_seconds: int | None = Field(None, ge=5, le=300, description="Request timeout")
+    custom_metadata: dict[str, Any] | None = Field(None, description="Custom metadata")
 
     @field_validator("events")
     @classmethod
-    def validate_events(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def validate_events(cls, v: list[str] | None) -> list[str] | None:
         """Validate event types."""
         if v is None:
             return v
@@ -256,20 +247,20 @@ class WebhookSubscriptionResponse(BaseModel):
 
     id: str
     url: str
-    description: Optional[str]
-    events: List[str]
+    description: str | None
+    events: list[str]
     is_active: bool
     retry_enabled: bool
     max_retries: int
     timeout_seconds: int
     success_count: int
     failure_count: int
-    last_triggered_at: Optional[datetime]
-    last_success_at: Optional[datetime]
-    last_failure_at: Optional[datetime]
+    last_triggered_at: datetime | None
+    last_success_at: datetime | None
+    last_failure_at: datetime | None
     created_at: datetime
-    updated_at: Optional[datetime]
-    custom_metadata: Dict[str, Any]
+    updated_at: datetime | None
+    custom_metadata: dict[str, Any]
 
     @field_validator("id", mode="before")
     @classmethod
@@ -288,12 +279,12 @@ class WebhookDeliveryResponse(BaseModel):
     event_type: str
     event_id: str
     status: DeliveryStatus
-    response_code: Optional[int]
-    error_message: Optional[str]
+    response_code: int | None
+    error_message: str | None
     attempt_number: int
-    duration_ms: Optional[int]
+    duration_ms: int | None
     created_at: datetime
-    next_retry_at: Optional[datetime]
+    next_retry_at: datetime | None
 
     @field_validator("id", "subscription_id", mode="before")
     @classmethod
@@ -310,12 +301,11 @@ class WebhookEventPayload(BaseModel):
     id: str = Field(..., description="Event ID (idempotency key)")
     type: str = Field(..., description="Event type")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        description="Event timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Event timestamp"
     )
-    data: Dict[str, Any] = Field(..., description="Event data")
-    tenant_id: Optional[str] = Field(None, description="Tenant ID")
-    custom_metadata: Dict[str, Any] = Field(default_factory=dict, description="Event metadata")
+    data: dict[str, Any] = Field(..., description="Event data")
+    tenant_id: str | None = Field(None, description="Tenant ID")
+    custom_metadata: dict[str, Any] = Field(default_factory=dict, description="Event metadata")
 
 
 def generate_webhook_secret() -> str:

@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, AsyncMock
 
 
 # Set test environment to prevent accidental database operations
-os.environ['TESTING'] = '1'
-os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
+os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 
 @pytest.fixture(scope="function")
@@ -27,7 +27,7 @@ def test_db_engine():
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
-        echo=False
+        echo=False,
     )
 
     # Enable foreign keys for SQLite
@@ -120,6 +120,7 @@ def reset_sqlalchemy_state():
 @pytest.fixture(autouse=True)
 def mock_database_imports(monkeypatch):
     """Mock database imports to prevent real database connections."""
+
     # Mock the get_async_session function
     async def mock_get_async_session():
         session = AsyncMock()
@@ -151,11 +152,11 @@ def clean_imports(monkeypatch):
 
     # List of modules to remove from cache
     modules_to_clean = [
-        'dotmac.platform.billing.models',
-        'dotmac.platform.billing.catalog.models',
-        'dotmac.platform.billing.subscriptions.models',
-        'dotmac.platform.billing.pricing.models',
-        'dotmac.platform.billing.integration',
+        "dotmac.platform.billing.models",
+        "dotmac.platform.billing.catalog.models",
+        "dotmac.platform.billing.subscriptions.models",
+        "dotmac.platform.billing.pricing.models",
+        "dotmac.platform.billing.integration",
     ]
 
     # Store original modules
@@ -175,12 +176,8 @@ def clean_imports(monkeypatch):
 def pytest_configure(config):
     """Configure pytest for billing tests."""
     # Add custom markers
-    config.addinivalue_line(
-        "markers", "billing: mark test as billing-related"
-    )
-    config.addinivalue_line(
-        "markers", "db_isolated: mark test as requiring database isolation"
-    )
+    config.addinivalue_line("markers", "billing: mark test as billing-related")
+    config.addinivalue_line("markers", "db_isolated: mark test as requiring database isolation")
 
 
 def pytest_collection_modifyitems(config, items):

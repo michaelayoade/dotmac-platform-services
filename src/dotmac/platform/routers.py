@@ -6,11 +6,13 @@ All routes except /health, /ready, and /metrics require authentication.
 
 import importlib
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 from fastapi import Depends, FastAPI
 from fastapi.security import HTTPBearer
+
+from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +27,7 @@ class RouterConfig:
     module_path: str
     router_name: str
     prefix: str
-    tags: List[str]
+    tags: list[str]
     requires_auth: bool = True
     description: str = ""
 
@@ -47,6 +49,14 @@ ROUTER_CONFIGS = [
         tags=["RBAC"],
         requires_auth=True,
         description="RBAC read-only endpoints for frontend",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.auth.platform_admin_router",
+        router_name="router",
+        prefix="/api/v1/admin/platform",
+        tags=["Platform Administration"],
+        requires_auth=True,  # Uses require_platform_admin internally
+        description="Cross-tenant platform administration (super admin only)",
     ),
     RouterConfig(
         module_path="dotmac.platform.secrets.api",
@@ -91,11 +101,26 @@ ROUTER_CONFIGS = [
         description="Data import/export operations",
     ),
     RouterConfig(
+        module_path="dotmac.platform.data_import.router",
+        router_name="router",
+        prefix="/api/v1/data-import",
+        tags=["Data Import"],
+        description="File-based data import operations (CSV, JSON)",
+    ),
+    RouterConfig(
         module_path="dotmac.platform.user_management.router",
         router_name="user_router",
         prefix="/api/v1/users",
         tags=["User Management"],
         description="User management endpoints",
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.tenant.router",
+        router_name="router",
+        prefix="/api/v1/tenants",
+        tags=["Tenant Management"],
+        description="Multi-tenant organization management",
+        requires_auth=True,
     ),
     RouterConfig(
         module_path="dotmac.platform.feature_flags.router",
@@ -158,7 +183,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.admin.settings.router",
         router_name="router",
         prefix="/api/v1/admin/settings",
-        tags=["Admin", "Settings"],
+        tags=["Admin - Settings"],
         description="Platform settings management (admin only)",
         requires_auth=True,  # Uses require_admin internally
     ),
@@ -166,7 +191,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.billing.catalog.router",
         router_name="router",
         prefix="/api/v1/billing/catalog",
-        tags=["Billing", "Products"],
+        tags=["Billing - Catalog"],
         description="Product catalog management",
         requires_auth=True,
     ),
@@ -174,7 +199,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.billing.subscriptions.router",
         router_name="router",
         prefix="/api/v1/billing/subscriptions",
-        tags=["Billing", "Subscriptions"],
+        tags=["Billing - Subscriptions"],
         description="Subscription management",
         requires_auth=True,
     ),
@@ -182,7 +207,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.billing.pricing.router",
         router_name="router",
         prefix="/api/v1/billing/pricing",
-        tags=["Billing", "Pricing"],
+        tags=["Billing - Pricing"],
         description="Pricing engine and rules",
         requires_auth=True,
     ),
@@ -190,7 +215,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.billing.bank_accounts.router",
         router_name="router",
         prefix="/api/v1/billing/bank-accounts",
-        tags=["Billing", "Bank Accounts"],
+        tags=["Billing - Bank Accounts"],
         description="Bank accounts and manual payments",
         requires_auth=True,
     ),
@@ -198,7 +223,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.billing.settings.router",
         router_name="router",
         prefix="/api/v1/billing/settings",
-        tags=["Billing", "Settings"],
+        tags=["Billing - Settings"],
         description="Billing configuration and settings",
         requires_auth=True,
     ),
@@ -206,7 +231,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.monitoring.logs_router",
         router_name="logs_router",
         prefix="/api/v1/monitoring",
-        tags=["Monitoring", "Logs"],
+        tags=["Monitoring - Logs"],
         description="Application logs with filtering and search",
         requires_auth=True,
     ),
@@ -214,7 +239,7 @@ ROUTER_CONFIGS = [
         module_path="dotmac.platform.monitoring.traces_router",
         router_name="traces_router",
         prefix="/api/v1/observability",
-        tags=["Observability", "Traces", "Metrics"],
+        tags=["Observability - Traces"],
         description="Distributed traces, metrics, and performance data",
         requires_auth=True,
     ),
@@ -240,6 +265,78 @@ ROUTER_CONFIGS = [
         prefix="/api/v1/metrics",
         tags=["Metrics"],
         description="Performance and resource metrics",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Billing Metrics"],
+        description="Billing overview metrics (MRR, ARR, invoices, payments)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.billing.metrics_router",
+        router_name="customer_metrics_router",
+        prefix="/api/v1",
+        tags=["Customer Metrics"],
+        description="Customer metrics with growth and churn analysis",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.auth.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Auth Metrics"],
+        description="Authentication and security metrics (logins, MFA, users)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.communications.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Communications Metrics"],
+        description="Communication stats (emails, SMS, delivery rates)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.file_storage.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["File Storage Metrics"],
+        description="File storage stats (uploads, storage usage, file types)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.analytics.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Analytics Activity"],
+        description="Analytics activity stats (events, user activity, API usage)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.auth.api_keys_metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["API Keys Metrics"],
+        description="API key metrics (creation, usage, security)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.secrets.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Secrets Metrics"],
+        description="Secrets metrics (access patterns, security)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.monitoring.metrics_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Monitoring Metrics"],
+        description="Monitoring metrics (system health, performance, logs)",
         requires_auth=True,
     ),
 ]
@@ -297,6 +394,7 @@ def register_routers(app: FastAPI) -> None:
 
     Structure:
     - /api/v1/* - REST API endpoints (auth required except /auth)
+    - /api/v1/graphql - GraphQL endpoint for analytics and metrics
     - /health, /ready, /metrics - Public health endpoints
     """
     registered_count = 0
@@ -309,7 +407,32 @@ def register_routers(app: FastAPI) -> None:
         else:
             failed_count += 1
 
-    # GraphQL removed - using REST APIs only
+    # Register GraphQL endpoint for analytics and dashboards
+    try:
+        from strawberry.fastapi import GraphQLRouter
+
+        from dotmac.platform.graphql.context import Context
+        from dotmac.platform.graphql.schema import schema
+
+        graphql_app = GraphQLRouter(
+            schema,
+            context_getter=Context.get_context,
+        )
+
+        app.include_router(
+            graphql_app,
+            prefix="/api/v1/graphql",
+            tags=["GraphQL"],
+        )
+
+        logger.info("✅ GraphQL endpoint registered at /api/v1/graphql")
+        registered_count += 1
+    except ImportError as e:
+        logger.warning(f"⚠️  GraphQL endpoint not available: {e}")
+        failed_count += 1
+    except Exception as e:
+        logger.error(f"❌ Failed to register GraphQL endpoint: {e}")
+        failed_count += 1
 
     # Log summary
     logger.info(
@@ -321,7 +444,7 @@ def register_routers(app: FastAPI) -> None:
     )
 
 
-def get_api_info() -> Dict[str, Any]:
+def get_api_info() -> dict[str, Any]:
     """Get information about registered API endpoints.
 
     Returns:
@@ -341,12 +464,12 @@ def get_api_info() -> Dict[str, Any]:
             if isinstance(endpoints[parts[0]], dict):
                 endpoints[parts[0]][parts[1]] = config.prefix
 
-    # GraphQL removed - using REST APIs only
-
     return {
         "version": "v1",
         "base_path": "/api/v1",
         "endpoints": endpoints,
+        "graphql_endpoint": "/api/v1/graphql",
+        "graphql_playground": "/api/v1/graphql" if settings.environment != "production" else None,
         "public_endpoints": [
             "/health",
             "/ready",
@@ -359,11 +482,12 @@ def get_api_info() -> Dict[str, Any]:
         ],
         "authenticated_endpoints": [
             config.prefix for config in ROUTER_CONFIGS if config.requires_auth
-        ],
+        ]
+        + ["/api/v1/graphql"],
     }
 
 
-def get_registered_routers() -> List[RouterConfig]:
+def get_registered_routers() -> list[RouterConfig]:
     """Get list of all configured routers.
 
     Returns:

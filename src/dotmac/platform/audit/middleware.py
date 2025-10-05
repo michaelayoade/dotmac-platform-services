@@ -9,7 +9,6 @@ import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-
 logger = structlog.get_logger(__name__)
 
 
@@ -33,7 +32,7 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
 
             if auth_header or api_key:
                 # Import here to avoid circular dependency
-                from ..auth.core import jwt_service, api_key_service
+                from ..auth.core import api_key_service, jwt_service
 
                 # Extract user info from JWT token
                 if auth_header and auth_header.startswith("Bearer "):
@@ -49,6 +48,7 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                         # Also set tenant in context var for database operations
                         if claims.get("tenant_id"):
                             from ..tenant import set_current_tenant_id
+
                             set_current_tenant_id(claims.get("tenant_id"))
                     except Exception as e:
                         logger.debug("Failed to extract user from JWT", error=str(e))
@@ -66,6 +66,7 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                             # Also set tenant in context var for database operations
                             if key_data.get("tenant_id"):
                                 from ..tenant import set_current_tenant_id
+
                                 set_current_tenant_id(key_data.get("tenant_id"))
                     except Exception as e:
                         logger.debug("Failed to extract user from API key", error=str(e))
@@ -86,19 +87,21 @@ def create_audit_aware_dependency(user_info_dependency):
     This wrapper ensures that authenticated user information is available
     for audit logging throughout the request lifecycle.
     """
-    async def audit_aware_wrapper(request: Request, user_info = user_info_dependency):
+
+    async def audit_aware_wrapper(request: Request, user_info=user_info_dependency):
         """Extract user info and set on request state."""
         if user_info:
             request.state.user_id = user_info.user_id
-            request.state.username = getattr(user_info, 'username', None)
-            request.state.email = getattr(user_info, 'email', None)
-            request.state.tenant_id = getattr(user_info, 'tenant_id', None)
-            request.state.roles = getattr(user_info, 'roles', [])
+            request.state.username = getattr(user_info, "username", None)
+            request.state.email = getattr(user_info, "email", None)
+            request.state.tenant_id = getattr(user_info, "tenant_id", None)
+            request.state.roles = getattr(user_info, "roles", [])
 
             # Also set tenant in context var for database operations
-            tenant_id = getattr(user_info, 'tenant_id', None)
+            tenant_id = getattr(user_info, "tenant_id", None)
             if tenant_id:
                 from ..tenant import set_current_tenant_id
+
                 set_current_tenant_id(tenant_id)
         return user_info
 

@@ -118,7 +118,7 @@ async def test_inmemory_backend_bulk_and_delete_index():
 @pytest.mark.asyncio
 async def test_service_initialization_with_string():
     """Test SearchService initialization with string backend type."""
-    with patch('dotmac.platform.search.factory.create_search_backend_from_env') as mock_create:
+    with patch("dotmac.platform.search.factory.create_search_backend_from_env") as mock_create:
         mock_backend = AsyncMock()
         mock_create.return_value = mock_backend
 
@@ -130,7 +130,7 @@ async def test_service_initialization_with_string():
 @pytest.mark.asyncio
 async def test_service_initialization_with_none():
     """Test SearchService initialization with None (default backend)."""
-    with patch('dotmac.platform.search.factory.create_search_backend_from_env') as mock_create:
+    with patch("dotmac.platform.search.factory.create_search_backend_from_env") as mock_create:
         mock_backend = AsyncMock()
         mock_create.return_value = mock_backend
 
@@ -147,9 +147,7 @@ async def test_update_business_entity():
     service = SearchService(backend=backend)
 
     result = await service.update_business_entity(
-        entity_type="customer",
-        entity_id="cust-123",
-        entity_data={"email": "new@example.com"}
+        entity_type="customer", entity_id="cust-123", entity_data={"email": "new@example.com"}
     )
 
     assert result is True
@@ -211,8 +209,7 @@ async def test_setup_indices():
     ]
     for index_name in expected_indices:
         backend.create_index.assert_any_call(
-            index_name,
-            service.index_mappings.get(index_name.replace("business_", ""))
+            index_name, service.index_mappings.get(index_name.replace("business_", ""))
         )
 
 
@@ -317,12 +314,16 @@ async def test_inmemory_backend_filter_operators():
     assert response.total == 1
 
     # Test in operator
-    query = SearchQuery(query="", filters=[SearchFilter(field="age", operator="in", value=[25, 35])])
+    query = SearchQuery(
+        query="", filters=[SearchFilter(field="age", operator="in", value=[25, 35])]
+    )
     response = await backend.search("test", query)
     assert response.total == 2
 
     # Test contains operator
-    query = SearchQuery(query="", filters=[SearchFilter(field="name", operator="contains", value="oh")])
+    query = SearchQuery(
+        query="", filters=[SearchFilter(field="name", operator="contains", value="oh")]
+    )
     response = await backend.search("test", query)
     assert response.total == 1
 
@@ -331,11 +332,7 @@ async def test_inmemory_backend_filter_operators():
 async def test_inmemory_backend_search_with_fields():
     """Test searching specific fields in InMemorySearchBackend."""
     backend = InMemorySearchBackend()
-    doc = {
-        "title": "Python Guide",
-        "author": "John Doe",
-        "content": "Learn Python programming"
-    }
+    doc = {"title": "Python Guide", "author": "John Doe", "content": "Learn Python programming"}
     await backend.index("books", "1", doc)
 
     # Search only in title field
@@ -360,7 +357,7 @@ class TestMeilisearchBackend:
     @pytest.fixture
     def mock_meilisearch(self):
         """Mock meilisearch module."""
-        with patch('dotmac.platform.search.service.require_meilisearch') as mock_require:
+        with patch("dotmac.platform.search.service.require_meilisearch") as mock_require:
             mock_module = MagicMock()
             mock_client = MagicMock()
             mock_module.Client.return_value = mock_client
@@ -372,9 +369,7 @@ class TestMeilisearchBackend:
         mock_module, mock_client = mock_meilisearch
 
         backend = MeilisearchBackend(
-            host="http://search.example.com",
-            api_key="test-key",
-            primary_key="custom_id"
+            host="http://search.example.com", api_key="test-key", primary_key="custom_id"
         )
 
         assert backend.host == "http://search.example.com"
@@ -405,11 +400,9 @@ class TestMeilisearchBackend:
 
         # Mock search response
         mock_index.search.return_value = {
-            "hits": [
-                {"id": "1", "title": "Test", "_rankingScore": 0.95}
-            ],
+            "hits": [{"id": "1", "title": "Test", "_rankingScore": 0.95}],
             "estimatedTotalHits": 1,
-            "processingTimeMs": 10
+            "processingTimeMs": 10,
         }
 
         backend = MeilisearchBackend()
@@ -522,7 +515,7 @@ class TestMeilisearchBackend:
             sort_by="created_at",
             sort_order=SortOrder.DESC,
             fields=["title", "content"],
-            include_score=True
+            include_score=True,
         )
 
         await backend.search("test_index", query)
@@ -540,7 +533,7 @@ class TestMeilisearchBackend:
 
 def test_search_span_without_tracer():
     """Test _search_span when tracer is not available."""
-    with patch('dotmac.platform.search.service.search_tracer', None):
+    with patch("dotmac.platform.search.service.search_tracer", None):
         with _search_span("test.operation", index="test") as span:
             # Should be nullcontext
             pass
@@ -552,13 +545,10 @@ def test_search_span_with_tracer():
     mock_span = MagicMock()
     mock_tracer.start_as_current_span.return_value = mock_span
 
-    with patch('dotmac.platform.search.service.search_tracer', mock_tracer):
+    with patch("dotmac.platform.search.service.search_tracer", mock_tracer):
         with _search_span("test.operation", index="test", query="search"):
             pass
 
         mock_tracer.start_as_current_span.assert_called_once_with(
-            "test.operation",
-            attributes={"index": "test", "query": "search"}
+            "test.operation", attributes={"index": "test", "query": "search"}
         )
-
-

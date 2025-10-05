@@ -68,12 +68,14 @@ def no_scope_user():
 class TestRequireAuth:
     """Test require_auth dependency."""
 
+    @pytest.mark.asyncio
     async def test_require_auth_success(self, regular_user):
         """Test require_auth with valid user."""
         result = await require_auth(regular_user)
         assert result == regular_user
         assert result.user_id == "user-123"
 
+    @pytest.mark.asyncio
     async def test_require_auth_admin_user(self, admin_user):
         """Test require_auth with admin user."""
         result = await require_auth(admin_user)
@@ -310,12 +312,13 @@ class TestSecurityScheme:
         assert security is not None
         # HTTPBearer should be configured
         from fastapi.security import HTTPBearer
+
         assert isinstance(security, HTTPBearer)
 
     def test_security_scheme_auto_error(self):
         """Test security scheme auto_error setting."""
         # Should be configured with auto_error=False based on the implementation
-        assert hasattr(security, 'auto_error')
+        assert hasattr(security, "auto_error")
 
 
 class TestDependencyIntegration:
@@ -340,6 +343,7 @@ class TestDependencyIntegration:
         role_result = check_admin_role(admin_user)
         assert role_result == admin_user
 
+    @pytest.mark.asyncio
     async def test_dependency_chain_failure(self, regular_user):
         """Test dependency chain where one fails."""
         # Regular user should pass auth but fail admin check
@@ -459,6 +463,7 @@ class TestDependencyFactoryPattern:
 class TestUserInfoEdgeCases:
     """Test edge cases with UserInfo objects."""
 
+    @pytest.mark.asyncio
     async def test_user_with_empty_strings(self):
         """Test user with empty string values."""
         user = UserInfo(

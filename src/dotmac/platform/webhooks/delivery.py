@@ -4,21 +4,20 @@ Webhook delivery service with retry logic and HMAC signatures.
 
 import hashlib
 import hmac
-import json
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
-    WebhookDelivery,
-    WebhookSubscription,
     DeliveryStatus,
+    WebhookDelivery,
     WebhookEventPayload,
+    WebhookSubscription,
 )
 from .service import WebhookSubscriptionService
 
@@ -46,7 +45,7 @@ class WebhookDeliveryService:
         signature: str,
         event_id: str,
         event_type: str,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Build HTTP headers for webhook request."""
         headers = {
             "Content-Type": "application/json",
@@ -54,7 +53,7 @@ class WebhookDeliveryService:
             "X-Webhook-Signature": signature,
             "X-Webhook-Event-Id": event_id,
             "X-Webhook-Event-Type": event_type,
-            "X-Webhook-Timestamp": datetime.now(timezone.utc).isoformat(),
+            "X-Webhook-Timestamp": datetime.now(UTC).isoformat(),
         }
 
         # Add custom headers from subscription
@@ -66,9 +65,9 @@ class WebhookDeliveryService:
         self,
         subscription: WebhookSubscription,
         event_type: str,
-        event_data: Dict[str, Any],
-        event_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        event_data: dict[str, Any],
+        event_id: str | None = None,
+        tenant_id: str | None = None,
     ) -> WebhookDelivery:
         """
         Deliver webhook to endpoint.
@@ -95,7 +94,7 @@ class WebhookDeliveryService:
         payload = WebhookEventPayload(
             id=event_id,
             type=event_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             data=event_data,
             tenant_id=tenant_id,
         )
@@ -144,7 +143,7 @@ class WebhookDeliveryService:
         delivery: WebhookDelivery,
         subscription: WebhookSubscription,
         payload_bytes: bytes,
-        headers: Dict[str, str],
+        headers: dict[str, str],
     ) -> None:
         """Attempt to deliver webhook."""
         start_time = time.time()
@@ -240,10 +239,7 @@ class WebhookDeliveryService:
         )
 
         # Check if retry is enabled and within retry limit
-        if (
-            subscription.retry_enabled
-            and delivery.attempt_number < subscription.max_retries
-        ):
+        if subscription.retry_enabled and delivery.attempt_number < subscription.max_retries:
             # Schedule retry with exponential backoff
             # Retry delays: 5min, 1hr, 6hrs
             retry_delays = [300, 3600, 21600]  # seconds
@@ -251,9 +247,7 @@ class WebhookDeliveryService:
             delay_seconds = retry_delays[delay_index]
 
             delivery.status = DeliveryStatus.RETRYING
-            delivery.next_retry_at = datetime.now(timezone.utc) + timedelta(
-                seconds=delay_seconds
-            )
+            delivery.next_retry_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)
 
             logger.warning(
                 "Webhook delivery failed, scheduling retry",
@@ -313,7 +307,7 @@ class WebhookDeliveryService:
         payload = WebhookEventPayload(
             id=delivery.event_id,
             type=delivery.event_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             data=delivery.event_data,
             tenant_id=tenant_id,
         )
@@ -367,7 +361,7 @@ class WebhookDeliveryService:
         from sqlalchemy import select
 
         # Find deliveries ready for retry
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stmt = (
             select(WebhookDelivery)
             .where(
@@ -399,7 +393,7 @@ class WebhookDeliveryService:
             payload = WebhookEventPayload(
                 id=delivery.event_id,
                 type=delivery.event_type,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 data=delivery.event_data,
                 tenant_id=delivery.tenant_id,
             )

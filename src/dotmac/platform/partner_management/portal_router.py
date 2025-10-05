@@ -1,13 +1,13 @@
 """Partner Portal Router - Self-service endpoints for partners."""
 
 from datetime import datetime
-from typing import Optional
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from decimal import Decimal
 
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.partner_management.models import (
@@ -15,18 +15,15 @@ from dotmac.platform.partner_management.models import (
     PartnerAccount,
     PartnerCommissionEvent,
     ReferralLead,
-    PartnerUser,
     ReferralStatus,
-    CommissionStatus,
 )
 from dotmac.platform.partner_management.schemas import (
+    PartnerCommissionEventResponse,
     PartnerResponse,
     PartnerUpdate,
     ReferralLeadCreate,
     ReferralLeadResponse,
-    PartnerCommissionEventResponse,
 )
-from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/portal", tags=["Partner Portal"])
 
@@ -65,11 +62,11 @@ class PartnerCustomerResponse(BaseModel):
     customer_id: UUID
     customer_name: str
     engagement_type: str
-    custom_commission_rate: Optional[Decimal] = None
+    custom_commission_rate: Decimal | None = None
     total_revenue: Decimal
     total_commissions: Decimal
     start_date: datetime
-    end_date: Optional[datetime] = None
+    end_date: datetime | None = None
     is_active: bool
 
 
@@ -103,7 +100,7 @@ async def get_dashboard_stats(
     active_customers_result = await db.execute(
         select(func.count(PartnerAccount.id))
         .where(PartnerAccount.partner_id == partner.id)
-        .where(PartnerAccount.is_active == True)
+        .where(PartnerAccount.is_active)
     )
     active_customers = active_customers_result.scalar() or 0
 

@@ -8,20 +8,20 @@ This package provides a dynamic plugin system that allows plugins to:
 - Provide health checks and connection tests
 """
 
+from .interfaces import PluginInterface, PluginProvider
+from .registry import PluginRegistry, get_plugin_registry
 from .schema import (
     FieldSpec,
     FieldType,
     PluginConfig,
+    PluginHealthCheck,
     PluginInstance,
     PluginStatus,
-    PluginType,
-    PluginHealthCheck,
     PluginTestResult,
+    PluginType,
     SelectOption,
     ValidationRule,
 )
-from .registry import PluginRegistry, get_plugin_registry
-from .interfaces import PluginProvider, PluginInterface
 
 __all__ = [
     # Schema types

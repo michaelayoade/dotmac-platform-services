@@ -32,7 +32,7 @@ class TestConsulServiceInfo:
             service_id="user-service-001",
             tags=["api", "v1"],
             meta={"team": "backend", "environment": "prod"},
-            health="passing"
+            health="passing",
         )
 
         assert service.name == "user-service"
@@ -51,7 +51,7 @@ class TestConsulServiceInfo:
             port=3000,
             service_id="test-001",
             tags=[],
-            meta={}
+            meta={},
         )
 
         assert service.health == "passing"  # Default value
@@ -64,7 +64,7 @@ class TestConsulServiceInfo:
             port=9090,
             service_id="api-001",
             tags=[],
-            meta={}
+            meta={},
         )
 
         assert service.url == "http://10.0.1.5:9090"
@@ -77,7 +77,7 @@ class TestConsulServiceInfo:
             port=8080,
             service_id="local-001",
             tags=[],
-            meta={}
+            meta={},
         )
 
         assert service.url == "http://localhost:8080"
@@ -101,7 +101,10 @@ class TestConsulServiceRegistry:
     @pytest.fixture
     def registry(self, mock_consul):
         """Create ConsulServiceRegistry with mocked Consul."""
-        with patch('dotmac.platform.service_registry.consul_registry.consul.aio.Consul', return_value=mock_consul):
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.consul.aio.Consul",
+            return_value=mock_consul,
+        ):
             registry = ConsulServiceRegistry("localhost", 8500)
             return registry
 
@@ -113,11 +116,7 @@ class TestConsulServiceRegistry:
     @pytest.mark.asyncio
     async def test_register_service_basic(self, registry, mock_consul):
         """Test basic service registration."""
-        service_id = await registry.register(
-            name="test-service",
-            address="localhost",
-            port=8080
-        )
+        service_id = await registry.register(name="test-service", address="localhost", port=8080)
 
         expected_service_id = "test-service-localhost-8080"
         assert service_id == expected_service_id
@@ -141,10 +140,7 @@ class TestConsulServiceRegistry:
         """Test service registration with custom ID."""
         custom_id = "my-custom-service-id"
         service_id = await registry.register(
-            name="test-service",
-            address="localhost",
-            port=8080,
-            service_id=custom_id
+            name="test-service", address="localhost", port=8080, service_id=custom_id
         )
 
         assert service_id == custom_id
@@ -161,7 +157,7 @@ class TestConsulServiceRegistry:
             address="10.0.1.5",
             port=9090,
             tags=["api", "v2", "production"],
-            meta={"team": "platform", "version": "2.1.0"}
+            meta={"team": "platform", "version": "2.1.0"},
         )
 
         call_args = mock_consul.agent.service.register.call_args[1]
@@ -176,7 +172,7 @@ class TestConsulServiceRegistry:
             address="192.168.1.10",
             port=8080,
             health_check="/actuator/health",
-            health_interval="15s"
+            health_interval="15s",
         )
 
         call_args = mock_consul.agent.service.register.call_args[1]
@@ -191,11 +187,7 @@ class TestConsulServiceRegistry:
     async def test_deregister_service(self, registry, mock_consul):
         """Test service deregistration."""
         # First register a service
-        service_id = await registry.register(
-            name="test-service",
-            address="localhost",
-            port=8080
-        )
+        service_id = await registry.register(name="test-service", address="localhost", port=8080)
 
         assert service_id in registry._registered_services
 
@@ -219,11 +211,9 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.1",
                         "Port": 8080,
                         "Tags": ["api", "v1"],
-                        "Meta": {"team": "backend"}
+                        "Meta": {"team": "backend"},
                     },
-                    "Checks": [
-                        {"Status": "passing"}
-                    ]
+                    "Checks": [{"Status": "passing"}],
                 },
                 {
                     "Service": {
@@ -232,13 +222,11 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.2",
                         "Port": 8080,
                         "Tags": ["api", "v1"],
-                        "Meta": {"team": "backend"}
+                        "Meta": {"team": "backend"},
                     },
-                    "Checks": [
-                        {"Status": "passing"}
-                    ]
-                }
-            ]
+                    "Checks": [{"Status": "passing"}],
+                },
+            ],
         )
 
         services = await registry.discover("user-service", only_healthy=True)
@@ -273,11 +261,9 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.1",
                         "Port": 8080,
                         "Tags": [],
-                        "Meta": {}
+                        "Meta": {},
                     },
-                    "Checks": [
-                        {"Status": "passing"}
-                    ]
+                    "Checks": [{"Status": "passing"}],
                 },
                 {
                     "Service": {
@@ -286,13 +272,11 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.2",
                         "Port": 8080,
                         "Tags": [],
-                        "Meta": {}
+                        "Meta": {},
                     },
-                    "Checks": [
-                        {"Status": "critical"}
-                    ]
-                }
-            ]
+                    "Checks": [{"Status": "critical"}],
+                },
+            ],
         )
 
         services = await registry.discover("api-service", only_healthy=False)
@@ -327,15 +311,15 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.1",
                         "Port": 8080,
                         "Tags": [],
-                        "Meta": {}
+                        "Meta": {},
                     },
                     "Checks": [
                         {"Status": "passing"},
                         {"Status": "critical"},  # This makes overall health critical
-                        {"Status": "passing"}
-                    ]
+                        {"Status": "passing"},
+                    ],
                 }
-            ]
+            ],
         )
 
         services = await registry.discover("complex-service")
@@ -356,13 +340,11 @@ class TestConsulServiceRegistry:
                         "Address": "10.0.1.1",
                         "Port": 8080,
                         "Tags": [],
-                        "Meta": {}
+                        "Meta": {},
                     },
-                    "Checks": [
-                        {"Status": "passing"}
-                    ]
+                    "Checks": [{"Status": "passing"}],
                 }
-            ]
+            ],
         )
 
         services = await registry.get_healthy_services("healthy-service")
@@ -397,7 +379,10 @@ class TestConsulServiceRegistry:
     @pytest.mark.asyncio
     async def test_async_context_manager(self, mock_consul):
         """Test registry as async context manager."""
-        with patch('dotmac.platform.service_registry.consul_registry.consul.aio.Consul', return_value=mock_consul):
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.consul.aio.Consul",
+            return_value=mock_consul,
+        ):
             async with ConsulServiceRegistry() as registry:
                 service_id = await registry.register("test-service", "localhost", 8080)
                 assert service_id in registry._registered_services
@@ -419,11 +404,9 @@ class TestConsulServiceRegistry:
                         "Port": 8080,
                         # Tags and Meta are missing
                     },
-                    "Checks": [
-                        {"Status": "passing"}
-                    ]
+                    "Checks": [{"Status": "passing"}],
                 }
-            ]
+            ],
         )
 
         services = await registry.discover("minimal-service")
@@ -439,7 +422,9 @@ class TestGlobalFunctions:
 
     def test_get_consul_registry_singleton(self):
         """Test that get_consul_registry returns singleton."""
-        with patch('dotmac.platform.service_registry.consul_registry.ConsulServiceRegistry') as mock_registry_class:
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.ConsulServiceRegistry"
+        ) as mock_registry_class:
             mock_instance = MagicMock()
             mock_registry_class.return_value = mock_instance
 
@@ -455,13 +440,16 @@ class TestGlobalFunctions:
 
     def test_get_consul_registry_with_settings(self):
         """Test get_consul_registry with custom settings."""
-        with patch('dotmac.platform.service_registry.consul_registry.settings') as mock_settings:
+        with patch("dotmac.platform.service_registry.consul_registry.settings") as mock_settings:
             mock_settings.consul_host = "consul.example.com"
             mock_settings.consul_port = 8501
 
-            with patch('dotmac.platform.service_registry.consul_registry.ConsulServiceRegistry') as mock_registry_class:
+            with patch(
+                "dotmac.platform.service_registry.consul_registry.ConsulServiceRegistry"
+            ) as mock_registry_class:
                 # Reset global registry to test fresh instantiation
                 import dotmac.platform.service_registry.consul_registry as registry_module
+
                 registry_module._consul_registry = None
 
                 get_consul_registry()
@@ -471,7 +459,9 @@ class TestGlobalFunctions:
     @pytest.mark.asyncio
     async def test_register_service_function(self):
         """Test global register_service function."""
-        with patch('dotmac.platform.service_registry.consul_registry.get_consul_registry') as mock_get_registry:
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.get_consul_registry"
+        ) as mock_get_registry:
             mock_registry = MagicMock()
             mock_registry.register = AsyncMock(return_value="test-service-id")
             mock_get_registry.return_value = mock_registry
@@ -483,7 +473,7 @@ class TestGlobalFunctions:
                 service_id="custom-id",
                 tags=["test"],
                 meta={"env": "test"},
-                health_check="/health"
+                health_check="/health",
             )
 
             assert service_id == "test-service-id"
@@ -494,13 +484,15 @@ class TestGlobalFunctions:
                 service_id="custom-id",
                 tags=["test"],
                 meta={"env": "test"},
-                health_check="/health"
+                health_check="/health",
             )
 
     @pytest.mark.asyncio
     async def test_deregister_service_function(self):
         """Test global deregister_service function."""
-        with patch('dotmac.platform.service_registry.consul_registry.get_consul_registry') as mock_get_registry:
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.get_consul_registry"
+        ) as mock_get_registry:
             mock_registry = MagicMock()
             mock_registry.deregister = AsyncMock()
             mock_get_registry.return_value = mock_registry
@@ -518,10 +510,12 @@ class TestGlobalFunctions:
             port=8080,
             service_id="test-1",
             tags=[],
-            meta={}
+            meta={},
         )
 
-        with patch('dotmac.platform.service_registry.consul_registry.get_consul_registry') as mock_get_registry:
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.get_consul_registry"
+        ) as mock_get_registry:
             mock_registry = MagicMock()
             mock_registry.discover = AsyncMock(return_value=[mock_service])
             mock_get_registry.return_value = mock_registry
@@ -541,10 +535,12 @@ class TestGlobalFunctions:
             port=8080,
             service_id="healthy-1",
             tags=[],
-            meta={}
+            meta={},
         )
 
-        with patch('dotmac.platform.service_registry.consul_registry.get_consul_registry') as mock_get_registry:
+        with patch(
+            "dotmac.platform.service_registry.consul_registry.get_consul_registry"
+        ) as mock_get_registry:
             mock_registry = MagicMock()
             mock_registry.get_healthy_services = AsyncMock(return_value=[mock_service])
             mock_get_registry.return_value = mock_registry

@@ -5,7 +5,7 @@ This module provides utilities to configure and connect to Vault/OpenBao backend
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from pydantic import BaseModel, Field
@@ -19,15 +19,15 @@ class VaultConnectionConfig(BaseModel):
     """Configuration for Vault/OpenBao connection."""
 
     url: str = Field(description="Vault/OpenBao server URL")
-    token: Optional[str] = Field(None, description="Authentication token")
-    namespace: Optional[str] = Field(None, description="Vault namespace (enterprise)")
+    token: str | None = Field(None, description="Authentication token")
+    namespace: str | None = Field(None, description="Vault namespace (enterprise)")
     mount_path: str = Field("secret", description="KV mount path")
     kv_version: int = Field(2, description="KV version (1 or 2)")
     timeout: float = Field(30.0, description="Request timeout in seconds")
     verify_ssl: bool = Field(True, description="Verify SSL certificates")
-    role_id: Optional[str] = Field(None, description="AppRole role ID")
-    secret_id: Optional[str] = Field(None, description="AppRole secret ID")
-    kubernetes_role: Optional[str] = Field(None, description="Kubernetes auth role")
+    role_id: str | None = Field(None, description="AppRole role ID")
+    secret_id: str | None = Field(None, description="AppRole secret ID")
+    kubernetes_role: str | None = Field(None, description="Kubernetes auth role")
 
 
 def get_vault_config_from_env() -> VaultConnectionConfig:
@@ -107,7 +107,7 @@ def get_vault_config() -> VaultConnectionConfig:
 class VaultConnectionManager:
     """Manages Vault client connections with connection pooling and retry logic."""
 
-    def __init__(self, config: Optional[VaultConnectionConfig] = None):
+    def __init__(self, config: VaultConnectionConfig | None = None):
         """Initialize connection manager."""
         self.config = config or get_vault_config()
         self._client = None
@@ -232,7 +232,7 @@ class VaultConnectionManager:
 
 
 # Global connection manager instance
-_connection_manager: Optional[VaultConnectionManager] = None
+_connection_manager: VaultConnectionManager | None = None
 
 
 def get_vault_connection_manager() -> VaultConnectionManager:
@@ -258,7 +258,7 @@ def get_async_vault_client():
 
 
 # Health check function
-def check_vault_health() -> Dict[str, Any]:
+def check_vault_health() -> dict[str, Any]:
     """
     Check Vault server health.
 

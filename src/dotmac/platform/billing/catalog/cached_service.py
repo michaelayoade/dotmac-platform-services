@@ -6,22 +6,21 @@ to minimize database queries and improve response times.
 """
 
 import structlog
-from typing import List, Optional
 
-from dotmac.platform.billing.catalog.models import (
-    Product,
-    ProductCreateRequest,
-    ProductUpdateRequest,
-    ProductFilters,
-)
-from dotmac.platform.billing.catalog.service import ProductService
 from dotmac.platform.billing.cache import (
     BillingCache,
+    BillingCacheConfig,
     CacheKey,
     CacheTier,
     get_billing_cache,
-    BillingCacheConfig,
 )
+from dotmac.platform.billing.catalog.models import (
+    Product,
+    ProductCreateRequest,
+    ProductFilters,
+    ProductUpdateRequest,
+)
+from dotmac.platform.billing.catalog.service import ProductService
 from dotmac.platform.billing.exceptions import (
     ProductNotFoundError,
 )
@@ -57,17 +56,10 @@ class CachedProductService(ProductService):
         cache_key = CacheKey.product(product_id, tenant_id)
 
         # Try to get from cache first
-        cached_product = await self.cache.get(
-            cache_key,
-            tier=CacheTier.L2_REDIS
-        )
+        cached_product = await self.cache.get(cache_key, tier=CacheTier.L2_REDIS)
 
         if cached_product:
-            logger.debug(
-                "Product retrieved from cache",
-                product_id=product_id,
-                tenant_id=tenant_id
-            )
+            logger.debug("Product retrieved from cache", product_id=product_id, tenant_id=tenant_id)
             return Product.model_validate(cached_product)
 
         # Load from database
@@ -78,12 +70,12 @@ class CachedProductService(ProductService):
             cache_key,
             product.model_dump(),
             ttl=self.config.PRODUCT_TTL,
-            tags=[f"tenant:{tenant_id}", f"product:{product_id}"]
+            tags=[f"tenant:{tenant_id}", f"product:{product_id}"],
         )
 
         return product
 
-    async def get_product_by_sku(self, sku: str, tenant_id: str) -> Optional[Product]:
+    async def get_product_by_sku(self, sku: str, tenant_id: str) -> Product | None:
         """
         Get product by SKU with caching.
 
@@ -95,11 +87,7 @@ class CachedProductService(ProductService):
         cached_product = await self.cache.get(cache_key)
 
         if cached_product:
-            logger.debug(
-                "Product retrieved from cache by SKU",
-                sku=sku,
-                tenant_id=tenant_id
-            )
+            logger.debug("Product retrieved from cache by SKU", sku=sku, tenant_id=tenant_id)
             return Product.model_validate(cached_product)
 
         # Load from database
@@ -111,7 +99,7 @@ class CachedProductService(ProductService):
                 cache_key,
                 product.model_dump(),
                 ttl=self.config.PRODUCT_TTL,
-                tags=[f"tenant:{tenant_id}", f"sku:{sku.upper()}"]
+                tags=[f"tenant:{tenant_id}", f"sku:{sku.upper()}"],
             )
 
             # Also cache by product ID for consistency
@@ -120,7 +108,7 @@ class CachedProductService(ProductService):
                 product_cache_key,
                 product.model_dump(),
                 ttl=self.config.PRODUCT_TTL,
-                tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"]
+                tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"],
             )
 
         return product
@@ -128,11 +116,11 @@ class CachedProductService(ProductService):
     async def list_products(
         self,
         tenant_id: str,
-        filters: Optional[ProductFilters] = None,
+        filters: ProductFilters | None = None,
         page: int = 1,
         limit: int = 50,
-        cache_result: bool = True
-    ) -> List[Product]:
+        cache_result: bool = True,
+    ) -> list[Product]:
         """
         List products with caching for common queries.
 
@@ -155,7 +143,7 @@ class CachedProductService(ProductService):
                 logger.debug(
                     "Product list retrieved from cache",
                     tenant_id=tenant_id,
-                    filters_hash=filters_hash
+                    filters_hash=filters_hash,
                 )
                 return [Product.model_validate(p) for p in cached_list]
 
@@ -168,16 +156,12 @@ class CachedProductService(ProductService):
                 cache_key,
                 [p.model_dump() for p in products],
                 ttl=1800,  # 30 minutes for list operations
-                tags=[f"tenant:{tenant_id}", "product_list"]
+                tags=[f"tenant:{tenant_id}", "product_list"],
             )
 
         return products
 
-    async def create_product(
-        self,
-        product_data: ProductCreateRequest,
-        tenant_id: str
-    ) -> Product:
+    async def create_product(self, product_data: ProductCreateRequest, tenant_id: str) -> Product:
         """
         Create product and invalidate relevant caches.
         """
@@ -193,7 +177,7 @@ class CachedProductService(ProductService):
             cache_key,
             product.model_dump(),
             ttl=self.config.PRODUCT_TTL,
-            tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"]
+            tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"],
         )
 
         # Cache by SKU as well
@@ -202,23 +186,20 @@ class CachedProductService(ProductService):
             sku_cache_key,
             product.model_dump(),
             ttl=self.config.PRODUCT_TTL,
-            tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"]
+            tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"],
         )
 
         logger.info(
             "Product created and cached",
             product_id=product.product_id,
             sku=product.sku,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
 
         return product
 
     async def update_product(
-        self,
-        product_id: str,
-        updates: ProductUpdateRequest,
-        tenant_id: str
+        self, product_id: str, updates: ProductUpdateRequest, tenant_id: str
     ) -> Product:
         """
         Update product and invalidate caches.
@@ -234,7 +215,9 @@ class CachedProductService(ProductService):
         await self.cache.delete(cache_key)
 
         # Invalidate old SKU cache if SKU changed
-        if updates.sku and updates.sku != current_product.sku:
+        # Note: sku is not in ProductUpdateRequest, so this code is unreachable
+        # Keeping for future compatibility if SKU updates are added
+        if hasattr(updates, "sku") and updates.sku and updates.sku != current_product.sku:
             old_sku_key = CacheKey.product_by_sku(current_product.sku, tenant_id)
             await self.cache.delete(old_sku_key)
 
@@ -246,7 +229,7 @@ class CachedProductService(ProductService):
             cache_key,
             product.model_dump(),
             ttl=self.config.PRODUCT_TTL,
-            tags=[f"tenant:{tenant_id}", f"product:{product_id}"]
+            tags=[f"tenant:{tenant_id}", f"product:{product_id}"],
         )
 
         # Cache by new SKU
@@ -255,13 +238,11 @@ class CachedProductService(ProductService):
             sku_cache_key,
             product.model_dump(),
             ttl=self.config.PRODUCT_TTL,
-            tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"]
+            tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"],
         )
 
         logger.info(
-            "Product updated and cache refreshed",
-            product_id=product_id,
-            tenant_id=tenant_id
+            "Product updated and cache refreshed", product_id=product_id, tenant_id=tenant_id
         )
 
         return product
@@ -284,18 +265,12 @@ class CachedProductService(ProductService):
         await self.cache.invalidate_pattern(f"billing:products:{tenant_id}:*")
 
         logger.info(
-            "Product deactivated and cache cleared",
-            product_id=product_id,
-            tenant_id=tenant_id
+            "Product deactivated and cache cleared", product_id=product_id, tenant_id=tenant_id
         )
 
         return product
 
-    async def bulk_get_products(
-        self,
-        product_ids: List[str],
-        tenant_id: str
-    ) -> List[Product]:
+    async def bulk_get_products(self, product_ids: list[str], tenant_id: str) -> list[Product]:
         """
         Efficiently get multiple products with caching.
 
@@ -320,9 +295,7 @@ class CachedProductService(ProductService):
         # Batch load missing products from database
         if missing_ids:
             logger.debug(
-                "Loading products from database",
-                count=len(missing_ids),
-                tenant_id=tenant_id
+                "Loading products from database", count=len(missing_ids), tenant_id=tenant_id
             )
 
             # This would need to be implemented in base service
@@ -338,7 +311,7 @@ class CachedProductService(ProductService):
                         cache_key,
                         product.model_dump(),
                         ttl=self.config.PRODUCT_TTL,
-                        tags=[f"tenant:{tenant_id}", f"product:{product_id}"]
+                        tags=[f"tenant:{tenant_id}", f"product:{product_id}"],
                     )
                 except ProductNotFoundError:
                     continue
@@ -352,20 +325,11 @@ class CachedProductService(ProductService):
         This should be called during application startup or after
         cache clearing to improve initial response times.
         """
-        logger.info(
-            "Warming product cache",
-            tenant_id=tenant_id,
-            limit=limit
-        )
+        logger.info("Warming product cache", tenant_id=tenant_id, limit=limit)
 
         # Get most popular/recent products
         filters = ProductFilters(is_active=True)
-        products = await super().list_products(
-            tenant_id,
-            filters=filters,
-            page=1,
-            limit=limit
-        )
+        products = await super().list_products(tenant_id, filters=filters, page=1, limit=limit)
 
         # Cache each product
         cached_count = 0
@@ -376,7 +340,7 @@ class CachedProductService(ProductService):
                 cache_key,
                 product.model_dump(),
                 ttl=self.config.PRODUCT_TTL,
-                tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"]
+                tags=[f"tenant:{tenant_id}", f"product:{product.product_id}"],
             )
 
             # Cache by SKU
@@ -385,16 +349,12 @@ class CachedProductService(ProductService):
                 sku_cache_key,
                 product.model_dump(),
                 ttl=self.config.PRODUCT_TTL,
-                tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"]
+                tags=[f"tenant:{tenant_id}", f"sku:{product.sku}"],
             )
 
             cached_count += 1
 
-        logger.info(
-            "Product cache warmed",
-            tenant_id=tenant_id,
-            cached_count=cached_count
-        )
+        logger.info("Product cache warmed", tenant_id=tenant_id, cached_count=cached_count)
 
         return cached_count
 

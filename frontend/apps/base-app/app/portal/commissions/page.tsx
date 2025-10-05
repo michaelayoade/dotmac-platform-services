@@ -11,7 +11,7 @@ export default function PartnerCommissionsPage() {
     approved: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     paid: "bg-green-500/10 text-green-400 border-green-500/20",
     disputed: "bg-red-500/10 text-red-400 border-red-500/20",
-    cancelled: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+    cancelled: "bg-muted/10 text-muted-foreground border-border",
   };
 
   const STATUS_ICONS = {
@@ -26,7 +26,7 @@ export default function PartnerCommissionsPage() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="text-slate-400">Loading commissions...</div>
+          <div className="text-muted-foreground">Loading commissions...</div>
         </div>
       </div>
     );
@@ -36,8 +36,8 @@ export default function PartnerCommissionsPage() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="text-red-400">Failed to load commissions</div>
-          <div className="text-sm text-slate-500 mt-2">{error.message}</div>
+          <div className="text-red-600 dark:text-red-400">Failed to load commissions</div>
+          <div className="text-sm text-muted-foreground mt-2">{error.message}</div>
         </div>
       </div>
     );
@@ -59,22 +59,22 @@ export default function PartnerCommissionsPage() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-white">Commissions</h1>
-        <p className="text-slate-400 mt-1">
+        <h1 className="text-3xl font-bold text-foreground">Commissions</h1>
+        <p className="text-muted-foreground mt-1">
           Track your commission earnings and payments
         </p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Total Earned</div>
-              <div className="text-3xl font-bold text-white">
+              <div className="text-sm text-muted-foreground mb-1">Total Earned</div>
+              <div className="text-3xl font-bold text-foreground">
                 ${totalEarned.toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
+              <div className="text-xs text-muted-foreground mt-1">
                 {commissionList.length} events
               </div>
             </div>
@@ -84,14 +84,14 @@ export default function PartnerCommissionsPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Paid</div>
-              <div className="text-3xl font-bold text-green-400">
+              <div className="text-sm text-muted-foreground mb-1">Paid</div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                 ${totalPaid.toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">Received</div>
+              <div className="text-xs text-muted-foreground mt-1">Received</div>
             </div>
             <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-6 h-6 text-green-400" />
@@ -99,14 +99,14 @@ export default function PartnerCommissionsPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Pending</div>
-              <div className="text-3xl font-bold text-yellow-400">
+              <div className="text-sm text-muted-foreground mb-1">Pending</div>
+              <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                 ${totalPending.toLocaleString()}
               </div>
-              <div className="text-xs text-slate-500 mt-1">Awaiting payout</div>
+              <div className="text-xs text-muted-foreground mt-1">Awaiting payout</div>
             </div>
             <div className="w-12 h-12 bg-yellow-500/10 rounded-lg flex items-center justify-center">
               <Clock className="w-6 h-6 text-yellow-400" />
@@ -116,65 +116,65 @@ export default function PartnerCommissionsPage() {
       </div>
 
       {/* Commissions Table */}
-      <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
         {commissionList.length === 0 ? (
           <div className="text-center py-12">
-            <DollarSign className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 mb-2">No commissions yet</p>
-            <p className="text-sm text-slate-500">
+            <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-2">No commissions yet</p>
+            <p className="text-sm text-muted-foreground">
               Commissions will appear here when your referrals convert
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-950 border-b border-slate-800">
+              <thead className="bg-background border-b border-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Customer
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Rate
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Commission
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Payment Date
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {commissionList.map((commission) => {
                   const StatusIcon = STATUS_ICONS[commission.status];
 
                   return (
                     <tr
                       key={commission.id}
-                      className="hover:bg-slate-800/50 transition-colors"
+                      className="hover:bg-accent/50 transition-colors"
                     >
-                      <td className="px-4 py-3 text-sm text-white">
+                      <td className="px-4 py-3 text-sm text-foreground">
                         {new Date(commission.event_date).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
                         {commission.customer_id.substring(0, 8)}...
                       </td>
-                      <td className="px-4 py-3 text-sm text-white">
+                      <td className="px-4 py-3 text-sm text-foreground">
                         ${commission.amount.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
                         {(commission.commission_rate * 100).toFixed(2)}%
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-white">
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground">
                         ${commission.commission_amount.toLocaleString()}
                       </td>
                       <td className="px-4 py-3">
@@ -187,7 +187,7 @@ export default function PartnerCommissionsPage() {
                           {commission.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
                         {commission.payment_date
                           ? new Date(commission.payment_date).toLocaleDateString()
                           : "-"}
@@ -202,11 +202,11 @@ export default function PartnerCommissionsPage() {
       </div>
 
       {/* Payment Information */}
-      <div className="mt-6 bg-slate-900 p-6 rounded-lg border border-slate-800">
-        <h2 className="text-lg font-semibold text-white mb-3">
+      <div className="mt-6 bg-card p-6 rounded-lg border border-border">
+        <h2 className="text-lg font-semibold text-foreground mb-3">
           Payment Information
         </h2>
-        <div className="space-y-2 text-sm text-slate-400">
+        <div className="space-y-2 text-sm text-muted-foreground">
           <p>• Commissions are typically paid monthly on the 15th</p>
           <p>
             • Minimum payout threshold: $100 (pending commissions below this
@@ -214,7 +214,7 @@ export default function PartnerCommissionsPage() {
           </p>
           <p>
             • Payment method can be configured in{" "}
-            <a href="/portal/settings" className="text-blue-400 hover:text-blue-300">
+            <a href="/portal/settings" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300">
               Settings
             </a>
           </p>
@@ -222,7 +222,7 @@ export default function PartnerCommissionsPage() {
             • For questions about commissions, contact{" "}
             <a
               href="mailto:partners@dotmac.com"
-              className="text-blue-400 hover:text-blue-300"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
             >
               partners@dotmac.com
             </a>

@@ -3,10 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from dotmac.platform.auth.rate_limits import (
-    AUTH_RATE_LIMITS,
-    apply_auth_rate_limits
-)
+from dotmac.platform.auth.rate_limits import AUTH_RATE_LIMITS, apply_auth_rate_limits
 
 
 class TestAuthRateLimits:
@@ -92,8 +89,7 @@ class TestAuthRateLimits:
     def test_strictest_rate_limit(self):
         """Test which endpoint has the strictest limit."""
         limits = {
-            endpoint: int(limit.split("/")[0])
-            for endpoint, limit in AUTH_RATE_LIMITS.items()
+            endpoint: int(limit.split("/")[0]) for endpoint, limit in AUTH_RATE_LIMITS.items()
         }
 
         # Register and password-reset should be among the strictest

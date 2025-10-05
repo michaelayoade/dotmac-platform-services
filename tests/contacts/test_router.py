@@ -1,4 +1,5 @@
 """Tests for contacts router."""
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, Mock
 from fastapi import FastAPI
@@ -7,8 +8,11 @@ from uuid import uuid4
 import uuid
 
 from dotmac.platform.contacts.schemas import (
-    ContactCreate, ContactUpdate, ContactResponse,
-    ContactStatus, ContactStage,
+    ContactCreate,
+    ContactUpdate,
+    ContactResponse,
+    ContactStatus,
+    ContactStage,
 )
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.rbac_dependencies import require_permission
@@ -35,19 +39,16 @@ def mock_contact_service():
         "created_at": "2024-01-01T00:00:00Z",
         "updated_at": "2024-01-01T00:00:00Z",
         "last_contacted_at": None,
-        "contact_methods": []  # Email/phone would be here as ContactMethodResponse objects
+        "contact_methods": [],  # Email/phone would be here as ContactMethodResponse objects
     }
 
     service.create_contact = AsyncMock(return_value=mock_contact)
     service.get_contact = AsyncMock(return_value=mock_contact)
     service.update_contact = AsyncMock(return_value=mock_contact)
     service.delete_contact = AsyncMock(return_value=True)
-    service.list_contacts = AsyncMock(return_value={
-        "items": [mock_contact],
-        "total": 1,
-        "page": 1,
-        "size": 20
-    })
+    service.list_contacts = AsyncMock(
+        return_value={"items": [mock_contact], "total": 1, "page": 1, "size": 20}
+    )
 
     return service
 
@@ -57,28 +58,36 @@ def test_client(mock_contact_service):
     """Create test client with mocked dependencies."""
     app = FastAPI()
 
-    # Import the router here to apply patches before it loads
+    # Import the router
     from dotmac.platform.contacts import router as contacts_module
+    from dotmac.platform.contacts.router import get_async_session, get_current_tenant_id
 
     # Create mock user
     test_user = UserInfo(
         user_id="test-user-id",
         email="test@example.com",
         roles=["admin"],
-        permissions=["contacts.create", "contacts.read", "contacts.update", "contacts.delete"]
+        permissions=["contacts.create", "contacts.read", "contacts.update", "contacts.delete"],
+        tenant_id="test-tenant-id",
     )
 
-    # Mock all dependencies before including router
-    with patch('dotmac.platform.contacts.router.get_async_session') as mock_get_session:
-        with patch('dotmac.platform.contacts.router.get_current_tenant_id') as mock_get_tenant:
-            with patch('dotmac.platform.contacts.router.ContactService') as mock_service_class:
+    # Mock dependencies using dependency overrides
+    async def mock_get_session():
+        return AsyncMock()
 
-                mock_get_session.return_value = AsyncMock()
-                mock_get_tenant.return_value = uuid4()
-                mock_service_class.return_value = mock_contact_service
+    test_tenant_id = str(uuid4())
 
-                app.include_router(contacts_module.router)
+    async def mock_get_tenant():
+        return test_tenant_id
 
+    # Override dependencies
+    app.dependency_overrides[get_async_session] = mock_get_session
+    app.dependency_overrides[get_current_tenant_id] = mock_get_tenant
+
+    # Include router with prefix
+    app.include_router(contacts_module.router, prefix="/api/v1/contacts")
+
+    # Set up permission overrides
     permission_names = {
         "contacts.create",
         "contacts.read",
@@ -105,6 +114,7 @@ def test_client(mock_contact_service):
     client = TestClient(app)
     client.allowed_permissions = allowed_permissions  # type: ignore[attr-defined]
     client.test_user = test_user  # type: ignore[attr-defined]
+    client.mock_service = mock_contact_service  # type: ignore[attr-defined]
     return client
 
 
@@ -117,10 +127,12 @@ class TestContactEndpoints:
             "first_name": "John",
             "last_name": "Doe",
             "company": "ACME Corp",
-            "job_title": "CEO"
+            "job_title": "CEO",
         }
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.post("/api/v1/contacts/", json=contact_data)
 
         assert response.status_code == 201
@@ -134,7 +146,9 @@ class TestContactEndpoints:
         """Test getting a contact by ID."""
         contact_id = str(uuid4())
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.get(f"/api/v1/contacts/{contact_id}")
 
         assert response.status_code == 200
@@ -150,7 +164,7 @@ class TestContactEndpoints:
         mock_service = AsyncMock()
         mock_service.get_contact = AsyncMock(return_value=None)
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_service):
+        with patch("dotmac.platform.contacts.router.ContactService", return_value=mock_service):
             response = test_client.get(f"/api/v1/contacts/{contact_id}")
 
         assert response.status_code == 404
@@ -159,12 +173,11 @@ class TestContactEndpoints:
     def test_update_contact(self, test_client: TestClient, mock_contact_service):
         """Test updating a contact."""
         contact_id = str(uuid4())
-        update_data = {
-            "first_name": "Jane",
-            "job_title": "CTO"
-        }
+        update_data = {"first_name": "Jane", "job_title": "CTO"}
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.patch(f"/api/v1/contacts/{contact_id}", json=update_data)
 
         assert response.status_code == 200
@@ -179,7 +192,7 @@ class TestContactEndpoints:
         mock_service = AsyncMock()
         mock_service.update_contact = AsyncMock(return_value=None)
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_service):
+        with patch("dotmac.platform.contacts.router.ContactService", return_value=mock_service):
             response = test_client.patch(f"/api/v1/contacts/{contact_id}", json=update_data)
 
         assert response.status_code == 404
@@ -189,7 +202,9 @@ class TestContactEndpoints:
         """Test deleting a contact."""
         contact_id = str(uuid4())
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.delete(f"/api/v1/contacts/{contact_id}")
 
         assert response.status_code == 204
@@ -201,7 +216,7 @@ class TestContactEndpoints:
         mock_service = AsyncMock()
         mock_service.delete_contact = AsyncMock(return_value=False)
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_service):
+        with patch("dotmac.platform.contacts.router.ContactService", return_value=mock_service):
             response = test_client.delete(f"/api/v1/contacts/{contact_id}")
 
         assert response.status_code == 404
@@ -209,18 +224,18 @@ class TestContactEndpoints:
     def test_search_contacts(self, test_client: TestClient, mock_contact_service):
         """Test searching contacts."""
         # Update mock to return search results format
-        mock_contact_service.search_contacts = AsyncMock(return_value=(
-            [mock_contact_service.create_contact.return_value],  # contacts list
-            1  # total count
-        ))
+        mock_contact_service.search_contacts = AsyncMock(
+            return_value=(
+                [mock_contact_service.create_contact.return_value],  # contacts list
+                1,  # total count
+            )
+        )
 
-        search_data = {
-            "query": "",
-            "page": 1,
-            "page_size": 20
-        }
+        search_data = {"query": "", "page": 1, "page_size": 20}
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.post("/api/v1/contacts/search", json=search_data)
 
         assert response.status_code == 200
@@ -233,20 +248,24 @@ class TestContactEndpoints:
     def test_search_contacts_with_filters(self, test_client: TestClient, mock_contact_service):
         """Test searching contacts with filters."""
         # Update mock to return search results format
-        mock_contact_service.search_contacts = AsyncMock(return_value=(
-            [mock_contact_service.create_contact.return_value],  # contacts list
-            1  # total count
-        ))
+        mock_contact_service.search_contacts = AsyncMock(
+            return_value=(
+                [mock_contact_service.create_contact.return_value],  # contacts list
+                1,  # total count
+            )
+        )
 
         search_data = {
             "query": "john",
             "status": "active",
             "stage": "lead",
             "page": 1,
-            "page_size": 10
+            "page_size": 10,
         }
 
-        with patch('dotmac.platform.contacts.router.ContactService', return_value=mock_contact_service):
+        with patch(
+            "dotmac.platform.contacts.router.ContactService", return_value=mock_contact_service
+        ):
             response = test_client.post("/api/v1/contacts/search", json=search_data)
 
         assert response.status_code == 200
@@ -267,11 +286,7 @@ class TestContactPermissions:
         # Override to user without permission
         test_client.allowed_permissions.discard("contacts.create")  # type: ignore[attr-defined]
 
-        contact_data = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "company": "Test Corp"
-        }
+        contact_data = {"first_name": "John", "last_name": "Doe", "company": "Test Corp"}
 
         response = test_client.post("/api/v1/contacts/", json=contact_data)
         assert response.status_code == 403

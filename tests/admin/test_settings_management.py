@@ -44,10 +44,7 @@ class TestSettingsManagementService:
     def test_get_category_settings(self, service):
         """Test getting settings for a specific category."""
         # Test EMAIL settings (newly added)
-        response = service.get_category_settings(
-            SettingsCategory.EMAIL,
-            include_sensitive=False
-        )
+        response = service.get_category_settings(SettingsCategory.EMAIL, include_sensitive=False)
 
         assert isinstance(response, SettingsResponse)
         assert response.category == SettingsCategory.EMAIL
@@ -55,26 +52,17 @@ class TestSettingsManagementService:
         assert len(response.fields) > 0
 
         # Check sensitive fields are masked
-        smtp_password_field = next(
-            (f for f in response.fields if f.name == "smtp_password"),
-            None
-        )
+        smtp_password_field = next((f for f in response.fields if f.name == "smtp_password"), None)
         assert smtp_password_field is not None
         assert smtp_password_field.sensitive is True
         assert smtp_password_field.value != "actual_password"  # Should be masked
 
     def test_get_category_settings_with_sensitive(self, service):
         """Test getting settings with sensitive fields included."""
-        response = service.get_category_settings(
-            SettingsCategory.EMAIL,
-            include_sensitive=True
-        )
+        response = service.get_category_settings(SettingsCategory.EMAIL, include_sensitive=True)
 
         # Sensitive fields should show actual values
-        smtp_password_field = next(
-            (f for f in response.fields if f.name == "smtp_password"),
-            None
-        )
+        smtp_password_field = next((f for f in response.fields if f.name == "smtp_password"), None)
         assert smtp_password_field is not None
         # Value should be the actual configured value (empty string by default)
         assert smtp_password_field.value == ""
@@ -87,7 +75,7 @@ class TestSettingsManagementService:
                 "smtp_host": "mail.example.com",
                 "smtp_port": 587,
                 "use_tls": True,
-            }
+            },
         )
 
         assert isinstance(result, SettingsValidationResult)
@@ -100,7 +88,7 @@ class TestSettingsManagementService:
             SettingsCategory.EMAIL,
             {
                 "smtp_port": "not_a_number",  # Invalid type
-            }
+            },
         )
 
         assert result.valid is False
@@ -112,7 +100,7 @@ class TestSettingsManagementService:
             SettingsCategory.DATABASE,
             {
                 "host": "new-db-host.com",  # This requires restart
-            }
+            },
         )
 
         assert result.restart_required is True
@@ -126,7 +114,7 @@ class TestSettingsManagementService:
                 "smtp_port": 465,
             },
             validate_only=False,
-            reason="Testing settings update"
+            reason="Testing settings update",
         )
 
         response = service.update_category_settings(
@@ -135,16 +123,13 @@ class TestSettingsManagementService:
             user_id="test-admin",
             user_email="admin@example.com",
             ip_address="127.0.0.1",
-            user_agent="pytest"
+            user_agent="pytest",
         )
 
         assert isinstance(response, SettingsResponse)
 
         # Check the values were updated
-        smtp_host_field = next(
-            (f for f in response.fields if f.name == "smtp_host"),
-            None
-        )
+        smtp_host_field = next((f for f in response.fields if f.name == "smtp_host"), None)
         assert smtp_host_field.value == "mail.example.com"
 
         # Check audit log was created
@@ -167,7 +152,7 @@ class TestSettingsManagementService:
             SettingsCategory.EMAIL,
             update_request,
             user_id="test-admin",
-            user_email="admin@example.com"
+            user_email="admin@example.com",
         )
 
         # No audit log should be created in validate-only mode
@@ -184,7 +169,7 @@ class TestSettingsManagementService:
             SettingsCategory.EMAIL,
             update_request,
             user_id="test-admin",
-            user_email="admin@example.com"
+            user_email="admin@example.com",
         )
 
         # Create a backup
@@ -192,7 +177,7 @@ class TestSettingsManagementService:
             name="Test Backup",
             description="Testing backup functionality",
             categories=[SettingsCategory.EMAIL],
-            user_id="test-admin"
+            user_id="test-admin",
         )
 
         assert backup.name == "Test Backup"
@@ -208,24 +193,19 @@ class TestSettingsManagementService:
             SettingsCategory.EMAIL,
             update_request2,
             user_id="test-admin",
-            user_email="admin@example.com"
+            user_email="admin@example.com",
         )
 
         # Restore from backup
         restored = service.restore_backup(
-            backup.id,
-            user_id="test-admin",
-            user_email="admin@example.com"
+            backup.id, user_id="test-admin", user_email="admin@example.com"
         )
 
         assert SettingsCategory.EMAIL in restored
 
         # Check the value was restored
         email_settings = service.get_category_settings(SettingsCategory.EMAIL)
-        smtp_host_field = next(
-            (f for f in email_settings.fields if f.name == "smtp_host"),
-            None
-        )
+        smtp_host_field = next((f for f in email_settings.fields if f.name == "smtp_host"), None)
         assert smtp_host_field.value == "backup-test.example.com"
 
     def test_get_audit_logs(self, service):
@@ -240,7 +220,7 @@ class TestSettingsManagementService:
                 SettingsCategory.EMAIL,
                 update_request,
                 user_id=f"admin-{i}",
-                user_email=f"admin-{i}@example.com"
+                user_email=f"admin-{i}@example.com",
             )
 
         # Get all audit logs
@@ -260,12 +240,13 @@ class TestSettingsManagementService:
         exported = service.export_settings(
             categories=[SettingsCategory.EMAIL, SettingsCategory.TENANT],
             include_sensitive=False,
-            format="json"
+            format="json",
         )
 
         assert isinstance(exported, str)
 
         import json
+
         data = json.loads(exported)
         assert "email" in data
         assert "tenant" in data
@@ -276,9 +257,7 @@ class TestSettingsManagementService:
     def test_export_settings_env(self, service):
         """Test exporting settings to environment variable format."""
         exported = service.export_settings(
-            categories=[SettingsCategory.EMAIL],
-            include_sensitive=True,
-            format="env"
+            categories=[SettingsCategory.EMAIL], include_sensitive=True, format="env"
         )
 
         assert isinstance(exported, str)
@@ -336,7 +315,7 @@ class TestSettingsManagementService:
                 SettingsCategory.EMAIL,
                 update_request,
                 user_id="test-admin",
-                user_email="admin@example.com"
+                user_email="admin@example.com",
             )
 
         assert "Invalid field" in str(exc_info.value)

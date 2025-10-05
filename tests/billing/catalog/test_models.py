@@ -54,8 +54,12 @@ class TestUsageType:
     def test_usage_type_enum_members(self):
         """Test UsageType enum has all expected members."""
         expected_types = {
-            "API_CALLS", "STORAGE_GB", "BANDWIDTH_GB",
-            "USERS", "TRANSACTIONS", "COMPUTE_HOURS"
+            "API_CALLS",
+            "STORAGE_GB",
+            "BANDWIDTH_GB",
+            "USERS",
+            "TRANSACTIONS",
+            "COMPUTE_HOURS",
         }
         actual_types = set(UsageType.__members__.keys())
         assert actual_types == expected_types

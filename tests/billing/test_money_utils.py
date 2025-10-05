@@ -11,7 +11,10 @@ from dotmac.platform.billing.money_utils import (
     format_money,
     add_money,
     multiply_money,
-    USD, EUR, GBP, JPY,
+    USD,
+    EUR,
+    GBP,
+    JPY,
 )
 
 
@@ -263,17 +266,14 @@ class TestMoneyHandler:
         money = Money("100.50", "USD")
 
         result = handler.to_dict(money)
-        assert result['amount'] == "100.50"
-        assert result['currency'] == "USD"
-        assert result['minor_units'] == 10050
+        assert result["amount"] == "100.50"
+        assert result["currency"] == "USD"
+        assert result["minor_units"] == 10050
 
     def test_from_dict(self):
         """Test creating money from dictionary."""
         handler = MoneyHandler()
-        data = {
-            'amount': "100.50",
-            'currency': "USD"
-        }
+        data = {"amount": "100.50", "currency": "USD"}
 
         money = handler.from_dict(data)
         assert money.amount == Decimal("100.50")

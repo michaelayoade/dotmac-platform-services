@@ -112,9 +112,21 @@ class TestUserModel:
         user_dict = user.to_dict()
 
         expected_keys = {
-            "user_id", "username", "email", "full_name", "roles",
-            "permissions", "is_active", "is_verified", "is_superuser",
-            "mfa_enabled", "created_at", "updated_at", "last_login", "tenant_id"
+            "user_id",
+            "username",
+            "email",
+            "full_name",
+            "roles",
+            "permissions",
+            "is_active",
+            "is_verified",
+            "is_superuser",
+            "is_platform_admin",
+            "mfa_enabled",
+            "created_at",
+            "updated_at",
+            "last_login",
+            "tenant_id",
         }
 
         assert set(user_dict.keys()) == expected_keys
@@ -207,7 +219,7 @@ class TestUserModel:
         complex_metadata = {
             "preferences": {"theme": "dark", "language": "en"},
             "settings": {"notifications": True},
-            "custom_data": [1, 2, 3]
+            "custom_data": [1, 2, 3],
         }
 
         user = User(

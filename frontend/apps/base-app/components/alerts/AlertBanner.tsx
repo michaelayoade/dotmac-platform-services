@@ -75,8 +75,8 @@ function AlertItem({ alert, onDismiss }: { alert: Alert; onDismiss: (id: string)
         </div>
         <button
           onClick={() => onDismiss(alert.id)}
-          className="text-slate-500 hover:text-slate-400 transition-colors"
-          aria-label="Dismiss alert"
+          className="text-slate-500 hover:text-slate-400 transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
+          aria-label={`Dismiss ${alert.title} alert`}
         >
           <X className="h-4 w-4" />
         </button>

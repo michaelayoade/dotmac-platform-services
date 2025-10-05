@@ -98,7 +98,7 @@ class TestSearchQuery:
             sort_by="created_at",
             sort_order=SortOrder.ASC,
             include_score=True,
-            highlight=True
+            highlight=True,
         )
         assert query.query == "search term"
         assert query.search_type == SearchType.FUZZY
@@ -142,11 +142,7 @@ class TestSearchResult:
 
     def test_search_result_minimal(self):
         """Test SearchResult with minimal required fields."""
-        result = SearchResult(
-            id="doc1",
-            type="document",
-            data={"title": "Test Document"}
-        )
+        result = SearchResult(id="doc1", type="document", data={"title": "Test Document"})
         assert result.id == "doc1"
         assert result.type == "document"
         assert result.data == {"title": "Test Document"}
@@ -155,25 +151,17 @@ class TestSearchResult:
 
     def test_search_result_with_score(self):
         """Test SearchResult with score."""
-        result = SearchResult(
-            id="doc1",
-            type="document",
-            data={"title": "Test"},
-            score=0.95
-        )
+        result = SearchResult(id="doc1", type="document", data={"title": "Test"}, score=0.95)
         assert result.score == 0.95
 
     def test_search_result_with_highlights(self):
         """Test SearchResult with highlights."""
         highlights = {
             "title": ["<em>test</em> document"],
-            "content": ["This is a <em>test</em> content"]
+            "content": ["This is a <em>test</em> content"],
         }
         result = SearchResult(
-            id="doc1",
-            type="document",
-            data={"title": "Test Document"},
-            highlights=highlights
+            id="doc1", type="document", data={"title": "Test Document"}, highlights=highlights
         )
         assert result.highlights == highlights
 
@@ -185,18 +173,11 @@ class TestSearchResult:
             "metadata": {
                 "author": "John Doe",
                 "tags": ["test", "document"],
-                "created_at": "2024-01-01T00:00:00Z"
+                "created_at": "2024-01-01T00:00:00Z",
             },
-            "stats": {
-                "views": 100,
-                "likes": 25
-            }
+            "stats": {"views": 100, "likes": 25},
         }
-        result = SearchResult(
-            id="doc1",
-            type="document",
-            data=complex_data
-        )
+        result = SearchResult(id="doc1", type="document", data=complex_data)
         assert result.data == complex_data
         assert result.data["metadata"]["author"] == "John Doe"
         assert result.data["stats"]["views"] == 100
@@ -208,11 +189,7 @@ class TestSearchResponse:
     def test_search_response_minimal(self):
         """Test SearchResponse with minimal data."""
         query = SearchQuery(query="test")
-        response = SearchResponse(
-            results=[],
-            total=0,
-            query=query
-        )
+        response = SearchResponse(results=[], total=0, query=query)
         assert response.results == []
         assert response.total == 0
         assert response.query == query
@@ -225,12 +202,7 @@ class TestSearchResponse:
             SearchResult(id="2", type="doc", data={"title": "Doc 2"}),
         ]
         query = SearchQuery(query="test")
-        response = SearchResponse(
-            results=results,
-            total=2,
-            query=query,
-            took_ms=150
-        )
+        response = SearchResponse(results=results, total=2, query=query, took_ms=150)
         assert len(response.results) == 2
         assert response.total == 2
         assert response.took_ms == 150
@@ -240,11 +212,7 @@ class TestSearchResponse:
     def test_search_response_pagination_info(self):
         """Test SearchResponse with pagination context."""
         query = SearchQuery(query="test", limit=10, offset=20)
-        response = SearchResponse(
-            results=[],
-            total=100,
-            query=query
-        )
+        response = SearchResponse(results=[], total=100, query=query)
         assert response.total == 100
         assert response.query.limit == 10
         assert response.query.offset == 20
@@ -252,12 +220,7 @@ class TestSearchResponse:
     def test_search_response_performance_timing(self):
         """Test SearchResponse with performance timing."""
         query = SearchQuery(query="test")
-        response = SearchResponse(
-            results=[],
-            total=0,
-            query=query,
-            took_ms=5
-        )
+        response = SearchResponse(results=[], total=0, query=query, took_ms=5)
         assert response.took_ms == 5
 
 
@@ -279,7 +242,7 @@ class TestSearchBackend:
             "update",
             "bulk_index",
             "create_index",
-            "delete_index"
+            "delete_index",
         }
         assert abstract_methods == expected_methods
 
@@ -353,9 +316,7 @@ class TestDataValidation:
         # This will pass since we're not doing runtime validation
         # But it's good to document expected usage
         valid_query = SearchQuery(
-            query="test",
-            search_type=SearchType.FUZZY,
-            sort_order=SortOrder.ASC
+            query="test", search_type=SearchType.FUZZY, sort_order=SortOrder.ASC
         )
         assert valid_query.search_type == SearchType.FUZZY
         assert valid_query.sort_order == SortOrder.ASC

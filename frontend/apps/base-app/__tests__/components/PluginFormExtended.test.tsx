@@ -67,8 +67,9 @@ describe('PluginForm Extended Coverage', () => {
 
     // Simulate FileReader onload
     act(() => {
-      mockFileReader.onload = jest.fn();
-      mockFileReader.onload!({} as any);
+      if (mockFileReader.onload) {
+        (mockFileReader.onload as any)({} as any);
+      }
     });
 
     global.FileReader = originalFileReader;

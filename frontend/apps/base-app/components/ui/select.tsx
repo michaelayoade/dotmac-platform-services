@@ -36,7 +36,7 @@ export const Select = ({ children, ...props }: SelectProps) => (
 
 export const SelectTrigger = ({ children, className = '', ...props }: SelectTriggerProps) => (
   <button
-    className={`flex h-10 w-full items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm ${className}`}
+    className={`flex h-10 w-full items-center justify-between rounded-md border border-border bg-muted px-3 py-2 text-sm ${className}`}
     {...props}
   >
     {children}
@@ -48,13 +48,13 @@ export const SelectValue = ({ placeholder, ...props }: SelectValueProps) => (
 );
 
 export const SelectContent = ({ children, ...props }: SelectContentProps) => (
-  <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-slate-700 bg-slate-800" {...props}>
+  <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-muted" {...props}>
     {children}
   </div>
 );
 
 export const SelectItem = ({ children, ...props }: SelectItemProps) => (
-  <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm hover:bg-slate-700" {...props}>
+  <div className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted" {...props}>
     {children}
   </div>
 );

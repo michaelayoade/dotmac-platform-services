@@ -1,6 +1,6 @@
 # DotMac Platform Services - Makefile
 
-.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client infra-up infra-down infra-status run run-dev seed-db
+.PHONY: help install test test-fast test-unit test-integration test-cov test-mutation test-slow test-comprehensive lint format clean doctor doctor-imports verify docker-up docker-down docker-test openapi-client infra-up infra-down infra-status run run-dev seed-db dev dev-backend dev-frontend dev-all
 
 # Default target
 help:
@@ -15,6 +15,7 @@ help:
 	@echo "  make test            Run all tests with coverage"
 	@echo "  make test-fast       Run fast unit tests only (no coverage)"
 	@echo "  make test-unit       Run unit tests with coverage"
+	@echo "  make test-slow       Run only slow/comprehensive tests"
 	@echo "  make test-integration Run integration tests with Docker"
 	@echo "  make test-cov        Generate HTML coverage report"
 	@echo ""
@@ -31,6 +32,10 @@ help:
 	@echo "Running:"
 	@echo "  make run             Start the application"
 	@echo "  make run-dev         Start in development mode with hot reload"
+	@echo "  make dev-all         Start backend + frontend (requires infra running)"
+	@echo "  make dev-backend     Start backend only (port 8000)"
+	@echo "  make dev-frontend    Start frontend only (port 3000)"
+	@echo "  make dev             Start infra + backend + frontend (full stack)"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint            Run all linters"
@@ -74,6 +79,14 @@ test-cov:
 		--cov-fail-under=90
 	@echo "Opening coverage report..."
 	@python -m webbrowser htmlcov/index.html || open htmlcov/index.html
+
+# Run only slow and comprehensive tests
+test-slow:
+	poetry run pytest tests/ -m "slow or comprehensive" -v --tb=short
+
+# Run comprehensive tests specifically
+test-comprehensive:
+	poetry run pytest tests/ -m "comprehensive" -v --tb=short
 
 # Environment diagnostics
 doctor:
@@ -141,34 +154,13 @@ test-integration:
 
 # Infrastructure Management
 infra-up:
-	@echo "Starting infrastructure services..."
-	@docker-compose up -d postgres redis openbao
-	@echo "Waiting for services to be healthy..."
-	@sleep 5
-	@docker-compose ps
-	@echo ""
-	@echo "Infrastructure services started!"
-	@echo "  PostgreSQL: localhost:5432"
-	@echo "  Redis: localhost:6379"
-	@echo "  OpenBao/Vault: localhost:8200"
-	@echo ""
-	@echo "To start optional services:"
-	@echo "  docker-compose --profile celery up -d     # Celery workers"
-	@echo "  docker-compose --profile observability up -d  # Jaeger"
-	@echo "  docker-compose --profile storage up -d     # MinIO"
+	@./scripts/check_infra.sh up
 
 infra-down:
-	@echo "Stopping infrastructure services..."
-	@docker-compose down
-	@echo "Infrastructure services stopped."
+	@./scripts/check_infra.sh down
 
 infra-status:
-	@echo "Infrastructure Status:"
-	@echo "====================="
-	@docker-compose ps
-	@echo ""
-	@echo "Service Health:"
-	@poetry run python -c "from src.dotmac.platform.health_checks import HealthChecker; checker = HealthChecker(); summary = checker.get_summary(); [print(f\"  {'✅' if s['status'] == 'healthy' else '❌'} {s['name']}: {s['status']} - {s['message']}\") for s in summary['services']]"
+	@./scripts/check_infra.sh status
 
 # Run application
 run:
@@ -187,3 +179,50 @@ seed-db-clean:
 	@echo "🧹 Clearing and re-seeding database..."
 	@poetry run python scripts/seed_data.py --env=development --clear
 	@echo "✅ Database re-seeded successfully!"
+
+# Development mode - Backend only
+dev-backend:
+	@echo "🚀 Starting backend on http://localhost:8000"
+	@echo "   API docs: http://localhost:8000/docs"
+	@ENVIRONMENT=development poetry run uvicorn src.dotmac.platform.main:app --reload --host 0.0.0.0 --port 8000
+
+# Development mode - Frontend only
+dev-frontend:
+	@echo "🚀 Starting frontend on http://localhost:3000"
+	@cd frontend/apps/base-app && PORT=3000 pnpm dev
+
+# Development mode - Backend + Frontend (requires infra)
+dev-all:
+	@echo "🚀 Starting backend + frontend..."
+	@echo ""
+	@echo "  Backend:  http://localhost:8000"
+	@echo "  Frontend: http://localhost:3000"
+	@echo "  API Docs: http://localhost:8000/docs"
+	@echo ""
+	@$(MAKE) -j2 dev-backend dev-frontend
+
+# Full development stack (infra + backend + frontend)
+dev:
+	@echo "🚀 Starting full development stack..."
+	@echo ""
+	@./scripts/check_infra.sh dev
+	@echo ""
+	@echo "✨ Full stack ready!"
+	@echo ""
+	@echo "  📦 Infrastructure:"
+	@echo "    PostgreSQL:  localhost:5432"
+	@echo "    Redis:       localhost:6379"
+	@echo "    Vault:       localhost:8200"
+	@echo "    MinIO API:   localhost:9000"
+	@echo "    MinIO UI:    localhost:9001"
+	@echo "    Jaeger UI:   http://localhost:16686"
+	@echo "    Flower UI:   http://localhost:5555"
+	@echo ""
+	@echo "  🚀 Application:"
+	@echo "    Backend:     http://localhost:8000"
+	@echo "    Frontend:    http://localhost:3000"
+	@echo "    API Docs:    http://localhost:8000/docs"
+	@echo ""
+	@echo "Press Ctrl+C to stop all services"
+	@echo ""
+	@$(MAKE) dev-all

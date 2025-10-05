@@ -87,10 +87,7 @@ class TestUserServiceTenantSafety:
         mock_session.execute.side_effect = [mock_count_result, mock_result]
 
         # This should work with explicit bypass
-        users, total = await user_service.list_users(
-            tenant_id=None,
-            require_tenant=False
-        )
+        users, total = await user_service.list_users(tenant_id=None, require_tenant=False)
 
         # Should execute query successfully
         assert mock_session.execute.call_count == 2
@@ -140,10 +137,7 @@ class TestUserServiceTenantSafety:
         mock_session.execute.side_effect = [mock_count_result, mock_result]
 
         await user_service.list_users(
-            tenant_id="tenant-123",
-            is_active=True,
-            role="admin",
-            search="john"
+            tenant_id="tenant-123", is_active=True, role="admin", search="john"
         )
 
         # Should execute query successfully with all filters
@@ -163,11 +157,7 @@ class TestUserServiceTenantSafety:
         # Set up execute to return different results based on call
         mock_session.execute.side_effect = [mock_count_result, mock_result]
 
-        await user_service.list_users(
-            tenant_id="tenant-123",
-            skip=20,
-            limit=10
-        )
+        await user_service.list_users(tenant_id="tenant-123", skip=20, limit=10)
 
         # Should execute query successfully with pagination
         assert mock_session.execute.call_count == 2
@@ -176,10 +166,11 @@ class TestUserServiceTenantSafety:
         """Test that require_tenant defaults to True."""
         # Check the method signature defaults
         import inspect
+
         sig = inspect.signature(user_service.list_users)
 
         # require_tenant should default to True
-        require_tenant_param = sig.parameters.get('require_tenant')
+        require_tenant_param = sig.parameters.get("require_tenant")
         assert require_tenant_param is not None
         assert require_tenant_param.default is True
 
@@ -262,8 +253,7 @@ class TestUserServiceSecurityImprovement:
 
         # Admin operation: get all users across all tenants
         users, total = await service.list_users(
-            tenant_id=None,
-            require_tenant=False  # Explicit admin override
+            tenant_id=None, require_tenant=False  # Explicit admin override
         )
 
         # Should work for admin operations
@@ -320,6 +310,7 @@ class TestUserServiceTenantFilteringLogic:
 
     def test_require_tenant_validation_logic(self):
         """Test the validation logic for require_tenant parameter."""
+
         # Test the actual validation logic
         def validate_tenant_requirement(tenant_id, require_tenant=True):
             """Replicate the validation logic from the service."""

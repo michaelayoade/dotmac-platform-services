@@ -3,26 +3,25 @@ Billing settings API router
 """
 
 import logging
-from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user, UserInfo
-from dotmac.platform.db import get_db
-from dotmac.platform.billing.settings.service import BillingSettingsService
+from dotmac.platform.auth.dependencies import UserInfo, get_current_user
 from dotmac.platform.billing.settings.models import (
     BillingSettings,
     CompanyInfo,
-    TaxSettings,
-    PaymentSettings,
     InvoiceSettings,
     NotificationSettings,
+    PaymentSettings,
+    TaxSettings,
 )
+from dotmac.platform.billing.settings.service import BillingSettingsService
+from dotmac.platform.db import get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/settings", tags=["billing-settings"])
+router = APIRouter(prefix="/settings", tags=["Billing - Settings"])
 
 
 @router.get("", response_model=BillingSettings)
@@ -41,7 +40,7 @@ async def get_billing_settings(
         logger.error(f"Error retrieving billing settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve billing settings"
+            detail="Failed to retrieve billing settings",
         )
 
 
@@ -59,15 +58,12 @@ async def update_billing_settings(
         updated_settings = await service.update_settings(tenant_id, settings)
         return updated_settings
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating billing settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update billing settings"
+            detail="Failed to update billing settings",
         )
 
 
@@ -88,7 +84,7 @@ async def update_company_info(
         logger.error(f"Error updating company info: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update company information"
+            detail="Failed to update company information",
         )
 
 
@@ -109,7 +105,7 @@ async def update_tax_settings(
         logger.error(f"Error updating tax settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update tax settings"
+            detail="Failed to update tax settings",
         )
 
 
@@ -130,7 +126,7 @@ async def update_payment_settings(
         logger.error(f"Error updating payment settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update payment settings"
+            detail="Failed to update payment settings",
         )
 
 
@@ -151,7 +147,7 @@ async def update_invoice_settings(
         logger.error(f"Error updating invoice settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update invoice settings"
+            detail="Failed to update invoice settings",
         )
 
 
@@ -174,13 +170,13 @@ async def update_notification_settings(
         logger.error(f"Error updating notification settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update notification settings"
+            detail="Failed to update notification settings",
         )
 
 
 @router.put("/features", response_model=BillingSettings)
 async def update_feature_flags(
-    features: Dict[str, bool],
+    features: dict[str, bool],
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -195,7 +191,7 @@ async def update_feature_flags(
         logger.error(f"Error updating feature flags: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update feature flags"
+            detail="Failed to update feature flags",
         )
 
 
@@ -215,7 +211,7 @@ async def reset_to_defaults(
         logger.error(f"Error resetting billing settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reset billing settings"
+            detail="Failed to reset billing settings",
         )
 
 
@@ -235,5 +231,5 @@ async def validate_settings(
         logger.error(f"Error validating billing settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to validate billing settings"
+            detail="Failed to validate billing settings",
         )

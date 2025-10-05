@@ -7,7 +7,7 @@ import json
 import pickle
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from .core import (
@@ -26,7 +26,7 @@ class CheckpointData:
         operation_id: str,
         progress: ProgressInfo,
         state: dict[str, Any],
-        timestamp: datetime = None,
+        timestamp: datetime | None = None,
     ):
         self.operation_id = operation_id
         self.progress = progress
@@ -41,7 +41,7 @@ class ProgressStore:
         """Save progress information."""
         raise NotImplementedError
 
-    async def load(self, operation_id: str) -> Optional[ProgressInfo]:
+    async def load(self, operation_id: str) -> ProgressInfo | None:
         """Load progress information."""
         raise NotImplementedError
 
@@ -57,7 +57,7 @@ class ProgressStore:
 class FileProgressStore(ProgressStore):
     """File-based progress storage using JSON."""
 
-    def __init__(self, base_path: Path = None):
+    def __init__(self, base_path: Path | None = None):
         self.base_path = base_path or Path.home() / ".dotmac" / "data_transfer" / "progress"
         self.base_path.mkdir(parents=True, exist_ok=True)
 
@@ -74,14 +74,14 @@ class FileProgressStore(ProgressStore):
         except Exception as e:
             raise ProgressError(f"Failed to save progress: {e}") from e
 
-    async def load(self, operation_id: str) -> Optional[ProgressInfo]:
+    async def load(self, operation_id: str) -> ProgressInfo | None:
         """Load progress from JSON file."""
         try:
             file_path = self._get_file_path(operation_id)
             if not file_path.exists():
                 return None
 
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 data = json.load(f)
 
             # Convert string dates back to datetime
@@ -113,7 +113,7 @@ class FileProgressStore(ProgressStore):
 class CheckpointStore:
     """Store for operation checkpoints."""
 
-    def __init__(self, base_path: Path = None):
+    def __init__(self, base_path: Path | None = None):
         self.base_path = base_path or Path.home() / ".dotmac" / "data_transfer" / "checkpoints"
         self.base_path.mkdir(parents=True, exist_ok=True)
 
@@ -130,7 +130,7 @@ class CheckpointStore:
         except Exception as e:
             raise ProgressError(f"Failed to save checkpoint: {e}") from e
 
-    async def load_checkpoint(self, operation_id: str) -> Optional[CheckpointData]:
+    async def load_checkpoint(self, operation_id: str) -> CheckpointData | None:
         """Load checkpoint from file."""
         try:
             file_path = self._get_file_path(operation_id)
@@ -157,10 +157,10 @@ class ProgressTracker:
 
     def __init__(
         self,
-        operation_id: str = None,
-        store: Optional[ProgressStore] = None,
-        checkpoint_store: Optional[CheckpointStore] = None,
-        callback: Optional[ProgressCallback] = None,
+        operation_id: str | None = None,
+        store: ProgressStore | None = None,
+        checkpoint_store: CheckpointStore | None = None,
+        callback: ProgressCallback | None = None,
     ):
         self.operation_id = operation_id or str(uuid4())
         self.store = store or FileProgressStore()
@@ -180,7 +180,7 @@ class ProgressTracker:
         processed: int = 0,
         failed: int = 0,
         bytes_processed: int = 0,
-        current_batch: Optional[int] = None,
+        current_batch: int | None = None,
     ) -> None:
         """Update progress metrics."""
         self._progress.processed_records += processed
@@ -218,8 +218,8 @@ class ProgressTracker:
 
     async def initialize(
         self,
-        total_records: Optional[int] = None,
-        total_bytes: Optional[int] = None,
+        total_records: int | None = None,
+        total_bytes: int | None = None,
     ) -> None:
         """Initialize progress tracking."""
         self._progress.status = TransferStatus.RUNNING
@@ -293,7 +293,7 @@ class ProgressTracker:
         )
         await self.checkpoint_store.save_checkpoint(checkpoint)
 
-    async def load_checkpoint(self) -> Optional[CheckpointData]:
+    async def load_checkpoint(self) -> CheckpointData | None:
         """Load checkpoint data."""
         return await self.checkpoint_store.load_checkpoint(self.operation_id)
 
@@ -337,8 +337,8 @@ class ResumableOperation:
 
     def __init__(
         self,
-        operation_id: str = None,
-        tracker: Optional[ProgressTracker] = None,
+        operation_id: str | None = None,
+        tracker: ProgressTracker | None = None,
     ):
         self.operation_id = operation_id or str(uuid4())
         self.tracker = tracker or ProgressTracker(self.operation_id)
@@ -360,15 +360,15 @@ class ResumableOperation:
 
 
 def create_progress_tracker(
-    operation_id: str = None,
-    callback: Optional[ProgressCallback] = None,
+    operation_id: str | None = None,
+    callback: ProgressCallback | None = None,
 ) -> ProgressTracker:
     """Create a progress tracker."""
     return ProgressTracker(operation_id=operation_id, callback=callback)
 
 
 async def cleanup_old_operations(
-    store: Optional[ProgressStore] = None,
+    store: ProgressStore | None = None,
     max_age_days: int = 7,
 ) -> int:
     """Clean up old operation data."""

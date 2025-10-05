@@ -9,18 +9,19 @@ import uuid
 from datetime import datetime
 
 # Configure MinIO
-os.environ['STORAGE__PROVIDER'] = 'minio'
-os.environ['STORAGE__ENDPOINT'] = 'localhost:9000'
-os.environ['STORAGE__ACCESS_KEY'] = 'minioadmin'
-os.environ['STORAGE__SECRET_KEY'] = 'minioadmin123'
-os.environ['STORAGE__BUCKET'] = 'dotmac'
-os.environ['STORAGE__USE_SSL'] = 'false'
-os.environ['FEATURES__STORAGE_MINIO_ENABLED'] = 'true'
+os.environ["STORAGE__PROVIDER"] = "minio"
+os.environ["STORAGE__ENDPOINT"] = "localhost:9000"
+os.environ["STORAGE__ACCESS_KEY"] = "minioadmin"
+os.environ["STORAGE__SECRET_KEY"] = "minioadmin123"
+os.environ["STORAGE__BUCKET"] = "dotmac"
+os.environ["STORAGE__USE_SSL"] = "false"
+os.environ["FEATURES__STORAGE_MINIO_ENABLED"] = "true"
 
 # Force reload
 import sys
+
 for module in list(sys.modules.keys()):
-    if 'dotmac.platform' in module:
+    if "dotmac.platform" in module:
         del sys.modules[module]
 
 from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
@@ -51,18 +52,18 @@ async def main():
         {
             "name": f"document_{timestamp}_1.txt",
             "content": f"This is a test document created at {timestamp}".encode(),
-            "type": "text/plain"
+            "type": "text/plain",
         },
         {
             "name": f"data_{timestamp}_2.json",
             "content": f'{{"timestamp": "{timestamp}", "test": "minio", "persistent": true}}'.encode(),
-            "type": "application/json"
+            "type": "application/json",
         },
         {
             "name": f"report_{timestamp}_3.html",
             "content": f"<html><body><h1>Test Report {timestamp}</h1></body></html>".encode(),
-            "type": "text/html"
-        }
+            "type": "text/html",
+        },
     ]
 
     uploaded = []
@@ -72,12 +73,8 @@ async def main():
             file_name=file_data["name"],
             content_type=file_data["type"],
             path="persistent-test",
-            metadata={
-                "test": "persistence",
-                "timestamp": timestamp,
-                "should_persist": True
-            },
-            tenant_id="persistence-test"
+            metadata={"test": "persistence", "timestamp": timestamp, "should_persist": True},
+            tenant_id="persistence-test",
         )
         uploaded.append((file_id, file_data["name"]))
         print(f"  ✅ Uploaded: {file_data['name']} -> {file_id}")

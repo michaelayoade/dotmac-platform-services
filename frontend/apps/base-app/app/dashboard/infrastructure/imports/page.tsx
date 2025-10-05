@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -89,13 +89,7 @@ export default function ImportsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  useEffect(() => {
-    fetchJobs();
-    const interval = setInterval(fetchJobs, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, [statusFilter, typeFilter]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
@@ -110,7 +104,13 @@ export default function ImportsPage() {
     } catch (error) {
       console.error('Failed to fetch import jobs:', error);
     }
-  };
+  }, [statusFilter, typeFilter]);
+
+  useEffect(() => {
+    fetchJobs();
+    const interval = setInterval(fetchJobs, 5000);
+    return () => clearInterval(interval);
+  }, [fetchJobs]);
 
   const fetchFailures = async (jobId: string) => {
     try {
@@ -208,11 +208,11 @@ export default function ImportsPage() {
       in_progress: { label: 'In Progress', variant: 'default' as const, icon: RefreshCw },
       completed: { label: 'Completed', variant: 'success' as const, icon: CheckCircle },
       failed: { label: 'Failed', variant: 'destructive' as const, icon: XCircle },
-      partially_completed: { label: 'Partial', variant: 'warning' as const, icon: AlertCircle },
+      partially_completed: { label: 'Partial', variant: 'secondary' as const, icon: AlertCircle },
       cancelled: { label: 'Cancelled', variant: 'secondary' as const, icon: XCircle },
     };
 
-    const config = statusMap[status] || statusMap.pending;
+    const config = statusMap[status as keyof typeof statusMap] || statusMap.pending;
     const Icon = config.icon;
 
     return (
@@ -237,7 +237,7 @@ export default function ImportsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Data Imports</h1>
-          <p className="text-gray-500">Manage bulk data imports and migrations</p>
+          <p className="text-muted-foreground">Manage bulk data imports and migrations</p>
         </div>
         <Button onClick={() => setShowUploadDialog(true)}>
           <Upload className="mr-2 h-4 w-4" />
@@ -280,7 +280,7 @@ export default function ImportsPage() {
             <CardTitle className="text-sm font-medium">Failed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {jobs.filter(j => j.status === 'failed').length}
             </div>
           </CardContent>
@@ -295,7 +295,7 @@ export default function ImportsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 w-[180px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+              className="h-10 w-[180px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -307,7 +307,7 @@ export default function ImportsPage() {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="h-10 w-[180px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+              className="h-10 w-[180px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
               <option value="all">All Types</option>
               <option value="customers">Customers</option>
@@ -340,7 +340,7 @@ export default function ImportsPage() {
                   <TableCell>
                     <div>
                       <div className="font-medium">{job.file_name}</div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-muted-foreground">
                         {formatBytes(job.file_size)} • {job.file_format.toUpperCase()}
                       </div>
                     </div>
@@ -350,16 +350,16 @@ export default function ImportsPage() {
                   <TableCell>
                     <div className="w-[100px]">
                       <Progress value={job.progress_percentage} className="h-2" />
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {job.processed_records}/{job.total_records}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      <div className="text-green-600">✓ {job.successful_records}</div>
+                      <div className="text-green-600 dark:text-green-400">✓ {job.successful_records}</div>
                       {job.failed_records > 0 && (
-                        <div className="text-red-600">✗ {job.failed_records}</div>
+                        <div className="text-red-600 dark:text-red-400">✗ {job.failed_records}</div>
                       )}
                     </div>
                   </TableCell>
@@ -423,7 +423,7 @@ export default function ImportsPage() {
                 onChange={(e) =>
                   setUploadConfig({ ...uploadConfig, entity_type: e.target.value })
                 }
-                className="col-span-3 h-10 rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                className="col-span-3 h-10 rounded-md border border-border bg-card px-3 text-sm text-foreground"
               >
                 <option value="customers">Customers</option>
                 <option value="invoices">Invoices</option>
@@ -550,19 +550,19 @@ export default function ImportsPage() {
                     </div>
                     <div>
                       <Label>Successful</Label>
-                      <div className="text-green-600">
+                      <div className="text-green-600 dark:text-green-400">
                         {selectedJob.successful_records}
                       </div>
                     </div>
                     <div>
                       <Label>Failed</Label>
-                      <div className="text-red-600">
+                      <div className="text-red-600 dark:text-red-400">
                         {selectedJob.failed_records}
                       </div>
                     </div>
                   </div>
                   {selectedJob.error_message && (
-                    <div className="mt-4 p-3 bg-red-50 text-red-800 rounded">
+                    <div className="mt-4 p-3 bg-red-100 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded">
                       <Label>Error</Label>
                       <div>{selectedJob.error_message}</div>
                     </div>
@@ -603,7 +603,7 @@ export default function ImportsPage() {
                             </TableCell>
                             <TableCell>
                               <details>
-                                <summary className="cursor-pointer text-sm text-blue-600">
+                                <summary className="cursor-pointer text-sm text-blue-600 dark:text-blue-400">
                                   View data
                                 </summary>
                                 <pre className="mt-2 text-xs overflow-auto">

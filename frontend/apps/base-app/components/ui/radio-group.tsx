@@ -12,7 +12,7 @@ export const RadioGroupItem = React.forwardRef<HTMLInputElement, React.InputHTML
     <input
       type="radio"
       ref={ref}
-      className={`h-4 w-4 rounded-full border border-slate-700 text-sky-500 focus:ring-sky-500 ${className}`}
+      className={`h-4 w-4 rounded-full border border-border text-sky-500 focus:ring-sky-500 ${className}`}
       {...props}
     />
   )

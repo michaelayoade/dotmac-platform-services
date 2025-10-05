@@ -60,8 +60,13 @@ class TestSubscriptionStatus:
     def test_subscription_status_enum_members(self):
         """Test SubscriptionStatus enum has all expected members."""
         expected_statuses = {
-            "INCOMPLETE", "TRIALING", "ACTIVE", "PAST_DUE",
-            "CANCELED", "ENDED", "PAUSED"
+            "INCOMPLETE",
+            "TRIALING",
+            "ACTIVE",
+            "PAST_DUE",
+            "CANCELED",
+            "ENDED",
+            "PAUSED",
         }
         actual_statuses = set(SubscriptionStatus.__members__.keys())
         assert actual_statuses == expected_statuses
@@ -80,9 +85,18 @@ class TestSubscriptionEventType:
     def test_subscription_event_type_enum_members(self):
         """Test SubscriptionEventType enum has all expected members."""
         expected_events = {
-            "CREATED", "ACTIVATED", "TRIAL_STARTED", "TRIAL_ENDED",
-            "RENEWED", "PLAN_CHANGED", "CANCELED", "PAUSED",
-            "RESUMED", "ENDED", "PAYMENT_FAILED", "PAYMENT_SUCCEEDED"
+            "CREATED",
+            "ACTIVATED",
+            "TRIAL_STARTED",
+            "TRIAL_ENDED",
+            "RENEWED",
+            "PLAN_CHANGED",
+            "CANCELED",
+            "PAUSED",
+            "RESUMED",
+            "ENDED",
+            "PAYMENT_FAILED",
+            "PAYMENT_SUCCEEDED",
         }
         actual_events = set(SubscriptionEventType.__members__.keys())
         assert actual_events == expected_events

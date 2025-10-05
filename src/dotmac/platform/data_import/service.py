@@ -9,32 +9,22 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, BinaryIO
+from datetime import UTC, datetime
+from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.customer_management.mappers import (
-    CustomerImportSchema,
-    CustomerMapper
-)
-from dotmac.platform.customer_management.service import CustomerService
-from dotmac.platform.billing.mappers import (
-    BillingMapper,
-    InvoiceImportSchema,
-    SubscriptionImportSchema,
-    PaymentImportSchema
-)
 from dotmac.platform.billing.invoicing.service import InvoiceService
-from dotmac.platform.billing.subscriptions.service import SubscriptionService
 from dotmac.platform.billing.payments.service import PaymentService
+from dotmac.platform.billing.subscriptions.service import SubscriptionService
+from dotmac.platform.customer_management.mappers import CustomerMapper
+from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.data_import.models import (
+    ImportFailure,
     ImportJob,
     ImportJobStatus,
     ImportJobType,
-    ImportFailure
 )
 
 logger = logging.getLogger(__name__)
@@ -48,14 +38,14 @@ class ImportResult:
         job_id: str,
         total_records: int = 0,
         successful_records: int = 0,
-        failed_records: int = 0
+        failed_records: int = 0,
     ):
         self.job_id = job_id
         self.total_records = total_records
         self.successful_records = successful_records
         self.failed_records = failed_records
-        self.errors: List[Dict[str, Any]] = []
-        self.warnings: List[str] = []
+        self.errors: list[dict[str, Any]] = []
+        self.warnings: list[str] = []
 
     @property
     def success_rate(self) -> float:
@@ -64,7 +54,7 @@ class ImportResult:
             return 0.0
         return (self.successful_records / self.total_records) * 100
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "job_id": self.job_id,
@@ -87,10 +77,10 @@ class DataImportService:
     def __init__(
         self,
         session: AsyncSession,
-        customer_service: Optional[CustomerService] = None,
-        invoice_service: Optional[InvoiceService] = None,
-        subscription_service: Optional[SubscriptionService] = None,
-        payment_service: Optional[PaymentService] = None,
+        customer_service: CustomerService | None = None,
+        invoice_service: InvoiceService | None = None,
+        subscription_service: SubscriptionService | None = None,
+        payment_service: PaymentService | None = None,
     ):
         self.session = session
         self.customer_service = customer_service or CustomerService(session)
@@ -102,10 +92,10 @@ class DataImportService:
         self,
         file_content: BinaryIO,
         tenant_id: str,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         batch_size: int = 100,
         dry_run: bool = False,
-        use_celery: bool = False
+        use_celery: bool = False,
     ) -> ImportResult:
         """
         Import customers from CSV file.
@@ -128,17 +118,18 @@ class DataImportService:
             file_size=len(file_content.read()),
             file_format="csv",
             tenant_id=tenant_id,
-            user_id=user_id
+            user_id=user_id,
         )
         file_content.seek(0)  # Reset file pointer
 
         # If using Celery, save file and queue task
         if use_celery:
             import tempfile
+
             from dotmac.platform.data_import.tasks import process_import_job
 
             # Save file to temporary location
-            with tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False) as tmp_file:
                 tmp_file.write(file_content.read())
                 tmp_path = tmp_file.name
 
@@ -149,7 +140,7 @@ class DataImportService:
                 job_type=ImportJobType.CUSTOMERS.value,
                 tenant_id=tenant_id,
                 user_id=user_id,
-                config={'batch_size': batch_size, 'dry_run': dry_run}
+                config={"batch_size": batch_size, "dry_run": dry_run},
             )
 
             # Update job with task ID
@@ -168,7 +159,7 @@ class DataImportService:
             await self._update_job_status(job, ImportJobStatus.VALIDATING)
 
             # Parse CSV
-            text_content = file_content.read().decode('utf-8')
+            text_content = file_content.read().decode("utf-8")
             csv_reader = csv.DictReader(io.StringIO(text_content))
 
             rows = list(csv_reader)
@@ -186,7 +177,7 @@ class DataImportService:
                     error_type="validation",
                     error_message=error["error"],
                     row_data=error["data"],
-                    tenant_id=tenant_id
+                    tenant_id=tenant_id,
                 )
                 result.errors.append(error)
                 result.failed_records += 1
@@ -201,15 +192,13 @@ class DataImportService:
             await self._update_job_status(job, ImportJobStatus.IN_PROGRESS)
 
             for i in range(0, len(valid_customers), batch_size):
-                batch = valid_customers[i:i + batch_size]
+                batch = valid_customers[i : i + batch_size]
 
                 for customer_data in batch:
                     try:
                         # Convert to model format
                         model_data = CustomerMapper.from_import_to_model(
-                            customer_data,
-                            tenant_id=tenant_id,
-                            generate_customer_number=True
+                            customer_data, tenant_id=tenant_id, generate_customer_number=True
                         )
 
                         # Create customer using service
@@ -225,15 +214,13 @@ class DataImportService:
                             error_type="creation",
                             error_message=str(e),
                             row_data=customer_data.dict(),
-                            tenant_id=tenant_id
+                            tenant_id=tenant_id,
                         )
                         result.failed_records += 1
                         job.failed_records += 1
-                        result.errors.append({
-                            "row_number": i + 1,
-                            "error": str(e),
-                            "data": customer_data.dict()
-                        })
+                        result.errors.append(
+                            {"row_number": i + 1, "error": str(e), "data": customer_data.dict()}
+                        )
 
                 # Update progress
                 job.processed_records = min(i + batch_size, len(valid_customers))
@@ -263,12 +250,12 @@ class DataImportService:
 
     async def import_customers_json(
         self,
-        json_data: List[Dict[str, Any]],
+        json_data: list[dict[str, Any]],
         tenant_id: str,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         batch_size: int = 100,
         dry_run: bool = False,
-        use_celery: bool = False
+        use_celery: bool = False,
     ) -> ImportResult:
         """
         Import customers from JSON data.
@@ -290,7 +277,7 @@ class DataImportService:
             file_size=len(json.dumps(json_data).encode()),
             file_format="json",
             tenant_id=tenant_id,
-            user_id=user_id
+            user_id=user_id,
         )
 
         result = ImportResult(job_id=str(job.id))
@@ -310,7 +297,7 @@ class DataImportService:
                     error_type="validation",
                     error_message=error["error"],
                     row_data=error["data"],
-                    tenant_id=tenant_id
+                    tenant_id=tenant_id,
                 )
                 result.errors.append(error)
                 result.failed_records += 1
@@ -326,14 +313,12 @@ class DataImportService:
 
             # Similar processing logic as CSV import
             for i in range(0, len(valid_customers), batch_size):
-                batch = valid_customers[i:i + batch_size]
+                batch = valid_customers[i : i + batch_size]
 
                 for customer_data in batch:
                     try:
                         model_data = CustomerMapper.from_import_to_model(
-                            customer_data,
-                            tenant_id=tenant_id,
-                            generate_customer_number=True
+                            customer_data, tenant_id=tenant_id, generate_customer_number=True
                         )
                         await self.customer_service.create_customer(**model_data)
                         result.successful_records += 1
@@ -343,10 +328,7 @@ class DataImportService:
                         logger.error(f"Failed to create customer: {e}")
                         result.failed_records += 1
                         job.failed_records += 1
-                        result.errors.append({
-                            "error": str(e),
-                            "data": customer_data.dict()
-                        })
+                        result.errors.append({"error": str(e), "data": customer_data.dict()})
 
                 job.processed_records = min(i + batch_size, len(valid_customers))
                 await self.session.commit()
@@ -375,9 +357,9 @@ class DataImportService:
         self,
         file_content: BinaryIO,
         tenant_id: str,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         batch_size: int = 100,
-        dry_run: bool = False
+        dry_run: bool = False,
     ) -> ImportResult:
         """Import invoices from CSV file."""
         if not self.invoice_service:
@@ -390,7 +372,7 @@ class DataImportService:
             file_size=len(file_content.read()),
             file_format="csv",
             tenant_id=tenant_id,
-            user_id=user_id
+            user_id=user_id,
         )
         file_content.seek(0)
 
@@ -401,22 +383,25 @@ class DataImportService:
 
         return result
 
-    async def get_import_job(
-        self,
-        job_id: str,
-        tenant_id: str
-    ) -> Optional[ImportJob]:
+    async def get_import_job(self, job_id: str, tenant_id: str) -> ImportJob | None:
         """Get import job by ID."""
-        return await self.session.get(ImportJob, job_id)
+        from uuid import UUID
+
+        # Convert string to UUID for SQLAlchemy session.get()
+        try:
+            job_uuid = UUID(job_id) if isinstance(job_id, str) else job_id
+        except ValueError:
+            return None
+        return await self.session.get(ImportJob, job_uuid)
 
     async def list_import_jobs(
         self,
         tenant_id: str,
-        status: Optional[ImportJobStatus] = None,
-        job_type: Optional[ImportJobType] = None,
+        status: ImportJobStatus | None = None,
+        job_type: ImportJobType | None = None,
         limit: int = 20,
-        offset: int = 0
-    ) -> List[ImportJob]:
+        offset: int = 0,
+    ) -> list[ImportJob]:
         """List import jobs with optional filtering."""
         from sqlalchemy import select
 
@@ -434,11 +419,8 @@ class DataImportService:
         return result.scalars().all()
 
     async def get_import_failures(
-        self,
-        job_id: str,
-        tenant_id: str,
-        limit: int = 100
-    ) -> List[ImportFailure]:
+        self, job_id: str, tenant_id: str, limit: int = 100
+    ) -> list[ImportFailure]:
         """Get failures for an import job."""
         from sqlalchemy import select
 
@@ -460,9 +442,19 @@ class DataImportService:
         file_size: int,
         file_format: str,
         tenant_id: str,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ) -> ImportJob:
         """Create and persist an import job."""
+        # Convert user_id to UUID if it's a valid UUID string, otherwise set to None
+        initiated_by = None
+        if user_id:
+            try:
+                initiated_by = UUID(user_id)
+            except ValueError:
+                # If user_id is not a UUID, just skip it
+                # In real usage, user_id should be a UUID
+                pass
+
         job = ImportJob(
             id=uuid4(),
             job_type=job_type,
@@ -471,24 +463,24 @@ class DataImportService:
             file_size=file_size,
             file_format=file_format,
             tenant_id=tenant_id,
-            initiated_by=UUID(user_id) if user_id else None
+            initiated_by=initiated_by,
         )
         self.session.add(job)
         await self.session.commit()
         return job
 
-    async def _update_job_status(
-        self,
-        job: ImportJob,
-        status: ImportJobStatus
-    ) -> None:
+    async def _update_job_status(self, job: ImportJob, status: ImportJobStatus) -> None:
         """Update job status with timestamps."""
         job.status = status
 
         if status == ImportJobStatus.IN_PROGRESS and not job.started_at:
-            job.started_at = datetime.now(timezone.utc)
-        elif status in [ImportJobStatus.COMPLETED, ImportJobStatus.FAILED, ImportJobStatus.PARTIALLY_COMPLETED]:
-            job.completed_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
+        elif status in [
+            ImportJobStatus.COMPLETED,
+            ImportJobStatus.FAILED,
+            ImportJobStatus.PARTIALLY_COMPLETED,
+        ]:
+            job.completed_at = datetime.now(UTC)
 
         await self.session.commit()
 
@@ -498,8 +490,8 @@ class DataImportService:
         row_number: int,
         error_type: str,
         error_message: str,
-        row_data: Dict[str, Any],
-        tenant_id: str
+        row_data: dict[str, Any],
+        tenant_id: str,
     ) -> None:
         """Record an import failure for debugging."""
         failure = ImportFailure(
@@ -508,7 +500,7 @@ class DataImportService:
             error_type=error_type,
             error_message=error_message,
             row_data=row_data,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
         self.session.add(failure)
         await self.session.commit()

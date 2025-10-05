@@ -2,25 +2,28 @@
 Main FastAPI application entry point for DotMac Platform Services.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any, AsyncGenerator, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.responses import Response
 
+from dotmac.platform.audit import AuditContextMiddleware
+from dotmac.platform.auth.exceptions import AuthError, get_http_status
+from dotmac.platform.core.rate_limiting import get_limiter
 from dotmac.platform.db import init_db
-from dotmac.platform.health_checks import HealthChecker, ensure_infrastructure_running
-from dotmac.platform.rate_limiting import get_limiter
+from dotmac.platform.monitoring.health_checks import HealthChecker, ensure_infrastructure_running
 from dotmac.platform.routers import get_api_info, register_routers
 from dotmac.platform.secrets import load_secrets_from_vault_sync
 from dotmac.platform.settings import settings
 from dotmac.platform.telemetry import setup_telemetry
-from dotmac.platform.audit import AuditContextMiddleware
 from dotmac.platform.tenant import TenantMiddleware
 
 
@@ -28,6 +31,15 @@ def rate_limit_handler(request: Request, exc: Exception) -> Response:
     """Handle rate limit exceeded exceptions with proper typing."""
     # Cast to RateLimitExceeded since we know it will be that type when called
     return _rate_limit_exceeded_handler(request, exc)  # type: ignore
+
+
+def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+    """Handle authentication/authorization errors with proper status codes."""
+    status_code = get_http_status(exc)
+    return JSONResponse(
+        status_code=status_code,
+        content=exc.to_dict(),
+    )
 
 
 @asynccontextmanager
@@ -38,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Get structured logger after telemetry setup
     import structlog
+
     logger = structlog.get_logger(__name__)
 
     # Structured startup event
@@ -45,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "service.startup.begin",
         service="dotmac-platform",
         version=settings.app_version,
-        environment=settings.environment
+        environment=settings.environment,
     )
 
     # Check service dependencies with structured logging
@@ -60,7 +73,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             status=check.status.value,
             healthy=check.is_healthy,
             required=check.required,
-            message=check.message
+            message=check.message,
         )
 
     # Summary for human-readable console output (keep minimal print for deployment visibility)
@@ -80,13 +93,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error(
                 "service.startup.failed",
                 failed_services=failed_services,
-                environment=settings.environment
+                environment=settings.environment,
             )
             raise RuntimeError(f"Required services unavailable: {failed_services}")
         else:
             logger.warning(
                 "service.startup.degraded",
-                optional_failed_services=[c.name for c in checks if not c.required and not c.is_healthy]
+                optional_failed_services=[
+                    c.name for c in checks if not c.required and not c.is_healthy
+                ],
             )
 
     # Load secrets from Vault/OpenBao if configured
@@ -166,12 +181,15 @@ def create_application() -> FastAPI:
     app.state.limiter = get_limiter()
     app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
+    # Add auth error handler for proper status codes (401 for auth, 403 for authz)
+    app.add_exception_handler(AuthError, auth_error_handler)
+
     # Register all API routers
     register_routers(app)
 
     # Health check endpoint (public - no auth required)
     @app.get("/health")
-    async def health_check() -> Dict[str, Any]:
+    async def health_check() -> dict[str, Any]:
         """Health check endpoint for monitoring."""
         return {
             "status": "healthy",
@@ -181,18 +199,18 @@ def create_application() -> FastAPI:
 
     # Liveness check endpoint (public - no auth required)
     @app.get("/health/live")
-    async def liveness_check() -> Dict[str, Any]:
+    async def liveness_check() -> dict[str, Any]:
         """Liveness check endpoint for Kubernetes."""
         return {
             "status": "alive",
             "version": settings.app_version,
             "environment": settings.environment,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     # Readiness check endpoint (public - no auth required)
     @app.get("/health/ready")
-    async def readiness_check() -> Dict[str, Any]:
+    async def readiness_check() -> dict[str, Any]:
         """Readiness check endpoint for Kubernetes."""
         checker = HealthChecker()
         summary = checker.get_summary()
@@ -202,18 +220,23 @@ def create_application() -> FastAPI:
             "healthy": summary["healthy"],
             "services": summary["services"],
             "failed_services": summary["failed_services"],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     # Keep /ready for backwards compatibility
     @app.get("/ready")
-    async def ready_check() -> Dict[str, Any]:
+    async def ready_check() -> dict[str, Any]:
         """Readiness check endpoint (deprecated, use /health/ready)."""
         return await readiness_check()
 
     # API info endpoint (public - shows available endpoints)
+    @app.get("/api")
+    async def api_info() -> dict[str, Any]:
+        """API info endpoint (root)."""
+        return get_api_info()
+
     @app.get("/api/v1/info")
-    async def api_v1_info() -> Dict[str, Any]:
+    async def api_v1_info() -> dict[str, Any]:
         """API info endpoint with versioned prefix for compatibility."""
         return get_api_info()
 

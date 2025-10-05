@@ -44,6 +44,7 @@ class TestFactoryMinimal:
 
         # Test with path objects
         from pathlib import Path
+
         assert DataTransferFactory.detect_format(Path("data.jsonl")) == DataFormat.JSONL
 
         # Test case insensitive
@@ -53,7 +54,7 @@ class TestFactoryMinimal:
         with pytest.raises(FormatError):
             DataTransferFactory.detect_format("file.unknown")
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_importer_real(self, mock_settings):
         """Test creating real importers with minimal mocking."""
         mock_settings.features.data_transfer_enabled = True
@@ -61,13 +62,13 @@ class TestFactoryMinimal:
         # Create CSV importer
         importer = DataTransferFactory.create_importer("csv")
         assert isinstance(importer, BaseImporter)
-        assert hasattr(importer, 'import_from_file')
+        assert hasattr(importer, "import_from_file")
 
         # Create JSON importer
         importer = DataTransferFactory.create_importer(DataFormat.JSON)
         assert isinstance(importer, BaseImporter)
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_exporter_real(self, mock_settings):
         """Test creating real exporters with minimal mocking."""
         mock_settings.features.data_transfer_enabled = True
@@ -75,13 +76,13 @@ class TestFactoryMinimal:
         # Create CSV exporter
         exporter = DataTransferFactory.create_exporter("csv")
         assert isinstance(exporter, BaseExporter)
-        assert hasattr(exporter, 'export_to_file')
+        assert hasattr(exporter, "export_to_file")
 
         # Create JSON exporter
         exporter = DataTransferFactory.create_exporter(DataFormat.JSON)
         assert isinstance(exporter, BaseExporter)
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_format_validation_real(self, mock_settings):
         """Test format validation."""
         mock_settings.features.data_transfer_enabled = True
@@ -98,7 +99,7 @@ class TestFactoryMinimal:
         registry = DataTransferRegistry()
 
         # Test with data transfer enabled
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_enabled = True
             mock_settings.features.data_transfer_excel = False
 
@@ -107,7 +108,7 @@ class TestFactoryMinimal:
             assert DataFormat.CSV in enabled["importers"]
             assert DataFormat.JSON in enabled["importers"]
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_feature_disabled_error(self, mock_settings):
         """Test error when data transfer is disabled."""
         mock_settings.features.data_transfer_enabled = False
@@ -115,7 +116,7 @@ class TestFactoryMinimal:
         with pytest.raises(ValueError, match="Data transfer is disabled"):
             DataTransferFactory.create_importer("csv")
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_unknown_format_error(self, mock_settings):
         """Test error for unknown format."""
         mock_settings.features.data_transfer_enabled = True
@@ -129,7 +130,7 @@ class TestFactoryMinimal:
         result = detect_format("test.csv")
         assert result == DataFormat.CSV
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_excel_feature_disabled(self, mock_settings):
         """Test Excel format when disabled."""
         mock_settings.features.data_transfer_enabled = True
@@ -141,8 +142,8 @@ class TestFactoryMinimal:
         with pytest.raises(ValueError, match="Excel support is disabled"):
             DataTransferFactory.create_exporter("excel")
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
-    @patch('dotmac.platform.data_transfer.factory.DependencyChecker')
+    @patch("dotmac.platform.data_transfer.factory.settings")
+    @patch("dotmac.platform.data_transfer.factory.DependencyChecker")
     def test_excel_dependency_missing(self, mock_dep, mock_settings):
         """Test Excel format when dependencies are missing."""
         mock_settings.features.data_transfer_enabled = True
@@ -172,7 +173,7 @@ class TestFactoryMinimal:
             # Restore state
             registry._importers = original_importers
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_format_enum_vs_string(self, mock_settings):
         """Test format detection with enum vs string."""
         mock_settings.features.data_transfer_enabled = True
@@ -207,7 +208,7 @@ class TestFactoryMinimal:
         formats = registry.list_available_formats()
         assert DataFormat.PARQUET in formats["importers"]
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_with_custom_config(self, mock_settings):
         """Test creating with custom configuration."""
         from dotmac.platform.data_transfer.core import TransferConfig, ImportOptions
@@ -217,11 +218,7 @@ class TestFactoryMinimal:
         config = TransferConfig(batch_size=5000)
         options = ImportOptions()
 
-        importer = DataTransferFactory.create_importer(
-            "csv",
-            config=config,
-            options=options
-        )
+        importer = DataTransferFactory.create_importer("csv", config=config, options=options)
 
         assert importer.config.batch_size == 5000
 
@@ -278,15 +275,15 @@ class TestFactoryMinimal:
         """Test enabled formats when data transfer is disabled."""
         registry = DataTransferRegistry()
 
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_enabled = False
 
             enabled = registry.list_enabled_formats()
             assert enabled["importers"] == []
             assert enabled["exporters"] == []
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
-    @patch('dotmac.platform.data_transfer.factory.DependencyChecker')
+    @patch("dotmac.platform.data_transfer.factory.settings")
+    @patch("dotmac.platform.data_transfer.factory.DependencyChecker")
     def test_excel_enabled_with_dependencies(self, mock_dep, mock_settings):
         """Test Excel when enabled with dependencies available."""
         mock_settings.features.data_transfer_enabled = True
@@ -300,8 +297,8 @@ class TestFactoryMinimal:
         assert DataFormat.EXCEL in enabled["importers"]
         assert DataFormat.EXCEL in enabled["exporters"]
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
-    @patch('dotmac.platform.data_transfer.factory.DependencyChecker')
+    @patch("dotmac.platform.data_transfer.factory.settings")
+    @patch("dotmac.platform.data_transfer.factory.DependencyChecker")
     def test_excel_enabled_no_dependencies(self, mock_dep, mock_settings):
         """Test Excel when enabled but dependencies not available."""
         mock_settings.features.data_transfer_enabled = True
@@ -315,7 +312,7 @@ class TestFactoryMinimal:
         assert DataFormat.EXCEL not in enabled["importers"]
         assert DataFormat.EXCEL not in enabled["exporters"]
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
+    @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_exporter_with_custom_config(self, mock_settings):
         """Test creating exporter with custom configuration."""
         from dotmac.platform.data_transfer.core import TransferConfig, ExportOptions
@@ -325,22 +322,20 @@ class TestFactoryMinimal:
         config = TransferConfig(batch_size=2000)
         options = ExportOptions()
 
-        exporter = DataTransferFactory.create_exporter(
-            "json",
-            config=config,
-            options=options
-        )
+        exporter = DataTransferFactory.create_exporter("json", config=config, options=options)
 
         assert exporter.config.batch_size == 2000
 
     def test_all_convenience_functions(self):
         """Test all convenience functions."""
         from dotmac.platform.data_transfer.factory import (
-            create_importer, create_exporter,
-            create_csv_importer, create_csv_exporter
+            create_importer,
+            create_exporter,
+            create_csv_importer,
+            create_csv_exporter,
         )
 
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_enabled = True
 
             # Test convenience functions
@@ -356,12 +351,13 @@ class TestFactoryMinimal:
             csv_exporter = create_csv_exporter()
             assert isinstance(csv_exporter, BaseExporter)
 
-    @patch('dotmac.platform.data_transfer.factory.settings')
-    @patch('dotmac.platform.data_transfer.factory.DependencyChecker')
+    @patch("dotmac.platform.data_transfer.factory.settings")
+    @patch("dotmac.platform.data_transfer.factory.DependencyChecker")
     def test_excel_convenience_functions(self, mock_dep, mock_settings):
         """Test Excel convenience functions."""
         from dotmac.platform.data_transfer.factory import (
-            create_excel_importer, create_excel_exporter
+            create_excel_importer,
+            create_excel_exporter,
         )
 
         mock_settings.features.data_transfer_enabled = True
@@ -389,7 +385,7 @@ class TestFactoryMinimal:
 
     def test_factory_list_enabled_formats_string_values(self):
         """Test factory list_enabled_formats returns string values."""
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_enabled = True
 
             formats = DataTransferFactory.list_enabled_formats()
@@ -405,8 +401,8 @@ class TestFactoryMinimal:
         # The function is called on module import, but we can test it manually
         from dotmac.platform.data_transfer.factory import _register_optional_formats
 
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
-            with patch('dotmac.platform.data_transfer.factory.DependencyChecker') as mock_dep:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
+            with patch("dotmac.platform.data_transfer.factory.DependencyChecker") as mock_dep:
                 mock_settings.features.data_transfer_excel = True
                 mock_dep.check_feature_dependency.return_value = True
 
@@ -414,13 +410,13 @@ class TestFactoryMinimal:
                 _register_optional_formats()
 
         # Test disabled path
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_excel = False
             _register_optional_formats()
 
     def test_invalid_string_format_handling(self):
         """Test invalid string format handling in create methods."""
-        with patch('dotmac.platform.data_transfer.factory.settings') as mock_settings:
+        with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
             mock_settings.features.data_transfer_enabled = True
 
             # Test invalid format string

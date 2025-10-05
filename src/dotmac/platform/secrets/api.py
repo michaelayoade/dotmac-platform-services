@@ -5,14 +5,15 @@ Provides REST endpoints for secrets management operations.
 """
 
 import logging
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultError
 from dotmac.platform.settings import settings
-from ..audit import log_api_activity, ActivityType, ActivitySeverity
+
+from ..audit import ActivitySeverity, ActivityType, log_api_activity
 
 logger = logging.getLogger(__name__)
 
@@ -49,26 +50,26 @@ async def get_vault_client() -> AsyncVaultClient:
 class SecretData(BaseModel):
     """Secret data model."""
 
-    data: Dict[str, Any] = Field(..., description="Secret key-value pairs")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
+    data: dict[str, Any] = Field(..., description="Secret key-value pairs")
+    metadata: dict[str, Any] | None = Field(None, description="Optional metadata")
 
 
 class SecretResponse(BaseModel):
     """Secret response model."""
 
     path: str = Field(..., description="Secret path")
-    data: Dict[str, Any] = Field(..., description="Secret data")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Secret metadata")
+    data: dict[str, Any] = Field(..., description="Secret data")
+    metadata: dict[str, Any] | None = Field(None, description="Secret metadata")
 
 
 class SecretInfo(BaseModel):
     """Secret information with metadata."""
 
     path: str = Field(..., description="Secret path")
-    created_time: Optional[str] = Field(None, description="When the secret was created")
-    updated_time: Optional[str] = Field(None, description="When the secret was last updated")
-    version: Optional[int] = Field(None, description="Current version (KV v2)")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    created_time: str | None = Field(None, description="When the secret was created")
+    updated_time: str | None = Field(None, description="When the secret was last updated")
+    version: int | None = Field(None, description="Current version (KV v2)")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class SecretListResponse(BaseModel):
@@ -90,7 +91,7 @@ class HealthResponse(BaseModel):
 # ========================================
 
 
-@router.get("/health", response_model=HealthResponse, tags=["secrets"])
+@router.get("/health", response_model=HealthResponse, tags=["Secrets Management"])
 async def check_vault_health(
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)]
 ) -> HealthResponse:
@@ -111,7 +112,7 @@ async def check_vault_health(
         )
 
 
-@router.get("/secrets/{path:path}", response_model=SecretResponse, tags=["secrets"])
+@router.get("/secrets/{path:path}", response_model=SecretResponse, tags=["Secrets Management"])
 async def get_secret(
     path: str,
     request: Request,
@@ -136,7 +137,7 @@ async def get_secret(
                 severity=ActivitySeverity.MEDIUM,
                 resource_type="secret",
                 resource_id=path,
-                details={"path": path, "reason": "secret_not_found"}
+                details={"path": path, "reason": "secret_not_found"},
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -152,7 +153,7 @@ async def get_secret(
             severity=ActivitySeverity.LOW,
             resource_type="secret",
             resource_id=path,
-            details={"path": path, "keys": list(data.keys())}
+            details={"path": path, "keys": list(data.keys())},
         )
 
         return SecretResponse(
@@ -171,7 +172,7 @@ async def get_secret(
             severity=ActivitySeverity.HIGH,
             resource_type="secret",
             resource_id=path,
-            details={"path": path, "error": str(e)}
+            details={"path": path, "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -179,7 +180,7 @@ async def get_secret(
         )
 
 
-@router.post("/secrets/{path:path}", response_model=SecretResponse, tags=["secrets"])
+@router.post("/secrets/{path:path}", response_model=SecretResponse, tags=["Secrets Management"])
 async def create_or_update_secret(
     path: str,
     secret_data: SecretData,
@@ -209,8 +210,8 @@ async def create_or_update_secret(
             details={
                 "path": path,
                 "keys": list(secret_data.data.keys()),
-                "metadata": secret_data.metadata
-            }
+                "metadata": secret_data.metadata,
+            },
         )
 
         return SecretResponse(
@@ -229,7 +230,7 @@ async def create_or_update_secret(
             severity=ActivitySeverity.HIGH,
             resource_type="secret",
             resource_id=path,
-            details={"path": path, "error": str(e)}
+            details={"path": path, "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -237,7 +238,9 @@ async def create_or_update_secret(
         )
 
 
-@router.delete("/secrets/{path:path}", status_code=status.HTTP_204_NO_CONTENT, tags=["secrets"])
+@router.delete(
+    "/secrets/{path:path}", status_code=status.HTTP_204_NO_CONTENT, tags=["Secrets Management"]
+)
 async def delete_secret(
     path: str,
     request: Request,
@@ -266,7 +269,7 @@ async def delete_secret(
                 severity=ActivitySeverity.HIGH,
                 resource_type="secret",
                 resource_id=path,
-                details={"path": path}
+                details={"path": path},
             )
 
             logger.info(f"Deleted secret at path: {path}")
@@ -282,7 +285,7 @@ async def delete_secret(
             severity=ActivitySeverity.HIGH,
             resource_type="secret",
             resource_id=path,
-            details={"path": path, "error": str(e)}
+            details={"path": path, "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -290,7 +293,7 @@ async def delete_secret(
         )
 
 
-@router.get("/secrets", response_model=SecretListResponse, tags=["secrets"])
+@router.get("/secrets", response_model=SecretListResponse, tags=["Secrets Management"])
 async def list_secrets(
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
     prefix: str = Query("", description="Optional path prefix to filter secrets"),
@@ -318,15 +321,17 @@ async def list_secrets(
                     created_time=secret_data.get("created_time"),
                     updated_time=secret_data.get("updated_time"),
                     version=secret_data.get("version"),
-                    metadata=secret_data.get("metadata", {"source": "vault"})
+                    metadata=secret_data.get("metadata", {"source": "vault"}),
                 )
                 secrets.append(secret_info)
             except Exception as e:
-                logger.warning(f"Failed to parse secret metadata for {secret_data.get('path', 'unknown')}: {e}")
+                logger.warning(
+                    f"Failed to parse secret metadata for {secret_data.get('path', 'unknown')}: {e}"
+                )
                 # Still include the secret even if parsing fails
                 secret_info = SecretInfo(
                     path=secret_data.get("path", "unknown"),
-                    metadata={"source": "vault", "parsing_error": str(e)}
+                    metadata={"source": "vault", "parsing_error": str(e)},
                 )
                 secrets.append(secret_info)
 
@@ -337,13 +342,12 @@ async def list_secrets(
         logger.error(f"Failed to list secrets: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list secrets: {str(e)}"
+            detail=f"Failed to list secrets: {str(e)}",
         )
     except Exception as e:
         logger.error(f"Unexpected error listing secrets: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list secrets"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to list secrets"
         )
 
 

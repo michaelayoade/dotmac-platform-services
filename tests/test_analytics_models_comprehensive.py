@@ -132,9 +132,7 @@ class TestEventTrackRequest:
 
     def test_event_track_request_valid_basic(self):
         """Test valid EventTrackRequest creation with minimal data."""
-        request = EventTrackRequest(
-            event_name="user_signup"
-        )
+        request = EventTrackRequest(event_name="user_signup")
 
         assert request.event_name == "user_signup"
         assert request.event_type == EventType.CUSTOM  # default
@@ -154,7 +152,7 @@ class TestEventTrackRequest:
             properties=properties,
             user_id="user123",
             session_id="session456",
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         assert request.event_name == "user_signup"
@@ -174,7 +172,7 @@ class TestEventTrackRequest:
             "event-name",
             "event123",
             "Event_Name",
-            "event.name-123"
+            "event.name-123",
         ]
 
         for name in valid_names:
@@ -211,89 +209,56 @@ class TestEventTrackRequest:
             "int_prop": 123,
             "float_prop": 45.67,
             "bool_prop": True,
-            "null_prop": None
+            "null_prop": None,
         }
 
-        request = EventTrackRequest(
-            event_name="test_event",
-            properties=valid_properties
-        )
+        request = EventTrackRequest(event_name="test_event", properties=valid_properties)
         assert request.properties == valid_properties
 
         # Too many properties (>50)
         too_many_props = {f"prop_{i}": f"value_{i}" for i in range(51)}
         with pytest.raises(ValidationError, match="Maximum 50 properties allowed"):
-            EventTrackRequest(
-                event_name="test_event",
-                properties=too_many_props
-            )
+            EventTrackRequest(event_name="test_event", properties=too_many_props)
 
         # Invalid property key type (Pydantic will validate this at the dict level)
         with pytest.raises(ValidationError):
-            EventTrackRequest(
-                event_name="test_event",
-                properties={123: "invalid_key"}
-            )
+            EventTrackRequest(event_name="test_event", properties={123: "invalid_key"})
 
         # Complex value gets converted to string
-        complex_properties = {
-            "list_prop": [1, 2, 3],
-            "dict_prop": {"nested": "value"}
-        }
-        request = EventTrackRequest(
-            event_name="test_event",
-            properties=complex_properties
-        )
+        complex_properties = {"list_prop": [1, 2, 3], "dict_prop": {"nested": "value"}}
+        request = EventTrackRequest(event_name="test_event", properties=complex_properties)
         assert request.properties["list_prop"] == "[1, 2, 3]"
         assert request.properties["dict_prop"] == "{'nested': 'value'}"
 
     def test_user_id_validation(self):
         """Test user_id validation."""
         # Valid user_id
-        request = EventTrackRequest(
-            event_name="test_event",
-            user_id="user123"
-        )
+        request = EventTrackRequest(event_name="test_event", user_id="user123")
         assert request.user_id == "user123"
 
         # Whitespace stripped
-        request = EventTrackRequest(
-            event_name="test_event",
-            user_id="  user123  "
-        )
+        request = EventTrackRequest(event_name="test_event", user_id="  user123  ")
         assert request.user_id == "user123"
 
         # Too long user_id
         long_user_id = "a" * 256
         with pytest.raises(ValidationError, match="String should have at most 255 characters"):
-            EventTrackRequest(
-                event_name="test_event",
-                user_id=long_user_id
-            )
+            EventTrackRequest(event_name="test_event", user_id=long_user_id)
 
     def test_session_id_validation(self):
         """Test session_id validation."""
         # Valid session_id
-        request = EventTrackRequest(
-            event_name="test_event",
-            session_id="session456"
-        )
+        request = EventTrackRequest(event_name="test_event", session_id="session456")
         assert request.session_id == "session456"
 
         # Whitespace stripped
-        request = EventTrackRequest(
-            event_name="test_event",
-            session_id="  session456  "
-        )
+        request = EventTrackRequest(event_name="test_event", session_id="  session456  ")
         assert request.session_id == "session456"
 
         # Too long session_id
         long_session_id = "a" * 256
         with pytest.raises(ValidationError, match="String should have at most 255 characters"):
-            EventTrackRequest(
-                event_name="test_event",
-                session_id=long_session_id
-            )
+            EventTrackRequest(event_name="test_event", session_id=long_session_id)
 
 
 class TestMetricRecordRequest:
@@ -301,10 +266,7 @@ class TestMetricRecordRequest:
 
     def test_metric_record_request_valid_basic(self):
         """Test valid MetricRecordRequest creation with minimal data."""
-        request = MetricRecordRequest(
-            metric_name="response_time",
-            value=150.5
-        )
+        request = MetricRecordRequest(metric_name="response_time", value=150.5)
 
         assert request.metric_name == "response_time"
         assert request.value == 150.5
@@ -322,7 +284,7 @@ class TestMetricRecordRequest:
             value=89.3,
             unit=MetricUnit.MILLISECONDS,
             tags=tags,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         assert request.metric_name == "api.response_time"
@@ -334,13 +296,7 @@ class TestMetricRecordRequest:
     def test_metric_name_validation(self):
         """Test metric name validation."""
         # Valid names
-        valid_names = [
-            "response_time",
-            "api.requests",
-            "error-rate",
-            "metric123",
-            "Metric_Name"
-        ]
+        valid_names = ["response_time", "api.requests", "error-rate", "metric123", "Metric_Name"]
 
         for name in valid_names:
             request = MetricRecordRequest(metric_name=name, value=1.0)
@@ -369,10 +325,7 @@ class TestMetricRecordRequest:
         valid_values = [0, 1, 150.5, 999999.99, 0.001]
 
         for value in valid_values:
-            request = MetricRecordRequest(
-                metric_name="test_metric",
-                value=value
-            )
+            request = MetricRecordRequest(metric_name="test_metric", value=value)
             assert request.value == float(value)
 
         # Negative values allowed explicitly for COUNT metrics
@@ -381,75 +334,40 @@ class TestMetricRecordRequest:
 
         # Non-numeric values should fail Pydantic validation
         with pytest.raises(ValidationError):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value="invalid"
-            )
+            MetricRecordRequest(metric_name="test_metric", value="invalid")
 
         # Negative values for non-count metrics should fail
         with pytest.raises(ValidationError):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=-100,
-                unit=MetricUnit.MILLISECONDS
-            )
+            MetricRecordRequest(metric_name="test_metric", value=-100, unit=MetricUnit.MILLISECONDS)
 
     def test_tags_validation(self):
         """Test tags validation."""
         # Valid tags
-        valid_tags = {
-            "service": "api",
-            "version": "1.0",
-            "region": "us-east-1"
-        }
+        valid_tags = {"service": "api", "version": "1.0", "region": "us-east-1"}
 
-        request = MetricRecordRequest(
-            metric_name="test_metric",
-            value=1.0,
-            tags=valid_tags
-        )
+        request = MetricRecordRequest(metric_name="test_metric", value=1.0, tags=valid_tags)
         assert request.tags == valid_tags
 
         # Too many tags (>20)
         too_many_tags = {f"tag_{i}": f"value_{i}" for i in range(21)}
         with pytest.raises(ValidationError, match="Maximum 20 tags allowed"):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=1.0,
-                tags=too_many_tags
-            )
+            MetricRecordRequest(metric_name="test_metric", value=1.0, tags=too_many_tags)
 
         # Invalid tag key type (Pydantic will validate this at the dict level)
         with pytest.raises(ValidationError):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=1.0,
-                tags={123: "invalid_key"}
-            )
+            MetricRecordRequest(metric_name="test_metric", value=1.0, tags={123: "invalid_key"})
 
         # Invalid tag value type (Pydantic will validate this at the dict level)
         with pytest.raises(ValidationError):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=1.0,
-                tags={"key": 123}
-            )
+            MetricRecordRequest(metric_name="test_metric", value=1.0, tags={"key": 123})
 
         # Tag key too long
         with pytest.raises(ValidationError, match="Tag key max 50 chars"):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=1.0,
-                tags={"a" * 51: "value"}
-            )
+            MetricRecordRequest(metric_name="test_metric", value=1.0, tags={"a" * 51: "value"})
 
         # Tag value too long
         with pytest.raises(ValidationError, match="value max 100 chars"):
-            MetricRecordRequest(
-                metric_name="test_metric",
-                value=1.0,
-                tags={"key": "a" * 101}
-            )
+            MetricRecordRequest(metric_name="test_metric", value=1.0, tags={"key": "a" * 101})
 
 
 class TestAnalyticsQueryRequest:
@@ -457,9 +375,7 @@ class TestAnalyticsQueryRequest:
 
     def test_analytics_query_request_basic(self):
         """Test valid AnalyticsQueryRequest with minimal data."""
-        request = AnalyticsQueryRequest(
-            query_type="events"
-        )
+        request = AnalyticsQueryRequest(query_type="events")
 
         assert request.query_type == "events"
         assert request.filters == {}  # default
@@ -479,7 +395,7 @@ class TestAnalyticsQueryRequest:
             group_by=group_by,
             order_by="timestamp",
             limit=500,
-            offset=100
+            offset=100,
         )
 
         assert request.query_type == "metrics"
@@ -506,36 +422,24 @@ class TestAnalyticsQueryRequest:
         """Test group_by validation."""
         # Valid group_by
         group_by = ["field1", "field2", "field3"]
-        request = AnalyticsQueryRequest(
-            query_type="events",
-            group_by=group_by
-        )
+        request = AnalyticsQueryRequest(query_type="events", group_by=group_by)
         assert request.group_by == group_by
 
         # Too many group_by fields (>10)
         too_many_fields = [f"field_{i}" for i in range(11)]
         with pytest.raises(ValidationError, match="List should have at most 10 items"):
-            AnalyticsQueryRequest(
-                query_type="events",
-                group_by=too_many_fields
-            )
+            AnalyticsQueryRequest(query_type="events", group_by=too_many_fields)
 
     def test_order_by_validation(self):
         """Test order_by validation."""
         # Valid order_by
-        request = AnalyticsQueryRequest(
-            query_type="events",
-            order_by="timestamp"
-        )
+        request = AnalyticsQueryRequest(query_type="events", order_by="timestamp")
         assert request.order_by == "timestamp"
 
         # Order_by too long
         long_order_by = "a" * 51
         with pytest.raises(ValidationError, match="String should have at most 50 characters"):
-            AnalyticsQueryRequest(
-                query_type="events",
-                order_by=long_order_by
-            )
+            AnalyticsQueryRequest(query_type="events", order_by=long_order_by)
 
     def test_limit_validation(self):
         """Test limit validation."""
@@ -543,25 +447,16 @@ class TestAnalyticsQueryRequest:
         valid_limits = [1, 100, 5000, 10000]
 
         for limit in valid_limits:
-            request = AnalyticsQueryRequest(
-                query_type="events",
-                limit=limit
-            )
+            request = AnalyticsQueryRequest(query_type="events", limit=limit)
             assert request.limit == limit
 
         # Below minimum
         with pytest.raises(ValidationError):
-            AnalyticsQueryRequest(
-                query_type="events",
-                limit=0
-            )
+            AnalyticsQueryRequest(query_type="events", limit=0)
 
         # Above maximum
         with pytest.raises(ValidationError):
-            AnalyticsQueryRequest(
-                query_type="events",
-                limit=10001
-            )
+            AnalyticsQueryRequest(query_type="events", limit=10001)
 
     def test_offset_validation(self):
         """Test offset validation."""
@@ -569,18 +464,12 @@ class TestAnalyticsQueryRequest:
         valid_offsets = [0, 100, 5000, 99999]
 
         for offset in valid_offsets:
-            request = AnalyticsQueryRequest(
-                query_type="events",
-                offset=offset
-            )
+            request = AnalyticsQueryRequest(query_type="events", offset=offset)
             assert request.offset == offset
 
         # Below minimum
         with pytest.raises(ValidationError):
-            AnalyticsQueryRequest(
-                query_type="events",
-                offset=-1
-            )
+            AnalyticsQueryRequest(query_type="events", offset=-1)
 
 
 class TestResponseModels:
@@ -590,9 +479,7 @@ class TestResponseModels:
         """Test EventTrackResponse creation."""
         timestamp = datetime.now(timezone.utc)
         response = EventTrackResponse(
-            event_id="evt_123",
-            event_name="user_signup",
-            timestamp=timestamp
+            event_id="evt_123", event_name="user_signup", timestamp=timestamp
         )
 
         assert response.event_id == "evt_123"
@@ -609,7 +496,7 @@ class TestResponseModels:
             event_name="page_view",
             timestamp=timestamp,
             status="queued",
-            message="Event queued for processing"
+            message="Event queued for processing",
         )
 
         assert response.event_id == "evt_456"
@@ -626,7 +513,7 @@ class TestResponseModels:
             metric_name="response_time",
             value=150.5,
             unit="milliseconds",
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         assert response.metric_id == "met_789"
@@ -641,11 +528,7 @@ class TestResponseModels:
         timestamp = datetime.now(timezone.utc)
         tags = {"service": "api", "region": "us-west-1"}
 
-        data_point = MetricDataPoint(
-            timestamp=timestamp,
-            value=89.3,
-            tags=tags
-        )
+        data_point = MetricDataPoint(timestamp=timestamp, value=89.3, tags=tags)
 
         assert data_point.timestamp == timestamp
         assert data_point.value == 89.3
@@ -662,10 +545,7 @@ class TestResponseModels:
         ]
 
         series = MetricSeries(
-            metric_name="cpu_usage",
-            unit="percentage",
-            data_points=data_points,
-            aggregation="avg"
+            metric_name="cpu_usage", unit="percentage", data_points=data_points, aggregation="avg"
         )
 
         assert series.metric_name == "cpu_usage"
@@ -685,7 +565,7 @@ class TestResponseModels:
             timestamp=timestamp,
             user_id="user456",
             session_id="sess789",
-            properties=properties
+            properties=properties,
         )
 
         assert event_data.event_id == "evt_123"
@@ -701,26 +581,15 @@ class TestResponseModels:
         timestamp = datetime.now(timezone.utc)
         events = [
             EventData(
-                event_id="evt_1",
-                event_name="signup",
-                event_type="user_action",
-                timestamp=timestamp
+                event_id="evt_1", event_name="signup", event_type="user_action", timestamp=timestamp
             ),
             EventData(
-                event_id="evt_2",
-                event_name="login",
-                event_type="user_action",
-                timestamp=timestamp
-            )
+                event_id="evt_2", event_name="login", event_type="user_action", timestamp=timestamp
+            ),
         ]
 
         response = EventsQueryResponse(
-            events=events,
-            total=100,
-            page=1,
-            page_size=20,
-            has_more=True,
-            query_time_ms=45.6
+            events=events, total=100, page=1, page_size=20, has_more=True, query_time_ms=45.6
         )
 
         assert len(response.events) == 2
@@ -734,12 +603,7 @@ class TestResponseModels:
         """Test AggregationResult creation."""
         group_key = {"event_type": "signup", "source": "web"}
 
-        result = AggregationResult(
-            group_key=group_key,
-            aggregation="count",
-            value=150.0,
-            count=150
-        )
+        result = AggregationResult(group_key=group_key, aggregation="count", value=150.0, count=150)
 
         assert result.group_key == group_key
         assert result.aggregation == "count"
@@ -750,26 +614,17 @@ class TestResponseModels:
         """Test AggregationQueryResponse creation."""
         results = [
             AggregationResult(
-                group_key={"event_type": "signup"},
-                aggregation="count",
-                value=100.0,
-                count=100
+                group_key={"event_type": "signup"}, aggregation="count", value=100.0, count=100
             ),
             AggregationResult(
-                group_key={"event_type": "login"},
-                aggregation="count",
-                value=200.0,
-                count=200
-            )
+                group_key={"event_type": "login"}, aggregation="count", value=200.0, count=200
+            ),
         ]
 
         metadata = {"cache_hit": True, "execution_plan": "optimized"}
 
         response = AggregationQueryResponse(
-            results=results,
-            total_records=1000,
-            query_time_ms=123.45,
-            metadata=metadata
+            results=results, total_records=1000, query_time_ms=123.45, metadata=metadata
         )
 
         assert len(response.results) == 2
@@ -780,16 +635,9 @@ class TestResponseModels:
     def test_report_section(self):
         """Test ReportSection creation."""
         data = {"total_events": 5000, "unique_users": 1200}
-        charts = [
-            {"type": "line", "data": [1, 2, 3, 4]},
-            {"type": "bar", "data": [10, 20, 30]}
-        ]
+        charts = [{"type": "line", "data": [1, 2, 3, 4]}, {"type": "bar", "data": [10, 20, 30]}]
 
-        section = ReportSection(
-            title="User Activity Summary",
-            data=data,
-            charts=charts
-        )
+        section = ReportSection(title="User Activity Summary", data=data, charts=charts)
 
         assert section.title == "User Activity Summary"
         assert section.data == data
@@ -799,14 +647,11 @@ class TestResponseModels:
         """Test ReportResponse creation."""
         sections = [
             ReportSection(title="Overview", data={"total": 1000}),
-            ReportSection(title="Details", data={"breakdown": {"web": 600, "mobile": 400}})
+            ReportSection(title="Details", data={"breakdown": {"web": 600, "mobile": 400}}),
         ]
 
         generated_at = datetime.now(timezone.utc)
-        period = {
-            "start": datetime.now(timezone.utc),
-            "end": datetime.now(timezone.utc)
-        }
+        period = {"start": datetime.now(timezone.utc), "end": datetime.now(timezone.utc)}
 
         response = ReportResponse(
             report_id="rpt_123",
@@ -814,7 +659,7 @@ class TestResponseModels:
             title="Monthly Usage Report",
             sections=sections,
             generated_at=generated_at,
-            period=period
+            period=period,
         )
 
         assert response.report_id == "rpt_123"
@@ -834,7 +679,7 @@ class TestResponseModels:
             widget_type="metric",
             title="Response Time",
             data=data,
-            config=config
+            config=config,
         )
 
         assert widget.widget_id == "widget_123"
@@ -850,14 +695,11 @@ class TestResponseModels:
                 widget_id="w1",
                 widget_type="chart",
                 title="CPU Usage",
-                data={"values": [10, 20, 30]}
+                data={"values": [10, 20, 30]},
             ),
             DashboardWidget(
-                widget_id="w2",
-                widget_type="metric",
-                title="Memory Usage",
-                data={"value": 75.5}
-            )
+                widget_id="w2", widget_type="metric", title="Memory Usage", data={"value": 75.5}
+            ),
         ]
 
         generated_at = datetime.now(timezone.utc)
@@ -867,7 +709,7 @@ class TestResponseModels:
             period=DashboardPeriod.DAY,
             widgets=widgets,
             generated_at=generated_at,
-            refresh_interval=30
+            refresh_interval=30,
         )
 
         assert response.dashboard_id == "dash_123"
@@ -887,7 +729,7 @@ class TestResponseModels:
             message="Invalid metric name format",
             details=details,
             timestamp=timestamp,
-            request_id="req_456"
+            request_id="req_456",
         )
 
         assert error.error == "VALIDATION_ERROR"
@@ -901,9 +743,7 @@ class TestResponseModels:
         timestamp = datetime.now(timezone.utc)
 
         error = AnalyticsErrorResponse(
-            error="NETWORK_ERROR",
-            message="Connection failed",
-            timestamp=timestamp
+            error="NETWORK_ERROR", message="Connection failed", timestamp=timestamp
         )
 
         assert error.error == "NETWORK_ERROR"
@@ -926,7 +766,7 @@ class TestModelSerialization:
             event_type=EventType.USER_ACTION,
             properties=properties,
             user_id="user123",
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         # Serialize to dict
@@ -954,7 +794,7 @@ class TestModelSerialization:
             value=150.5,
             unit=MetricUnit.MILLISECONDS,
             tags=tags,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         # Serialize to dict
@@ -980,10 +820,7 @@ class TestModelValidationEdgeCases:
         """Test edge cases in property validation."""
         # Exactly 50 properties (should pass)
         exact_50_props = {f"prop_{i}": f"value_{i}" for i in range(50)}
-        request = EventTrackRequest(
-            event_name="test_event",
-            properties=exact_50_props
-        )
+        request = EventTrackRequest(event_name="test_event", properties=exact_50_props)
         assert len(request.properties) == 50
 
         # Various property value types
@@ -995,12 +832,9 @@ class TestModelValidationEdgeCases:
             "bool_false": False,
             "null": None,
             "zero": 0,
-            "empty_string": ""
+            "empty_string": "",
         }
-        request = EventTrackRequest(
-            event_name="test_event",
-            properties=mixed_properties
-        )
+        request = EventTrackRequest(event_name="test_event", properties=mixed_properties)
         assert request.properties["string"] == "text"
         assert request.properties["int"] == 42
         assert request.properties["float"] == 3.14
@@ -1012,28 +846,20 @@ class TestModelValidationEdgeCases:
         """Test edge cases in tag validation."""
         # Exactly 20 tags (should pass)
         exact_20_tags = {f"tag_{i}": f"value_{i}" for i in range(20)}
-        request = MetricRecordRequest(
-            metric_name="test_metric",
-            value=1.0,
-            tags=exact_20_tags
-        )
+        request = MetricRecordRequest(metric_name="test_metric", value=1.0, tags=exact_20_tags)
         assert len(request.tags) == 20
 
         # Tag key exactly 50 characters (should pass)
         key_50_chars = "a" * 50
         request = MetricRecordRequest(
-            metric_name="test_metric",
-            value=1.0,
-            tags={key_50_chars: "value"}
+            metric_name="test_metric", value=1.0, tags={key_50_chars: "value"}
         )
         assert key_50_chars in request.tags
 
         # Tag value exactly 100 characters (should pass)
         value_100_chars = "b" * 100
         request = MetricRecordRequest(
-            metric_name="test_metric",
-            value=1.0,
-            tags={"key": value_100_chars}
+            metric_name="test_metric", value=1.0, tags={"key": value_100_chars}
         )
         assert request.tags["key"] == value_100_chars
 
@@ -1044,26 +870,18 @@ class TestModelValidationEdgeCases:
         assert request.event_name == "user_signup"
 
         # Metric name
-        request = MetricRecordRequest(
-            metric_name="  \t response_time \n  ",
-            value=100.0
-        )
+        request = MetricRecordRequest(metric_name="  \t response_time \n  ", value=100.0)
         assert request.metric_name == "response_time"
 
         # User ID and Session ID
         request = EventTrackRequest(
-            event_name="test",
-            user_id="\n  user123  \t",
-            session_id="  session456  "
+            event_name="test", user_id="\n  user123  \t", session_id="  session456  "
         )
         assert request.user_id == "user123"
         assert request.session_id == "session456"
 
         # Analytics query order_by
-        request = AnalyticsQueryRequest(
-            query_type="events",
-            order_by="  timestamp  "
-        )
+        request = AnalyticsQueryRequest(query_type="events", order_by="  timestamp  ")
         assert request.order_by == "timestamp"
 
     def test_default_values_comprehensive(self):
@@ -1092,9 +910,7 @@ class TestModelValidationEdgeCases:
 
         # EventTrackResponse defaults
         event_resp = EventTrackResponse(
-            event_id="test",
-            event_name="test",
-            timestamp=datetime.now(timezone.utc)
+            event_id="test", event_name="test", timestamp=datetime.now(timezone.utc)
         )
         assert event_resp.status == "tracked"
         assert event_resp.message is None
@@ -1105,7 +921,7 @@ class TestModelValidationEdgeCases:
             metric_name="test",
             value=1.0,
             unit="count",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         assert metric_resp.status == "recorded"
 
@@ -1121,6 +937,6 @@ class TestModelValidationEdgeCases:
             dashboard_id="test",
             period=DashboardPeriod.DAY,
             widgets=[],
-            generated_at=datetime.now(timezone.utc)
+            generated_at=datetime.now(timezone.utc),
         )
         assert dashboard_resp.refresh_interval == 60

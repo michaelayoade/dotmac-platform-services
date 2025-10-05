@@ -15,21 +15,21 @@ from moneyed import Currency, Money, get_currency
 from moneyed.classes import CurrencyDoesNotExist
 
 # Common currencies for quick access
-USD = Currency('USD')
-EUR = Currency('EUR')
-GBP = Currency('GBP')
-CAD = Currency('CAD')
-AUD = Currency('AUD')
-JPY = Currency('JPY')
+USD = Currency("USD")
+EUR = Currency("EUR")
+GBP = Currency("GBP")
+CAD = Currency("CAD")
+AUD = Currency("AUD")
+JPY = Currency("JPY")
 
 # Default locale for formatting
-DEFAULT_LOCALE = 'en_US'
+DEFAULT_LOCALE = "en_US"
 
 
 class MoneyHandler:
     """Central handler for money operations with proper error handling."""
 
-    def __init__(self, default_currency: str = 'USD', default_locale: str = DEFAULT_LOCALE):
+    def __init__(self, default_currency: str = "USD", default_locale: str = DEFAULT_LOCALE):
         self.default_currency = self._validate_currency(default_currency)
         self.default_locale = self._validate_locale(default_locale)
 
@@ -49,9 +49,7 @@ class MoneyHandler:
             return DEFAULT_LOCALE
 
     def create_money(
-        self,
-        amount: int | float | Decimal | str,
-        currency: str = None
+        self, amount: int | float | Decimal | str, currency: str | None = None
     ) -> Money:
         """Create Money object with proper validation."""
         currency = currency or self.default_currency.code
@@ -65,22 +63,14 @@ class MoneyHandler:
 
         return Money(amount=decimal_amount, currency=validated_currency)
 
-    def format_money(
-        self,
-        money: Money,
-        locale: str = None,
-        **kwargs
-    ) -> str:
+    def format_money(self, money: Money, locale: str | None = None, **kwargs) -> str:
         """Format Money object with locale-aware formatting."""
         locale = locale or self.default_locale
         validated_locale = self._validate_locale(locale)
 
         try:
             return format_currency(
-                number=money.amount,
-                currency=money.currency.code,
-                locale=validated_locale,
-                **kwargs
+                number=money.amount, currency=money.currency.code, locale=validated_locale, **kwargs
             )
         except (TypeError, ValueError):
             # Fallback to simple formatting if locale issues
@@ -95,9 +85,7 @@ class MoneyHandler:
         first_currency = money_objects[0].currency
         for money in money_objects[1:]:
             if money.currency != first_currency:
-                raise ValueError(
-                    f"Currency mismatch: {money.currency} != {first_currency}"
-                )
+                raise ValueError(f"Currency mismatch: {money.currency} != {first_currency}")
 
         total = sum(money_objects, self.create_money(0, first_currency.code))
         return total
@@ -118,58 +106,60 @@ class MoneyHandler:
     def round_money(self, money: Money) -> Money:
         """Round Money to proper currency precision."""
         precision = self.get_currency_precision(money.currency.code)
-        rounded_amount = money.amount.quantize(Decimal('0.1') ** precision)
+        rounded_amount = money.amount.quantize(Decimal("0.1") ** precision)
         return Money(amount=rounded_amount, currency=money.currency)
 
     def money_to_minor_units(self, money: Money) -> int:
         """Convert Money to minor units (e.g., cents for USD)."""
         precision = self.get_currency_precision(money.currency.code)
-        multiplier = 10 ** precision
+        multiplier = 10**precision
         return int(money.amount * multiplier)
 
     def money_from_minor_units(self, minor_units: int, currency: str) -> Money:
         """Create Money from minor units (e.g., cents)."""
         validated_currency = self._validate_currency(currency)
         precision = self.get_currency_precision(currency)
-        divisor = Decimal(10 ** precision)
+        divisor = Decimal(10**precision)
         amount = Decimal(minor_units) / divisor
         return Money(amount=amount, currency=validated_currency)
 
     def to_dict(self, money: Money) -> dict[str, Any]:
         """Convert Money to dictionary for serialization."""
         return {
-            'amount': str(money.amount),
-            'currency': money.currency.code,
-            'minor_units': self.money_to_minor_units(money)
+            "amount": str(money.amount),
+            "currency": money.currency.code,
+            "minor_units": self.money_to_minor_units(money),
         }
 
     def from_dict(self, data: dict[str, Any]) -> Money:
         """Create Money from dictionary."""
-        return self.create_money(
-            amount=data['amount'],
-            currency=data['currency']
-        )
+        return self.create_money(amount=data["amount"], currency=data["currency"])
 
 
 # Global instance for convenience
 money_handler = MoneyHandler()
 
+
 # Convenience functions
-def create_money(amount: int | float | Decimal | str, currency: str = 'USD') -> Money:
+def create_money(amount: int | float | Decimal | str, currency: str = "USD") -> Money:
     """Create Money object with default handler."""
     return money_handler.create_money(amount, currency)
 
-def format_money(money: Money, locale: str = None, **kwargs) -> str:
+
+def format_money(money: Money, locale: str | None = None, **kwargs) -> str:
     """Format Money with default handler."""
     return money_handler.format_money(money, locale, **kwargs)
+
 
 def add_money(*money_objects: Money) -> Money:
     """Add Money objects with default handler."""
     return money_handler.add_money(*money_objects)
 
+
 def multiply_money(money: Money, multiplier: int | float | Decimal) -> Money:
     """Multiply Money with default handler."""
     return money_handler.multiply_money(money, multiplier)
+
 
 # Currency conversion utilities (for future enhancement)
 class CurrencyConverter:
@@ -187,12 +177,17 @@ class CurrencyConverter:
 
 # Export commonly used functions and classes
 __all__ = [
-    'MoneyHandler',
-    'CurrencyConverter',
-    'money_handler',
-    'create_money',
-    'format_money',
-    'add_money',
-    'multiply_money',
-    'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'
+    "MoneyHandler",
+    "CurrencyConverter",
+    "money_handler",
+    "create_money",
+    "format_money",
+    "add_money",
+    "multiply_money",
+    "USD",
+    "EUR",
+    "GBP",
+    "CAD",
+    "AUD",
+    "JPY",
 ]

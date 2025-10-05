@@ -46,25 +46,23 @@ Usage Examples:
     )
 """
 
+from .middleware import AuditContextMiddleware, create_audit_aware_dependency
 from .models import (
-    ActivityType,
     ActivitySeverity,
+    ActivityType,
     AuditActivity,
     AuditActivityCreate,
-    AuditActivityResponse,
     AuditActivityList,
+    AuditActivityResponse,
     AuditFilterParams,
 )
-
+from .router import router as audit_router
 from .service import (
     AuditService,
-    log_user_activity,
     log_api_activity,
     log_system_activity,
+    log_user_activity,
 )
-
-from .router import router as audit_router
-from .middleware import AuditContextMiddleware, create_audit_aware_dependency
 
 __all__ = [
     # Models and enums
@@ -75,16 +73,13 @@ __all__ = [
     "AuditActivityResponse",
     "AuditActivityList",
     "AuditFilterParams",
-
     # Service and helpers
     "AuditService",
     "log_user_activity",
     "log_api_activity",
     "log_system_activity",
-
     # Router
     "audit_router",
-
     # Middleware
     "AuditContextMiddleware",
     "create_audit_aware_dependency",

@@ -1,7 +1,7 @@
 """Tests for billing money_models module."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from moneyed import Money
 
@@ -19,11 +19,7 @@ class TestMoneyField:
 
     def test_money_field_creation(self):
         """Test creating MoneyField directly."""
-        field = MoneyField(
-            amount="100.50",
-            currency="USD",
-            minor_units=10050
-        )
+        field = MoneyField(amount="100.50", currency="USD", minor_units=10050)
 
         assert field.amount == "100.50"
         assert field.currency == "USD"
@@ -40,11 +36,7 @@ class TestMoneyField:
 
     def test_money_field_to_money(self):
         """Test converting MoneyField back to Money object."""
-        field = MoneyField(
-            amount="100.50",
-            currency="USD",
-            minor_units=10050
-        )
+        field = MoneyField(amount="100.50", currency="USD", minor_units=10050)
 
         money = field.to_money()
         assert money.amount == Decimal("100.50")
@@ -53,7 +45,7 @@ class TestMoneyField:
     def test_money_field_format(self):
         """Test formatting money with locale."""
         field = MoneyField.from_money(Money("1234.56", "USD"))
-        formatted = field.format(locale='en_US')
+        formatted = field.format(locale="en_US")
 
         # Should contain currency symbol and amount
         assert "1234.56" in formatted or "1,234.56" in formatted
@@ -93,7 +85,7 @@ class TestMoneyInvoiceLineItem:
             tax_rate=Decimal("0.1"),
             tax_amount=tax_amount,
             discount_percentage=Decimal("0"),
-            discount_amount=discount_amount
+            discount_amount=discount_amount,
         )
 
         assert item.description == "Test Item"
@@ -104,10 +96,7 @@ class TestMoneyInvoiceLineItem:
     def test_line_item_create_from_values_no_tax_discount(self):
         """Test creating line item with no tax or discount."""
         item = MoneyInvoiceLineItem.create_from_values(
-            description="Widget",
-            quantity=2,
-            unit_price_amount="25.00",
-            currency="USD"
+            description="Widget", quantity=2, unit_price_amount="25.00", currency="USD"
         )
 
         assert item.description == "Widget"
@@ -124,7 +113,7 @@ class TestMoneyInvoiceLineItem:
             quantity=1,
             unit_price_amount="100.00",
             currency="USD",
-            tax_rate="0.10"  # 10% tax
+            tax_rate="0.10",  # 10% tax
         )
 
         assert item.unit_price.amount == "100.00"
@@ -139,7 +128,7 @@ class TestMoneyInvoiceLineItem:
             quantity=1,
             unit_price_amount="100.00",
             currency="USD",
-            discount_percentage="0.20"  # 20% discount
+            discount_percentage="0.20",  # 20% discount
         )
 
         assert item.unit_price.amount == "100.00"
@@ -156,7 +145,7 @@ class TestMoneyInvoiceLineItem:
             unit_price_amount="100.00",
             currency="USD",
             tax_rate="0.10",  # 10% tax
-            discount_percentage="0.20"  # 20% discount
+            discount_percentage="0.20",  # 20% discount
         )
 
         assert item.discount_amount.amount == "20.00"  # 20% of 100
@@ -169,45 +158,31 @@ class TestMoneyInvoiceLineItem:
         """Test quantity must be >= 1."""
         with pytest.raises(Exception):  # Pydantic ValidationError
             MoneyInvoiceLineItem.create_from_values(
-                description="Invalid",
-                quantity=0,
-                unit_price_amount="10.00"
+                description="Invalid", quantity=0, unit_price_amount="10.00"
             )
 
     def test_line_item_tax_rate_validation(self):
         """Test tax rate must be between 0 and 1."""
         # Valid tax rates
         item1 = MoneyInvoiceLineItem.create_from_values(
-            description="Item",
-            quantity=1,
-            unit_price_amount="100",
-            tax_rate="0"
+            description="Item", quantity=1, unit_price_amount="100", tax_rate="0"
         )
         assert item1.tax_rate == Decimal("0")
 
         item2 = MoneyInvoiceLineItem.create_from_values(
-            description="Item",
-            quantity=1,
-            unit_price_amount="100",
-            tax_rate="1"
+            description="Item", quantity=1, unit_price_amount="100", tax_rate="1"
         )
         assert item2.tax_rate == Decimal("1")
 
         # Invalid tax rates
         with pytest.raises(Exception):
             MoneyInvoiceLineItem.create_from_values(
-                description="Item",
-                quantity=1,
-                unit_price_amount="100",
-                tax_rate="-0.1"
+                description="Item", quantity=1, unit_price_amount="100", tax_rate="-0.1"
             )
 
         with pytest.raises(Exception):
             MoneyInvoiceLineItem.create_from_values(
-                description="Item",
-                quantity=1,
-                unit_price_amount="100",
-                tax_rate="1.1"
+                description="Item", quantity=1, unit_price_amount="100", tax_rate="1.1"
             )
 
     def test_line_item_with_optional_references(self):
@@ -218,7 +193,7 @@ class TestMoneyInvoiceLineItem:
             unit_price_amount="29.99",
             currency="USD",
             product_id="prod_123",
-            subscription_id="sub_456"
+            subscription_id="sub_456",
         )
 
         assert item.product_id == "prod_123"
@@ -230,7 +205,7 @@ class TestMoneyInvoiceLineItem:
             description="Item",
             quantity=1,
             unit_price_amount="10",
-            extra_data={"custom_field": "value", "another": 123}
+            extra_data={"custom_field": "value", "another": 123},
         )
 
         assert item.extra_data["custom_field"] == "value"
@@ -252,7 +227,7 @@ class TestMoneyInvoice:
             tax_amount=zero_money,
             discount_amount=zero_money,
             total_amount=zero_money,
-            remaining_balance=zero_money
+            remaining_balance=zero_money,
         )
 
         assert invoice.tenant_id == "tenant_1"
@@ -276,7 +251,7 @@ class TestMoneyInvoice:
                 tax_amount=zero_money,
                 discount_amount=zero_money,
                 total_amount=zero_money,
-                remaining_balance=zero_money
+                remaining_balance=zero_money,
             )
             assert invoice.currency == currency.upper()
 
@@ -293,7 +268,7 @@ class TestMoneyInvoice:
                 tax_amount=zero_money,
                 discount_amount=zero_money,
                 total_amount=zero_money,
-                remaining_balance=zero_money
+                remaining_balance=zero_money,
             )
 
     def test_invoice_create_invoice_no_line_items(self):
@@ -302,7 +277,7 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[]
+            line_items=[],
         )
 
         assert len(invoice.line_items) == 0
@@ -328,7 +303,7 @@ class TestMoneyInvoice:
                     "quantity": 1,
                     "unit_price": "30.00",
                 },
-            ]
+            ],
         )
 
         assert len(invoice.line_items) == 2
@@ -341,10 +316,7 @@ class TestMoneyInvoice:
         """Test calculate_totals method."""
         # Create invoice with line items manually
         item1 = MoneyInvoiceLineItem.create_from_values(
-            description="Item 1",
-            quantity=1,
-            unit_price_amount="100",
-            tax_rate="0.10"
+            description="Item 1", quantity=1, unit_price_amount="100", tax_rate="0.10"
         )
 
         zero_money = MoneyField.from_money(create_money(0, "USD"))
@@ -357,7 +329,7 @@ class TestMoneyInvoice:
             tax_amount=zero_money,
             discount_amount=zero_money,
             total_amount=zero_money,
-            remaining_balance=zero_money
+            remaining_balance=zero_money,
         )
 
         # Manually recalculate
@@ -372,9 +344,7 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[
-                {"description": "Item", "quantity": 1, "unit_price": "100"}
-            ]
+            line_items=[{"description": "Item", "quantity": 1, "unit_price": "100"}],
         )
 
         net = invoice.net_amount_due
@@ -386,9 +356,7 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[
-                {"description": "Item", "quantity": 1, "unit_price": "100"}
-            ]
+            line_items=[{"description": "Item", "quantity": 1, "unit_price": "100"}],
         )
 
         # Apply $30 credit
@@ -403,9 +371,7 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[
-                {"description": "Item", "quantity": 1, "unit_price": "100"}
-            ]
+            line_items=[{"description": "Item", "quantity": 1, "unit_price": "100"}],
         )
 
         # Apply $150 credit (more than total)
@@ -420,12 +386,10 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[
-                {"description": "Item", "quantity": 1, "unit_price": "1234.56"}
-            ]
+            line_items=[{"description": "Item", "quantity": 1, "unit_price": "1234.56"}],
         )
 
-        formatted = invoice.format_total(locale='en_US')
+        formatted = invoice.format_total(locale="en_US")
         assert "1234.56" in formatted or "1,234.56" in formatted
 
     def test_invoice_format_remaining_balance(self):
@@ -434,17 +398,15 @@ class TestMoneyInvoice:
             tenant_id="tenant_1",
             customer_id="cust_123",
             billing_email="test@example.com",
-            line_items=[
-                {"description": "Item", "quantity": 1, "unit_price": "500"}
-            ]
+            line_items=[{"description": "Item", "quantity": 1, "unit_price": "500"}],
         )
 
-        formatted = invoice.format_remaining_balance(locale='en_US')
+        formatted = invoice.format_remaining_balance(locale="en_US")
         assert "500" in formatted
 
     def test_invoice_with_dates(self):
         """Test invoice with issue and due dates."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         due = now + timedelta(days=30)
 
         invoice = MoneyInvoice.create_invoice(
@@ -453,7 +415,7 @@ class TestMoneyInvoice:
             billing_email="test@example.com",
             line_items=[],
             issue_date=now,
-            due_date=due
+            due_date=due,
         )
 
         assert invoice.issue_date == now
@@ -467,7 +429,7 @@ class TestMoneyInvoice:
             billing_email="test@example.com",
             line_items=[],
             notes="Customer notes",
-            internal_notes="Internal notes"
+            internal_notes="Internal notes",
         )
 
         assert invoice.notes == "Customer notes"
@@ -480,7 +442,7 @@ class TestMoneyInvoice:
             customer_id="cust_123",
             billing_email="test@example.com",
             line_items=[],
-            subscription_id="sub_789"
+            subscription_id="sub_789",
         )
 
         assert invoice.subscription_id == "sub_789"
@@ -498,5 +460,5 @@ class TestMoneyInvoice:
                 discount_amount=zero_money,
                 total_amount=zero_money,
                 remaining_balance=zero_money,
-                invalid_field="should_fail"  # Extra field
+                invalid_field="should_fail",  # Extra field
             )

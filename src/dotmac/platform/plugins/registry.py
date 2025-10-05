@@ -11,14 +11,14 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 # from ..secrets.interfaces import SecretsProvider  # Optional dependency
 from ..settings import get_settings
-from .interfaces import PluginProvider, PROVIDER_TYPE_MAP
+from .interfaces import PROVIDER_TYPE_MAP, PluginProvider
 from .schema import (
     FieldType,
     PluginConfig,
@@ -33,16 +33,19 @@ logger = logging.getLogger(__name__)
 
 class PluginRegistryError(Exception):
     """Plugin registry related errors."""
+
     pass
 
 
 class PluginLoadError(Exception):
     """Plugin loading errors."""
+
     pass
 
 
 class PluginConfigurationError(Exception):
     """Plugin configuration errors."""
+
     pass
 
 
@@ -54,23 +57,23 @@ class PluginRegistry:
     and health monitoring.
     """
 
-    def __init__(self, secrets_provider = None):
+    def __init__(self, secrets_provider=None):
         self.secrets_provider = secrets_provider
         self.settings = get_settings()
 
         # Plugin storage
-        self._plugins: Dict[str, PluginProvider] = {}  # plugin_name -> provider
-        self._instances: Dict[UUID, PluginInstance] = {}  # instance_id -> instance
-        self._configurations: Dict[UUID, Dict[str, Any]] = {}  # instance_id -> config
+        self._plugins: dict[str, PluginProvider] = {}  # plugin_name -> provider
+        self._instances: dict[UUID, PluginInstance] = {}  # instance_id -> instance
+        self._configurations: dict[UUID, dict[str, Any]] = {}  # instance_id -> config
 
         # Plugin loading paths
-        self._plugin_paths: List[Path] = [
+        self._plugin_paths: list[Path] = [
             Path("plugins"),  # Local plugins directory
             Path(__file__).parent / "builtin",  # Built-in plugins
         ]
 
         # Add user-specified plugin paths
-        if hasattr(self.settings, 'plugin_paths'):
+        if hasattr(self.settings, "plugin_paths"):
             self._plugin_paths.extend([Path(p) for p in self.settings.plugin_paths])
 
     async def initialize(self) -> None:
@@ -131,7 +134,9 @@ class PluginRegistry:
 
         try:
             # Import the module
-            module_name = module_path.stem if module_path.name != "__init__.py" else module_path.parent.name
+            module_name = (
+                module_path.stem if module_path.name != "__init__.py" else module_path.parent.name
+            )
             spec = importlib.util.spec_from_file_location(module_name, module_path)
             if not spec or not spec.loader:
                 raise PluginLoadError(f"Could not load spec for {module_path}")
@@ -190,15 +195,15 @@ class PluginRegistry:
         config_file = Path("plugin_configs.json")
         if config_file.exists():
             try:
-                with open(config_file, 'r') as f:
+                with open(config_file) as f:
                     data = json.load(f)
 
-                for instance_data in data.get('instances', []):
+                for instance_data in data.get("instances", []):
                     instance = PluginInstance(**instance_data)
                     self._instances[instance.id] = instance
 
                     # Load configuration values
-                    config_values = data.get('configurations', {}).get(str(instance.id), {})
+                    config_values = data.get("configurations", {}).get(str(instance.id), {})
                     self._configurations[instance.id] = config_values
 
                     logger.debug(f"Loaded configuration for plugin instance {instance.id}")
@@ -212,14 +217,13 @@ class PluginRegistry:
 
         try:
             data = {
-                'instances': [instance.model_dump() for instance in self._instances.values()],
-                'configurations': {
-                    str(instance_id): config
-                    for instance_id, config in self._configurations.items()
-                }
+                "instances": [instance.model_dump() for instance in self._instances.values()],
+                "configurations": {
+                    str(instance_id): config for instance_id, config in self._configurations.items()
+                },
             }
 
-            with open(config_file, 'w') as f:
+            with open(config_file, "w") as f:
                 json.dump(data, f, indent=2, default=str)
 
         except Exception as e:
@@ -227,7 +231,7 @@ class PluginRegistry:
 
     # Public API methods
 
-    def list_available_plugins(self) -> List[PluginConfig]:
+    def list_available_plugins(self) -> list[PluginConfig]:
         """List all available (registered) plugins."""
         schemas = []
         for provider in self._plugins.values():
@@ -238,11 +242,11 @@ class PluginRegistry:
                 logger.warning(f"Failed to get schema for plugin: {e}")
         return schemas
 
-    def list_plugin_instances(self) -> List[PluginInstance]:
+    def list_plugin_instances(self) -> list[PluginInstance]:
         """List all configured plugin instances."""
         return list(self._instances.values())
 
-    def get_plugin_schema(self, plugin_name: str) -> Optional[PluginConfig]:
+    def get_plugin_schema(self, plugin_name: str) -> PluginConfig | None:
         """Get configuration schema for a plugin."""
         provider = self._plugins.get(plugin_name)
         if provider:
@@ -253,10 +257,7 @@ class PluginRegistry:
         return None
 
     async def create_plugin_instance(
-        self,
-        plugin_name: str,
-        instance_name: str,
-        configuration: Dict[str, Any]
+        self, plugin_name: str, instance_name: str, configuration: dict[str, Any]
     ) -> PluginInstance:
         """Create a new plugin instance with configuration."""
         provider = self._plugins.get(plugin_name)
@@ -305,10 +306,7 @@ class PluginRegistry:
         return instance
 
     async def _store_configuration(
-        self,
-        instance_id: UUID,
-        schema: PluginConfig,
-        configuration: Dict[str, Any]
+        self, instance_id: UUID, schema: PluginConfig, configuration: dict[str, Any]
     ) -> None:
         """Store plugin configuration, handling secrets appropriately."""
         stored_config = {}
@@ -324,7 +322,7 @@ class PluginRegistry:
 
             if field_spec.is_secret or field_spec.type == FieldType.SECRET:
                 # Store secrets in Vault
-                if self.secrets_provider and value and hasattr(self.secrets_provider, 'set_secret'):
+                if self.secrets_provider and value and hasattr(self.secrets_provider, "set_secret"):
                     secret_path = f"plugins/{instance_id}/{key}"
                     try:
                         await self.secrets_provider.set_secret(secret_path, {"value": value})
@@ -341,7 +339,7 @@ class PluginRegistry:
 
         self._configurations[instance_id] = stored_config
 
-    async def get_plugin_configuration(self, instance_id: UUID) -> Dict[str, Any]:
+    async def get_plugin_configuration(self, instance_id: UUID) -> dict[str, Any]:
         """Get plugin configuration, masking secrets."""
         if instance_id not in self._instances:
             raise PluginRegistryError(f"Plugin instance {instance_id} not found")
@@ -367,9 +365,7 @@ class PluginRegistry:
         return config
 
     async def update_plugin_configuration(
-        self,
-        instance_id: UUID,
-        configuration: Dict[str, Any]
+        self, instance_id: UUID, configuration: dict[str, Any]
     ) -> None:
         """Update plugin configuration."""
         if instance_id not in self._instances:
@@ -402,7 +398,7 @@ class PluginRegistry:
         # Save changes
         await self._save_configurations()
 
-    async def _get_full_configuration(self, instance_id: UUID) -> Dict[str, Any]:
+    async def _get_full_configuration(self, instance_id: UUID) -> dict[str, Any]:
         """Get full configuration with secrets resolved for provider use."""
         stored_config = self._configurations.get(instance_id, {})
         full_config = {}
@@ -410,7 +406,11 @@ class PluginRegistry:
         for key, value in stored_config.items():
             if isinstance(value, dict) and value.get("__secret__"):
                 # Resolve secret from Vault
-                if self.secrets_provider and "path" in value and hasattr(self.secrets_provider, 'get_secret'):
+                if (
+                    self.secrets_provider
+                    and "path" in value
+                    and hasattr(self.secrets_provider, "get_secret")
+                ):
                     try:
                         secret_data = await self.secrets_provider.get_secret(value["path"])
                         full_config[key] = secret_data.get("value")
@@ -437,7 +437,7 @@ class PluginRegistry:
         try:
             health_check = await provider.health_check()
             health_check.plugin_instance_id = str(instance_id)
-            health_check.timestamp = datetime.now(timezone.utc).isoformat()
+            health_check.timestamp = datetime.now(UTC).isoformat()
             health_check.response_time_ms = int((time.time() - start_time) * 1000)
 
             # Update instance
@@ -456,7 +456,7 @@ class PluginRegistry:
                 status="unhealthy",
                 message=f"Health check failed: {str(e)}",
                 details={"error": str(e)},
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 response_time_ms=int((time.time() - start_time) * 1000),
             )
 
@@ -467,9 +467,7 @@ class PluginRegistry:
             return health_check
 
     async def test_plugin_connection(
-        self,
-        instance_id: UUID,
-        test_config: Optional[Dict[str, Any]] = None
+        self, instance_id: UUID, test_config: dict[str, Any] | None = None
     ) -> PluginTestResult:
         """Test plugin connection with provided or stored configuration."""
         if instance_id not in self._instances:
@@ -486,7 +484,7 @@ class PluginRegistry:
 
         try:
             result = await provider.test_connection(test_config)
-            result.timestamp = datetime.now(timezone.utc).isoformat()
+            result.timestamp = datetime.now(UTC).isoformat()
             result.response_time_ms = int((time.time() - start_time) * 1000)
             return result
 
@@ -495,15 +493,15 @@ class PluginRegistry:
                 success=False,
                 message=f"Connection test failed: {str(e)}",
                 details={"error": str(e)},
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 response_time_ms=int((time.time() - start_time) * 1000),
             )
 
-    async def get_plugin_provider(self, plugin_name: str) -> Optional[PluginProvider]:
+    async def get_plugin_provider(self, plugin_name: str) -> PluginProvider | None:
         """Get a plugin provider by name."""
         return self._plugins.get(plugin_name)
 
-    async def get_plugin_instance(self, instance_id: UUID) -> Optional[PluginInstance]:
+    async def get_plugin_instance(self, instance_id: UUID) -> PluginInstance | None:
         """Get a plugin instance by ID."""
         return self._instances.get(instance_id)
 
@@ -514,7 +512,7 @@ class PluginRegistry:
 
         # Clean up secrets
         stored_config = self._configurations.get(instance_id, {})
-        if self.secrets_provider and hasattr(self.secrets_provider, 'delete_secret'):
+        if self.secrets_provider and hasattr(self.secrets_provider, "delete_secret"):
             for key, value in stored_config.items():
                 if isinstance(value, dict) and value.get("__secret__") and "path" in value:
                     try:
@@ -531,7 +529,7 @@ class PluginRegistry:
 
 
 # Global registry instance
-_plugin_registry: Optional[PluginRegistry] = None
+_plugin_registry: PluginRegistry | None = None
 
 
 def get_plugin_registry() -> PluginRegistry:

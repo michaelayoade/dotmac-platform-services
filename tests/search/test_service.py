@@ -20,6 +20,8 @@ from dotmac.platform.search.interfaces import (
     SortOrder,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestInMemorySearchBackend:
     """Test InMemorySearchBackend class."""
@@ -34,10 +36,34 @@ class TestInMemorySearchBackend:
         """Create backend with test data."""
         await backend.create_index("test_index")
         test_docs = [
-            {"id": "1", "title": "Python Programming", "content": "Learn Python basics", "category": "tech", "score": 10},
-            {"id": "2", "title": "Data Science", "content": "Advanced data analysis", "category": "tech", "score": 8},
-            {"id": "3", "title": "Web Development", "content": "Build web applications", "category": "tech", "score": 9},
-            {"id": "4", "title": "Marketing Tips", "content": "Digital marketing strategies", "category": "business", "score": 7},
+            {
+                "id": "1",
+                "title": "Python Programming",
+                "content": "Learn Python basics",
+                "category": "tech",
+                "score": 10,
+            },
+            {
+                "id": "2",
+                "title": "Data Science",
+                "content": "Advanced data analysis",
+                "category": "tech",
+                "score": 8,
+            },
+            {
+                "id": "3",
+                "title": "Web Development",
+                "content": "Build web applications",
+                "category": "tech",
+                "score": 9,
+            },
+            {
+                "id": "4",
+                "title": "Marketing Tips",
+                "content": "Digital marketing strategies",
+                "category": "business",
+                "score": 7,
+            },
         ]
 
         for doc in test_docs:
@@ -103,12 +129,7 @@ class TestInMemorySearchBackend:
 
     async def test_search_with_sorting(self, populated_backend):
         """Test search with sorting."""
-        query = SearchQuery(
-            query="",
-            sort_by="score",
-            sort_order=SortOrder.DESC,
-            limit=10
-        )
+        query = SearchQuery(query="", sort_by="score", sort_order=SortOrder.DESC, limit=10)
         response = await populated_backend.search("test_index", query)
 
         scores = [result.data["score"] for result in response.results]
@@ -278,8 +299,8 @@ class TestMeilisearchBackend:
         """Create mock Meilisearch index."""
         return Mock()
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
-    @patch('os.getenv')
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    @patch("os.getenv")
     def test_meilisearch_backend_init(self, mock_getenv, mock_require):
         """Test MeilisearchBackend initialization."""
         mock_meilisearch = Mock()
@@ -289,7 +310,7 @@ class TestMeilisearchBackend:
 
         mock_getenv.side_effect = lambda key, default=None: {
             "MEILISEARCH_HOST": "http://test:7700",
-            "MEILISEARCH_API_KEY": "test-key"
+            "MEILISEARCH_API_KEY": "test-key",
         }.get(key, default)
 
         backend = MeilisearchBackend()
@@ -300,7 +321,7 @@ class TestMeilisearchBackend:
         assert backend.client == mock_client
         mock_meilisearch.Client.assert_called_once_with("http://test:7700", "test-key")
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
+    @patch("dotmac.platform.search.service.require_meilisearch")
     def test_meilisearch_backend_custom_config(self, mock_require):
         """Test MeilisearchBackend with custom configuration."""
         mock_meilisearch = Mock()
@@ -309,16 +330,14 @@ class TestMeilisearchBackend:
         mock_require.return_value = mock_meilisearch
 
         backend = MeilisearchBackend(
-            host="http://custom:8700",
-            api_key="custom-key",
-            primary_key="custom_id"
+            host="http://custom:8700", api_key="custom-key", primary_key="custom_id"
         )
 
         assert backend.host == "http://custom:8700"
         assert backend.api_key == "custom-key"
         assert backend.primary_key == "custom_id"
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
+    @patch("dotmac.platform.search.service.require_meilisearch")
     async def test_meilisearch_index(self, mock_require):
         """Test MeilisearchBackend index method."""
         mock_meilisearch = Mock()
@@ -340,7 +359,7 @@ class TestMeilisearchBackend:
         assert call_args[0][0][0]["id"] == "doc1"
         assert call_args[0][0][0]["title"] == "Test Document"
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
+    @patch("dotmac.platform.search.service.require_meilisearch")
     async def test_meilisearch_search(self, mock_require):
         """Test MeilisearchBackend search method."""
         mock_meilisearch = Mock()
@@ -353,11 +372,11 @@ class TestMeilisearchBackend:
                     "id": "doc1",
                     "title": "Test Document",
                     "_rankingScore": 0.95,
-                    "_formatted": {"title": "Test <mark>Document</mark>"}
+                    "_formatted": {"title": "Test <mark>Document</mark>"},
                 }
             ],
             "estimatedTotalHits": 1,
-            "processingTimeMs": 5
+            "processingTimeMs": 5,
         }
 
         mock_meilisearch.Client.return_value = mock_client
@@ -377,7 +396,7 @@ class TestMeilisearchBackend:
         assert response.total == 1
         assert response.took_ms == 5
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
+    @patch("dotmac.platform.search.service.require_meilisearch")
     async def test_meilisearch_delete(self, mock_require):
         """Test MeilisearchBackend delete method."""
         mock_meilisearch = Mock()
@@ -395,7 +414,7 @@ class TestMeilisearchBackend:
         assert result is True
         mock_index.delete_document.assert_called_once_with("doc1")
 
-    @patch('dotmac.platform.search.service.require_meilisearch')
+    @patch("dotmac.platform.search.service.require_meilisearch")
     async def test_meilisearch_filters(self, mock_require):
         """Test MeilisearchBackend filter conversion."""
         mock_meilisearch = Mock()
@@ -416,7 +435,7 @@ class TestMeilisearchBackend:
 
     def test_meilisearch_filter_expression_empty(self):
         """Test empty filter expression."""
-        with patch('dotmac.platform.search.service.require_meilisearch') as mock_require:
+        with patch("dotmac.platform.search.service.require_meilisearch") as mock_require:
             mock_meilisearch = Mock()
             mock_require.return_value = mock_meilisearch
 
@@ -433,7 +452,9 @@ class TestSearchService:
         """Create mock search backend."""
         backend = AsyncMock()
         backend.index = AsyncMock(return_value=True)
-        backend.search = AsyncMock(return_value=SearchResponse(results=[], total=0, query=SearchQuery(query="test")))
+        backend.search = AsyncMock(
+            return_value=SearchResponse(results=[], total=0, query=SearchQuery(query="test"))
+        )
         backend.delete = AsyncMock(return_value=True)
         backend.update = AsyncMock(return_value=True)
         backend.bulk_index = AsyncMock(return_value=5)
@@ -511,7 +532,7 @@ class TestSearchService:
         for call in mock_backend.create_index.call_args_list:
             assert call[0][0] in expected_calls
 
-    @patch('dotmac.platform.search.factory.create_search_backend_from_env')
+    @patch("dotmac.platform.search.factory.create_search_backend_from_env")
     def test_search_service_init_string_backend(self, mock_create):
         """Test SearchService initialization with string backend."""
         mock_backend = Mock()
@@ -522,7 +543,7 @@ class TestSearchService:
         assert service.backend == mock_backend
         mock_create.assert_called_once_with("memory")
 
-    @patch('dotmac.platform.search.factory.create_search_backend_from_env')
+    @patch("dotmac.platform.search.factory.create_search_backend_from_env")
     def test_search_service_init_none_backend(self, mock_create):
         """Test SearchService initialization with None backend."""
         mock_backend = Mock()
@@ -607,3 +628,394 @@ class TestSearchServiceIntegration:
         query = SearchQuery(query="", filters=[filter_active], limit=10)
         response = await memory_service.search_business_entities("customer", query)
         assert len(response.results) == 2
+
+
+class TestInMemorySearchBackendAdditional:
+    """Additional tests for InMemorySearchBackend to reach 90% coverage."""
+
+    @pytest.fixture
+    def backend(self):
+        """Create in-memory search backend."""
+        return InMemorySearchBackend()
+
+    @pytest.fixture
+    async def populated_backend(self, backend):
+        """Create backend with test data including various data types."""
+        await backend.create_index("test_index")
+        test_docs = [
+            {"id": "1", "name": "Alice", "age": 30, "city": "NYC", "tags": ["dev", "python"]},
+            {"id": "2", "name": "Bob", "age": 25, "city": "SF", "tags": ["dev", "go"]},
+            {"id": "3", "name": "Charlie", "age": 35, "city": "LA", "tags": ["manager"]},
+            {"id": "4", "name": "Diana", "age": 28, "city": "NYC", "tags": ["dev", "java"]},
+        ]
+
+        for doc in test_docs:
+            doc_id = doc.pop("id")
+            await backend.index("test_index", doc_id, doc)
+
+        return backend
+
+    async def test_filter_operator_ne(self, populated_backend):
+        """Test 'ne' (not equal) filter operator."""
+        filter_ne = SearchFilter(field="city", operator="ne", value="NYC")
+        query = SearchQuery(query="", filters=[filter_ne], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 2  # SF and LA
+        for result in response.results:
+            assert result.data["city"] != "NYC"
+
+    async def test_filter_operator_lt(self, populated_backend):
+        """Test 'lt' (less than) filter operator."""
+        filter_lt = SearchFilter(field="age", operator="lt", value=30)
+        query = SearchQuery(query="", filters=[filter_lt], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 2  # ages 25 and 28
+        for result in response.results:
+            assert result.data["age"] < 30
+
+    async def test_filter_operator_gte(self, populated_backend):
+        """Test 'gte' (greater than or equal) filter operator."""
+        filter_gte = SearchFilter(field="age", operator="gte", value=30)
+        query = SearchQuery(query="", filters=[filter_gte], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 2  # ages 30 and 35
+        for result in response.results:
+            assert result.data["age"] >= 30
+
+    async def test_filter_operator_lte(self, populated_backend):
+        """Test 'lte' (less than or equal) filter operator."""
+        filter_lte = SearchFilter(field="age", operator="lte", value=28)
+        query = SearchQuery(query="", filters=[filter_lte], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 2  # ages 25 and 28
+        for result in response.results:
+            assert result.data["age"] <= 28
+
+    async def test_filter_operator_in(self, populated_backend):
+        """Test 'in' filter operator."""
+        filter_in = SearchFilter(field="city", operator="in", value=["NYC", "SF"])
+        query = SearchQuery(query="", filters=[filter_in], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 3  # Alice, Bob, Diana
+        for result in response.results:
+            assert result.data["city"] in ["NYC", "SF"]
+
+    async def test_filter_operator_contains(self, populated_backend):
+        """Test 'contains' filter operator."""
+        filter_contains = SearchFilter(field="name", operator="contains", value="li")
+        query = SearchQuery(query="", filters=[filter_contains], limit=10)
+        response = await populated_backend.search("test_index", query)
+
+        assert len(response.results) == 2  # Alice and Charlie
+        for result in response.results:
+            assert "li" in result.data["name"]
+
+
+class TestMeilisearchBackendAdditional:
+    """Additional tests for MeilisearchBackend to reach 90% coverage."""
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_update(self, mock_require):
+        """Test MeilisearchBackend update method."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        updates = {"title": "Updated Document"}
+        result = await backend.update("test_index", "doc1", updates)
+
+        assert result is True
+        mock_index.update_documents.assert_called_once()
+        call_args = mock_index.update_documents.call_args
+        assert call_args[0][0][0]["id"] == "doc1"
+        assert call_args[0][0][0]["title"] == "Updated Document"
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_bulk_index(self, mock_require):
+        """Test MeilisearchBackend bulk_index method."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        docs = [
+            {"id": "doc1", "title": "Document 1"},
+            {"id": "doc2", "title": "Document 2"},
+            {"id": "doc3", "title": "Document 3"},
+        ]
+
+        count = await backend.bulk_index("test_index", docs)
+
+        assert count == 3
+        mock_index.add_documents.assert_called_once()
+        call_args = mock_index.add_documents.call_args
+        assert len(call_args[0][0]) == 3
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_bulk_index_empty(self, mock_require):
+        """Test MeilisearchBackend bulk_index with no valid documents."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        # Documents without ID
+        docs = [
+            {"title": "Document without ID"},
+        ]
+
+        count = await backend.bulk_index("test_index", docs)
+
+        assert count == 0
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_bulk_index_with_custom_primary_key(self, mock_require):
+        """Test MeilisearchBackend bulk_index with documents using 'id' field."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend(primary_key="custom_id")
+
+        docs = [
+            {"id": "doc1", "title": "Document 1"},  # Should convert id -> custom_id
+        ]
+
+        count = await backend.bulk_index("test_index", docs)
+
+        assert count == 1
+        call_args = mock_index.add_documents.call_args
+        assert "custom_id" in call_args[0][0][0]
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_create_index(self, mock_require):
+        """Test MeilisearchBackend create_index method."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.create_index.return_value = None
+        mock_client.get_index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        result = await backend.create_index("test_index")
+
+        assert result is True
+        mock_client.create_index.assert_called_once_with("test_index", {"primaryKey": "id"})
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_create_index_with_mappings(self, mock_require):
+        """Test MeilisearchBackend create_index with searchable attributes."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.create_index.return_value = None
+        mock_client.get_index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        mappings = {"searchableAttributes": ["title", "content"]}
+        result = await backend.create_index("test_index", mappings)
+
+        assert result is True
+        mock_index.update_searchable_attributes.assert_called_once_with(["title", "content"])
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_create_index_already_exists(self, mock_require):
+        """Test MeilisearchBackend create_index when index already exists."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.create_index.side_effect = Exception("index already exists")
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        result = await backend.create_index("test_index")
+
+        assert result is True  # Should not fail
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_delete_index(self, mock_require):
+        """Test MeilisearchBackend delete_index method."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        result = await backend.delete_index("test_index")
+
+        assert result is True
+        mock_client.delete_index.assert_called_once_with("test_index")
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_search_with_filters(self, mock_require):
+        """Test MeilisearchBackend search with multiple filter types."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_search_response = {
+            "hits": [],
+            "estimatedTotalHits": 0,
+            "processingTimeMs": 5,
+        }
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_index.search.return_value = mock_search_response
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        filters = [
+            SearchFilter(field="status", operator="ne", value="inactive"),
+            SearchFilter(field="tags", operator="contains", value="python"),
+        ]
+
+        query = SearchQuery(query="test", filters=filters, limit=10)
+        response = await backend.search("test_index", query)
+
+        assert isinstance(response, SearchResponse)
+        # Verify filter expression was built
+        call_args = mock_index.search.call_args
+        assert "filter" in call_args[0][1]
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_search_with_sorting(self, mock_require):
+        """Test MeilisearchBackend search with sorting."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_search_response = {
+            "hits": [],
+            "estimatedTotalHits": 0,
+            "processingTimeMs": 5,
+        }
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_index.search.return_value = mock_search_response
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        query = SearchQuery(query="test", sort_by="created_at", sort_order=SortOrder.DESC, limit=10)
+        response = await backend.search("test_index", query)
+
+        assert isinstance(response, SearchResponse)
+        call_args = mock_index.search.call_args
+        assert "sort" in call_args[0][1]
+        assert call_args[0][1]["sort"] == ["created_at:desc"]
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_search_with_fields(self, mock_require):
+        """Test MeilisearchBackend search with specific fields."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_search_response = {
+            "hits": [],
+            "estimatedTotalHits": 0,
+            "processingTimeMs": 5,
+        }
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.return_value = mock_index
+        mock_index.search.return_value = mock_search_response
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        query = SearchQuery(query="test", fields=["title", "content"], limit=10)
+        response = await backend.search("test_index", query)
+
+        assert isinstance(response, SearchResponse)
+        call_args = mock_index.search.call_args
+        assert "attributesToSearchOn" in call_args[0][1]
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    async def test_meilisearch_get_index_fallback(self, mock_require):
+        """Test MeilisearchBackend _get_index fallback when get_index fails."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_index = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.get_index.side_effect = Exception("Index not found")
+        mock_client.index.return_value = mock_index
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend()
+
+        # This should trigger the fallback to client.index()
+        doc = {"title": "Test"}
+        result = await backend.index("test_index", "doc1", doc)
+
+        assert result is True
+        mock_client.index.assert_called_once_with("test_index")
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    def test_meilisearch_with_timeout(self, mock_require):
+        """Test MeilisearchBackend initialization with custom timeout."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+        mock_http_client = Mock()
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_client.http_client = mock_http_client
+        mock_require.return_value = mock_meilisearch
+
+        backend = MeilisearchBackend(default_timeout=30)
+
+        assert mock_http_client.timeout == 30
+
+    @patch("dotmac.platform.search.service.require_meilisearch")
+    def test_meilisearch_without_http_client_attribute(self, mock_require):
+        """Test MeilisearchBackend timeout setting when http_client is not available."""
+        mock_meilisearch = Mock()
+        mock_client = Mock()
+
+        # Client without http_client attribute
+        del mock_client.http_client
+
+        mock_meilisearch.Client.return_value = mock_client
+        mock_require.return_value = mock_meilisearch
+
+        # Should not raise an error
+        backend = MeilisearchBackend(default_timeout=30)
+
+        assert backend.client == mock_client

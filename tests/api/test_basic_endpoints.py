@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.asyncio
+
 
 class SimpleAPIKeyService:
     """Simple API key service for testing"""

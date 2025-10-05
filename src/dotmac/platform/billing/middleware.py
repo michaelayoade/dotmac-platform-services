@@ -6,7 +6,7 @@ Provides centralized error handling, request/response logging, and metrics colle
 
 import time
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 import structlog
 from fastapi import Request, Response
@@ -14,11 +14,6 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from dotmac.platform.billing.exceptions import BillingError
-from dotmac.platform.billing.metrics import (
-    billing_request_counter,
-    billing_request_duration,
-    billing_error_counter,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -68,14 +63,6 @@ class BillingErrorMiddleware(BaseHTTPMiddleware):
                     duration=duration,
                 )
 
-                # Record metrics
-                billing_request_counter.labels(
-                    method=request.method, endpoint=request.url.path, status=response.status_code
-                ).inc()
-                billing_request_duration.labels(
-                    method=request.method, endpoint=request.url.path
-                ).observe(duration)
-
             return response
 
         except BillingError as e:
@@ -90,9 +77,6 @@ class BillingErrorMiddleware(BaseHTTPMiddleware):
                 error_context=e.context,
                 duration=duration,
             )
-
-            # Record error metrics
-            billing_error_counter.labels(error_code=e.error_code, endpoint=request.url.path).inc()
 
             # Create error response
             error_response = {
@@ -114,11 +98,6 @@ class BillingErrorMiddleware(BaseHTTPMiddleware):
             logger.exception(
                 "Unexpected error in billing request", **context, error=str(e), duration=duration
             )
-
-            # Record generic error metric
-            billing_error_counter.labels(
-                error_code="INTERNAL_ERROR", endpoint=request.url.path
-            ).inc()
 
             # Create generic error response
             error_response = {

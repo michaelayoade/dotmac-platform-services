@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PluginHealthDashboard } from '../../app/dashboard/settings/plugins/components/PluginHealthDashboard';
 
@@ -219,7 +219,10 @@ describe('PluginHealthDashboard', () => {
       renderHealthDashboard({ onRefresh });
 
       const refreshButton = screen.getByRole('button', { name: /Refresh Health/ });
-      await user.click(refreshButton);
+
+      await act(async () => {
+        await user.click(refreshButton);
+      });
 
       expect(onRefresh).toHaveBeenCalled();
     });
@@ -234,7 +237,10 @@ describe('PluginHealthDashboard', () => {
       renderHealthDashboard({ onRefresh });
 
       const refreshButton = screen.getByRole('button', { name: /Refresh Health/ });
-      await user.click(refreshButton);
+
+      await act(async () => {
+        await user.click(refreshButton);
+      });
 
       expect(screen.getByText('Checking...')).toBeInTheDocument();
       expect(refreshButton).toBeDisabled();
@@ -253,7 +259,10 @@ describe('PluginHealthDashboard', () => {
       renderHealthDashboard({ onRefresh });
 
       const refreshButton = screen.getByRole('button', { name: /Refresh Health/ });
-      await user.click(refreshButton);
+
+      await act(async () => {
+        await user.click(refreshButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Refresh Health')).toBeInTheDocument();
@@ -323,7 +332,9 @@ describe('PluginHealthDashboard', () => {
 
       const instanceRow = screen.getByText('Production WhatsApp').closest('div');
       if (instanceRow) {
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
 
         expect(screen.getByText('Health Check Details')).toBeInTheDocument();
         expect(screen.getByText('Status:')).toBeInTheDocument();
@@ -339,11 +350,15 @@ describe('PluginHealthDashboard', () => {
       const instanceRow = screen.getByText('Production WhatsApp').closest('div');
       if (instanceRow) {
         // Expand
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
         expect(screen.getByText('Health Check Details')).toBeInTheDocument();
 
         // Collapse
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
         expect(screen.queryByText('Health Check Details')).not.toBeInTheDocument();
       }
     });
@@ -354,7 +369,9 @@ describe('PluginHealthDashboard', () => {
 
       const instanceRow = screen.getByText('Production WhatsApp').closest('div');
       if (instanceRow) {
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
 
         // Basic health info
         expect(screen.getByText('healthy')).toBeInTheDocument();
@@ -374,7 +391,9 @@ describe('PluginHealthDashboard', () => {
 
       const instanceRow = screen.getByText('SMTP Gateway').closest('div');
       if (instanceRow) {
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
 
         expect(screen.getByText('Last Error')).toBeInTheDocument();
         expect(screen.getByText('SMTP authentication failed: Invalid credentials')).toBeInTheDocument();
@@ -387,7 +406,9 @@ describe('PluginHealthDashboard', () => {
 
       const instanceRow = screen.getByText('Stripe Integration').closest('div');
       if (instanceRow) {
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
 
         expect(screen.getByText('Additional Information')).toBeInTheDocument();
         expect(screen.getByText('No additional details available')).toBeInTheDocument();
@@ -413,7 +434,9 @@ describe('PluginHealthDashboard', () => {
 
       const instanceRow = screen.getByText('Production WhatsApp').closest('div');
       if (instanceRow) {
-        await user.click(instanceRow);
+        await act(async () => {
+          await user.click(instanceRow);
+        });
 
         // Should show formatted timestamp
         const timestampElements = screen.getAllByText(/Last checked:/);

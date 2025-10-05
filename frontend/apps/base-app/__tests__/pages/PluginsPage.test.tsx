@@ -1,20 +1,42 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import PluginsPage from '../../app/dashboard/settings/plugins/page';
 
-// Mock the http-client
-jest.mock('@dotmac/http-client', () => ({
-  httpClient: {
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
+// Create mock functions
+const mockGet = jest.fn();
+const mockPost = jest.fn();
+const mockPut = jest.fn();
+const mockPatch = jest.fn();
+const mockDelete = jest.fn();
+const mockLogin = jest.fn();
+const mockLogout = jest.fn();
+
+// Mock the API client BEFORE importing components that use it
+jest.mock('@/lib/api/client', () => ({
+  apiClient: {
+    get: mockGet,
+    post: mockPost,
+    put: mockPut,
+    patch: mockPatch,
+    delete: mockDelete,
+    login: mockLogin,
+    logout: mockLogout,
   },
 }));
 
-// Get the mocked http client for use in tests
-const { httpClient: mockHttpClient } = require('@dotmac/http-client');
+import PluginsPage from '../../app/dashboard/settings/plugins/page';
+import { apiClient } from '@/lib/api/client';
+
+// Use the exported mock functions for easier access in tests
+const mockApiClient = {
+  get: mockGet,
+  post: mockPost,
+  put: mockPut,
+  patch: mockPatch,
+  delete: mockDelete,
+  login: mockLogin,
+  logout: mockLogout,
+};
 
 // Mock the child components to isolate page-level testing
 jest.mock('../../app/dashboard/settings/plugins/components/PluginForm', () => ({
@@ -136,25 +158,29 @@ describe('PluginsPage', () => {
     jest.clearAllMocks();
 
     // Setup default successful API responses
-    mockHttpClient.get.mockImplementation((url: string) => {
+    mockApiClient.get.mockImplementation((url: string) => {
       if (url === '/api/v1/plugins/') {
-        return Promise.resolve({ data: mockAvailablePlugins });
+        return Promise.resolve({ success: true, data: mockAvailablePlugins });
       }
       if (url === '/api/v1/plugins/instances') {
-        return Promise.resolve({ data: { plugins: mockPluginInstances } });
+        return Promise.resolve({ success: true, data: { plugins: mockPluginInstances } });
       }
-      return Promise.reject(new Error(`Unexpected GET request to ${url}`));
+      return Promise.resolve({
+        success: false,
+        error: { message: `Unexpected GET request to ${url}`, status: 404 }
+      });
     });
 
-    mockHttpClient.post.mockImplementation((url: string) => {
+    mockApiClient.post.mockImplementation((url: string) => {
       if (url === '/api/v1/plugins/instances/health-check') {
-        return Promise.resolve({ data: mockHealthChecks });
+        return Promise.resolve({ success: true, data: mockHealthChecks });
       }
       if (url === '/api/v1/plugins/refresh') {
-        return Promise.resolve({ data: { message: 'Plugins refreshed' } });
+        return Promise.resolve({ success: true, data: { message: 'Plugins refreshed' } });
       }
       if (url === '/api/v1/plugins/instances') {
         return Promise.resolve({
+          success: true,
           data: {
             id: "new-instance-id",
             plugin_name: "Test",
@@ -163,15 +189,18 @@ describe('PluginsPage', () => {
           }
         });
       }
-      return Promise.reject(new Error(`Unexpected POST request to ${url}`));
+      return Promise.resolve({
+        success: false,
+        error: { message: `Unexpected POST request to ${url}`, status: 404 }
+      });
     });
   });
 
   describe('Page Loading', () => {
     it('shows loading state initially', () => {
       // Make API calls hang to test loading state
-      mockHttpClient.get.mockImplementation(() => new Promise(() => {}));
-      mockHttpClient.post.mockImplementation(() => new Promise(() => {}));
+      mockApiClient.get.mockImplementation(() => new Promise(() => {}));
+      mockApiClient.post.mockImplementation(() => new Promise(() => {}));
 
       render(<PluginsPage />);
 
@@ -185,14 +214,14 @@ describe('PluginsPage', () => {
         expect(screen.getByText('Plugin Management')).toBeInTheDocument();
       });
 
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/plugins/instances');
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/plugins/instances/health-check');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/plugins/instances');
+      expect(mockApiClient.post).toHaveBeenCalledWith('/api/v1/plugins/instances/health-check');
     });
 
     it('displays error state when API calls fail', async () => {
       const errorMessage = 'Failed to load plugins';
-      mockHttpClient.get.mockRejectedValue(new Error(errorMessage));
+      mockApiClient.get.mockRejectedValue(new Error(errorMessage));
 
       render(<PluginsPage />);
 
@@ -208,7 +237,7 @@ describe('PluginsPage', () => {
       const user = userEvent.setup();
 
       // First call fails
-      mockHttpClient.get.mockRejectedValueOnce(new Error('Network error'));
+      mockApiClient.get.mockRejectedValueOnce(new Error('Network error'));
 
       render(<PluginsPage />);
 
@@ -217,7 +246,7 @@ describe('PluginsPage', () => {
       });
 
       // Setup successful response for retry
-      mockHttpClient.get.mockResolvedValue({ data: mockAvailablePlugins });
+      mockApiClient.get.mockResolvedValue({ success: true, data: mockAvailablePlugins });
 
       const retryButton = screen.getByRole('button', { name: /Retry/ });
       await user.click(retryButton);
@@ -386,7 +415,7 @@ describe('PluginsPage', () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/plugins/instances', {
+        expect(mockApiClient.post).toHaveBeenCalledWith('/api/v1/plugins/instances', {
           plugin_name: 'Test',
           instance_name: 'Test Instance',
           configuration: {}
@@ -400,7 +429,7 @@ describe('PluginsPage', () => {
     it('handles plugin creation errors', async () => {
       const user = userEvent.setup();
 
-      mockHttpClient.post.mockRejectedValueOnce(new Error('Creation failed'));
+      mockApiClient.post.mockRejectedValueOnce(new Error('Creation failed'));
 
       const addButton = screen.getByRole('button', { name: /Add Plugin/ });
       await user.click(addButton);
@@ -414,7 +443,7 @@ describe('PluginsPage', () => {
 
       // Error should be handled by the form component
       await waitFor(() => {
-        expect(mockHttpClient.post).toHaveBeenCalled();
+        expect(mockApiClient.post).toHaveBeenCalled();
       });
     });
 
@@ -478,7 +507,7 @@ describe('PluginsPage', () => {
       // Switch to list view and attempt delete
       // ... similar setup as above test
 
-      expect(mockHttpClient.delete).not.toHaveBeenCalled();
+      expect(mockApiClient.delete).not.toHaveBeenCalled();
 
       window.confirm = originalConfirm;
     });
@@ -495,16 +524,17 @@ describe('PluginsPage', () => {
     it('handles connection testing', async () => {
       const user = userEvent.setup();
 
-      mockHttpClient.post.mockImplementation((url: string) => {
+      mockApiClient.post.mockImplementation((url: string) => {
         if (url.includes('/test')) {
           return Promise.resolve({
+            success: true,
             data: {
               success: true,
               message: 'Connection successful'
             }
           });
         }
-        return mockHttpClient.post(url);
+        return mockApiClient.post(url);
       });
 
       const addButton = screen.getByRole('button', { name: /Add Plugin/ });
@@ -518,7 +548,7 @@ describe('PluginsPage', () => {
       await user.click(testButton);
 
       await waitFor(() => {
-        expect(mockHttpClient.post).toHaveBeenCalledWith(
+        expect(mockApiClient.post).toHaveBeenCalledWith(
           expect.stringContaining('/test'),
           expect.any(Object)
         );
@@ -528,11 +558,11 @@ describe('PluginsPage', () => {
     it('handles connection test failures', async () => {
       const user = userEvent.setup();
 
-      mockHttpClient.post.mockImplementation((url: string) => {
+      mockApiClient.post.mockImplementation((url: string) => {
         if (url.includes('/test')) {
           return Promise.reject(new Error('Connection failed'));
         }
-        return mockHttpClient.post(url);
+        return mockApiClient.post(url);
       });
 
       const addButton = screen.getByRole('button', { name: /Add Plugin/ });
@@ -546,7 +576,7 @@ describe('PluginsPage', () => {
       await user.click(testButton);
 
       await waitFor(() => {
-        expect(mockHttpClient.post).toHaveBeenCalled();
+        expect(mockApiClient.post).toHaveBeenCalled();
       });
     });
   });
@@ -566,22 +596,25 @@ describe('PluginsPage', () => {
       await user.click(refreshButton);
 
       await waitFor(() => {
-        expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/plugins/refresh');
+        expect(mockApiClient.post).toHaveBeenCalledWith('/api/v1/plugins/refresh');
       });
 
       // Should reload all data after refresh
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/plugins/instances');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/plugins/instances');
     });
 
     it('handles refresh errors', async () => {
       const user = userEvent.setup();
 
-      mockHttpClient.post.mockImplementation((url: string) => {
+      mockApiClient.post.mockImplementation((url: string) => {
         if (url === '/api/v1/plugins/refresh') {
-          return Promise.reject(new Error('Refresh failed'));
+          return Promise.resolve({
+            success: false,
+            error: { message: 'Refresh failed', status: 500 }
+          });
         }
-        return Promise.resolve({ data: mockHealthChecks });
+        return Promise.resolve({ success: true, data: mockHealthChecks });
       });
 
       const refreshButton = screen.getByRole('button', { name: /Refresh/ });
@@ -621,7 +654,7 @@ describe('PluginsPage', () => {
 
         // Should trigger data reload
         await waitFor(() => {
-          expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
+          expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/plugins/');
         });
       }
     });

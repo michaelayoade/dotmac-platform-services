@@ -5,8 +5,6 @@ Provides endpoints for managing platform configuration settings
 with proper admin authentication and audit logging.
 """
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
@@ -23,21 +21,21 @@ from dotmac.platform.admin.settings.models import (
     SettingsValidationResult,
 )
 from dotmac.platform.admin.settings.service import SettingsManagementService
-from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.rbac_dependencies import require_permission
 
 router = APIRouter(
-    tags=["admin", "settings"],
+    tags=["Admin - Settings"],
 )
 
 # Service instance (singleton)
 settings_service = SettingsManagementService()
 
 
-@router.get("/categories", response_model=List[SettingsCategoryInfo])
+@router.get("/categories", response_model=list[SettingsCategoryInfo])
 async def get_all_categories(
     current_admin: UserInfo = Depends(require_permission("settings.read")),
-) -> List[SettingsCategoryInfo]:
+) -> list[SettingsCategoryInfo]:
     """
     Get information about all available settings categories.
 
@@ -71,10 +69,7 @@ async def get_category_settings(
             user_id=current_admin.user_id,
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.put("/category/{category}", response_model=SettingsResponse)
@@ -118,7 +113,7 @@ async def update_category_settings(
                     "detail": "Validation failed",
                     "errors": validation_result.errors,
                     "warnings": validation_result.warnings,
-                }
+                },
             )
 
         # Apply the updates
@@ -131,10 +126,7 @@ async def update_category_settings(
             user_agent=user_agent,
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/validate", response_model=SettingsValidationResult)
@@ -164,10 +156,7 @@ async def validate_settings(
             updates=updates,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/bulk-update")
@@ -212,7 +201,7 @@ async def bulk_update_settings(
                 reason=bulk_update.reason,
             )
 
-            result = settings_service.update_category_settings(
+            settings_service.update_category_settings(
                 category=category,
                 update_request=update_request,
                 user_id=current_admin.user_id,
@@ -226,23 +215,20 @@ async def bulk_update_settings(
             errors[category.value] = str(e)
 
     if errors and not results:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"errors": errors}
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"errors": errors})
 
     return {
         "results": results,
         "errors": errors,
-        "summary": f"Updated {len(results)} categories, {len(errors)} failed"
+        "summary": f"Updated {len(results)} categories, {len(errors)} failed",
     }
 
 
 @router.post("/backup", response_model=SettingsBackup)
 async def create_settings_backup(
     name: str,
-    description: Optional[str] = None,
-    categories: Optional[List[SettingsCategory]] = None,
+    description: str | None = None,
+    categories: list[SettingsCategory] | None = None,
     current_admin: UserInfo = Depends(require_permission("settings.backup")),
 ) -> SettingsBackup:
     """
@@ -288,6 +274,7 @@ async def restore_settings_backup(
     """
     try:
         import uuid
+
         backup_uuid = uuid.UUID(backup_id)
 
         restored = settings_service.restore_backup(
@@ -301,19 +288,16 @@ async def restore_settings_backup(
             "categories": [cat.value for cat in restored.keys()],
         }
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.get("/audit-logs", response_model=List[AuditLog])
+@router.get("/audit-logs", response_model=list[AuditLog])
 async def get_audit_logs(
-    category: Optional[SettingsCategory] = None,
-    user_id: Optional[str] = None,
+    category: SettingsCategory | None = None,
+    user_id: str | None = None,
     limit: int = 100,
     current_admin: UserInfo = Depends(require_permission("settings.audit.read")),
-) -> List[AuditLog]:
+) -> list[AuditLog]:
     """
     Get audit logs for settings changes.
 
@@ -366,10 +350,7 @@ async def export_settings(
             "data": exported,
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/import")
@@ -439,10 +420,7 @@ async def import_settings(
             errors[category_str] = str(e)
 
     if errors and not imported_categories:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"errors": errors}
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"errors": errors})
 
     return {
         "imported": imported_categories,
@@ -475,8 +453,7 @@ async def reset_category_to_defaults(
     # to get default values from the Pydantic model defaults
 
     raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Reset to defaults not yet implemented"
+        status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Reset to defaults not yet implemented"
     )
 
 

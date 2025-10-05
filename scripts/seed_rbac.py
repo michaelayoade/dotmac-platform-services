@@ -12,7 +12,19 @@ from uuid import uuid4
 sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, Text, UniqueConstraint, Index, JSON, Integer
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Table,
+    Text,
+    UniqueConstraint,
+    Index,
+    JSON,
+    Integer,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from uuid import uuid4
 from datetime import datetime
@@ -43,21 +55,28 @@ class RBACSeeder:
             ("users.update", "Update Users", "users", "Modify user accounts and profiles"),
             ("users.delete", "Delete Users", "users", "Remove user accounts"),
             ("users.manage", "Manage Users", "users", "Full user management capabilities"),
-
             # Customer Management
             ("customers.read", "View Customers", "customers", "View customer details and lists"),
             ("customers.create", "Create Customers", "customers", "Create new customer accounts"),
             ("customers.update", "Update Customers", "customers", "Edit customer information"),
             ("customers.delete", "Delete Customers", "customers", "Remove customer accounts"),
-            ("customers.manage", "Manage Customers", "customers", "Full customer management capabilities"),
-
+            (
+                "customers.manage",
+                "Manage Customers",
+                "customers",
+                "Full customer management capabilities",
+            ),
             # Contact Management
             ("contacts.read", "View Contacts", "contacts", "View contact details and lists"),
             ("contacts.create", "Create Contacts", "contacts", "Create new contacts"),
             ("contacts.update", "Update Contacts", "contacts", "Edit contact information"),
             ("contacts.delete", "Delete Contacts", "contacts", "Remove contacts"),
-            ("contacts.manage", "Manage Contacts", "contacts", "Full contact management including labels and fields"),
-
+            (
+                "contacts.manage",
+                "Manage Contacts",
+                "contacts",
+                "Full contact management including labels and fields",
+            ),
             # Billing & Payments
             ("billing.read", "View Billing", "billing", "View billing information and invoices"),
             ("billing.create", "Create Billing", "billing", "Create invoices and billing records"),
@@ -65,30 +84,96 @@ class RBACSeeder:
             ("billing.delete", "Delete Billing", "billing", "Remove billing records and invoices"),
             ("billing.manage", "Manage Billing", "billing", "Full billing system management"),
             ("billing.execute", "Process Payments", "billing", "Process payments and refunds"),
-
             # Analytics & Reporting
             ("analytics.read", "View Analytics", "analytics", "Access dashboards and reports"),
             ("analytics.create", "Create Reports", "analytics", "Generate custom reports"),
-            ("analytics.update", "Update Analytics", "analytics", "Modify analytics configurations"),
+            (
+                "analytics.update",
+                "Update Analytics",
+                "analytics",
+                "Modify analytics configurations",
+            ),
             ("analytics.delete", "Delete Analytics", "analytics", "Remove analytics data"),
-            ("analytics.manage", "Manage Analytics", "analytics", "Full analytics system management"),
-
+            (
+                "analytics.manage",
+                "Manage Analytics",
+                "analytics",
+                "Full analytics system management",
+            ),
             # Communications
-            ("communications.read", "View Communications", "communications", "View communication logs and templates"),
-            ("communications.create", "Create Communications", "communications", "Send emails and notifications"),
-            ("communications.update", "Update Communications", "communications", "Modify communication templates"),
-            ("communications.delete", "Delete Communications", "communications", "Remove communication records"),
-            ("communications.manage", "Manage Communications", "communications", "Full communication system management"),
-            ("communications.execute", "Send Communications", "communications", "Execute communication campaigns"),
-
+            (
+                "communications.read",
+                "View Communications",
+                "communications",
+                "View communication logs and templates",
+            ),
+            (
+                "communications.create",
+                "Create Communications",
+                "communications",
+                "Send emails and notifications",
+            ),
+            (
+                "communications.update",
+                "Update Communications",
+                "communications",
+                "Modify communication templates",
+            ),
+            (
+                "communications.delete",
+                "Delete Communications",
+                "communications",
+                "Remove communication records",
+            ),
+            (
+                "communications.manage",
+                "Manage Communications",
+                "communications",
+                "Full communication system management",
+            ),
+            (
+                "communications.execute",
+                "Send Communications",
+                "communications",
+                "Execute communication campaigns",
+            ),
             # Infrastructure
-            ("infrastructure.read", "View Infrastructure", "infrastructure", "View system configuration and status"),
-            ("infrastructure.create", "Create Infrastructure", "infrastructure", "Create infrastructure resources"),
-            ("infrastructure.update", "Update Infrastructure", "infrastructure", "Modify infrastructure settings"),
-            ("infrastructure.delete", "Delete Infrastructure", "infrastructure", "Remove infrastructure resources"),
-            ("infrastructure.manage", "Manage Infrastructure", "infrastructure", "Full infrastructure management"),
-            ("infrastructure.execute", "Execute Infrastructure", "infrastructure", "Deploy and operate infrastructure"),
-
+            (
+                "infrastructure.read",
+                "View Infrastructure",
+                "infrastructure",
+                "View system configuration and status",
+            ),
+            (
+                "infrastructure.create",
+                "Create Infrastructure",
+                "infrastructure",
+                "Create infrastructure resources",
+            ),
+            (
+                "infrastructure.update",
+                "Update Infrastructure",
+                "infrastructure",
+                "Modify infrastructure settings",
+            ),
+            (
+                "infrastructure.delete",
+                "Delete Infrastructure",
+                "infrastructure",
+                "Remove infrastructure resources",
+            ),
+            (
+                "infrastructure.manage",
+                "Manage Infrastructure",
+                "infrastructure",
+                "Full infrastructure management",
+            ),
+            (
+                "infrastructure.execute",
+                "Execute Infrastructure",
+                "infrastructure",
+                "Deploy and operate infrastructure",
+            ),
             # Secrets Management
             ("secrets.read", "Read Secrets", "secrets", "Access secret values"),
             ("secrets.create", "Create Secrets", "secrets", "Create new secrets"),
@@ -96,14 +181,12 @@ class RBACSeeder:
             ("secrets.delete", "Delete Secrets", "secrets", "Remove secrets"),
             ("secrets.manage", "Manage Secrets", "secrets", "Full secrets management"),
             ("secrets.execute", "Rotate Secrets", "secrets", "Execute secret rotation"),
-
             # Settings
             ("settings.read", "View Settings", "settings", "View system and user settings"),
             ("settings.create", "Create Settings", "settings", "Create new configuration settings"),
             ("settings.update", "Update Settings", "settings", "Modify system settings"),
             ("settings.delete", "Delete Settings", "settings", "Remove configuration settings"),
             ("settings.manage", "Manage Settings", "settings", "Full settings management"),
-
             # System Administration
             ("system.read", "View System", "system", "View system status and logs"),
             ("system.create", "Create System Resources", "system", "Create system-level resources"),
@@ -122,7 +205,7 @@ class RBACSeeder:
                     display_name=display_name,
                     category=category,
                     description=description,
-                    is_system=True  # System permissions can't be deleted
+                    is_system=True,  # System permissions can't be deleted
                 )
                 self.db.add(permission)
                 self.permissions_map[name] = permission
@@ -143,13 +226,9 @@ class RBACSeeder:
                 "display_name": "User",
                 "description": "Basic read permissions for standard users",
                 "priority": 1,
-                "permissions": [
-                    "settings.read",
-                    "analytics.read"
-                ],
-                "is_default": True  # Auto-assigned to new users
+                "permissions": ["settings.read", "analytics.read"],
+                "is_default": True,  # Auto-assigned to new users
             },
-
             # Analyst role
             {
                 "name": "analyst",
@@ -162,10 +241,9 @@ class RBACSeeder:
                     "billing.read",
                     "customers.read",
                     "communications.read",
-                    "settings.read"
-                ]
+                    "settings.read",
+                ],
             },
-
             # Developer role
             {
                 "name": "developer",
@@ -182,10 +260,9 @@ class RBACSeeder:
                     "secrets.update",
                     "analytics.read",
                     "settings.read",
-                    "settings.update"
-                ]
+                    "settings.update",
+                ],
             },
-
             # Manager role
             {
                 "name": "manager",
@@ -215,10 +292,9 @@ class RBACSeeder:
                     "communications.update",
                     "communications.execute",
                     "settings.read",
-                    "settings.update"
-                ]
+                    "settings.update",
+                ],
             },
-
             # Admin role
             {
                 "name": "admin",
@@ -270,11 +346,10 @@ class RBACSeeder:
                     "settings.create",
                     "settings.update",
                     "settings.delete",
-                    "settings.manage"
+                    "settings.manage",
                 ],
-                "is_system": True
+                "is_system": True,
             },
-
             # Superuser role
             {
                 "name": "superuser",
@@ -282,8 +357,8 @@ class RBACSeeder:
                 "description": "All permissions including system-level operations",
                 "priority": 100,
                 "permissions": ["*"],  # Wildcard - all permissions
-                "is_system": True
-            }
+                "is_system": True,
+            },
         ]
 
         print("Seeding roles...")
@@ -307,7 +382,7 @@ class RBACSeeder:
                     priority=role_data["priority"],
                     parent_id=parent.id if parent else None,
                     is_default=role_data.get("is_default", False),
-                    is_system=role_data.get("is_system", False)
+                    is_system=role_data.get("is_system", False),
                 )
                 self.db.add(role)
                 self.db.flush()  # Get the ID
@@ -334,7 +409,7 @@ class RBACSeeder:
     def create_sample_assignments(self):
         """Show information about role assignments"""
         print("Role Assignment Information:")
-        print("="*40)
+        print("=" * 40)
         print("Default role assignments:")
         print("  - New users automatically get 'user' role")
         print("  - Role assignments should be done through the admin interface")
@@ -352,17 +427,17 @@ class RBACSeeder:
 
     def run(self):
         """Run the complete seeding process"""
-        print("="*60)
+        print("=" * 60)
         print("RBAC Seeding Process")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         self.seed_permissions()
         self.seed_roles()
         self.create_sample_assignments()
 
-        print("="*60)
+        print("=" * 60)
         print("✅ RBAC seeding completed successfully!")
-        print("="*60)
+        print("=" * 60)
 
 
 def main():
@@ -393,6 +468,7 @@ def main():
         print("4. Database migrations have been run")
         print("5. Required environment variables are set")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

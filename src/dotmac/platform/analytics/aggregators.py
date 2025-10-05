@@ -4,8 +4,9 @@ Metric aggregation utilities for analytics processing.
 
 import statistics
 from collections import defaultdict, deque
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from .base import Metric
 
@@ -21,7 +22,7 @@ class MetricAggregator:
             window_size: Time window in seconds for aggregation
         """
         self.window_size = window_size
-        self.metrics_buffer: Dict[str, Deque[Dict[str, Any]]] = defaultdict(
+        self.metrics_buffer: dict[str, deque[dict[str, Any]]] = defaultdict(
             lambda: deque(maxlen=1000)
         )
 
@@ -52,11 +53,62 @@ class MetricAggregator:
 
         return "|".join(key_parts)
 
+    def _get_cutoff_time(self, cutoff_time: datetime | None) -> datetime:
+        """Get the cutoff time for filtering metrics."""
+        if cutoff_time is None:
+            return datetime.now(UTC) - timedelta(seconds=self.window_size)
+        return cutoff_time
+
+    def _filter_values_by_time(self, buffer: deque, cutoff_time: datetime) -> list[float]:
+        """Filter buffer values by cutoff time."""
+        return [entry["value"] for entry in buffer if entry["timestamp"] >= cutoff_time]
+
+    def _aggregate_basic_stats(self, values: list[float], aggregation_type: str) -> float | None:
+        """Calculate basic statistical aggregations."""
+        if aggregation_type == "avg":
+            return statistics.mean(values)
+        elif aggregation_type == "sum":
+            return sum(values)
+        elif aggregation_type == "min":
+            return min(values)
+        elif aggregation_type == "max":
+            return max(values)
+        elif aggregation_type == "count":
+            return float(len(values))
+        return None
+
+    def _aggregate_advanced_stats(self, values: list[float], aggregation_type: str) -> float | None:
+        """Calculate advanced statistical aggregations."""
+        if aggregation_type == "median":
+            return statistics.median(values)
+        elif aggregation_type == "stddev":
+            return statistics.stdev(values) if len(values) > 1 else 0.0
+        elif aggregation_type == "p95":
+            return self._percentile(values, 95)
+        elif aggregation_type == "p99":
+            return self._percentile(values, 99)
+        return None
+
+    def _calculate_aggregate(self, values: list[float], aggregation_type: str) -> float:
+        """Calculate aggregate value for given type."""
+        # Try basic stats first
+        result = self._aggregate_basic_stats(values, aggregation_type)
+        if result is not None:
+            return result
+
+        # Try advanced stats
+        result = self._aggregate_advanced_stats(values, aggregation_type)
+        if result is not None:
+            return result
+
+        # Unknown aggregation type, default to average
+        return statistics.mean(values)
+
     def get_aggregates(
         self,
         aggregation_type: str = "avg",
-        cutoff_time: Optional[datetime] = None,
-    ) -> Dict[str, float]:
+        cutoff_time: datetime | None = None,
+    ) -> dict[str, float]:
         """
         Get aggregated metrics.
 
@@ -67,42 +119,20 @@ class MetricAggregator:
         Returns:
             Dictionary of aggregated values by key
         """
-        if cutoff_time is None:
-            cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-                seconds=self.window_size
-            )
-
+        cutoff_time = self._get_cutoff_time(cutoff_time)
         aggregates = {}
 
         for key, buffer in self.metrics_buffer.items():
-            # Filter by time
-            values = [entry["value"] for entry in buffer if entry["timestamp"] >= cutoff_time]
+            values = self._filter_values_by_time(buffer, cutoff_time)
 
             if not values:
                 continue
 
-            if aggregation_type == "avg":
-                aggregates[key] = statistics.mean(values)
-            elif aggregation_type == "sum":
-                aggregates[key] = sum(values)
-            elif aggregation_type == "min":
-                aggregates[key] = min(values)
-            elif aggregation_type == "max":
-                aggregates[key] = max(values)
-            elif aggregation_type == "count":
-                aggregates[key] = len(values)
-            elif aggregation_type == "median":
-                aggregates[key] = statistics.median(values)
-            elif aggregation_type == "stddev":
-                aggregates[key] = statistics.stdev(values) if len(values) > 1 else 0
-            elif aggregation_type == "p95":
-                aggregates[key] = self._percentile(values, 95)
-            elif aggregation_type == "p99":
-                aggregates[key] = self._percentile(values, 99)
+            aggregates[key] = self._calculate_aggregate(values, aggregation_type)
 
         return aggregates
 
-    def _percentile(self, values: List[float], percentile: float) -> float:
+    def _percentile(self, values: list[float], percentile: float) -> float:
         """Calculate percentile value."""
         if not values:
             return 0
@@ -112,9 +142,7 @@ class MetricAggregator:
 
     def clear_old_metrics(self, retention_seconds: int = 3600) -> None:
         """Clear metrics older than retention period."""
-        cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-            seconds=retention_seconds
-        )
+        cutoff_time = datetime.now(UTC) - timedelta(seconds=retention_seconds)
 
         for buffer in self.metrics_buffer.values():
             # Remove old entries
@@ -133,7 +161,7 @@ class TimeWindowAggregator:
             window_minutes: Size of time window in minutes
         """
         self.window_minutes = window_minutes
-        self.windows: Dict[datetime, Dict[str, List[float]]] = defaultdict(
+        self.windows: dict[datetime, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
 
@@ -144,10 +172,10 @@ class TimeWindowAggregator:
         self.windows[window_start][key].append(metric.value)
 
     def add_data_point(
-        self, metric_name: str, value: float, attributes: Optional[Dict[str, Any]] = None
+        self, metric_name: str, value: float, attributes: dict[str, Any] | None = None
     ) -> None:
         """Add a data point to the aggregator."""
-        current_time = datetime.now(timezone.utc).replace(tzinfo=None)
+        current_time = datetime.now(UTC).replace(tzinfo=None)
         window_start = self._get_window_start(current_time)
         key = metric_name
         self.windows[window_start][key].append(value)
@@ -160,8 +188,8 @@ class TimeWindowAggregator:
     def get_window_aggregates(
         self,
         window_start: datetime,
-        aggregation_fn: Callable[[List[float]], float] = statistics.mean,
-    ) -> Dict[str, float]:
+        aggregation_fn: Callable[[list[float]], float] = statistics.mean,
+    ) -> dict[str, float]:
         """
         Get aggregates for a specific time window.
 
@@ -185,8 +213,8 @@ class TimeWindowAggregator:
     def get_recent_windows(
         self,
         count: int = 12,
-        aggregation_fn: Callable[[List[float]], float] = statistics.mean,
-    ) -> List[Dict[str, Any]]:
+        aggregation_fn: Callable[[list[float]], float] = statistics.mean,
+    ) -> list[dict[str, Any]]:
         """
         Get aggregates for recent time windows.
 
@@ -197,7 +225,7 @@ class TimeWindowAggregator:
         Returns:
             List of window aggregates with timestamps
         """
-        current_time = datetime.now(timezone.utc).replace(tzinfo=None)
+        current_time = datetime.now(UTC).replace(tzinfo=None)
         results = []
 
         for i in range(count):
@@ -221,9 +249,16 @@ class TimeWindowAggregator:
 
     def cleanup_old_windows(self, retention_hours: int = 24) -> None:
         """Remove old time windows beyond retention period."""
-        cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-            hours=retention_hours
-        )
+        cutoff_time = datetime.now(UTC) - timedelta(hours=retention_hours)
+
+        # Check if window keys are naive or aware and normalize cutoff_time to match
+        if self.windows:
+            sample_window = next(iter(self.windows.keys()))
+            if sample_window.tzinfo is None and cutoff_time.tzinfo is not None:
+                cutoff_time = cutoff_time.replace(tzinfo=None)
+            elif sample_window.tzinfo is not None and cutoff_time.tzinfo is None:
+                cutoff_time = cutoff_time.replace(tzinfo=UTC)
+
         old_windows = [window for window in self.windows.keys() if window < cutoff_time]
         for window in old_windows:
             del self.windows[window]
@@ -234,7 +269,7 @@ class StatisticalAggregator:
 
     def __init__(self):
         """Initialize statistical aggregator."""
-        self.data_points: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
+        self.data_points: dict[str, list[tuple[datetime, float]]] = defaultdict(list)
 
     def add(self, metric: Metric) -> None:
         """Add metric for statistical analysis."""
@@ -243,10 +278,10 @@ class StatisticalAggregator:
 
     def add_value(self, metric_name: str, value: float) -> None:
         """Add a value for statistical analysis."""
-        current_time = datetime.now(timezone.utc).replace(tzinfo=None)
+        current_time = datetime.now(UTC)
         self.data_points[metric_name].append((current_time, value))
 
-    def get_statistics(self, key: str, time_range: Optional[timedelta] = None) -> Dict[str, Any]:
+    def get_statistics(self, key: str, time_range: timedelta | None = None) -> dict[str, Any]:
         """
         Calculate comprehensive statistics for a metric.
 
@@ -257,13 +292,13 @@ class StatisticalAggregator:
         Returns:
             Dictionary of statistical measures
         """
-        if key not in self.data_points:
-            return {"count": 0, "mean": 0.0, "median": 0.0, "std_dev": 0.0, "min": 0.0, "max": 0.0}
+        if key not in self.data_points or len(self.data_points[key]) == 0:
+            return {"count": 0}
 
         # Filter by time range if specified
         values = self.data_points[key]
         if time_range:
-            cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - time_range
+            cutoff_time = datetime.now(UTC) - time_range
             values = [(ts, val) for ts, val in values if ts >= cutoff_time]
 
         if not values:
@@ -309,7 +344,7 @@ class StatisticalAggregator:
         self,
         key: str,
         window_size: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate trend information for a metric.
 
@@ -327,7 +362,7 @@ class StatisticalAggregator:
         sorted_values = sorted(values, key=lambda x: x[0])
 
         # Calculate moving average
-        moving_avg: List[float] = []
+        moving_avg: list[float] = []
         for i in range(len(sorted_values)):
             start_idx = max(0, i - window_size + 1)
             window_values = [val for _, val in sorted_values[start_idx : i + 1]]

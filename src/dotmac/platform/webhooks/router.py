@@ -2,25 +2,23 @@
 Webhook subscription management API router.
 """
 
-from typing import List, Optional
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user, UserInfo
+from dotmac.platform.auth.dependencies import UserInfo, get_current_user
 from dotmac.platform.db import get_async_db
-from .models import (
-    WebhookSubscriptionCreate,
-    WebhookSubscriptionUpdate,
-    WebhookSubscriptionResponse,
-    WebhookDeliveryResponse,
-    DeliveryStatus,
-    WebhookEvent,
-)
-from .service import WebhookSubscriptionService
+
 from .delivery import WebhookDeliveryService
 from .events import get_event_bus
+from .models import (
+    DeliveryStatus,
+    WebhookDeliveryResponse,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionResponse,
+    WebhookSubscriptionUpdate,
+)
+from .service import WebhookSubscriptionService
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +27,12 @@ router = APIRouter(tags=["Webhooks"])
 
 # Subscription endpoints
 
-@router.post("/subscriptions", response_model=WebhookSubscriptionResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/subscriptions",
+    response_model=WebhookSubscriptionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_webhook_subscription(
     subscription_data: WebhookSubscriptionCreate,
     current_user: UserInfo = Depends(get_current_user),
@@ -83,10 +86,10 @@ async def create_webhook_subscription(
         )
 
 
-@router.get("/subscriptions", response_model=List[WebhookSubscriptionResponse])
+@router.get("/subscriptions", response_model=list[WebhookSubscriptionResponse])
 async def list_webhook_subscriptions(
-    is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    event_type: Optional[str] = Query(None, description="Filter by event type"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
+    event_type: str | None = Query(None, description="Filter by event type"),
     limit: int = Query(100, ge=1, le=500, description="Maximum subscriptions to return"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: UserInfo = Depends(get_current_user),
@@ -103,10 +106,7 @@ async def list_webhook_subscriptions(
             offset=offset,
         )
 
-        return [
-            WebhookSubscriptionResponse.model_validate(sub)
-            for sub in subscriptions
-        ]
+        return [WebhookSubscriptionResponse.model_validate(sub) for sub in subscriptions]
 
     except Exception as e:
         logger.error("Failed to list webhook subscriptions", error=str(e))
@@ -255,10 +255,15 @@ async def rotate_webhook_secret(
 
 # Delivery endpoints
 
-@router.get("/subscriptions/{subscription_id}/deliveries", response_model=List[WebhookDeliveryResponse])
+
+@router.get(
+    "/subscriptions/{subscription_id}/deliveries", response_model=list[WebhookDeliveryResponse]
+)
 async def list_webhook_deliveries(
     subscription_id: str,
-    status_filter: Optional[DeliveryStatus] = Query(None, alias="status", description="Filter by delivery status"),
+    status_filter: DeliveryStatus | None = Query(
+        None, alias="status", description="Filter by delivery status"
+    ),
     limit: int = Query(50, ge=1, le=200, description="Maximum deliveries to return"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: UserInfo = Depends(get_current_user),
@@ -275,10 +280,7 @@ async def list_webhook_deliveries(
             offset=offset,
         )
 
-        return [
-            WebhookDeliveryResponse.model_validate(delivery)
-            for delivery in deliveries
-        ]
+        return [WebhookDeliveryResponse.model_validate(delivery) for delivery in deliveries]
 
     except Exception as e:
         logger.error("Failed to list webhook deliveries", error=str(e))
@@ -288,7 +290,7 @@ async def list_webhook_deliveries(
         )
 
 
-@router.get("/deliveries", response_model=List[WebhookDeliveryResponse])
+@router.get("/deliveries", response_model=list[WebhookDeliveryResponse])
 async def list_all_deliveries(
     limit: int = Query(50, ge=1, le=200, description="Maximum deliveries to return"),
     current_user: UserInfo = Depends(get_current_user),
@@ -302,10 +304,7 @@ async def list_all_deliveries(
             limit=limit,
         )
 
-        return [
-            WebhookDeliveryResponse.model_validate(delivery)
-            for delivery in deliveries
-        ]
+        return [WebhookDeliveryResponse.model_validate(delivery) for delivery in deliveries]
 
     except Exception as e:
         logger.error("Failed to list recent deliveries", error=str(e))
@@ -380,6 +379,7 @@ async def retry_webhook_delivery(
 
 
 # Event information endpoints
+
 
 @router.get("/events")
 async def list_available_events(

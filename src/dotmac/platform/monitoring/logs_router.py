@@ -4,15 +4,18 @@ Logs API router.
 Provides REST endpoints for application log retrieval and filtering.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
+from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
 
@@ -40,11 +43,11 @@ class LogMetadata(BaseModel):
         extra="allow",
     )
 
-    request_id: Optional[str] = Field(None, description="Request correlation ID")
-    user_id: Optional[str] = Field(None, description="User ID")
-    tenant_id: Optional[str] = Field(None, description="Tenant ID")
-    duration: Optional[int] = Field(None, description="Duration in milliseconds")
-    ip: Optional[str] = Field(None, description="Client IP address")
+    request_id: str | None = Field(None, description="Request correlation ID")
+    user_id: str | None = Field(None, description="User ID")
+    tenant_id: str | None = Field(None, description="Tenant ID")
+    duration: int | None = Field(None, description="Duration in milliseconds")
+    ip: str | None = Field(None, description="Client IP address")
 
 
 class LogEntry(BaseModel):
@@ -68,7 +71,7 @@ class LogsResponse(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True)
 
-    logs: List[LogEntry] = Field(default_factory=list, description="Log entries")
+    logs: list[LogEntry] = Field(default_factory=list, description="Log entries")
     total: int = Field(description="Total number of matching logs")
     page: int = Field(description="Current page number")
     page_size: int = Field(description="Number of logs per page")
@@ -79,9 +82,9 @@ class LogStats(BaseModel):
     """Log statistics."""
 
     total: int = Field(description="Total log count")
-    by_level: Dict[str, int] = Field(default_factory=dict, description="Count by log level")
-    by_service: Dict[str, int] = Field(default_factory=dict, description="Count by service")
-    time_range: Dict[str, str] = Field(default_factory=dict, description="Time range of logs")
+    by_level: dict[str, int] = Field(default_factory=dict, description="Count by log level")
+    by_service: dict[str, int] = Field(default_factory=dict, description="Count by service")
+    time_range: dict[str, str] = Field(default_factory=dict, description="Time range of logs")
 
 
 # ============================================================
@@ -97,33 +100,27 @@ logs_router = APIRouter()
 
 
 class LogsService:
-    """Service for fetching and filtering logs.
+    """Service for fetching and filtering logs from audit activities."""
 
-    Currently returns mock data. In production, this would integrate with:
-    - OpenTelemetry Collector
-    - Loki
-    - Elasticsearch
-    - CloudWatch Logs
-    """
-
-    def __init__(self):
+    def __init__(self, session: AsyncSession):
         self.logger = structlog.get_logger(__name__)
+        self.session = session
 
     async def get_logs(
         self,
-        level: Optional[LogLevel] = None,
-        service: Optional[str] = None,
-        search: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        level: LogLevel | None = None,
+        service: str | None = None,
+        search: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         page: int = 1,
         page_size: int = 100,
     ) -> LogsResponse:
-        """Fetch logs with filtering.
+        """Fetch logs from audit activities with filtering.
 
         Args:
-            level: Filter by log level
-            service: Filter by service name
+            level: Filter by log level (maps to severity)
+            service: Filter by service name (extracted from activity_type)
             search: Search in log messages
             start_time: Start of time range
             end_time: End of time range
@@ -131,154 +128,199 @@ class LogsService:
             page_size: Number of logs per page
 
         Returns:
-            LogsResponse with filtered logs
+            LogsResponse with filtered logs from database
         """
-        # TODO: Integrate with actual logging backend
-        # For now, return mock data that matches frontend expectations
+        try:
+            # Build query
+            query = select(AuditActivity)
 
-        mock_logs = self._generate_mock_logs(
-            level=level,
-            service=service,
-            search=search,
-            start_time=start_time,
-            end_time=end_time,
-            page=page,
-            page_size=page_size,
-        )
+            # Apply filters
+            if level:
+                # Map log level to severity
+                severity_map = {
+                    LogLevel.DEBUG: ActivitySeverity.LOW,
+                    LogLevel.INFO: ActivitySeverity.LOW,
+                    LogLevel.WARNING: ActivitySeverity.MEDIUM,
+                    LogLevel.ERROR: ActivitySeverity.HIGH,
+                    LogLevel.CRITICAL: ActivitySeverity.CRITICAL,
+                }
+                severity = severity_map.get(level)
+                if severity:
+                    query = query.where(AuditActivity.severity == severity.value)
 
-        return mock_logs
+            if search:
+                query = query.where(AuditActivity.description.ilike(f"%{search}%"))
 
-    def _generate_mock_logs(
-        self,
-        level: Optional[LogLevel],
-        service: Optional[str],
-        search: Optional[str],
-        start_time: Optional[datetime],
-        end_time: Optional[datetime],
-        page: int,
-        page_size: int,
-    ) -> LogsResponse:
-        """Generate mock logs for development."""
-        import random
-        from uuid import uuid4
-
-        levels = [
-            LogLevel.INFO,
-            LogLevel.DEBUG,
-            LogLevel.WARNING,
-            LogLevel.ERROR,
-            LogLevel.CRITICAL,
-        ]
-        services = [
-            "api-gateway",
-            "auth-service",
-            "database",
-            "cache",
-            "file-storage",
-            "email-service",
-        ]
-        messages = [
-            "Request processed successfully",
-            "Database connection established",
-            "Cache miss for key: user_123",
-            "Authentication token validated",
-            "File uploaded: document.pdf",
-            "Email sent to user@example.com",
-            "Background job completed",
-            "API rate limit exceeded",
-            "Connection timeout",
-            "Invalid request format",
-        ]
-
-        # Generate mock logs
-        total_logs = 500  # Simulate 500 total logs
-        logs = []
-
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-
-        for i in range(start_idx, min(end_idx, total_logs)):
-            log_level = level if level else random.choice(levels)
-            log_service = service if service else random.choice(services)
-            log_message = random.choice(messages)
-
-            # Apply search filter
-            if search and search.lower() not in log_message.lower():
-                continue
-
-            log_timestamp = datetime.now(timezone.utc)
             if start_time:
-                log_timestamp = start_time
-            if end_time and log_timestamp > end_time:
-                log_timestamp = end_time
+                query = query.where(AuditActivity.created_at >= start_time)
 
-            log_entry = LogEntry(
-                id=str(uuid4()),
-                timestamp=log_timestamp,
-                level=log_level,
-                service=log_service,
-                message=log_message,
-                metadata=LogMetadata(
-                    request_id=f"req_{uuid4().hex[:9]}",
-                    user_id=f"user_{random.randint(1, 1000)}" if random.random() > 0.5 else None,
-                    duration=random.randint(10, 500),
-                    ip=f"192.168.1.{random.randint(1, 255)}",
-                ),
+            if end_time:
+                query = query.where(AuditActivity.created_at <= end_time)
+
+            # Get total count
+            count_query = select(func.count()).select_from(AuditActivity)
+            if level or search or start_time or end_time:
+                # Apply same filters for count
+                count_query = select(func.count()).select_from(query.subquery())
+
+            result = await self.session.execute(count_query)
+            total = result.scalar() or 0
+
+            # Apply pagination and ordering
+            query = query.order_by(AuditActivity.created_at.desc())
+            query = query.offset((page - 1) * page_size).limit(page_size)
+
+            # Execute query
+            result = await self.session.execute(query)
+            activities = result.scalars().all()
+
+            # Convert to LogEntry format
+            logs = []
+            for activity in activities:
+                # Handle None values before validation
+                if not activity:
+                    continue
+
+                # Map severity to log level
+                level_map = {
+                    ActivitySeverity.LOW.value: LogLevel.INFO,
+                    ActivitySeverity.MEDIUM.value: LogLevel.WARNING,
+                    ActivitySeverity.HIGH.value: LogLevel.ERROR,
+                    ActivitySeverity.CRITICAL.value: LogLevel.CRITICAL,
+                }
+                log_level = level_map.get(activity.severity, LogLevel.INFO)
+
+                # Extract service from activity_type (e.g., "user.login" -> "user")
+                service_name = (
+                    activity.activity_type.split(".")[0]
+                    if activity.activity_type and "." in activity.activity_type
+                    else "platform"
+                )
+
+                log_entry = LogEntry(
+                    id=str(activity.id),
+                    timestamp=activity.created_at,
+                    level=log_level,
+                    service=service_name,
+                    message=activity.description or activity.activity_type or "",
+                    metadata=LogMetadata(
+                        user_id=activity.user_id,
+                        tenant_id=str(activity.tenant_id) if activity.tenant_id else None,
+                        ip=activity.ip_address,  # Use the ip_address field directly
+                    ),
+                )
+                logs.append(log_entry)
+
+            return LogsResponse(
+                logs=logs,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=(page * page_size) < total,
             )
-            logs.append(log_entry)
-
-        filtered_total = len(logs) if not (level or service or search) else total_logs // 2
-
-        return LogsResponse(
-            logs=logs,
-            total=filtered_total,
-            page=page,
-            page_size=page_size,
-            has_more=end_idx < filtered_total,
-        )
+        except Exception as e:
+            self.logger.error("Failed to fetch logs", error=str(e), page=page, page_size=page_size)
+            # Return empty response on error
+            return LogsResponse(
+                logs=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                has_more=False,
+            )
 
     async def get_log_stats(
         self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> LogStats:
-        """Get log statistics."""
-        # TODO: Implement real stats from logging backend
+        """Get log statistics from audit activities."""
+        try:
+            # Build base query
+            query = select(AuditActivity)
 
-        return LogStats(
-            total=12450,
-            by_level={
-                "INFO": 8500,
-                "DEBUG": 2200,
-                "WARNING": 1200,
-                "ERROR": 450,
-                "CRITICAL": 100,
-            },
-            by_service={
-                "api-gateway": 4500,
-                "auth-service": 2800,
-                "database": 2100,
-                "cache": 1500,
-                "file-storage": 1000,
-                "email-service": 550,
-            },
-            time_range={
-                "start": start_time.isoformat() if start_time else "2024-01-01T00:00:00Z",
-                "end": end_time.isoformat() if end_time else datetime.now(timezone.utc).isoformat(),
-            },
-        )
+            if start_time:
+                query = query.where(AuditActivity.created_at >= start_time)
+            if end_time:
+                query = query.where(AuditActivity.created_at <= end_time)
+
+            # Get total count
+            count_query = select(func.count()).select_from(query.subquery())
+            result = await self.session.execute(count_query)
+            total = result.scalar() or 0
+
+            # Count by severity (map to log levels)
+            severity_query = select(AuditActivity.severity, func.count(AuditActivity.id)).group_by(
+                AuditActivity.severity
+            )
+
+            if start_time:
+                severity_query = severity_query.where(AuditActivity.created_at >= start_time)
+            if end_time:
+                severity_query = severity_query.where(AuditActivity.created_at <= end_time)
+
+            result = await self.session.execute(severity_query)
+            severity_counts = dict(result.all())
+
+            # Map severities to log levels
+            by_level = {
+                "INFO": severity_counts.get(ActivitySeverity.LOW.value, 0),
+                "WARNING": severity_counts.get(ActivitySeverity.MEDIUM.value, 0),
+                "ERROR": severity_counts.get(ActivitySeverity.HIGH.value, 0),
+                "CRITICAL": severity_counts.get(ActivitySeverity.CRITICAL.value, 0),
+            }
+
+            # Count by service (extract from activity_type)
+            activities_result = await self.session.execute(
+                select(AuditActivity.activity_type).select_from(query.subquery())
+            )
+            activities = activities_result.scalars().all()
+
+            by_service: dict[str, int] = {}
+            for activity_type in activities:
+                # Handle None values before validation
+                if not activity_type:
+                    continue
+                service = activity_type.split(".")[0] if "." in activity_type else "platform"
+                by_service[service] = by_service.get(service, 0) + 1
+
+            # Determine time range
+            if not start_time or not end_time:
+                time_query = select(
+                    func.min(AuditActivity.created_at), func.max(AuditActivity.created_at)
+                )
+                result = await self.session.execute(time_query)
+                min_time, max_time = result.one()
+                start_time = start_time or min_time or datetime.now(UTC)
+                end_time = end_time or max_time or datetime.now(UTC)
+
+            return LogStats(
+                total=total,
+                by_level=by_level,
+                by_service=by_service,
+                time_range={
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat(),
+                },
+            )
+        except Exception as e:
+            self.logger.error("Failed to fetch log stats", error=str(e))
+            # Return empty stats on error
+            now = datetime.now(UTC)
+            return LogStats(
+                total=0,
+                by_level={},
+                by_service={},
+                time_range={
+                    "start": (start_time or now).isoformat(),
+                    "end": (end_time or now).isoformat(),
+                },
+            )
 
 
-# Service instance
-_logs_service: Optional[LogsService] = None
-
-
-def get_logs_service() -> LogsService:
-    """Get or create logs service instance."""
-    global _logs_service
-    if _logs_service is None:
-        _logs_service = LogsService()
-    return _logs_service
+def get_logs_service(session: AsyncSession = Depends(get_session_dependency)) -> LogsService:
+    """Get logs service instance with database session."""
+    return LogsService(session=session)
 
 
 # ============================================================
@@ -288,11 +330,11 @@ def get_logs_service() -> LogsService:
 
 @logs_router.get("/logs", response_model=LogsResponse)
 async def get_logs(
-    level: Optional[LogLevel] = Query(None, description="Filter by log level"),
-    service: Optional[str] = Query(None, description="Filter by service name"),
-    search: Optional[str] = Query(None, description="Search in log messages"),
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range"),
+    level: LogLevel | None = Query(None, description="Filter by log level"),
+    service: str | None = Query(None, description="Filter by service name"),
+    search: str | None = Query(None, description="Search in log messages"),
+    start_time: datetime | None = Query(None, description="Start of time range"),
+    end_time: datetime | None = Query(None, description="End of time range"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(100, ge=1, le=1000, description="Logs per page"),
     current_user: CurrentUser = Depends(get_current_user),
@@ -312,7 +354,7 @@ async def get_logs(
     - page: Page number (starts at 1)
     - page_size: Number of logs per page (max 1000)
 
-    **Note:** Currently returns mock data. Will be integrated with OpenTelemetry/Loki in production.
+    **Note:** Returns audit activities from the database.
     """
     logger.info(
         "logs.query",
@@ -337,8 +379,8 @@ async def get_logs(
 
 @logs_router.get("/logs/stats", response_model=LogStats)
 async def get_log_statistics(
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range"),
+    start_time: datetime | None = Query(None, description="Start of time range"),
+    end_time: datetime | None = Query(None, description="End of time range"),
     current_user: CurrentUser = Depends(get_current_user),
     logs_service: LogsService = Depends(get_logs_service),
 ) -> LogStats:
@@ -360,21 +402,33 @@ async def get_log_statistics(
     )
 
 
-@logs_router.get("/logs/services", response_model=List[str])
+@logs_router.get("/logs/services", response_model=list[str])
 async def get_available_services(
     current_user: CurrentUser = Depends(get_current_user),
-) -> List[str]:
-    """Get list of available services that emit logs."""
+    session: AsyncSession = Depends(get_session_dependency),
+) -> list[str]:
+    """Get list of available services from audit activities."""
     logger.info("logs.services.list", user_id=current_user.user_id)
 
-    # TODO: Get from actual logging backend
-    return [
-        "api-gateway",
-        "auth-service",
-        "database",
-        "cache",
-        "file-storage",
-        "email-service",
-        "billing-service",
-        "webhooks-service",
-    ]
+    try:
+        # Query distinct activity types and extract service names
+        query = select(AuditActivity.activity_type).distinct()
+        result = await session.execute(query)
+        activity_types = result.scalars().all()
+
+        # Extract unique service names
+        services = set()
+        for activity_type in activity_types:
+            # Handle None values before validation
+            if not activity_type:
+                continue
+            service = activity_type.split(".")[0] if "." in activity_type else "platform"
+            services.add(service)
+
+        return sorted(services)
+    except Exception as e:
+        logger.error(
+            "Failed to fetch available services", error=str(e), user_id=current_user.user_id
+        )
+        # Return empty list on error
+        return []

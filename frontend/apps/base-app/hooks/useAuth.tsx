@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Fetch user permissions from RBAC endpoint
         try {
-          const permissionsResponse = await apiClient.get('/auth/rbac/my-permissions');
+          const permissionsResponse = await apiClient.get('/api/v1/auth/rbac/my-permissions');
           setPermissions(permissionsResponse.data as UserPermissions);
           logger.info('User permissions loaded', {
             userId: response.data.id,
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Fetch permissions after successful login
         try {
-          const permissionsResponse = await apiClient.get('/auth/rbac/my-permissions');
+          const permissionsResponse = await apiClient.get('/api/v1/auth/rbac/my-permissions');
           setPermissions(permissionsResponse.data as UserPermissions);
           logger.info('User permissions loaded after login', {
             userId: response.data.user.id,

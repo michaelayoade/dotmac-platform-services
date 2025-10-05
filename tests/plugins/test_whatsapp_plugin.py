@@ -51,7 +51,13 @@ class TestWhatsAppProvider:
             if field.group:
                 groups.add(field.group)
 
-        expected_groups = {"Basic Configuration", "Environment", "Message Settings", "Webhooks", "Advanced"}
+        expected_groups = {
+            "Basic Configuration",
+            "Environment",
+            "Message Settings",
+            "Webhooks",
+            "Advanced",
+        }
         assert groups == expected_groups
 
     @pytest.mark.asyncio
@@ -102,21 +108,22 @@ class TestWhatsAppProvider:
         assert "v17.0" in provider.base_url
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_send_notification_success(self, mock_client_class, provider):
         """Test successful notification sending."""
         # Configure provider
-        await provider.configure({
-            "phone_number": "+1234567890",
-            "api_token": "test_token",
-            "business_account_id": "123456",
-        })
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
 
         # Mock HTTP response
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "messages": [{"id": "message_123"}]
-        }
+        mock_response.json.return_value = {"messages": [{"id": "message_123"}]}
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -151,15 +158,18 @@ class TestWhatsAppProvider:
         assert "not configured" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_send_notification_http_error(self, mock_client_class, provider):
         """Test notification sending with HTTP error."""
         # Configure provider
-        await provider.configure({
-            "phone_number": "+1234567890",
-            "api_token": "test_token",
-            "business_account_id": "123456",
-        })
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
 
         # Mock HTTP error - use RequestError which is a subclass of HTTPError
         mock_client = AsyncMock()
@@ -176,15 +186,18 @@ class TestWhatsAppProvider:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_health_check_healthy(self, mock_client_class, provider):
         """Test health check when healthy."""
         # Configure provider
-        await provider.configure({
-            "phone_number": "+1234567890",
-            "api_token": "test_token",
-            "business_account_id": "123456",
-        })
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
 
         # Mock successful API response
         mock_response = MagicMock()
@@ -213,15 +226,18 @@ class TestWhatsAppProvider:
         assert "not configured" in health.message.lower()
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_health_check_api_error(self, mock_client_class, provider):
         """Test health check with API error."""
         # Configure provider
-        await provider.configure({
-            "phone_number": "+1234567890",
-            "api_token": "test_token",
-            "business_account_id": "123456",
-        })
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
 
         # Mock API error
         mock_client = AsyncMock()
@@ -237,7 +253,8 @@ class TestWhatsAppProvider:
         assert "Connection timeout" in health.details["error"]
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_test_connection_success(self, mock_client_class, provider):
         """Test successful connection test."""
         # Mock successful API response
@@ -295,7 +312,8 @@ class TestWhatsAppProvider:
         assert result.details["error"] == "missing_business_account_id"
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
+    @patch("httpx.AsyncClient")
+    @pytest.mark.asyncio
     async def test_test_connection_http_error(self, mock_client_class, provider):
         """Test connection test with HTTP error."""
         # Mock HTTP error response
@@ -305,9 +323,7 @@ class TestWhatsAppProvider:
         mock_response.json.return_value = {"error": {"message": "Invalid token"}}
 
         http_error = httpx.HTTPStatusError(
-            "401 Unauthorized",
-            request=mock_request,
-            response=mock_response
+            "401 Unauthorized", request=mock_request, response=mock_response
         )
 
         mock_client = AsyncMock()
@@ -338,7 +354,7 @@ class TestWhatsAppProvider:
 
         # Check phone number validation
         phone_field = next(f for f in schema.fields if f.key == "phone_number")
-        assert phone_field.pattern == r'^\+[1-9]\d{1,14}$'
+        assert phone_field.pattern == r"^\+[1-9]\d{1,14}$"
         assert len(phone_field.validation_rules) > 0
 
         # Check API token has minimum length
@@ -372,3 +388,193 @@ class TestWhatsAppProvider:
         assert "messaging" in schema.tags
         assert schema.supports_health_check is True
         assert schema.supports_test_connection is True
+
+    @pytest.mark.asyncio
+    async def test_configure_missing_phone_number(self, provider):
+        """Test configuration with missing phone_number returns False."""
+        config = {
+            "api_token": "test_token_123",
+            "business_account_id": "123456",
+            # Missing phone_number
+        }
+
+        result = await provider.configure(config)
+        assert result is False
+        assert provider.configured is False
+
+    @pytest.mark.asyncio
+    async def test_configure_missing_business_account_id(self, provider):
+        """Test configuration with missing business_account_id returns False."""
+        config = {
+            "phone_number": "+1234567890",
+            "api_token": "test_token_123",
+            # Missing business_account_id
+        }
+
+        result = await provider.configure(config)
+        assert result is False
+        assert provider.configured is False
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_send_notification_no_message_id(self, mock_client_class, provider):
+        """Test send_notification when response has no message_id."""
+        # Configure provider
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
+
+        # Mock HTTP response with message but no id field
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"messages": [{"status": "sent"}]}  # No 'id' field
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock()
+        mock_client_class.return_value = mock_client
+
+        # Send notification - should return False when no message_id
+        result = await provider.send_notification(
+            recipient="+9876543210",
+            message="Test message",
+        )
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_send_notification_general_exception(self, mock_client_class, provider):
+        """Test send_notification with general exception."""
+        # Configure provider
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
+
+        # Mock unexpected exception (not httpx.HTTPError)
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        result = await provider.send_notification(
+            recipient="+9876543210",
+            message="Test message",
+        )
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_health_check_general_exception(self, mock_client_class, provider):
+        """Test health_check with general exception (not httpx error)."""
+        # Configure provider
+        await provider.configure(
+            {
+                "phone_number": "+1234567890",
+                "api_token": "test_token",
+                "business_account_id": "123456",
+            }
+        )
+
+        # Mock unexpected exception
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        health = await provider.health_check()
+
+        assert health.status == "unhealthy"
+        assert "Health check failed" in health.message
+        assert "Unexpected error" in health.details["error"]
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_test_connection_json_parse_error(self, mock_client_class, provider):
+        """Test connection test when response JSON parsing fails."""
+        # Mock HTTP status error with JSON parse failure
+        mock_request = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.json.side_effect = Exception("JSON parse error")
+        mock_response.text = "Internal Server Error"
+
+        http_error = httpx.HTTPStatusError(
+            "500 Server Error", request=mock_request, response=mock_response
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=http_error)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        config = {
+            "api_token": "test_token",
+            "business_account_id": "123456",
+        }
+
+        result = await provider.test_connection(config)
+
+        assert result.success is False
+        assert "500" in result.message
+        assert result.details["status_code"] == 500
+        assert result.details["response_text"] == "Internal Server Error"
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_test_connection_request_error(self, mock_client_class, provider):
+        """Test connection test with RequestError."""
+        # Mock RequestError
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("Connection timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        config = {
+            "api_token": "test_token",
+            "business_account_id": "123456",
+        }
+
+        result = await provider.test_connection(config)
+
+        assert result.success is False
+        assert "Connection failed" in result.message
+        assert result.details["type"] == "connection_error"
+        assert "Connection timeout" in result.details["error"]
+
+    @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_test_connection_general_exception(self, mock_client_class, provider):
+        """Test connection test with general exception."""
+        # Mock unexpected exception
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        config = {
+            "api_token": "test_token",
+            "business_account_id": "123456",
+        }
+
+        result = await provider.test_connection(config)
+
+        assert result.success is False
+        assert "Test failed" in result.message
+        assert result.details["type"] == "unexpected_error"
+        assert "Unexpected error" in result.details["error"]

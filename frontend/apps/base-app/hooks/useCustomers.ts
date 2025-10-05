@@ -62,7 +62,10 @@ export const useCustomers = () => {
   const fetchMetrics = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/v1/customers/metrics/overview');
-      setMetrics(response.data as CustomerMetrics);
+      console.log('Customer metrics response:', response.data);
+      const data = (response.data || {}) as Record<string, any>;
+      console.log('Top segments:', data.top_segments);
+      setMetrics(data as CustomerMetrics);
     } catch (err) {
       logger.error('Failed to fetch metrics', err instanceof Error ? err : new Error(String(err)));
       setError('Failed to fetch customer metrics');

@@ -5,20 +5,20 @@ Provides template functionality using Jinja2.
 """
 
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import structlog
 from jinja2 import (
+    DictLoader,
     Environment,
     FileSystemLoader,
-    DictLoader,
     Template,
     TemplateSyntaxError,
     UndefinedError,
+    meta,
     select_autoescape,
-    meta
 )
 from pydantic import BaseModel, Field
 
@@ -31,16 +31,12 @@ class TemplateData(BaseModel):
     id: str = Field(default_factory=lambda: f"tpl_{uuid4().hex[:8]}")
     name: str = Field(..., min_length=1, description="Template name")
     subject_template: str = Field(..., description="Subject template")
-    text_template: Optional[str] = Field(None, description="Text body template")
-    html_template: Optional[str] = Field(None, description="HTML body template")
-    variables: List[str] = Field(default_factory=list, description="Template variables")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    text_template: str | None = Field(None, description="Text body template")
+    html_template: str | None = Field(None, description="HTML body template")
+    variables: list[str] = Field(default_factory=list, description="Template variables")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {
-        "str_strip_whitespace": True,
-        "validate_assignment": True,
-        "extra": "forbid"
-    }
+    model_config = {"str_strip_whitespace": True, "validate_assignment": True, "extra": "forbid"}
 
 
 class RenderedTemplate(BaseModel):
@@ -48,17 +44,19 @@ class RenderedTemplate(BaseModel):
 
     template_id: str = Field(..., description="Template ID")
     subject: str = Field(..., description="Rendered subject")
-    text_body: Optional[str] = Field(None, description="Rendered text body")
-    html_body: Optional[str] = Field(None, description="Rendered HTML body")
-    variables_used: List[str] = Field(default_factory=list, description="Variables found in template")
-    missing_variables: List[str] = Field(default_factory=list, description="Missing variables")
-    rendered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    text_body: str | None = Field(None, description="Rendered text body")
+    html_body: str | None = Field(None, description="Rendered HTML body")
+    variables_used: list[str] = Field(
+        default_factory=list, description="Variables found in template"
+    )
+    missing_variables: list[str] = Field(default_factory=list, description="Missing variables")
+    rendered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TemplateService:
     """Template service using Jinja2."""
 
-    def __init__(self, template_dir: Optional[str] = None):
+    def __init__(self, template_dir: str | None = None):
         """
         Initialize template service.
 
@@ -66,16 +64,16 @@ class TemplateService:
             template_dir: Directory for file-based templates (optional)
         """
         self.template_dir = template_dir
-        self.templates: Dict[str, TemplateData] = {}
+        self.templates: dict[str, TemplateData] = {}
 
         # Create Jinja2 environments
         if template_dir and os.path.exists(template_dir):
             # File-based loader for templates stored as files
             self.file_env = Environment(
                 loader=FileSystemLoader(template_dir),
-                autoescape=select_autoescape(['html', 'xml']),
+                autoescape=select_autoescape(["html", "xml"]),
                 trim_blocks=True,
-                lstrip_blocks=True
+                lstrip_blocks=True,
             )
             logger.info("File-based template environment created", template_dir=template_dir)
         else:
@@ -84,9 +82,9 @@ class TemplateService:
         # Dictionary-based loader for in-memory templates
         self.dict_env = Environment(
             loader=DictLoader({}),
-            autoescape=select_autoescape(['html', 'xml']),
+            autoescape=select_autoescape(["html", "xml"]),
             trim_blocks=True,
-            lstrip_blocks=True
+            lstrip_blocks=True,
         )
 
         # Add useful globals
@@ -97,12 +95,12 @@ class TemplateService:
     def _add_template_globals(self):
         """Add common functions and variables to templates."""
         common_globals = {
-            'len': len,
-            'str': str,
-            'int': int,
-            'float': float,
-            'now': lambda: datetime.now(timezone.utc),
-            'today': lambda: datetime.now(timezone.utc).date(),
+            "len": len,
+            "str": str,
+            "int": int,
+            "float": float,
+            "now": lambda: datetime.now(UTC),
+            "today": lambda: datetime.now(UTC).date(),
         }
 
         self.dict_env.globals.update(common_globals)
@@ -126,24 +124,20 @@ class TemplateService:
                 "Template created",
                 template_id=template_data.id,
                 name=template_data.name,
-                variables_count=len(variables)
+                variables_count=len(variables),
             )
 
             return template_data
 
         except Exception as e:
-            logger.error(
-                "Failed to create template",
-                name=template_data.name,
-                error=str(e)
-            )
+            logger.error("Failed to create template", name=template_data.name, error=str(e))
             raise
 
-    def get_template(self, template_id: str) -> Optional[TemplateData]:
+    def get_template(self, template_id: str) -> TemplateData | None:
         """Get a template by ID."""
         return self.templates.get(template_id)
 
-    def list_templates(self) -> List[TemplateData]:
+    def list_templates(self) -> list[TemplateData]:
         """List all templates."""
         return list(self.templates.values())
 
@@ -155,11 +149,7 @@ class TemplateService:
             return True
         return False
 
-    def render_template(
-        self,
-        template_id: str,
-        data: Dict[str, Any]
-    ) -> RenderedTemplate:
+    def render_template(self, template_id: str, data: dict[str, Any]) -> RenderedTemplate:
         """Render a template with data."""
         template_data = self.get_template(template_id)
         if not template_data:
@@ -168,8 +158,16 @@ class TemplateService:
         try:
             # Create templates
             subject_tpl = self.dict_env.from_string(template_data.subject_template)
-            text_tpl = self.dict_env.from_string(template_data.text_template) if template_data.text_template else None
-            html_tpl = self.dict_env.from_string(template_data.html_template) if template_data.html_template else None
+            text_tpl = (
+                self.dict_env.from_string(template_data.text_template)
+                if template_data.text_template
+                else None
+            )
+            html_tpl = (
+                self.dict_env.from_string(template_data.html_template)
+                if template_data.html_template
+                else None
+            )
 
             # Render
             subject = subject_tpl.render(data)
@@ -185,14 +183,14 @@ class TemplateService:
                 text_body=text_body,
                 html_body=html_body,
                 variables_used=template_data.variables,
-                missing_variables=missing_vars
+                missing_variables=missing_vars,
             )
 
             logger.info(
                 "Template rendered",
                 template_id=template_id,
                 variables_used=len(template_data.variables),
-                missing_variables=len(missing_vars)
+                missing_variables=len(missing_vars),
             )
 
             return result
@@ -201,25 +199,21 @@ class TemplateService:
             logger.error(
                 "Template rendering failed - undefined variable",
                 template_id=template_id,
-                error=str(e)
+                error=str(e),
             )
             raise ValueError(f"Template variable undefined: {str(e)}")
 
         except Exception as e:
-            logger.error(
-                "Template rendering failed",
-                template_id=template_id,
-                error=str(e)
-            )
+            logger.error("Template rendering failed", template_id=template_id, error=str(e))
             raise
 
     def render_string_template(
         self,
         subject_template: str,
-        text_template: Optional[str] = None,
-        html_template: Optional[str] = None,
-        data: Dict[str, Any] = None
-    ) -> Dict[str, str]:
+        text_template: str | None = None,
+        html_template: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, str]:
         """Render templates from strings directly."""
         if data is None:
             data = {}
@@ -229,17 +223,17 @@ class TemplateService:
 
             # Render subject
             subject_tpl = self.dict_env.from_string(subject_template)
-            result['subject'] = subject_tpl.render(data)
+            result["subject"] = subject_tpl.render(data)
 
             # Render text body
             if text_template:
                 text_tpl = self.dict_env.from_string(text_template)
-                result['text_body'] = text_tpl.render(data)
+                result["text_body"] = text_tpl.render(data)
 
             # Render HTML body
             if html_template:
                 html_tpl = self.dict_env.from_string(html_template)
-                result['html_body'] = html_tpl.render(data)
+                result["html_body"] = html_tpl.render(data)
 
             return result
 
@@ -247,7 +241,7 @@ class TemplateService:
             logger.error("String template rendering failed", error=str(e))
             raise ValueError(f"Template rendering error: {str(e)}")
 
-    def load_file_template(self, filename: str) -> Optional[Template]:
+    def load_file_template(self, filename: str) -> Template | None:
         """Load a template from file (if file loader is available)."""
         if not self.file_env:
             raise ValueError("File-based templates not configured")
@@ -278,11 +272,11 @@ class TemplateService:
                     "Template syntax error",
                     template_type=template_type,
                     error=str(e),
-                    line=e.lineno
+                    line=e.lineno,
                 )
                 raise ValueError(f"Syntax error in {template_type} template: {str(e)}")
 
-    def _extract_variables(self, template_data: TemplateData) -> List[str]:
+    def _extract_variables(self, template_data: TemplateData) -> list[str]:
         """Extract all variables from templates."""
         all_variables = set()
 
@@ -301,22 +295,20 @@ class TemplateService:
                 # Skip templates with syntax errors
                 pass
 
-        return sorted(list(all_variables))
+        return sorted(all_variables)
 
     def _find_missing_variables(
-        self,
-        template_data: TemplateData,
-        data: Dict[str, Any]
-    ) -> List[str]:
+        self, template_data: TemplateData, data: dict[str, Any]
+    ) -> list[str]:
         """Find variables that are used in template but not provided in data."""
         return [var for var in template_data.variables if var not in data]
 
 
 # Global service instance
-_template_service: Optional[TemplateService] = None
+_template_service: TemplateService | None = None
 
 
-def get_template_service(template_dir: Optional[str] = None) -> TemplateService:
+def get_template_service(template_dir: str | None = None) -> TemplateService:
     """Get or create the global template service."""
     global _template_service
     if _template_service is None:
@@ -328,8 +320,8 @@ def get_template_service(template_dir: Optional[str] = None) -> TemplateService:
 def create_template(
     name: str,
     subject_template: str,
-    text_template: Optional[str] = None,
-    html_template: Optional[str] = None
+    text_template: str | None = None,
+    html_template: str | None = None,
 ) -> TemplateData:
     """Create a simple template."""
     service = get_template_service()
@@ -337,15 +329,12 @@ def create_template(
         name=name,
         subject_template=subject_template,
         text_template=text_template,
-        html_template=html_template
+        html_template=html_template,
     )
     return service.create_template(template_data)
 
 
-def render_template(
-    template_id: str,
-    data: Dict[str, Any]
-) -> RenderedTemplate:
+def render_template(template_id: str, data: dict[str, Any]) -> RenderedTemplate:
     """Render a template by ID."""
     service = get_template_service()
     return service.render_template(template_id, data)
@@ -353,10 +342,10 @@ def render_template(
 
 def quick_render(
     subject: str,
-    text_body: Optional[str] = None,
-    html_body: Optional[str] = None,
-    data: Dict[str, Any] = None
-) -> Dict[str, str]:
+    text_body: str | None = None,
+    html_body: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> dict[str, str]:
     """Quickly render templates from strings."""
     service = get_template_service()
     return service.render_string_template(subject, text_body, html_body, data or {})

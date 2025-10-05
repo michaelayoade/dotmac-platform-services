@@ -18,32 +18,32 @@ interface MetricCardProps {
 function MetricCard({ title, value, change, changeType = 'neutral', icon: Icon, loading }: MetricCardProps) {
   if (loading) {
     return (
-      <div className="bg-slate-800 p-6 rounded-lg">
+      <div className="bg-card border border-border p-6 rounded-lg">
         <div className="animate-pulse">
           <div className="flex items-center justify-between mb-4">
-            <div className="h-4 bg-slate-700 rounded w-24"></div>
-            <div className="h-8 w-8 bg-slate-700 rounded"></div>
+            <div className="h-4 bg-muted rounded w-24"></div>
+            <div className="h-8 w-8 bg-muted rounded"></div>
           </div>
-          <div className="h-8 bg-slate-700 rounded w-20 mb-2"></div>
-          <div className="h-4 bg-slate-700 rounded w-16"></div>
+          <div className="h-8 bg-muted rounded w-20 mb-2"></div>
+          <div className="h-4 bg-muted rounded w-16"></div>
         </div>
       </div>
     );
   }
 
   const changeColorClass = {
-    positive: 'text-green-400',
-    negative: 'text-red-400',
-    neutral: 'text-slate-400'
+    positive: 'text-green-600 dark:text-green-400',
+    negative: 'text-red-600 dark:text-red-400',
+    neutral: 'text-muted-foreground'
   }[changeType];
 
   return (
-    <div className="bg-slate-800 p-6 rounded-lg">
+    <div className="bg-card border border-border p-6 rounded-lg">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-400">{title}</h3>
-        <Icon className="h-5 w-5 text-slate-400" />
+        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+        <Icon className="h-5 w-5 text-muted-foreground" />
       </div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
+      <div className="text-2xl font-bold text-foreground mb-1">{value}</div>
       {change && (
         <p className={`text-sm ${changeColorClass}`}>
           {change}
@@ -115,9 +115,9 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
 
         <MetricCard
           title="Avg Lifetime Value"
-          value={formatCurrency(metrics.average_lifetime_value)}
-          change={`Churn rate: ${formatPercentage(metrics.churn_rate)}`}
-          changeType={metrics.churn_rate > 10 ? 'negative' : 'positive'}
+          value={formatCurrency(metrics.average_lifetime_value ?? 0)}
+          change={`Churn rate: ${formatPercentage(metrics.churn_rate ?? 0)}`}
+          changeType={(metrics.churn_rate ?? 0) > 10 ? 'negative' : 'positive'}
           icon={TrendingUp}
         />
       </div>
@@ -125,10 +125,10 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
       {/* Secondary Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Customer Status Distribution */}
-        <div className="bg-slate-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">By Status</h3>
+        <div className="bg-card border border-border p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-foreground mb-4">By Status</h3>
           <div className="space-y-3">
-            {Object.entries(metrics.customers_by_status).map(([status, count]) => {
+            {Object.entries(metrics.customers_by_status ?? {}).map(([status, count]) => {
               const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const statusColors = {
                 active: 'bg-green-500',
@@ -136,18 +136,18 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
                 inactive: 'bg-gray-500',
                 churned: 'bg-red-500',
                 suspended: 'bg-orange-500',
-                archived: 'bg-slate-500',
+                archived: 'bg-muted',
               } as Record<string, string>;
 
               return (
                 <div key={status} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${statusColors[status] || 'bg-slate-500'}`}></div>
-                    <span className="text-slate-300 capitalize">{status}</span>
+                    <div className={`w-3 h-3 rounded-full ${statusColors[status] || 'bg-muted'}`}></div>
+                    <span className="text-foreground capitalize">{status}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{formatNumber(count)}</span>
-                    <span className="text-slate-400 text-sm">({percentage.toFixed(1)}%)</span>
+                    <span className="text-foreground font-medium">{formatNumber(count)}</span>
+                    <span className="text-muted-foreground text-sm">({percentage.toFixed(1)}%)</span>
                   </div>
                 </div>
               );
@@ -156,13 +156,13 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
         </div>
 
         {/* Customer Tier Distribution */}
-        <div className="bg-slate-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">By Tier</h3>
+        <div className="bg-card border border-border p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-foreground mb-4">By Tier</h3>
           <div className="space-y-3">
-            {Object.entries(metrics.customers_by_tier).map(([tier, count]) => {
+            {Object.entries(metrics.customers_by_tier ?? {}).map(([tier, count]) => {
               const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const tierColors = {
-                free: 'bg-slate-500',
+                free: 'bg-muted',
                 basic: 'bg-blue-500',
                 standard: 'bg-purple-500',
                 premium: 'bg-yellow-500',
@@ -172,12 +172,12 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
               return (
                 <div key={tier} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${tierColors[tier] || 'bg-slate-500'}`}></div>
-                    <span className="text-slate-300 capitalize">{tier}</span>
+                    <div className={`w-3 h-3 rounded-full ${tierColors[tier] || 'bg-muted'}`}></div>
+                    <span className="text-foreground capitalize">{tier}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{formatNumber(count)}</span>
-                    <span className="text-slate-400 text-sm">({percentage.toFixed(1)}%)</span>
+                    <span className="text-foreground font-medium">{formatNumber(count)}</span>
+                    <span className="text-muted-foreground text-sm">({percentage.toFixed(1)}%)</span>
                   </div>
                 </div>
               );
@@ -186,10 +186,10 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
         </div>
 
         {/* Customer Type Distribution */}
-        <div className="bg-slate-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">By Type</h3>
+        <div className="bg-card border border-border p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-foreground mb-4">By Type</h3>
           <div className="space-y-3">
-            {Object.entries(metrics.customers_by_type).map(([type, count]) => {
+            {Object.entries(metrics.customers_by_type ?? {}).map(([type, count]) => {
               const percentage = metrics.total_customers > 0 ? (count / metrics.total_customers) * 100 : 0;
               const typeColors = {
                 individual: 'bg-blue-500',
@@ -202,12 +202,12 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
               return (
                 <div key={type} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${typeColors[type] || 'bg-slate-500'}`}></div>
-                    <span className="text-slate-300 capitalize">{type}</span>
+                    <div className={`w-3 h-3 rounded-full ${typeColors[type] || 'bg-muted'}`}></div>
+                    <span className="text-foreground capitalize">{type}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{formatNumber(count)}</span>
-                    <span className="text-slate-400 text-sm">({percentage.toFixed(1)}%)</span>
+                    <span className="text-foreground font-medium">{formatNumber(count)}</span>
+                    <span className="text-muted-foreground text-sm">({percentage.toFixed(1)}%)</span>
                   </div>
                 </div>
               );
@@ -218,16 +218,16 @@ export function CustomersMetrics({ metrics, loading }: CustomersMetricsProps) {
 
       {/* Top Segments */}
       {metrics.top_segments && metrics.top_segments.length > 0 && (
-        <div className="bg-slate-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">Top Customer Segments</h3>
+        <div className="bg-card border border-border p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Top Customer Segments</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {metrics.top_segments.map((segment, index) => (
-              <div key={segment.name} className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+              <div key={'id' in segment ? String(segment.id) : segment.name || String(index)} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                  <span className="text-slate-200 font-medium">{segment.name}</span>
+                  <div className="w-2 h-2 bg-primary rounded-full"></div>
+                  <span className="text-foreground font-medium">{segment.name || 'Unknown Segment'}</span>
                 </div>
-                <span className="text-slate-400">{formatNumber(segment.count)}</span>
+                <span className="text-muted-foreground">{typeof segment.count === 'number' ? formatNumber(segment.count) : '0'}</span>
               </div>
             ))}
           </div>

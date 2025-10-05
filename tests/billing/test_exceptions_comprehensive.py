@@ -121,9 +121,7 @@ class TestProductErrors:
 
     def test_product_not_found_with_both(self):
         """Test ProductNotFoundError with both product_id and sku."""
-        error = ProductNotFoundError(
-            "Product not found", product_id="prod-123", sku="SKU-ABC"
-        )
+        error = ProductNotFoundError("Product not found", product_id="prod-123", sku="SKU-ABC")
 
         assert error.context["product_id"] == "prod-123"
         assert error.context["sku"] == "SKU-ABC"
@@ -398,9 +396,7 @@ class TestWebhookErrors:
 
     def test_webhook_error_with_both(self):
         """Test WebhookError with both webhook_type and provider."""
-        error = WebhookError(
-            "Webhook failed", webhook_type="payment.succeeded", provider="stripe"
-        )
+        error = WebhookError("Webhook failed", webhook_type="payment.succeeded", provider="stripe")
 
         assert error.context["webhook_type"] == "payment.succeeded"
         assert error.context["provider"] == "stripe"

@@ -16,6 +16,7 @@ import {
 import { useCustomers } from '@/hooks/useCustomers';
 import { metricsService, OperationsMetrics } from '@/lib/services/metrics-service';
 import { AlertBanner } from '@/components/alerts/AlertBanner';
+import { MetricCardEnhanced } from '@/components/ui/metric-card-enhanced';
 
 interface MetricCardProps {
   title: string;
@@ -31,23 +32,23 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, subtitle, icon: Icon, trend, href }: MetricCardProps) {
   const content = (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition-colors">
+    <div className="rounded-lg border border-border bg-card p-6 hover:border-border transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-slate-400">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
           {subtitle && (
-            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+            <p className="mt-1 text-sm text-foreground0">{subtitle}</p>
           )}
           {trend && (
-            <div className={`mt-2 flex items-center text-sm ${trend.isPositive ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`mt-2 flex items-center text-sm ${trend.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
               <TrendingUp className={`h-4 w-4 mr-1 ${!trend.isPositive ? 'rotate-180' : ''}`} />
               {Math.abs(trend.value)}% from last month
             </div>
           )}
         </div>
-        <div className="p-3 bg-slate-800 rounded-lg">
-          <Icon className="h-6 w-6 text-sky-400" />
+        <div className="p-3 bg-muted rounded-lg">
+          <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
       </div>
     </div>
@@ -57,7 +58,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, trend, href }: MetricC
     return (
       <Link href={href} className="block group relative">
         {content}
-        <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-foreground0 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Link>
     );
   }
@@ -76,16 +77,16 @@ function QuickAction({ title, description, href, icon: Icon }: QuickActionProps)
   return (
     <Link
       href={href}
-      className="flex items-start gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+      className="flex items-start gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
     >
-      <div className="p-2 bg-slate-800 rounded-lg">
-        <Icon className="h-5 w-5 text-sky-400" />
+      <div className="p-2 bg-muted rounded-lg">
+        <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
       </div>
       <div className="flex-1">
-        <p className="font-medium text-white">{title}</p>
-        <p className="mt-1 text-sm text-slate-400">{description}</p>
+        <p className="font-medium text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
-      <ArrowUpRight className="h-4 w-4 text-slate-500" />
+      <ArrowUpRight className="h-4 w-4 text-foreground0" />
     </Link>
   );
 }
@@ -101,27 +102,27 @@ interface RecentActivityItem {
 
 function RecentActivity({ items }: { items: RecentActivityItem[] }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900">
-      <div className="p-6 border-b border-slate-800">
-        <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
+    <div className="rounded-lg border border-border bg-card">
+      <div className="p-6 border-b border-border">
+        <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
       </div>
-      <div className="divide-y divide-slate-800">
+      <div className="divide-y divide-border">
         {items.length === 0 ? (
-          <div className="p-6 text-center text-slate-500">
+          <div className="p-6 text-center text-foreground0">
             No recent activity
           </div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="p-4 hover:bg-slate-800/50 transition-colors">
+            <div key={item.id} className="p-4 hover:bg-muted transition-colors">
               <div className="flex items-start gap-3">
-                <div className="p-2 bg-slate-800 rounded-lg">
-                  <item.icon className="h-4 w-4 text-sky-400" />
+                <div className="p-2 bg-muted rounded-lg">
+                  <item.icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white truncate">{item.title}</p>
-                  <p className="mt-1 text-sm text-slate-400 truncate">{item.description}</p>
+                  <p className="font-medium text-foreground truncate">{item.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground truncate">{item.description}</p>
                 </div>
-                <span className="text-xs text-slate-500 whitespace-nowrap">
+                <span className="text-xs text-foreground0 whitespace-nowrap">
                   {item.timestamp}
                 </span>
               </div>
@@ -216,8 +217,8 @@ export default function OperationsPage() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Operations</h1>
-        <p className="mt-2 text-slate-400">
+        <h1 className="text-3xl font-bold text-foreground">Operations</h1>
+        <p className="mt-2 text-muted-foreground">
           Manage customer lifecycle, communications, and file distribution
         </p>
       </div>
@@ -227,7 +228,7 @@ export default function OperationsPage() {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
+        <MetricCardEnhanced
           title="Total Customers"
           value={metrics?.customers.total || 0}
           subtitle="Active accounts"
@@ -237,8 +238,9 @@ export default function OperationsPage() {
             isPositive: (metrics?.customers.growthRate || 0) > 0
           }}
           href="/dashboard/operations/customers"
+          emptyStateMessage="No customers registered yet"
         />
-        <MetricCard
+        <MetricCardEnhanced
           title="Communications Sent"
           value={metrics?.communications.totalSent || 0}
           subtitle={`${metrics?.communications.sentToday || 0} sent today`}
@@ -248,20 +250,22 @@ export default function OperationsPage() {
             isPositive: true
           }}
           href="/dashboard/operations/communications"
+          emptyStateMessage="No communications sent"
         />
-        <MetricCard
+        <MetricCardEnhanced
           title="Files Distributed"
           value={metrics?.files.totalFiles || 0}
           subtitle={`${((metrics?.files.totalSize || 0) / (1024 * 1024 * 1024)).toFixed(2)} GB total`}
           icon={FileText}
           href="/dashboard/operations/files"
+          emptyStateMessage="No files uploaded"
         />
-        <MetricCard
+        <MetricCardEnhanced
           title="System Activity"
           value={`${metrics?.activity.eventsPerHour || 0}/hr`}
           subtitle={`${metrics?.activity.activeUsers || 0} active users`}
           icon={Activity}
-          trend={{ value: 2.5, isPositive: true }}
+          emptyStateMessage="No activity tracked"
         />
       </div>
 
@@ -272,7 +276,7 @@ export default function OperationsPage() {
             <AlertCircle className="h-5 w-5 text-orange-400 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-orange-400">Attention Required</p>
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {metrics.customers.churnRisk} customers at risk of churning.
                 <Link href="/dashboard/operations/customers?filter=at-risk" className="ml-2 text-orange-400 hover:text-orange-300">
                   View customers →
@@ -287,7 +291,7 @@ export default function OperationsPage() {
         {/* Quick Actions */}
         <div className="lg:col-span-2 space-y-6">
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <QuickAction
                 title="Add New Customer"
@@ -318,65 +322,65 @@ export default function OperationsPage() {
 
           {/* Domain Overview */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Domain Overview</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Domain Overview</h2>
             <div className="space-y-4">
               <Link
                 href="/dashboard/operations/customers"
-                className="block rounded-lg border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition-colors"
+                className="block rounded-lg border border-border bg-card p-6 hover:border-border transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-slate-800 rounded-lg">
-                      <Users className="h-6 w-6 text-sky-400" />
+                    <div className="p-3 bg-muted rounded-lg">
+                      <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Customer Management</h3>
-                      <p className="mt-1 text-sm text-slate-400">
+                      <h3 className="font-semibold text-foreground">Customer Management</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {metrics?.customers.total || 0} total customers • {metrics?.customers.newThisMonth || 0} new this month
                       </p>
                     </div>
                   </div>
-                  <ArrowUpRight className="h-5 w-5 text-slate-500" />
+                  <ArrowUpRight className="h-5 w-5 text-foreground0" />
                 </div>
               </Link>
 
               <Link
                 href="/dashboard/operations/communications"
-                className="block rounded-lg border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition-colors"
+                className="block rounded-lg border border-border bg-card p-6 hover:border-border transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-slate-800 rounded-lg">
-                      <Mail className="h-6 w-6 text-sky-400" />
+                    <div className="p-3 bg-muted rounded-lg">
+                      <Mail className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Communications</h3>
-                      <p className="mt-1 text-sm text-slate-400">
+                      <h3 className="font-semibold text-foreground">Communications</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Email, SMS, and notification management
                       </p>
                     </div>
                   </div>
-                  <ArrowUpRight className="h-5 w-5 text-slate-500" />
+                  <ArrowUpRight className="h-5 w-5 text-foreground0" />
                 </div>
               </Link>
 
               <Link
                 href="/dashboard/operations/files"
-                className="block rounded-lg border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition-colors"
+                className="block rounded-lg border border-border bg-card p-6 hover:border-border transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-slate-800 rounded-lg">
-                      <FileText className="h-6 w-6 text-sky-400" />
+                    <div className="p-3 bg-muted rounded-lg">
+                      <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">File Distribution</h3>
-                      <p className="mt-1 text-sm text-slate-400">
+                      <h3 className="font-semibold text-foreground">File Distribution</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Manage and distribute files to customers
                       </p>
                     </div>
                   </div>
-                  <ArrowUpRight className="h-5 w-5 text-slate-500" />
+                  <ArrowUpRight className="h-5 w-5 text-foreground0" />
                 </div>
               </Link>
             </div>

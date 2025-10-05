@@ -135,3 +135,21 @@ class IdempotencyError(BillingError):
     """Idempotency key conflict error"""
 
     pass
+
+
+class SubscriptionError(BillingError):
+    """Base exception for subscription-related errors"""
+
+    pass
+
+
+class SubscriptionNotFoundError(SubscriptionError):
+    """Subscription not found error"""
+
+    pass
+
+
+class InvalidSubscriptionStatusError(SubscriptionError):
+    """Invalid subscription status for requested operation"""
+
+    pass

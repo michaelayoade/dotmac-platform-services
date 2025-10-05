@@ -10,6 +10,8 @@ import inspect
 from typing import Dict, List, Any, Optional
 from unittest.mock import Mock, AsyncMock
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestAuthModuleInterface:
     """Test Auth module interface compatibility."""
@@ -26,13 +28,13 @@ class TestAuthModuleInterface:
                 email="test@example.com",
                 permissions=["read"],
                 roles=["user"],
-                tenant_id="test-tenant"
+                tenant_id="test-tenant",
             )
 
             # Verify interface
-            assert hasattr(user_info, 'user_id')
-            assert hasattr(user_info, 'permissions')
-            assert hasattr(user_info, 'tenant_id')
+            assert hasattr(user_info, "user_id")
+            assert hasattr(user_info, "permissions")
+            assert hasattr(user_info, "tenant_id")
             assert isinstance(user_info.permissions, list)
 
         except ImportError:
@@ -44,19 +46,19 @@ class TestAuthModuleInterface:
             from dotmac.platform.auth.core import JWTService
 
             # Check class exists and has expected methods
-            assert hasattr(JWTService, '__init__')
-            assert hasattr(JWTService, 'create_access_token')
-            assert hasattr(JWTService, 'verify_token')
+            assert hasattr(JWTService, "__init__")
+            assert hasattr(JWTService, "create_access_token")
+            assert hasattr(JWTService, "verify_token")
 
             # Check method signatures
             create_token_sig = inspect.signature(JWTService.create_access_token)
             verify_token_sig = inspect.signature(JWTService.verify_token)
 
             # Verify create_access_token accepts subject parameter
-            assert 'subject' in create_token_sig.parameters
+            assert "subject" in create_token_sig.parameters
 
             # Verify verify_token accepts token parameter
-            assert 'token' in verify_token_sig.parameters
+            assert "token" in verify_token_sig.parameters
 
         except ImportError:
             pytest.skip("JWT service not available")
@@ -71,18 +73,18 @@ class TestDataTransferModuleInterface:
             from dotmac.platform.data_transfer.factory import DataTransferFactory
 
             # Check static methods exist
-            assert hasattr(DataTransferFactory, 'create_importer')
-            assert hasattr(DataTransferFactory, 'create_exporter')
-            assert hasattr(DataTransferFactory, 'detect_format')
-            assert hasattr(DataTransferFactory, 'validate_format')
+            assert hasattr(DataTransferFactory, "create_importer")
+            assert hasattr(DataTransferFactory, "create_exporter")
+            assert hasattr(DataTransferFactory, "detect_format")
+            assert hasattr(DataTransferFactory, "validate_format")
 
             # Check method signatures
             create_importer_sig = inspect.signature(DataTransferFactory.create_importer)
             create_exporter_sig = inspect.signature(DataTransferFactory.create_exporter)
 
             # Verify methods accept format parameter
-            assert 'format' in create_importer_sig.parameters
-            assert 'format' in create_exporter_sig.parameters
+            assert "format" in create_importer_sig.parameters
+            assert "format" in create_exporter_sig.parameters
 
         except ImportError:
             pytest.skip("Data Transfer factory not available")
@@ -93,11 +95,14 @@ class TestDataTransferModuleInterface:
             from dotmac.platform.data_transfer.core import BaseImporter
 
             # Check abstract methods exist
-            assert hasattr(BaseImporter, 'import_from_file')
+            assert hasattr(BaseImporter, "import_from_file")
 
             # Verify it has abstract methods (even if not formally ABC)
-            import_method = getattr(BaseImporter, 'import_from_file')
-            assert hasattr(import_method, '__isabstractmethod__') and import_method.__isabstractmethod__
+            import_method = getattr(BaseImporter, "import_from_file")
+            assert (
+                hasattr(import_method, "__isabstractmethod__")
+                and import_method.__isabstractmethod__
+            )
 
         except ImportError:
             pytest.skip("BaseImporter not available")
@@ -115,7 +120,7 @@ class TestTenantModuleInterface:
             tenant_ctx = TenantContext(tenant_id="test-tenant")
 
             # Verify interface
-            assert hasattr(tenant_ctx, 'tenant_id')
+            assert hasattr(tenant_ctx, "tenant_id")
             assert tenant_ctx.tenant_id == "test-tenant"
 
         except ImportError:
@@ -131,16 +136,16 @@ class TestSecretsModuleInterface:
             from dotmac.platform.secrets.factory import SecretsManager, SecretsManagerFactory
 
             # Check that SecretsManager protocol has expected methods
-            expected_methods = ['get_secret', 'set_secret']
+            expected_methods = ["get_secret", "set_secret"]
             for method in expected_methods:
                 assert hasattr(SecretsManager, method)
 
             # Check that factory exists and has create method
-            assert hasattr(SecretsManagerFactory, 'create_secrets_manager')
+            assert hasattr(SecretsManagerFactory, "create_secrets_manager")
 
             # Test factory method signature
             factory_sig = inspect.signature(SecretsManagerFactory.create_secrets_manager)
-            assert 'backend' in factory_sig.parameters
+            assert "backend" in factory_sig.parameters
 
         except ImportError:
             pytest.skip("SecretsManager not available")
@@ -156,12 +161,12 @@ class TestAnalyticsModuleInterface:
 
             # Check function signature
             sig = inspect.signature(create_otel_collector)
-            assert 'tenant_id' in sig.parameters
+            assert "tenant_id" in sig.parameters
 
             # Test function returns collector
             collector = create_otel_collector("test-tenant")
             assert collector is not None
-            assert hasattr(collector, 'record_metric')
+            assert hasattr(collector, "record_metric")
 
         except ImportError:
             pytest.skip("Analytics collector not available")
@@ -182,7 +187,7 @@ class TestModuleInterfaceCompatibility:
                 email="test@example.com",
                 permissions=["read", "write"],
                 roles=["user"],
-                tenant_id="test-tenant"
+                tenant_id="test-tenant",
             )
 
             # Test serialization (to dict)
@@ -203,13 +208,13 @@ class TestModuleInterfaceCompatibility:
     def test_error_handling_consistency(self):
         """Test error handling is consistent across modules."""
         # Define expected error interfaces
-        expected_error_attributes = ['message', 'code']
+        expected_error_attributes = ["message", "code"]
 
         # Test that errors from different modules have consistent structure
         mock_errors = {
             "auth_error": {"message": "Authentication failed", "code": "AUTH001"},
             "data_error": {"message": "Invalid format", "code": "DATA001"},
-            "tenant_error": {"message": "Tenant not found", "code": "TENANT001"}
+            "tenant_error": {"message": "Tenant not found", "code": "TENANT001"},
         }
 
         for error_type, error_data in mock_errors.items():
@@ -223,7 +228,7 @@ class TestModuleInterfaceCompatibility:
             "get_*": ["id"],  # get methods should accept id parameter
             "create_*": ["data"],  # create methods should accept data parameter
             "update_*": ["id", "data"],  # update methods should accept id and data
-            "delete_*": ["id"]  # delete methods should accept id parameter
+            "delete_*": ["id"],  # delete methods should accept id parameter
         }
 
         # This test verifies the expected patterns exist
@@ -291,11 +296,7 @@ class TestServiceDependencyCompatibility:
                 self.tenant = tenant_context
 
             def record_event(self, event_name, data):
-                return {
-                    "tenant_id": self.tenant.tenant_id,
-                    "event": event_name,
-                    "data": data
-                }
+                return {"tenant_id": self.tenant.tenant_id, "event": event_name, "data": data}
 
         # Test integration
         analytics = MockAnalyticsService(mock_tenant_context)
@@ -312,23 +313,14 @@ class TestModuleConfigurationCompatibility:
         """Test that shared configuration has expected structure."""
         # Mock shared configuration
         shared_config = {
-            "database": {
-                "url": "postgresql://localhost/test",
-                "echo": False
-            },
-            "redis": {
-                "url": "redis://localhost:6379",
-                "db": 0
-            },
+            "database": {"url": "postgresql://localhost/test", "echo": False},
+            "redis": {"url": "redis://localhost:6379", "db": 0},
             "features": {
                 "auth_enabled": True,
                 "data_transfer_enabled": True,
-                "analytics_enabled": False
+                "analytics_enabled": False,
             },
-            "observability": {
-                "tracing_enabled": False,
-                "metrics_enabled": False
-            }
+            "observability": {"tracing_enabled": False, "metrics_enabled": False},
         }
 
         # Verify configuration structure
@@ -349,14 +341,14 @@ class TestModuleConfigurationCompatibility:
             "data_transfer_excel": False,
             "auth_mfa_enabled": False,
             "analytics_enabled": True,
-            "tracing_opentelemetry": False
+            "tracing_opentelemetry": False,
         }
 
         # Test feature flag structure
         for flag_name, flag_value in feature_flags.items():
             assert isinstance(flag_name, str)
             assert isinstance(flag_value, bool)
-            assert flag_name.count('_') >= 1  # Should have module prefix
+            assert flag_name.count("_") >= 1  # Should have module prefix
 
 
 class TestCrossModuleDataFlow:
@@ -370,13 +362,13 @@ class TestCrossModuleDataFlow:
         auth_data = {
             "user_id": mock_user_info.user_id,
             "tenant_id": mock_user_info.tenant_id,
-            "permissions": mock_user_info.permissions
+            "permissions": mock_user_info.permissions,
         }
 
         # 2. User Management uses auth data
         user_mgmt_data = {
             **auth_data,
-            "profile": {"name": "Test User", "email": mock_user_info.email}
+            "profile": {"name": "Test User", "email": mock_user_info.email},
         }
 
         # 3. Communications uses user data for notifications
@@ -384,7 +376,7 @@ class TestCrossModuleDataFlow:
             "recipient": user_mgmt_data["profile"]["email"],
             "user_id": user_mgmt_data["user_id"],
             "tenant_id": user_mgmt_data["tenant_id"],
-            "template": "welcome"
+            "template": "welcome",
         }
 
         # Verify data flows correctly
@@ -429,5 +421,5 @@ class TestCrossModuleDataFlow:
 # Integration test markers and configuration
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.slow  # These tests may be slower due to module loading
+    pytest.mark.slow,  # These tests may be slower due to module loading
 ]

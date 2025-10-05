@@ -10,6 +10,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 async def test_imports():
     """Test that all enhanced communications modules can be imported."""
     print("🧪 Testing enhanced communications imports...")
@@ -20,8 +21,9 @@ async def test_imports():
             NotificationService,
             NotificationType,
             NotificationRequest,
-            get_notification_service
+            get_notification_service,
         )
+
         print("✅ Basic communications module imported successfully")
 
         # Test enhanced features import
@@ -32,8 +34,9 @@ async def test_imports():
             BulkEmailService,
             enhanced_router,
             get_template_service,
-            get_bulk_service
+            get_bulk_service,
         )
+
         print("✅ Enhanced communications modules imported successfully")
 
         # Test template service functionality
@@ -52,6 +55,7 @@ async def test_imports():
     except Exception as e:
         print(f"❌ Import test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -71,8 +75,7 @@ async def test_template_rendering():
         text = "Hello {{name}}! Your email is {{email}}"
 
         rendered = await template_service.render_template(
-            subject, html, text,
-            {"name": "John Doe", "email": "john@example.com"}
+            subject, html, text, {"name": "John Doe", "email": "john@example.com"}
         )
 
         assert "John Doe" in rendered.subject
@@ -85,6 +88,7 @@ async def test_template_rendering():
     except Exception as e:
         print(f"❌ Template rendering test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -97,7 +101,7 @@ async def test_basic_notification():
         from dotmac.platform.communications import (
             get_notification_service,
             NotificationRequest,
-            NotificationType
+            NotificationType,
         )
 
         service = get_notification_service()
@@ -107,7 +111,7 @@ async def test_basic_notification():
             type=NotificationType.EMAIL,
             recipient="test@example.com",
             subject="Test Subject",
-            content="Test email content"
+            content="Test email content",
         )
 
         response = service.send(request)
@@ -120,6 +124,7 @@ async def test_basic_notification():
     except Exception as e:
         print(f"❌ Basic notification test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -137,6 +142,7 @@ async def test_celery_integration():
         # Try to import the bulk email task
         try:
             from dotmac.platform.communications.bulk_service import process_bulk_email_job
+
             print("✅ Bulk email task imported successfully")
         except Exception as e:
             print(f"⚠️  Bulk email task import issue (expected in test): {e}")
@@ -146,6 +152,7 @@ async def test_celery_integration():
     except Exception as e:
         print(f"❌ Celery integration test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

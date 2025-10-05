@@ -260,8 +260,11 @@ class AuthorizationError(AuthError):
         super().__init__(message, error_code, details)
 
 
-# Use ValidationError from core module - no custom auth validation error needed
-from ..core import ValidationError
+# Use ValidationError from pydantic for request validation errors
+from pydantic import ValidationError as PydanticValidationError
+
+# For backwards compatibility, alias it
+ValidationError = PydanticValidationError
 
 
 class RateLimitError(AuthError):

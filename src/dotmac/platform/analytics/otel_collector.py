@@ -3,8 +3,8 @@ OpenTelemetry collector implementation for SigNoz integration.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Optional OpenTelemetry imports
 from ..dependencies import safe_import
@@ -125,12 +125,12 @@ class OTelConfig:
     service_name: str = "dotmac-business-services"
     environment: str = "development"
     insecure: bool = True
-    headers: Optional[Dict[str, str]] = None
+    headers: dict[str, str] | None = None
     export_interval_millis: int = 5000
     max_export_batch_size: int = 512
     max_queue_size: int = 2048
-    signoz_endpoint: Optional[str] = None
-    otlp_endpoint: Optional[str] = None
+    signoz_endpoint: str | None = None
+    otlp_endpoint: str | None = None
 
     def __post_init__(self) -> None:
         """Normalize endpoint aliases and header formats."""
@@ -141,7 +141,7 @@ class OTelConfig:
                 self.endpoint = self.otlp_endpoint
 
         if isinstance(self.headers, str):
-            parsed_headers: Dict[str, str] = {}
+            parsed_headers: dict[str, str] = {}
             for item in self.headers.split(","):
                 if "=" not in item:
                     continue
@@ -205,14 +205,14 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             self._tracer = DummyTracer()
 
         # Metric instruments cache
-        self._counters: Dict[str, Any] = {}
-        self._gauges: Dict[str, Any] = {}
-        self._histograms: Dict[str, Any] = {}
-        self._updown_counters: Dict[str, Any] = {}
-        self._gauge_values: Dict[str, Dict[tuple, float]] = {}
+        self._counters: dict[str, Any] = {}
+        self._gauges: dict[str, Any] = {}
+        self._histograms: dict[str, Any] = {}
+        self._updown_counters: dict[str, Any] = {}
+        self._gauge_values: dict[str, dict[tuple, float]] = {}
 
         # Lightweight in-memory summary for quick aggregation in tests and admin endpoints
-        self._metrics_summary: Dict[str, Dict[str, Any]] = {
+        self._metrics_summary: dict[str, dict[str, Any]] = {
             "counters": {},
             "gauges": {},
             "histograms": {},
@@ -222,10 +222,11 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """Initialize OpenTelemetry metrics."""
         # Skip OTLP export in test environment to prevent connection warnings
         import os
+
         is_test_env = (
-            os.environ.get("PYTEST_CURRENT_TEST") or
-            os.environ.get("OTEL_ENABLED") == "false" or
-            self.config.environment == "test"
+            os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("OTEL_ENABLED") == "false"
+            or self.config.environment == "test"
         )
 
         if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
@@ -266,10 +267,11 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """Initialize OpenTelemetry tracing."""
         # Skip OTLP export in test environment to prevent connection warnings
         import os
+
         is_test_env = (
-            os.environ.get("PYTEST_CURRENT_TEST") or
-            os.environ.get("OTEL_ENABLED") == "false" or
-            self.config.environment == "test"
+            os.environ.get("PYTEST_CURRENT_TEST")
+            or os.environ.get("OTEL_ENABLED") == "false"
+            or self.config.environment == "test"
         )
 
         if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
@@ -321,7 +323,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             # Store gauge values for async callback
             self._gauge_values[metric.name] = {}
 
-            def gauge_callback(options: Any) -> List[Any]:
+            def gauge_callback(options: Any) -> list[Any]:
                 """Callback for observable gauge."""
                 observations = []
                 if Observation:
@@ -393,7 +395,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         except Exception as e:
             logger.error(f"Failed to collect metric {metric.name}: {e}")
 
-    async def collect_batch(self, metrics: List[Metric]) -> None:
+    async def collect_batch(self, metrics: list[Metric]) -> None:
         """
         Collect multiple metrics in batch.
 
@@ -408,9 +410,9 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         name: str,
         value: float | int,
         metric_type: str = "gauge",
-        labels: Optional[Dict[str, Any]] = None,
-        unit: Optional[str] = None,
-        description: Optional[str] = None,
+        labels: dict[str, Any] | None = None,
+        unit: str | None = None,
+        description: str | None = None,
     ) -> None:
         """Convenience helper for recording ad-hoc metrics.
 
@@ -471,10 +473,10 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         except Exception as exc:
             logger.error(f"Failed to record metric {name}: {exc}")
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Return a snapshot of recently recorded metrics."""
 
-        histogram_snapshot: Dict[str, Any] = {}
+        histogram_snapshot: dict[str, Any] = {}
         for key, stats in self._metrics_summary["histograms"].items():
             histogram_snapshot[key] = {
                 "count": stats.get("count", 0),
@@ -485,7 +487,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
             }
 
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "service": self.service_name,
             "tenant": self.tenant_id,
             "counters": dict(self._metrics_summary["counters"]),
@@ -507,8 +509,8 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
     def create_span(
         self,
         name: str,
-        attributes: Optional[Dict[str, Any]] = None,
-        kind: Any = None,
+        attributes: dict[str, Any] | None = None,
+        kind: Any | None = None,
     ) -> Any:
         """
         Create a new span for distributed tracing.
@@ -561,7 +563,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
 
     def __init__(self, tenant_id: str, service_name: str):
         super().__init__(tenant_id, service_name)
-        self.metrics_store: List[Metric] = []
+        self.metrics_store: list[Metric] = []
         self._metrics_summary = {
             "counters": {},
             "gauges": {},
@@ -573,12 +575,12 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
         enriched = self._enrich_metric(metric)
         self.metrics_store.append(enriched)
 
-    async def collect_batch(self, metrics: List[Metric]) -> None:
+    async def collect_batch(self, metrics: list[Metric]) -> None:
         """Collect multiple metrics."""
         for metric in metrics:
             await self.collect(metric)
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get a summary of collected metrics."""
         return {
             "tenant": self.tenant_id,
@@ -592,9 +594,9 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
         name: str,
         value: float,
         metric_type: str = "gauge",
-        labels: Optional[Dict[str, Any]] = None,
-        unit: Optional[str] = None,
-        description: Optional[str] = None,
+        labels: dict[str, Any] | None = None,
+        unit: str | None = None,
+        description: str | None = None,
     ) -> None:
         """Record a metric."""
         if metric_type == "counter":
@@ -630,7 +632,9 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
         """Return a dummy tracer for compatibility."""
         return DummyTracer()
 
-    def create_span(self, name: str, attributes: Optional[Dict[str, Any]] = None, kind: Any = None):
+    def create_span(
+        self, name: str, attributes: dict[str, Any] | None = None, kind: Any | None = None
+    ):
         """Create a dummy span."""
         return DummySpan(name, attributes)
 
@@ -642,7 +646,9 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
 class DummyTracer:
     """Dummy tracer for when OpenTelemetry is not available."""
 
-    def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None, kind: Any = None):
+    def start_span(
+        self, name: str, attributes: dict[str, Any] | None = None, kind: Any | None = None
+    ):
         """Create a dummy span."""
         return DummySpan(name, attributes)
 
@@ -650,7 +656,7 @@ class DummyTracer:
 class DummySpan:
     """Dummy span for when OpenTelemetry is not available."""
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, attributes: dict[str, Any] | None = None):
         self.name = name
         self.attributes = attributes or {}
 
@@ -673,8 +679,8 @@ class DummySpan:
 def create_otel_collector(
     tenant_id: str,
     service_name: str = "dotmac-business",
-    endpoint: Optional[str] = None,
-    environment: Optional[str] = None,
+    endpoint: str | None = None,
+    environment: str | None = None,
 ) -> BaseAnalyticsCollector:
     """
     Create an analytics collector with default configuration.

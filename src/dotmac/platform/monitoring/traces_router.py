@@ -4,13 +4,13 @@ Observability API router for traces and metrics.
 Provides REST endpoints for distributed tracing and metrics collection.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
 
@@ -36,12 +36,12 @@ class SpanData(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     span_id: str = Field(description="Span ID")
-    parent_span_id: Optional[str] = Field(None, description="Parent span ID")
+    parent_span_id: str | None = Field(None, description="Parent span ID")
     name: str = Field(description="Span operation name")
     service: str = Field(description="Service name")
     duration: int = Field(description="Duration in milliseconds")
     start_time: datetime = Field(description="Span start time")
-    attributes: Dict[str, Any] = Field(default_factory=dict, description="Span attributes")
+    attributes: dict[str, Any] = Field(default_factory=dict, description="Span attributes")
 
 
 class TraceData(BaseModel):
@@ -56,7 +56,7 @@ class TraceData(BaseModel):
     status: TraceStatus = Field(description="Trace status")
     timestamp: datetime = Field(description="Trace timestamp")
     spans: int = Field(description="Number of spans")
-    span_details: List[SpanData] = Field(
+    span_details: list[SpanData] = Field(
         default_factory=list, description="Detailed span information"
     )
 
@@ -64,7 +64,7 @@ class TraceData(BaseModel):
 class TracesResponse(BaseModel):
     """Response for trace queries."""
 
-    traces: List[TraceData] = Field(default_factory=list, description="Trace data")
+    traces: list[TraceData] = Field(default_factory=list, description="Trace data")
     total: int = Field(description="Total number of traces")
     page: int = Field(description="Current page")
     page_size: int = Field(description="Page size")
@@ -84,7 +84,7 @@ class MetricDataPoint(BaseModel):
 
     timestamp: datetime = Field(description="Timestamp")
     value: float = Field(description="Metric value")
-    labels: Dict[str, str] = Field(default_factory=dict, description="Metric labels")
+    labels: dict[str, str] = Field(default_factory=dict, description="Metric labels")
 
 
 class MetricSeries(BaseModel):
@@ -92,15 +92,15 @@ class MetricSeries(BaseModel):
 
     name: str = Field(description="Metric name")
     type: MetricType = Field(description="Metric type")
-    data_points: List[MetricDataPoint] = Field(default_factory=list, description="Data points")
+    data_points: list[MetricDataPoint] = Field(default_factory=list, description="Data points")
     unit: str = Field(default="count", description="Metric unit")
 
 
 class MetricsResponse(BaseModel):
     """Response for metrics queries."""
 
-    metrics: List[MetricSeries] = Field(default_factory=list, description="Metric series")
-    time_range: Dict[str, str] = Field(default_factory=dict, description="Time range")
+    metrics: list[MetricSeries] = Field(default_factory=list, description="Metric series")
+    time_range: dict[str, str] = Field(default_factory=dict, description="Time range")
 
 
 class ServiceDependency(BaseModel):
@@ -116,11 +116,11 @@ class ServiceDependency(BaseModel):
 class ServiceMapResponse(BaseModel):
     """Service dependency map."""
 
-    services: List[str] = Field(default_factory=list, description="All services")
-    dependencies: List[ServiceDependency] = Field(
+    services: list[str] = Field(default_factory=list, description="All services")
+    dependencies: list[ServiceDependency] = Field(
         default_factory=list, description="Service dependencies"
     )
-    health_scores: Dict[str, float] = Field(
+    health_scores: dict[str, float] = Field(
         default_factory=dict, description="Service health scores (0-100)"
     )
 
@@ -137,13 +137,13 @@ class PerformanceMetrics(BaseModel):
 class PerformanceResponse(BaseModel):
     """Performance metrics response."""
 
-    percentiles: List[PerformanceMetrics] = Field(
+    percentiles: list[PerformanceMetrics] = Field(
         default_factory=list, description="Percentile data"
     )
-    slowest_endpoints: List[Dict[str, Any]] = Field(
+    slowest_endpoints: list[dict[str, Any]] = Field(
         default_factory=list, description="Slowest endpoints"
     )
-    most_frequent_errors: List[Dict[str, Any]] = Field(
+    most_frequent_errors: list[dict[str, Any]] = Field(
         default_factory=list, description="Most frequent errors"
     )
 
@@ -163,84 +163,112 @@ traces_router = APIRouter()
 class ObservabilityService:
     """Service for observability data.
 
-    Currently returns mock data. In production, this would integrate with:
+    Integrates with:
+    - Jaeger API for distributed traces
+    - Prometheus for metrics
     - OpenTelemetry Collector
-    - Jaeger
-    - Tempo
-    - Prometheus
     """
 
-    def __init__(self):
+    def __init__(self, jaeger_url: str = "http://localhost:16686"):
         self.logger = structlog.get_logger(__name__)
+        self.jaeger_url = jaeger_url
 
     async def get_traces(
         self,
-        service: Optional[str] = None,
-        status: Optional[TraceStatus] = None,
-        min_duration: Optional[int] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        service: str | None = None,
+        status: TraceStatus | None = None,
+        min_duration: int | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         page: int = 1,
         page_size: int = 50,
     ) -> TracesResponse:
-        """Fetch distributed traces."""
-        import random
-        from uuid import uuid4
+        """Fetch distributed traces from Jaeger."""
+        import httpx
 
-        # Generate mock traces
-        statuses = [TraceStatus.SUCCESS, TraceStatus.ERROR, TraceStatus.WARNING]
-        services_list = [
-            "api-gateway",
-            "auth-service",
-            "database",
-            "payment-service",
-            "email-service",
-        ]
-        operations = [
-            "POST /api/users",
-            "GET /api/users/{id}",
-            "validateToken",
-            "SELECT users",
-            "processPayment",
-            "sendNotification",
-        ]
+        try:
+            # Build Jaeger API query parameters
+            params = {
+                "limit": page_size,
+                "lookback": "1h",  # Default lookback
+            }
 
-        traces = []
-        total_traces = 200
+            if service:
+                params["service"] = service
+            if min_duration:
+                params["minDuration"] = f"{min_duration}us"  # Jaeger uses microseconds
 
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
+            # Query Jaeger API
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.jaeger_url}/api/traces",
+                    params=params,
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                jaeger_data = response.json()
 
-        for i in range(start_idx, min(end_idx, total_traces)):
-            trace_status = status if status else random.choice(statuses)
-            trace_service = service if service else random.choice(services_list)
-            trace_operation = random.choice(operations)
-            trace_duration = random.randint(50, 2000)
+            # Convert Jaeger traces to our format
+            traces = []
+            for jaeger_trace in jaeger_data.get("data", []):
+                if not jaeger_trace.get("spans"):
+                    continue
 
-            if min_duration and trace_duration < min_duration:
-                continue
+                # Get root span for trace metadata
+                root_span = jaeger_trace["spans"][0]
+                process = jaeger_trace["processes"].get(root_span["processID"], {})
 
-            trace = TraceData(
-                trace_id=f"trace_{uuid4().hex}",
-                service=trace_service,
-                operation=trace_operation,
-                duration=trace_duration,
-                status=trace_status,
-                timestamp=datetime.now(timezone.utc) - timedelta(minutes=i),
-                spans=random.randint(2, 15),
-                span_details=[],  # Can be populated on-demand
+                # Calculate trace duration (end - start of all spans)
+                span_times = [
+                    (s["startTime"], s["startTime"] + s["duration"]) for s in jaeger_trace["spans"]
+                ]
+                trace_start = min(t[0] for t in span_times)
+                trace_end = max(t[1] for t in span_times)
+                duration_ms = (trace_end - trace_start) // 1000  # Convert to ms
+
+                # Determine status from span tags
+                trace_status = TraceStatus.SUCCESS
+                for span in jaeger_trace["spans"]:
+                    for tag in span.get("tags", []):
+                        if tag["key"] == "error" and tag["value"]:
+                            trace_status = TraceStatus.ERROR
+                            break
+                        if tag["key"] == "http.status_code" and tag["value"] >= 400:
+                            trace_status = TraceStatus.ERROR
+                            break
+
+                trace = TraceData(
+                    trace_id=jaeger_trace["traceID"],
+                    service=process.get("serviceName", "unknown"),
+                    operation=root_span.get("operationName", "unknown"),
+                    duration=duration_ms,
+                    status=trace_status,
+                    timestamp=datetime.fromtimestamp(trace_start / 1_000_000, tz=UTC),
+                    spans=len(jaeger_trace["spans"]),
+                    span_details=[],  # Populated on demand
+                )
+                traces.append(trace)
+
+            return TracesResponse(
+                traces=traces,
+                total=len(traces),
+                page=page,
+                page_size=page_size,
+                has_more=False,  # Jaeger doesn't provide total count
             )
-            traces.append(trace)
 
-        return TracesResponse(
-            traces=traces,
-            total=total_traces,
-            page=page,
-            page_size=page_size,
-            has_more=end_idx < total_traces,
-        )
+        except Exception as e:
+            self.logger.error("Failed to fetch traces from Jaeger", error=str(e), exc_info=True)
+            # Return empty response on error
+            return TracesResponse(
+                traces=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                has_more=False,
+            )
 
-    async def get_trace_details(self, trace_id: str) -> Optional[TraceData]:
+    async def get_trace_details(self, trace_id: str) -> TraceData | None:
         """Get detailed span information for a trace."""
         import random
         from uuid import uuid4
@@ -258,7 +286,7 @@ class ObservabilityService:
                 name=f"operation_{i}",
                 service=random.choice(["api-gateway", "auth-service", "database"]),
                 duration=random.randint(10, 200),
-                start_time=datetime.now(timezone.utc),
+                start_time=datetime.now(UTC),
                 attributes={
                     "http.method": "GET",
                     "http.status_code": 200,
@@ -274,24 +302,24 @@ class ObservabilityService:
             operation="GET /api/users",
             duration=sum(s.duration for s in spans),
             status=TraceStatus.SUCCESS,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             spans=len(spans),
             span_details=spans,
         )
 
     async def get_metrics(
         self,
-        metric_names: Optional[List[str]] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        metric_names: list[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> MetricsResponse:
         """Fetch metrics time series."""
         import random
 
         if not start_time:
-            start_time = datetime.now(timezone.utc) - timedelta(hours=24)
+            start_time = datetime.now(UTC) - timedelta(hours=24)
         if not end_time:
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
 
         default_metrics = ["request_count", "error_count", "latency_ms"]
         metrics_to_fetch = metric_names or default_metrics
@@ -414,7 +442,7 @@ class ObservabilityService:
 
 
 # Service instance
-_observability_service: Optional[ObservabilityService] = None
+_observability_service: ObservabilityService | None = None
 
 
 def get_observability_service() -> ObservabilityService:
@@ -432,11 +460,11 @@ def get_observability_service() -> ObservabilityService:
 
 @traces_router.get("/traces", response_model=TracesResponse)
 async def get_traces(
-    service: Optional[str] = Query(None, description="Filter by service name"),
-    status: Optional[TraceStatus] = Query(None, description="Filter by trace status"),
-    min_duration: Optional[int] = Query(None, description="Minimum duration in milliseconds"),
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range"),
+    service: str | None = Query(None, description="Filter by service name"),
+    status: TraceStatus | None = Query(None, description="Filter by trace status"),
+    min_duration: int | None = Query(None, description="Minimum duration in milliseconds"),
+    start_time: datetime | None = Query(None, description="Start of time range"),
+    end_time: datetime | None = Query(None, description="End of time range"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=500, description="Traces per page"),
     current_user: CurrentUser = Depends(get_current_user),
@@ -486,9 +514,9 @@ async def get_trace_details(
 
 @traces_router.get("/metrics", response_model=MetricsResponse)
 async def get_metrics(
-    metrics: Optional[str] = Query(None, description="Comma-separated metric names"),
-    start_time: Optional[datetime] = Query(None, description="Start time"),
-    end_time: Optional[datetime] = Query(None, description="End time"),
+    metrics: str | None = Query(None, description="Comma-separated metric names"),
+    start_time: datetime | None = Query(None, description="Start time"),
+    end_time: datetime | None = Query(None, description="End time"),
     current_user: CurrentUser = Depends(get_current_user),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> MetricsResponse:

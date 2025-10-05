@@ -3,9 +3,9 @@ Utility functions for data transfer operations.
 """
 
 import asyncio
+from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import AsyncGenerator, Optional
 from uuid import uuid4
 
 from .core import (
@@ -60,7 +60,7 @@ def estimate_completion_time(
     processed: int,
     total: int,
     elapsed_seconds: float,
-) -> Optional[datetime]:
+) -> datetime | None:
     """Estimate completion time based on current progress."""
     if processed <= 0 or total <= 0 or elapsed_seconds <= 0:
         return None
@@ -199,9 +199,9 @@ class DataPipeline:
         config: TransferConfig,
         import_options: ImportOptions,
         export_options: ExportOptions,
-        progress_callback: Optional[ProgressCallback] = None,
-        validator: Optional[DataValidator] = None,
-        transformer: Optional[DataTransformer] = None,
+        progress_callback: ProgressCallback | None = None,
+        validator: DataValidator | None = None,
+        transformer: DataTransformer | None = None,
     ):
         self.source_path = source_path
         self.target_path = target_path
@@ -281,14 +281,14 @@ class DataPipeline:
 def create_data_pipeline(
     source_path: str,
     target_path: str,
-    source_format: Optional[DataFormat] = None,
-    target_format: Optional[DataFormat] = None,
-    config: Optional[TransferConfig] = None,
-    import_options: Optional[ImportOptions] = None,
-    export_options: Optional[ExportOptions] = None,
-    progress_callback: Optional[ProgressCallback] = None,
-    validator: Optional[DataValidator] = None,
-    transformer: Optional[DataTransformer] = None,
+    source_format: DataFormat | None = None,
+    target_format: DataFormat | None = None,
+    config: TransferConfig | None = None,
+    import_options: ImportOptions | None = None,
+    export_options: ExportOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
+    validator: DataValidator | None = None,
+    transformer: DataTransformer | None = None,
 ) -> DataPipeline:
     """Create a data processing pipeline."""
     source = Path(source_path)
@@ -329,10 +329,10 @@ def create_data_pipeline(
 async def convert_file(
     source_path: str,
     target_path: str,
-    source_format: Optional[DataFormat] = None,
-    target_format: Optional[DataFormat] = None,
+    source_format: DataFormat | None = None,
+    target_format: DataFormat | None = None,
     batch_size: int = 1000,
-    progress_callback: Optional[ProgressCallback] = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> ProgressInfo:
     """Convert a file from one format to another."""
     config = create_transfer_config(batch_size=batch_size)
@@ -352,9 +352,9 @@ async def validate_and_clean_file(
     source_path: str,
     target_path: str,
     validator: DataValidator,
-    transformer: Optional[DataTransformer] = None,
+    transformer: DataTransformer | None = None,
     skip_invalid: bool = True,
-    progress_callback: Optional[ProgressCallback] = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> ProgressInfo:
     """Validate and clean a data file."""
     config = create_transfer_config(

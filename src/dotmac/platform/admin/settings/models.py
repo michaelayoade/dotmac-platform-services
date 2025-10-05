@@ -4,10 +4,10 @@ Models and schemas for admin settings management.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional, List
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SettingsCategory(str, Enum):
@@ -54,11 +54,11 @@ class SettingField(BaseModel):
     name: str = Field(description="Field name")
     value: Any = Field(description="Current value")
     type: str = Field(description="Field type (str, int, bool, etc.)")
-    description: Optional[str] = Field(None, description="Field description")
+    description: str | None = Field(None, description="Field description")
     default: Any = Field(None, description="Default value")
     required: bool = Field(True, description="Is field required")
     sensitive: bool = Field(False, description="Is this a sensitive field (password, key, etc.)")
-    validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
+    validation_rules: dict[str, Any] | None = Field(None, description="Validation rules")
 
     model_config = ConfigDict(
         json_encoders={
@@ -72,9 +72,9 @@ class SettingsResponse(BaseModel):
 
     category: SettingsCategory = Field(description="Settings category")
     display_name: str = Field(description="Category display name")
-    fields: List[SettingField] = Field(description="List of settings fields")
-    last_updated: Optional[datetime] = Field(None, description="Last update timestamp")
-    updated_by: Optional[str] = Field(None, description="Last updated by user")
+    fields: list[SettingField] = Field(description="List of settings fields")
+    last_updated: datetime | None = Field(None, description="Last update timestamp")
+    updated_by: str | None = Field(None, description="Last updated by user")
 
     model_config = ConfigDict(
         json_encoders={
@@ -86,23 +86,16 @@ class SettingsResponse(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     """Request model for updating settings."""
 
-    updates: Dict[str, Any] = Field(description="Field updates as key-value pairs")
-    validate_only: bool = Field(
-        False,
-        description="Only validate without applying changes"
-    )
+    updates: dict[str, Any] = Field(description="Field updates as key-value pairs")
+    validate_only: bool = Field(False, description="Only validate without applying changes")
     restart_required: bool = Field(
-        False,
-        description="Whether these changes require service restart"
+        False, description="Whether these changes require service restart"
     )
-    reason: Optional[str] = Field(
-        None,
-        description="Reason for settings update (for audit log)"
-    )
+    reason: str | None = Field(None, description="Reason for settings update (for audit log)")
 
     @field_validator("updates")
     @classmethod
-    def validate_updates_not_empty(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_updates_not_empty(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Ensure updates dict is not empty."""
         if not v:
             raise ValueError("Updates cannot be empty")
@@ -113,18 +106,11 @@ class SettingsValidationResult(BaseModel):
     """Result of settings validation."""
 
     valid: bool = Field(description="Whether all settings are valid")
-    errors: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Validation errors by field"
+    errors: dict[str, str] = Field(default_factory=dict, description="Validation errors by field")
+    warnings: dict[str, str] = Field(
+        default_factory=dict, description="Validation warnings by field"
     )
-    warnings: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Validation warnings by field"
-    )
-    restart_required: bool = Field(
-        False,
-        description="Whether changes require restart"
-    )
+    restart_required: bool = Field(False, description="Whether changes require restart")
 
 
 class AuditLog(BaseModel):
@@ -136,12 +122,10 @@ class AuditLog(BaseModel):
     user_email: str = Field(description="User email")
     category: SettingsCategory = Field(description="Settings category")
     action: str = Field(description="Action performed (update, reset, etc.)")
-    changes: Dict[str, Dict[str, Any]] = Field(
-        description="Changes made (field: {old, new})"
-    )
-    reason: Optional[str] = Field(None, description="Reason for change")
-    ip_address: Optional[str] = Field(None, description="Client IP address")
-    user_agent: Optional[str] = Field(None, description="Client user agent")
+    changes: dict[str, dict[str, Any]] = Field(description="Changes made (field: {old, new})")
+    reason: str | None = Field(None, description="Reason for change")
+    ip_address: str | None = Field(None, description="Client IP address")
+    user_agent: str | None = Field(None, description="Client user agent")
 
     model_config = ConfigDict(
         json_encoders={
@@ -158,11 +142,9 @@ class SettingsBackup(BaseModel):
     created_at: datetime = Field(description="Backup creation time")
     created_by: str = Field(description="User who created backup")
     name: str = Field(description="Backup name")
-    description: Optional[str] = Field(None, description="Backup description")
-    categories: List[SettingsCategory] = Field(
-        description="Categories included in backup"
-    )
-    settings_data: Dict[str, Any] = Field(description="Backup data")
+    description: str | None = Field(None, description="Backup description")
+    categories: list[SettingsCategory] = Field(description="Categories included in backup")
+    settings_data: dict[str, Any] = Field(description="Backup data")
 
     model_config = ConfigDict(
         json_encoders={
@@ -181,59 +163,34 @@ class SettingsCategoryInfo(BaseModel):
     fields_count: int = Field(description="Number of fields")
     has_sensitive_fields: bool = Field(description="Contains sensitive fields")
     restart_required: bool = Field(description="Changes require restart")
-    last_updated: Optional[datetime] = Field(None, description="Last update time")
+    last_updated: datetime | None = Field(None, description="Last update time")
 
 
 class BulkSettingsUpdate(BaseModel):
     """Request for updating multiple categories at once."""
 
-    updates: Dict[SettingsCategory, Dict[str, Any]] = Field(
-        description="Updates by category"
-    )
-    validate_only: bool = Field(
-        False,
-        description="Only validate without applying"
-    )
-    reason: Optional[str] = Field(
-        None,
-        description="Reason for bulk update"
-    )
+    updates: dict[SettingsCategory, dict[str, Any]] = Field(description="Updates by category")
+    validate_only: bool = Field(False, description="Only validate without applying")
+    reason: str | None = Field(None, description="Reason for bulk update")
 
 
 class SettingsExportRequest(BaseModel):
     """Request for exporting settings."""
 
-    categories: Optional[List[SettingsCategory]] = Field(
-        None,
-        description="Categories to export (all if None)"
+    categories: list[SettingsCategory] | None = Field(
+        None, description="Categories to export (all if None)"
     )
-    include_sensitive: bool = Field(
-        False,
-        description="Include sensitive fields in export"
-    )
-    format: str = Field(
-        "json",
-        description="Export format (json, yaml, env)"
-    )
+    include_sensitive: bool = Field(False, description="Include sensitive fields in export")
+    format: str = Field("json", description="Export format (json, yaml, env)")
 
 
 class SettingsImportRequest(BaseModel):
     """Request for importing settings."""
 
-    data: Dict[str, Any] = Field(description="Settings data to import")
-    categories: Optional[List[SettingsCategory]] = Field(
-        None,
-        description="Limit import to specific categories"
+    data: dict[str, Any] = Field(description="Settings data to import")
+    categories: list[SettingsCategory] | None = Field(
+        None, description="Limit import to specific categories"
     )
-    validate_only: bool = Field(
-        True,
-        description="Validate before importing"
-    )
-    overwrite: bool = Field(
-        False,
-        description="Overwrite existing settings"
-    )
-    reason: Optional[str] = Field(
-        None,
-        description="Reason for import"
-    )
+    validate_only: bool = Field(True, description="Validate before importing")
+    overwrite: bool = Field(False, description="Overwrite existing settings")
+    reason: str | None = Field(None, description="Reason for import")

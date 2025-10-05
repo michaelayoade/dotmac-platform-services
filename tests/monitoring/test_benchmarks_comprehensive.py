@@ -58,7 +58,7 @@ class TestBenchmarkMetric:
             unit="ops/sec",
             category="performance",
             metadata=metadata,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         assert metric.name == "custom_metric"
@@ -88,7 +88,7 @@ class TestBenchmarkResult:
             name="Test Benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=start_time
+            start_time=start_time,
         )
 
         assert result.id == "test-123"
@@ -113,7 +113,7 @@ class TestBenchmarkResult:
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.COMPLETED,
             start_time=start_time,
-            end_time=end_time
+            end_time=end_time,
         )
 
         assert result.duration == timedelta(seconds=30)
@@ -126,7 +126,7 @@ class TestBenchmarkResult:
             name="Test Benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(timezone.utc)
+            start_time=datetime.now(timezone.utc),
         )
 
         # Without end_time, duration_seconds should be 0
@@ -143,7 +143,7 @@ class TestBenchmarkResult:
             name="Test Benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(timezone.utc)
+            start_time=datetime.now(timezone.utc),
         )
 
         result.add_metric("cpu_usage", 85.5, "percent", category="system")
@@ -162,7 +162,7 @@ class TestBenchmarkResult:
             name="Test Benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(timezone.utc)
+            start_time=datetime.now(timezone.utc),
         )
 
         result.add_metric("latency", 150.0, "ms")
@@ -183,7 +183,7 @@ class TestBenchmarkResult:
             name="Test Benchmark",
             benchmark_type=BenchmarkType.PERFORMANCE,
             status=BenchmarkStatus.PENDING,
-            start_time=datetime.now(timezone.utc)
+            start_time=datetime.now(timezone.utc),
         )
 
         result.add_metric("cpu_usage", 85, "percent", category="system")
@@ -267,6 +267,7 @@ class TestPerformanceBenchmark:
     @pytest.mark.asyncio
     async def test_benchmark_execution_failure(self):
         """Test benchmark with execution failure."""
+
         class FailingBenchmark(MockBenchmark):
             async def execute(self):
                 self.execute_called = True
@@ -284,6 +285,7 @@ class TestPerformanceBenchmark:
     @pytest.mark.asyncio
     async def test_benchmark_cancellation(self):
         """Test benchmark cancellation."""
+
         class SlowBenchmark(MockBenchmark):
             async def execute(self):
                 self.execute_called = True
@@ -310,6 +312,7 @@ class TestPerformanceBenchmark:
     @pytest.mark.asyncio
     async def test_benchmark_teardown_failure(self):
         """Test benchmark with teardown failure."""
+
         class FailingTeardownBenchmark(MockBenchmark):
             async def teardown(self):
                 self.teardown_called = True
@@ -433,7 +436,7 @@ class TestBenchmarkSuite:
             name="Test Suite",
             description="Test benchmark suite",
             timeout_seconds=30,
-            parallel_execution=False
+            parallel_execution=False,
         )
 
     @pytest.fixture
@@ -515,15 +518,21 @@ class TestBenchmarkSuite:
         # Create mock results
         benchmark_suite.results = [
             BenchmarkResult(
-                id="1", name="Test 1", benchmark_type=BenchmarkType.PERFORMANCE,
-                status=BenchmarkStatus.COMPLETED, start_time=datetime.now(timezone.utc),
-                end_time=datetime.now(timezone.utc) + timedelta(seconds=1)
+                id="1",
+                name="Test 1",
+                benchmark_type=BenchmarkType.PERFORMANCE,
+                status=BenchmarkStatus.COMPLETED,
+                start_time=datetime.now(timezone.utc),
+                end_time=datetime.now(timezone.utc) + timedelta(seconds=1),
             ),
             BenchmarkResult(
-                id="2", name="Test 2", benchmark_type=BenchmarkType.PERFORMANCE,
-                status=BenchmarkStatus.FAILED, start_time=datetime.now(timezone.utc),
-                end_time=datetime.now(timezone.utc) + timedelta(seconds=2)
-            )
+                id="2",
+                name="Test 2",
+                benchmark_type=BenchmarkType.PERFORMANCE,
+                status=BenchmarkStatus.FAILED,
+                start_time=datetime.now(timezone.utc),
+                end_time=datetime.now(timezone.utc) + timedelta(seconds=2),
+            ),
         ]
 
         stats = benchmark_suite.get_summary_stats()
@@ -579,6 +588,7 @@ class TestBenchmarkManager:
     @pytest.mark.asyncio
     async def test_benchmark_manager_active_benchmarks(self, benchmark_manager):
         """Test tracking of active benchmarks."""
+
         class SlowBenchmark(MockBenchmark):
             async def execute(self):
                 await asyncio.sleep(0.5)
@@ -604,6 +614,7 @@ class TestBenchmarkManager:
     @pytest.mark.asyncio
     async def test_benchmark_manager_cancel_benchmark(self, benchmark_manager):
         """Test cancelling active benchmarks."""
+
         class SlowBenchmark(MockBenchmark):
             async def execute(self):
                 await asyncio.sleep(5)
@@ -643,17 +654,26 @@ class TestBenchmarkManager:
         # Add mock results to history
         benchmark_manager.benchmark_history = [
             BenchmarkResult(
-                id="1", name="CPU Test", benchmark_type=BenchmarkType.CPU,
-                status=BenchmarkStatus.COMPLETED, start_time=datetime.now(timezone.utc)
+                id="1",
+                name="CPU Test",
+                benchmark_type=BenchmarkType.CPU,
+                status=BenchmarkStatus.COMPLETED,
+                start_time=datetime.now(timezone.utc),
             ),
             BenchmarkResult(
-                id="2", name="Memory Test", benchmark_type=BenchmarkType.MEMORY,
-                status=BenchmarkStatus.FAILED, start_time=datetime.now(timezone.utc)
+                id="2",
+                name="Memory Test",
+                benchmark_type=BenchmarkType.MEMORY,
+                status=BenchmarkStatus.FAILED,
+                start_time=datetime.now(timezone.utc),
             ),
             BenchmarkResult(
-                id="3", name="CPU Test 2", benchmark_type=BenchmarkType.CPU,
-                status=BenchmarkStatus.COMPLETED, start_time=datetime.now(timezone.utc)
-            )
+                id="3",
+                name="CPU Test 2",
+                benchmark_type=BenchmarkType.CPU,
+                status=BenchmarkStatus.COMPLETED,
+                start_time=datetime.now(timezone.utc),
+            ),
         ]
 
         # Test filter by type
@@ -675,8 +695,11 @@ class TestBenchmarkManager:
         # Add some history
         benchmark_manager.benchmark_history = [
             BenchmarkResult(
-                id="1", name="Test", benchmark_type=BenchmarkType.PERFORMANCE,
-                status=BenchmarkStatus.COMPLETED, start_time=datetime.now(timezone.utc)
+                id="1",
+                name="Test",
+                benchmark_type=BenchmarkType.PERFORMANCE,
+                status=BenchmarkStatus.COMPLETED,
+                start_time=datetime.now(timezone.utc),
             )
         ]
 

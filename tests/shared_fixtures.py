@@ -16,6 +16,7 @@ import pytest
 # Import models and services based on availability
 try:
     from dotmac.platform.auth.core import UserInfo
+
     HAS_USER_INFO = True
 except ImportError:
     # Fallback mock UserInfo
@@ -25,22 +26,26 @@ except ImportError:
             self.permissions = permissions or []
             for key, value in kwargs.items():
                 setattr(self, key, value)
+
     HAS_USER_INFO = False
 
 try:
-    from dotmac.platform.customer_management.models import Customer, CustomerCreate, CustomerUpdate
-    HAS_CUSTOMER_MODELS = True
-except ImportError:
-    HAS_CUSTOMER_MODELS = False
-
-try:
     from dotmac.platform.user_management.models import User, CreateUserRequest, UpdateUserRequest
+
     HAS_USER_MODELS = True
 except ImportError:
     HAS_USER_MODELS = False
 
 try:
+    from dotmac.platform.customer_management.models import Customer, CustomerCreate, CustomerUpdate
+
+    HAS_CUSTOMER_MODELS = True
+except ImportError:
+    HAS_CUSTOMER_MODELS = False
+
+try:
     from dotmac.platform.data_transfer.core import TransferConfig, ImportOptions, ExportOptions
+
     HAS_DATA_TRANSFER = True
 except ImportError:
     HAS_DATA_TRANSFER = False
@@ -49,6 +54,7 @@ except ImportError:
 # ============================================================================
 # Common User Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def test_user_id() -> str:
@@ -75,7 +81,7 @@ def mock_user_info(test_user_id: str) -> UserInfo:
         email="test@example.com",
         permissions=["read", "write"],
         roles=["user"],
-        tenant_id="tenant-123"
+        tenant_id="tenant-123",
     )
 
 
@@ -88,7 +94,7 @@ def admin_user_info(test_user_id: str) -> UserInfo:
         email="admin@example.com",
         permissions=["admin", "read", "write", "delete"],
         roles=["admin"],
-        tenant_id="tenant-123"
+        tenant_id="tenant-123",
     )
 
 
@@ -101,13 +107,14 @@ def readonly_user_info(test_user_id: str) -> UserInfo:
         email="readonly@example.com",
         permissions=["read"],
         roles=["readonly"],
-        tenant_id="tenant-123"
+        tenant_id="tenant-123",
     )
 
 
 # ============================================================================
 # Service Mocks
 # ============================================================================
+
 
 @pytest.fixture
 def mock_async_service() -> AsyncMock:
@@ -160,6 +167,7 @@ def mock_auth_service() -> AsyncMock:
 # Database and Storage Mocks
 # ============================================================================
 
+
 @pytest.fixture
 def mock_database_manager() -> AsyncMock:
     """Mock database manager with common operations."""
@@ -201,6 +209,7 @@ def mock_file_storage() -> AsyncMock:
 # ============================================================================
 
 if HAS_CUSTOMER_MODELS:
+
     @pytest.fixture
     def sample_customer() -> Customer:
         """Sample customer for testing."""
@@ -210,20 +219,17 @@ if HAS_CUSTOMER_MODELS:
             email="customer@example.com",
             tenant_id="tenant-123",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
 
     @pytest.fixture
     def customer_create_request() -> CustomerCreate:
         """Customer creation request."""
-        return CustomerCreate(
-            name="New Customer",
-            email="new@example.com",
-            phone="+1234567890"
-        )
+        return CustomerCreate(name="New Customer", email="new@example.com", phone="+1234567890")
 
 
 if HAS_USER_MODELS:
+
     @pytest.fixture
     def sample_user() -> User:
         """Sample user for testing."""
@@ -233,42 +239,32 @@ if HAS_USER_MODELS:
             email="user@example.com",
             tenant_id="tenant-123",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
 
 
 if HAS_DATA_TRANSFER:
+
     @pytest.fixture
     def transfer_config() -> TransferConfig:
         """Standard transfer configuration for tests."""
-        return TransferConfig(
-            batch_size=1000,
-            max_workers=2,
-            chunk_size=4096
-        )
+        return TransferConfig(batch_size=1000, max_workers=2, chunk_size=4096)
 
     @pytest.fixture
     def import_options() -> ImportOptions:
         """Standard import options for tests."""
-        return ImportOptions(
-            skip_errors=True,
-            validate_data=True,
-            delimiter=",",
-            header_row=0
-        )
+        return ImportOptions(skip_errors=True, validate_data=True, delimiter=",", header_row=0)
 
     @pytest.fixture
     def export_options() -> ExportOptions:
         """Standard export options for tests."""
-        return ExportOptions(
-            include_headers=True,
-            format_dates=True
-        )
+        return ExportOptions(include_headers=True, format_dates=True)
 
 
 # ============================================================================
 # HTTP and API Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
@@ -289,7 +285,7 @@ def sample_api_response() -> Dict[str, Any]:
         "success": True,
         "data": {"id": "123", "name": "test"},
         "message": "Success",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -300,13 +296,14 @@ def sample_error_response() -> Dict[str, Any]:
         "success": False,
         "error": "Not Found",
         "message": "Resource not found",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
 # ============================================================================
 # Time and UUID Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def fixed_datetime() -> datetime:
@@ -323,6 +320,7 @@ def test_uuid() -> str:
 # ============================================================================
 # Settings and Configuration Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_settings() -> Mock:
@@ -353,6 +351,7 @@ def mock_settings() -> Mock:
 # ============================================================================
 # Factory Functions
 # ============================================================================
+
 
 def create_mock_service(service_name: str, methods: List[str] = None) -> AsyncMock:
     """
@@ -410,6 +409,7 @@ def create_test_data(model_type: str, **kwargs) -> Dict[str, Any]:
 # Parametrized Fixtures
 # ============================================================================
 
+
 @pytest.fixture(params=["admin", "user", "readonly"])
 def user_role(request) -> str:
     """Parametrized fixture for different user roles."""
@@ -426,6 +426,7 @@ def data_format(request) -> str:
 # Cleanup Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def cleanup_temp_files():
     """Fixture that cleans up temporary files after tests."""
@@ -438,6 +439,7 @@ def cleanup_temp_files():
 
     # Cleanup
     import os
+
     for filepath in temp_files:
         try:
             if os.path.exists(filepath):
@@ -449,28 +451,37 @@ def cleanup_temp_files():
 # Build __all__ dynamically based on what's available
 _all_fixtures = [
     # User fixtures
-    "test_user_id", "test_tenant_id", "mock_user_info", "admin_user_info", "readonly_user_info",
-
+    "test_user_id",
+    "test_tenant_id",
+    "mock_user_info",
+    "admin_user_info",
+    "readonly_user_info",
     # Service mocks
-    "mock_async_service", "mock_sync_service", "mock_user_service", "mock_customer_service", "mock_auth_service",
-
+    "mock_async_service",
+    "mock_sync_service",
+    "mock_user_service",
+    "mock_customer_service",
+    "mock_auth_service",
     # Database and storage
-    "mock_database_manager", "mock_redis_client", "mock_file_storage",
-
+    "mock_database_manager",
+    "mock_redis_client",
+    "mock_file_storage",
     # HTTP and API
-    "mock_http_client", "sample_api_response", "sample_error_response",
-
+    "mock_http_client",
+    "sample_api_response",
+    "sample_error_response",
     # Time and UUID
-    "fixed_datetime", "test_uuid",
-
+    "fixed_datetime",
+    "test_uuid",
     # Settings
     "mock_settings",
-
     # Utilities
-    "user_role", "data_format", "cleanup_temp_files",
-
+    "user_role",
+    "data_format",
+    "cleanup_temp_files",
     # Factory functions
-    "create_mock_service", "create_test_data",
+    "create_mock_service",
+    "create_test_data",
 ]
 
 # Add conditional fixtures if they exist

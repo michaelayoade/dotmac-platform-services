@@ -232,7 +232,7 @@ export default function PluginsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="h-8 w-8 text-sky-500 animate-spin" />
-            <span className="ml-2 text-slate-400">Loading plugins...</span>
+            <span className="ml-2 text-muted-foreground">Loading plugins...</span>
           </div>
         </div>
       </div>
@@ -267,18 +267,18 @@ export default function PluginsPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-100 flex items-center gap-2">
+              <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
                 <Puzzle className="h-6 w-6 text-sky-500" />
                 Plugin Management
               </h1>
-              <p className="text-slate-400 mt-1">
+              <p className="text-muted-foreground mt-1">
                 Configure and manage plugins for extended functionality
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={refreshPluginRegistry}
-                className="px-3 py-2 text-sm border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+                className="px-3 py-2 text-sm border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
               >
                 <RefreshCw className="h-4 w-4" />
                 Refresh
@@ -296,43 +296,43 @@ export default function PluginsPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+          <div className="bg-card/50 border border-border rounded-lg p-4">
             <div className="flex items-center gap-3">
               <Puzzle className="h-8 w-8 text-sky-500" />
               <div>
-                <div className="text-2xl font-semibold text-slate-100">{availablePlugins.length}</div>
-                <div className="text-sm text-slate-400">Available Plugins</div>
+                <div className="text-2xl font-semibold text-foreground">{availablePlugins.length}</div>
+                <div className="text-sm text-muted-foreground">Available Plugins</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+          <div className="bg-card/50 border border-border rounded-lg p-4">
             <div className="flex items-center gap-3">
               <Settings className="h-8 w-8 text-emerald-500" />
               <div>
-                <div className="text-2xl font-semibold text-slate-100">{pluginInstances.length}</div>
-                <div className="text-sm text-slate-400">Active Instances</div>
+                <div className="text-2xl font-semibold text-foreground">{pluginInstances.length}</div>
+                <div className="text-sm text-muted-foreground">Active Instances</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+          <div className="bg-card/50 border border-border rounded-lg p-4">
             <div className="flex items-center gap-3">
               <CheckCircle className="h-8 w-8 text-emerald-500" />
               <div>
-                <div className="text-2xl font-semibold text-slate-100">
+                <div className="text-2xl font-semibold text-foreground">
                   {healthChecks.filter(h => h.status === 'healthy').length}
                 </div>
-                <div className="text-sm text-slate-400">Healthy</div>
+                <div className="text-sm text-muted-foreground">Healthy</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+          <div className="bg-card/50 border border-border rounded-lg p-4">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-8 w-8 text-amber-500" />
               <div>
-                <div className="text-2xl font-semibold text-slate-100">
+                <div className="text-2xl font-semibold text-foreground">
                   {healthChecks.filter(h => h.status !== 'healthy').length}
                 </div>
-                <div className="text-sm text-slate-400">Issues</div>
+                <div className="text-sm text-muted-foreground">Issues</div>
               </div>
             </div>
           </div>
@@ -342,19 +342,19 @@ export default function PluginsPage() {
         <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search plugins..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
             <select
               value={viewMode === 'grid' ? filterType : filterStatus}
               onChange={(e) => viewMode === 'grid' ? setFilterType(e.target.value) : setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="px-3 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               {viewMode === 'grid' ? (
                 <>
@@ -379,7 +379,7 @@ export default function PluginsPage() {
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-md transition-colors ${
-                viewMode === 'grid' ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                viewMode === 'grid' ? 'bg-sky-500 text-white' : 'bg-accent text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="grid grid-cols-2 gap-0.5 w-4 h-4">
@@ -392,7 +392,7 @@ export default function PluginsPage() {
             <button
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-md transition-colors ${
-                viewMode === 'list' ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                viewMode === 'list' ? 'bg-sky-500 text-white' : 'bg-accent text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="space-y-1 w-4 h-4">
@@ -404,7 +404,7 @@ export default function PluginsPage() {
             <button
               onClick={() => setViewMode('health')}
               className={`p-2 rounded-md transition-colors ${
-                viewMode === 'health' ? 'bg-sky-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                viewMode === 'health' ? 'bg-sky-500 text-white' : 'bg-accent text-muted-foreground hover:text-foreground'
               }`}
             >
               <Activity className="w-4 h-4" />
@@ -421,7 +421,7 @@ export default function PluginsPage() {
           />
         ) : viewMode === 'grid' && !showCreateForm ? (
           <div>
-            <h2 className="text-lg font-semibold text-slate-100 mb-4">Available Plugins</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Available Plugins</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredPlugins.map((plugin) => (
                 <PluginCard
@@ -438,34 +438,34 @@ export default function PluginsPage() {
           </div>
         ) : (
           <div>
-            <h2 className="text-lg font-semibold text-slate-100 mb-4">Plugin Instances</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Plugin Instances</h2>
             <div className="space-y-4">
               {filteredInstances.map((instance) => {
                 const healthStatus = getHealthStatus(instance.id);
                 return (
-                  <div key={instance.id} className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+                  <div key={instance.id} className="bg-card/50 border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-full ${
                           healthStatus?.status === 'healthy' ? 'bg-emerald-500' :
                           healthStatus?.status === 'unhealthy' ? 'bg-rose-500' :
-                          'bg-slate-500'
+                          'bg-amber-500'
                         }`} />
                         <div>
-                          <h3 className="font-medium text-slate-100">{instance.instance_name}</h3>
-                          <p className="text-sm text-slate-400">{instance.plugin_name} • {instance.status}</p>
+                          <h3 className="font-medium text-foreground">{instance.instance_name}</h3>
+                          <p className="text-sm text-muted-foreground">{instance.plugin_name} • {instance.status}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setEditingInstance(instance)}
-                          className="p-2 text-slate-400 hover:text-slate-200 transition-colors"
+                          className="p-2 text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteInstance(instance.id)}
-                          className="p-2 text-slate-400 hover:text-rose-400 transition-colors"
+                          className="p-2 text-muted-foreground hover:text-rose-400 transition-colors"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

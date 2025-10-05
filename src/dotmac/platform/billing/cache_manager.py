@@ -6,16 +6,30 @@ monitoring, and maintenance capabilities.
 """
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from datetime import UTC, datetime
 from enum import Enum
 
 import structlog
 
 from dotmac.platform.billing.cache import (
     BillingCache,
-    get_billing_cache,
     BillingCacheConfig,
+    get_billing_cache,
+)
+from dotmac.platform.billing.cache_handlers import (
+    BulkImportHandler,
+    CachePatternHandler,
+    PlanCreatedHandler,
+    PlanUpdatedHandler,
+    PricingRuleCreatedHandler,
+    PricingRuleDeletedHandler,
+    PricingRuleUpdatedHandler,
+    ProductCreatedHandler,
+    ProductDeletedHandler,
+    ProductUpdatedHandler,
+    SubscriptionCanceledHandler,
+    SubscriptionCreatedHandler,
+    SubscriptionUpdatedHandler,
 )
 
 logger = structlog.get_logger(__name__)
@@ -61,9 +75,25 @@ class BillingCacheManager:
     def __init__(self):
         self.cache: BillingCache = get_billing_cache()
         self.config = BillingCacheConfig()
-        self.invalidation_queue: List[Dict] = []
-        self.dependency_map: Dict[str, Set[str]] = {}
+        self.invalidation_queue: list[dict] = []
+        self.dependency_map: dict[str, set[str]] = {}
         self._init_dependency_map()
+
+        # Register pattern handlers for cache invalidation
+        self._pattern_handlers: dict[CacheEvent, CachePatternHandler] = {
+            CacheEvent.PRODUCT_CREATED: ProductCreatedHandler(),
+            CacheEvent.PRODUCT_UPDATED: ProductUpdatedHandler(),
+            CacheEvent.PRODUCT_DELETED: ProductDeletedHandler(),
+            CacheEvent.PRICING_RULE_CREATED: PricingRuleCreatedHandler(),
+            CacheEvent.PRICING_RULE_UPDATED: PricingRuleUpdatedHandler(),
+            CacheEvent.PRICING_RULE_DELETED: PricingRuleDeletedHandler(),
+            CacheEvent.SUBSCRIPTION_CREATED: SubscriptionCreatedHandler(),
+            CacheEvent.SUBSCRIPTION_UPDATED: SubscriptionUpdatedHandler(),
+            CacheEvent.SUBSCRIPTION_CANCELED: SubscriptionCanceledHandler(),
+            CacheEvent.PLAN_CREATED: PlanCreatedHandler(),
+            CacheEvent.PLAN_UPDATED: PlanUpdatedHandler(),
+            CacheEvent.BULK_IMPORT: BulkImportHandler(),
+        }
 
     def _init_dependency_map(self):
         """Initialize cache dependency mappings."""
@@ -83,7 +113,7 @@ class BillingCacheManager:
         self,
         event: CacheEvent,
         tenant_id: str,
-        entity_id: Optional[str] = None,
+        entity_id: str | None = None,
         strategy: InvalidationStrategy = InvalidationStrategy.IMMEDIATE,
         **kwargs,
     ):
@@ -99,7 +129,7 @@ class BillingCacheManager:
         """
         logger.info(
             "Handling cache event",
-            event=event.value,
+            cache_event=event.value,
             tenant_id=tenant_id,
             entity_id=entity_id,
             strategy=strategy.value,
@@ -114,103 +144,46 @@ class BillingCacheManager:
         # TTL_BASED doesn't require action - let TTL handle it
 
     async def _immediate_invalidation(
-        self, event: CacheEvent, tenant_id: str, entity_id: Optional[str], **kwargs
+        self, event: CacheEvent, tenant_id: str, entity_id: str | None, **kwargs
     ):
         """Perform immediate cache invalidation based on event."""
-        patterns_to_clear = []
+        handler = self._pattern_handlers.get(event)
+        if not handler:
+            logger.warning("No handler for cache event", cache_event=event.value)
+            return
 
-        # Determine what to invalidate based on event type
-        if event == CacheEvent.PRODUCT_CREATED:
-            # Clear product lists
-            patterns_to_clear.append(f"billing:products:{tenant_id}:*")
+        # Get patterns from handler
+        patterns_to_clear = handler.get_patterns(tenant_id, entity_id, **kwargs)
 
-        elif event == CacheEvent.PRODUCT_UPDATED:
-            # Clear specific product and lists
-            if entity_id:
-                patterns_to_clear.extend(
-                    [
-                        f"billing:product:{tenant_id}:{entity_id}",
-                        f"billing:products:{tenant_id}:*",
-                        f"billing:price:{tenant_id}:{entity_id}:*",
-                    ]
-                )
-
-        elif event == CacheEvent.PRODUCT_DELETED:
-            # Clear everything related to this product
-            if entity_id:
-                patterns_to_clear.extend(
-                    [
-                        f"billing:product:{tenant_id}:{entity_id}",
-                        f"billing:product:sku:{tenant_id}:*",
-                        f"billing:products:{tenant_id}:*",
-                        f"billing:price:{tenant_id}:{entity_id}:*",
-                    ]
-                )
-
-        elif event == CacheEvent.PRICING_RULE_CREATED:
-            # Clear pricing rule lists and price calculations
-            patterns_to_clear.extend(
-                [
-                    f"billing:pricing:rules:{tenant_id}:*",
-                    f"billing:price:{tenant_id}:*",
-                ]
-            )
-
-        elif event == CacheEvent.PRICING_RULE_UPDATED:
-            # Clear specific rule and affected calculations
-            if entity_id:
-                patterns_to_clear.extend(
-                    [
-                        f"billing:pricing:rule:{tenant_id}:{entity_id}",
-                        f"billing:pricing:rules:{tenant_id}:*",
-                        f"billing:price:{tenant_id}:*",
-                    ]
-                )
-
-        elif event == CacheEvent.SUBSCRIPTION_CREATED:
-            # Clear subscription lists
-            customer_id = kwargs.get("customer_id")
-            if customer_id:
-                patterns_to_clear.append(
-                    f"billing:subscriptions:customer:{tenant_id}:{customer_id}"
-                )
-
-        elif event == CacheEvent.SUBSCRIPTION_UPDATED:
-            # Clear specific subscription
-            if entity_id:
-                patterns_to_clear.extend(
-                    [
-                        f"billing:subscription:{tenant_id}:{entity_id}",
-                        f"billing:subscriptions:customer:{tenant_id}:*",
-                    ]
-                )
-
-        elif event == CacheEvent.PLAN_CREATED or event == CacheEvent.PLAN_UPDATED:
-            # Clear plan caches
-            if entity_id:
-                patterns_to_clear.append(f"billing:plan:{tenant_id}:{entity_id}")
-            patterns_to_clear.append(f"billing:plans:{tenant_id}:*")
-
-        elif event == CacheEvent.BULK_IMPORT:
-            # Clear all caches for this tenant
-            patterns_to_clear.append(f"billing:*:{tenant_id}:*")
-
-        # Perform invalidation
-        total_cleared = 0
-        for pattern in patterns_to_clear:
-            count = await self.cache.invalidate_pattern(pattern)
-            total_cleared += count
+        # Clear cache patterns
+        total_cleared = await self._clear_cache_patterns(patterns_to_clear)
 
         logger.info(
             "Cache invalidation completed",
-            event=event.value,
+            cache_event=event.value,
             tenant_id=tenant_id,
             patterns_cleared=len(patterns_to_clear),
             total_keys_cleared=total_cleared,
         )
 
+    async def _clear_cache_patterns(self, patterns: list[str]) -> int:
+        """
+        Clear all cache entries matching the given patterns.
+
+        Args:
+            patterns: List of cache key patterns to invalidate
+
+        Returns:
+            Total number of cache entries cleared
+        """
+        total_cleared = 0
+        for pattern in patterns:
+            count = await self.cache.invalidate_pattern(pattern)
+            total_cleared += count
+        return total_cleared
+
     async def _mark_for_lazy_invalidation(
-        self, event: CacheEvent, tenant_id: str, entity_id: Optional[str]
+        self, event: CacheEvent, tenant_id: str, entity_id: str | None
     ):
         """Mark cache entries for lazy invalidation."""
         # Add to invalidation queue for processing
@@ -219,7 +192,7 @@ class BillingCacheManager:
                 "event": event,
                 "tenant_id": tenant_id,
                 "entity_id": entity_id,
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
         )
 
@@ -228,7 +201,7 @@ class BillingCacheManager:
             await self.process_invalidation_queue()
 
     async def _schedule_invalidation(
-        self, event: CacheEvent, tenant_id: str, entity_id: Optional[str], delay_seconds: int = 60
+        self, event: CacheEvent, tenant_id: str, entity_id: str | None, delay_seconds: int = 60
     ):
         """Schedule cache invalidation for later execution."""
 
@@ -254,7 +227,7 @@ class BillingCacheManager:
             )
 
     async def cascade_invalidation(
-        self, cache_type: str, tenant_id: str, entity_id: Optional[str] = None
+        self, cache_type: str, tenant_id: str, entity_id: str | None = None
     ):
         """
         Cascade cache invalidation based on dependencies.
@@ -338,10 +311,13 @@ class BillingCacheManager:
         # Warm product cache
         try:
             from dotmac.platform.billing.catalog.cached_service import CachedProductService
+            from dotmac.platform.db import get_async_session
 
-            product_service = CachedProductService()
-            product_count = await product_service.warm_product_cache(tenant_id)
-            results["products"] = product_count
+            async for session in get_async_session():
+                product_service = CachedProductService(session)
+                product_count = await product_service.warm_product_cache(tenant_id)
+                results["products"] = product_count
+                break
         except Exception as e:
             logger.error("Failed to warm product cache", error=str(e))
             results["products"] = 0
@@ -349,10 +325,13 @@ class BillingCacheManager:
         # Warm pricing cache
         try:
             from dotmac.platform.billing.pricing.cached_service import CachedPricingEngine
+            from dotmac.platform.db import get_async_session
 
-            pricing_engine = CachedPricingEngine()
-            pricing_count = await pricing_engine.warm_pricing_cache(tenant_id)
-            results["pricing_rules"] = pricing_count
+            async for session in get_async_session():
+                pricing_engine = CachedPricingEngine(session)
+                pricing_count = await pricing_engine.warm_pricing_cache(tenant_id)
+                results["pricing_rules"] = pricing_count
+                break
         except Exception as e:
             logger.error("Failed to warm pricing cache", error=str(e))
             results["pricing_rules"] = 0
@@ -387,7 +366,7 @@ class BillingCacheManager:
 
         return total_cleared
 
-    def get_cache_health(self) -> Dict:
+    def get_cache_health(self) -> dict:
         """
         Get cache health metrics for monitoring.
 
@@ -432,7 +411,7 @@ class BillingCacheManager:
 
 
 # Global cache manager instance
-_cache_manager: Optional[BillingCacheManager] = None
+_cache_manager: BillingCacheManager | None = None
 
 
 def get_cache_manager() -> BillingCacheManager:

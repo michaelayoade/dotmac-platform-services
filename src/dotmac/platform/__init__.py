@@ -15,7 +15,7 @@ Design Principles:
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typings only
     from .observability import ObservabilityManager as _ObservabilityManager
@@ -39,7 +39,7 @@ def register_service(name: str, service: Any) -> None:
     _services_registry[name] = service
 
 
-def get_service(name: str) -> Optional[Any]:
+def get_service(name: str) -> Any | None:
     """Get a registered platform service."""
     return _services_registry.get(name)
 
@@ -104,7 +104,7 @@ class PlatformConfig:
             }
         )
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any | None = None) -> Any:
         """Get configuration value by key path (e.g., 'auth.jwt_secret_key')."""
         keys = key.split(".")
         value = self._config
@@ -135,9 +135,9 @@ config = PlatformConfig()
 
 
 def initialize_platform_services(
-    auth_config: Optional[dict[str, Any]] = None,
-    secrets_config: Optional[dict[str, Any]] = None,
-    observability_config: Optional[dict[str, Any]] = None,
+    auth_config: dict[str, Any] | None = None,
+    secrets_config: dict[str, Any] | None = None,
+    observability_config: dict[str, Any] | None = None,
     auto_discover: bool = True,
 ) -> None:
     """
@@ -217,7 +217,7 @@ def create_jwt_service(**kwargs):
         )
 
 
-def create_secrets_manager(backend: Optional[str] = None, **kwargs):
+def create_secrets_manager(backend: str | None = None, **kwargs):
     """
     Create a secrets manager with clean factory pattern.
 
@@ -257,7 +257,7 @@ def create_secrets_manager(backend: Optional[str] = None, **kwargs):
 
 
 def create_observability_manager(
-    app: Optional[Any] = None,
+    app: Any | None = None,
     *,
     auto_initialize: bool = False,
     **kwargs,

@@ -5,15 +5,15 @@ This module provides REST API endpoints for managing plugins,
 their configurations, and testing connections.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from ..auth.dependencies import get_current_user
 from ..auth.core import UserInfo
-from .registry import get_plugin_registry, PluginRegistry
+from ..auth.dependencies import get_current_user
+from .registry import PluginRegistry, get_plugin_registry
 from .schema import (
     PluginConfig,
     PluginConfigurationResponse,
@@ -33,33 +33,35 @@ router = APIRouter(
 
 # Request/Response Models
 
+
 class CreatePluginInstanceRequest(BaseModel):
     """Request to create a plugin instance."""
 
     plugin_name: str
     instance_name: str
-    configuration: Dict[str, Any] = {}
+    configuration: dict[str, Any] = {}
 
 
 class UpdatePluginConfigurationRequest(BaseModel):
     """Request to update plugin configuration."""
 
-    configuration: Dict[str, Any]
+    configuration: dict[str, Any]
 
 
 class TestConnectionRequest(BaseModel):
     """Request to test plugin connection."""
 
-    configuration: Optional[Dict[str, Any]] = None
+    configuration: dict[str, Any] | None = None
 
 
 # Dependencies
+
 
 async def get_registry() -> PluginRegistry:
     """Get the plugin registry."""
     registry = get_plugin_registry()
     # Ensure it's initialized
-    if not hasattr(registry, '_initialized'):
+    if not hasattr(registry, "_initialized"):
         await registry.initialize()
         registry._initialized = True
     return registry
@@ -67,11 +69,12 @@ async def get_registry() -> PluginRegistry:
 
 # Endpoints
 
-@router.get("/", response_model=List[PluginConfig])
+
+@router.get("/", response_model=list[PluginConfig])
 async def list_available_plugins(
     registry: PluginRegistry = Depends(get_registry),
     current_user: UserInfo = Depends(get_current_user),
-) -> List[PluginConfig]:
+) -> list[PluginConfig]:
     """
     List all available plugins with their configuration schemas.
 
@@ -93,10 +96,7 @@ async def list_plugin_instances(
     along with their current status and configuration metadata.
     """
     instances = registry.list_plugin_instances()
-    return PluginListResponse(
-        plugins=instances,
-        total=len(instances)
-    )
+    return PluginListResponse(plugins=instances, total=len(instances))
 
 
 @router.get("/{plugin_name}/schema", response_model=PluginSchemaResponse)
@@ -114,8 +114,7 @@ async def get_plugin_schema(
     schema = registry.get_plugin_schema(plugin_name)
     if not schema:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin '{plugin_name}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found"
         )
 
     return PluginSchemaResponse(config_schema=schema)
@@ -142,10 +141,7 @@ async def create_plugin_instance(
         )
         return instance
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/instances/{instance_id}", response_model=PluginInstance)
@@ -164,7 +160,7 @@ async def get_plugin_instance(
     if not instance:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin instance '{instance_id}' not found"
+            detail=f"Plugin instance '{instance_id}' not found",
         )
     return instance
 
@@ -186,7 +182,7 @@ async def get_plugin_configuration(
         if not instance:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Plugin instance '{instance_id}' not found"
+                detail=f"Plugin instance '{instance_id}' not found",
             )
 
         configuration = await registry.get_plugin_configuration(instance_id)
@@ -199,10 +195,7 @@ async def get_plugin_configuration(
             last_updated=instance.last_health_check,  # Proxy for last updated
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.put("/instances/{instance_id}/configuration", response_model=dict)
@@ -226,10 +219,7 @@ async def update_plugin_configuration(
         )
         return {"message": "Configuration updated successfully"}
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -247,10 +237,7 @@ async def delete_plugin_instance(
     try:
         await registry.delete_plugin_instance(instance_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/instances/{instance_id}/health", response_model=PluginHealthCheck)
@@ -268,10 +255,7 @@ async def check_plugin_health(
     try:
         return await registry.health_check_plugin(instance_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/instances/{instance_id}/test", response_model=PluginTestResult)
@@ -294,20 +278,18 @@ async def test_plugin_connection(
             test_config=request.configuration,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # Bulk operations
 
-@router.post("/instances/health-check", response_model=List[PluginHealthCheck])
+
+@router.post("/instances/health-check", response_model=list[PluginHealthCheck])
 async def bulk_health_check(
-    instance_ids: Optional[List[UUID]] = None,
+    instance_ids: list[UUID] | None = None,
     registry: PluginRegistry = Depends(get_registry),
     current_user: UserInfo = Depends(get_current_user),
-) -> List[PluginHealthCheck]:
+) -> list[PluginHealthCheck]:
     """
     Perform health checks on multiple plugin instances.
 
@@ -325,18 +307,21 @@ async def bulk_health_check(
             results.append(health_check)
         except Exception as e:
             # Create error health check result
-            results.append(PluginHealthCheck(
-                plugin_instance_id=str(instance_id),
-                status="error",
-                message=f"Health check failed: {str(e)}",
-                details={"error": str(e)},
-                timestamp="",  # Will be set by registry
-            ))
+            results.append(
+                PluginHealthCheck(
+                    plugin_instance_id=str(instance_id),
+                    status="error",
+                    message=f"Health check failed: {str(e)}",
+                    details={"error": str(e)},
+                    timestamp="",  # Will be set by registry
+                )
+            )
 
     return results
 
 
 # Plugin discovery and management
+
 
 @router.post("/refresh", response_model=dict)
 async def refresh_plugins(
@@ -354,10 +339,10 @@ async def refresh_plugins(
         available_plugins = registry.list_available_plugins()
         return {
             "message": "Plugin discovery refreshed",
-            "available_plugins": len(available_plugins)
+            "available_plugins": len(available_plugins),
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to refresh plugins: {str(e)}"
+            detail=f"Failed to refresh plugins: {str(e)}",
         )

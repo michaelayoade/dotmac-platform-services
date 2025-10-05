@@ -1,8 +1,8 @@
 """Admin settings management module."""
 
-from .models import SettingsCategory, SettingsUpdateRequest, SettingsResponse, AuditLog
-from .service import SettingsManagementService
+from .models import AuditLog, SettingsCategory, SettingsResponse, SettingsUpdateRequest
 from .router import router as settings_router
+from .service import SettingsManagementService
 
 __all__ = [
     "SettingsCategory",

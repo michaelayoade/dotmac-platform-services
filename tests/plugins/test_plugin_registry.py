@@ -17,6 +17,7 @@ from dotmac.platform.plugins.registry import (
     PluginConfigurationError,
     get_plugin_registry,
 )
+
 from dotmac.platform.plugins.schema import (
     FieldSpec,
     FieldType,
@@ -70,7 +71,9 @@ class MockPlugin(NotificationProvider):
         self.configured = bool(config.get("api_key") and config.get("endpoint"))
         return self.configured
 
-    async def send_notification(self, recipient: str, message: str, subject=None, metadata=None) -> bool:
+    async def send_notification(
+        self, recipient: str, message: str, subject=None, metadata=None
+    ) -> bool:
         if not self.configured:
             raise RuntimeError("Plugin not configured")
         return True
@@ -84,6 +87,7 @@ class MockPlugin(NotificationProvider):
             timestamp="2024-01-01T00:00:00Z",
         )
 
+    @pytest.mark.asyncio
     async def test_connection(self, config: dict) -> PluginTestResult:
         has_required = bool(config.get("api_key") and config.get("endpoint"))
         return PluginTestResult(
@@ -161,9 +165,7 @@ class TestPluginRegistry:
         }
 
         instance = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Test Instance",
-            configuration=config
+            plugin_name="Mock Plugin", instance_name="Test Instance", configuration=config
         )
 
         assert instance.plugin_name == "Mock Plugin"
@@ -177,9 +179,7 @@ class TestPluginRegistry:
         """Test creating instance for non-existent plugin."""
         with pytest.raises(PluginRegistryError) as exc_info:
             await registry.create_plugin_instance(
-                plugin_name="Nonexistent",
-                instance_name="Test",
-                configuration={}
+                plugin_name="Nonexistent", instance_name="Test", configuration={}
             )
         assert "Plugin Nonexistent not found" in str(exc_info.value)
 
@@ -215,7 +215,7 @@ class TestPluginRegistry:
             configuration={
                 "api_key": "secret_123",
                 "endpoint": "https://api.example.com",
-            }
+            },
         )
 
         config = await registry.get_plugin_configuration(instance.id)
@@ -234,7 +234,7 @@ class TestPluginRegistry:
             configuration={
                 "api_key": "old_key",
                 "endpoint": "https://old.example.com",
-            }
+            },
         )
 
         new_config = {
@@ -262,7 +262,7 @@ class TestPluginRegistry:
             configuration={
                 "api_key": "test_key",
                 "endpoint": "https://api.example.com",
-            }
+            },
         )
 
         health = await registry.health_check_plugin(instance.id)
@@ -286,9 +286,7 @@ class TestPluginRegistry:
         await registry._register_plugin_provider(mock_plugin, "mock_module")
 
         instance = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Test",
-            configuration={}
+            plugin_name="Mock Plugin", instance_name="Test", configuration={}
         )
 
         # Test with custom config
@@ -309,9 +307,7 @@ class TestPluginRegistry:
         await registry._register_plugin_provider(mock_plugin, "mock_module")
 
         instance = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Test",
-            configuration={}
+            plugin_name="Mock Plugin", instance_name="Test", configuration={}
         )
 
         # Test with incomplete config
@@ -330,7 +326,7 @@ class TestPluginRegistry:
         instance = await registry.create_plugin_instance(
             plugin_name="Mock Plugin",
             instance_name="Test",
-            configuration={"api_key": "test", "endpoint": "https://test.com"}
+            configuration={"api_key": "test", "endpoint": "https://test.com"},
         )
 
         # Verify instance exists
@@ -368,9 +364,7 @@ class TestPluginRegistry:
         await registry._register_plugin_provider(mock_plugin, "mock_module")
 
         instance = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Test",
-            configuration={}
+            plugin_name="Mock Plugin", instance_name="Test", configuration={}
         )
 
         retrieved = await registry.get_plugin_instance(instance.id)
@@ -386,15 +380,11 @@ class TestPluginRegistry:
 
         # Create multiple instances
         instance1 = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Instance 1",
-            configuration={}
+            plugin_name="Mock Plugin", instance_name="Instance 1", configuration={}
         )
 
         instance2 = await registry.create_plugin_instance(
-            plugin_name="Mock Plugin",
-            instance_name="Instance 2",
-            configuration={}
+            plugin_name="Mock Plugin", instance_name="Instance 2", configuration={}
         )
 
         instances = registry.list_plugin_instances()
@@ -414,7 +404,7 @@ class TestPluginRegistry:
         instance = await registry.create_plugin_instance(
             plugin_name="Mock Plugin",
             instance_name="Test",
-            configuration={"api_key": "test", "endpoint": "https://test.com"}
+            configuration={"api_key": "test", "endpoint": "https://test.com"},
         )
 
         # Save configurations
@@ -453,7 +443,7 @@ class TestPluginValidation:
             description="Test",
             fields=[
                 FieldSpec(key="field1", label="Field 1", type=FieldType.STRING),
-            ]
+            ],
         )
 
         # Should not raise
@@ -462,6 +452,7 @@ class TestPluginValidation:
     @pytest.mark.asyncio
     async def test_configuration_error_handling(self, registry):
         """Test configuration error handling."""
+
         # Create a plugin that fails to configure
         class FailingPlugin(PluginProvider):
             def get_config_schema(self) -> PluginConfig:
@@ -470,7 +461,7 @@ class TestPluginValidation:
                     type=PluginType.INTEGRATION,
                     version="1.0.0",
                     description="Always fails",
-                    fields=[]
+                    fields=[],
                 )
 
             async def configure(self, config: dict) -> bool:
@@ -480,9 +471,7 @@ class TestPluginValidation:
         await registry._register_plugin_provider(failing, "failing")
 
         instance = await registry.create_plugin_instance(
-            plugin_name="Failing Plugin",
-            instance_name="Test",
-            configuration={"some": "config"}
+            plugin_name="Failing Plugin", instance_name="Test", configuration={"some": "config"}
         )
 
         assert instance.status == PluginStatus.ERROR

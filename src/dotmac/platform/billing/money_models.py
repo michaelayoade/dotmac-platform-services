@@ -31,19 +31,19 @@ class MoneyField(BaseModel):
     minor_units: int = Field(description="Amount in minor units (cents, etc.)")
 
     @classmethod
-    def from_money(cls, money: Money) -> 'MoneyField':
+    def from_money(cls, money: Money) -> "MoneyField":
         """Create MoneyField from Money object."""
         return cls(
             amount=str(money.amount),
             currency=money.currency.code,
-            minor_units=money_handler.money_to_minor_units(money)
+            minor_units=money_handler.money_to_minor_units(money),
         )
 
     def to_money(self) -> Money:
         """Convert back to Money object."""
         return create_money(self.amount, self.currency)
 
-    def format(self, locale: str = 'en_US', **kwargs) -> str:
+    def format(self, locale: str = "en_US", **kwargs) -> str:
         """Format money with locale."""
         return format_money(self.to_money(), locale, **kwargs)
 
@@ -99,8 +99,8 @@ class MoneyInvoiceLineItem(BaseModel):
         currency: str = "USD",
         tax_rate: str | Decimal | float = 0,
         discount_percentage: str | Decimal | float = 0,
-        **kwargs
-    ) -> 'MoneyInvoiceLineItem':
+        **kwargs,
+    ) -> "MoneyInvoiceLineItem":
         """Create line item with automatic Money calculations."""
 
         # Create unit price Money object
@@ -116,8 +116,7 @@ class MoneyInvoiceLineItem(BaseModel):
 
         # Calculate subtotal after discount
         subtotal_money = Money(
-            amount=total_money.amount - discount_money.amount,
-            currency=total_money.currency
+            amount=total_money.amount - discount_money.amount, currency=total_money.currency
         )
 
         # Calculate tax on discounted amount
@@ -129,8 +128,7 @@ class MoneyInvoiceLineItem(BaseModel):
 
         # Final total
         final_total = Money(
-            amount=subtotal_money.amount + tax_money.amount,
-            currency=subtotal_money.currency
+            amount=subtotal_money.amount + tax_money.amount, currency=subtotal_money.currency
         )
 
         # Round final total
@@ -145,7 +143,7 @@ class MoneyInvoiceLineItem(BaseModel):
             tax_amount=MoneyField.from_money(tax_money),
             discount_percentage=discount_rate,
             discount_amount=MoneyField.from_money(discount_money),
-            **kwargs
+            **kwargs,
         )
 
 
@@ -231,8 +229,7 @@ class MoneyInvoice(BaseModel):
         )
 
         net_money = Money(
-            amount=max(Decimal('0'), total.amount - credits.amount),
-            currency=total.currency
+            amount=max(Decimal("0"), total.amount - credits.amount), currency=total.currency
         )
         return MoneyField.from_money(net_money)
 
@@ -261,18 +258,21 @@ class MoneyInvoice(BaseModel):
 
         # Update fields
         self.subtotal = MoneyField.from_money(
-            Money(subtotal_money.amount - tax_money.amount + discount_money.amount, subtotal_money.currency)
+            Money(
+                subtotal_money.amount - tax_money.amount + discount_money.amount,
+                subtotal_money.currency,
+            )
         )
         self.tax_amount = MoneyField.from_money(tax_money)
         self.discount_amount = MoneyField.from_money(discount_money)
         self.total_amount = MoneyField.from_money(total_money)
         self.remaining_balance = MoneyField.from_money(total_money)
 
-    def format_total(self, locale: str = 'en_US') -> str:
+    def format_total(self, locale: str = "en_US") -> str:
         """Format total amount with locale."""
         return self.total_amount.format(locale)
 
-    def format_remaining_balance(self, locale: str = 'en_US') -> str:
+    def format_remaining_balance(self, locale: str = "en_US") -> str:
         """Format remaining balance with locale."""
         return self.remaining_balance.format(locale)
 
@@ -284,22 +284,22 @@ class MoneyInvoice(BaseModel):
         billing_email: str,
         line_items: list[dict[str, Any]],
         currency: str = "USD",
-        **kwargs
-    ) -> 'MoneyInvoice':
+        **kwargs,
+    ) -> "MoneyInvoice":
         """Create invoice with automatic Money calculations."""
 
         # Convert line items to MoneyInvoiceLineItem
         money_line_items = []
         for item_data in line_items:
             line_item = MoneyInvoiceLineItem.create_from_values(
-                description=item_data['description'],
-                quantity=item_data['quantity'],
-                unit_price_amount=item_data['unit_price'],
+                description=item_data["description"],
+                quantity=item_data["quantity"],
+                unit_price_amount=item_data["unit_price"],
                 currency=currency,
-                tax_rate=item_data.get('tax_rate', 0),
-                discount_percentage=item_data.get('discount_percentage', 0),
-                product_id=item_data.get('product_id'),
-                subscription_id=item_data.get('subscription_id'),
+                tax_rate=item_data.get("tax_rate", 0),
+                discount_percentage=item_data.get("discount_percentage", 0),
+                product_id=item_data.get("product_id"),
+                subscription_id=item_data.get("subscription_id"),
             )
             money_line_items.append(line_item)
 
@@ -315,7 +315,7 @@ class MoneyInvoice(BaseModel):
             discount_amount=MoneyField.from_money(create_money(0, currency)),
             total_amount=MoneyField.from_money(create_money(0, currency)),
             remaining_balance=MoneyField.from_money(create_money(0, currency)),
-            **kwargs
+            **kwargs,
         )
 
         # Calculate totals
@@ -325,10 +325,4 @@ class MoneyInvoice(BaseModel):
 
 
 # Export key classes
-__all__ = [
-    'MoneyField',
-    'MoneyInvoiceLineItem',
-    'MoneyInvoice',
-    'MoneyHandler',
-    'money_handler'
-]
+__all__ = ["MoneyField", "MoneyInvoiceLineItem", "MoneyInvoice", "MoneyHandler", "money_handler"]

@@ -4,10 +4,11 @@ SQLAlchemy 2.0 Database Configuration
 Simple, standard SQLAlchemy setup replacing the custom database module.
 """
 
-from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Iterator
 import inspect
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 from uuid import uuid4
@@ -57,10 +58,7 @@ def get_database_url() -> str:
     port = settings.database.port
     database = settings.database.database
 
-    return (
-        f"postgresql://{username}:{password}"
-        f"@{host}:{port}/{database}"
-    )
+    return f"postgresql://{username}:{password}" f"@{host}:{port}/{database}"
 
 
 def get_async_database_url() -> str:
@@ -100,12 +98,12 @@ class TimestampMixin:
     """Adds created_at and updated_at timestamps to models."""
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -139,13 +137,13 @@ class SoftDeleteMixin:
 
     def soft_delete(self) -> None:
         """Mark this record as soft deleted."""
-        self.deleted_at = datetime.now(timezone.utc)
-        self.is_active = False
+        self.deleted_at = datetime.now(UTC)
+        # Note: is_active is typically a computed property, don't set it here
 
     def restore(self) -> None:
         """Restore this record from soft deletion."""
         self.deleted_at = None
-        self.is_active = True
+        # Note: is_active is typically a computed property, don't set it here
 
 
 class AuditMixin:
@@ -174,13 +172,11 @@ class BaseModel(Base):
     # Tenant isolation - critical for multi-tenant SaaS
     tenant_id = Column(String(255), nullable=True, index=True)
 
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
-    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -251,6 +247,9 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# Global variable to hold the session maker (can be overridden for testing)
+_async_session_maker = AsyncSessionLocal
+
 
 # ==========================================
 # Session Context Managers
@@ -287,7 +286,7 @@ async def get_async_db() -> AsyncIterator[AsyncSession]:
 
 async def get_async_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency for getting an async database session."""
-    async with AsyncSessionLocal() as session:
+    async with _async_session_maker() as session:
         try:
             yield session
         except Exception:

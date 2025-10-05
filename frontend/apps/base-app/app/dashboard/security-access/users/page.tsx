@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   Plus,
@@ -49,20 +49,7 @@ function UsersPageContent() {
     type: 'success'
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  useEffect(() => {
-    if (toast.show) {
-      const timer = setTimeout(() => {
-        setToast({ ...toast, show: false });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast.show]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch(`${platformConfig.apiBaseUrl}/api/v1/users`, {
         credentials: 'include',
@@ -84,7 +71,21 @@ function UsersPageContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ ...toast, show: false });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [toast.show]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -95,14 +96,14 @@ function UsersPageContent() {
   });
 
   const getRoleColor = (roles: string[]) => {
-    if (roles.includes('admin')) return 'bg-red-100 text-red-800';
-    if (roles.includes('moderator')) return 'bg-purple-100 text-purple-800';
-    if (roles.includes('user')) return 'bg-blue-100 text-blue-800';
-    return 'bg-gray-100 text-gray-800';
+    if (roles.includes('admin')) return 'bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-400';
+    if (roles.includes('moderator')) return 'bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-400';
+    if (roles.includes('user')) return 'bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-400';
+    return 'bg-muted text-muted-foreground';
   };
 
   const getStatusColor = (isActive: boolean) => {
-    return isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    return isActive ? 'bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-400';
   };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -162,8 +163,8 @@ function UsersPageContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600">Manage user accounts, roles, and permissions</p>
+          <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+          <p className="text-muted-foreground">Manage user accounts, roles, and permissions</p>
         </div>
         <button
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
@@ -176,43 +177,43 @@ function UsersPageContent() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
-            <Users className="h-8 w-8 text-blue-600" />
+            <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+              <p className="text-2xl font-bold text-foreground">{users.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
-            <UserCheck className="h-8 w-8 text-green-600" />
+            <UserCheck className="h-8 w-8 text-green-600 dark:text-green-400" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Users</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Active Users</p>
+              <p className="text-2xl font-bold text-foreground">
                 {users.filter(u => u.is_active).length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
-            <Shield className="h-8 w-8 text-red-600" />
+            <Shield className="h-8 w-8 text-red-600 dark:text-red-400" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Administrators</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Administrators</p>
+              <p className="text-2xl font-bold text-foreground">
                 {users.filter(u => u.roles.includes('admin')).length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
-            <Clock className="h-8 w-8 text-yellow-600" />
+            <Clock className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Recent Logins</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Recent Logins</p>
+              <p className="text-2xl font-bold text-foreground">
                 {users.filter(u => {
                   if (!u.last_login) return false;
                   const lastLogin = new Date(u.last_login);
@@ -227,21 +228,21 @@ function UsersPageContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-card rounded-lg shadow">
+        <div className="p-6 border-b border-border">
           <div className="flex items-center space-x-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <input
                 type="text"
                 placeholder="Search users..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-border rounded-md bg-background text-foreground focus:ring-blue-500 focus:border-blue-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <select
-              className="px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="px-4 py-2 border border-border rounded-md bg-background text-foreground focus:ring-blue-500 focus:border-blue-500"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
@@ -256,22 +257,22 @@ function UsersPageContent() {
 
         {/* Users Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-accent">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Roles
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Last Login
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Created
                 </th>
                 <th className="relative px-6 py-3">
@@ -279,26 +280,26 @@ function UsersPageContent() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-card divide-y divide-border">
               {filteredUsers.map((user) => (
-                <tr key={user.user_id} className="hover:bg-gray-50">
+                <tr key={user.user_id} className="hover:bg-accent">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <Users className="h-6 w-6 text-blue-600" />
+                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-950/20 flex items-center justify-center">
+                          <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-foreground">
                           {user.full_name || user.username}
                         </div>
-                        <div className="text-sm text-gray-500 flex items-center">
+                        <div className="text-sm text-muted-foreground flex items-center">
                           <Mail className="h-4 w-4 mr-1" />
                           {user.email}
                         </div>
                         {user.full_name && (
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-muted-foreground">
                             @{user.username}
                           </div>
                         )}
@@ -322,17 +323,17 @@ function UsersPageContent() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     {user.last_login ? (
                       <div className="flex items-center">
                         <Clock className="h-4 w-4 mr-1" />
                         {new Date(user.last_login).toLocaleDateString()}
                       </div>
                     ) : (
-                      <span className="text-gray-400">Never</span>
+                      <span className="text-muted-foreground">Never</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
                       {new Date(user.created_at).toLocaleDateString()}
@@ -343,10 +344,10 @@ function UsersPageContent() {
                       <button className="text-blue-600 hover:text-blue-900">
                         <Edit className="h-4 w-4" />
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                         <Trash2 className="h-4 w-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-900">
+                      <button className="text-muted-foreground hover:text-foreground">
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                     </div>
@@ -358,9 +359,9 @@ function UsersPageContent() {
 
           {filteredUsers.length === 0 && (
             <div className="text-center py-12">
-              <Users className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-sm font-medium text-foreground">No users found</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {searchQuery || roleFilter !== 'all'
                   ? 'Try adjusting your search or filter criteria'
                   : 'Get started by adding your first user'
@@ -384,11 +385,11 @@ function UsersPageContent() {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600/50 dark:bg-black/50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-full max-w-md shadow-lg rounded-md bg-card">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Create New User</h3>
+                <h3 className="text-lg font-medium text-foreground">Create New User</h3>
                 <button
                   onClick={() => {
                     setShowCreateModal(false);
@@ -400,7 +401,7 @@ function UsersPageContent() {
                       roles: ['user']
                     });
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                 >
                   ✕
                 </button>
@@ -408,7 +409,7 @@ function UsersPageContent() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Username <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -416,12 +417,12 @@ function UsersPageContent() {
                     placeholder="johndoe"
                     value={newUserData.username}
                     onChange={(e) => setNewUserData({ ...newUserData, username: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Email <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -429,12 +430,12 @@ function UsersPageContent() {
                     placeholder="john.doe@example.com"
                     value={newUserData.email}
                     onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Full Name
                   </label>
                   <input
@@ -442,12 +443,12 @@ function UsersPageContent() {
                     placeholder="John Doe"
                     value={newUserData.full_name}
                     onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Password <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -455,12 +456,12 @@ function UsersPageContent() {
                     placeholder="••••••••"
                     value={newUserData.password}
                     onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Roles
                   </label>
                   <div className="space-y-2">
@@ -482,9 +483,9 @@ function UsersPageContent() {
                               });
                             }
                           }}
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="h-4 w-4 text-blue-600 border-border rounded focus:ring-blue-500"
                         />
-                        <span className="ml-2 text-sm text-gray-700 capitalize">{role}</span>
+                        <span className="ml-2 text-sm text-foreground capitalize">{role}</span>
                       </label>
                     ))}
                   </div>
@@ -503,7 +504,7 @@ function UsersPageContent() {
                       roles: ['user']
                     });
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-accent"
                 >
                   Cancel
                 </button>

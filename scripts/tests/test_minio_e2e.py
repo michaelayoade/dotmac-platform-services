@@ -9,20 +9,21 @@ import tempfile
 from pathlib import Path
 
 # Set MinIO configuration
-os.environ['STORAGE__PROVIDER'] = 'minio'
-os.environ['STORAGE__ENDPOINT'] = 'localhost:9000'
-os.environ['STORAGE__ACCESS_KEY'] = 'minioadmin'
-os.environ['STORAGE__SECRET_KEY'] = 'minioadmin123'
-os.environ['STORAGE__BUCKET'] = 'dotmac'
-os.environ['STORAGE__USE_SSL'] = 'false'
-os.environ['FEATURES__STORAGE_MINIO_ENABLED'] = 'true'
+os.environ["STORAGE__PROVIDER"] = "minio"
+os.environ["STORAGE__ENDPOINT"] = "localhost:9000"
+os.environ["STORAGE__ACCESS_KEY"] = "minioadmin"
+os.environ["STORAGE__SECRET_KEY"] = "minioadmin123"
+os.environ["STORAGE__BUCKET"] = "dotmac"
+os.environ["STORAGE__USE_SSL"] = "false"
+os.environ["FEATURES__STORAGE_MINIO_ENABLED"] = "true"
 
 # Force reload of settings
 import sys
-if 'dotmac.platform.settings' in sys.modules:
-    del sys.modules['dotmac.platform.settings']
-if 'dotmac.platform.file_storage.service' in sys.modules:
-    del sys.modules['dotmac.platform.file_storage.service']
+
+if "dotmac.platform.settings" in sys.modules:
+    del sys.modules["dotmac.platform.settings"]
+if "dotmac.platform.file_storage.service" in sys.modules:
+    del sys.modules["dotmac.platform.file_storage.service"]
 
 from dotmac.platform.settings import settings
 from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
@@ -66,20 +67,20 @@ async def main():
             "name": "report.pdf",
             "content": b"Annual Report 2024 - Complete financial data and analysis",
             "type": "application/pdf",
-            "size": 58
+            "size": 58,
         },
         {
             "name": "dataset.csv",
             "content": b"id,product,price,quantity\n1,Widget A,19.99,100\n2,Widget B,29.99,75\n3,Widget C,39.99,50",
             "type": "text/csv",
-            "size": 87
+            "size": 87,
         },
         {
             "name": "logo.png",
             "content": b"\x89PNG\r\n\x1a\n" + b"Company logo image data here",
             "type": "image/png",
-            "size": 36
-        }
+            "size": 36,
+        },
     ]
 
     uploaded_files = []
@@ -94,15 +95,13 @@ async def main():
                 metadata={
                     "environment": "production",
                     "test": "minio-e2e",
-                    "uploaded_from": "test_script"
+                    "uploaded_from": "test_script",
                 },
-                tenant_id="tenant-001"
+                tenant_id="tenant-001",
             )
-            uploaded_files.append({
-                "id": file_id,
-                "name": file_data["name"],
-                "original_content": file_data["content"]
-            })
+            uploaded_files.append(
+                {"id": file_id, "name": file_data["name"], "original_content": file_data["content"]}
+            )
             print(f"  ✅ Uploaded: {file_data['name']:15} -> {file_id}")
         except Exception as e:
             print(f"  ❌ Failed to upload {file_data['name']}: {e}")
@@ -133,10 +132,7 @@ async def main():
 
     for file_info in uploaded_files:
         try:
-            retrieved_data, metadata = await storage.retrieve_file(
-                file_info["id"],
-                "tenant-001"
-            )
+            retrieved_data, metadata = await storage.retrieve_file(file_info["id"], "tenant-001")
 
             if retrieved_data:
                 matches = retrieved_data == file_info["original_content"]
@@ -158,10 +154,7 @@ async def main():
 
     try:
         # Search by path
-        path_results = await storage.list_files(
-            path="production/documents",
-            tenant_id="tenant-001"
-        )
+        path_results = await storage.list_files(path="production/documents", tenant_id="tenant-001")
         print(f"  Files in 'production/documents': {len(path_results)}")
 
         # Search by content type
@@ -169,8 +162,9 @@ async def main():
         print(f"  CSV files: {len(csv_files)}")
 
         # Search by metadata (if supported)
-        prod_files = [f for f in all_files
-                     if f.metadata and f.metadata.get("environment") == "production"]
+        prod_files = [
+            f for f in all_files if f.metadata and f.metadata.get("environment") == "production"
+        ]
         print(f"  Production files: {len(prod_files)}")
     except Exception as e:
         print(f"  ⚠️ Search operations partially failed: {e}")
@@ -189,18 +183,15 @@ async def main():
                 metadata_updates={
                     "status": "approved",
                     "reviewed_by": "admin",
-                    "review_date": "2025-09-23"
+                    "review_date": "2025-09-23",
                 },
-                tenant_id="tenant-001"
+                tenant_id="tenant-001",
             )
             if success:
                 print(f"  ✅ Updated metadata for {first_file['name']}")
 
                 # Verify the update
-                _, updated_metadata = await storage.retrieve_file(
-                    first_file["id"],
-                    "tenant-001"
-                )
+                _, updated_metadata = await storage.retrieve_file(first_file["id"], "tenant-001")
                 print(f"    New metadata: {updated_metadata}")
             else:
                 print(f"  ❌ Failed to update metadata")

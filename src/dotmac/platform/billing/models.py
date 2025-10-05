@@ -4,9 +4,9 @@ Base billing models and database tables.
 Provides foundation for all billing system components.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Numeric, String, Text
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -18,8 +18,7 @@ class BillingBaseModel(BaseModel):
 
     tenant_id: str = Field(description="Tenant identifier for multi-tenancy")
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        description="Creation timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Creation timestamp"
     )
     updated_at: datetime | None = Field(None, description="Last update timestamp")
 
@@ -41,19 +40,11 @@ class BillingSQLModel(SQLBaseModel):
 
     @declared_attr
     def created_at(cls):
-        return Column(
-            DateTime(timezone=True),
-            nullable=False,
-            default=lambda: datetime.now(timezone.utc)
-        )
+        return Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
 
     @declared_attr
     def updated_at(cls):
-        return Column(
-            DateTime(timezone=True),
-            nullable=True,
-            onupdate=lambda: datetime.now(timezone.utc)
-        )
+        return Column(DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC))
 
     @declared_attr
     def metadata_json(cls):
@@ -97,7 +88,7 @@ class BillingProductTable(BillingSQLModel):
         Index("ix_billing_products_tenant_category", "tenant_id", "category"),
         Index("ix_billing_products_tenant_type", "tenant_id", "product_type"),
         Index("ix_billing_products_tenant_active", "tenant_id", "is_active"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -123,7 +114,7 @@ class BillingProductCategoryTable(BillingSQLModel):
     __table_args__ = (
         Index("ix_billing_categories_tenant_name", "tenant_id", "name", unique=True),
         Index("ix_billing_categories_sort", "tenant_id", "sort_order"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -162,7 +153,7 @@ class BillingSubscriptionPlanTable(BillingSQLModel):
     __table_args__ = (
         Index("ix_billing_plans_tenant_product", "tenant_id", "product_id"),
         Index("ix_billing_plans_tenant_active", "tenant_id", "is_active"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -191,6 +182,7 @@ class BillingSubscriptionTable(BillingSQLModel):
     # Cancellation
     cancel_at_period_end = Column(Boolean, nullable=False, default=False)
     canceled_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
 
     # Pricing overrides
     custom_price = Column(Numeric(15, 2), nullable=True)
@@ -204,7 +196,7 @@ class BillingSubscriptionTable(BillingSQLModel):
         Index("ix_billing_subscriptions_tenant_plan", "tenant_id", "plan_id"),
         Index("ix_billing_subscriptions_tenant_status", "tenant_id", "status"),
         Index("ix_billing_subscriptions_period_end", "current_period_end"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -231,7 +223,7 @@ class BillingSubscriptionEventTable(BillingSQLModel):
         Index("ix_billing_events_tenant_subscription", "tenant_id", "subscription_id"),
         Index("ix_billing_events_tenant_type", "tenant_id", "event_type"),
         Index("ix_billing_events_created", "created_at"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -274,7 +266,7 @@ class BillingPricingRuleTable(BillingSQLModel):
     __table_args__ = (
         Index("ix_billing_rules_tenant_active", "tenant_id", "is_active"),
         Index("ix_billing_rules_starts_ends", "starts_at", "ends_at"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
@@ -292,28 +284,28 @@ class BillingRuleUsageTable(BillingSQLModel):
     invoice_id = Column(String(50), nullable=True)  # Links to existing invoice system
 
     # Usage timestamp
-    used_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    used_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
 
     # Indexes
     __table_args__ = (
         Index("ix_billing_rule_usage_tenant_rule", "tenant_id", "rule_id"),
         Index("ix_billing_rule_usage_tenant_customer", "tenant_id", "customer_id"),
         Index("ix_billing_rule_usage_used_at", "used_at"),
-        {"extend_existing": True}
+        {"extend_existing": True},
     )
 
 
 # Export all tables for Alembic migrations
 # Import core billing models for backward compatibility
 from dotmac.platform.billing.core.models import (
+    Customer,
     Invoice,
+    InvoiceItem,
     InvoiceLineItem,
     Payment,
-    Customer,
-    Subscription,
-    Product,
     Price,
-    InvoiceItem,
+    Product,
+    Subscription,
 )
 
 __all__ = [

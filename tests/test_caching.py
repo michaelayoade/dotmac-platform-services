@@ -1,11 +1,12 @@
 """Tests for caching module."""
+
 import pickle
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
 # Import the entire module to ensure coverage tracking
-import dotmac.platform.caching
-from dotmac.platform.caching import (
+import dotmac.platform.core.caching
+from dotmac.platform.core.caching import (
     get_redis,
     cache_get,
     cache_set,
@@ -26,11 +27,11 @@ class TestCaching:
         memory_cache.clear()
         lru_cache.clear()
 
-    @patch("dotmac.platform.caching.redis_client", None)
-    @patch("dotmac.platform.caching._redis_init_attempted", False)
+    @patch("dotmac.platform.core.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching._redis_init_attempted", False)
     def test_get_redis(self):
         """Test get_redis returns redis client."""
-        with patch("dotmac.platform.caching.redis.Redis.from_url") as mock_from_url:
+        with patch("dotmac.platform.core.caching.redis.Redis.from_url") as mock_from_url:
             mock_redis = MagicMock()
             mock_from_url.return_value = mock_redis
 
@@ -38,7 +39,7 @@ class TestCaching:
             # Should return the newly created redis client
             assert result is mock_redis
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_redis_success(self, mock_redis):
         """Test cache_get with Redis successful retrieval."""
         test_value = {"test": "data"}
@@ -49,7 +50,7 @@ class TestCaching:
         assert result == test_value
         mock_redis.get.assert_called_once_with("test_key")
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_redis_none(self, mock_redis):
         """Test cache_get with Redis returning None."""
         mock_redis.get.return_value = None
@@ -58,7 +59,7 @@ class TestCaching:
 
         assert result == "default"
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_redis_exception(self, mock_redis):
         """Test cache_get with Redis exception."""
         mock_redis.get.side_effect = Exception("Redis error")
@@ -70,7 +71,7 @@ class TestCaching:
 
         assert result == "memory_value"
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_get_memory_only(self):
         """Test cache_get with no Redis (memory only)."""
         memory_cache["test_key"] = "memory_value"
@@ -79,14 +80,14 @@ class TestCaching:
 
         assert result == "memory_value"
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_get_memory_missing(self):
         """Test cache_get with missing key in memory cache."""
         result = cache_get("missing_key", "default")
 
         assert result == "default"
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_set_with_redis_success(self, mock_redis):
         """Test cache_set with Redis successful storage."""
         test_value = {"test": "data"}
@@ -97,7 +98,7 @@ class TestCaching:
         assert result is True
         mock_redis.setex.assert_called_once_with("test_key", 600, pickle.dumps(test_value))
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_set_with_redis_exception(self, mock_redis):
         """Test cache_set with Redis exception."""
         mock_redis.setex.side_effect = Exception("Redis error")
@@ -108,7 +109,7 @@ class TestCaching:
         # Should fall back to memory cache
         assert memory_cache["test_key"] == "test_value"
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_set_memory_only(self):
         """Test cache_set with no Redis (memory only)."""
         result = cache_set("test_key", "test_value")
@@ -116,7 +117,7 @@ class TestCaching:
         assert result is True
         assert memory_cache["test_key"] == "test_value"
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_delete_with_redis_success(self, mock_redis):
         """Test cache_delete with Redis successful deletion."""
         mock_redis.delete.return_value = 1  # Key existed and was deleted
@@ -126,7 +127,7 @@ class TestCaching:
         assert result is True
         mock_redis.delete.assert_called_once_with("test_key")
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_delete_with_redis_not_found(self, mock_redis):
         """Test cache_delete with Redis key not found."""
         mock_redis.delete.return_value = 0  # Key didn't exist
@@ -139,7 +140,7 @@ class TestCaching:
         assert result is True  # Deleted from memory cache
         assert "test_key" not in memory_cache
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_delete_with_redis_exception(self, mock_redis):
         """Test cache_delete with Redis exception."""
         mock_redis.delete.side_effect = Exception("Redis error")
@@ -152,7 +153,7 @@ class TestCaching:
         assert result is True  # Deleted from memory cache
         assert "test_key" not in memory_cache
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_delete_memory_only(self):
         """Test cache_delete with no Redis (memory only)."""
         memory_cache["test_key"] = "value"
@@ -162,14 +163,14 @@ class TestCaching:
         assert result is True
         assert "test_key" not in memory_cache
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_delete_memory_missing(self):
         """Test cache_delete with key not in memory cache."""
         result = cache_delete("missing_key")
 
         assert result is False
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_clear_with_redis(self, mock_redis):
         """Test cache_clear with Redis."""
         mock_redis.flushdb = Mock()
@@ -182,7 +183,7 @@ class TestCaching:
         assert len(memory_cache) == 0
         assert len(lru_cache) == 0
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_clear_with_redis_exception(self, mock_redis):
         """Test cache_clear with Redis exception."""
         mock_redis.flushdb.side_effect = Exception("Redis error")
@@ -195,7 +196,7 @@ class TestCaching:
         assert len(memory_cache) == 0
         assert len(lru_cache) == 0
 
-    @patch("dotmac.platform.caching.redis_client", None)
+    @patch("dotmac.platform.core.caching.redis_client", None)
     def test_cache_clear_memory_only(self):
         """Test cache_clear with no Redis (memory only)."""
         memory_cache["key1"] = "value1"
@@ -206,8 +207,8 @@ class TestCaching:
         assert len(memory_cache) == 0
         assert len(lru_cache) == 0
 
-    @patch("dotmac.platform.caching.cache_get")
-    @patch("dotmac.platform.caching.cache_set")
+    @patch("dotmac.platform.core.caching.cache_get")
+    @patch("dotmac.platform.core.caching.cache_set")
     def test_redis_cache_decorator_cache_hit(self, mock_cache_set, mock_cache_get):
         """Test redis_cache decorator with cache hit."""
         mock_cache_get.return_value = "cached_result"
@@ -222,8 +223,8 @@ class TestCaching:
         mock_cache_get.assert_called_once()
         mock_cache_set.assert_not_called()
 
-    @patch("dotmac.platform.caching.cache_get")
-    @patch("dotmac.platform.caching.cache_set")
+    @patch("dotmac.platform.core.caching.cache_get")
+    @patch("dotmac.platform.core.caching.cache_set")
     def test_redis_cache_decorator_cache_miss(self, mock_cache_set, mock_cache_get):
         """Test redis_cache decorator with cache miss."""
         mock_cache_get.return_value = None
@@ -238,8 +239,8 @@ class TestCaching:
         mock_cache_get.assert_called_once()
         mock_cache_set.assert_called_once()
 
-    @patch("dotmac.platform.caching.cache_get")
-    @patch("dotmac.platform.caching.cache_set")
+    @patch("dotmac.platform.core.caching.cache_get")
+    @patch("dotmac.platform.core.caching.cache_set")
     def test_redis_cache_decorator_key_generation(self, mock_cache_set, mock_cache_get):
         """Test redis_cache decorator key generation."""
         mock_cache_get.return_value = None
@@ -289,12 +290,21 @@ class TestCaching:
 
     def test_module_exports(self):
         """Test that all required exports are available."""
-        from dotmac.platform import caching
+        from dotmac.platform.core import caching
 
         required_exports = [
-            "redis_client", "get_redis", "cache_get", "cache_set",
-            "cache_delete", "cache_clear", "redis_cache",
-            "memory_cache", "lru_cache", "cached", "TTLCache", "LRUCache"
+            "redis_client",
+            "get_redis",
+            "cache_get",
+            "cache_set",
+            "cache_delete",
+            "cache_clear",
+            "redis_cache",
+            "memory_cache",
+            "lru_cache",
+            "cached",
+            "TTLCache",
+            "LRUCache",
         ]
 
         for export in required_exports:
@@ -303,7 +313,7 @@ class TestCaching:
     def test_redis_client_initialization(self):
         """Test Redis client initialization."""
         # This will be None or Redis instance depending on settings
-        assert redis_client is None or hasattr(redis_client, 'get')
+        assert redis_client is None or hasattr(redis_client, "get")
 
     def test_redis_initialization_logic(self):
         """Test the Redis initialization logic works correctly."""
@@ -312,16 +322,17 @@ class TestCaching:
         from dotmac.platform.settings import settings
 
         # Verify settings attributes exist (they may be None)
-        assert hasattr(settings.redis, 'host')
-        assert hasattr(settings.redis, 'cache_url')
-        assert hasattr(settings.redis, 'max_connections')
+        assert hasattr(settings.redis, "host")
+        assert hasattr(settings.redis, "cache_url")
+        assert hasattr(settings.redis, "max_connections")
 
         # Test that the redis_client import works
-        from dotmac.platform.caching import redis_client
-        # redis_client will be None if no Redis configured, or a Redis instance if configured
-        assert redis_client is None or hasattr(redis_client, 'get')
+        from dotmac.platform.core.caching import redis_client
 
-    @patch("dotmac.platform.caching.redis_client")
+        # redis_client will be None if no Redis configured, or a Redis instance if configured
+        assert redis_client is None or hasattr(redis_client, "get")
+
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_bytes_data(self, mock_redis):
         """Test cache_get properly handles bytes data from Redis."""
         test_value = {"test": "data"}
@@ -331,7 +342,7 @@ class TestCaching:
 
         assert result == test_value
 
-    @patch("dotmac.platform.caching.redis_client")
+    @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_non_bytes_data(self, mock_redis):
         """Test cache_get with non-bytes data from Redis."""
         mock_redis.get.return_value = "string_data"  # Not bytes

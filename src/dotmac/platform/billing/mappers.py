@@ -4,12 +4,11 @@ Data mappers for billing domain.
 Transforms between database models, API schemas, and import formats.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InvoiceImportSchema(BaseModel):
@@ -17,58 +16,56 @@ class InvoiceImportSchema(BaseModel):
 
     # Required fields
     customer_id: str = Field(description="Customer identifier")
-    invoice_number: Optional[str] = Field(None, max_length=50)
+    invoice_number: str | None = Field(None, max_length=50)
     amount: float = Field(gt=0, description="Invoice amount")
     currency: str = Field(default="USD", max_length=3)
 
     # Dates
-    invoice_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
-    payment_date: Optional[datetime] = None
+    invoice_date: datetime | None = None
+    due_date: datetime | None = None
+    payment_date: datetime | None = None
 
     # Status
-    status: Optional[str] = Field(default="draft")  # draft, sent, paid, overdue, canceled
+    status: str | None = Field(default="draft")  # draft, sent, paid, overdue, canceled
 
     # Details
-    description: Optional[str] = Field(None, max_length=500)
-    payment_method: Optional[str] = Field(None, max_length=50)
-    payment_reference: Optional[str] = Field(None, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    payment_method: str | None = Field(None, max_length=50)
+    payment_reference: str | None = Field(None, max_length=100)
 
     # Tax and discounts
-    tax_rate: Optional[float] = Field(default=0, ge=0, le=100)
-    tax_amount: Optional[float] = Field(default=0, ge=0)
-    discount_rate: Optional[float] = Field(default=0, ge=0, le=100)
-    discount_amount: Optional[float] = Field(default=0, ge=0)
+    tax_rate: float | None = Field(default=0, ge=0, le=100)
+    tax_amount: float | None = Field(default=0, ge=0)
+    discount_rate: float | None = Field(default=0, ge=0, le=100)
+    discount_amount: float | None = Field(default=0, ge=0)
 
     # Line items (JSON array)
-    line_items: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    line_items: list[dict[str, Any]] | None = Field(default_factory=list)
 
     # External references
-    external_id: Optional[str] = Field(None, max_length=100)
-    source_system: Optional[str] = Field(None, max_length=50)
+    external_id: str | None = Field(None, max_length=100)
+    source_system: str | None = Field(None, max_length=50)
 
     # Import metadata
-    import_batch_id: Optional[str] = Field(None, max_length=100)
+    import_batch_id: str | None = Field(None, max_length=100)
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        str_strip_whitespace=True,
-        validate_assignment=True
+        populate_by_name=True, str_strip_whitespace=True, validate_assignment=True
     )
 
-    @field_validator('currency')
+    @field_validator("currency")
     @classmethod
     def validate_currency(cls, v: str) -> str:
         """Validate currency code."""
         return v.upper()
 
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def validate_status(cls, v: str) -> str:
         """Validate invoice status."""
-        valid_statuses = {'draft', 'sent', 'paid', 'overdue', 'canceled', 'refunded'}
+        valid_statuses = {"draft", "sent", "paid", "overdue", "canceled", "refunded"}
         if v.lower() not in valid_statuses:
-            raise ValueError(f'Invalid status. Must be one of: {valid_statuses}')
+            raise ValueError(f"Invalid status. Must be one of: {valid_statuses}")
         return v.lower()
 
 
@@ -80,33 +77,31 @@ class SubscriptionImportSchema(BaseModel):
     plan_id: str = Field(description="Subscription plan identifier")
 
     # Subscription details
-    status: Optional[str] = Field(default="active")  # trial, active, past_due, canceled, ended
-    billing_cycle: Optional[str] = Field(default="monthly")  # monthly, quarterly, annual
+    status: str | None = Field(default="active")  # trial, active, past_due, canceled, ended
+    billing_cycle: str | None = Field(default="monthly")  # monthly, quarterly, annual
 
     # Pricing
     price: float = Field(gt=0, description="Subscription price")
     currency: str = Field(default="USD", max_length=3)
-    custom_price: Optional[float] = Field(None, ge=0)
+    custom_price: float | None = Field(None, ge=0)
 
     # Dates
-    start_date: Optional[datetime] = None
-    trial_end_date: Optional[datetime] = None
-    next_billing_date: Optional[datetime] = None
-    canceled_at: Optional[datetime] = None
+    start_date: datetime | None = None
+    trial_end_date: datetime | None = None
+    next_billing_date: datetime | None = None
+    canceled_at: datetime | None = None
     cancel_at_period_end: bool = False
 
     # External references
-    external_id: Optional[str] = Field(None, max_length=100)
-    payment_method_id: Optional[str] = Field(None, max_length=100)
-    source_system: Optional[str] = Field(None, max_length=50)
+    external_id: str | None = Field(None, max_length=100)
+    payment_method_id: str | None = Field(None, max_length=100)
+    source_system: str | None = Field(None, max_length=50)
 
     # Import metadata
-    import_batch_id: Optional[str] = Field(None, max_length=100)
+    import_batch_id: str | None = Field(None, max_length=100)
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        str_strip_whitespace=True,
-        validate_assignment=True
+        populate_by_name=True, str_strip_whitespace=True, validate_assignment=True
     )
 
 
@@ -121,25 +116,23 @@ class PaymentImportSchema(BaseModel):
     # Payment details
     payment_date: datetime
     payment_method: str = Field(max_length=50)
-    status: Optional[str] = Field(default="succeeded")  # pending, succeeded, failed, refunded
+    status: str | None = Field(default="succeeded")  # pending, succeeded, failed, refunded
 
     # References
-    invoice_id: Optional[str] = Field(None, max_length=100)
-    subscription_id: Optional[str] = Field(None, max_length=100)
-    transaction_id: Optional[str] = Field(None, max_length=100)
-    reference_number: Optional[str] = Field(None, max_length=100)
+    invoice_id: str | None = Field(None, max_length=100)
+    subscription_id: str | None = Field(None, max_length=100)
+    transaction_id: str | None = Field(None, max_length=100)
+    reference_number: str | None = Field(None, max_length=100)
 
     # External references
-    external_id: Optional[str] = Field(None, max_length=100)
-    source_system: Optional[str] = Field(None, max_length=50)
+    external_id: str | None = Field(None, max_length=100)
+    source_system: str | None = Field(None, max_length=50)
 
     # Import metadata
-    import_batch_id: Optional[str] = Field(None, max_length=100)
+    import_batch_id: str | None = Field(None, max_length=100)
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        str_strip_whitespace=True,
-        validate_assignment=True
+        populate_by_name=True, str_strip_whitespace=True, validate_assignment=True
     )
 
 
@@ -147,11 +140,85 @@ class BillingMapper:
     """Maps between different billing data formats."""
 
     @staticmethod
-    def invoice_from_import(
+    def _generate_invoice_number_if_needed(
+        import_data: InvoiceImportSchema, generate_invoice_number: bool
+    ) -> str | None:
+        """Generate invoice number if needed."""
+        from uuid import uuid4
+
+        if generate_invoice_number and not import_data.invoice_number:
+            timestamp = datetime.now(UTC).strftime("%Y%m")
+            return f"INV-{timestamp}-{uuid4().hex[:6].upper()}"
+        elif import_data.invoice_number:
+            return import_data.invoice_number
+        return None
+
+    @staticmethod
+    def _map_optional_date_fields(import_data: InvoiceImportSchema) -> dict[str, Any]:
+        """Map optional date fields."""
+        data = {}
+        if import_data.invoice_date:
+            data["invoice_date"] = import_data.invoice_date
+        if import_data.due_date:
+            data["due_date"] = import_data.due_date
+        if import_data.payment_date:
+            data["payment_date"] = import_data.payment_date
+        return data
+
+    @staticmethod
+    def _map_optional_text_fields(import_data: InvoiceImportSchema) -> dict[str, Any]:
+        """Map optional text fields."""
+        data = {}
+        if import_data.description:
+            data["description"] = import_data.description
+        if import_data.payment_method:
+            data["payment_method"] = import_data.payment_method
+        if import_data.payment_reference:
+            data["payment_reference"] = import_data.payment_reference
+        return data
+
+    @staticmethod
+    def _map_tax_and_discount_fields(import_data: InvoiceImportSchema) -> dict[str, Any]:
+        """Map tax and discount fields with decimal conversion."""
+        data = {}
+        if import_data.tax_amount:
+            data["tax_amount"] = Decimal(str(import_data.tax_amount))
+        if import_data.tax_rate:
+            data["tax_rate"] = Decimal(str(import_data.tax_rate))
+        if import_data.discount_amount:
+            data["discount_amount"] = Decimal(str(import_data.discount_amount))
+        if import_data.discount_rate:
+            data["discount_rate"] = Decimal(str(import_data.discount_rate))
+        return data
+
+    @staticmethod
+    def _map_external_references(
         import_data: InvoiceImportSchema,
-        tenant_id: str,
-        generate_invoice_number: bool = True
-    ) -> Dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Map external references to data and metadata."""
+        data = {}
+        metadata = {}
+
+        if import_data.external_id:
+            data["external_id"] = import_data.external_id
+            metadata["external_id"] = import_data.external_id
+        if import_data.source_system:
+            data["source_system"] = import_data.source_system
+            metadata["source_system"] = import_data.source_system
+
+        return data, metadata
+
+    @staticmethod
+    def _add_import_metadata(import_data: InvoiceImportSchema, metadata: dict[str, Any]) -> None:
+        """Add import-specific metadata."""
+        if import_data.import_batch_id:
+            metadata["import_batch_id"] = import_data.import_batch_id
+            metadata["imported_at"] = datetime.now(UTC).isoformat()
+
+    @staticmethod
+    def invoice_from_import(
+        import_data: InvoiceImportSchema, tenant_id: str, generate_invoice_number: bool = True
+    ) -> dict[str, Any]:
         """
         Convert import schema to invoice model format.
 
@@ -163,73 +230,83 @@ class BillingMapper:
         Returns:
             Dictionary ready for invoice creation
         """
-        from uuid import uuid4
-
+        # Initialize base data with required fields
         data = {
             "tenant_id": tenant_id,
             "customer_id": import_data.customer_id,
             "amount": Decimal(str(import_data.amount)),
             "currency": import_data.currency,
             "status": import_data.status,
-            "metadata_json": {}
+            "metadata_json": {},
         }
 
-        # Generate invoice number if needed
-        if generate_invoice_number and not import_data.invoice_number:
-            timestamp = datetime.utcnow().strftime("%Y%m")
-            data["invoice_number"] = f"INV-{timestamp}-{uuid4().hex[:6].upper()}"
-        elif import_data.invoice_number:
-            data["invoice_number"] = import_data.invoice_number
+        # Generate or set invoice number
+        invoice_number = BillingMapper._generate_invoice_number_if_needed(
+            import_data, generate_invoice_number
+        )
+        if invoice_number:
+            data["invoice_number"] = invoice_number
 
-        # Map optional fields
-        if import_data.invoice_date:
-            data["invoice_date"] = import_data.invoice_date
-        if import_data.due_date:
-            data["due_date"] = import_data.due_date
-        if import_data.payment_date:
-            data["payment_date"] = import_data.payment_date
+        # Map optional fields using helpers
+        data.update(BillingMapper._map_optional_date_fields(import_data))
+        data.update(BillingMapper._map_optional_text_fields(import_data))
+        data.update(BillingMapper._map_tax_and_discount_fields(import_data))
 
-        if import_data.description:
-            data["description"] = import_data.description
-        if import_data.payment_method:
-            data["payment_method"] = import_data.payment_method
-        if import_data.payment_reference:
-            data["payment_reference"] = import_data.payment_reference
-
-        # Tax and discounts
-        if import_data.tax_amount:
-            data["tax_amount"] = Decimal(str(import_data.tax_amount))
-        if import_data.tax_rate:
-            data["tax_rate"] = Decimal(str(import_data.tax_rate))
-        if import_data.discount_amount:
-            data["discount_amount"] = Decimal(str(import_data.discount_amount))
-        if import_data.discount_rate:
-            data["discount_rate"] = Decimal(str(import_data.discount_rate))
-
-        # Line items
+        # Map line items
         if import_data.line_items:
             data["line_items"] = import_data.line_items
 
-        # External references
-        if import_data.external_id:
-            data["external_id"] = import_data.external_id
-            data["metadata_json"]["external_id"] = import_data.external_id
-        if import_data.source_system:
-            data["source_system"] = import_data.source_system
-            data["metadata_json"]["source_system"] = import_data.source_system
+        # Map external references
+        external_data, external_metadata = BillingMapper._map_external_references(import_data)
+        data.update(external_data)
+        data["metadata_json"].update(external_metadata)
 
-        # Import metadata
-        if import_data.import_batch_id:
-            data["metadata_json"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_json"]["imported_at"] = datetime.utcnow().isoformat()
+        # Add import metadata
+        BillingMapper._add_import_metadata(import_data, data["metadata_json"])
 
         return data
 
     @staticmethod
+    def _map_subscription_dates(import_data: SubscriptionImportSchema) -> dict[str, Any]:
+        """Map subscription date fields."""
+        data = {}
+
+        if import_data.start_date:
+            data["current_period_start"] = import_data.start_date
+        else:
+            data["current_period_start"] = datetime.now(UTC)
+
+        if import_data.trial_end_date:
+            data["trial_end"] = import_data.trial_end_date
+
+        if import_data.next_billing_date:
+            data["current_period_end"] = import_data.next_billing_date
+
+        if import_data.canceled_at:
+            data["canceled_at"] = import_data.canceled_at
+
+        data["cancel_at_period_end"] = import_data.cancel_at_period_end
+
+        return data
+
+    @staticmethod
+    def _map_subscription_external_refs(import_data: SubscriptionImportSchema) -> dict[str, Any]:
+        """Map subscription external references to metadata."""
+        metadata = {}
+
+        if import_data.external_id:
+            metadata["external_id"] = import_data.external_id
+        if import_data.payment_method_id:
+            metadata["payment_method_id"] = import_data.payment_method_id
+        if import_data.source_system:
+            metadata["source_system"] = import_data.source_system
+
+        return metadata
+
+    @staticmethod
     def subscription_from_import(
-        import_data: SubscriptionImportSchema,
-        tenant_id: str
-    ) -> Dict[str, Any]:
+        import_data: SubscriptionImportSchema, tenant_id: str
+    ) -> dict[str, Any]:
         """
         Convert import schema to subscription model format.
 
@@ -250,10 +327,10 @@ class BillingMapper:
             "status": import_data.status,
             "price": Decimal(str(import_data.price)),
             "currency": import_data.currency,
-            "metadata_json": {}
+            "metadata_json": {},
         }
 
-        # Billing cycle
+        # Optional billing cycle
         if import_data.billing_cycle:
             data["billing_cycle"] = import_data.billing_cycle
 
@@ -261,43 +338,21 @@ class BillingMapper:
         if import_data.custom_price is not None:
             data["custom_price"] = Decimal(str(import_data.custom_price))
 
-        # Dates
-        if import_data.start_date:
-            data["current_period_start"] = import_data.start_date
-        else:
-            data["current_period_start"] = datetime.utcnow()
+        # Map dates
+        data.update(BillingMapper._map_subscription_dates(import_data))
 
-        if import_data.trial_end_date:
-            data["trial_end"] = import_data.trial_end_date
-
-        if import_data.next_billing_date:
-            data["current_period_end"] = import_data.next_billing_date
-
-        if import_data.canceled_at:
-            data["canceled_at"] = import_data.canceled_at
-
-        data["cancel_at_period_end"] = import_data.cancel_at_period_end
-
-        # External references
-        if import_data.external_id:
-            data["metadata_json"]["external_id"] = import_data.external_id
-        if import_data.payment_method_id:
-            data["metadata_json"]["payment_method_id"] = import_data.payment_method_id
-        if import_data.source_system:
-            data["metadata_json"]["source_system"] = import_data.source_system
+        # Map external references
+        data["metadata_json"].update(BillingMapper._map_subscription_external_refs(import_data))
 
         # Import metadata
         if import_data.import_batch_id:
             data["metadata_json"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_json"]["imported_at"] = datetime.utcnow().isoformat()
+            data["metadata_json"]["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 
     @staticmethod
-    def payment_from_import(
-        import_data: PaymentImportSchema,
-        tenant_id: str
-    ) -> Dict[str, Any]:
+    def payment_from_import(import_data: PaymentImportSchema, tenant_id: str) -> dict[str, Any]:
         """
         Convert import schema to payment model format.
 
@@ -319,7 +374,7 @@ class BillingMapper:
             "payment_date": import_data.payment_date,
             "payment_method": import_data.payment_method,
             "status": import_data.status,
-            "metadata_json": {}
+            "metadata_json": {},
         }
 
         # References
@@ -341,15 +396,14 @@ class BillingMapper:
         # Import metadata
         if import_data.import_batch_id:
             data["metadata_json"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_json"]["imported_at"] = datetime.utcnow().isoformat()
+            data["metadata_json"]["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 
     @staticmethod
     def validate_invoice_row(
-        row: Dict[str, Any],
-        row_number: int
-    ) -> Union[InvoiceImportSchema, Dict[str, Any]]:
+        row: dict[str, Any], row_number: int
+    ) -> InvoiceImportSchema | dict[str, Any]:
         """Validate a single invoice row."""
         try:
             cleaned_row = {}
@@ -361,17 +415,12 @@ class BillingMapper:
                 cleaned_row[key] = value
             return InvoiceImportSchema(**cleaned_row)
         except Exception as e:
-            return {
-                "row_number": row_number,
-                "error": str(e),
-                "data": row
-            }
+            return {"row_number": row_number, "error": str(e), "data": row}
 
     @staticmethod
     def validate_subscription_row(
-        row: Dict[str, Any],
-        row_number: int
-    ) -> Union[SubscriptionImportSchema, Dict[str, Any]]:
+        row: dict[str, Any], row_number: int
+    ) -> SubscriptionImportSchema | dict[str, Any]:
         """Validate a single subscription row."""
         try:
             cleaned_row = {}
@@ -383,8 +432,4 @@ class BillingMapper:
                 cleaned_row[key] = value
             return SubscriptionImportSchema(**cleaned_row)
         except Exception as e:
-            return {
-                "row_number": row_number,
-                "error": str(e),
-                "data": row
-            }
+            return {"row_number": row_number, "error": str(e), "data": row}

@@ -104,6 +104,7 @@ def test_partner_number_format():
     """Test partner number generation format."""
     # Partner numbers should follow format: PART-YYYYMMDD-XXXX
     import re
+
     pattern = r"^PART-\d{8}-\d{4}$"
 
     example = "PART-20250101-0001"

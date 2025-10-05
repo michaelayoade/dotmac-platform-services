@@ -3,31 +3,34 @@ Company bank account entities for receiving payments and payouts
 """
 
 from datetime import datetime
-from typing import Any
+from decimal import Decimal
 from enum import Enum
+from typing import Any
+from uuid import UUID
 
 from sqlalchemy import (
-    String,
-    Integer,
+    JSON,
     Boolean,
     DateTime,
-    JSON,
     ForeignKey,
     Index,
-    Enum as SQLEnum,
+    Integer,
     Numeric,
+    String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from uuid import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from dotmac.platform.db import Base
-from dotmac.platform.db import TenantMixin, TimestampMixin, AuditMixin
+from dotmac.platform.db import AuditMixin, Base, TenantMixin, TimestampMixin
 
 
 class BankAccountStatus(str, Enum):
     """Bank account verification status"""
+
     PENDING = "pending"
     VERIFIED = "verified"
     FAILED = "failed"
@@ -36,6 +39,7 @@ class BankAccountStatus(str, Enum):
 
 class AccountType(str, Enum):
     """Bank account types"""
+
     CHECKING = "checking"
     SAVINGS = "savings"
     BUSINESS = "business"
@@ -44,6 +48,7 @@ class AccountType(str, Enum):
 
 class PaymentMethodType(str, Enum):
     """Payment method types for manual entries"""
+
     BANK_TRANSFER = "bank_transfer"
     WIRE_TRANSFER = "wire_transfer"
     ACH = "ach"
@@ -80,17 +85,13 @@ class CompanyBankAccount(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Account type and currency
     account_type: Mapped[AccountType] = mapped_column(
-        SQLEnum(AccountType),
-        nullable=False,
-        default=AccountType.BUSINESS
+        SQLEnum(AccountType), nullable=False, default=AccountType.BUSINESS
     )
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
 
     # Status and settings
     status: Mapped[BankAccountStatus] = mapped_column(
-        SQLEnum(BankAccountStatus),
-        nullable=False,
-        default=BankAccountStatus.PENDING
+        SQLEnum(BankAccountStatus), nullable=False, default=BankAccountStatus.PENDING
     )
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -117,7 +118,7 @@ class CompanyBankAccount(Base, TenantMixin, TimestampMixin, AuditMixin):
         Index("idx_company_bank_tenant", "tenant_id"),
         Index("idx_company_bank_primary", "tenant_id", "is_primary"),
         Index("idx_company_bank_status", "status"),
-        {'extend_existing': True}
+        {"extend_existing": True},
     )
 
 
@@ -130,7 +131,9 @@ class ManualPayment(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Payment reference
     payment_reference: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    external_reference: Mapped[str | None] = mapped_column(String(255))  # Bank ref, check number, etc.
+    external_reference: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # Bank ref, check number, etc.
 
     # Related entities (temporarily without foreign keys for compatibility)
     customer_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
@@ -139,8 +142,7 @@ class ManualPayment(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Payment details
     payment_method: Mapped[PaymentMethodType] = mapped_column(
-        SQLEnum(PaymentMethodType),
-        nullable=False
+        SQLEnum(PaymentMethodType), nullable=False
     )
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
@@ -169,9 +171,7 @@ class ManualPayment(Base, TenantMixin, TimestampMixin, AuditMixin):
 
     # Status
     status: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default="pending"  # pending, verified, reconciled, failed
+        String(20), nullable=False, default="pending"  # pending, verified, reconciled, failed
     )
     reconciled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -206,7 +206,7 @@ class ManualPayment(Base, TenantMixin, TimestampMixin, AuditMixin):
         Index("idx_manual_payment_date", "payment_date"),
         Index("idx_manual_payment_status", "status"),
         Index("idx_manual_payment_method", "payment_method"),
-        {'extend_existing': True}
+        {"extend_existing": True},
     )
 
 
@@ -238,8 +238,64 @@ class CashRegister(Base, TenantMixin, TimestampMixin):
     __table_args__ = (
         Index("idx_cash_register_tenant", "tenant_id"),
         Index("idx_cash_register_active", "is_active"),
-        {'extend_existing': True}
+        {"extend_existing": True},
     )
+
+
+class CashReconciliation(Base, TenantMixin):
+    """
+    Cash reconciliation records for cash registers.
+    """
+
+    __tablename__ = "cash_reconciliations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    register_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("cash_registers.register_id"), nullable=False
+    )
+    reconciliation_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Amounts
+    opening_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    closing_float: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    expected_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    actual_cash: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    discrepancy: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+
+    # Details
+    reconciled_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    shift_id: Mapped[str | None] = mapped_column(String(50))
+
+    # Metadata
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class CashTransaction(Base, TenantMixin):
+    """
+    Individual cash transactions for a register.
+    """
+
+    __tablename__ = "cash_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    register_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("cash_registers.register_id"), nullable=False
+    )
+
+    # Transaction details
+    transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+
+    reference: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(500))
+
+    # Audit
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Metadata
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class PaymentReconciliation(Base, TenantMixin, TimestampMixin):
@@ -256,9 +312,7 @@ class PaymentReconciliation(Base, TenantMixin, TimestampMixin):
 
     # Bank account
     bank_account_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("company_bank_accounts.id"),
-        nullable=False
+        Integer, ForeignKey("company_bank_accounts.id"), nullable=False
     )
 
     # Balances
@@ -274,9 +328,7 @@ class PaymentReconciliation(Base, TenantMixin, TimestampMixin):
 
     # Status
     status: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default="in_progress"  # in_progress, completed, approved
+        String(20), nullable=False, default="in_progress"  # in_progress, completed, approved
     )
 
     # Approval
@@ -298,5 +350,5 @@ class PaymentReconciliation(Base, TenantMixin, TimestampMixin):
         Index("idx_reconciliation_tenant", "tenant_id"),
         Index("idx_reconciliation_bank", "bank_account_id"),
         Index("idx_reconciliation_date", "reconciliation_date"),
-        {'extend_existing': True}
+        {"extend_existing": True},
     )

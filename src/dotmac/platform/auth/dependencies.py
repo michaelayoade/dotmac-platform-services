@@ -4,7 +4,6 @@ Authentication dependencies for FastAPI routes.
 These can be used to protect endpoints that require authentication.
 """
 
-
 import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer

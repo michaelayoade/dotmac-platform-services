@@ -9,12 +9,13 @@ This module provides all auth functionality using standard libraries:
 - Password hashing with Passlib
 """
 
+import inspect
 import json
 import secrets
-import inspect
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+from uuid import UUID
 
 import structlog
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -63,7 +64,7 @@ try:
     _refresh_token_expire_days = settings.jwt.refresh_token_expire_days
     _redis_url = settings.redis.redis_url
     # Get default role from settings or use minimal 'guest' role
-    _default_user_role = getattr(settings, 'default_user_role', 'guest')
+    _default_user_role = getattr(settings, "default_user_role", "guest")
 except ImportError:
     # Fallback values if settings not available
     _jwt_secret = "default-secret-change-this"
@@ -95,23 +96,49 @@ class TokenType(str, Enum):
 
 
 class UserInfo(BaseModel):
-    """User information from auth."""
+    """User information from auth.
+
+    This model is used in JWT tokens and API authentication.
+    User IDs are stored as strings for JWT/HTTP compatibility.
+
+    Platform Admin Support:
+        - is_platform_admin=True: User can access ALL tenants (SaaS admin)
+        - tenant_id=None: Platform admins are not assigned to any specific tenant
+        - Platform admins can set X-Target-Tenant-ID header to impersonate tenants
+
+    Important: When using user_id with database models that expect UUID,
+    convert using UUID(user_info.user_id) or the ensure_uuid() helper.
+
+    Example:
+        >>> from uuid import UUID
+        >>> user = await db.get(User, UUID(current_user.user_id))
+        >>> # Or using helper:
+        >>> user = await db.get(User, ensure_uuid(current_user.user_id))
+
+        >>> # Platform admin checking:
+        >>> if current_user.is_platform_admin:
+        >>>     # Can access all tenants
+        >>>     pass
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    user_id: str
-    email: Optional[EmailStr] = None
-    username: Optional[str] = None
-    roles: List[str] = Field(default_factory=list)
-    permissions: List[str] = Field(default_factory=list)
-    tenant_id: Optional[str] = None
+    user_id: str  # String representation of UUID for JWT/API compatibility
+    email: EmailStr | None = None
+    username: str | None = None
+    roles: list[str] = Field(default_factory=list)
+    permissions: list[str] = Field(default_factory=list)
+    tenant_id: str | None = None  # None for platform admins
+    is_platform_admin: bool = Field(
+        default=False, description="Platform admin with cross-tenant access"
+    )
 
 
 class TokenData(BaseModel):
     """Token response."""
 
     access_token: str
-    refresh_token: Optional[str] = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
     expires_in: int
 
@@ -147,6 +174,37 @@ OAUTH_CONFIGS = {
 }
 
 # ============================================
+# Helper Functions
+# ============================================
+
+
+def ensure_uuid(value: str | UUID) -> UUID:
+    """Convert string to UUID if needed.
+
+    This helper ensures consistent UUID handling across the auth layer.
+    UserInfo stores user_id as string (for JWT/API compatibility), but
+    database models use UUID type (for type safety).
+
+    Args:
+        value: Either a string representation of UUID or UUID object
+
+    Returns:
+        UUID object
+
+    Raises:
+        ValueError: If string is not a valid UUID format
+
+    Example:
+        >>> from dotmac.platform.auth.core import UserInfo, ensure_uuid
+        >>> user_info = UserInfo(user_id="550e8400-e29b-41d4-a716-446655440000", ...)
+        >>> user = await db.get(User, ensure_uuid(user_info.user_id))
+    """
+    if isinstance(value, str):
+        return UUID(value)
+    return value
+
+
+# ============================================
 # JWT Service
 # ============================================
 
@@ -154,7 +212,9 @@ OAUTH_CONFIGS = {
 class JWTService:
     """Simplified JWT service using Authlib with token revocation support."""
 
-    def __init__(self, secret: str | None = None, algorithm: str | None = None, redis_url: str | None = None):
+    def __init__(
+        self, secret: str | None = None, algorithm: str | None = None, redis_url: str | None = None
+    ):
         self.secret = secret or JWT_SECRET
         self.algorithm = algorithm or JWT_ALGORITHM
         self.header = {"alg": self.algorithm}
@@ -164,7 +224,7 @@ class JWTService:
     def create_access_token(
         self,
         subject: str,
-        additional_claims: Dict[str, Any] | None = None,
+        additional_claims: dict[str, Any] | None = None,
         expire_minutes: int | None = None,
     ) -> str:
         """Create access token."""
@@ -176,7 +236,7 @@ class JWTService:
         return self._create_token(data, expires_delta)
 
     def create_refresh_token(
-        self, subject: str, additional_claims: Dict[str, Any] | None = None
+        self, subject: str, additional_claims: dict[str, Any] | None = None
     ) -> str:
         """Create refresh token."""
         data = {"sub": subject, "type": TokenType.REFRESH.value}
@@ -255,7 +315,8 @@ class JWTService:
     def is_token_revoked_sync(self, jti: str) -> bool:
         """Check if token is revoked (sync version)."""
         try:
-            from dotmac.platform.caching import get_redis
+            from dotmac.platform.core.caching import get_redis
+
             redis_client = get_redis()
             if not redis_client:
                 return False
@@ -356,7 +417,7 @@ class SessionManager:
                 if not self._fallback_enabled:
                     raise HTTPException(
                         status_code=503,
-                        detail="Session service unavailable (Redis connection failed)"
+                        detail="Session service unavailable (Redis connection failed)",
                     )
         return self._redis
 
@@ -384,10 +445,7 @@ class SessionManager:
                 if self._fallback_enabled:
                     self._fallback_store[session_id] = session_data
                 else:
-                    raise HTTPException(
-                        status_code=503,
-                        detail="Session service unavailable"
-                    )
+                    raise HTTPException(status_code=503, detail="Session service unavailable")
         else:
             # Use fallback
             if self._fallback_enabled:
@@ -395,13 +453,12 @@ class SessionManager:
                 self._fallback_store[session_id] = session_data
             else:
                 raise HTTPException(
-                    status_code=503,
-                    detail="Session service unavailable (Redis not available)"
+                    status_code=503, detail="Session service unavailable (Redis not available)"
                 )
 
         return session_id
 
-    async def get_session(self, session_id: str) -> Optional[dict]:
+    async def get_session(self, session_id: str) -> dict | None:
         """Get session data from Redis or fallback."""
         client = await self._get_redis()
         if client:
@@ -410,7 +467,9 @@ class SessionManager:
                 if data:
                     return json.loads(data)
             except Exception as e:
-                logger.warning("Failed to get session from Redis", session_id=session_id, error=str(e))
+                logger.warning(
+                    "Failed to get session from Redis", session_id=session_id, error=str(e)
+                )
 
         # Check fallback store
         if self._fallback_enabled and session_id in self._fallback_store:
@@ -437,6 +496,31 @@ class SessionManager:
         except Exception as e:
             logger.error("Failed to delete session", session_id=session_id, error=str(e))
             return False
+
+    async def get_user_sessions(self, user_id: str) -> dict:
+        """Get all sessions for a user."""
+        try:
+            client = await self._get_redis()
+            if not client:
+                # Return empty dict if Redis not available
+                return {}
+
+            user_sessions_key = f"user_sessions:{user_id}"
+
+            # Get all session IDs for this user
+            session_ids = await client.smembers(user_sessions_key)
+
+            sessions = {}
+            for session_id in session_ids:
+                session_key = f"session:{session_id}"
+                session_data = await client.get(session_key)
+                if session_data:
+                    sessions[session_key] = json.loads(session_data)
+
+            return sessions
+        except Exception as e:
+            logger.error(f"Failed to get user sessions for {user_id}: {e}")
+            return {}
 
     async def delete_user_sessions(self, user_id: str) -> int:
         """Delete all sessions for a user."""
@@ -537,7 +621,7 @@ class APIKeyService:
             self._redis = await redis.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
-    async def create_api_key(self, user_id: str, name: str, scopes: List[str] | None = None) -> str:
+    async def create_api_key(self, user_id: str, name: str, scopes: list[str] | None = None) -> str:
         """Create API key."""
         api_key = f"sk_{secrets.token_urlsafe(32)}"
 
@@ -557,7 +641,7 @@ class APIKeyService:
 
         return api_key
 
-    async def verify_api_key(self, api_key: str) -> Optional[dict]:
+    async def verify_api_key(self, api_key: str) -> dict | None:
         """Verify API key."""
         try:
             client = await self._get_redis()
@@ -621,9 +705,9 @@ async def _verify_token_with_fallback(token: str) -> dict:
 
 async def get_current_user(
     request: Request,
-    token: Optional[str] = Depends(oauth2_scheme),
-    api_key: Optional[str] = Depends(api_key_header),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    token: str | None = Depends(oauth2_scheme),
+    api_key: str | None = Depends(api_key_header),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> UserInfo:
     """Get current authenticated user from Bearer token, OAuth2, API key, or HttpOnly cookie."""
 
@@ -673,10 +757,10 @@ async def get_current_user(
 
 async def get_current_user_optional(
     request: Request,
-    token: Optional[str] = Depends(oauth2_scheme),
-    api_key: Optional[str] = Depends(api_key_header),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-) -> Optional[UserInfo]:
+    token: str | None = Depends(oauth2_scheme),
+    api_key: str | None = Depends(api_key_header),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> UserInfo | None:
     """Get current user if authenticated, None otherwise."""
     try:
         return await get_current_user(request, token, api_key, credentials)
@@ -693,6 +777,7 @@ def _claims_to_user_info(claims: dict) -> UserInfo:
         roles=claims.get("roles", []),
         permissions=claims.get("permissions", []),
         tenant_id=claims.get("tenant_id"),
+        is_platform_admin=claims.get("is_platform_admin", False),
     )
 
 

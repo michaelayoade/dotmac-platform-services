@@ -26,6 +26,8 @@ from dotmac.platform.feature_flags.core import (
     _flag_cache,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture(autouse=True)
 def clean_cache():
@@ -66,6 +68,7 @@ class TestRedisAvailability:
 
                 # Clear cached value
                 import dotmac.platform.feature_flags.core
+
                 dotmac.platform.feature_flags.core._redis_available = None
 
                 result = await _check_redis_availability()
@@ -84,6 +87,7 @@ class TestRedisAvailability:
 
             # Clear cached value
             import dotmac.platform.feature_flags.core
+
             dotmac.platform.feature_flags.core._redis_available = None
 
             result = await _check_redis_availability()
@@ -101,6 +105,7 @@ class TestRedisAvailability:
 
                 # Clear cached value
                 import dotmac.platform.feature_flags.core
+
                 dotmac.platform.feature_flags.core._redis_available = None
 
                 result = await _check_redis_availability()
@@ -112,6 +117,7 @@ class TestRedisAvailability:
         """Test that Redis availability is cached."""
         # Set cached value
         import dotmac.platform.feature_flags.core
+
         dotmac.platform.feature_flags.core._redis_available = True
 
         result = await _check_redis_availability()
@@ -126,13 +132,16 @@ class TestGetRedisClient:
     @pytest.mark.asyncio
     async def test_get_redis_client_success(self, mock_redis_client):
         """Test successful Redis client creation."""
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=True):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=True
+        ):
             with patch("dotmac.platform.feature_flags.core.settings") as mock_settings:
                 mock_settings.redis.redis_url = "redis://localhost:6379/0"
 
                 with patch("redis.asyncio.from_url", return_value=mock_redis_client):
                     # Clear cached client
                     import dotmac.platform.feature_flags.core
+
                     dotmac.platform.feature_flags.core._redis_client = None
 
                     client = await get_redis_client()
@@ -143,7 +152,9 @@ class TestGetRedisClient:
     @pytest.mark.asyncio
     async def test_get_redis_client_unavailable(self):
         """Test Redis client when Redis is unavailable."""
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=False):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=False
+        ):
             client = await get_redis_client()
 
             assert client is None
@@ -151,7 +162,9 @@ class TestGetRedisClient:
     @pytest.mark.asyncio
     async def test_get_redis_client_connection_fails(self):
         """Test Redis client when connection fails."""
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=True):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=True
+        ):
             with patch("dotmac.platform.feature_flags.core.settings") as mock_settings:
                 mock_settings.redis.redis_url = "redis://localhost:6379/0"
 
@@ -162,6 +175,7 @@ class TestGetRedisClient:
 
                     # Clear cached client
                     import dotmac.platform.feature_flags.core
+
                     dotmac.platform.feature_flags.core._redis_client = None
 
                     client = await get_redis_client()
@@ -175,7 +189,9 @@ class TestSetFlag:
     @pytest.mark.asyncio
     async def test_set_flag_with_redis(self, mock_redis_client):
         """Test setting flag when Redis is available."""
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             await set_flag("test_flag", True, {"env": "test"})
 
             # Check Redis was called
@@ -210,7 +226,9 @@ class TestSetFlag:
         """Test setting flag when Redis operation fails."""
         mock_redis_client.hset.side_effect = redis.RedisError("Redis error")
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             await set_flag("error_flag", True)
 
             # Should still work and update cache
@@ -246,7 +264,9 @@ class TestIsEnabled:
         flag_data = {"enabled": True, "context": {"env": "prod"}}
         mock_redis_client.hget.return_value = json.dumps(flag_data)
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await is_enabled("redis_flag")
 
             assert result is True
@@ -258,7 +278,9 @@ class TestIsEnabled:
         """Test checking non-existent flag."""
         mock_redis_client.hget.return_value = None
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await is_enabled("nonexistent_flag")
 
             assert result is False
@@ -268,11 +290,13 @@ class TestIsEnabled:
         """Test flag evaluation with context matching."""
         _flag_cache["context_flag"] = {
             "enabled": True,
-            "context": {"env": "prod", "feature": "beta"}
+            "context": {"env": "prod", "feature": "beta"},
         }
 
         # Matching context
-        result = await is_enabled("context_flag", {"env": "prod", "feature": "beta", "extra": "ignored"})
+        result = await is_enabled(
+            "context_flag", {"env": "prod", "feature": "beta", "extra": "ignored"}
+        )
         assert result is True
 
         # Non-matching context
@@ -288,7 +312,9 @@ class TestIsEnabled:
         """Test flag checking when Redis fails."""
         mock_redis_client.hget.side_effect = redis.RedisError("Redis error")
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await is_enabled("error_flag")
 
             assert result is False
@@ -358,13 +384,15 @@ class TestListFlags:
         """Test listing flags with Redis data."""
         redis_data = {
             b"redis_flag": b'{"enabled": true, "context": {"source": "redis"}}',
-            b"shared_flag": b'{"enabled": false, "context": {}}'
+            b"shared_flag": b'{"enabled": false, "context": {}}',
         }
         mock_redis_client.hgetall.return_value = redis_data
 
         _flag_cache["cache_flag"] = {"enabled": True, "context": {"source": "cache"}}
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             flags = await list_flags()
 
             # Should have flags from both sources
@@ -380,11 +408,13 @@ class TestListFlags:
         """Test listing flags with invalid JSON in Redis."""
         redis_data = {
             b"valid_flag": b'{"enabled": true, "context": {}}',
-            b"invalid_flag": b'invalid json'
+            b"invalid_flag": b"invalid json",
         }
         mock_redis_client.hgetall.return_value = redis_data
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             flags = await list_flags()
 
             # Should only have valid flag
@@ -402,7 +432,9 @@ class TestDeleteFlag:
 
         _flag_cache["delete_me"] = {"enabled": True, "context": {}}
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await delete_flag("delete_me")
 
             assert result is True
@@ -425,7 +457,9 @@ class TestDeleteFlag:
         """Test deleting non-existent flag."""
         mock_redis_client.hdel.return_value = 0  # 0 flags deleted
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await delete_flag("nonexistent")
 
             assert result is False
@@ -437,7 +471,9 @@ class TestDeleteFlag:
 
         _flag_cache["error_delete"] = {"enabled": True, "context": {}}
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             result = await delete_flag("error_delete")
 
             # Should still succeed from cache deletion
@@ -455,8 +491,13 @@ class TestUtilityFunctions:
 
         _flag_cache["test"] = {"enabled": True, "context": {}}
 
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=True):
-            with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=True
+        ):
+            with patch(
+                "dotmac.platform.feature_flags.core.get_redis_client",
+                return_value=mock_redis_client,
+            ):
                 with patch("dotmac.platform.feature_flags.core.settings") as mock_settings:
                     mock_settings.redis.redis_url = "redis://localhost:6379/0"
 
@@ -473,7 +514,9 @@ class TestUtilityFunctions:
         """Test getting status when Redis is unavailable."""
         _flag_cache["test"] = {"enabled": True, "context": {}}
 
-        with patch("dotmac.platform.feature_flags.core._check_redis_availability", return_value=False):
+        with patch(
+            "dotmac.platform.feature_flags.core._check_redis_availability", return_value=False
+        ):
             status = await get_flag_status()
 
             assert status["redis_available"] is False
@@ -495,11 +538,13 @@ class TestUtilityFunctions:
         """Test syncing flags from Redis."""
         redis_data = {
             b"flag1": b'{"enabled": true, "context": {}}',
-            b"flag2": b'{"enabled": false, "context": {"env": "test"}}'
+            b"flag2": b'{"enabled": false, "context": {"env": "test"}}',
         }
         mock_redis_client.hgetall.return_value = redis_data
 
-        with patch("dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client):
+        with patch(
+            "dotmac.platform.feature_flags.core.get_redis_client", return_value=mock_redis_client
+        ):
             synced_count = await sync_from_redis()
 
             assert synced_count == 2

@@ -4,8 +4,8 @@ Data importers using pandas for various file formats.
 
 import asyncio
 import xml.etree.ElementTree as ET
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator, Optional
 
 import pandas as pd
 import yaml
@@ -275,7 +275,7 @@ class YAMLImporter(BaseImporter):
         try:
             self._progress.status = TransferStatus.RUNNING
 
-            with open(file_path, "r", encoding=self.options.encoding) as f:
+            with open(file_path, encoding=self.options.encoding) as f:
                 data = yaml.safe_load(f)
 
             # Convert to list of records if not already
@@ -337,8 +337,8 @@ def detect_format(file_path: Path) -> DataFormat:
 def create_importer(
     format: DataFormat,
     config: TransferConfig,
-    options: Optional[ImportOptions] = None,
-    progress_callback: Optional[ProgressCallback] = None,
+    options: ImportOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> BaseImporter:
     """Create an importer for the specified format."""
     options = options or ImportOptions()
@@ -364,10 +364,10 @@ def create_importer(
 
 async def import_file(
     file_path: str,
-    format: Optional[DataFormat] = None,
-    config: Optional[TransferConfig] = None,
-    options: Optional[ImportOptions] = None,
-    progress_callback: Optional[ProgressCallback] = None,
+    format: DataFormat | None = None,
+    config: TransferConfig | None = None,
+    options: ImportOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> AsyncGenerator[DataBatch, None]:
     """Import data from a file."""
     path = Path(file_path)

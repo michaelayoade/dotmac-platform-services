@@ -10,6 +10,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
+pytestmark = pytest.mark.asyncio
+
+
 # Mark all tests in this module as integration tests
 pytestmark = [
     pytest.mark.integration,

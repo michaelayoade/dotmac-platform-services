@@ -13,18 +13,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.orm import clear_mappers
 
 # Set test environment
-os.environ['TESTING'] = '1'
-os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
+os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 # Import models with error handling
 try:
     from dotmac.platform.billing.catalog.models import (
-    Product,
-    ProductCategory,
-    ProductType,
-    UsageType,
-    ProductCreateRequest,
-    ProductCategoryCreateRequest,
+        Product,
+        ProductCategory,
+        ProductType,
+        UsageType,
+        ProductCreateRequest,
+        ProductCategoryCreateRequest,
     )
 except ImportError:
     # Create mock classes if imports fail
@@ -37,12 +37,12 @@ except ImportError:
 
 try:
     from dotmac.platform.billing.subscriptions.models import (
-    SubscriptionPlan,
-    Subscription,
-    BillingCycle,
-    SubscriptionStatus,
-    SubscriptionPlanCreateRequest,
-    SubscriptionCreateRequest,
+        SubscriptionPlan,
+        Subscription,
+        BillingCycle,
+        SubscriptionStatus,
+        SubscriptionPlanCreateRequest,
+        SubscriptionCreateRequest,
     )
 except ImportError:
     SubscriptionPlan = MagicMock
@@ -54,10 +54,10 @@ except ImportError:
 
 try:
     from dotmac.platform.billing.pricing.models import (
-    PricingRule,
-    DiscountType,
-    PricingRuleCreateRequest,
-    PriceCalculationRequest,
+        PricingRule,
+        DiscountType,
+        PricingRuleCreateRequest,
+        PriceCalculationRequest,
     )
 except ImportError:
     PricingRule = MagicMock
@@ -108,6 +108,7 @@ def user_id():
 # ========================================
 # Product Catalog Fixtures
 # ========================================
+
 
 @pytest.fixture
 def sample_product_category():
@@ -196,6 +197,7 @@ def category_create_request():
 # Subscription Fixtures
 # ========================================
 
+
 @pytest.fixture
 def sample_subscription_plan():
     """Sample subscription plan for testing."""
@@ -278,6 +280,7 @@ def subscription_create_request():
 # Pricing Fixtures
 # ========================================
 
+
 @pytest.fixture
 def sample_pricing_rule():
     """Sample pricing rule for testing."""
@@ -343,6 +346,7 @@ def price_calculation_request():
 # Service Fixtures (Mocked)
 # ========================================
 
+
 @pytest.fixture
 def mock_catalog_service():
     """Mock product catalog service."""
@@ -374,6 +378,7 @@ def mock_integration_service():
 # ========================================
 # Database Fixtures
 # ========================================
+
 
 @pytest.fixture
 async def mock_db_session():
@@ -482,6 +487,7 @@ def mock_db_pricing_rule():
 # ========================================
 # Test Data Builders
 # ========================================
+
 
 class TestDataBuilder:
     """Helper class for building test data with variations."""
@@ -596,6 +602,7 @@ def test_data_builder():
 # Authentication and Context Fixtures
 # ========================================
 
+
 @pytest.fixture
 def mock_current_user():
     """Mock authenticated user for testing."""
@@ -605,7 +612,7 @@ def mock_current_user():
         user_id="user_123",
         tenant_id="test-tenant-123",
         scopes=["billing:read", "billing:write", "billing:admin"],
-        metadata={"test": True}
+        metadata={"test": True},
     )
     return user_claims
 
@@ -614,6 +621,7 @@ def mock_current_user():
 def mock_tenant_context():
     """Mock tenant context for testing."""
     from unittest.mock import MagicMock
+
     context = MagicMock()
     context.tenant_id = "test-tenant-123"
     context.user_id = "user_123"
@@ -623,6 +631,7 @@ def mock_tenant_context():
 # ========================================
 # Error Fixtures
 # ========================================
+
 
 @pytest.fixture
 def billing_error_scenarios():
@@ -649,3 +658,110 @@ def billing_error_scenarios():
             "message": "Subscription operation error",
         },
     }
+
+
+# ========================================
+# Router Testing Fixtures
+# ========================================
+
+
+@pytest.fixture
+async def router_client(async_session, test_app):
+    """
+    HTTP client for router integration tests with proper session override.
+
+    This fixture ensures the router endpoints use the same database session
+    as the test, allowing tests to create data and verify it through API calls.
+
+    Overrides BOTH get_session_dependency AND get_async_session since different
+    routers use different session dependencies.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from dotmac.platform.db import get_session_dependency, get_async_session
+
+    # Override BOTH session dependencies to use test session
+    async def override_get_session():
+        yield async_session
+
+    test_app.dependency_overrides[get_session_dependency] = override_get_session
+    test_app.dependency_overrides[get_async_session] = override_get_session
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+    # Clear overrides after test
+    test_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def unauth_client(async_session):
+    """
+    HTTP client for testing unauthorized access (401/403 scenarios).
+
+    This fixture creates a fresh FastAPI app WITHOUT auth override,
+    allowing tests to verify authentication failures properly.
+
+    Still includes session override for database consistency.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from fastapi import FastAPI
+    from dotmac.platform.db import get_session_dependency, get_async_session
+    from dotmac.platform.tenant import get_current_tenant_id
+
+    # Create minimal app without auth override
+    app = FastAPI(title="Unauth Test App")
+
+    # Override session dependencies (needed for DB access)
+    async def override_get_session():
+        yield async_session
+
+    app.dependency_overrides[get_session_dependency] = override_get_session
+    app.dependency_overrides[get_async_session] = override_get_session
+
+    # Override tenant (needed for tenant filtering)
+    def override_get_current_tenant_id():
+        return "test-tenant"
+
+    app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+
+    # Register billing routers
+    try:
+        from dotmac.platform.billing.payments.router import router as payments_router
+
+        app.include_router(payments_router, prefix="/api/v1/billing", tags=["Payments"])
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.billing.subscriptions.router import router as subscriptions_router
+
+        app.include_router(
+            subscriptions_router, prefix="/api/v1/billing/subscriptions", tags=["Subscriptions"]
+        )
+    except ImportError:
+        pass
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def error_mock_client(test_app):
+    """
+    HTTP client for testing error handling with mocked dependencies.
+
+    This fixture does NOT override session dependencies, allowing tests
+    to mock database errors and other failure scenarios.
+
+    Note: Cannot be used with tests that need real DB data.
+    """
+    from httpx import AsyncClient, ASGITransport
+
+    # Use test_app but don't override sessions - allows mocking
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client

@@ -5,25 +5,24 @@ Connects the billing system with existing invoice and payment systems.
 Handles automated billing workflows and subscription lifecycle integration.
 """
 
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
 import logging
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .catalog.service import ProductService
-from .subscriptions.service import SubscriptionService
-from .invoicing.service import InvoiceService
 from .core.enums import InvoiceStatus
-from .subscriptions.models import (
-    SubscriptionStatus,
-    SubscriptionEventType,
-)
-from .pricing.service import PricingEngine
+from .invoicing.service import InvoiceService
 from .pricing.models import PriceCalculationRequest
-
+from .pricing.service import PricingEngine
+from .subscriptions.models import (
+    SubscriptionEventType,
+    SubscriptionStatus,
+)
+from .subscriptions.service import SubscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -38,21 +37,21 @@ class InvoiceItem(BaseModel):
     total_amount: Decimal = Field(description="Total amount before discounts")
     discount_amount: Decimal = Field(default=Decimal("0"), description="Discount applied")
     final_amount: Decimal = Field(description="Final amount after discounts")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class BillingInvoiceRequest(BaseModel):
     """Request to create invoice from billing system."""
 
     customer_id: str = Field(description="Customer identifier")
-    subscription_id: Optional[str] = Field(None, description="Related subscription")
+    subscription_id: str | None = Field(None, description="Related subscription")
     billing_period_start: datetime = Field(description="Billing period start")
     billing_period_end: datetime = Field(description="Billing period end")
-    items: List[InvoiceItem] = Field(description="Invoice line items")
+    items: list[InvoiceItem] = Field(description="Invoice line items")
     subtotal: Decimal = Field(description="Subtotal before discounts")
     total_discount: Decimal = Field(description="Total discount amount")
     total_amount: Decimal = Field(description="Final invoice amount")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class BillingIntegrationService:
@@ -60,16 +59,14 @@ class BillingIntegrationService:
 
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
-        self.catalog_service = ProductService()
-        self.subscription_service = SubscriptionService()
-        self.pricing_service = PricingEngine()
+        self.catalog_service = ProductService(db_session)
+        self.subscription_service = SubscriptionService(db_session)
+        self.pricing_service = PricingEngine(db_session)
         self.invoice_service = InvoiceService(db_session)
 
     async def process_subscription_billing(
-        self,
-        subscription_id: str,
-        tenant_id: str
-    ) -> Optional[str]:
+        self, subscription_id: str, tenant_id: str
+    ) -> str | None:
         """
         Process billing for a subscription.
 
@@ -83,7 +80,7 @@ class BillingIntegrationService:
             if not subscription or not subscription.is_active():
                 logger.warning(
                     "Subscription not active for billing",
-                    extra={"subscription_id": subscription_id, "tenant_id": tenant_id}
+                    extra={"subscription_id": subscription_id, "tenant_id": tenant_id},
                 )
                 return None
 
@@ -92,7 +89,7 @@ class BillingIntegrationService:
             if not plan:
                 logger.error(
                     "Plan not found for subscription",
-                    extra={"subscription_id": subscription_id, "plan_id": subscription.plan_id}
+                    extra={"subscription_id": subscription_id, "plan_id": subscription.plan_id},
                 )
                 return None
 
@@ -100,7 +97,7 @@ class BillingIntegrationService:
             if subscription.is_in_trial():
                 logger.info(
                     "Subscription in trial, skipping billing",
-                    extra={"subscription_id": subscription_id}
+                    extra={"subscription_id": subscription_id},
                 )
                 return None
 
@@ -120,9 +117,7 @@ class BillingIntegrationService:
                 customer_segments=[],  # Could be enhanced with customer segments
             )
 
-            pricing_result = await self.pricing_service.calculate_price(
-                pricing_request, tenant_id
-            )
+            pricing_result = await self.pricing_service.calculate_price(pricing_request, tenant_id)
 
             # Create base subscription item
             subscription_item = InvoiceItem(
@@ -137,7 +132,7 @@ class BillingIntegrationService:
                     "subscription_id": subscription_id,
                     "plan_id": plan.plan_id,
                     "billing_cycle": plan.billing_cycle,
-                }
+                },
             )
             invoice_items.append(subscription_item)
             total_amount += base_price
@@ -153,16 +148,14 @@ class BillingIntegrationService:
                     total_amount=plan.setup_fee,
                     discount_amount=Decimal("0"),
                     final_amount=plan.setup_fee,
-                    metadata={"type": "setup_fee", "subscription_id": subscription_id}
+                    metadata={"type": "setup_fee", "subscription_id": subscription_id},
                 )
                 invoice_items.append(setup_item)
                 total_amount += plan.setup_fee
 
             # Process usage-based charges if applicable
             if plan.supports_usage_billing():
-                usage_items = await self._calculate_usage_charges(
-                    subscription, plan, tenant_id
-                )
+                usage_items = await self._calculate_usage_charges(subscription, plan, tenant_id)
                 invoice_items.extend(usage_items)
                 for item in usage_items:
                     total_amount += item.total_amount
@@ -183,7 +176,7 @@ class BillingIntegrationService:
                     "subscription_id": subscription_id,
                     "plan_id": plan.plan_id,
                     "tenant_id": tenant_id,
-                }
+                },
             )
 
             # Create invoice through existing system
@@ -195,7 +188,7 @@ class BillingIntegrationService:
                     subscription_id,
                     SubscriptionEventType.RENEWED,
                     {"invoice_id": invoice_id, "amount": str(invoice_request.total_amount)},
-                    tenant_id
+                    tenant_id,
                 )
 
                 logger.info(
@@ -203,8 +196,8 @@ class BillingIntegrationService:
                     extra={
                         "subscription_id": subscription_id,
                         "invoice_id": invoice_id,
-                        "amount": str(invoice_request.total_amount)
-                    }
+                        "amount": str(invoice_request.total_amount),
+                    },
                 )
 
             return invoice_id
@@ -212,16 +205,13 @@ class BillingIntegrationService:
         except Exception as e:
             logger.error(
                 "Failed to process subscription billing",
-                extra={"subscription_id": subscription_id, "error": str(e)}
+                extra={"subscription_id": subscription_id, "error": str(e)},
             )
             raise
 
     async def _calculate_usage_charges(
-        self,
-        subscription,
-        plan,
-        tenant_id: str
-    ) -> List[InvoiceItem]:
+        self, subscription, plan, tenant_id: str
+    ) -> list[InvoiceItem]:
         """Calculate usage-based charges for subscription."""
         usage_items = []
 
@@ -255,7 +245,7 @@ class BillingIntegrationService:
                             "included_allowance": included,
                             "actual_usage": current_usage,
                             "overage_units": overage,
-                        }
+                        },
                     )
                     usage_items.append(usage_item)
 
@@ -264,15 +254,11 @@ class BillingIntegrationService:
     def _is_first_billing(self, subscription) -> bool:
         """Check if this is the first billing for the subscription."""
         # Simple check - could be enhanced with more sophisticated logic
-        return subscription.created_at >= (
-            datetime.now(timezone.utc) - timedelta(days=7)
-        )
+        return subscription.created_at >= (datetime.now(UTC) - timedelta(days=7))
 
     async def _create_invoice(
-        self,
-        invoice_request: BillingInvoiceRequest,
-        tenant_id: str
-    ) -> Optional[str]:
+        self, invoice_request: BillingInvoiceRequest, tenant_id: str
+    ) -> str | None:
         """
         Create invoice using existing invoice system.
         """
@@ -280,14 +266,16 @@ class BillingIntegrationService:
             # Convert invoice items to the format expected by InvoiceService
             line_items = []
             for item in invoice_request.items:
-                line_items.append({
-                    "description": item.description,
-                    "quantity": item.quantity,
-                    "unit_price": int(item.unit_price * 100),  # Convert to cents
-                    "total_price": int(item.total_amount * 100),
-                    "product_id": item.product_id,
-                    "subscription_id": invoice_request.subscription_id,
-                })
+                line_items.append(
+                    {
+                        "description": item.description,
+                        "quantity": item.quantity,
+                        "unit_price": int(item.unit_price * 100),  # Convert to cents
+                        "total_price": int(item.total_amount * 100),
+                        "product_id": item.product_id,
+                        "subscription_id": invoice_request.subscription_id,
+                    }
+                )
 
             # Create invoice using the actual invoice service
             invoice = await self.invoice_service.create_invoice(
@@ -314,21 +302,20 @@ class BillingIntegrationService:
                     "amount": str(invoice_request.total_amount),
                     "items_count": len(invoice_request.items),
                     "tenant_id": tenant_id,
-                }
+                },
             )
 
             # Auto-finalize the invoice if needed
             if invoice.status == InvoiceStatus.DRAFT:
                 finalized_invoice = await self.invoice_service.finalize_invoice(
-                    tenant_id=tenant_id,
-                    invoice_id=invoice.invoice_id
+                    tenant_id=tenant_id, invoice_id=invoice.invoice_id
                 )
                 logger.info(
                     "Auto-finalized subscription invoice",
                     extra={
                         "invoice_id": finalized_invoice.invoice_id,
                         "subscription_id": invoice_request.subscription_id,
-                    }
+                    },
                 )
 
             return invoice.invoice_id
@@ -341,16 +328,12 @@ class BillingIntegrationService:
                     "subscription_id": invoice_request.subscription_id,
                     "error": str(e),
                     "tenant_id": tenant_id,
-                }
+                },
             )
             return None
 
     async def process_failed_payment(
-        self,
-        subscription_id: str,
-        invoice_id: str,
-        tenant_id: str,
-        retry_count: int = 0
+        self, subscription_id: str, invoice_id: str, tenant_id: str, retry_count: int = 0
     ) -> bool:
         """
         Handle failed payment for subscription.
@@ -376,12 +359,12 @@ class BillingIntegrationService:
                     subscription_id,
                     SubscriptionEventType.PAYMENT_FAILED,
                     {"invoice_id": invoice_id, "retry_count": retry_count},
-                    tenant_id
+                    tenant_id,
                 )
 
                 logger.warning(
                     "Subscription payment failed, marked as past due",
-                    extra={"subscription_id": subscription_id, "invoice_id": invoice_id}
+                    extra={"subscription_id": subscription_id, "invoice_id": invoice_id},
                 )
 
                 return True  # Keep active for retry
@@ -390,10 +373,7 @@ class BillingIntegrationService:
                 # Still in retry window
                 logger.info(
                     "Subscription payment retry failed",
-                    extra={
-                        "subscription_id": subscription_id,
-                        "retry_count": retry_count
-                    }
+                    extra={"subscription_id": subscription_id, "retry_count": retry_count},
                 )
                 return True
 
@@ -407,12 +387,12 @@ class BillingIntegrationService:
                     subscription_id,
                     SubscriptionEventType.ENDED,
                     {"reason": "payment_failure", "invoice_id": invoice_id},
-                    tenant_id
+                    tenant_id,
                 )
 
                 logger.error(
                     "Subscription canceled due to payment failures",
-                    extra={"subscription_id": subscription_id, "invoice_id": invoice_id}
+                    extra={"subscription_id": subscription_id, "invoice_id": invoice_id},
                 )
 
                 return False
@@ -420,15 +400,12 @@ class BillingIntegrationService:
         except Exception as e:
             logger.error(
                 "Failed to process payment failure",
-                extra={"subscription_id": subscription_id, "error": str(e)}
+                extra={"subscription_id": subscription_id, "error": str(e)},
             )
             raise
 
     async def process_successful_payment(
-        self,
-        subscription_id: str,
-        invoice_id: str,
-        tenant_id: str
+        self, subscription_id: str, invoice_id: str, tenant_id: str
     ) -> bool:
         """Handle successful payment for subscription."""
         try:
@@ -449,17 +426,15 @@ class BillingIntegrationService:
                 subscription_id,
                 SubscriptionEventType.PAYMENT_SUCCEEDED,
                 {"invoice_id": invoice_id},
-                tenant_id
+                tenant_id,
             )
 
             # Reset usage records for new billing period
-            await self.subscription_service._reset_usage_for_new_period(
-                subscription_id, tenant_id
-            )
+            await self.subscription_service._reset_usage_for_new_period(subscription_id, tenant_id)
 
             logger.info(
                 "Subscription payment processed successfully",
-                extra={"subscription_id": subscription_id, "invoice_id": invoice_id}
+                extra={"subscription_id": subscription_id, "invoice_id": invoice_id},
             )
 
             return True
@@ -467,11 +442,11 @@ class BillingIntegrationService:
         except Exception as e:
             logger.error(
                 "Failed to process successful payment",
-                extra={"subscription_id": subscription_id, "error": str(e)}
+                extra={"subscription_id": subscription_id, "error": str(e)},
             )
             raise
 
-    async def process_subscription_renewals(self, tenant_id: str) -> Dict[str, Any]:
+    async def process_subscription_renewals(self, tenant_id: str) -> dict[str, Any]:
         """
         Process all subscription renewals for a tenant.
 
@@ -492,7 +467,7 @@ class BillingIntegrationService:
 
             logger.info(
                 "Processing subscription renewals",
-                extra={"tenant_id": tenant_id, "count": len(subscriptions_due)}
+                extra={"tenant_id": tenant_id, "count": len(subscriptions_due)},
             )
 
             for subscription in subscriptions_due:
@@ -511,22 +486,19 @@ class BillingIntegrationService:
                 except Exception as e:
                     logger.error(
                         "Failed to process subscription renewal",
-                        extra={
-                            "subscription_id": subscription.subscription_id,
-                            "error": str(e)
-                        }
+                        extra={"subscription_id": subscription.subscription_id, "error": str(e)},
                     )
                     results["errors"] += 1
 
             logger.info(
                 "Subscription renewal batch completed",
-                extra={"tenant_id": tenant_id, "results": results}
+                extra={"tenant_id": tenant_id, "results": results},
             )
 
         except Exception as e:
             logger.error(
                 "Failed to process subscription renewals",
-                extra={"tenant_id": tenant_id, "error": str(e)}
+                extra={"tenant_id": tenant_id, "error": str(e)},
             )
             results["errors"] += 1
 
@@ -536,11 +508,11 @@ class BillingIntegrationService:
         self,
         customer_id: str,
         product_id: str,
-        usage_data: Dict[str, int],
+        usage_data: dict[str, int],
         tenant_id: str,
-        billing_period_start: Optional[datetime] = None,
-        billing_period_end: Optional[datetime] = None,
-    ) -> Optional[str]:
+        billing_period_start: datetime | None = None,
+        billing_period_end: datetime | None = None,
+    ) -> str | None:
         """
         Generate usage-based invoice for a customer.
 
@@ -551,14 +523,13 @@ class BillingIntegrationService:
             product = await self.catalog_service.get_product(product_id, tenant_id)
             if not product or not product.is_usage_based():
                 logger.error(
-                    "Product not found or not usage-based",
-                    extra={"product_id": product_id}
+                    "Product not found or not usage-based", extra={"product_id": product_id}
                 )
                 return None
 
             # Set default billing period
             if not billing_period_end:
-                billing_period_end = datetime.now(timezone.utc)
+                billing_period_end = datetime.now(UTC)
             if not billing_period_start:
                 billing_period_start = billing_period_end - timedelta(days=30)
 
@@ -594,7 +565,7 @@ class BillingIntegrationService:
                             total_amount=charge_amount,
                             discount_amount=pricing_result.total_discount_amount,
                             final_amount=pricing_result.final_price,
-                            metadata={"usage_type": usage_type}
+                            metadata={"usage_type": usage_type},
                         )
                         invoice_items.append(usage_item)
                         total_amount += pricing_result.final_price
@@ -602,7 +573,7 @@ class BillingIntegrationService:
             if not invoice_items:
                 logger.info(
                     "No usage charges to bill",
-                    extra={"customer_id": customer_id, "product_id": product_id}
+                    extra={"customer_id": customer_id, "product_id": product_id},
                 )
                 return None
 
@@ -620,7 +591,7 @@ class BillingIntegrationService:
                     "billing_source": "usage",
                     "product_id": product_id,
                     "tenant_id": tenant_id,
-                }
+                },
             )
 
             invoice_id = await self._create_invoice(invoice_request, tenant_id)
@@ -631,8 +602,8 @@ class BillingIntegrationService:
                     "customer_id": customer_id,
                     "product_id": product_id,
                     "invoice_id": invoice_id,
-                    "amount": str(total_amount)
-                }
+                    "amount": str(total_amount),
+                },
             )
 
             return invoice_id
@@ -640,6 +611,6 @@ class BillingIntegrationService:
         except Exception as e:
             logger.error(
                 "Failed to generate usage invoice",
-                extra={"customer_id": customer_id, "product_id": product_id, "error": str(e)}
+                extra={"customer_id": customer_id, "product_id": product_id, "error": str(e)},
             )
             raise

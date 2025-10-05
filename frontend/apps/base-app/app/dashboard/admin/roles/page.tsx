@@ -142,7 +142,7 @@ export default function RolesManagementPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-white">Role Management</h1>
-              <p className="text-slate-400 mt-2">
+              <p className="text-muted-foreground mt-2">
                 Manage roles and permissions for your organization
               </p>
             </div>
@@ -160,21 +160,21 @@ export default function RolesManagementPage() {
           {/* Search and Filters */}
           <div className="flex gap-4 mt-6">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search roles..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white placeholder-muted-foreground focus:outline-none focus:border-sky-500"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-slate-400" />
+              <Filter className="h-4 w-4 text-muted-foreground" />
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500"
+                className="px-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-sky-500"
               >
                 <option value="all">All Roles</option>
                 <option value="system">System Roles</option>
@@ -188,14 +188,14 @@ export default function RolesManagementPage() {
         {/* Roles Grid */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-slate-400">Loading roles...</div>
+            <div className="text-muted-foreground">Loading roles...</div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredRoles.map((role) => (
               <div
                 key={role.id}
-                className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
+                className="bg-accent border border-border rounded-lg p-4 hover:border-border transition-colors"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -209,11 +209,11 @@ export default function RolesManagementPage() {
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-400 mb-3 line-clamp-2">
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                   {role.description || 'No description available'}
                 </p>
 
-                <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
+                <div className="flex items-center justify-between text-xs text-foreground0 mb-3">
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
                     {role.user_count || 0} users
@@ -222,18 +222,18 @@ export default function RolesManagementPage() {
                 </div>
 
                 <div className="mb-3">
-                  <div className="text-xs text-slate-500 mb-1">Permissions</div>
+                  <div className="text-xs text-foreground0 mb-1">Permissions</div>
                   <div className="flex flex-wrap gap-1">
                     {role.permissions.slice(0, 3).map((perm) => (
                       <span
                         key={perm.id}
-                        className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded"
+                        className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded"
                       >
                         {perm.name}
                       </span>
                     ))}
                     {role.permissions.length > 3 && (
-                      <span className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded">
+                      <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
                         +{role.permissions.length - 3} more
                       </span>
                     )}
@@ -243,7 +243,7 @@ export default function RolesManagementPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEditRole(role)}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-muted text-white rounded hover:bg-accent transition-colors"
                   >
                     <Edit className="h-3 w-3" />
                     View/Edit
@@ -271,7 +271,7 @@ export default function RolesManagementPage() {
 
         {/* Empty State */}
         {!loading && filteredRoles.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Shield className="h-12 w-12 mb-4" />
             <p className="text-lg font-medium">No roles found</p>
             <p className="text-sm mt-2">

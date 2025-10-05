@@ -50,14 +50,14 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-slate-950">
+    <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-background">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block text-sm text-slate-400 hover:text-slate-300 mb-4">
+          <Link href="/" className="inline-block text-sm text-muted-foreground hover:text-muted-foreground mb-4">
             ← Back to home
           </Link>
-          <h1 className="text-3xl font-bold text-slate-50 mb-2">Welcome back</h1>
-          <p className="text-slate-400">Sign in to your DotMac Platform account</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back</h1>
+          <p className="text-muted-foreground">Sign in to your DotMac Platform account</p>
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-xs text-blue-300 font-medium">Test Credentials:</p>
@@ -66,7 +66,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-8 space-y-6" data-testid="login-form">
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-card/50 backdrop-blur border border-border rounded-lg p-8 space-y-6" data-testid="login-form">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm" data-testid="error-message">
               {error}
@@ -74,16 +74,17 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-2">
               Email address
             </label>
             <input
               id="email"
               type="email"
+              autoComplete="email"
               {...register('email')}
-              className={`w-full px-3 py-2 bg-slate-800 border ${
-                errors.email ? 'border-red-500' : 'border-slate-700'
-              } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              className={`w-full px-3 py-2 bg-accent border ${
+                errors.email ? 'border-red-500' : 'border-border'
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="you@example.com"
               data-testid="email-input"
             />
@@ -93,16 +94,17 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-2">
               Password
             </label>
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
               {...register('password')}
-              className={`w-full px-3 py-2 bg-slate-800 border ${
-                errors.password ? 'border-red-500' : 'border-slate-700'
-              } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              className={`w-full px-3 py-2 bg-accent border ${
+                errors.password ? 'border-red-500' : 'border-border'
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
               placeholder="••••••••"
               data-testid="password-input"
             />
@@ -116,9 +118,9 @@ export default function LoginPage() {
               <input
                 id="remember-me"
                 type="checkbox"
-                className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900"
+                className="h-4 w-4 rounded border-border bg-accent text-sky-500 focus:ring-sky-500 focus:ring-offset-background"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-300">
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-muted-foreground">
                 Remember me
               </label>
             </div>
@@ -131,15 +133,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-sky-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="submit-button"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          Don't have an account?{' '}
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="text-sky-400 hover:text-sky-300 font-medium">
             Sign up
           </Link>

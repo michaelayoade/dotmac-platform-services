@@ -1,5 +1,22 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
+import { toHaveNoViolations } from 'jest-axe'
+
+// MSW Server for API mocking
+// Commented out until MSW is fully installed
+// import { server } from './__tests__/mocks/server'
+
+// Extend Jest matchers with jest-axe
+expect.extend(toHaveNoViolations)
+
+// Establish API mocking before all tests
+// beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
+
+// Reset any request handlers that are declared in a test
+// afterEach(() => server.resetHandlers())
+
+// Clean up after all tests are done
+// afterAll(() => server.close())
 
 // Mock next/router
 jest.mock('next/router', () => ({

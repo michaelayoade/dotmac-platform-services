@@ -28,11 +28,7 @@ from tabulate import tabulate
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.dotmac.platform.database import get_db_session, init_db
-from src.dotmac.platform.data_import import (
-    DataImportService,
-    ImportJobStatus,
-    ImportJobType
-)
+from src.dotmac.platform.data_import import DataImportService, ImportJobStatus, ImportJobType
 
 app = typer.Typer(help="Data import CLI for DotMac Platform Services")
 console = Console()
@@ -40,35 +36,18 @@ console = Console()
 
 @app.command()
 def import_customers(
-    file_path: Path = typer.Argument(
-        ...,
-        help="Path to CSV or JSON file containing customer data"
-    ),
-    tenant_id: str = typer.Option(
-        ...,
-        "--tenant-id", "-t",
-        help="Tenant ID for the import"
-    ),
+    file_path: Path = typer.Argument(..., help="Path to CSV or JSON file containing customer data"),
+    tenant_id: str = typer.Option(..., "--tenant-id", "-t", help="Tenant ID for the import"),
     batch_size: int = typer.Option(
-        100,
-        "--batch-size", "-b",
-        help="Number of records to process at once"
+        100, "--batch-size", "-b", help="Number of records to process at once"
     ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run", "-d",
-        help="Validate data without persisting"
-    ),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Validate data without persisting"),
     user_id: Optional[str] = typer.Option(
-        None,
-        "--user-id", "-u",
-        help="User ID initiating the import"
+        None, "--user-id", "-u", help="User ID initiating the import"
     ),
     async_mode: bool = typer.Option(
-        False,
-        "--async", "-a",
-        help="Process import asynchronously using Celery"
-    )
+        False, "--async", "-a", help="Process import asynchronously using Celery"
+    ),
 ):
     """Import customers from CSV or JSON file."""
     if not file_path.exists():
@@ -76,7 +55,7 @@ def import_customers(
         raise typer.Exit(1)
 
     file_ext = file_path.suffix.lower()
-    if file_ext not in ['.csv', '.json']:
+    if file_ext not in [".csv", ".json"]:
         console.print("[red]Error: Only CSV and JSON files are supported[/red]")
         raise typer.Exit(1)
 
@@ -84,9 +63,7 @@ def import_customers(
     if dry_run:
         console.print("[yellow]DRY RUN MODE - No data will be persisted[/yellow]")
 
-    asyncio.run(_import_customers(
-        file_path, tenant_id, batch_size, dry_run, user_id, async_mode
-    ))
+    asyncio.run(_import_customers(file_path, tenant_id, batch_size, dry_run, user_id, async_mode))
 
 
 async def _import_customers(
@@ -95,7 +72,7 @@ async def _import_customers(
     batch_size: int,
     dry_run: bool,
     user_id: Optional[str],
-    async_mode: bool = False
+    async_mode: bool = False,
 ):
     """Async function to import customers."""
     await init_db()
@@ -104,21 +81,23 @@ async def _import_customers(
         service = DataImportService(session)
 
         try:
-            if file_path.suffix.lower() == '.csv':
-                with open(file_path, 'rb') as f:
+            if file_path.suffix.lower() == ".csv":
+                with open(file_path, "rb") as f:
                     result = await service.import_customers_csv(
                         f,
                         tenant_id=tenant_id,
                         user_id=user_id,
                         batch_size=batch_size,
                         dry_run=dry_run,
-                        use_celery=async_mode
+                        use_celery=async_mode,
                     )
             else:  # JSON
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     data = json.load(f)
                     if not isinstance(data, list):
-                        console.print("[red]Error: JSON file must contain an array of customer records[/red]")
+                        console.print(
+                            "[red]Error: JSON file must contain an array of customer records[/red]"
+                        )
                         raise typer.Exit(1)
 
                     result = await service.import_customers_json(
@@ -127,7 +106,7 @@ async def _import_customers(
                         user_id=user_id,
                         batch_size=batch_size,
                         dry_run=dry_run,
-                        use_celery=async_mode
+                        use_celery=async_mode,
                     )
 
             # Display results
@@ -140,35 +119,18 @@ async def _import_customers(
 
 @app.command()
 def import_invoices(
-    file_path: Path = typer.Argument(
-        ...,
-        help="Path to CSV or JSON file containing invoice data"
-    ),
-    tenant_id: str = typer.Option(
-        ...,
-        "--tenant-id", "-t",
-        help="Tenant ID for the import"
-    ),
+    file_path: Path = typer.Argument(..., help="Path to CSV or JSON file containing invoice data"),
+    tenant_id: str = typer.Option(..., "--tenant-id", "-t", help="Tenant ID for the import"),
     batch_size: int = typer.Option(
-        100,
-        "--batch-size", "-b",
-        help="Number of records to process at once"
+        100, "--batch-size", "-b", help="Number of records to process at once"
     ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run", "-d",
-        help="Validate data without persisting"
-    ),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Validate data without persisting"),
     user_id: Optional[str] = typer.Option(
-        None,
-        "--user-id", "-u",
-        help="User ID initiating the import"
+        None, "--user-id", "-u", help="User ID initiating the import"
     ),
     async_mode: bool = typer.Option(
-        False,
-        "--async", "-a",
-        help="Process import asynchronously using Celery"
-    )
+        False, "--async", "-a", help="Process import asynchronously using Celery"
+    ),
 ):
     """Import invoices from CSV or JSON file."""
     if not file_path.exists():
@@ -179,9 +141,7 @@ def import_invoices(
     if dry_run:
         console.print("[yellow]DRY RUN MODE - No data will be persisted[/yellow]")
 
-    asyncio.run(_import_invoices(
-        file_path, tenant_id, batch_size, dry_run, user_id, async_mode
-    ))
+    asyncio.run(_import_invoices(file_path, tenant_id, batch_size, dry_run, user_id, async_mode))
 
 
 async def _import_invoices(
@@ -190,7 +150,7 @@ async def _import_invoices(
     batch_size: int,
     dry_run: bool,
     user_id: Optional[str],
-    async_mode: bool = False
+    async_mode: bool = False,
 ):
     """Async function to import invoices."""
     await init_db()
@@ -199,15 +159,15 @@ async def _import_invoices(
         service = DataImportService(session)
 
         try:
-            if file_path.suffix.lower() == '.csv':
-                with open(file_path, 'rb') as f:
+            if file_path.suffix.lower() == ".csv":
+                with open(file_path, "rb") as f:
                     result = await service.import_invoices_csv(
                         f,
                         tenant_id=tenant_id,
                         user_id=user_id,
                         batch_size=batch_size,
                         dry_run=dry_run,
-                        use_celery=async_mode
+                        use_celery=async_mode,
                     )
             else:
                 console.print("[yellow]Invoice JSON import not yet implemented[/yellow]")
@@ -223,19 +183,10 @@ async def _import_invoices(
 @app.command()
 def import_bulk(
     config_file: Path = typer.Argument(
-        ...,
-        help="Path to JSON configuration file for bulk imports"
+        ..., help="Path to JSON configuration file for bulk imports"
     ),
-    tenant_id: str = typer.Option(
-        ...,
-        "--tenant-id", "-t",
-        help="Tenant ID for the import"
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run", "-d",
-        help="Validate data without persisting"
-    )
+    tenant_id: str = typer.Option(..., "--tenant-id", "-t", help="Tenant ID for the import"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Validate data without persisting"),
 ):
     """
     Perform bulk imports based on configuration file.
@@ -265,28 +216,28 @@ def import_bulk(
 
     console.print(f"[cyan]Starting bulk import with {len(config['imports'])} files[/cyan]")
 
-    for import_config in config['imports']:
-        file_path = Path(import_config['file'])
-        import_type = import_config['type']
-        batch_size = import_config.get('batch_size', 100)
+    for import_config in config["imports"]:
+        file_path = Path(import_config["file"])
+        import_type = import_config["type"]
+        batch_size = import_config.get("batch_size", 100)
 
         console.print(f"\n[blue]Importing {import_type} from {file_path}[/blue]")
 
-        if import_type == 'customers':
+        if import_type == "customers":
             import_customers(
                 file_path=file_path,
                 tenant_id=tenant_id,
                 batch_size=batch_size,
                 dry_run=dry_run,
-                user_id=None
+                user_id=None,
             )
-        elif import_type == 'invoices':
+        elif import_type == "invoices":
             import_invoices(
                 file_path=file_path,
                 tenant_id=tenant_id,
                 batch_size=batch_size,
                 dry_run=dry_run,
-                user_id=None
+                user_id=None,
             )
         else:
             console.print(f"[yellow]Unknown import type: {import_type}[/yellow]")
@@ -294,15 +245,8 @@ def import_bulk(
 
 @app.command()
 def import_status(
-    job_id: str = typer.Argument(
-        ...,
-        help="Import job ID to check status"
-    ),
-    show_failures: bool = typer.Option(
-        False,
-        "--show-failures", "-f",
-        help="Show failed records"
-    )
+    job_id: str = typer.Argument(..., help="Import job ID to check status"),
+    show_failures: bool = typer.Option(False, "--show-failures", "-f", help="Show failed records"),
 ):
     """Check the status of an import job."""
     asyncio.run(_check_import_status(job_id, show_failures))
@@ -320,9 +264,7 @@ async def _check_import_status(job_id: str, show_failures: bool):
             from sqlalchemy import select
             from src.dotmac.platform.data_import.models import ImportJob
 
-            result = await session.execute(
-                select(ImportJob).where(ImportJob.id == job_id)
-            )
+            result = await session.execute(select(ImportJob).where(ImportJob.id == job_id))
             job = result.scalar_one_or_none()
 
             if not job:
@@ -335,9 +277,7 @@ async def _check_import_status(job_id: str, show_failures: bool):
             # Show failures if requested
             if show_failures and job.failed_records > 0:
                 failures = await service.get_import_failures(
-                    job_id=job_id,
-                    tenant_id=job.tenant_id,
-                    limit=20
+                    job_id=job_id, tenant_id=job.tenant_id, limit=20
                 )
                 _display_import_failures(failures)
 
@@ -348,36 +288,21 @@ async def _check_import_status(job_id: str, show_failures: bool):
 
 @app.command()
 def list_jobs(
-    tenant_id: Optional[str] = typer.Option(
-        None,
-        "--tenant-id", "-t",
-        help="Filter by tenant ID"
-    ),
+    tenant_id: Optional[str] = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
     status: Optional[str] = typer.Option(
-        None,
-        "--status", "-s",
-        help="Filter by status (pending, in_progress, completed, failed)"
+        None, "--status", "-s", help="Filter by status (pending, in_progress, completed, failed)"
     ),
     job_type: Optional[str] = typer.Option(
-        None,
-        "--type",
-        help="Filter by job type (customers, invoices, subscriptions, payments)"
+        None, "--type", help="Filter by job type (customers, invoices, subscriptions, payments)"
     ),
-    limit: int = typer.Option(
-        20,
-        "--limit", "-l",
-        help="Maximum number of jobs to display"
-    )
+    limit: int = typer.Option(20, "--limit", "-l", help="Maximum number of jobs to display"),
 ):
     """List import jobs with optional filters."""
     asyncio.run(_list_import_jobs(tenant_id, status, job_type, limit))
 
 
 async def _list_import_jobs(
-    tenant_id: Optional[str],
-    status: Optional[str],
-    job_type: Optional[str],
-    limit: int
+    tenant_id: Optional[str], status: Optional[str], job_type: Optional[str], limit: int
 ):
     """Async function to list import jobs."""
     await init_db()
@@ -437,9 +362,11 @@ def _display_import_result(result):
             console.print(f"  • {warning}")
 
     if result.errors:
-        console.print(f"\n[red]Errors (showing first {min(10, len(result.errors))} of {len(result.errors)}):[/red]")
+        console.print(
+            f"\n[red]Errors (showing first {min(10, len(result.errors))} of {len(result.errors)}):[/red]"
+        )
         for error in result.errors[:10]:
-            if 'row_number' in error:
+            if "row_number" in error:
                 console.print(f"  Row {error['row_number']}: {error['error']}")
             else:
                 console.print(f"  • {error.get('error', str(error))}")
@@ -456,7 +383,7 @@ def _display_job_details(job):
         ImportJobStatus.FAILED: "red",
         ImportJobStatus.IN_PROGRESS: "yellow",
         ImportJobStatus.PENDING: "white",
-        ImportJobStatus.PARTIALLY_COMPLETED: "yellow"
+        ImportJobStatus.PARTIALLY_COMPLETED: "yellow",
     }.get(job.status, "white")
 
     table.add_row("Type", job.job_type.value)
@@ -500,7 +427,7 @@ def _display_jobs_table(jobs):
             ImportJobStatus.FAILED: "red",
             ImportJobStatus.IN_PROGRESS: "yellow",
             ImportJobStatus.PENDING: "white",
-            ImportJobStatus.PARTIALLY_COMPLETED: "yellow"
+            ImportJobStatus.PARTIALLY_COMPLETED: "yellow",
         }.get(job.status, "white")
 
         table.add_row(
@@ -511,7 +438,7 @@ def _display_jobs_table(jobs):
             str(job.successful_records),
             str(job.failed_records),
             f"{job.progress_percentage:.0f}%",
-            job.created_at.strftime("%Y-%m-%d %H:%M")
+            job.created_at.strftime("%Y-%m-%d %H:%M"),
         )
 
     console.print(table)

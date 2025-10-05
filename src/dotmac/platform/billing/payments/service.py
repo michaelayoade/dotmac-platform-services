@@ -3,7 +3,7 @@ Payment processing service with tenant support and idempotency
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, select
@@ -45,6 +45,146 @@ class PaymentService:
         self.db = db_session
         self.providers = payment_providers or {}
 
+    async def _validate_payment_request(
+        self, tenant_id: str, payment_method_id: str, idempotency_key: str | None
+    ) -> tuple[PaymentEntity | None, Any]:
+        """Validate payment request and return existing payment if idempotency key exists."""
+        # Check for existing payment with same idempotency key
+        existing_payment = None
+        if idempotency_key:
+            existing_payment = await self._get_payment_by_idempotency_key(
+                tenant_id, idempotency_key
+            )
+            if existing_payment:
+                return existing_payment, None
+
+        # Get and validate payment method
+        payment_method = await self._get_payment_method(tenant_id, payment_method_id)
+        if not payment_method:
+            raise PaymentMethodNotFoundError(f"Payment method {payment_method_id} not found")
+
+        if payment_method.status != PaymentMethodStatus.ACTIVE:
+            raise PaymentError(f"Payment method {payment_method_id} is not active")
+
+        return None, payment_method
+
+    async def _process_with_provider(
+        self,
+        payment_entity: PaymentEntity,
+        provider: str,
+        amount: int,
+        currency: str,
+        provider_payment_method_id: str,
+    ) -> None:
+        """Process payment with payment provider."""
+        try:
+            if provider in self.providers:
+                provider_instance = self.providers[provider]
+                result = await provider_instance.charge_payment_method(
+                    amount=amount,
+                    currency=currency,
+                    payment_method_id=provider_payment_method_id,
+                    metadata={"payment_id": payment_entity.payment_id},
+                )
+
+                # Update payment with provider response
+                payment_entity.provider_payment_id = result.provider_payment_id
+                payment_entity.provider_fee = result.provider_fee
+                payment_entity.status = (
+                    PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
+                )
+                payment_entity.failure_reason = result.error_message if not result.success else None
+                payment_entity.processed_at = datetime.now(UTC)
+            else:
+                # Mock success for testing
+                payment_entity.status = PaymentStatus.SUCCEEDED
+                payment_entity.processed_at = datetime.now(UTC)
+                logger.warning(f"Payment provider {provider} not configured, mocking success")
+
+        except Exception as e:
+            payment_entity.status = PaymentStatus.FAILED
+            payment_entity.failure_reason = str(e)
+            payment_entity.processed_at = datetime.now(UTC)
+            logger.error(f"Payment processing error: {e}")
+
+    async def _handle_payment_success(
+        self,
+        payment_entity: PaymentEntity,
+        tenant_id: str,
+        customer_id: str,
+        amount: int,
+        currency: str,
+        payment_method_id: str,
+        provider: str,
+        invoice_ids: list[str] | None,
+    ) -> None:
+        """Handle successful payment processing."""
+        # Create transaction record
+        await self._create_transaction(payment_entity, TransactionType.PAYMENT)
+
+        # Link to invoices if provided
+        if invoice_ids:
+            await self._link_payment_to_invoices(payment_entity, invoice_ids)
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.PAYMENT_SUCCEEDED.value,
+                event_data={
+                    "payment_id": payment_entity.payment_id,
+                    "customer_id": customer_id,
+                    "amount": float(amount / 100),  # Convert to decimal
+                    "currency": currency,
+                    "payment_method_id": payment_method_id,
+                    "provider": provider,
+                    "provider_payment_id": payment_entity.provider_payment_id,
+                    "invoice_ids": invoice_ids,
+                    "processed_at": (
+                        payment_entity.processed_at.isoformat()
+                        if payment_entity.processed_at
+                        else None
+                    ),
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish payment.succeeded event: {e}")
+
+    async def _handle_payment_failure(
+        self,
+        payment_entity: PaymentEntity,
+        tenant_id: str,
+        customer_id: str,
+        amount: int,
+        currency: str,
+        payment_method_id: str,
+        provider: str,
+    ) -> None:
+        """Handle failed payment processing."""
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.PAYMENT_FAILED.value,
+                event_data={
+                    "payment_id": payment_entity.payment_id,
+                    "customer_id": customer_id,
+                    "amount": float(amount / 100),
+                    "currency": currency,
+                    "payment_method_id": payment_method_id,
+                    "provider": provider,
+                    "failure_reason": payment_entity.failure_reason,
+                    "processed_at": (
+                        payment_entity.processed_at.isoformat()
+                        if payment_entity.processed_at
+                        else None
+                    ),
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish payment.failed event: {e}")
+
     async def create_payment(
         self,
         tenant_id: str,
@@ -59,19 +199,12 @@ class PaymentService:
     ) -> Payment:
         """Create and process a payment with idempotency"""
 
-        # Check for existing payment with same idempotency key
-        if idempotency_key:
-            existing = await self._get_payment_by_idempotency_key(tenant_id, idempotency_key)
-            if existing:
-                return Payment.model_validate(existing)
-
-        # Get payment method
-        payment_method = await self._get_payment_method(tenant_id, payment_method_id)
-        if not payment_method:
-            raise PaymentMethodNotFoundError(f"Payment method {payment_method_id} not found")
-
-        if payment_method.status != PaymentMethodStatus.ACTIVE:
-            raise PaymentError(f"Payment method {payment_method_id} is not active")
+        # Validate request and check for existing payment
+        existing_payment, payment_method = await self._validate_payment_request(
+            tenant_id, payment_method_id, idempotency_key
+        )
+        if existing_payment:
+            return Payment.model_validate(existing_payment)
 
         # Create payment record
         payment_entity = PaymentEntity(
@@ -95,89 +228,145 @@ class PaymentService:
         self.db.add(payment_entity)
         await self.db.commit()
 
-        try:
-            # Process with payment provider
-            if provider in self.providers:
-                provider_instance = self.providers[provider]
-                result = await provider_instance.charge_payment_method(
-                    amount=amount,
-                    currency=currency,
-                    payment_method_id=payment_method.provider_payment_method_id,
-                    metadata={"payment_id": payment_entity.payment_id},
-                )
-
-                # Update payment with provider response
-                payment_entity.provider_payment_id = result.provider_payment_id
-                payment_entity.provider_fee = result.provider_fee
-                payment_entity.status = PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
-                payment_entity.failure_reason = result.error_message if not result.success else None
-                payment_entity.processed_at = datetime.now(timezone.utc)
-            else:
-                # Mock success for testing
-                payment_entity.status = PaymentStatus.SUCCEEDED
-                payment_entity.processed_at = datetime.now(timezone.utc)
-                logger.warning(f"Payment provider {provider} not configured, mocking success")
-
-        except Exception as e:
-            payment_entity.status = PaymentStatus.FAILED
-            payment_entity.failure_reason = str(e)
-            payment_entity.processed_at = datetime.now(timezone.utc)
-            logger.error(f"Payment processing error: {e}")
+        # Process with payment provider
+        await self._process_with_provider(
+            payment_entity, provider, amount, currency, payment_method.provider_payment_method_id
+        )
 
         # Update payment record
         await self.db.commit()
         await self.db.refresh(payment_entity)
 
-        # Create transaction record
+        # Handle success or failure
         if payment_entity.status == PaymentStatus.SUCCEEDED:
-            await self._create_transaction(payment_entity, TransactionType.PAYMENT)
-
-            # Link to invoices if provided
-            if invoice_ids:
-                await self._link_payment_to_invoices(payment_entity, invoice_ids)
-
-            # Publish webhook event for successful payment
-            try:
-                await get_event_bus().publish(
-                    event_type=WebhookEvent.PAYMENT_SUCCEEDED.value,
-                    event_data={
-                        "payment_id": payment_entity.payment_id,
-                        "customer_id": customer_id,
-                        "amount": float(amount / 100),  # Convert to decimal
-                        "currency": currency,
-                        "payment_method_id": payment_method_id,
-                        "provider": provider,
-                        "provider_payment_id": payment_entity.provider_payment_id,
-                        "invoice_ids": invoice_ids,
-                        "processed_at": payment_entity.processed_at.isoformat() if payment_entity.processed_at else None,
-                    },
-                    tenant_id=tenant_id,
-                    db=self.db,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to publish payment.succeeded event: {e}")
+            await self._handle_payment_success(
+                payment_entity,
+                tenant_id,
+                customer_id,
+                amount,
+                currency,
+                payment_method_id,
+                provider,
+                invoice_ids,
+            )
         elif payment_entity.status == PaymentStatus.FAILED:
-            # Publish webhook event for failed payment
-            try:
-                await get_event_bus().publish(
-                    event_type=WebhookEvent.PAYMENT_FAILED.value,
-                    event_data={
-                        "payment_id": payment_entity.payment_id,
-                        "customer_id": customer_id,
-                        "amount": float(amount / 100),
-                        "currency": currency,
-                        "payment_method_id": payment_method_id,
-                        "provider": provider,
-                        "failure_reason": payment_entity.failure_reason,
-                        "processed_at": payment_entity.processed_at.isoformat() if payment_entity.processed_at else None,
-                    },
-                    tenant_id=tenant_id,
-                    db=self.db,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to publish payment.failed event: {e}")
+            await self._handle_payment_failure(
+                payment_entity,
+                tenant_id,
+                customer_id,
+                amount,
+                currency,
+                payment_method_id,
+                provider,
+            )
 
         return Payment.model_validate(payment_entity)
+
+    async def _validate_refund_request(
+        self, tenant_id: str, payment_id: str, amount: int | None, idempotency_key: str | None
+    ) -> tuple[PaymentEntity | None, PaymentEntity, int]:
+        """Validate refund request and return existing refund if idempotency key exists."""
+        # Get original payment
+        original_payment = await self._get_payment_entity(tenant_id, payment_id)
+        if not original_payment:
+            raise PaymentNotFoundError(f"Payment {payment_id} not found")
+
+        if original_payment.status != PaymentStatus.SUCCEEDED:
+            raise PaymentError("Can only refund successful payments")
+
+        # Determine refund amount
+        refund_amount = amount or original_payment.amount
+
+        if refund_amount > original_payment.amount:
+            raise PaymentError("Refund amount cannot exceed original payment amount")
+
+        # Check for existing refund with same idempotency key
+        existing_refund = None
+        if idempotency_key:
+            existing_refund = await self._get_payment_by_idempotency_key(tenant_id, idempotency_key)
+
+        return existing_refund, original_payment, refund_amount
+
+    async def _process_refund_with_provider(
+        self,
+        refund: PaymentEntity,
+        original_payment: PaymentEntity,
+        refund_amount: int,
+        reason: str | None,
+    ) -> None:
+        """Process refund with payment provider."""
+        try:
+            if original_payment.provider in self.providers:
+                provider_instance = self.providers[original_payment.provider]
+                result = await provider_instance.refund_payment(
+                    original_payment.provider_payment_id,
+                    refund_amount,
+                    reason,
+                )
+
+                refund.provider_payment_id = result.provider_refund_id
+                refund.status = PaymentStatus.REFUNDED if result.success else PaymentStatus.FAILED
+                refund.failure_reason = result.error_message if not result.success else None
+            else:
+                # Mock success for testing
+                refund.status = PaymentStatus.REFUNDED
+                logger.warning(
+                    f"Payment provider {original_payment.provider} not configured, mocking refund"
+                )
+
+            refund.processed_at = datetime.now(UTC)
+
+        except Exception as e:
+            refund.status = PaymentStatus.FAILED
+            refund.failure_reason = str(e)
+            refund.processed_at = datetime.now(UTC)
+            logger.error(f"Refund processing error: {e}")
+
+    async def _handle_refund_success(
+        self,
+        refund: PaymentEntity,
+        original_payment: PaymentEntity,
+        payment_id: str,
+        refund_amount: int,
+        reason: str | None,
+        tenant_id: str,
+    ) -> None:
+        """Handle successful refund processing."""
+        # Create transaction record
+        await self._create_transaction(refund, TransactionType.REFUND)
+
+        # Update original payment status
+        if refund_amount == original_payment.amount:
+            original_payment.status = PaymentStatus.REFUNDED
+        else:
+            original_payment.status = PaymentStatus.PARTIALLY_REFUNDED
+        await self.db.commit()
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.PAYMENT_REFUNDED.value,
+                event_data={
+                    "refund_id": refund.payment_id,
+                    "original_payment_id": payment_id,
+                    "customer_id": original_payment.customer_id,
+                    "amount": float(abs(refund_amount) / 100),  # Convert to decimal
+                    "currency": original_payment.currency,
+                    "reason": reason,
+                    "provider": original_payment.provider,
+                    "provider_refund_id": refund.provider_payment_id,
+                    "processed_at": (
+                        refund.processed_at.isoformat() if refund.processed_at else None
+                    ),
+                    "refund_type": (
+                        "full" if refund_amount == original_payment.amount else "partial"
+                    ),
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish payment.refunded event: {e}")
 
     async def refund_payment(
         self,
@@ -189,23 +378,12 @@ class PaymentService:
     ) -> Payment:
         """Refund a payment with idempotency"""
 
-        original_payment = await self._get_payment_entity(tenant_id, payment_id)
-        if not original_payment:
-            raise PaymentNotFoundError(f"Payment {payment_id} not found")
-
-        if original_payment.status != PaymentStatus.SUCCEEDED:
-            raise PaymentError("Can only refund successful payments")
-
-        refund_amount = amount or original_payment.amount
-
-        if refund_amount > original_payment.amount:
-            raise PaymentError("Refund amount cannot exceed original payment amount")
-
-        # Check idempotency
-        if idempotency_key:
-            existing_refund = await self._get_payment_by_idempotency_key(tenant_id, idempotency_key)
-            if existing_refund:
-                return Payment.model_validate(existing_refund)
+        # Validate refund request
+        existing_refund, original_payment, refund_amount = await self._validate_refund_request(
+            tenant_id, payment_id, amount, idempotency_key
+        )
+        if existing_refund:
+            return Payment.model_validate(existing_refund)
 
         # Create refund payment record
         refund = PaymentEntity(
@@ -227,66 +405,17 @@ class PaymentService:
         self.db.add(refund)
         await self.db.commit()
 
-        try:
-            # Process refund with provider
-            if original_payment.provider in self.providers:
-                provider_instance = self.providers[original_payment.provider]
-                result = await provider_instance.refund_payment(
-                    original_payment.provider_payment_id,
-                    refund_amount,
-                    reason,
-                )
-
-                refund.provider_payment_id = result.provider_refund_id
-                refund.status = PaymentStatus.REFUNDED if result.success else PaymentStatus.FAILED
-                refund.failure_reason = result.error_message if not result.success else None
-            else:
-                # Mock success for testing
-                refund.status = PaymentStatus.REFUNDED
-                logger.warning(f"Payment provider {original_payment.provider} not configured, mocking refund")
-
-            refund.processed_at = datetime.now(timezone.utc)
-
-        except Exception as e:
-            refund.status = PaymentStatus.FAILED
-            refund.failure_reason = str(e)
-            refund.processed_at = datetime.now(timezone.utc)
-            logger.error(f"Refund processing error: {e}")
+        # Process refund with provider
+        await self._process_refund_with_provider(refund, original_payment, refund_amount, reason)
 
         await self.db.commit()
         await self.db.refresh(refund)
 
+        # Handle successful refund
         if refund.status == PaymentStatus.REFUNDED:
-            await self._create_transaction(refund, TransactionType.REFUND)
-
-            # Update original payment status
-            if refund_amount == original_payment.amount:
-                original_payment.status = PaymentStatus.REFUNDED
-            else:
-                original_payment.status = PaymentStatus.PARTIALLY_REFUNDED
-            await self.db.commit()
-
-            # Publish webhook event for successful refund
-            try:
-                await get_event_bus().publish(
-                    event_type=WebhookEvent.PAYMENT_REFUNDED.value,
-                    event_data={
-                        "refund_id": refund.payment_id,
-                        "original_payment_id": payment_id,
-                        "customer_id": original_payment.customer_id,
-                        "amount": float(abs(refund_amount) / 100),  # Convert to decimal
-                        "currency": original_payment.currency,
-                        "reason": reason,
-                        "provider": original_payment.provider,
-                        "provider_refund_id": refund.provider_payment_id,
-                        "processed_at": refund.processed_at.isoformat() if refund.processed_at else None,
-                        "refund_type": "full" if refund_amount == original_payment.amount else "partial",
-                    },
-                    tenant_id=tenant_id,
-                    db=self.db,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to publish payment.refunded event: {e}")
+            await self._handle_refund_success(
+                refund, original_payment, payment_id, refund_amount, reason, tenant_id
+            )
 
         return Payment.model_validate(refund)
 
@@ -324,7 +453,9 @@ class PaymentService:
             bank_name=bank_name,
             is_default=False,
             auto_pay_enabled=False,
-            verified_at=datetime.now(timezone.utc) if payment_method_type == PaymentMethodType.CARD else None,
+            verified_at=(
+                datetime.now(UTC) if payment_method_type == PaymentMethodType.CARD else None
+            ),
         )
 
         # Set as default if requested or if it's the first payment method
@@ -371,7 +502,9 @@ class PaymentService:
                 )
             )
 
-        query = query.order_by(PaymentMethodEntity.is_default.desc(), PaymentMethodEntity.created_at.desc())
+        query = query.order_by(
+            PaymentMethodEntity.is_default.desc(), PaymentMethodEntity.created_at.desc()
+        )
 
         result = await self.db.execute(query)
         payment_methods = result.scalars().all()
@@ -400,9 +533,7 @@ class PaymentService:
 
         return PaymentMethod.model_validate(payment_method)
 
-    async def delete_payment_method(
-        self, tenant_id: str, payment_method_id: str
-    ) -> bool:
+    async def delete_payment_method(self, tenant_id: str, payment_method_id: str) -> bool:
         """Soft delete a payment method"""
 
         payment_method = await self._get_payment_method(tenant_id, payment_method_id)
@@ -411,15 +542,13 @@ class PaymentService:
 
         # Soft delete
         payment_method.is_active = False
-        payment_method.deleted_at = datetime.now(timezone.utc)
+        payment_method.deleted_at = datetime.now(UTC)
         payment_method.status = PaymentMethodStatus.INACTIVE
 
         await self.db.commit()
         return True
 
-    async def retry_failed_payment(
-        self, tenant_id: str, payment_id: str
-    ) -> Payment:
+    async def retry_failed_payment(self, tenant_id: str, payment_id: str) -> Payment:
         """Retry a failed payment"""
 
         payment = await self._get_payment_entity(tenant_id, payment_id)
@@ -435,7 +564,7 @@ class PaymentService:
 
         # Update retry count and schedule
         payment.retry_count += 1
-        payment.next_retry_at = datetime.now(timezone.utc) + timedelta(hours=2 ** payment.retry_count)
+        payment.next_retry_at = datetime.now(UTC) + timedelta(hours=2**payment.retry_count)
         payment.status = PaymentStatus.PROCESSING
 
         await self.db.commit()
@@ -453,12 +582,17 @@ class PaymentService:
                         amount=payment.amount,
                         currency=payment.currency,
                         payment_method_id=payment_method.provider_payment_method_id,
-                        metadata={"payment_id": payment.payment_id, "retry_attempt": payment.retry_count},
+                        metadata={
+                            "payment_id": payment.payment_id,
+                            "retry_attempt": payment.retry_count,
+                        },
                     )
 
-                    payment.status = PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
+                    payment.status = (
+                        PaymentStatus.SUCCEEDED if result.success else PaymentStatus.FAILED
+                    )
                     payment.failure_reason = result.error_message if not result.success else None
-                    payment.processed_at = datetime.now(timezone.utc)
+                    payment.processed_at = datetime.now(UTC)
 
                     if result.success:
                         payment.provider_payment_id = result.provider_payment_id
@@ -467,7 +601,7 @@ class PaymentService:
             else:
                 # Mock retry
                 payment.status = PaymentStatus.SUCCEEDED
-                payment.processed_at = datetime.now(timezone.utc)
+                payment.processed_at = datetime.now(UTC)
 
         except Exception as e:
             payment.status = PaymentStatus.FAILED
@@ -483,9 +617,7 @@ class PaymentService:
     # Private helper methods
     # ============================================================================
 
-    async def _get_payment_entity(
-        self, tenant_id: str, payment_id: str
-    ) -> PaymentEntity | None:
+    async def _get_payment_entity(self, tenant_id: str, payment_id: str) -> PaymentEntity | None:
         """Get payment entity by ID with tenant isolation"""
 
         query = select(PaymentEntity).where(
@@ -522,39 +654,35 @@ class PaymentService:
             and_(
                 PaymentMethodEntity.tenant_id == tenant_id,
                 PaymentMethodEntity.payment_method_id == payment_method_id,
-                PaymentMethodEntity.is_active == True,
+                PaymentMethodEntity.is_active,
             )
         )
 
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def _count_payment_methods(
-        self, tenant_id: str, customer_id: str
-    ) -> int:
+    async def _count_payment_methods(self, tenant_id: str, customer_id: str) -> int:
         """Count active payment methods for customer"""
 
         query = select(PaymentMethodEntity).where(
             and_(
                 PaymentMethodEntity.tenant_id == tenant_id,
                 PaymentMethodEntity.customer_id == customer_id,
-                PaymentMethodEntity.is_active == True,
+                PaymentMethodEntity.is_active,
             )
         )
 
         result = await self.db.execute(query)
         return len(result.scalars().all())
 
-    async def _clear_default_payment_methods(
-        self, tenant_id: str, customer_id: str
-    ) -> None:
+    async def _clear_default_payment_methods(self, tenant_id: str, customer_id: str) -> None:
         """Clear default flag from all customer payment methods"""
 
         query = select(PaymentMethodEntity).where(
             and_(
                 PaymentMethodEntity.tenant_id == tenant_id,
                 PaymentMethodEntity.customer_id == customer_id,
-                PaymentMethodEntity.is_default == True,
+                PaymentMethodEntity.is_default,
             )
         )
 

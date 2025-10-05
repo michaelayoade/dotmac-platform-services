@@ -115,6 +115,7 @@ class StripePaymentProvider(PaymentProvider):
         # Import stripe here to avoid dependency if not using Stripe
         try:
             import stripe
+
             stripe.api_key = api_key
             self.stripe = stripe
         except ImportError:
@@ -143,7 +144,11 @@ class StripePaymentProvider(PaymentProvider):
                 return PaymentResult(
                     success=True,
                     provider_payment_id=intent.id,
-                    provider_fee=intent.charges.data[0].balance_transaction.fee if intent.charges.data else None,
+                    provider_fee=(
+                        intent.charges.data[0].balance_transaction.fee
+                        if intent.charges.data
+                        else None
+                    ),
                 )
             else:
                 return PaymentResult(
@@ -244,7 +249,11 @@ class StripePaymentProvider(PaymentProvider):
             "id": payment_method.id,
             "type": payment_method.type,
             "card": payment_method.card.to_dict() if payment_method.card else None,
-            "bank_account": payment_method.us_bank_account.to_dict() if hasattr(payment_method, "us_bank_account") else None,
+            "bank_account": (
+                payment_method.us_bank_account.to_dict()
+                if hasattr(payment_method, "us_bank_account")
+                else None
+            ),
         }
 
     async def attach_payment_method_to_customer(

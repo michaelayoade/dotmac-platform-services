@@ -67,7 +67,7 @@ export default function PartnerReferralsPage() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="text-slate-400">Loading referrals...</div>
+          <div className="text-muted-foreground">Loading referrals...</div>
         </div>
       </div>
     );
@@ -78,7 +78,7 @@ export default function PartnerReferralsPage() {
       <div className="p-6">
         <div className="text-center py-12">
           <div className="text-red-400">Failed to load referrals</div>
-          <div className="text-sm text-slate-500 mt-2">{error.message}</div>
+          <div className="text-sm text-foreground0 mt-2">{error.message}</div>
         </div>
       </div>
     );
@@ -91,14 +91,14 @@ export default function PartnerReferralsPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Referrals</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-3xl font-bold text-foreground">Referrals</h1>
+          <p className="text-muted-foreground mt-1">
             Submit and track your customer referrals
           </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg transition-colors"
         >
           {showForm ? "Cancel" : "Submit Referral"}
         </button>
@@ -106,14 +106,14 @@ export default function PartnerReferralsPage() {
 
       {/* Referral Form */}
       {showForm && (
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800 mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
+        <div className="bg-card p-6 rounded-lg border border-border mb-6">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             Submit New Referral
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-slate-400 mb-2">
+                <label className="block text-sm text-muted-foreground mb-2">
                   Lead Name <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -123,13 +123,13 @@ export default function PartnerReferralsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, lead_name: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                   placeholder="John Doe"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-slate-400 mb-2">
+                <label className="block text-sm text-muted-foreground mb-2">
                   Lead Email <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -139,13 +139,13 @@ export default function PartnerReferralsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, lead_email: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                   placeholder="john@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-slate-400 mb-2">
+                <label className="block text-sm text-muted-foreground mb-2">
                   Lead Phone
                 </label>
                 <input
@@ -154,13 +154,13 @@ export default function PartnerReferralsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, lead_phone: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                   placeholder="+1 (555) 123-4567"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-slate-400 mb-2">
+                <label className="block text-sm text-muted-foreground mb-2">
                   Company Name
                 </label>
                 <input
@@ -169,13 +169,13 @@ export default function PartnerReferralsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, company_name: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                   placeholder="Acme Inc."
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-slate-400 mb-2">
+                <label className="block text-sm text-muted-foreground mb-2">
                   Estimated Value ($)
                 </label>
                 <input
@@ -188,21 +188,21 @@ export default function PartnerReferralsPage() {
                       estimated_value: e.target.value,
                     })
                   }
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                   placeholder="5000.00"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm text-slate-400 mb-2">Notes</label>
+              <label className="block text-sm text-muted-foreground mb-2">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) =>
                   setFormData({ ...formData, notes: e.target.value })
                 }
                 rows={3}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:border-blue-500"
                 placeholder="Additional details about this referral..."
               />
             </div>
@@ -211,14 +211,14 @@ export default function PartnerReferralsPage() {
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-accent hover:bg-muted text-foreground rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitReferral.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
               >
                 {submitReferral.isPending ? "Submitting..." : "Submit Referral"}
               </button>
@@ -230,10 +230,10 @@ export default function PartnerReferralsPage() {
       {/* Referrals List */}
       <div className="space-y-3">
         {referralList.length === 0 ? (
-          <div className="bg-slate-900 p-12 rounded-lg border border-slate-800 text-center">
-            <UserPlus className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 mb-2">No referrals yet</p>
-            <p className="text-sm text-slate-500">
+          <div className="bg-card p-12 rounded-lg border border-border text-center">
+            <UserPlus className="w-12 h-12 text-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-2">No referrals yet</p>
+            <p className="text-sm text-foreground0">
               Submit your first referral to start earning commissions
             </p>
           </div>
@@ -244,12 +244,12 @@ export default function PartnerReferralsPage() {
             return (
               <div
                 key={referral.id}
-                className="bg-slate-900 p-4 rounded-lg border border-slate-800"
+                className="bg-card p-4 rounded-lg border border-border"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-white">
+                      <h3 className="text-lg font-semibold text-foreground">
                         {referral.lead_name}
                       </h3>
                       <span
@@ -264,25 +264,25 @@ export default function PartnerReferralsPage() {
 
                     <div className="grid md:grid-cols-3 gap-4 text-sm">
                       <div>
-                        <span className="text-slate-400">Email:</span>
-                        <span className="ml-2 text-white">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="ml-2 text-foreground">
                           {referral.lead_email}
                         </span>
                       </div>
                       {referral.company_name && (
                         <div>
-                          <span className="text-slate-400">Company:</span>
-                          <span className="ml-2 text-white">
+                          <span className="text-muted-foreground">Company:</span>
+                          <span className="ml-2 text-foreground">
                             {referral.company_name}
                           </span>
                         </div>
                       )}
                       {referral.estimated_value && (
                         <div>
-                          <span className="text-slate-400">
+                          <span className="text-muted-foreground">
                             Estimated Value:
                           </span>
-                          <span className="ml-2 text-white">
+                          <span className="ml-2 text-foreground">
                             ${referral.estimated_value.toLocaleString()}
                           </span>
                         </div>
@@ -290,12 +290,12 @@ export default function PartnerReferralsPage() {
                     </div>
 
                     {referral.notes && (
-                      <div className="mt-2 text-sm text-slate-400">
+                      <div className="mt-2 text-sm text-muted-foreground">
                         {referral.notes}
                       </div>
                     )}
 
-                    <div className="mt-2 text-xs text-slate-500">
+                    <div className="mt-2 text-xs text-foreground0">
                       Submitted: {new Date(referral.created_at).toLocaleDateString()}
                       {referral.converted_at && (
                         <span className="ml-4">

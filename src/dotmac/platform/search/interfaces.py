@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class SearchType(str, Enum):
@@ -38,11 +38,11 @@ class SearchQuery:
 
     query: str
     search_type: SearchType = SearchType.FULL_TEXT
-    filters: List[SearchFilter] = field(default_factory=list)
-    fields: Optional[List[str]] = None  # Fields to search in
+    filters: list[SearchFilter] = field(default_factory=list)
+    fields: list[str] | None = None  # Fields to search in
     limit: int = 10
     offset: int = 0
-    sort_by: Optional[str] = None
+    sort_by: str | None = None
     sort_order: SortOrder = SortOrder.DESC
     include_score: bool = False
     highlight: bool = False
@@ -54,26 +54,26 @@ class SearchResult:
 
     id: str
     type: str
-    data: Dict[str, Any]
-    score: Optional[float] = None
-    highlights: Optional[Dict[str, List[str]]] = None
+    data: dict[str, Any]
+    score: float | None = None
+    highlights: dict[str, list[str]] | None = None
 
 
 @dataclass
 class SearchResponse:
     """Search response with results and metadata."""
 
-    results: List[SearchResult]
+    results: list[SearchResult]
     total: int
     query: SearchQuery
-    took_ms: Optional[int] = None
+    took_ms: int | None = None
 
 
 class SearchBackend(ABC):
     """Abstract search backend interface."""
 
     @abstractmethod
-    async def index(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def index(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         """Index a document."""
         pass
 
@@ -88,19 +88,17 @@ class SearchBackend(ABC):
         pass
 
     @abstractmethod
-    async def update(self, index_name: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def update(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         """Update a document."""
         pass
 
     @abstractmethod
-    async def bulk_index(self, index_name: str, documents: List[Dict[str, Any]]) -> int:
+    async def bulk_index(self, index_name: str, documents: list[dict[str, Any]]) -> int:
         """Bulk index documents."""
         pass
 
     @abstractmethod
-    async def create_index(
-        self, index_name: str, mappings: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    async def create_index(self, index_name: str, mappings: dict[str, Any] | None = None) -> bool:
         """Create an index."""
         pass
 

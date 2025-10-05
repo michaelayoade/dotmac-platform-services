@@ -5,13 +5,13 @@ Configures OTLP exporters and auto-instrumentation for FastAPI, SQLAlchemy, and 
 """
 
 import os
-from typing import Optional
+from collections.abc import Sequence
 
 import structlog
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
@@ -23,11 +23,45 @@ from opentelemetry.sdk.resources import (
     SERVICE_VERSION,
     Resource,
 )
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
 from dotmac.platform.settings import settings
+
+
+class ResilientOTLPExporter(SpanExporter):
+    """Wraps OTLP exporter to handle connection failures gracefully."""
+
+    def __init__(self, exporter: SpanExporter):
+        self.exporter = exporter
+        self._connection_failed = False
+        self._logger = structlog.get_logger(__name__)
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        try:
+            result = self.exporter.export(spans)
+            if self._connection_failed:
+                self._logger.info("OTLP connection restored")
+                self._connection_failed = False
+            return result
+        except Exception as e:
+            if not self._connection_failed:
+                self._logger.warning("OTLP export failed - spans will be dropped", error=str(e))
+                self._connection_failed = True
+            return SpanExportResult.FAILURE
+
+    def shutdown(self) -> None:
+        try:
+            self.exporter.shutdown()
+        except Exception:
+            pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        try:
+            return self.exporter.force_flush(timeout_millis)
+        except Exception:
+            return False
 
 
 def create_resource() -> Resource:
@@ -76,7 +110,7 @@ def configure_structlog() -> None:
     )
 
 
-def setup_telemetry(app: Optional[FastAPI] = None) -> None:
+def setup_telemetry(app: FastAPI | None = None) -> None:
     """
     Setup structured logging and OpenTelemetry tracing/metrics.
 
@@ -97,12 +131,10 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
     if settings.observability.otel_endpoint and not settings.observability.otel_enabled:
         logger.info(
             "Auto-enabling OpenTelemetry due to configured endpoint",
-            endpoint=settings.observability.otel_endpoint
+            endpoint=settings.observability.otel_endpoint,
         )
         # We can't modify the settings object, but we can log the recommendation
-        logger.warning(
-            "Consider setting OTEL_ENABLED=true explicitly in configuration"
-        )
+        logger.warning("Consider setting OTEL_ENABLED=true explicitly in configuration")
 
     if not settings.observability.otel_enabled:
         logger.debug("OpenTelemetry is disabled by configuration")
@@ -110,13 +142,17 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
 
     # Check if OpenTelemetry packages are available
     try:
-        from opentelemetry import trace, metrics
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+        from opentelemetry import metrics, trace  # noqa: F401
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            OTLPMetricExporter,  # noqa: F401
+        )
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,  # noqa: F401
+        )
     except ImportError as e:
         logger.warning(
             "OpenTelemetry packages not installed - install with: poetry install --extras observability",
-            error=str(e)
+            error=str(e),
         )
         return
 
@@ -145,6 +181,7 @@ def setup_telemetry(app: Optional[FastAPI] = None) -> None:
 
 def setup_tracing(resource: Resource) -> None:
     """Configure OpenTelemetry tracing with OTLP exporter."""
+    logger = structlog.get_logger(__name__)
     try:
         # Create sampler based on configuration
         sampler = TraceIdRatioBased(settings.observability.tracing_sample_rate)
@@ -156,54 +193,71 @@ def setup_tracing(resource: Resource) -> None:
         )
 
         if settings.observability.otel_endpoint:
-            # Determine if connection should be secure
-            insecure = not settings.observability.otel_endpoint.startswith("https://")
+            # For HTTP exporters, add the protocol-specific path
+            endpoint = settings.observability.otel_endpoint
+            if not endpoint.endswith("/v1/traces"):
+                endpoint = f"{endpoint}/v1/traces"
 
-            # Create OTLP exporter
-            otlp_exporter = OTLPSpanExporter(
-                endpoint=settings.observability.otel_endpoint,
-                insecure=insecure,
-                timeout=30,  # 30 second timeout
-            )
+            try:
+                # Create OTLP exporter (HTTP protocol) with shorter timeout
+                otlp_exporter = OTLPSpanExporter(
+                    endpoint=endpoint,
+                    timeout=5,  # 5 second timeout for dev (faster failure)
+                )
 
-            # Add batch processor for efficient export
-            span_processor = BatchSpanProcessor(
-                otlp_exporter,
-                max_queue_size=2048,
-                max_export_batch_size=512,
-                schedule_delay_millis=5000,  # 5 seconds
-            )
-            tracer_provider.add_span_processor(span_processor)
+                # Wrap with resilient exporter to handle connection failures
+                resilient_exporter = ResilientOTLPExporter(otlp_exporter)
 
-            structlog.get_logger(__name__).info(
-                "OpenTelemetry tracing configured",
-                endpoint=settings.observability.otel_endpoint,
-            )
+                # Add batch processor for efficient export
+                span_processor = BatchSpanProcessor(
+                    resilient_exporter,
+                    max_queue_size=2048,
+                    max_export_batch_size=512,
+                    schedule_delay_millis=5000,  # 5 seconds
+                )
+                tracer_provider.add_span_processor(span_processor)
+
+                logger.info(
+                    "OpenTelemetry tracing configured with resilient OTLP exporter",
+                    endpoint=endpoint,
+                )
+            except Exception as export_error:
+                # If OTLP exporter fails, use console exporter for development
+                logger.warning(
+                    "OTLP exporter unavailable, using console exporter for development",
+                    error=str(export_error),
+                )
+                try:
+                    from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
+                    console_exporter = ConsoleSpanExporter()
+                    console_processor = BatchSpanProcessor(console_exporter)
+                    tracer_provider.add_span_processor(console_processor)
+                    logger.info("Console span exporter configured as fallback")
+                except ImportError:
+                    logger.warning("Console exporter not available, traces will not be exported")
         else:
-            structlog.get_logger(__name__).warning(
-                "OpenTelemetry tracing enabled but no endpoint configured"
-            )
+            logger.warning("OpenTelemetry tracing enabled but no endpoint configured")
 
         # Set as global tracer provider
         trace.set_tracer_provider(tracer_provider)
 
     except Exception as e:
-        structlog.get_logger(__name__).error(
-            "Failed to setup OpenTelemetry tracing", error=str(e), exc_info=True
-        )
+        logger.error("Failed to setup OpenTelemetry tracing", error=str(e), exc_info=True)
 
 
 def setup_metrics(resource: Resource) -> None:
     """Configure OpenTelemetry metrics with OTLP exporter."""
     try:
         if settings.observability.otel_endpoint:
-            # Determine if connection should be secure
-            insecure = not settings.observability.otel_endpoint.startswith("https://")
+            # For HTTP exporters, add the protocol-specific path
+            endpoint = settings.observability.otel_endpoint
+            if not endpoint.endswith("/v1/metrics"):
+                endpoint = f"{endpoint}/v1/metrics"
 
-            # Create OTLP metric exporter
+            # Create OTLP metric exporter (HTTP protocol)
             metric_exporter = OTLPMetricExporter(
-                endpoint=settings.observability.otel_endpoint,
-                insecure=insecure,
+                endpoint=endpoint,
                 timeout=30,  # 30 second timeout
             )
 
@@ -241,7 +295,7 @@ def setup_metrics(resource: Resource) -> None:
         )
 
 
-def instrument_libraries(app: Optional[FastAPI] = None) -> None:
+def instrument_libraries(app: FastAPI | None = None) -> None:
     """Auto-instrument supported libraries based on settings."""
     from dotmac.platform.settings import settings
 
@@ -286,7 +340,7 @@ def instrument_libraries(app: Optional[FastAPI] = None) -> None:
         structlog.get_logger(__name__).debug("Requests instrumentation disabled by settings")
 
 
-def get_tracer(name: str, version: Optional[str] = None) -> trace.Tracer:
+def get_tracer(name: str, version: str | None = None) -> trace.Tracer:
     """
     Get a tracer for the given component name.
 
@@ -300,7 +354,7 @@ def get_tracer(name: str, version: Optional[str] = None) -> trace.Tracer:
     return trace.get_tracer(name, version or "")
 
 
-def get_meter(name: str, version: Optional[str] = None) -> metrics.Meter:
+def get_meter(name: str, version: str | None = None) -> metrics.Meter:
     """
     Get a meter for the given component name.
 

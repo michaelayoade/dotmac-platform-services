@@ -2,13 +2,12 @@
 RBAC audit logging helper for tracking permission and role changes.
 """
 
-from typing import Optional, Dict, Any, List
-from uuid import UUID
+from typing import Any
+
 import structlog
 
-from ..audit.models import ActivityType, ActivitySeverity
+from ..audit.models import ActivitySeverity, ActivityType
 from ..audit.service import AuditService
-
 
 logger = structlog.get_logger(__name__)
 
@@ -16,7 +15,7 @@ logger = structlog.get_logger(__name__)
 class RBACAuditLogger:
     """Helper class for RBAC-related audit logging."""
 
-    def __init__(self, audit_service: Optional[AuditService] = None):
+    def __init__(self, audit_service: AuditService | None = None):
         """Initialize RBAC audit logger."""
         self._audit_service = audit_service or AuditService()
 
@@ -26,8 +25,8 @@ class RBACAuditLogger:
         role_id: str,
         created_by: str,
         tenant_id: str,
-        permissions: List[str],
-        **kwargs
+        permissions: list[str],
+        **kwargs,
     ):
         """Log role creation."""
         await self._audit_service.log_activity(
@@ -39,11 +38,7 @@ class RBACAuditLogger:
             resource_type="role",
             resource_id=role_id,
             severity=ActivitySeverity.MEDIUM,
-            details={
-                "role_name": role_name,
-                "permissions": permissions,
-                **kwargs
-            }
+            details={"role_name": role_name, "permissions": permissions, **kwargs},
         )
         logger.info("Audit: Role created", role_name=role_name, created_by=created_by)
 
@@ -53,8 +48,8 @@ class RBACAuditLogger:
         role_id: str,
         updated_by: str,
         tenant_id: str,
-        changes: Dict[str, Any],
-        **kwargs
+        changes: dict[str, Any],
+        **kwargs,
     ):
         """Log role update."""
         await self._audit_service.log_activity(
@@ -66,21 +61,12 @@ class RBACAuditLogger:
             resource_type="role",
             resource_id=role_id,
             severity=ActivitySeverity.MEDIUM,
-            details={
-                "role_name": role_name,
-                "changes": changes,
-                **kwargs
-            }
+            details={"role_name": role_name, "changes": changes, **kwargs},
         )
         logger.info("Audit: Role updated", role_name=role_name, updated_by=updated_by)
 
     async def log_role_deleted(
-        self,
-        role_name: str,
-        role_id: str,
-        deleted_by: str,
-        tenant_id: str,
-        **kwargs
+        self, role_name: str, role_id: str, deleted_by: str, tenant_id: str, **kwargs
     ):
         """Log role deletion."""
         await self._audit_service.log_activity(
@@ -92,21 +78,12 @@ class RBACAuditLogger:
             resource_type="role",
             resource_id=role_id,
             severity=ActivitySeverity.HIGH,
-            details={
-                "role_name": role_name,
-                **kwargs
-            }
+            details={"role_name": role_name, **kwargs},
         )
         logger.info("Audit: Role deleted", role_name=role_name, deleted_by=deleted_by)
 
     async def log_role_assigned(
-        self,
-        user_id: str,
-        role_name: str,
-        role_id: str,
-        assigned_by: str,
-        tenant_id: str,
-        **kwargs
+        self, user_id: str, role_name: str, role_id: str, assigned_by: str, tenant_id: str, **kwargs
     ):
         """Log role assignment to user."""
         await self._audit_service.log_activity(
@@ -122,24 +99,15 @@ class RBACAuditLogger:
                 "target_user_id": user_id,
                 "role_name": role_name,
                 "role_id": role_id,
-                **kwargs
-            }
+                **kwargs,
+            },
         )
         logger.info(
-            "Audit: Role assigned",
-            user_id=user_id,
-            role_name=role_name,
-            assigned_by=assigned_by
+            "Audit: Role assigned", user_id=user_id, role_name=role_name, assigned_by=assigned_by
         )
 
     async def log_role_revoked(
-        self,
-        user_id: str,
-        role_name: str,
-        role_id: str,
-        revoked_by: str,
-        tenant_id: str,
-        **kwargs
+        self, user_id: str, role_name: str, role_id: str, revoked_by: str, tenant_id: str, **kwargs
     ):
         """Log role revocation from user."""
         await self._audit_service.log_activity(
@@ -155,14 +123,11 @@ class RBACAuditLogger:
                 "target_user_id": user_id,
                 "role_name": role_name,
                 "role_id": role_id,
-                **kwargs
-            }
+                **kwargs,
+            },
         )
         logger.info(
-            "Audit: Role revoked",
-            user_id=user_id,
-            role_name=role_name,
-            revoked_by=revoked_by
+            "Audit: Role revoked", user_id=user_id, role_name=role_name, revoked_by=revoked_by
         )
 
     async def log_permission_granted(
@@ -172,8 +137,8 @@ class RBACAuditLogger:
         permission_id: str,
         granted_by: str,
         tenant_id: str,
-        expires_at: Optional[str] = None,
-        **kwargs
+        expires_at: str | None = None,
+        **kwargs,
     ):
         """Log direct permission grant to user."""
         await self._audit_service.log_activity(
@@ -190,14 +155,14 @@ class RBACAuditLogger:
                 "permission_name": permission_name,
                 "permission_id": permission_id,
                 "expires_at": expires_at,
-                **kwargs
-            }
+                **kwargs,
+            },
         )
         logger.info(
             "Audit: Permission granted",
             user_id=user_id,
             permission_name=permission_name,
-            granted_by=granted_by
+            granted_by=granted_by,
         )
 
     async def log_permission_revoked(
@@ -207,7 +172,7 @@ class RBACAuditLogger:
         permission_id: str,
         revoked_by: str,
         tenant_id: str,
-        **kwargs
+        **kwargs,
     ):
         """Log direct permission revocation from user."""
         await self._audit_service.log_activity(
@@ -223,14 +188,14 @@ class RBACAuditLogger:
                 "target_user_id": user_id,
                 "permission_name": permission_name,
                 "permission_id": permission_id,
-                **kwargs
-            }
+                **kwargs,
+            },
         )
         logger.info(
             "Audit: Permission revoked",
             user_id=user_id,
             permission_name=permission_name,
-            revoked_by=revoked_by
+            revoked_by=revoked_by,
         )
 
     async def log_permission_created(
@@ -240,7 +205,7 @@ class RBACAuditLogger:
         created_by: str,
         tenant_id: str,
         category: str,
-        **kwargs
+        **kwargs,
     ):
         """Log permission creation."""
         await self._audit_service.log_activity(
@@ -252,16 +217,10 @@ class RBACAuditLogger:
             resource_type="permission",
             resource_id=permission_id,
             severity=ActivitySeverity.LOW,
-            details={
-                "permission_name": permission_name,
-                "category": category,
-                **kwargs
-            }
+            details={"permission_name": permission_name, "category": category, **kwargs},
         )
         logger.info(
-            "Audit: Permission created",
-            permission_name=permission_name,
-            created_by=created_by
+            "Audit: Permission created", permission_name=permission_name, created_by=created_by
         )
 
     async def log_permission_updated(
@@ -270,8 +229,8 @@ class RBACAuditLogger:
         permission_id: str,
         updated_by: str,
         tenant_id: str,
-        changes: Dict[str, Any],
-        **kwargs
+        changes: dict[str, Any],
+        **kwargs,
     ):
         """Log permission update."""
         await self._audit_service.log_activity(
@@ -283,25 +242,14 @@ class RBACAuditLogger:
             resource_type="permission",
             resource_id=permission_id,
             severity=ActivitySeverity.LOW,
-            details={
-                "permission_name": permission_name,
-                "changes": changes,
-                **kwargs
-            }
+            details={"permission_name": permission_name, "changes": changes, **kwargs},
         )
         logger.info(
-            "Audit: Permission updated",
-            permission_name=permission_name,
-            updated_by=updated_by
+            "Audit: Permission updated", permission_name=permission_name, updated_by=updated_by
         )
 
     async def log_permission_deleted(
-        self,
-        permission_name: str,
-        permission_id: str,
-        deleted_by: str,
-        tenant_id: str,
-        **kwargs
+        self, permission_name: str, permission_id: str, deleted_by: str, tenant_id: str, **kwargs
     ):
         """Log permission deletion."""
         await self._audit_service.log_activity(
@@ -313,15 +261,10 @@ class RBACAuditLogger:
             resource_type="permission",
             resource_id=permission_id,
             severity=ActivitySeverity.HIGH,
-            details={
-                "permission_name": permission_name,
-                **kwargs
-            }
+            details={"permission_name": permission_name, **kwargs},
         )
         logger.info(
-            "Audit: Permission deleted",
-            permission_name=permission_name,
-            deleted_by=deleted_by
+            "Audit: Permission deleted", permission_name=permission_name, deleted_by=deleted_by
         )
 
 

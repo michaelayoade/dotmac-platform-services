@@ -68,7 +68,7 @@ const getTypeIcon = (type: string) => {
     case 'storage':
       return <Settings className="h-5 w-5 text-purple-400" />;
     default:
-      return <Puzzle className="h-5 w-5 text-slate-400" />;
+      return <Puzzle className="h-5 w-5 text-muted-foreground" />;
   }
 };
 
@@ -83,7 +83,7 @@ const getTypeColor = (type: string) => {
     case 'storage':
       return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
     default:
-      return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      return 'bg-muted/10 text-muted-foreground border-border';
   }
 };
 
@@ -92,13 +92,13 @@ const getStatusColor = (status: string) => {
     case 'active':
       return 'bg-emerald-500/10 text-emerald-400';
     case 'inactive':
-      return 'bg-slate-500/10 text-slate-400';
+      return 'bg-card0/10 text-muted-foreground';
     case 'error':
       return 'bg-rose-500/10 text-rose-400';
     case 'configured':
       return 'bg-sky-500/10 text-sky-400';
     default:
-      return 'bg-slate-500/10 text-slate-400';
+      return 'bg-card0/10 text-muted-foreground';
   }
 };
 
@@ -119,9 +119,9 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
   const secretFields = plugin.fields.filter(f => f.is_secret).length;
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-lg hover:border-slate-700 transition-colors">
+    <div className="bg-card/50 border border-border rounded-lg hover:border-border transition-colors">
       {/* Card Header */}
-      <div className="p-4 border-b border-slate-800">
+      <div className="p-4 border-b border-border">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
             {getTypeIcon(plugin.type)}
@@ -129,8 +129,8 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-medium text-slate-100 truncate">{plugin.name}</h3>
-                <p className="text-sm text-slate-400 mt-1 line-clamp-2">{plugin.description}</p>
+                <h3 className="font-medium text-foreground truncate">{plugin.name}</h3>
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{plugin.description}</p>
               </div>
               <div className={`px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(plugin.type)}`}>
                 {plugin.type}
@@ -140,7 +140,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
         </div>
 
         {/* Plugin Metadata */}
-        <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+        <div className="flex items-center gap-4 mt-3 text-xs text-foreground0">
           <span>v{plugin.version}</span>
           {plugin.author && <span>by {plugin.author}</span>}
           <span>{plugin.fields.length} fields</span>
@@ -150,12 +150,12 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
         {plugin.tags && plugin.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {plugin.tags.slice(0, 3).map(tag => (
-              <span key={tag} className="px-2 py-0.5 bg-slate-800 text-xs rounded-full text-slate-400">
+              <span key={tag} className="px-2 py-0.5 bg-accent text-xs rounded-full text-muted-foreground">
                 {tag}
               </span>
             ))}
             {plugin.tags.length > 3 && (
-              <span className="px-2 py-0.5 bg-slate-800 text-xs rounded-full text-slate-400">
+              <span className="px-2 py-0.5 bg-accent text-xs rounded-full text-muted-foreground">
                 +{plugin.tags.length - 3} more
               </span>
             )}
@@ -165,9 +165,9 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
 
       {/* Instances Status */}
       {totalInstances > 0 && (
-        <div className="p-4 border-b border-slate-800">
+        <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Instances</span>
+            <span className="text-muted-foreground">Instances</span>
             <div className="flex items-center gap-2">
               {activeInstances.length > 0 && (
                 <div className="flex items-center gap-1">
@@ -181,7 +181,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
                   <span className="text-rose-400">{errorInstances.length}</span>
                 </div>
               )}
-              <span className="text-slate-500">of {totalInstances}</span>
+              <span className="text-foreground0">of {totalInstances}</span>
             </div>
           </div>
 
@@ -189,14 +189,14 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           <div className="mt-2 space-y-1">
             {instances.slice(0, 2).map(instance => (
               <div key={instance.id} className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 truncate">{instance.instance_name}</span>
+                <span className="text-muted-foreground truncate">{instance.instance_name}</span>
                 <span className={`px-2 py-0.5 rounded-full ${getStatusColor(instance.status)}`}>
                   {instance.status}
                 </span>
               </div>
             ))}
             {instances.length > 2 && (
-              <div className="text-xs text-slate-500 text-center">
+              <div className="text-xs text-foreground0 text-center">
                 +{instances.length - 2} more instances
               </div>
             )}
@@ -206,26 +206,26 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
 
       {/* Plugin Details (Expandable) */}
       {showDetails && (
-        <div className="p-4 border-b border-slate-800 space-y-3">
+        <div className="p-4 border-b border-border space-y-3">
           {/* Configuration Overview */}
           <div>
-            <h4 className="text-sm font-medium text-slate-200 mb-2">Configuration</h4>
+            <h4 className="text-sm font-medium text-foreground mb-2">Configuration</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Total Fields</span>
-                <span className="text-slate-200">{plugin.fields.length}</span>
+                <span className="text-muted-foreground">Total Fields</span>
+                <span className="text-foreground">{plugin.fields.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Required</span>
-                <span className="text-slate-200">{requiredFields}</span>
+                <span className="text-muted-foreground">Required</span>
+                <span className="text-foreground">{requiredFields}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Secrets</span>
-                <span className="text-slate-200">{secretFields}</span>
+                <span className="text-muted-foreground">Secrets</span>
+                <span className="text-foreground">{secretFields}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Groups</span>
-                <span className="text-slate-200">{Object.keys(fieldGroups).length}</span>
+                <span className="text-muted-foreground">Groups</span>
+                <span className="text-foreground">{Object.keys(fieldGroups).length}</span>
               </div>
             </div>
           </div>
@@ -233,12 +233,12 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           {/* Field Groups */}
           {Object.keys(fieldGroups).length > 1 && (
             <div>
-              <h4 className="text-sm font-medium text-slate-200 mb-2">Field Groups</h4>
+              <h4 className="text-sm font-medium text-foreground mb-2">Field Groups</h4>
               <div className="space-y-1">
                 {Object.entries(fieldGroups).map(([group, count]) => (
                   <div key={group} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">{group}</span>
-                    <span className="text-slate-200">{count} fields</span>
+                    <span className="text-muted-foreground">{group}</span>
+                    <span className="text-foreground">{count} fields</span>
                   </div>
                 ))}
               </div>
@@ -247,7 +247,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
 
           {/* Features */}
           <div>
-            <h4 className="text-sm font-medium text-slate-200 mb-2">Features</h4>
+            <h4 className="text-sm font-medium text-foreground mb-2">Features</h4>
             <div className="flex flex-wrap gap-2">
               {plugin.supports_health_check && (
                 <div className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-xs">
@@ -273,15 +273,15 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           {/* Dependencies */}
           {plugin.dependencies && plugin.dependencies.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-slate-200 mb-2">Dependencies</h4>
+              <h4 className="text-sm font-medium text-foreground mb-2">Dependencies</h4>
               <div className="flex flex-wrap gap-1">
                 {plugin.dependencies.slice(0, 4).map(dep => (
-                  <span key={dep} className="px-2 py-0.5 bg-slate-800 text-xs rounded text-slate-400">
+                  <span key={dep} className="px-2 py-0.5 bg-accent text-xs rounded text-muted-foreground">
                     {dep}
                   </span>
                 ))}
                 {plugin.dependencies.length > 4 && (
-                  <span className="px-2 py-0.5 bg-slate-800 text-xs rounded text-slate-400">
+                  <span className="px-2 py-0.5 bg-accent text-xs rounded text-muted-foreground">
                     +{plugin.dependencies.length - 4} more
                   </span>
                 )}
@@ -297,7 +297,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowDetails(!showDetails)}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               {showDetails ? 'Hide Details' : 'Show Details'}
             </button>
@@ -306,7 +306,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
                 href={plugin.homepage}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
               >
                 <ExternalLink className="h-3 w-3" />
                 Docs

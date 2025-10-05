@@ -12,11 +12,14 @@ from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 from sqlalchemy.exc import DatabaseError, SQLAlchemyError
 
 # Import the module to ensure it's loaded for coverage
-import dotmac.platform.health_checks
+import dotmac.platform.monitoring.health_checks
 
-from dotmac.platform.health_checks import (
-    ServiceStatus, ServiceHealth, HealthChecker,
-    check_startup_dependencies, ensure_infrastructure_running
+from dotmac.platform.monitoring.health_checks import (
+    ServiceStatus,
+    ServiceHealth,
+    HealthChecker,
+    check_startup_dependencies,
+    ensure_infrastructure_running,
 )
 
 
@@ -87,12 +90,12 @@ class TestHealthChecker:
         """Test HealthChecker initialization."""
         assert health_checker.checks == []
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_get_redis_client_context_manager(self, mock_settings, health_checker):
         """Test Redis client context manager."""
         mock_redis_client = MagicMock()
 
-        with patch('dotmac.platform.health_checks.Redis') as mock_redis:
+        with patch("dotmac.platform.monitoring.health_checks.Redis") as mock_redis:
             mock_redis.from_url.return_value = mock_redis_client
 
             with health_checker._get_redis_client("redis://localhost:6379") as client:
@@ -108,13 +111,13 @@ class TestHealthChecker:
             # Verify client.close() was called
             mock_redis_client.close.assert_called_once()
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_get_redis_client_close_exception(self, mock_settings, health_checker):
         """Test Redis client context manager with close exception."""
         mock_redis_client = MagicMock()
         mock_redis_client.close.side_effect = Exception("Close failed")
 
-        with patch('dotmac.platform.health_checks.Redis') as mock_redis:
+        with patch("dotmac.platform.monitoring.health_checks.Redis") as mock_redis:
             mock_redis.from_url.return_value = mock_redis_client
 
             # Should not raise exception even if close fails
@@ -126,7 +129,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.ping.return_value = True
 
-        with patch.object(health_checker, '_get_redis_client') as mock_get_client:
+        with patch.object(health_checker, "_get_redis_client") as mock_get_client:
             mock_get_client.return_value.__enter__.return_value = mock_client
 
             is_healthy, message = health_checker._check_redis_url("redis://localhost:6379", "Redis")
@@ -140,7 +143,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.ping.side_effect = RedisError("Connection failed")
 
-        with patch.object(health_checker, '_get_redis_client') as mock_get_client:
+        with patch.object(health_checker, "_get_redis_client") as mock_get_client:
             mock_get_client.return_value.__enter__.return_value = mock_client
 
             is_healthy, message = health_checker._check_redis_url("redis://localhost:6379", "Redis")
@@ -153,7 +156,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.ping.side_effect = Exception("Network error")
 
-        with patch.object(health_checker, '_get_redis_client') as mock_get_client:
+        with patch.object(health_checker, "_get_redis_client") as mock_get_client:
             mock_get_client.return_value.__enter__.return_value = mock_client
 
             is_healthy, message = health_checker._check_redis_url("redis://localhost:6379", "Redis")
@@ -161,7 +164,7 @@ class TestHealthChecker:
             assert is_healthy is False
             assert "Connection failed: Network error" in message
 
-    @patch('dotmac.platform.health_checks.get_sync_engine')
+    @patch("dotmac.platform.monitoring.health_checks.get_sync_engine")
     def test_check_database_success(self, mock_get_engine, health_checker):
         """Test successful database check."""
         mock_connection = MagicMock()
@@ -180,7 +183,7 @@ class TestHealthChecker:
         assert result.message == "Database connection successful"
         assert result.required is True
 
-    @patch('dotmac.platform.health_checks.get_sync_engine')
+    @patch("dotmac.platform.monitoring.health_checks.get_sync_engine")
     def test_check_database_failure(self, mock_get_engine, health_checker):
         """Test database check failure."""
         mock_get_engine.side_effect = DatabaseError("Connection failed", None, None)
@@ -192,12 +195,12 @@ class TestHealthChecker:
         assert "Connection failed" in result.message
         assert result.required is True
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_redis_success(self, mock_settings, health_checker):
         """Test successful Redis check."""
         mock_settings.redis.redis_url = "redis://localhost:6379"
 
-        with patch.object(health_checker, '_check_redis_url') as mock_check:
+        with patch.object(health_checker, "_check_redis_url") as mock_check:
             mock_check.return_value = (True, "Redis connection successful")
 
             result = health_checker.check_redis()
@@ -208,22 +211,24 @@ class TestHealthChecker:
             assert result.required is True
             mock_check.assert_called_once_with("redis://localhost:6379", "Redis")
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_redis_failure(self, mock_settings, health_checker):
         """Test Redis check failure."""
         mock_settings.redis.redis_url = "redis://localhost:6379"
+        # Disable fallback to ensure status is DEGRADED
+        mock_settings.redis_fallback_enabled = True
 
-        with patch.object(health_checker, '_check_redis_url') as mock_check:
+        with patch.object(health_checker, "_check_redis_url") as mock_check:
             mock_check.return_value = (False, "Connection failed")
 
             result = health_checker.check_redis()
 
             assert result.name == "redis"
-            assert result.status == ServiceStatus.UNHEALTHY
-            assert result.message == "Connection failed"
+            assert result.status == ServiceStatus.DEGRADED  # With fallback enabled, it's DEGRADED
+            assert "Connection failed" in result.message
             assert result.required is True
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_disabled(self, mock_settings, health_checker):
         """Test vault check when disabled."""
         mock_settings.vault.enabled = False
@@ -235,7 +240,7 @@ class TestHealthChecker:
         assert result.message == "Vault disabled, skipping check"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_success_prod(self, mock_settings, health_checker):
         """Test successful vault check in production."""
         mock_settings.vault.enabled = True
@@ -247,7 +252,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.health_check.return_value = True
 
-        with patch('dotmac.platform.secrets.VaultClient') as mock_vault:
+        with patch("dotmac.platform.secrets.VaultClient") as mock_vault:
             mock_vault.return_value = mock_client
 
             result = health_checker.check_vault()
@@ -257,7 +262,7 @@ class TestHealthChecker:
             assert result.message == "Vault connection successful"
             assert result.required is True  # Production
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_success_dev(self, mock_settings, health_checker):
         """Test successful vault check in development."""
         mock_settings.vault.enabled = True
@@ -269,7 +274,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.health_check.return_value = True
 
-        with patch('dotmac.platform.secrets.VaultClient') as mock_vault:
+        with patch("dotmac.platform.secrets.VaultClient") as mock_vault:
             mock_vault.return_value = mock_client
 
             result = health_checker.check_vault()
@@ -279,7 +284,7 @@ class TestHealthChecker:
             assert result.message == "Vault connection successful"
             assert result.required is False  # Development
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_health_check_fails(self, mock_settings, health_checker):
         """Test vault check when health check returns False."""
         mock_settings.vault.enabled = True
@@ -291,7 +296,7 @@ class TestHealthChecker:
         mock_client = MagicMock()
         mock_client.health_check.return_value = False
 
-        with patch('dotmac.platform.secrets.VaultClient') as mock_vault:
+        with patch("dotmac.platform.secrets.VaultClient") as mock_vault:
             mock_vault.return_value = mock_client
 
             result = health_checker.check_vault()
@@ -301,7 +306,7 @@ class TestHealthChecker:
             assert result.message == "Vault health check failed"
             assert result.required is True
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_exception(self, mock_settings, health_checker):
         """Test vault check with exception."""
         mock_settings.vault.enabled = True
@@ -310,7 +315,7 @@ class TestHealthChecker:
         mock_settings.vault.namespace = "test-ns"
         mock_settings.environment = "production"
 
-        with patch('dotmac.platform.secrets.VaultClient') as mock_vault:
+        with patch("dotmac.platform.secrets.VaultClient") as mock_vault:
             mock_vault.side_effect = Exception("Connection error")
 
             result = health_checker.check_vault()
@@ -320,12 +325,12 @@ class TestHealthChecker:
             assert "Connection failed: Connection error" in result.message
             assert result.required is True
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_celery_broker_redis_success(self, mock_settings, health_checker):
         """Test successful Celery broker check with Redis."""
         mock_settings.celery.broker_url = "redis://localhost:6379/0"
 
-        with patch.object(health_checker, '_check_redis_url') as mock_check:
+        with patch.object(health_checker, "_check_redis_url") as mock_check:
             mock_check.return_value = (True, "Celery broker connection successful")
 
             result = health_checker.check_celery_broker()
@@ -336,12 +341,12 @@ class TestHealthChecker:
             assert result.required is False
             mock_check.assert_called_once_with("redis://localhost:6379/0", "Celery broker")
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_celery_broker_redis_failure(self, mock_settings, health_checker):
         """Test Celery broker check failure with Redis."""
         mock_settings.celery.broker_url = "redis://localhost:6379/0"
 
-        with patch.object(health_checker, '_check_redis_url') as mock_check:
+        with patch.object(health_checker, "_check_redis_url") as mock_check:
             mock_check.return_value = (False, "Connection failed")
 
             result = health_checker.check_celery_broker()
@@ -351,7 +356,7 @@ class TestHealthChecker:
             assert result.message == "Connection failed"
             assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_celery_broker_rabbitmq(self, mock_settings, health_checker):
         """Test Celery broker check with RabbitMQ."""
         mock_settings.celery.broker_url = "amqp://localhost:5672"
@@ -363,7 +368,7 @@ class TestHealthChecker:
         assert result.message == "RabbitMQ broker check not implemented"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_celery_broker_pyamqp(self, mock_settings, health_checker):
         """Test Celery broker check with PyAMQP."""
         mock_settings.celery.broker_url = "pyamqp://localhost:5672"
@@ -375,7 +380,7 @@ class TestHealthChecker:
         assert result.message == "RabbitMQ broker check not implemented"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_celery_broker_unknown(self, mock_settings, health_checker):
         """Test Celery broker check with unknown broker."""
         mock_settings.celery.broker_url = "sqs://aws-region/queue-name"
@@ -387,7 +392,7 @@ class TestHealthChecker:
         assert result.message == "Unknown broker type, assuming healthy"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_storage_local(self, mock_settings, health_checker):
         """Test storage check with local provider."""
         mock_settings.storage.provider = "local"
@@ -399,7 +404,7 @@ class TestHealthChecker:
         assert result.message == "Using local filesystem storage"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_storage_minio(self, mock_settings, health_checker):
         """Test storage check with MinIO provider."""
         mock_settings.storage.provider = "minio"
@@ -411,7 +416,7 @@ class TestHealthChecker:
         assert result.message == "MinIO health check skipped (minio client not bundled)"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_storage_s3(self, mock_settings, health_checker):
         """Test storage check with S3 provider."""
         mock_settings.storage.provider = "s3"
@@ -423,7 +428,7 @@ class TestHealthChecker:
         assert result.message == "Storage provider 's3' assumed healthy"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_observability_disabled(self, mock_settings, health_checker):
         """Test observability check when disabled."""
         mock_settings.observability.otel_enabled = False
@@ -435,7 +440,7 @@ class TestHealthChecker:
         assert result.message == "Observability disabled, skipping check"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_observability_no_endpoint(self, mock_settings, health_checker):
         """Test observability check with no endpoint configured."""
         mock_settings.observability.otel_enabled = True
@@ -448,8 +453,8 @@ class TestHealthChecker:
         assert result.message == "OTLP endpoint not configured"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
-    @patch('dotmac.platform.health_checks.httpx')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
+    @patch("dotmac.platform.monitoring.health_checks.httpx")
     def test_check_observability_success(self, mock_httpx, mock_settings, health_checker):
         """Test successful observability check."""
         mock_settings.observability.otel_enabled = True
@@ -468,8 +473,8 @@ class TestHealthChecker:
         assert result.message == "OTLP endpoint reachable"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
-    @patch('dotmac.platform.health_checks.httpx')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
+    @patch("dotmac.platform.monitoring.health_checks.httpx")
     def test_check_observability_server_error(self, mock_httpx, mock_settings, health_checker):
         """Test observability check with server error."""
         mock_settings.observability.otel_enabled = True
@@ -488,8 +493,8 @@ class TestHealthChecker:
         assert result.message == "OTLP endpoint returned 500"
         assert result.required is False
 
-    @patch('dotmac.platform.health_checks.settings')
-    @patch('dotmac.platform.health_checks.httpx')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
+    @patch("dotmac.platform.monitoring.health_checks.httpx")
     def test_check_observability_exception(self, mock_httpx, mock_settings, health_checker):
         """Test observability check with exception."""
         mock_settings.observability.otel_enabled = True
@@ -517,20 +522,28 @@ class TestHealthCheckerIntegration:
 
     def test_run_all_checks_all_healthy(self, health_checker):
         """Test run_all_checks with all services healthy."""
-        with patch.object(health_checker, 'check_database') as mock_db, \
-             patch.object(health_checker, 'check_redis') as mock_redis, \
-             patch.object(health_checker, 'check_vault') as mock_vault, \
-             patch.object(health_checker, 'check_storage') as mock_storage, \
-             patch.object(health_checker, 'check_celery_broker') as mock_celery, \
-             patch.object(health_checker, 'check_observability') as mock_obs:
+        with (
+            patch.object(health_checker, "check_database") as mock_db,
+            patch.object(health_checker, "check_redis") as mock_redis,
+            patch.object(health_checker, "check_vault") as mock_vault,
+            patch.object(health_checker, "check_storage") as mock_storage,
+            patch.object(health_checker, "check_celery_broker") as mock_celery,
+            patch.object(health_checker, "check_observability") as mock_obs,
+        ):
 
             # All healthy
             mock_db.return_value = ServiceHealth("database", ServiceStatus.HEALTHY, required=True)
             mock_redis.return_value = ServiceHealth("redis", ServiceStatus.HEALTHY, required=True)
             mock_vault.return_value = ServiceHealth("vault", ServiceStatus.HEALTHY, required=False)
-            mock_storage.return_value = ServiceHealth("storage", ServiceStatus.HEALTHY, required=False)
-            mock_celery.return_value = ServiceHealth("celery_broker", ServiceStatus.HEALTHY, required=False)
-            mock_obs.return_value = ServiceHealth("observability", ServiceStatus.HEALTHY, required=False)
+            mock_storage.return_value = ServiceHealth(
+                "storage", ServiceStatus.HEALTHY, required=False
+            )
+            mock_celery.return_value = ServiceHealth(
+                "celery_broker", ServiceStatus.HEALTHY, required=False
+            )
+            mock_obs.return_value = ServiceHealth(
+                "observability", ServiceStatus.HEALTHY, required=False
+            )
 
             all_healthy, checks = health_checker.run_all_checks()
 
@@ -540,20 +553,28 @@ class TestHealthCheckerIntegration:
 
     def test_run_all_checks_required_service_unhealthy(self, health_checker):
         """Test run_all_checks with required service unhealthy."""
-        with patch.object(health_checker, 'check_database') as mock_db, \
-             patch.object(health_checker, 'check_redis') as mock_redis, \
-             patch.object(health_checker, 'check_vault') as mock_vault, \
-             patch.object(health_checker, 'check_storage') as mock_storage, \
-             patch.object(health_checker, 'check_celery_broker') as mock_celery, \
-             patch.object(health_checker, 'check_observability') as mock_obs:
+        with (
+            patch.object(health_checker, "check_database") as mock_db,
+            patch.object(health_checker, "check_redis") as mock_redis,
+            patch.object(health_checker, "check_vault") as mock_vault,
+            patch.object(health_checker, "check_storage") as mock_storage,
+            patch.object(health_checker, "check_celery_broker") as mock_celery,
+            patch.object(health_checker, "check_observability") as mock_obs,
+        ):
 
             # Database unhealthy (required)
             mock_db.return_value = ServiceHealth("database", ServiceStatus.UNHEALTHY, required=True)
             mock_redis.return_value = ServiceHealth("redis", ServiceStatus.HEALTHY, required=True)
             mock_vault.return_value = ServiceHealth("vault", ServiceStatus.HEALTHY, required=False)
-            mock_storage.return_value = ServiceHealth("storage", ServiceStatus.HEALTHY, required=False)
-            mock_celery.return_value = ServiceHealth("celery_broker", ServiceStatus.HEALTHY, required=False)
-            mock_obs.return_value = ServiceHealth("observability", ServiceStatus.HEALTHY, required=False)
+            mock_storage.return_value = ServiceHealth(
+                "storage", ServiceStatus.HEALTHY, required=False
+            )
+            mock_celery.return_value = ServiceHealth(
+                "celery_broker", ServiceStatus.HEALTHY, required=False
+            )
+            mock_obs.return_value = ServiceHealth(
+                "observability", ServiceStatus.HEALTHY, required=False
+            )
 
             all_healthy, checks = health_checker.run_all_checks()
 
@@ -562,20 +583,28 @@ class TestHealthCheckerIntegration:
 
     def test_run_all_checks_optional_service_unhealthy(self, health_checker):
         """Test run_all_checks with optional service unhealthy."""
-        with patch.object(health_checker, 'check_database') as mock_db, \
-             patch.object(health_checker, 'check_redis') as mock_redis, \
-             patch.object(health_checker, 'check_vault') as mock_vault, \
-             patch.object(health_checker, 'check_storage') as mock_storage, \
-             patch.object(health_checker, 'check_celery_broker') as mock_celery, \
-             patch.object(health_checker, 'check_observability') as mock_obs:
+        with (
+            patch.object(health_checker, "check_database") as mock_db,
+            patch.object(health_checker, "check_redis") as mock_redis,
+            patch.object(health_checker, "check_vault") as mock_vault,
+            patch.object(health_checker, "check_storage") as mock_storage,
+            patch.object(health_checker, "check_celery_broker") as mock_celery,
+            patch.object(health_checker, "check_observability") as mock_obs,
+        ):
 
             # Observability unhealthy (optional)
             mock_db.return_value = ServiceHealth("database", ServiceStatus.HEALTHY, required=True)
             mock_redis.return_value = ServiceHealth("redis", ServiceStatus.HEALTHY, required=True)
             mock_vault.return_value = ServiceHealth("vault", ServiceStatus.HEALTHY, required=False)
-            mock_storage.return_value = ServiceHealth("storage", ServiceStatus.HEALTHY, required=False)
-            mock_celery.return_value = ServiceHealth("celery_broker", ServiceStatus.HEALTHY, required=False)
-            mock_obs.return_value = ServiceHealth("observability", ServiceStatus.UNHEALTHY, required=False)
+            mock_storage.return_value = ServiceHealth(
+                "storage", ServiceStatus.HEALTHY, required=False
+            )
+            mock_celery.return_value = ServiceHealth(
+                "celery_broker", ServiceStatus.HEALTHY, required=False
+            )
+            mock_obs.return_value = ServiceHealth(
+                "observability", ServiceStatus.UNHEALTHY, required=False
+            )
 
             all_healthy, checks = health_checker.run_all_checks()
 
@@ -584,7 +613,7 @@ class TestHealthCheckerIntegration:
 
     def test_get_summary(self, health_checker):
         """Test get_summary method."""
-        with patch.object(health_checker, 'run_all_checks') as mock_run:
+        with patch.object(health_checker, "run_all_checks") as mock_run:
             mock_checks = [
                 ServiceHealth("database", ServiceStatus.HEALTHY, "OK", required=True),
                 ServiceHealth("redis", ServiceStatus.UNHEALTHY, "Failed", required=True),
@@ -613,7 +642,7 @@ class TestHealthCheckerIntegration:
 class TestStartupDependencies:
     """Test startup dependency checking functions."""
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_startup_dependencies_all_healthy(self, mock_settings):
         """Test startup dependencies check with all services healthy."""
         mock_settings.environment = "production"
@@ -623,7 +652,7 @@ class TestStartupDependencies:
             ServiceHealth("redis", ServiceStatus.HEALTHY, "OK", required=True),
         ]
 
-        with patch('dotmac.platform.health_checks.HealthChecker') as mock_checker_class:
+        with patch("dotmac.platform.monitoring.health_checks.HealthChecker") as mock_checker_class:
             mock_checker = MagicMock()
             mock_checker.run_all_checks.return_value = (True, mock_checks)
             mock_checker_class.return_value = mock_checker
@@ -632,7 +661,7 @@ class TestStartupDependencies:
 
             assert result is True
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_startup_dependencies_failed_in_prod(self, mock_settings):
         """Test startup dependencies check with failures in production."""
         mock_settings.environment = "production"
@@ -642,7 +671,7 @@ class TestStartupDependencies:
             ServiceHealth("redis", ServiceStatus.UNHEALTHY, "Failed", required=True),
         ]
 
-        with patch('dotmac.platform.health_checks.HealthChecker') as mock_checker_class:
+        with patch("dotmac.platform.monitoring.health_checks.HealthChecker") as mock_checker_class:
             mock_checker = MagicMock()
             mock_checker.run_all_checks.return_value = (False, mock_checks)
             mock_checker_class.return_value = mock_checker
@@ -651,7 +680,7 @@ class TestStartupDependencies:
 
             assert result is False
 
-    @patch('dotmac.platform.health_checks.settings')
+    @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_startup_dependencies_failed_in_dev(self, mock_settings):
         """Test startup dependencies check with failures in development."""
         mock_settings.environment = "development"
@@ -661,7 +690,7 @@ class TestStartupDependencies:
             ServiceHealth("redis", ServiceStatus.UNHEALTHY, "Failed", required=True),
         ]
 
-        with patch('dotmac.platform.health_checks.HealthChecker') as mock_checker_class:
+        with patch("dotmac.platform.monitoring.health_checks.HealthChecker") as mock_checker_class:
             mock_checker = MagicMock()
             mock_checker.run_all_checks.return_value = (False, mock_checks)
             mock_checker_class.return_value = mock_checker

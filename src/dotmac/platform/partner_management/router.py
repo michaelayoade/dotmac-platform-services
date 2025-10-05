@@ -11,9 +11,10 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.partner_management import portal_router
 from dotmac.platform.partner_management.models import PartnerStatus
 from dotmac.platform.partner_management.schemas import (
     PartnerAccountCreate,
@@ -33,11 +34,10 @@ from dotmac.platform.partner_management.schemas import (
     ReferralLeadUpdate,
 )
 from dotmac.platform.partner_management.service import PartnerService
-from dotmac.platform.partner_management import portal_router
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(tags=["partners"])
+router = APIRouter(tags=["Partner Management"])
 
 # Include partner portal sub-router
 router.include_router(portal_router.router)

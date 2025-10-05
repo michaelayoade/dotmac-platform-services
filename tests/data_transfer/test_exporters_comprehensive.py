@@ -40,6 +40,8 @@ from dotmac.platform.data_transfer.exporters import (
     compress_file,
     detect_format,
 )
+
+
 # from dotmac.platform.data_transfer.factory import DataTransferRegistry  # Not used
 
 
@@ -54,8 +56,9 @@ class TestCSVExporter:
         return CSVExporter(config, options)
 
     @pytest.fixture
-    async def sample_data_generator(self):
+    def sample_data_generator(self):
         """Create sample data generator."""
+
         async def _generator():
             records = [
                 DataRecord(data={"id": 1, "name": "Alice", "age": 30}),
@@ -63,8 +66,10 @@ class TestCSVExporter:
                 DataRecord(data={"id": 3, "name": "Charlie", "age": 35}),
             ]
             yield DataBatch(records=records, batch_number=1)
+
         return _generator()
 
+    @pytest.mark.asyncio
     async def test_export_csv_success(self, csv_exporter, sample_data_generator):
         """Test successful CSV export."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -82,14 +87,11 @@ class TestCSVExporter:
             assert list(df.columns) == ["id", "name", "age"]
             assert df.iloc[0]["name"] == "Alice"
 
+    @pytest.mark.asyncio
     async def test_export_csv_with_options(self):
         """Test CSV export with custom options."""
         config = TransferConfig()
-        options = ExportOptions(
-            delimiter="|",
-            encoding="utf-8",
-            include_headers=True
-        )
+        options = ExportOptions(delimiter="|", encoding="utf-8", include_headers=True)
         csv_exporter = CSVExporter(config, options)
 
         async def data_gen():
@@ -104,8 +106,10 @@ class TestCSVExporter:
             content = file_path.read_text()
             assert "|" in content
 
+    @pytest.mark.asyncio
     async def test_export_csv_empty_data(self, csv_exporter):
         """Test CSV export with empty data."""
+
         async def empty_data_gen():
             if False:  # pragma: no cover
                 yield
@@ -116,6 +120,7 @@ class TestCSVExporter:
 
             assert result.status == TransferStatus.COMPLETED
 
+    @pytest.mark.asyncio
     async def test_export_csv_file_error(self, csv_exporter, sample_data_generator):
         """Test CSV export with file write error."""
         # Use invalid path to trigger error
@@ -124,6 +129,7 @@ class TestCSVExporter:
         with pytest.raises(ExportError):
             await csv_exporter.export_to_file(sample_data_generator, invalid_path)
 
+    @pytest.mark.asyncio
     async def test_export_csv_progress_callback(self, sample_data_generator):
         """Test CSV export with progress callback."""
         progress_calls = []
@@ -154,8 +160,10 @@ class TestJSONExporter:
         options = ExportOptions()
         return JSONExporter(config, options)
 
+    @pytest.mark.asyncio
     async def test_export_json_success(self, json_exporter):
         """Test successful JSON export."""
+
         async def data_gen():
             records = [
                 DataRecord(data={"id": 1, "name": "Alice"}),
@@ -175,6 +183,7 @@ class TestJSONExporter:
             assert len(data) == 2
             assert data[0]["name"] == "Alice"
 
+    @pytest.mark.asyncio
     async def test_export_json_with_indent(self):
         """Test JSON export with indentation."""
         config = TransferConfig()
@@ -192,14 +201,15 @@ class TestJSONExporter:
             content = file_path.read_text()
             assert "  " in content  # Check for indentation
 
+    @pytest.mark.asyncio
     async def test_export_json_nested_data(self, json_exporter):
         """Test JSON export with nested data structures."""
+
         async def data_gen():
             records = [
-                DataRecord(data={
-                    "user": {"name": "Alice", "meta": {"age": 30}},
-                    "items": [1, 2, 3]
-                })
+                DataRecord(
+                    data={"user": {"name": "Alice", "meta": {"age": 30}}, "items": [1, 2, 3]}
+                )
             ]
             yield DataBatch(records=records, batch_number=1)
 
@@ -223,8 +233,10 @@ class TestXMLExporter:
         options = ExportOptions()
         return XMLExporter(config, options)
 
+    @pytest.mark.asyncio
     async def test_export_xml_success(self, xml_exporter):
         """Test successful XML export."""
+
         async def data_gen():
             records = [
                 DataRecord(data={"id": "1", "name": "Alice"}),
@@ -246,6 +258,7 @@ class TestXMLExporter:
             records = root.findall("record")
             assert len(records) == 2
 
+    @pytest.mark.asyncio
     async def test_export_xml_custom_root(self):
         """Test XML export with custom root element."""
         config = TransferConfig()
@@ -274,8 +287,10 @@ class TestYAMLExporter:
         options = ExportOptions()
         return YAMLExporter(config, options)
 
+    @pytest.mark.asyncio
     async def test_export_yaml_success(self, yaml_exporter):
         """Test successful YAML export."""
+
         async def data_gen():
             records = [
                 DataRecord(data={"name": "Alice", "age": 30}),
@@ -295,12 +310,11 @@ class TestYAMLExporter:
             assert len(data) == 2
             assert data[0]["name"] == "Alice"
 
+    @pytest.mark.asyncio
     async def test_export_yaml_with_options(self):
         """Test YAML export with custom options."""
         config = TransferConfig()
-        options = ExportOptions(
-            encoding="utf-8"
-        )
+        options = ExportOptions(encoding="utf-8")
         yaml_exporter = YAMLExporter(config, options)
 
         async def data_gen():
@@ -325,8 +339,10 @@ class TestExcelExporter:
         options = ExportOptions()
         return ExcelExporter(config, options)
 
+    @pytest.mark.asyncio
     async def test_export_excel_success(self, excel_exporter):
         """Test successful Excel export."""
+
         async def data_gen():
             records = [
                 DataRecord(data={"id": 1, "name": "Alice", "score": 95.5}),
@@ -347,6 +363,7 @@ class TestExcelExporter:
             assert "name" in df.columns
             assert df.iloc[0]["name"] == "Alice"
 
+    @pytest.mark.asyncio
     async def test_export_excel_custom_sheet(self):
         """Test Excel export with custom sheet name."""
         config = TransferConfig()
@@ -381,7 +398,7 @@ class TestCompressionUtility:
             assert compressed_file.exists()
 
             # Verify compressed content
-            with gzip.open(compressed_file, 'rt') as f:
+            with gzip.open(compressed_file, "rt") as f:
                 content = f.read()
             assert content == "Hello, World!"
 
@@ -408,7 +425,7 @@ class TestCompressionUtility:
             assert compressed_file.exists()
 
             # Verify ZIP content
-            with zipfile.ZipFile(compressed_file, 'r') as zf:
+            with zipfile.ZipFile(compressed_file, "r") as zf:
                 assert "test.txt" in zf.namelist()
 
     def test_compress_file_none(self):
@@ -509,8 +526,10 @@ class TestExporterFactory:
 class TestExportDataFunction:
     """Test high-level export_data function."""
 
+    @pytest.mark.asyncio
     async def test_export_data_success(self):
         """Test successful data export using export_data function."""
+
         async def data_gen():
             records = [
                 DataRecord(data={"id": 1, "name": "Alice"}),
@@ -527,8 +546,10 @@ class TestExportDataFunction:
             assert result.status == TransferStatus.COMPLETED
             assert Path(file_path).exists()
 
+    @pytest.mark.asyncio
     async def test_export_data_with_compression(self):
         """Test data export with compression."""
+
         async def data_gen():
             records = [DataRecord(data={"test": "data"})]
             yield DataBatch(records=records, batch_number=1)
@@ -541,8 +562,10 @@ class TestExportDataFunction:
             assert result.status == TransferStatus.COMPLETED
             assert Path(file_path).exists()
 
+    @pytest.mark.asyncio
     async def test_export_data_empty(self):
         """Test export with empty data."""
+
         async def data_gen():
             if False:  # pragma: no cover
                 yield
@@ -554,8 +577,10 @@ class TestExportDataFunction:
 
             assert result.status == TransferStatus.COMPLETED
 
+    @pytest.mark.asyncio
     async def test_export_data_with_progress_callback(self):
         """Test data export with progress callback."""
+
         async def data_gen():
             records = [DataRecord(data={"id": i, "value": f"item_{i}"}) for i in range(10)]
             yield DataBatch(records=records, batch_number=1)
@@ -569,8 +594,7 @@ class TestExportDataFunction:
             file_path = str(Path(temp_dir) / "progress_test.json")
 
             result = await export_data(
-                data_gen(), file_path, DataFormat.JSON,
-                progress_callback=progress_callback
+                data_gen(), file_path, DataFormat.JSON, progress_callback=progress_callback
             )
 
             assert result.status == TransferStatus.COMPLETED
@@ -587,8 +611,10 @@ class TestExporterErrorHandling:
         options = ExportOptions()
         return CSVExporter(config, options)
 
+    @pytest.mark.asyncio
     async def test_export_invalid_file_path(self, csv_exporter):
         """Test export with invalid file path."""
+
         async def data_gen():
             records = [DataRecord(data={"test": "data"})]
             yield DataBatch(records=records, batch_number=1)
@@ -598,6 +624,7 @@ class TestExporterErrorHandling:
         with pytest.raises(ExportError):
             await csv_exporter.export_to_file(data_gen(), invalid_path)
 
+    @pytest.mark.asyncio
     async def test_export_data_serialization_error(self):
         """Test export with data that can't be serialized."""
         config = TransferConfig()
@@ -617,8 +644,10 @@ class TestExporterErrorHandling:
             # Actually, pandas might handle this by converting to string representation
             assert result.status == TransferStatus.COMPLETED
 
+    @pytest.mark.asyncio
     async def test_export_pandas_error(self, csv_exporter):
         """Test export with pandas processing error."""
+
         async def malformed_data_gen():
             # Data that might cause pandas issues
             records = [
@@ -638,6 +667,7 @@ class TestExporterErrorHandling:
 class TestExporterProgressTracking:
     """Test progress tracking in exporters."""
 
+    @pytest.mark.asyncio
     async def test_progress_tracking_during_export(self):
         """Test that progress is tracked during export."""
         progress_calls = []
@@ -653,7 +683,7 @@ class TestExporterProgressTracking:
             # Generate multiple batches
             for i in range(3):
                 records = [DataRecord(data={"batch": i, "item": j}) for j in range(10)]
-                yield DataBatch(records=records, batch_number=i+1)
+                yield DataBatch(records=records, batch_number=i + 1)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = Path(temp_dir) / "progress.csv"
@@ -667,6 +697,7 @@ class TestExporterProgressTracking:
             final_statuses = [call.status for call in progress_calls]
             assert TransferStatus.COMPLETED in final_statuses
 
+    @pytest.mark.asyncio
     async def test_progress_info_content(self):
         """Test progress info contains correct data."""
         progress_calls = []

@@ -156,7 +156,9 @@ def upgrade() -> None:
     )
     op.create_index("idx_payment_tenant_customer", "payments", ["tenant_id", "customer_id"])
     op.create_index("idx_payment_tenant_status", "payments", ["tenant_id", "status"])
-    op.create_unique_constraint("uq_payment_idempotency", "payments", ["tenant_id", "idempotency_key"])
+    op.create_unique_constraint(
+        "uq_payment_idempotency", "payments", ["tenant_id", "idempotency_key"]
+    )
 
     # Create payment_invoices association table
     op.create_table(
@@ -213,7 +215,11 @@ def upgrade() -> None:
         sa.Column(
             "account_type",
             sa.Enum(
-                "CHECKING", "SAVINGS", "BUSINESS_CHECKING", "BUSINESS_SAVINGS", name="bankaccounttype"
+                "CHECKING",
+                "SAVINGS",
+                "BUSINESS_CHECKING",
+                "BUSINESS_SAVINGS",
+                name="bankaccounttype",
             ),
             nullable=True,
         ),
@@ -263,7 +269,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("transaction_id"),
     )
     op.create_index("idx_transaction_tenant_customer", "transactions", ["tenant_id", "customer_id"])
-    op.create_index("idx_transaction_tenant_date", "transactions", ["tenant_id", "transaction_date"])
+    op.create_index(
+        "idx_transaction_tenant_date", "transactions", ["tenant_id", "transaction_date"]
+    )
 
     # Create credit notes table
     op.create_table(
@@ -377,7 +385,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("application_id"),
     )
     op.create_index(
-        "idx_credit_application_tenant_target", "credit_applications", ["tenant_id", "applied_to_id"]
+        "idx_credit_application_tenant_target",
+        "credit_applications",
+        ["tenant_id", "applied_to_id"],
     )
 
     # Create customer credits table

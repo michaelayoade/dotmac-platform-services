@@ -5,15 +5,13 @@ Provides CRUD operations for partner management following project patterns.
 """
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 import structlog
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from dotmac.platform.partner_management.models import (
     Partner,
@@ -26,12 +24,10 @@ from dotmac.platform.partner_management.models import (
 )
 from dotmac.platform.partner_management.schemas import (
     PartnerAccountCreate,
-    PartnerAccountUpdate,
     PartnerCommissionEventCreate,
     PartnerCreate,
     PartnerUpdate,
     PartnerUserCreate,
-    PartnerUserUpdate,
     ReferralLeadCreate,
     ReferralLeadUpdate,
 )
@@ -211,7 +207,7 @@ class PartnerService:
             partner.custom_fields = data.custom_fields
 
         partner.updated_by = updated_by
-        partner.updated_at = datetime.now(timezone.utc)
+        partner.updated_at = datetime.now(UTC)
 
         await self.session.commit()
         await self.session.refresh(partner)
@@ -232,7 +228,7 @@ class PartnerService:
         if not partner:
             return False
 
-        partner.deleted_at = datetime.now(timezone.utc)
+        partner.deleted_at = datetime.now(UTC)
         partner.updated_by = deleted_by
 
         await self.session.commit()
@@ -287,7 +283,7 @@ class PartnerService:
         )
 
         if active_only:
-            query = query.where(PartnerUser.is_active == True)
+            query = query.where(PartnerUser.is_active)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -347,7 +343,7 @@ class PartnerService:
         )
 
         if active_only:
-            query = query.where(PartnerAccount.is_active == True)
+            query = query.where(PartnerAccount.is_active)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -365,7 +361,7 @@ class PartnerService:
 
         event = PartnerCommissionEvent(
             tenant_id=tenant_id,
-            event_date=datetime.now(timezone.utc),
+            event_date=datetime.now(UTC),
             **data.model_dump(exclude={"metadata"}),
         )
 
@@ -431,7 +427,7 @@ class PartnerService:
 
         referral = ReferralLead(
             tenant_id=tenant_id,
-            submitted_date=datetime.now(timezone.utc),
+            submitted_date=datetime.now(UTC),
             **data.model_dump(exclude={"metadata"}),
         )
 
@@ -527,7 +523,7 @@ class PartnerService:
         # Handle conversion tracking
         if new_status == ReferralStatus.CONVERTED and old_status != ReferralStatus.CONVERTED:
             # Set converted_at timestamp
-            referral.converted_at = datetime.now(timezone.utc)
+            referral.converted_at = datetime.now(UTC)
 
             # Update partner's converted referrals count
             result = await self.session.execute(

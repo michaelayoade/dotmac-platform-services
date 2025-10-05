@@ -5,8 +5,7 @@ Provides REST endpoints for file storage operations.
 """
 
 import os
-from datetime import datetime
-from typing import List, Optional
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import (
@@ -46,13 +45,13 @@ class FileUploadResponse(BaseModel):
     file_size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME type")
     upload_timestamp: str = Field(..., description="Upload timestamp")
-    url: Optional[str] = Field(None, description="Download URL if available")
+    url: str | None = Field(None, description="Download URL if available")
 
 
 class FileListResponse(BaseModel):
     """File list response."""
 
-    files: List[FileMetadata] = Field(..., description="List of files")
+    files: list[FileMetadata] = Field(..., description="List of files")
     total: int = Field(..., description="Total number of files")
     page: int = Field(..., description="Current page")
     per_page: int = Field(..., description="Items per page")
@@ -61,17 +60,17 @@ class FileListResponse(BaseModel):
 class FileOperationRequest(BaseModel):
     """File operation request."""
 
-    file_ids: List[str] = Field(..., description="File IDs to operate on")
+    file_ids: list[str] = Field(..., description="File IDs to operate on")
     operation: str = Field(..., description="Operation to perform")
-    destination: Optional[str] = Field(None, description="Destination for move/copy")
+    destination: str | None = Field(None, description="Destination for move/copy")
 
 
 # Endpoints
 @file_storage_router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    path: Optional[str] = Form(None, description="Storage path"),
-    description: Optional[str] = Form(None, description="File description"),
+    path: str | None = Form(None, description="Storage path"),
+    description: str | None = Form(None, description="File description"),
     current_user: UserInfo = Depends(get_current_user),
 ) -> FileUploadResponse:
     """
@@ -95,10 +94,10 @@ async def upload_file(
 
         # Generate file path
         if not path:
-            path = f"uploads/{current_user.user_id}/{datetime.utcnow().strftime('%Y/%m/%d')}"
+            path = f"uploads/{current_user.user_id}/{datetime.now(UTC).strftime('%Y/%m/%d')}"
 
         # Get tenant ID from user context
-        tenant_id = getattr(current_user, 'tenant_id', None)
+        tenant_id = getattr(current_user, "tenant_id", None)
 
         # Store file
         file_id = await storage_service.store_file(
@@ -119,7 +118,7 @@ async def upload_file(
             file_name=file.filename or "unnamed",
             file_size=file_size,
             content_type=file.content_type or "application/octet-stream",
-            upload_timestamp=datetime.utcnow().isoformat(),
+            upload_timestamp=datetime.now(UTC).isoformat(),
             url=f"/api/v1/files/storage/{file_id}/download",
         )
     except HTTPException:
@@ -144,7 +143,7 @@ async def download_file(
 
     try:
         # Get tenant ID from user context
-        tenant_id = getattr(current_user, 'tenant_id', None)
+        tenant_id = getattr(current_user, "tenant_id", None)
 
         file_data, metadata = await storage_service.retrieve_file(file_id, tenant_id)
 
@@ -155,7 +154,11 @@ async def download_file(
             )
 
         # Return actual file content
-        content_type = metadata.get("content_type", "application/octet-stream") if metadata else "application/octet-stream"
+        content_type = (
+            metadata.get("content_type", "application/octet-stream")
+            if metadata
+            else "application/octet-stream"
+        )
         file_name = metadata.get("file_name", "download") if metadata else "download"
 
         return Response(
@@ -164,7 +167,7 @@ async def download_file(
             headers={
                 "Content-Disposition": f'attachment; filename="{file_name}"',
                 "Content-Length": str(len(file_data)),
-            }
+            },
         )
     except HTTPException:
         raise
@@ -195,7 +198,7 @@ async def delete_file(
 
         return {
             "message": f"File {file_id} deleted successfully",
-            "deleted_at": datetime.utcnow().isoformat(),
+            "deleted_at": datetime.now(UTC).isoformat(),
         }
     except HTTPException:
         raise
@@ -209,7 +212,7 @@ async def delete_file(
 
 @file_storage_router.get("", response_model=FileListResponse)
 async def list_files(
-    path: Optional[str] = Query(None, description="Filter by path"),
+    path: str | None = Query(None, description="Filter by path"),
     skip: int = Query(0, ge=0, description="Skip records"),
     limit: int = Query(100, ge=1, le=1000, description="Limit records"),
     current_user: UserInfo = Depends(get_current_user),
@@ -300,7 +303,7 @@ async def batch_operation(
         return {
             "operation": request.operation,
             "results": results,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         logger.error(f"Batch operation failed: {e}")

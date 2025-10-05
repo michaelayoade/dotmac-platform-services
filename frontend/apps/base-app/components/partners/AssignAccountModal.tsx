@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { platformConfig } from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = platformConfig.apiBaseUrl;
 
 interface AssignAccountModalProps {
   partnerId: string;
@@ -150,7 +151,7 @@ export default function AssignAccountModal({
               placeholder="Leave empty to use partner default"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Override the partner's default commission rate for this account
+              Override the partner&apos;s default commission rate for this account
             </p>
           </div>
 

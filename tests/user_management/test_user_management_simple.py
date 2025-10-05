@@ -22,7 +22,7 @@ class TestUserModel:
             id=uuid.uuid4(),
             username="testuser",
             email="test@example.com",
-            password_hash="hashed_password_123"
+            password_hash="hashed_password_123",
         )
 
         assert user.username == "testuser"
@@ -41,7 +41,7 @@ class TestUserModel:
             username="testuser",
             email="test@example.com",
             password_hash="hashed_password_123",
-            full_name="Test User"
+            full_name="Test User",
         )
 
         user_dict = user.to_dict()
@@ -74,7 +74,7 @@ class TestUserService:
             email="test@example.com",
             password_hash="$2b$12$hashedpassword",
             is_active=True,
-            failed_login_attempts=0
+            failed_login_attempts=0,
         )
 
     @pytest.mark.asyncio
@@ -141,10 +141,10 @@ class TestUserService:
             "username": "newuser",
             "email": "new@example.com",
             "password": "secure_password123",
-            "full_name": "New User"
+            "full_name": "New User",
         }
 
-        with patch.object(user_service, '_hash_password', return_value="hashed_password"):
+        with patch.object(user_service, "_hash_password", return_value="hashed_password"):
             result = await user_service.create_user(**user_data)
 
         assert result.username == "newuser"
@@ -163,15 +163,13 @@ class TestUserService:
 
         with pytest.raises(ValueError, match="Username testuser already exists"):
             await user_service.create_user(
-                username="testuser",
-                email="new@example.com",
-                password="password"
+                username="testuser", email="new@example.com", password="password"
             )
 
     @pytest.mark.asyncio
     async def test_verify_password(self, user_service, mock_user):
         """Test password verification."""
-        with patch.object(user_service.pwd_context, 'verify', return_value=True) as mock_verify:
+        with patch.object(user_service.pwd_context, "verify", return_value=True) as mock_verify:
             result = await user_service.verify_password(mock_user, "correct_password")
 
             assert result is True
@@ -185,7 +183,7 @@ class TestUserService:
             return_value=Mock(scalar_one_or_none=Mock(return_value=mock_user))
         )
 
-        with patch.object(user_service, 'verify_password', return_value=True):
+        with patch.object(user_service, "verify_password", return_value=True):
             result = await user_service.authenticate("testuser", "correct_password")
 
             assert result == mock_user
@@ -197,7 +195,7 @@ class TestUserService:
             return_value=Mock(scalar_one_or_none=Mock(return_value=mock_user))
         )
 
-        with patch.object(user_service, 'verify_password', return_value=False):
+        with patch.object(user_service, "verify_password", return_value=False):
             result = await user_service.authenticate("testuser", "wrong_password")
 
             assert result is None
@@ -219,10 +217,14 @@ class TestUserService:
         mock_total = 3
 
         # Mock the count query
-        user_service.session.execute = AsyncMock(side_effect=[
-            Mock(scalar=Mock(return_value=mock_total)),  # Count query
-            Mock(scalars=Mock(return_value=Mock(all=Mock(return_value=mock_users))))  # Users query
-        ])
+        user_service.session.execute = AsyncMock(
+            side_effect=[
+                Mock(scalar=Mock(return_value=mock_total)),  # Count query
+                Mock(
+                    scalars=Mock(return_value=Mock(all=Mock(return_value=mock_users)))
+                ),  # Users query
+            ]
+        )
 
         users, total = await user_service.list_users(tenant_id="test-tenant")
 
@@ -274,8 +276,8 @@ class TestUserService:
             return_value=Mock(scalar_one_or_none=Mock(return_value=mock_user))
         )
 
-        with patch.object(user_service, 'verify_password', return_value=True):
-            with patch.object(user_service, '_hash_password', return_value="new_hashed_password"):
+        with patch.object(user_service, "verify_password", return_value=True):
+            with patch.object(user_service, "_hash_password", return_value="new_hashed_password"):
                 result = await user_service.change_password(
                     mock_user.id, "old_password", "new_password"
                 )
@@ -314,7 +316,7 @@ class TestUserService:
 
     def test_private_hash_password(self, user_service):
         """Test private password hashing method."""
-        with patch.object(user_service.pwd_context, 'hash', return_value="hashed") as mock_hash:
+        with patch.object(user_service.pwd_context, "hash", return_value="hashed") as mock_hash:
             result = user_service._hash_password("password123")
 
             assert result == "hashed"

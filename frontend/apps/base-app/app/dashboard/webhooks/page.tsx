@@ -81,7 +81,7 @@ export default function WebhooksPage() {
   // Filter webhooks based on search and filters
   const filteredWebhooks = webhooks.filter(webhook => {
     const matchesSearch = searchQuery === '' ||
-      webhook.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      webhook.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       webhook.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
       webhook.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -107,11 +107,11 @@ export default function WebhooksPage() {
 
   const getStatusColor = (webhook: WebhookSubscription) => {
     if (!webhook.is_active) {
-      return 'text-slate-400 bg-slate-500/20 border-slate-500/30';
+      return 'text-muted-foreground bg-card0/20 border-border/30';
     }
 
-    const failureRate = webhook.total_deliveries > 0
-      ? (webhook.failed_deliveries / webhook.total_deliveries) * 100
+    const failureRate = (webhook.total_deliveries ?? 0) > 0
+      ? ((webhook.failed_deliveries ?? 0) / (webhook.total_deliveries ?? 0)) * 100
       : 0;
 
     if (failureRate > 20) {
@@ -126,8 +126,8 @@ export default function WebhooksPage() {
   const getStatusText = (webhook: WebhookSubscription) => {
     if (!webhook.is_active) return 'Inactive';
 
-    const failureRate = webhook.total_deliveries > 0
-      ? (webhook.failed_deliveries / webhook.total_deliveries) * 100
+    const failureRate = (webhook.total_deliveries ?? 0) > 0
+      ? ((webhook.failed_deliveries ?? 0) / (webhook.total_deliveries ?? 0)) * 100
       : 0;
 
     if (failureRate > 20) return 'Issues';
@@ -138,8 +138,8 @@ export default function WebhooksPage() {
   const getStatusIcon = (webhook: WebhookSubscription) => {
     if (!webhook.is_active) return XCircle;
 
-    const failureRate = webhook.total_deliveries > 0
-      ? (webhook.failed_deliveries / webhook.total_deliveries) * 100
+    const failureRate = (webhook.total_deliveries ?? 0) > 0
+      ? ((webhook.failed_deliveries ?? 0) / (webhook.total_deliveries ?? 0)) * 100
       : 0;
 
     if (failureRate > 20) return XCircle;
@@ -152,12 +152,12 @@ export default function WebhooksPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-12">
             <AlertTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">Failed to load webhooks</h3>
-            <p className="text-slate-400">{error}</p>
+            <h3 className="text-lg font-medium text-foreground mb-2">Failed to load webhooks</h3>
+            <p className="text-muted-foreground">{error}</p>
           </div>
         </div>
       </div>
@@ -165,16 +165,16 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
               <Webhook className="h-8 w-8 text-sky-400" />
               Webhooks
             </h1>
-            <p className="text-slate-400 mt-1">
+            <p className="text-muted-foreground mt-1">
               Manage webhook subscriptions to receive real-time event notifications
             </p>
           </div>
@@ -188,25 +188,25 @@ export default function WebhooksPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-slate-900 rounded-lg p-6 mb-6">
+        <div className="bg-card rounded-lg p-6 mb-6">
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Search className="h-4 w-4 text-slate-400" />
+              <Search className="h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search webhooks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="flex-1 px-3 py-2 bg-accent border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-slate-400" />
+              <Filter className="h-4 w-4 text-muted-foreground" />
               <select
                 value={eventFilter}
                 onChange={(e) => setEventFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
                 <option value="all">All Events</option>
                 {availableEvents.map((event) => (
@@ -218,7 +218,7 @@ export default function WebhooksPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -228,19 +228,19 @@ export default function WebhooksPage() {
         </div>
 
         {/* Webhooks List */}
-        <div className="bg-slate-900 rounded-lg overflow-hidden">
+        <div className="bg-card rounded-lg overflow-hidden">
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-slate-400">Loading webhooks...</p>
+              <p className="text-muted-foreground">Loading webhooks...</p>
             </div>
           ) : filteredWebhooks.length === 0 ? (
             <div className="p-8 text-center">
-              <Webhook className="mx-auto h-12 w-12 text-slate-400 mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">
+              <Webhook className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
                 {webhooks.length === 0 ? 'No webhooks yet' : 'No matching webhooks'}
               </h3>
-              <p className="text-slate-400 mb-4">
+              <p className="text-muted-foreground mb-4">
                 {webhooks.length === 0
                   ? 'Create your first webhook to start receiving event notifications.'
                   : 'Try adjusting your search criteria or filters.'
@@ -257,19 +257,19 @@ export default function WebhooksPage() {
               )}
             </div>
           ) : (
-            <div className="divide-y divide-slate-700">
+            <div className="divide-y divide-border">
               {filteredWebhooks.map((webhook) => {
                 const StatusIcon = getStatusIcon(webhook);
 
                 return (
                   <div
                     key={webhook.id}
-                    className="p-6 hover:bg-slate-800/50 transition-colors"
+                    className="p-6 hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-medium text-white">
+                          <h3 className="text-lg font-medium text-foreground">
                             {webhook.name}
                           </h3>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(webhook)}`}>
@@ -279,10 +279,10 @@ export default function WebhooksPage() {
                         </div>
 
                         {webhook.description && (
-                          <p className="text-slate-400 mb-3">{webhook.description}</p>
+                          <p className="text-muted-foreground mb-3">{webhook.description}</p>
                         )}
 
-                        <div className="flex items-center gap-6 text-sm text-slate-400 mb-3">
+                        <div className="flex items-center gap-6 text-sm text-muted-foreground mb-3">
                           <div className="flex items-center gap-2">
                             <Zap className="h-4 w-4" />
                             <span className="font-mono text-xs">{webhook.url}</span>
@@ -317,25 +317,25 @@ export default function WebhooksPage() {
                               </span>
                             ))}
                             {webhook.events.length > 3 && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600/20 text-slate-400 border border-slate-600/30">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/20 text-muted-foreground border border-border/30">
                                 +{webhook.events.length - 3} more
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-4 text-sm text-slate-400">
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <div className="text-center">
-                              <div className="font-medium text-white">{webhook.total_deliveries}</div>
+                              <div className="font-medium text-foreground">{webhook.total_deliveries}</div>
                               <div className="text-xs">Total</div>
                             </div>
                             <div className="text-center">
-                              <div className="font-medium text-red-400">{webhook.failed_deliveries}</div>
+                              <div className="font-medium text-red-600 dark:text-red-400">{webhook.failed_deliveries}</div>
                               <div className="text-xs">Failed</div>
                             </div>
                             <div className="text-center">
-                              <div className="font-medium text-green-400">
-                                {webhook.total_deliveries > 0 ?
-                                  Math.round(((webhook.total_deliveries - webhook.failed_deliveries) / webhook.total_deliveries) * 100) : 100}%
+                              <div className="font-medium text-green-600 dark:text-green-400">
+                                {(webhook.total_deliveries ?? 0) > 0 ?
+                                  Math.round((((webhook.total_deliveries ?? 0) - (webhook.failed_deliveries ?? 0)) / (webhook.total_deliveries ?? 0)) * 100) : 100}%
                               </div>
                               <div className="text-xs">Success</div>
                             </div>
@@ -434,20 +434,20 @@ function WebhookActions({ webhook, onView, onEdit, onDelete, onTest }: WebhookAc
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="text-slate-400 hover:text-white transition-colors p-2"
+        className="text-muted-foreground hover:text-foreground transition-colors p-2"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-48 bg-slate-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-10">
+        <div className="absolute right-0 mt-2 w-48 bg-accent rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-10">
           <div className="py-1">
             <button
               onClick={() => {
                 onView(webhook);
                 setShowDropdown(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 w-full text-left"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-muted w-full text-left"
             >
               <Eye className="h-4 w-4" />
               View Details
@@ -457,7 +457,7 @@ function WebhookActions({ webhook, onView, onEdit, onDelete, onTest }: WebhookAc
                 onTest(webhook);
                 setShowDropdown(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 w-full text-left"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-muted w-full text-left"
             >
               <TestTube className="h-4 w-4" />
               Test Webhook
@@ -467,7 +467,7 @@ function WebhookActions({ webhook, onView, onEdit, onDelete, onTest }: WebhookAc
                 onEdit(webhook);
                 setShowDropdown(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 w-full text-left"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-muted w-full text-left"
             >
               <Edit className="h-4 w-4" />
               Edit Webhook
@@ -477,7 +477,7 @@ function WebhookActions({ webhook, onView, onEdit, onDelete, onTest }: WebhookAc
                 onDelete(webhook);
                 setShowDropdown(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-slate-700 w-full text-left"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-muted w-full text-left"
             >
               <Trash2 className="h-4 w-4" />
               Delete Webhook

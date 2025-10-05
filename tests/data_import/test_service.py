@@ -7,15 +7,8 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from dotmac.platform.data_import.service import (
-    ImportResult,
-    DataImportService
-)
-from dotmac.platform.data_import.models import (
-    ImportJob,
-    ImportJobType,
-    ImportJobStatus
-)
+from dotmac.platform.data_import.service import ImportResult, DataImportService
+from dotmac.platform.data_import.models import ImportJob, ImportJobType, ImportJobStatus
 
 
 class TestImportResult:
@@ -25,10 +18,7 @@ class TestImportResult:
         """Test import result initialization."""
         job_id = str(uuid4())
         result = ImportResult(
-            job_id=job_id,
-            total_records=100,
-            successful_records=95,
-            failed_records=5
+            job_id=job_id, total_records=100, successful_records=95, failed_records=5
         )
 
         assert result.job_id == job_id
@@ -41,10 +31,7 @@ class TestImportResult:
     def test_result_with_errors(self):
         """Test adding errors to result."""
         result = ImportResult(job_id="test-job")
-        result.errors.append({
-            "row": 10,
-            "message": "Invalid email"
-        })
+        result.errors.append({"row": 10, "message": "Invalid email"})
 
         assert len(result.errors) == 1
         assert result.errors[0]["row"] == 10
@@ -60,10 +47,7 @@ class TestImportResult:
     def test_result_success_rate(self):
         """Test calculating success rate."""
         result = ImportResult(
-            job_id="test-job",
-            total_records=100,
-            successful_records=90,
-            failed_records=10
+            job_id="test-job", total_records=100, successful_records=90, failed_records=10
         )
 
         # Calculate success rate
@@ -131,11 +115,7 @@ class TestDataImportService:
     @pytest.mark.asyncio
     async def test_validate_customer_data(self, import_service):
         """Test validating customer data."""
-        valid_data = {
-            "name": "John Doe",
-            "email": "john@example.com",
-            "phone": "+1234567890"
-        }
+        valid_data = {"name": "John Doe", "email": "john@example.com", "phone": "+1234567890"}
 
         # Should not raise exception for valid data
         assert valid_data["email"] is not None
@@ -188,10 +168,7 @@ class TestDataImportService:
     async def test_partial_import_completion(self, import_service):
         """Test handling partially completed imports."""
         result = ImportResult(
-            job_id="test-job",
-            total_records=100,
-            successful_records=75,
-            failed_records=25
+            job_id="test-job", total_records=100, successful_records=75, failed_records=25
         )
 
         # Job should be marked as partially completed if there are failures
@@ -208,10 +185,7 @@ class TestDataImportService:
     async def test_failed_import_handling(self, import_service):
         """Test handling completely failed imports."""
         result = ImportResult(
-            job_id="test-job",
-            total_records=10,
-            successful_records=0,
-            failed_records=10
+            job_id="test-job", total_records=10, successful_records=0, failed_records=10
         )
 
         # All records failed

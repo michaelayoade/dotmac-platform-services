@@ -343,7 +343,7 @@ export default function BankingPage() {
       verified: 'bg-emerald-500/10 text-emerald-400',
       pending: 'bg-amber-500/10 text-amber-400',
       failed: 'bg-rose-500/10 text-rose-400',
-      suspended: 'bg-slate-500/10 text-slate-400',
+      suspended: 'bg-muted/10 text-muted-foreground',
       reconciled: 'bg-sky-500/10 text-sky-400',
     };
 
@@ -366,7 +366,7 @@ export default function BankingPage() {
   const renderBankAccounts = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-slate-100">Company Bank Accounts</h3>
+        <h3 className="text-lg font-medium text-foreground">Company Bank Accounts</h3>
         <button
           onClick={() => setShowAddAccount(true)}
           className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors flex items-center gap-2"
@@ -377,24 +377,24 @@ export default function BankingPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400">Loading accounts...</div>
+        <div className="text-center py-12 text-muted-foreground">Loading accounts...</div>
       ) : bankAccounts.length === 0 ? (
-        <div className="text-center py-12 bg-slate-800/50 rounded-lg border border-slate-700">
-          <Building2 className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">No bank accounts configured</p>
-          <p className="text-sm text-slate-500 mt-1">Add your company bank accounts to receive payments</p>
+        <div className="text-center py-12 bg-accent/50 rounded-lg border border-border">
+          <Building2 className="h-12 w-12 text-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No bank accounts configured</p>
+          <p className="text-sm text-muted-foreground mt-1">Add your company bank accounts to receive payments</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {bankAccounts.map((account) => (
             <div
               key={account.id}
-              className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:bg-slate-800/70 transition-colors"
+              className="bg-accent/50 border border-border rounded-lg p-4 hover:bg-accent/70 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h4 className="text-sm font-medium text-slate-100">
+                    <h4 className="text-sm font-medium text-foreground">
                       {account.account_nickname || account.account_name}
                     </h4>
                     {account.is_primary && (
@@ -407,41 +407,41 @@ export default function BankingPage() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <div className="text-slate-500">Bank</div>
-                      <div className="text-slate-300">{account.bank_name}</div>
+                      <div className="text-muted-foreground">Bank</div>
+                      <div className="text-muted-foreground">{account.bank_name}</div>
                     </div>
                     <div>
-                      <div className="text-slate-500">Account</div>
-                      <div className="text-slate-300 font-mono flex items-center gap-2">
+                      <div className="text-muted-foreground">Account</div>
+                      <div className="text-muted-foreground font-mono flex items-center gap-2">
                         {showAccountNumber === account.id ? (
                           <>
                             ****{account.account_number_last_four}
                             <button onClick={() => setShowAccountNumber(null)}>
-                              <EyeOff className="h-3 w-3 text-slate-500" />
+                              <EyeOff className="h-3 w-3 text-muted-foreground" />
                             </button>
                           </>
                         ) : (
                           <>
                             ••••{account.account_number_last_four}
                             <button onClick={() => setShowAccountNumber(account.id)}>
-                              <Eye className="h-3 w-3 text-slate-500" />
+                              <Eye className="h-3 w-3 text-muted-foreground" />
                             </button>
                           </>
                         )}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-500">Type</div>
-                      <div className="text-slate-300 capitalize">{account.account_type}</div>
+                      <div className="text-muted-foreground">Type</div>
+                      <div className="text-muted-foreground capitalize">{account.account_type}</div>
                     </div>
                     <div>
-                      <div className="text-slate-500">Currency</div>
-                      <div className="text-slate-300">{account.currency}</div>
+                      <div className="text-muted-foreground">Currency</div>
+                      <div className="text-muted-foreground">{account.currency}</div>
                     </div>
                   </div>
 
                   {account.routing_number && (
-                    <div className="mt-3 flex gap-4 text-xs text-slate-400">
+                    <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                       <span>Routing: {account.routing_number}</span>
                       {account.swift_code && <span>SWIFT: {account.swift_code}</span>}
                       {account.iban && <span>IBAN: {account.iban}</span>}
@@ -460,11 +460,11 @@ export default function BankingPage() {
                   )}
                   <button
                     onClick={() => loadAccountSummary(account.id)}
-                    className="px-3 py-1.5 text-sm bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600"
+                    className="px-3 py-1.5 text-sm bg-muted text-muted-foreground rounded-lg hover:bg-accent"
                   >
                     View Details
                   </button>
-                  <button className="text-slate-400 hover:text-slate-300">
+                  <button className="text-muted-foreground hover:text-muted-foreground">
                     <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
@@ -475,30 +475,30 @@ export default function BankingPage() {
       )}
 
       {selectedAccount && (
-        <div className="mt-6 p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
-          <h4 className="text-sm font-medium text-slate-200 mb-4">Account Summary</h4>
+        <div className="mt-6 p-4 bg-card/50 border border-border rounded-lg">
+          <h4 className="text-sm font-medium text-foreground mb-4">Account Summary</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <div className="text-xs text-slate-500">Month-to-Date</div>
-              <div className="text-lg font-semibold text-slate-100">
+              <div className="text-xs text-muted-foreground">Month-to-Date</div>
+              <div className="text-lg font-semibold text-foreground">
                 ${selectedAccount.total_deposits_mtd.toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Year-to-Date</div>
-              <div className="text-lg font-semibold text-slate-100">
+              <div className="text-xs text-muted-foreground">Year-to-Date</div>
+              <div className="text-lg font-semibold text-foreground">
                 ${selectedAccount.total_deposits_ytd.toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Pending Payments</div>
+              <div className="text-xs text-muted-foreground">Pending Payments</div>
               <div className="text-lg font-semibold text-amber-400">
                 {selectedAccount.pending_payments}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Last Reconciled</div>
-              <div className="text-sm text-slate-300">
+              <div className="text-xs text-muted-foreground">Last Reconciled</div>
+              <div className="text-sm text-muted-foreground">
                 {selectedAccount.last_reconciliation
                   ? new Date(selectedAccount.last_reconciliation).toLocaleDateString()
                   : 'Never'}
@@ -513,7 +513,7 @@ export default function BankingPage() {
   const renderManualPayments = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-slate-100">Manual Payment Records</h3>
+        <h3 className="text-lg font-medium text-foreground">Manual Payment Records</h3>
         <button
           onClick={() => setShowRecordPayment(true)}
           className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors flex items-center gap-2"
@@ -525,36 +525,36 @@ export default function BankingPage() {
 
       <div className="flex gap-4 mb-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search payments..."
-            className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full pl-10 pr-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
-        <button className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 flex items-center gap-2">
+        <button className="px-4 py-2 bg-accent border border-border text-muted-foreground rounded-lg hover:bg-muted flex items-center gap-2">
           <Filter className="h-4 w-4" />
           Filter
         </button>
-        <button className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 flex items-center gap-2">
+        <button className="px-4 py-2 bg-accent border border-border text-muted-foreground rounded-lg hover:bg-muted flex items-center gap-2">
           <Download className="h-4 w-4" />
           Export
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400">Loading payments...</div>
+        <div className="text-center py-12 text-muted-foreground">Loading payments...</div>
       ) : manualPayments.length === 0 ? (
-        <div className="text-center py-12 bg-slate-800/50 rounded-lg border border-slate-700">
-          <Receipt className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">No manual payments recorded</p>
-          <p className="text-sm text-slate-500 mt-1">Record cash, check, and other manual payments here</p>
+        <div className="text-center py-12 bg-accent/50 rounded-lg border border-border">
+          <Receipt className="h-12 w-12 text-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No manual payments recorded</p>
+          <p className="text-sm text-muted-foreground mt-1">Record cash, check, and other manual payments here</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="text-xs text-slate-400 uppercase tracking-wider">
-              <tr className="border-b border-slate-800">
+            <thead className="text-xs text-muted-foreground uppercase tracking-wider">
+              <tr className="border-b border-border">
                 <th className="text-left py-3 px-4">Reference</th>
                 <th className="text-left py-3 px-4">Customer</th>
                 <th className="text-left py-3 px-4">Method</th>
@@ -564,26 +564,26 @@ export default function BankingPage() {
                 <th className="text-left py-3 px-4">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-border">
               {manualPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-slate-800/50 transition-colors">
+                <tr key={payment.id} className="hover:bg-accent/50 transition-colors">
                   <td className="py-3 px-4">
-                    <div className="font-mono text-sm text-slate-300">
+                    <div className="font-mono text-sm text-muted-foreground">
                       {payment.payment_reference}
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-muted-foreground">
                       {payment.customer_name || payment.customer_id}
                     </div>
                     {payment.invoice_id && (
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-muted-foreground">
                         Invoice: {payment.invoice_id}
                       </div>
                     )}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       {payment.payment_method === 'cash' && <Banknote className="h-4 w-4" />}
                       {payment.payment_method === 'check' && <FileText className="h-4 w-4" />}
                       {payment.payment_method === 'bank_transfer' && <Building2 className="h-4 w-4" />}
@@ -592,12 +592,12 @@ export default function BankingPage() {
                     </div>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <div className="font-medium text-slate-100">
+                    <div className="font-medium text-foreground">
                       {payment.currency} {payment.amount.toLocaleString()}
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-muted-foreground">
                       {new Date(payment.payment_date).toLocaleDateString()}
                     </div>
                   </td>
@@ -605,7 +605,7 @@ export default function BankingPage() {
                     <div className="flex items-center gap-2">
                       {getStatusBadge(payment.status)}
                       {payment.reconciled && (
-                        <span className="text-xs text-emerald-400">
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400">
                           <CheckSquare className="h-3 w-3" />
                         </span>
                       )}
@@ -616,12 +616,12 @@ export default function BankingPage() {
                       {payment.status === 'pending' && (
                         <button
                           onClick={() => handleVerifyPayment(payment.id)}
-                          className="text-emerald-400 hover:text-emerald-300"
+                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
                         >
                           <CheckCircle className="h-4 w-4" />
                         </button>
                       )}
-                      <button className="text-slate-400 hover:text-slate-300">
+                      <button className="text-muted-foreground hover:text-muted-foreground">
                         <Eye className="h-4 w-4" />
                       </button>
                     </div>
@@ -638,25 +638,25 @@ export default function BankingPage() {
   const renderReconciliation = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-slate-100">Payment Reconciliation</h3>
+        <h3 className="text-lg font-medium text-foreground">Payment Reconciliation</h3>
         <button className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors">
           Start Reconciliation
         </button>
       </div>
 
-      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+      <div className="bg-accent/50 border border-border rounded-lg p-6">
         <div className="text-center">
-          <CheckSquare className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">Reconciliation helps match payments with bank statements</p>
-          <p className="text-sm text-slate-500 mt-2">
+          <CheckSquare className="h-12 w-12 text-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">Reconciliation helps match payments with bank statements</p>
+          <p className="text-sm text-muted-foreground mt-2">
             Upload bank statements or manually reconcile payments to ensure accurate records
           </p>
           <div className="mt-6 flex justify-center gap-4">
-            <button className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 flex items-center gap-2">
+            <button className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-accent flex items-center gap-2">
               <Upload className="h-4 w-4" />
               Upload Statement
             </button>
-            <button className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800">
+            <button className="px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent">
               Manual Reconciliation
             </button>
           </div>
@@ -670,12 +670,12 @@ export default function BankingPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-slate-100">Banking & Payments</h1>
-          <p className="text-slate-400 mt-1">Manage bank accounts and record manual payments</p>
+          <h1 className="text-2xl font-semibold text-foreground">Banking & Payments</h1>
+          <p className="text-muted-foreground mt-1">Manage bank accounts and record manual payments</p>
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 border-b border-slate-800">
+        <div className="mb-6 border-b border-border">
           <nav className="flex space-x-8">
             {tabs.map((tab) => (
               <button
@@ -684,7 +684,7 @@ export default function BankingPage() {
                 className={`flex items-center gap-2 py-3 px-1 border-b-2 transition-colors text-sm font-medium ${
                   activeTab === tab.id
                     ? 'border-sky-500 text-sky-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
               >
                 <tab.icon className="h-4 w-4" />
@@ -695,7 +695,7 @@ export default function BankingPage() {
         </div>
 
         {/* Content */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+        <div className="bg-card/50 border border-border rounded-lg p-6">
           {activeTab === 'accounts' && renderBankAccounts()}
           {activeTab === 'payments' && renderManualPayments()}
           {activeTab === 'reconciliation' && renderReconciliation()}
@@ -704,32 +704,32 @@ export default function BankingPage() {
         {/* Add Bank Account Modal */}
         {showAddAccount && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-medium text-slate-100 mb-4">Add Bank Account</h3>
+            <div className="bg-card border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-medium text-foreground mb-4">Add Bank Account</h3>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Account Name *
                     </label>
                     <input
                       type="text"
                       value={accountForm.account_name}
                       onChange={(e) => setAccountForm({ ...accountForm, account_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="Company Name on Account"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Nickname
                     </label>
                     <input
                       type="text"
                       value={accountForm.account_nickname}
                       onChange={(e) => setAccountForm({ ...accountForm, account_nickname: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="Main Operating Account"
                     />
                   </div>
@@ -737,26 +737,26 @@ export default function BankingPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Bank Name *
                     </label>
                     <input
                       type="text"
                       value={accountForm.bank_name}
                       onChange={(e) => setAccountForm({ ...accountForm, bank_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="Chase Bank"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Account Number *
                     </label>
                     <input
                       type="text"
                       value={accountForm.account_number}
                       onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                       placeholder="1234567890"
                     />
                   </div>
@@ -764,13 +764,13 @@ export default function BankingPage() {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Account Type
                     </label>
                     <select
                       value={accountForm.account_type}
                       onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="checking">Checking</option>
                       <option value="savings">Savings</option>
@@ -779,13 +779,13 @@ export default function BankingPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Currency
                     </label>
                     <select
                       value={accountForm.currency}
                       onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -794,13 +794,13 @@ export default function BankingPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Country
                     </label>
                     <select
                       value={accountForm.bank_country}
                       onChange={(e) => setAccountForm({ ...accountForm, bank_country: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="US">United States</option>
                       <option value="CA">Canada</option>
@@ -812,72 +812,72 @@ export default function BankingPage() {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Routing Number
                     </label>
                     <input
                       type="text"
                       value={accountForm.routing_number}
                       onChange={(e) => setAccountForm({ ...accountForm, routing_number: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                       placeholder="021000021"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       SWIFT Code
                     </label>
                     <input
                       type="text"
                       value={accountForm.swift_code}
                       onChange={(e) => setAccountForm({ ...accountForm, swift_code: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                       placeholder="CHASUS33"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       IBAN
                     </label>
                     <input
                       type="text"
                       value={accountForm.iban}
                       onChange={(e) => setAccountForm({ ...accountForm, iban: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                       placeholder="GB33BUKB20201555555555"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-3 border-t border-slate-800 pt-4">
+                <div className="space-y-3 border-t border-border pt-4">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={accountForm.is_primary}
                       onChange={(e) => setAccountForm({ ...accountForm, is_primary: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
+                      className="h-4 w-4 rounded border-border bg-accent text-sky-500"
                     />
-                    <span className="text-sm text-slate-300">Set as primary account</span>
+                    <span className="text-sm text-muted-foreground">Set as primary account</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={accountForm.accepts_deposits}
                       onChange={(e) => setAccountForm({ ...accountForm, accepts_deposits: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500"
+                      className="h-4 w-4 rounded border-border bg-accent text-sky-500"
                     />
-                    <span className="text-sm text-slate-300">Accept deposits to this account</span>
+                    <span className="text-sm text-muted-foreground">Accept deposits to this account</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Notes
                   </label>
                   <textarea
                     value={accountForm.notes}
                     onChange={(e) => setAccountForm({ ...accountForm, notes: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     rows={3}
                     placeholder="Internal notes about this account"
                   />
@@ -890,7 +890,7 @@ export default function BankingPage() {
                     setShowAddAccount(false);
                     resetAccountForm();
                   }}
-                  className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800"
+                  className="px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent"
                 >
                   Cancel
                 </button>
@@ -908,12 +908,12 @@ export default function BankingPage() {
         {/* Record Payment Modal */}
         {showRecordPayment && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-medium text-slate-100 mb-4">Record Manual Payment</h3>
+            <div className="bg-card border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-medium text-foreground mb-4">Record Manual Payment</h3>
 
               {/* Payment Method Selection */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Payment Method
                 </label>
                 <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
@@ -924,7 +924,7 @@ export default function BankingPage() {
                       className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-colors ${
                         selectedPaymentMethod === method.value
                           ? 'border-sky-500 bg-sky-500/10 text-sky-400'
-                          : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                          : 'border-border text-muted-foreground hover:bg-accent'
                       }`}
                     >
                       <method.icon className="h-5 w-5" />
@@ -937,26 +937,26 @@ export default function BankingPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Customer ID *
                     </label>
                     <input
                       type="text"
                       value={paymentForm.customer_id}
                       onChange={(e) => setPaymentForm({ ...paymentForm, customer_id: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="CUST-001"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Invoice ID
                     </label>
                     <input
                       type="text"
                       value={paymentForm.invoice_id}
                       onChange={(e) => setPaymentForm({ ...paymentForm, invoice_id: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="INV-001 (optional)"
                     />
                   </div>
@@ -964,26 +964,26 @@ export default function BankingPage() {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Amount *
                     </label>
                     <input
                       type="number"
                       value={paymentForm.amount}
                       onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                       placeholder="0.00"
                       step="0.01"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Currency
                     </label>
                     <select
                       value={paymentForm.currency}
                       onChange={(e) => setPaymentForm({ ...paymentForm, currency: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -991,14 +991,14 @@ export default function BankingPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
                       Payment Date *
                     </label>
                     <input
                       type="date"
                       value={paymentForm.payment_date}
                       onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 </div>
@@ -1007,26 +1007,26 @@ export default function BankingPage() {
                 {selectedPaymentMethod === 'cash' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Register ID
                       </label>
                       <input
                         type="text"
                         value={paymentForm.cash_register_id}
                         onChange={(e) => setPaymentForm({ ...paymentForm, cash_register_id: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="REG-001"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Cashier Name
                       </label>
                       <input
                         type="text"
                         value={paymentForm.cashier_name}
                         onChange={(e) => setPaymentForm({ ...paymentForm, cashier_name: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="John Doe"
                       />
                     </div>
@@ -1036,26 +1036,26 @@ export default function BankingPage() {
                 {selectedPaymentMethod === 'check' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Check Number *
                       </label>
                       <input
                         type="text"
                         value={paymentForm.check_number}
                         onChange={(e) => setPaymentForm({ ...paymentForm, check_number: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="1234"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Bank Name
                       </label>
                       <input
                         type="text"
                         value={paymentForm.check_bank_name}
                         onChange={(e) => setPaymentForm({ ...paymentForm, check_bank_name: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="Wells Fargo"
                       />
                     </div>
@@ -1065,39 +1065,39 @@ export default function BankingPage() {
                 {(selectedPaymentMethod === 'bank_transfer' || selectedPaymentMethod === 'wire_transfer') && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Sender Name
                       </label>
                       <input
                         type="text"
                         value={paymentForm.sender_name}
                         onChange={(e) => setPaymentForm({ ...paymentForm, sender_name: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="Company Name / Individual"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">
                           Sender Bank
                         </label>
                         <input
                           type="text"
                           value={paymentForm.sender_bank}
                           onChange={(e) => setPaymentForm({ ...paymentForm, sender_bank: e.target.value })}
-                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                           placeholder="Bank of America"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">
                           Account Last 4
                         </label>
                         <input
                           type="text"
                           value={paymentForm.sender_account_last_four}
                           onChange={(e) => setPaymentForm({ ...paymentForm, sender_account_last_four: e.target.value })}
-                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                          className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                           placeholder="1234"
                           maxLength={4}
                         />
@@ -1109,26 +1109,26 @@ export default function BankingPage() {
                 {selectedPaymentMethod === 'mobile_money' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Mobile Number *
                       </label>
                       <input
                         type="text"
                         value={paymentForm.mobile_number}
                         onChange={(e) => setPaymentForm({ ...paymentForm, mobile_number: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="+254700000000"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-muted-foreground mb-2">
                         Provider *
                       </label>
                       <input
                         type="text"
                         value={paymentForm.mobile_provider}
                         onChange={(e) => setPaymentForm({ ...paymentForm, mobile_provider: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                         placeholder="M-Pesa"
                       />
                     </div>
@@ -1136,7 +1136,7 @@ export default function BankingPage() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Deposit To Account
                   </label>
                   <select
@@ -1145,7 +1145,7 @@ export default function BankingPage() {
                       ...paymentForm,
                       bank_account_id: e.target.value ? parseInt(e.target.value) : null
                     })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Select bank account</option>
                     {bankAccounts.map((account) => (
@@ -1157,13 +1157,13 @@ export default function BankingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Notes
                   </label>
                   <textarea
                     value={paymentForm.notes}
                     onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                     rows={3}
                     placeholder="Additional payment details or notes"
                   />
@@ -1176,7 +1176,7 @@ export default function BankingPage() {
                     setShowRecordPayment(false);
                     resetPaymentForm();
                   }}
-                  className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800"
+                  className="px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent"
                 >
                   Cancel
                 </button>

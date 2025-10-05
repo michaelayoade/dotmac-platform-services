@@ -26,8 +26,8 @@ export function LoadingSpinner({ size = 'md', className, label }: LoadingSpinner
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <Loader2 className={cn('animate-spin text-sky-500', sizeClasses[size])} />
-      {label && <span className="text-slate-400 text-sm">{label}</span>}
+      <Loader2 className={cn('animate-spin text-primary', sizeClasses[size])} />
+      {label && <span className="text-muted-foreground text-sm">{label}</span>}
     </div>
   );
 }
@@ -50,10 +50,10 @@ export function LoadingOverlay({ show, message = 'Loading...', blur = true }: Lo
       blur && 'backdrop-blur-sm'
     )}>
       <div className="absolute inset-0 bg-black/50" />
-      <div className="relative bg-slate-900 rounded-lg p-6 shadow-xl">
+      <div className="relative bg-card rounded-lg p-6 shadow-xl border border-border">
         <div className="flex flex-col items-center gap-3">
           <LoadingSpinner size="lg" />
-          <p className="text-slate-300">{message}</p>
+          <p className="text-card-foreground">{message}</p>
         </div>
       </div>
     </div>
@@ -71,15 +71,15 @@ interface LoadingCardProps {
  */
 export function LoadingCard({ lines = 3, showAvatar = false, className }: LoadingCardProps) {
   return (
-    <div className={cn('bg-slate-900 rounded-lg p-6 animate-pulse', className)}>
+    <div className={cn('bg-card rounded-lg p-6 animate-pulse border border-border', className)}>
       <div className="flex items-start gap-4">
         {showAvatar && (
-          <div className="h-10 w-10 bg-slate-800 rounded-full" />
+          <div className="h-10 w-10 bg-muted rounded-full" />
         )}
         <div className="flex-1 space-y-3">
-          <div className="h-4 bg-slate-800 rounded w-3/4" />
+          <div className="h-4 bg-muted rounded w-3/4" />
           {Array.from({ length: lines - 1 }).map((_, i) => (
-            <div key={i} className="h-4 bg-slate-800 rounded w-full" />
+            <div key={i} className="h-4 bg-muted rounded w-full" />
           ))}
         </div>
       </div>
@@ -98,24 +98,24 @@ interface LoadingTableProps {
  */
 export function LoadingTable({ rows = 5, columns = 4, className }: LoadingTableProps) {
   return (
-    <div className={cn('bg-slate-900 rounded-lg overflow-hidden', className)}>
+    <div className={cn('bg-card rounded-lg overflow-hidden border border-border', className)}>
       {/* Header */}
-      <div className="border-b border-slate-800 p-4">
+      <div className="border-b border-border p-4">
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
           {Array.from({ length: columns }).map((_, i) => (
-            <div key={i} className="h-4 bg-slate-800 rounded animate-pulse" />
+            <div key={i} className="h-4 bg-muted rounded animate-pulse" />
           ))}
         </div>
       </div>
 
       {/* Rows */}
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <div key={rowIndex} className="border-b border-slate-800 p-4">
+        <div key={rowIndex} className="border-b border-border p-4 last:border-0">
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
             {Array.from({ length: columns }).map((_, colIndex) => (
               <div
                 key={colIndex}
-                className="h-4 bg-slate-800 rounded animate-pulse"
+                className="h-4 bg-muted rounded animate-pulse"
                 style={{ width: `${Math.random() * 40 + 60}%` }}
               />
             ))}
@@ -183,9 +183,9 @@ export function LoadingState({
       <>
         {errorComponent || (
           <div className="flex flex-col items-center justify-center p-8 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-            <p className="text-slate-300 mb-2">Something went wrong</p>
-            <p className="text-slate-500 text-sm">{error?.message || 'Please try again later'}</p>
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <p className="text-foreground mb-2">Something went wrong</p>
+            <p className="text-muted-foreground text-sm">{error?.message || 'Please try again later'}</p>
           </div>
         )}
       </>
@@ -197,8 +197,8 @@ export function LoadingState({
       <>
         {emptyComponent || (
           <div className="flex flex-col items-center justify-center p-8 text-center">
-            {emptyIcon || <InfoIcon className="h-12 w-12 text-slate-500 mb-4" />}
-            <p className="text-slate-400">{emptyMessage}</p>
+            {emptyIcon || <InfoIcon className="h-12 w-12 text-muted-foreground mb-4" />}
+            <p className="text-muted-foreground">{emptyMessage}</p>
           </div>
         )}
       </>
@@ -273,9 +273,9 @@ export function ButtonLoading({
   disabled
 }: ButtonLoadingProps) {
   const variantClasses = {
-    primary: 'bg-sky-500 hover:bg-sky-600 text-white',
-    secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
-    danger: 'bg-red-500 hover:bg-red-600 text-white',
+    primary: 'bg-primary hover:bg-primary/90 text-primary-foreground',
+    secondary: 'bg-secondary hover:bg-secondary/80 text-secondary-foreground',
+    danger: 'bg-destructive hover:bg-destructive/90 text-destructive-foreground',
   };
 
   return (
@@ -312,10 +312,10 @@ export function ProgressIndicator({ steps, className }: ProgressIndicatorProps) 
           <div className={cn(
             'h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium',
             {
-              'bg-slate-700 text-slate-400': step.status === 'pending',
-              'bg-sky-500 text-white': step.status === 'active',
+              'bg-muted text-muted-foreground': step.status === 'pending',
+              'bg-primary text-primary-foreground': step.status === 'active',
               'bg-green-500 text-white': step.status === 'completed',
-              'bg-red-500 text-white': step.status === 'error',
+              'bg-destructive text-destructive-foreground': step.status === 'error',
             }
           )}>
             {step.status === 'completed' ? (
@@ -329,10 +329,10 @@ export function ProgressIndicator({ steps, className }: ProgressIndicatorProps) 
             )}
           </div>
           <span className={cn('text-sm', {
-            'text-slate-500': step.status === 'pending',
-            'text-white font-medium': step.status === 'active',
-            'text-slate-300': step.status === 'completed',
-            'text-red-400': step.status === 'error',
+            'text-muted-foreground': step.status === 'pending',
+            'text-foreground font-medium': step.status === 'active',
+            'text-foreground': step.status === 'completed',
+            'text-destructive': step.status === 'error',
           })}>
             {step.label}
           </span>

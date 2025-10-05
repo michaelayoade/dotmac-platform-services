@@ -71,7 +71,7 @@ export const DialogContent = ({ children, className = '', ...props }: DialogCont
       {...props}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-lg shadow-lg max-w-md w-full p-6"
+        className="bg-white dark:bg-card rounded-lg shadow-lg max-w-md w-full p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -87,13 +87,13 @@ export const DialogHeader = ({ children, className = '', ...props }: DialogHeade
 );
 
 export const DialogTitle = ({ children, className = '', ...props }: DialogTitleProps) => (
-  <h2 className={`text-lg font-semibold ${className}`} {...props}>
+  <h2 className={`text-lg font-semibold text-foreground dark:text-white ${className}`} {...props}>
     {children}
   </h2>
 );
 
 export const DialogDescription = ({ children, className = '', ...props }: DialogDescriptionProps) => (
-  <p className={`text-sm text-gray-600 dark:text-gray-400 ${className}`} {...props}>
+  <p className={`text-sm text-muted-foreground dark:text-muted-foreground ${className}`} {...props}>
     {children}
   </p>
 );

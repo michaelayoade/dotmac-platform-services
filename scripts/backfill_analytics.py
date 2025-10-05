@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add src to path
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.dotmac.platform.database import get_db_session, init_db
@@ -36,7 +37,7 @@ from src.dotmac.platform.data_import.models import (
     ImportJob,
     ImportFailure,
     ImportJobStatus,
-    ImportJobType
+    ImportJobType,
 )
 
 app = typer.Typer(help="Data import analytics and backfill tools")
@@ -45,21 +46,9 @@ console = Console()
 
 @app.command()
 def analyze_performance(
-    days: int = typer.Option(
-        30,
-        "--days", "-d",
-        help="Number of days to analyze"
-    ),
-    tenant_id: Optional[str] = typer.Option(
-        None,
-        "--tenant-id", "-t",
-        help="Filter by tenant ID"
-    ),
-    export_csv: bool = typer.Option(
-        False,
-        "--export-csv",
-        help="Export results to CSV"
-    )
+    days: int = typer.Option(30, "--days", "-d", help="Number of days to analyze"),
+    tenant_id: Optional[str] = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
+    export_csv: bool = typer.Option(False, "--export-csv", help="Export results to CSV"),
 ):
     """
     Analyze import job performance over time.
@@ -70,11 +59,7 @@ def analyze_performance(
     asyncio.run(_analyze_performance(days, tenant_id, export_csv))
 
 
-async def _analyze_performance(
-    days: int,
-    tenant_id: Optional[str],
-    export_csv: bool
-):
+async def _analyze_performance(days: int, tenant_id: Optional[str], export_csv: bool):
     """Async implementation of performance analysis."""
     await init_db()
 
@@ -101,7 +86,9 @@ async def _analyze_performance(
 
         # Export if requested
         if export_csv:
-            export_performance_csv(metrics, f"import_performance_{datetime.now().strftime('%Y%m%d')}.csv")
+            export_performance_csv(
+                metrics, f"import_performance_{datetime.now().strftime('%Y%m%d')}.csv"
+            )
 
 
 def calculate_performance_metrics(jobs: List[ImportJob]) -> Dict[str, Any]:
@@ -158,43 +145,40 @@ def calculate_performance_metrics(jobs: List[ImportJob]) -> Dict[str, Any]:
     for job in jobs:
         date_key = job.created_at.date().isoformat()
         if date_key not in daily_stats:
-            daily_stats[date_key] = {
-                'total': 0,
-                'successful': 0,
-                'failed': 0,
-                'records': 0
-            }
+            daily_stats[date_key] = {"total": 0, "successful": 0, "failed": 0, "records": 0}
 
-        daily_stats[date_key]['total'] += 1
-        daily_stats[date_key]['records'] += job.total_records
+        daily_stats[date_key]["total"] += 1
+        daily_stats[date_key]["records"] += job.total_records
 
         if job.status == ImportJobStatus.COMPLETED:
-            daily_stats[date_key]['successful'] += 1
+            daily_stats[date_key]["successful"] += 1
         elif job.status == ImportJobStatus.FAILED:
-            daily_stats[date_key]['failed'] += 1
+            daily_stats[date_key]["failed"] += 1
 
     return {
-        'summary': {
-            'total_jobs': total_jobs,
-            'successful_jobs': len(successful_jobs),
-            'failed_jobs': len(failed_jobs),
-            'partial_jobs': len(partial_jobs),
-            'success_rate': (len(successful_jobs) / total_jobs * 100) if total_jobs > 0 else 0,
-            'total_records': total_records,
-            'successful_records': successful_records,
-            'failed_records': failed_records,
-            'record_success_rate': (successful_records / total_records * 100) if total_records > 0 else 0
+        "summary": {
+            "total_jobs": total_jobs,
+            "successful_jobs": len(successful_jobs),
+            "failed_jobs": len(failed_jobs),
+            "partial_jobs": len(partial_jobs),
+            "success_rate": (len(successful_jobs) / total_jobs * 100) if total_jobs > 0 else 0,
+            "total_records": total_records,
+            "successful_records": successful_records,
+            "failed_records": failed_records,
+            "record_success_rate": (
+                (successful_records / total_records * 100) if total_records > 0 else 0
+            ),
         },
-        'status_distribution': status_counts,
-        'type_distribution': type_counts,
-        'processing': {
-            'avg_time_seconds': avg_processing_time,
-            'max_time_seconds': max_processing_time,
-            'min_time_seconds': min_processing_time,
-            'avg_throughput_records_per_sec': avg_throughput,
-            'avg_file_size_bytes': avg_file_size
+        "status_distribution": status_counts,
+        "type_distribution": type_counts,
+        "processing": {
+            "avg_time_seconds": avg_processing_time,
+            "max_time_seconds": max_processing_time,
+            "min_time_seconds": min_processing_time,
+            "avg_throughput_records_per_sec": avg_throughput,
+            "avg_file_size_bytes": avg_file_size,
         },
-        'daily_stats': daily_stats
+        "daily_stats": daily_stats,
     }
 
 
@@ -207,11 +191,11 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     summary_table.add_column("Metric", style="cyan")
     summary_table.add_column("Value", style="green")
 
-    summary = metrics['summary']
-    summary_table.add_row("Total Jobs", str(summary['total_jobs']))
-    summary_table.add_row("Successful Jobs", str(summary['successful_jobs']))
-    summary_table.add_row("Failed Jobs", str(summary['failed_jobs']))
-    summary_table.add_row("Partial Jobs", str(summary['partial_jobs']))
+    summary = metrics["summary"]
+    summary_table.add_row("Total Jobs", str(summary["total_jobs"]))
+    summary_table.add_row("Successful Jobs", str(summary["successful_jobs"]))
+    summary_table.add_row("Failed Jobs", str(summary["failed_jobs"]))
+    summary_table.add_row("Partial Jobs", str(summary["partial_jobs"]))
     summary_table.add_row("Success Rate", f"{summary['success_rate']:.1f}%")
     summary_table.add_row("Total Records", f"{summary['total_records']:,}")
     summary_table.add_row("Successful Records", f"{summary['successful_records']:,}")
@@ -225,11 +209,13 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     processing_table.add_column("Metric", style="cyan")
     processing_table.add_column("Value", style="yellow")
 
-    proc = metrics['processing']
+    proc = metrics["processing"]
     processing_table.add_row("Avg Processing Time", f"{proc['avg_time_seconds']:.1f} seconds")
     processing_table.add_row("Max Processing Time", f"{proc['max_time_seconds']:.1f} seconds")
     processing_table.add_row("Min Processing Time", f"{proc['min_time_seconds']:.1f} seconds")
-    processing_table.add_row("Avg Throughput", f"{proc['avg_throughput_records_per_sec']:.1f} records/sec")
+    processing_table.add_row(
+        "Avg Throughput", f"{proc['avg_throughput_records_per_sec']:.1f} records/sec"
+    )
     processing_table.add_row("Avg File Size", f"{proc['avg_file_size_bytes'] / 1024 / 1024:.2f} MB")
 
     console.print(processing_table)
@@ -240,8 +226,8 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     status_table.add_column("Count", style="white")
     status_table.add_column("Percentage", style="white")
 
-    total = sum(metrics['status_distribution'].values())
-    for status, count in metrics['status_distribution'].items():
+    total = sum(metrics["status_distribution"].values())
+    for status, count in metrics["status_distribution"].items():
         percentage = (count / total * 100) if total > 0 else 0
         status_table.add_row(status, str(count), f"{percentage:.1f}%")
 
@@ -253,8 +239,8 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     type_table.add_column("Count", style="white")
     type_table.add_column("Percentage", style="white")
 
-    total = sum(metrics['type_distribution'].values())
-    for import_type, count in metrics['type_distribution'].items():
+    total = sum(metrics["type_distribution"].values())
+    for import_type, count in metrics["type_distribution"].items():
         percentage = (count / total * 100) if total > 0 else 0
         type_table.add_row(import_type, str(count), f"{percentage:.1f}%")
 
@@ -268,14 +254,14 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     daily_table.add_column("Failed", style="red")
     daily_table.add_column("Records", style="white")
 
-    sorted_days = sorted(metrics['daily_stats'].items(), reverse=True)[:7]
+    sorted_days = sorted(metrics["daily_stats"].items(), reverse=True)[:7]
     for date, stats in sorted_days:
         daily_table.add_row(
             date,
-            str(stats['total']),
-            str(stats['successful']),
-            str(stats['failed']),
-            f"{stats['records']:,}"
+            str(stats["total"]),
+            str(stats["successful"]),
+            str(stats["failed"]),
+            f"{stats['records']:,}",
         )
 
     console.print(daily_table)
@@ -285,54 +271,43 @@ def export_performance_csv(metrics: Dict[str, Any], filename: str):
     """Export performance metrics to CSV."""
     import csv
 
-    with open(filename, 'w', newline='') as csvfile:
+    with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
 
         # Summary section
-        writer.writerow(['Summary Metrics'])
-        writer.writerow(['Metric', 'Value'])
-        for key, value in metrics['summary'].items():
+        writer.writerow(["Summary Metrics"])
+        writer.writerow(["Metric", "Value"])
+        for key, value in metrics["summary"].items():
             writer.writerow([key, value])
         writer.writerow([])
 
         # Processing metrics
-        writer.writerow(['Processing Metrics'])
-        writer.writerow(['Metric', 'Value'])
-        for key, value in metrics['processing'].items():
+        writer.writerow(["Processing Metrics"])
+        writer.writerow(["Metric", "Value"])
+        for key, value in metrics["processing"].items():
             writer.writerow([key, value])
         writer.writerow([])
 
         # Daily stats
-        writer.writerow(['Daily Statistics'])
-        writer.writerow(['Date', 'Total Jobs', 'Successful', 'Failed', 'Records'])
-        for date, stats in sorted(metrics['daily_stats'].items()):
-            writer.writerow([
-                date,
-                stats['total'],
-                stats['successful'],
-                stats['failed'],
-                stats['records']
-            ])
+        writer.writerow(["Daily Statistics"])
+        writer.writerow(["Date", "Total Jobs", "Successful", "Failed", "Records"])
+        for date, stats in sorted(metrics["daily_stats"].items()):
+            writer.writerow(
+                [date, stats["total"], stats["successful"], stats["failed"], stats["records"]]
+            )
 
     console.print(f"[green]Performance metrics exported to {filename}[/green]")
 
 
 @app.command()
 def generate_report(
-    job_id: str = typer.Argument(
-        ...,
-        help="Import job ID to generate report for"
-    ),
+    job_id: str = typer.Argument(..., help="Import job ID to generate report for"),
     include_failures: bool = typer.Option(
-        True,
-        "--include-failures",
-        help="Include failure analysis"
+        True, "--include-failures", help="Include failure analysis"
     ),
     output_format: str = typer.Option(
-        "console",
-        "--format", "-f",
-        help="Output format (console, json, html)"
-    )
+        "console", "--format", "-f", help="Output format (console, json, html)"
+    ),
 ):
     """
     Generate detailed report for a specific import job.
@@ -342,11 +317,7 @@ def generate_report(
     asyncio.run(_generate_report(job_id, include_failures, output_format))
 
 
-async def _generate_report(
-    job_id: str,
-    include_failures: bool,
-    output_format: str
-):
+async def _generate_report(job_id: str, include_failures: bool, output_format: str):
     """Async implementation of report generation."""
     await init_db()
 
@@ -362,9 +333,7 @@ async def _generate_report(
         failures = []
         if include_failures and job.failed_records > 0:
             result = await session.execute(
-                select(ImportFailure)
-                .where(ImportFailure.job_id == job.id)
-                .limit(100)
+                select(ImportFailure).where(ImportFailure.job_id == job.id).limit(100)
             )
             failures = result.scalars().all()
 
@@ -377,7 +346,7 @@ async def _generate_report(
         elif output_format == "html":
             html_content = generate_html_report(report)
             filename = f"import_report_{job_id[:8]}.html"
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 f.write(html_content)
             console.print(f"[green]Report saved to {filename}[/green]")
         else:
@@ -387,30 +356,26 @@ async def _generate_report(
 def generate_job_report(job: ImportJob, failures: List[ImportFailure]) -> Dict[str, Any]:
     """Generate comprehensive job report."""
     report = {
-        'job_id': str(job.id),
-        'job_type': job.job_type.value,
-        'status': job.status.value,
-        'file_info': {
-            'name': job.file_name,
-            'size': job.file_size,
-            'format': job.file_format
+        "job_id": str(job.id),
+        "job_type": job.job_type.value,
+        "status": job.status.value,
+        "file_info": {"name": job.file_name, "size": job.file_size, "format": job.file_format},
+        "metrics": {
+            "total_records": job.total_records,
+            "processed_records": job.processed_records,
+            "successful_records": job.successful_records,
+            "failed_records": job.failed_records,
+            "progress_percentage": job.progress_percentage,
+            "success_rate": job.success_rate,
         },
-        'metrics': {
-            'total_records': job.total_records,
-            'processed_records': job.processed_records,
-            'successful_records': job.successful_records,
-            'failed_records': job.failed_records,
-            'progress_percentage': job.progress_percentage,
-            'success_rate': job.success_rate
+        "timing": {
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "duration_seconds": job.duration_seconds,
         },
-        'timing': {
-            'created_at': job.created_at.isoformat() if job.created_at else None,
-            'started_at': job.started_at.isoformat() if job.started_at else None,
-            'completed_at': job.completed_at.isoformat() if job.completed_at else None,
-            'duration_seconds': job.duration_seconds
-        },
-        'tenant_id': job.tenant_id,
-        'initiated_by': str(job.initiated_by) if job.initiated_by else None
+        "tenant_id": job.tenant_id,
+        "initiated_by": str(job.initiated_by) if job.initiated_by else None,
     }
 
     # Add failure analysis
@@ -419,46 +384,48 @@ def generate_job_report(job: ImportJob, failures: List[ImportFailure]) -> Dict[s
         for failure in failures:
             error_type = failure.error_type
             if error_type not in error_patterns:
-                error_patterns[error_type] = {
-                    'count': 0,
-                    'examples': []
-                }
+                error_patterns[error_type] = {"count": 0, "examples": []}
 
-            error_patterns[error_type]['count'] += 1
-            if len(error_patterns[error_type]['examples']) < 3:
-                error_patterns[error_type]['examples'].append({
-                    'row': failure.row_number,
-                    'message': failure.error_message[:100]
-                })
+            error_patterns[error_type]["count"] += 1
+            if len(error_patterns[error_type]["examples"]) < 3:
+                error_patterns[error_type]["examples"].append(
+                    {"row": failure.row_number, "message": failure.error_message[:100]}
+                )
 
-        report['failure_analysis'] = {
-            'total_failures': len(failures),
-            'error_patterns': error_patterns
+        report["failure_analysis"] = {
+            "total_failures": len(failures),
+            "error_patterns": error_patterns,
         }
 
     # Add performance analysis
     if job.duration_seconds and job.processed_records:
         throughput = job.processed_records / job.duration_seconds
-        report['performance'] = {
-            'throughput_records_per_sec': throughput,
-            'avg_time_per_record_ms': (job.duration_seconds * 1000) / job.processed_records
+        report["performance"] = {
+            "throughput_records_per_sec": throughput,
+            "avg_time_per_record_ms": (job.duration_seconds * 1000) / job.processed_records,
         }
 
     # Add recommendations
     recommendations = []
 
     if job.success_rate < 80:
-        recommendations.append("Low success rate detected. Review validation rules and data quality.")
+        recommendations.append(
+            "Low success rate detected. Review validation rules and data quality."
+        )
 
     if job.duration_seconds and job.duration_seconds > 3600:
-        recommendations.append("Long processing time. Consider using smaller batch sizes or async processing.")
+        recommendations.append(
+            "Long processing time. Consider using smaller batch sizes or async processing."
+        )
 
     if failures:
-        validation_errors = sum(1 for f in failures if f.error_type == 'validation')
+        validation_errors = sum(1 for f in failures if f.error_type == "validation")
         if validation_errors > len(failures) * 0.5:
-            recommendations.append("High validation error rate. Review data format and field requirements.")
+            recommendations.append(
+                "High validation error rate. Review data format and field requirements."
+            )
 
-    report['recommendations'] = recommendations
+    report["recommendations"] = recommendations
 
     return report
 
@@ -475,10 +442,10 @@ def display_job_report(report: Dict[str, Any]):
     file_table.add_column("Property", style="cyan")
     file_table.add_column("Value", style="white")
 
-    file_info = report['file_info']
-    file_table.add_row("Name", file_info['name'])
+    file_info = report["file_info"]
+    file_table.add_row("Name", file_info["name"])
     file_table.add_row("Size", f"{file_info['size'] / 1024 / 1024:.2f} MB")
-    file_table.add_row("Format", file_info['format'].upper())
+    file_table.add_row("Format", file_info["format"].upper())
 
     console.print(file_table)
 
@@ -487,7 +454,7 @@ def display_job_report(report: Dict[str, Any]):
     metrics_table.add_column("Metric", style="cyan")
     metrics_table.add_column("Value", style="green")
 
-    metrics = report['metrics']
+    metrics = report["metrics"]
     metrics_table.add_row("Total Records", f"{metrics['total_records']:,}")
     metrics_table.add_row("Processed", f"{metrics['processed_records']:,}")
     metrics_table.add_row("Successful", f"{metrics['successful_records']:,}")
@@ -497,31 +464,31 @@ def display_job_report(report: Dict[str, Any]):
     console.print(metrics_table)
 
     # Performance
-    if 'performance' in report:
+    if "performance" in report:
         perf_table = Table(title="Performance Analysis")
         perf_table.add_column("Metric", style="cyan")
         perf_table.add_column("Value", style="yellow")
 
-        perf = report['performance']
+        perf = report["performance"]
         perf_table.add_row("Throughput", f"{perf['throughput_records_per_sec']:.1f} records/sec")
         perf_table.add_row("Avg Time per Record", f"{perf['avg_time_per_record_ms']:.2f} ms")
 
         console.print(perf_table)
 
     # Failure analysis
-    if 'failure_analysis' in report:
+    if "failure_analysis" in report:
         console.print(f"\n[bold red]Failure Analysis[/bold red]")
         console.print(f"Total Failures: {report['failure_analysis']['total_failures']}")
 
-        for error_type, data in report['failure_analysis']['error_patterns'].items():
+        for error_type, data in report["failure_analysis"]["error_patterns"].items():
             console.print(f"\n[yellow]{error_type}[/yellow]: {data['count']} occurrences")
-            for example in data['examples']:
+            for example in data["examples"]:
                 console.print(f"  Row {example['row']}: {example['message']}")
 
     # Recommendations
-    if report['recommendations']:
+    if report["recommendations"]:
         console.print(f"\n[bold yellow]Recommendations[/bold yellow]")
-        for i, rec in enumerate(report['recommendations'], 1):
+        for i, rec in enumerate(report["recommendations"], 1):
             console.print(f"{i}. {rec}")
 
 
@@ -568,12 +535,12 @@ def generate_html_report(report: Dict[str, Any]) -> str:
     </table>
 """
 
-    if 'recommendations' in report and report['recommendations']:
+    if "recommendations" in report and report["recommendations"]:
         html += """
     <h2>Recommendations</h2>
     <ul>
 """
-        for rec in report['recommendations']:
+        for rec in report["recommendations"]:
             html += f"        <li>{rec}</li>\n"
         html += "    </ul>\n"
 
@@ -586,21 +553,9 @@ def generate_html_report(report: Dict[str, Any]) -> str:
 
 @app.command()
 def backfill_metrics(
-    start_date: str = typer.Option(
-        ...,
-        "--start-date", "-s",
-        help="Start date (YYYY-MM-DD)"
-    ),
-    end_date: Optional[str] = typer.Option(
-        None,
-        "--end-date", "-e",
-        help="End date (YYYY-MM-DD)"
-    ),
-    recalculate: bool = typer.Option(
-        False,
-        "--recalculate",
-        help="Recalculate existing metrics"
-    )
+    start_date: str = typer.Option(..., "--start-date", "-s", help="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
+    recalculate: bool = typer.Option(False, "--recalculate", help="Recalculate existing metrics"),
 ):
     """
     Backfill missing metrics for historical import jobs.
@@ -610,30 +565,26 @@ def backfill_metrics(
     asyncio.run(_backfill_metrics(start_date, end_date, recalculate))
 
 
-async def _backfill_metrics(
-    start_date: str,
-    end_date: Optional[str],
-    recalculate: bool
-):
+async def _backfill_metrics(start_date: str, end_date: Optional[str], recalculate: bool):
     """Async implementation of metrics backfill."""
     await init_db()
 
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc) if end_date else datetime.now(timezone.utc)
+    end_dt = (
+        datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if end_date
+        else datetime.now(timezone.utc)
+    )
 
     async with get_db_session() as session:
         # Find jobs needing backfill
         query = select(ImportJob).where(
-            ImportJob.created_at >= start_dt,
-            ImportJob.created_at <= end_dt
+            ImportJob.created_at >= start_dt, ImportJob.created_at <= end_dt
         )
 
         if not recalculate:
             # Only get jobs missing metrics
-            query = query.where(
-                (ImportJob.processed_records == 0) |
-                (ImportJob.summary == None)
-            )
+            query = query.where((ImportJob.processed_records == 0) | (ImportJob.summary == None))
 
         result = await session.execute(query)
         jobs = result.scalars().all()
@@ -651,8 +602,7 @@ async def _backfill_metrics(
                 if job.total_records == 0:
                     # Count from failures + successes
                     result = await session.execute(
-                        select(func.count(ImportFailure.id))
-                        .where(ImportFailure.job_id == job.id)
+                        select(func.count(ImportFailure.id)).where(ImportFailure.job_id == job.id)
                     )
                     failure_count = result.scalar() or 0
 
@@ -666,13 +616,13 @@ async def _backfill_metrics(
                 # Update summary
                 if not job.summary or recalculate:
                     job.summary = {
-                        'total_records': job.total_records,
-                        'successful_records': job.successful_records,
-                        'failed_records': job.failed_records,
-                        'success_rate': job.success_rate,
-                        'duration_seconds': job.duration_seconds,
-                        'backfilled': True,
-                        'backfilled_at': datetime.now(timezone.utc).isoformat()
+                        "total_records": job.total_records,
+                        "successful_records": job.successful_records,
+                        "failed_records": job.failed_records,
+                        "success_rate": job.success_rate,
+                        "duration_seconds": job.duration_seconds,
+                        "backfilled": True,
+                        "backfilled_at": datetime.now(timezone.utc).isoformat(),
                     }
 
                 await session.commit()
@@ -687,21 +637,11 @@ async def _backfill_metrics(
 
 @app.command()
 def export_metrics(
-    format: str = typer.Option(
-        "json",
-        "--format", "-f",
-        help="Export format (json, csv)"
-    ),
+    format: str = typer.Option("json", "--format", "-f", help="Export format (json, csv)"),
     start_date: Optional[str] = typer.Option(
-        None,
-        "--start-date", "-s",
-        help="Start date (YYYY-MM-DD)"
+        None, "--start-date", "-s", help="Start date (YYYY-MM-DD)"
     ),
-    end_date: Optional[str] = typer.Option(
-        None,
-        "--end-date", "-e",
-        help="End date (YYYY-MM-DD)"
-    )
+    end_date: Optional[str] = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
 ):
     """
     Export import metrics for external analysis.
@@ -711,11 +651,7 @@ def export_metrics(
     asyncio.run(_export_metrics(format, start_date, end_date))
 
 
-async def _export_metrics(
-    format: str,
-    start_date: Optional[str],
-    end_date: Optional[str]
-):
+async def _export_metrics(format: str, start_date: Optional[str], end_date: Optional[str]):
     """Async implementation of metrics export."""
     await init_db()
 
@@ -740,21 +676,23 @@ async def _export_metrics(
         # Convert to export format
         export_data = []
         for job in jobs:
-            export_data.append({
-                'job_id': str(job.id),
-                'job_type': job.job_type.value,
-                'status': job.status.value,
-                'file_name': job.file_name,
-                'file_size': job.file_size,
-                'total_records': job.total_records,
-                'successful_records': job.successful_records,
-                'failed_records': job.failed_records,
-                'success_rate': job.success_rate,
-                'duration_seconds': job.duration_seconds,
-                'tenant_id': job.tenant_id,
-                'created_at': job.created_at.isoformat() if job.created_at else None,
-                'completed_at': job.completed_at.isoformat() if job.completed_at else None
-            })
+            export_data.append(
+                {
+                    "job_id": str(job.id),
+                    "job_type": job.job_type.value,
+                    "status": job.status.value,
+                    "file_name": job.file_name,
+                    "file_size": job.file_size,
+                    "total_records": job.total_records,
+                    "successful_records": job.successful_records,
+                    "failed_records": job.failed_records,
+                    "success_rate": job.success_rate,
+                    "duration_seconds": job.duration_seconds,
+                    "tenant_id": job.tenant_id,
+                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                }
+            )
 
         # Export based on format
         filename = f"import_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -763,14 +701,14 @@ async def _export_metrics(
             import csv
 
             filename += ".csv"
-            with open(filename, 'w', newline='') as csvfile:
+            with open(filename, "w", newline="") as csvfile:
                 if export_data:
                     writer = csv.DictWriter(csvfile, fieldnames=export_data[0].keys())
                     writer.writeheader()
                     writer.writerows(export_data)
         else:
             filename += ".json"
-            with open(filename, 'w') as jsonfile:
+            with open(filename, "w") as jsonfile:
                 json.dump(export_data, jsonfile, indent=2)
 
         console.print(f"[green]Metrics exported to {filename}[/green]")

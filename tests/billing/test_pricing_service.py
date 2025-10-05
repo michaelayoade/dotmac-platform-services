@@ -1,625 +1,898 @@
 """
-Comprehensive pricing service tests for high coverage.
+Comprehensive tests for pricing engine service.
 
-Tests the pricing engine service layer with proper mocking.
+Tests rule management, price calculation, discount application, and usage tracking.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
 
+from dotmac.platform.billing.pricing.service import (
+
+pytestmark = pytest.mark.asyncio
+
+    PricingEngine,
+    generate_rule_id,
+    generate_usage_id,
+)
 from dotmac.platform.billing.pricing.models import (
     PricingRule,
-    DiscountType,
     PricingRuleCreateRequest,
     PricingRuleUpdateRequest,
     PriceCalculationRequest,
     PriceCalculationContext,
-    PriceCalculationResult,
-    PriceAdjustment,
-) if False else (None, None, None, None, None, None, None, None)  # Import protection
-
-try:
-    from dotmac.platform.billing.pricing.models import (
-        PricingRule,
-        DiscountType,
-        PricingRuleCreateRequest,
-        PriceCalculationRequest,
-        PriceCalculationContext,
-        PriceCalculationResult,
-        PriceAdjustment,
-    )
-    # Try additional imports
-    from dotmac.platform.billing.pricing.models import PricingRuleUpdateRequest
-except ImportError:
-    # Create mock classes if imports fail
-    class PricingRuleUpdateRequest:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-from dotmac.platform.billing.pricing.service import PricingEngine
-from dotmac.platform.billing.exceptions import PricingError
+    DiscountType,
+)
+from dotmac.platform.billing.exceptions import (
+    PricingError,
+    InvalidPricingRuleError,
+)
+from dotmac.platform.billing.models import (
+    BillingPricingRuleTable,
+    BillingRuleUsageTable,
+)
 
 
-@pytest.fixture
-def mock_session():
-    """Mock database session."""
-    session = AsyncMock(spec=AsyncSession)
-    session.execute = AsyncMock()
-    session.commit = AsyncMock()
-    session.rollback = AsyncMock()
-    session.refresh = AsyncMock()
-    session.add = MagicMock()
-    session.delete = AsyncMock()
-    session.scalar = AsyncMock()
-    session.scalars = AsyncMock()
-    return session
+class TestIDGenerators:
+    """Test ID generator functions."""
+
+    def test_generate_rule_id(self):
+        """Test rule ID generation."""
+        rule_id = generate_rule_id()
+        assert rule_id.startswith("rule_")
+        assert len(rule_id) == 17  # "rule_" + 12 hex chars
+
+    def test_generate_rule_id_unique(self):
+        """Test rule IDs are unique."""
+        ids = {generate_rule_id() for _ in range(100)}
+        assert len(ids) == 100
+
+    def test_generate_usage_id(self):
+        """Test usage ID generation."""
+        usage_id = generate_usage_id()
+        assert usage_id.startswith("usage_")
+        assert len(usage_id) == 18  # "usage_" + 12 hex chars
+
+    def test_generate_usage_id_unique(self):
+        """Test usage IDs are unique."""
+        ids = {generate_usage_id() for _ in range(100)}
+        assert len(ids) == 100
 
 
-@pytest.fixture
-def pricing_engine():
-    """Pricing engine instance."""
-    return PricingEngine()
+class TestPricingEngineInitialization:
+    """Test pricing engine initialization."""
+
+    def test_pricing_engine_initialization(self):
+        """Test pricing engine is initialized correctly."""
+        engine = PricingEngine()
+        assert engine.product_service is not None
 
 
-@pytest.fixture
-def sample_pricing_rule_data():
-    """Sample pricing rule data."""
-    return {
-        "rule_id": "rule_123",
-        "tenant_id": "tenant_123",
-        "name": "Volume Discount",
-        "description": "10% off for bulk orders",
-        "applies_to_product_ids": ["prod_123", "prod_456"],
-        "applies_to_categories": ["software"],
-        "applies_to_all": False,
-        "min_quantity": 10,
-        "customer_segments": ["premium", "enterprise"],
-        "discount_type": DiscountType.PERCENTAGE,
-        "discount_value": Decimal("10.0"),
-        "starts_at": None,
-        "ends_at": None,
-        "max_uses": 100,
-        "current_uses": 25,
-        "priority": 100,
-        "is_active": True,
-        "metadata": {"campaign": "q4_2024"},
-        "created_at": datetime.now(timezone.utc),
-    }
+@pytest.mark.asyncio
+class TestCreatePricingRule:
+    """Test creating pricing rules."""
 
+    async def test_create_percentage_rule_success(self):
+        """Test creating a percentage discount rule."""
+        engine = PricingEngine()
 
-class TestPricingRuleCRUD:
-    """Test pricing rule CRUD operations."""
-
-    @pytest.mark.asyncio
-    async def test_create_pricing_rule(self, pricing_engine, mock_session, sample_pricing_rule_data):
-        """Test creating a pricing rule."""
-        # Setup
-        create_request = PricingRuleCreateRequest(
-            name=sample_pricing_rule_data["name"],
-            description=sample_pricing_rule_data["description"],
-            applies_to_product_ids=sample_pricing_rule_data["applies_to_product_ids"],
-            applies_to_categories=sample_pricing_rule_data["applies_to_categories"],
-            applies_to_all=sample_pricing_rule_data["applies_to_all"],
-            min_quantity=sample_pricing_rule_data["min_quantity"],
-            customer_segments=sample_pricing_rule_data["customer_segments"],
-            discount_type=sample_pricing_rule_data["discount_type"],
-            discount_value=sample_pricing_rule_data["discount_value"],
-            priority=sample_pricing_rule_data["priority"],
-            metadata=sample_pricing_rule_data["metadata"],
-        )
-
-        mock_session.scalar.return_value = None  # No existing rule
-
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            with patch('uuid.uuid4', return_value='rule_123'):
-                result = await pricing_engine.create_rule(create_request, "tenant_123")
-
-        # Verify
-        assert result.name == sample_pricing_rule_data["name"]
-        assert result.discount_type == sample_pricing_rule_data["discount_type"]
-        assert result.discount_value == sample_pricing_rule_data["discount_value"]
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_pricing_rule(self, pricing_engine, mock_session, sample_pricing_rule_data):
-        """Test retrieving a pricing rule."""
-        # Setup
-        mock_rule = MagicMock()
-        for key, value in sample_pricing_rule_data.items():
-            setattr(mock_rule, key, value)
-
-        mock_session.scalar.return_value = mock_rule
-
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            result = await pricing_engine.get_rule("rule_123", "tenant_123")
-
-        # Verify
-        assert result.rule_id == "rule_123"
-        assert result.name == sample_pricing_rule_data["name"]
-
-    @pytest.mark.asyncio
-    async def test_update_pricing_rule(self, pricing_engine, mock_session, sample_pricing_rule_data):
-        """Test updating a pricing rule."""
-        # Setup
-        update_request = PricingRuleUpdateRequest(
-            name="Updated Volume Discount",
-            discount_value=Decimal("15.0"),
-            is_active=False,
-        )
-
-        mock_rule = MagicMock()
-        for key, value in sample_pricing_rule_data.items():
-            setattr(mock_rule, key, value)
-
-        mock_session.scalar.return_value = mock_rule
-
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            result = await pricing_engine.update_rule("rule_123", update_request, "tenant_123")
-
-        # Verify
-        assert mock_rule.name == "Updated Volume Discount"
-        assert mock_rule.discount_value == Decimal("15.0")
-        assert mock_rule.is_active is False
-        mock_session.commit.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_delete_pricing_rule(self, pricing_engine, mock_session, sample_pricing_rule_data):
-        """Test deleting a pricing rule."""
-        # Setup
-        mock_rule = MagicMock()
-        for key, value in sample_pricing_rule_data.items():
-            setattr(mock_rule, key, value)
-
-        mock_session.scalar.return_value = mock_rule
-
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            await pricing_engine.delete_rule("rule_123", "tenant_123")
-
-        # Verify
-        mock_session.delete.assert_called_once_with(mock_rule)
-        mock_session.commit.assert_called_once()
-
-
-class TestPriceCalculation:
-    """Test price calculation with rules."""
-
-    @pytest.mark.asyncio
-    async def test_calculate_price_with_percentage_discount(self, pricing_engine, mock_session):
-        """Test price calculation with percentage discount."""
-        # Setup
-        mock_product = MagicMock(
-            product_id="prod_123",
-            base_price=Decimal("100.00"),
-            category="software",
-        )
-
-        mock_rule = MagicMock(
-            rule_id="rule_123",
+        rule_data = PricingRuleCreateRequest(
+            name="Summer Sale",
+            applies_to_categories=["electronics"],
             discount_type=DiscountType.PERCENTAGE,
-            discount_value=Decimal("10.0"),
-            min_quantity=1,
-            is_active=True,
+            discount_value=Decimal("20"),
+        )
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "Summer Sale"
+        mock_db_rule.applies_to_product_ids = []
+        mock_db_rule.applies_to_categories = ["electronics"]
+        mock_db_rule.applies_to_all = False
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "percentage"
+        mock_db_rule.discount_value = Decimal("20")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 0
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            # Mock refresh to set attributes
+            async def mock_refresh_side_effect(obj):
+                for key, value in vars(mock_db_rule).items():
+                    if not key.startswith("_"):
+                        setattr(obj, key, value)
+
+            mock_session.refresh.side_effect = mock_refresh_side_effect
+
+            result = await engine.create_pricing_rule(rule_data, "tenant_123")
+
+        assert result.name == "Summer Sale"
+        assert result.discount_type == DiscountType.PERCENTAGE
+        assert result.discount_value == Decimal("20")
+        assert result.applies_to_categories == ["electronics"]
+
+    async def test_create_rule_with_no_applicability_fails(self):
+        """Test that rules without applicability fail."""
+        engine = PricingEngine()
+
+        rule_data = PricingRuleCreateRequest(
+            name="Invalid Rule",
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("10"),
+            # No applies_to_* fields set
+        )
+
+        with pytest.raises(InvalidPricingRuleError) as exc_info:
+            await engine.create_pricing_rule(rule_data, "tenant_123")
+
+        assert "must apply to at least something" in str(exc_info.value)
+
+    async def test_create_rule_excessive_percentage_discount_fails(self):
+        """Test that percentage discounts over max fail."""
+        engine = PricingEngine()
+
+        rule_data = PricingRuleCreateRequest(
+            name="Too Much Discount",
+            applies_to_all=True,
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("150"),  # Over 100%
+        )
+
+        with patch("dotmac.platform.billing.pricing.service.settings") as mock_settings:
+            mock_settings.billing.max_discount_percentage = 100
+
+            with pytest.raises(InvalidPricingRuleError) as exc_info:
+                await engine.create_pricing_rule(rule_data, "tenant_123")
+
+            assert "cannot exceed" in str(exc_info.value)
+
+    async def test_create_fixed_amount_rule(self):
+        """Test creating a fixed amount discount rule."""
+        engine = PricingEngine()
+
+        rule_data = PricingRuleCreateRequest(
+            name="$10 Off",
             applies_to_product_ids=["prod_123"],
-            applies_to_categories=[],
-            applies_to_all=False,
-            customer_segments=[],
-            starts_at=None,
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            priority=100,
-        )
-
-        mock_session.scalar.return_value = mock_product
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_rule]
-        mock_session.execute.return_value = mock_result
-
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            calculation_request = PriceCalculationRequest(
-                product_id="prod_123",
-                quantity=2,
-                customer_id="cust_123",
-                customer_segments=["premium"],
-            )
-
-            result = await pricing_engine.calculate_price(calculation_request, "tenant_123")
-
-        # Verify
-        assert result.original_price == Decimal("200.00")  # 100 * 2
-        assert result.final_price == Decimal("180.00")  # 200 - 20 (10% off)
-        assert len(result.adjustments) == 1
-        assert result.adjustments[0].discount_amount == Decimal("20.00")
-
-    @pytest.mark.asyncio
-    async def test_calculate_price_with_fixed_amount_discount(self, pricing_engine, mock_session):
-        """Test price calculation with fixed amount discount."""
-        # Setup
-        mock_product = MagicMock(
-            product_id="prod_123",
-            base_price=Decimal("100.00"),
-            category="software",
-        )
-
-        mock_rule = MagicMock(
-            rule_id="rule_123",
             discount_type=DiscountType.FIXED_AMOUNT,
-            discount_value=Decimal("25.00"),
-            min_quantity=1,
-            is_active=True,
-            applies_to_product_ids=["prod_123"],
-            applies_to_categories=[],
-            applies_to_all=False,
-            customer_segments=[],
-            starts_at=None,
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            priority=100,
+            discount_value=Decimal("10.00"),
         )
 
-        mock_session.scalar.return_value = mock_product
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_rule]
-        mock_session.execute.return_value = mock_result
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_456"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "$10 Off"
+        mock_db_rule.applies_to_product_ids = ["prod_123"]
+        mock_db_rule.applies_to_categories = []
+        mock_db_rule.applies_to_all = False
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "fixed_amount"
+        mock_db_rule.discount_value = Decimal("10.00")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 0
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            calculation_request = PriceCalculationRequest(
-                product_id="prod_123",
-                quantity=1,
-                customer_id="cust_123",
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            async def mock_refresh_side_effect(obj):
+                for key, value in vars(mock_db_rule).items():
+                    if not key.startswith("_"):
+                        setattr(obj, key, value)
+
+            mock_session.refresh.side_effect = mock_refresh_side_effect
+
+            result = await engine.create_pricing_rule(rule_data, "tenant_123")
+
+        assert result.discount_type == DiscountType.FIXED_AMOUNT
+        assert result.discount_value == Decimal("10.00")
+
+
+@pytest.mark.asyncio
+class TestGetPricingRule:
+    """Test retrieving pricing rules."""
+
+    async def test_get_pricing_rule_success(self):
+        """Test getting a pricing rule by ID."""
+        engine = PricingEngine()
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "Test Rule"
+        mock_db_rule.applies_to_product_ids = []
+        mock_db_rule.applies_to_categories = []
+        mock_db_rule.applies_to_all = True
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "percentage"
+        mock_db_rule.discount_value = Decimal("10")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 0
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            result = await engine.get_pricing_rule("rule_123", "tenant_123")
+
+        assert result.rule_id == "rule_123"
+        assert result.name == "Test Rule"
+
+    async def test_get_pricing_rule_not_found(self):
+        """Test getting non-existent rule raises error."""
+        engine = PricingEngine()
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            with pytest.raises(PricingError) as exc_info:
+                await engine.get_pricing_rule("nonexistent", "tenant_123")
+
+        assert "not found" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+class TestListPricingRules:
+    """Test listing pricing rules with filters."""
+
+    async def test_list_all_active_rules(self):
+        """Test listing all active rules."""
+        engine = PricingEngine()
+
+        mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", True)
+        mock_db_rule2 = self._create_mock_rule("rule_2", "Rule 2", True)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_db_rule1, mock_db_rule2]
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            rules = await engine.list_pricing_rules("tenant_123", active_only=True)
+
+        assert len(rules) == 2
+        assert rules[0].rule_id == "rule_1"
+        assert rules[1].rule_id == "rule_2"
+
+    async def test_list_rules_filtered_by_product(self):
+        """Test listing rules filtered by product ID."""
+        engine = PricingEngine()
+
+        mock_db_rule = self._create_mock_rule("rule_123", "Product Rule", True)
+        mock_db_rule.applies_to_product_ids = ["prod_123"]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_db_rule]
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            rules = await engine.list_pricing_rules(
+                "tenant_123", active_only=True, product_id="prod_123"
             )
 
-            result = await pricing_engine.calculate_price(calculation_request, "tenant_123")
+        assert len(rules) == 1
+        assert rules[0].applies_to_product_ids == ["prod_123"]
 
-        # Verify
-        assert result.original_price == Decimal("100.00")
-        assert result.final_price == Decimal("75.00")  # 100 - 25
-        assert result.adjustments[0].discount_amount == Decimal("25.00")
+    async def test_list_rules_filtered_by_category(self):
+        """Test listing rules filtered by category."""
+        engine = PricingEngine()
 
-    @pytest.mark.asyncio
-    async def test_calculate_price_with_fixed_price(self, pricing_engine, mock_session):
-        """Test price calculation with fixed price override."""
-        # Setup
-        mock_product = MagicMock(
-            product_id="prod_123",
-            base_price=Decimal("100.00"),
-            category="software",
-        )
+        mock_db_rule = self._create_mock_rule("rule_123", "Category Rule", True)
+        mock_db_rule.applies_to_categories = ["electronics"]
 
-        mock_rule = MagicMock(
-            rule_id="rule_123",
-            discount_type=DiscountType.FIXED_PRICE,
-            discount_value=Decimal("50.00"),
-            min_quantity=1,
-            is_active=True,
-            applies_to_product_ids=["prod_123"],
-            applies_to_categories=[],
-            applies_to_all=False,
-            customer_segments=[],
-            starts_at=None,
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            priority=100,
-        )
-
-        mock_session.scalar.return_value = mock_product
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_rule]
-        mock_session.execute.return_value = mock_result
+        mock_result.scalars.return_value.all.return_value = [mock_db_rule]
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            calculation_request = PriceCalculationRequest(
-                product_id="prod_123",
-                quantity=1,
-                customer_id="cust_123",
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            rules = await engine.list_pricing_rules(
+                "tenant_123", active_only=True, category="electronics"
             )
 
-            result = await pricing_engine.calculate_price(calculation_request, "tenant_123")
+        assert len(rules) == 1
+        assert rules[0].applies_to_categories == ["electronics"]
 
-        # Verify
-        assert result.original_price == Decimal("100.00")
-        assert result.final_price == Decimal("50.00")  # Fixed price
-        assert result.adjustments[0].discount_amount == Decimal("50.00")
+    def _create_mock_rule(self, rule_id: str, name: str, is_active: bool):
+        """Helper to create mock rule."""
+        mock_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_rule.rule_id = rule_id
+        mock_rule.tenant_id = "tenant_123"
+        mock_rule.name = name
+        mock_rule.applies_to_product_ids = []
+        mock_rule.applies_to_categories = []
+        mock_rule.applies_to_all = False
+        mock_rule.min_quantity = None
+        mock_rule.customer_segments = []
+        mock_rule.discount_type = "percentage"
+        mock_rule.discount_value = Decimal("10")
+        mock_rule.starts_at = None
+        mock_rule.ends_at = None
+        mock_rule.max_uses = None
+        mock_rule.current_uses = 0
+        mock_rule.is_active = is_active
+        mock_rule.metadata_json = {}
+        mock_rule.priority = 0
+        mock_rule.created_at = datetime.now(timezone.utc)
+        mock_rule.updated_at = datetime.now(timezone.utc)
+        return mock_rule
 
-    @pytest.mark.asyncio
-    async def test_calculate_price_with_multiple_rules(self, pricing_engine, mock_session):
-        """Test price calculation with multiple applicable rules."""
-        # Setup
-        mock_product = MagicMock(
-            product_id="prod_123",
-            base_price=Decimal("100.00"),
-            category="software",
-        )
 
-        # Multiple rules with different priorities
-        mock_rules = [
-            MagicMock(
-                rule_id="rule_1",
-                discount_type=DiscountType.PERCENTAGE,
-                discount_value=Decimal("10.0"),
-                priority=200,  # Higher priority
-                min_quantity=1,
-                is_active=True,
-                applies_to_product_ids=["prod_123"],
-                applies_to_categories=[],
-                applies_to_all=False,
-                customer_segments=[],
-                starts_at=None,
-                ends_at=None,
-                max_uses=None,
-                current_uses=0,
-            ),
-            MagicMock(
-                rule_id="rule_2",
-                discount_type=DiscountType.PERCENTAGE,
-                discount_value=Decimal("5.0"),
-                priority=100,  # Lower priority
-                min_quantity=1,
-                is_active=True,
-                applies_to_product_ids=["prod_123"],
-                applies_to_categories=[],
-                applies_to_all=False,
-                customer_segments=[],
-                starts_at=None,
-                ends_at=None,
-                max_uses=None,
-                current_uses=0,
-            ),
-        ]
+@pytest.mark.asyncio
+class TestUpdatePricingRule:
+    """Test updating pricing rules."""
 
-        mock_session.scalar.return_value = mock_product
+    async def test_update_rule_name(self):
+        """Test updating rule name."""
+        engine = PricingEngine()
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "Old Name"
+        mock_db_rule.applies_to_product_ids = []
+        mock_db_rule.applies_to_categories = []
+        mock_db_rule.applies_to_all = True
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "percentage"
+        mock_db_rule.discount_value = Decimal("10")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 0
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = mock_rules
-        mock_session.execute.return_value = mock_result
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            calculation_request = PriceCalculationRequest(
-                product_id="prod_123",
-                quantity=1,
-                customer_id="cust_123",
-            )
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
 
-            result = await pricing_engine.calculate_price(calculation_request, "tenant_123")
+        updates = PricingRuleUpdateRequest(name="New Name")
 
-        # Verify - highest priority rule should apply
-        assert result.original_price == Decimal("100.00")
-        assert result.final_price == Decimal("90.00")  # 10% off (higher priority rule)
-        assert len(result.adjustments) == 1  # Only one rule applied
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            # Update the name after commit
+            async def mock_commit_side_effect():
+                mock_db_rule.name = "New Name"
+
+            mock_session.commit.side_effect = mock_commit_side_effect
+
+            result = await engine.update_pricing_rule("rule_123", updates, "tenant_123")
+
+        assert result.name == "New Name"
+
+    async def test_update_rule_not_found(self):
+        """Test updating non-existent rule fails."""
+        engine = PricingEngine()
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        updates = PricingRuleUpdateRequest(name="New Name")
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            with pytest.raises(PricingError) as exc_info:
+                await engine.update_pricing_rule("nonexistent", updates, "tenant_123")
+
+        assert "not found" in str(exc_info.value)
 
 
-class TestRuleValidation:
-    """Test pricing rule validation."""
+@pytest.mark.asyncio
+class TestDeactivatePricingRule:
+    """Test deactivating pricing rules."""
 
-    @pytest.mark.asyncio
-    async def test_validate_rule_quantity_requirement(self, pricing_engine):
-        """Test rule validation for quantity requirements."""
-        rule = MagicMock(
-            min_quantity=10,
-            is_active=True,
-            starts_at=None,
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            customer_segments=[],
-        )
+    async def test_deactivate_rule_success(self):
+        """Test deactivating a pricing rule."""
+        engine = PricingEngine()
 
-        context = PriceCalculationContext(
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "Test Rule"
+        mock_db_rule.applies_to_product_ids = []
+        mock_db_rule.applies_to_categories = []
+        mock_db_rule.applies_to_all = True
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "percentage"
+        mock_db_rule.discount_value = Decimal("10")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 0
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            result = await engine.deactivate_pricing_rule("rule_123", "tenant_123")
+
+        assert result.is_active is False
+
+    async def test_deactivate_rule_not_found(self):
+        """Test deactivating non-existent rule fails."""
+        engine = PricingEngine()
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            with pytest.raises(PricingError) as exc_info:
+                await engine.deactivate_pricing_rule("nonexistent", "tenant_123")
+
+        assert "not found" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+class TestPriceCalculation:
+    """Test price calculation engine."""
+
+    async def test_calculate_price_with_percentage_discount(self):
+        """Test price calculation with percentage discount."""
+        engine = PricingEngine()
+
+        # Mock product
+        mock_product = MagicMock()
+        mock_product.product_id = "prod_123"
+        mock_product.base_price = Decimal("100.00")
+        mock_product.category = "electronics"
+
+        # Mock pricing rule
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "10% Off"
+        mock_db_rule.applies_to_product_ids = ["prod_123"]
+        mock_db_rule.applies_to_categories = []
+        mock_db_rule.applies_to_all = False
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "percentage"
+        mock_db_rule.discount_value = Decimal("10")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 10
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
+        request = PriceCalculationRequest(
             product_id="prod_123",
-            quantity=5,
+            quantity=2,
             customer_id="cust_123",
-            customer_segments=[],
         )
 
-        # Should not apply - quantity too low
-        assert pricing_engine._is_rule_applicable(rule, context) is False
+        # Mock product service
+        with patch.object(engine.product_service, "get_product", return_value=mock_product):
+            # Mock rule queries
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_db_rule]
 
-        # Should apply - quantity meets requirement
-        context.quantity = 15
-        assert pricing_engine._is_rule_applicable(rule, context) is True
+            mock_session = AsyncMock(spec=AsyncSession)
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_session.add = MagicMock()
+            mock_session.commit = AsyncMock()
 
-    @pytest.mark.asyncio
-    async def test_validate_rule_date_range(self, pricing_engine):
-        """Test rule validation for date ranges."""
-        now = datetime.now(timezone.utc)
+            with patch(
+                "dotmac.platform.billing.pricing.service.get_async_session"
+            ) as mock_get_session:
+                mock_get_session.return_value.__aenter__.return_value = mock_session
 
-        # Rule active in the future
-        future_rule = MagicMock(
-            min_quantity=1,
-            is_active=True,
-            starts_at=now + timedelta(days=7),
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            customer_segments=[],
-        )
+                result = await engine.calculate_price(request, "tenant_123")
 
-        context = PriceCalculationContext(
+        assert result.base_price == Decimal("100.00")
+        assert result.quantity == 2
+        assert result.subtotal == Decimal("200.00")
+        assert result.total_discount_amount == Decimal("20.00")  # 10% of 200
+        assert result.final_price == Decimal("180.00")
+        assert len(result.applied_adjustments) == 1
+        assert result.applied_adjustments[0].discount_type == DiscountType.PERCENTAGE
+
+    async def test_calculate_price_with_fixed_amount_discount(self):
+        """Test price calculation with fixed amount discount."""
+        engine = PricingEngine()
+
+        # Mock product
+        mock_product = MagicMock()
+        mock_product.product_id = "prod_123"
+        mock_product.base_price = Decimal("50.00")
+        mock_product.category = "books"
+
+        # Mock pricing rule - $10 off
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_456"
+        mock_db_rule.tenant_id = "tenant_123"
+        mock_db_rule.name = "$10 Off"
+        mock_db_rule.applies_to_product_ids = []
+        mock_db_rule.applies_to_categories = ["books"]
+        mock_db_rule.applies_to_all = False
+        mock_db_rule.min_quantity = None
+        mock_db_rule.customer_segments = []
+        mock_db_rule.discount_type = "fixed_amount"
+        mock_db_rule.discount_value = Decimal("10.00")
+        mock_db_rule.starts_at = None
+        mock_db_rule.ends_at = None
+        mock_db_rule.max_uses = None
+        mock_db_rule.current_uses = 0
+        mock_db_rule.is_active = True
+        mock_db_rule.metadata_json = {}
+        mock_db_rule.priority = 5
+        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.updated_at = datetime.now(timezone.utc)
+
+        request = PriceCalculationRequest(
             product_id="prod_123",
             quantity=1,
             customer_id="cust_123",
-            customer_segments=[],
         )
 
-        # Should not apply - not started yet
-        assert pricing_engine._is_rule_applicable(future_rule, context) is False
+        with patch.object(engine.product_service, "get_product", return_value=mock_product):
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_db_rule]
 
-        # Rule that has expired
-        expired_rule = MagicMock(
-            min_quantity=1,
-            is_active=True,
-            starts_at=now - timedelta(days=14),
-            ends_at=now - timedelta(days=7),
-            max_uses=None,
-            current_uses=0,
-            customer_segments=[],
-        )
+            mock_session = AsyncMock(spec=AsyncSession)
+            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_session.add = MagicMock()
+            mock_session.commit = AsyncMock()
 
-        # Should not apply - already expired
-        assert pricing_engine._is_rule_applicable(expired_rule, context) is False
+            with patch(
+                "dotmac.platform.billing.pricing.service.get_async_session"
+            ) as mock_get_session:
+                mock_get_session.return_value.__aenter__.return_value = mock_session
 
-    @pytest.mark.asyncio
-    async def test_validate_rule_usage_limit(self, pricing_engine):
-        """Test rule validation for usage limits."""
-        rule = MagicMock(
-            min_quantity=1,
-            is_active=True,
-            starts_at=None,
-            ends_at=None,
-            max_uses=100,
-            current_uses=100,
-            customer_segments=[],
-        )
+                result = await engine.calculate_price(request, "tenant_123")
 
-        context = PriceCalculationContext(
+        assert result.subtotal == Decimal("50.00")
+        assert result.total_discount_amount == Decimal("10.00")
+        assert result.final_price == Decimal("40.00")
+        assert result.applied_adjustments[0].discount_type == DiscountType.FIXED_AMOUNT
+
+    async def test_calculate_price_no_applicable_rules(self):
+        """Test price calculation with no applicable rules."""
+        engine = PricingEngine()
+
+        mock_product = MagicMock()
+        mock_product.product_id = "prod_123"
+        mock_product.base_price = Decimal("100.00")
+        mock_product.category = "electronics"
+
+        request = PriceCalculationRequest(
             product_id="prod_123",
             quantity=1,
             customer_id="cust_123",
-            customer_segments=[],
         )
 
-        # Should not apply - usage limit reached
-        assert pricing_engine._is_rule_applicable(rule, context) is False
+        with patch.object(engine.product_service, "get_product", return_value=mock_product):
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = []  # No rules
 
-        # Should apply - usage within limit
-        rule.current_uses = 50
-        assert pricing_engine._is_rule_applicable(rule, context) is True
+            mock_session = AsyncMock(spec=AsyncSession)
+            mock_session.execute = AsyncMock(return_value=mock_result)
 
-    @pytest.mark.asyncio
-    async def test_validate_customer_segments(self, pricing_engine):
-        """Test rule validation for customer segments."""
-        rule = MagicMock(
-            min_quantity=1,
-            is_active=True,
-            starts_at=None,
-            ends_at=None,
-            max_uses=None,
-            current_uses=0,
-            customer_segments=["premium", "enterprise"],
-        )
+            with patch(
+                "dotmac.platform.billing.pricing.service.get_async_session"
+            ) as mock_get_session:
+                mock_get_session.return_value.__aenter__.return_value = mock_session
 
-        # Customer not in required segment
-        context = PriceCalculationContext(
-            product_id="prod_123",
-            quantity=1,
-            customer_id="cust_123",
-            customer_segments=["basic"],
-        )
+                result = await engine.calculate_price(request, "tenant_123")
 
-        # Should not apply
-        assert pricing_engine._is_rule_applicable(rule, context) is False
-
-        # Customer in required segment
-        context.customer_segments = ["premium"]
-
-        # Should apply
-        assert pricing_engine._is_rule_applicable(rule, context) is True
+        assert result.subtotal == Decimal("100.00")
+        assert result.total_discount_amount == Decimal("0")
+        assert result.final_price == Decimal("100.00")
+        assert len(result.applied_adjustments) == 0
 
 
-class TestBulkPricing:
-    """Test bulk pricing operations."""
+@pytest.mark.asyncio
+class TestRuleUsageTracking:
+    """Test rule usage tracking."""
 
-    @pytest.mark.asyncio
-    async def test_calculate_bulk_pricing(self, pricing_engine, mock_session):
-        """Test calculating prices for multiple products."""
-        # Setup
-        products = [
-            MagicMock(product_id=f"prod_{i}", base_price=Decimal(str(50 + i * 10)))
-            for i in range(3)
-        ]
+    async def test_get_rule_usage_stats(self):
+        """Test getting usage statistics for a rule."""
+        engine = PricingEngine()
 
-        mock_session.scalar.side_effect = products
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.name = "Test Rule"
+        mock_db_rule.current_uses = 5
+        mock_db_rule.max_uses = 10
+        mock_db_rule.is_active = True
+        mock_db_rule.created_at = datetime.now(timezone.utc)
 
-        # No rules for simplicity
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_session.execute.return_value = mock_result
+        mock_rule_result = MagicMock()
+        mock_rule_result.scalar_one_or_none.return_value = mock_db_rule
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            product_ids = [p.product_id for p in products]
-            results = await pricing_engine.calculate_bulk_prices(
-                product_ids=product_ids,
-                quantity=1,
-                customer_id="cust_123",
-                tenant_id="tenant_123",
-            )
+        mock_usage_result = MagicMock()
+        mock_usage_result.scalar.return_value = 5
 
-        # Verify
-        assert len(results) == 3
-        for i, result in enumerate(results):
-            expected_price = Decimal(str(50 + i * 10))
-            assert result["original_price"] == expected_price
-            assert result["final_price"] == expected_price  # No discounts
+        mock_session = AsyncMock(spec=AsyncSession)
 
+        # Setup execute to return different results based on call
+        call_count = 0
 
-class TestPricingMetrics:
-    """Test pricing metrics and analytics."""
+        async def mock_execute(stmt):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return mock_rule_result
+            else:
+                return mock_usage_result
 
-    @pytest.mark.asyncio
-    async def test_get_rule_performance(self, pricing_engine, mock_session):
-        """Test getting rule performance metrics."""
-        # Setup
-        mock_metrics = {
-            "rule_id": "rule_123",
-            "times_applied": 1500,
-            "total_discount_given": Decimal("15000.00"),
-            "average_discount": Decimal("10.00"),
-        }
+        mock_session.execute = mock_execute
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            stats = await engine.get_rule_usage_stats("rule_123", "tenant_123")
+
+        assert stats is not None
+        assert stats["rule_id"] == "rule_123"
+        assert stats["current_uses"] == 5
+        assert stats["actual_usage_count"] == 5
+        assert stats["max_uses"] == 10
+        assert stats["usage_remaining"] == 5
+
+    async def test_reset_rule_usage(self):
+        """Test resetting rule usage counter."""
+        engine = PricingEngine()
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.current_uses = 10
 
         mock_result = MagicMock()
-        mock_result.one.return_value = mock_metrics
-        mock_session.execute.return_value = mock_result
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            result = await pricing_engine.get_rule_performance(
-                rule_id="rule_123",
-                tenant_id="tenant_123",
-            )
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.commit = AsyncMock()
 
-        # Verify
-        assert result["times_applied"] == 1500
-        assert result["total_discount_given"] == Decimal("15000.00")
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
 
-    @pytest.mark.asyncio
-    async def test_get_most_effective_rules(self, pricing_engine, mock_session):
-        """Test getting most effective pricing rules."""
-        # Setup
-        mock_rules = [
-            {"rule_id": "rule_1", "name": "Volume Discount", "effectiveness": Decimal("85.5")},
-            {"rule_id": "rule_2", "name": "Seasonal Sale", "effectiveness": Decimal("72.3")},
-        ]
+            success = await engine.reset_rule_usage("rule_123", "tenant_123")
+
+        assert success is True
+        assert mock_db_rule.current_uses == 0
+
+
+@pytest.mark.asyncio
+class TestRuleActivation:
+    """Test rule activation/deactivation."""
+
+    async def test_activate_rule(self):
+        """Test activating a rule."""
+        engine = PricingEngine()
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.is_active = False
 
         mock_result = MagicMock()
-        mock_result.all.return_value = mock_rules
-        mock_session.execute.return_value = mock_result
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
 
-        # Execute
-        with patch('dotmac.platform.billing.pricing.service.get_async_session', return_value=mock_session):
-            result = await pricing_engine.get_most_effective_rules(
-                tenant_id="tenant_123",
-                limit=10,
-            )
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.commit = AsyncMock()
 
-        # Verify
-        assert len(result) == 2
-        assert result[0]["effectiveness"] == Decimal("85.5")
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            success = await engine.activate_rule("rule_123", "tenant_123")
+
+        assert success is True
+        assert mock_db_rule.is_active is True
+
+    async def test_deactivate_rule(self):
+        """Test deactivating a rule."""
+        engine = PricingEngine()
+
+        mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_db_rule.rule_id = "rule_123"
+        mock_db_rule.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_db_rule
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.commit = AsyncMock()
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            success = await engine.deactivate_rule("rule_123", "tenant_123")
+
+        assert success is True
+        assert mock_db_rule.is_active is False
+
+    async def test_bulk_activate_rules(self):
+        """Test bulk activating rules."""
+        engine = PricingEngine()
+
+        with patch.object(engine, "activate_rule") as mock_activate:
+            mock_activate.side_effect = [True, True, False]  # 2 success, 1 not found
+
+            results = await engine.bulk_activate_rules(["rule_1", "rule_2", "rule_3"], "tenant_123")
+
+        assert results["activated"] == 2
+        assert results["failed"] == 1
+        assert len(results["errors"]) == 1
+
+    async def test_bulk_deactivate_rules(self):
+        """Test bulk deactivating rules."""
+        engine = PricingEngine()
+
+        with patch.object(engine, "deactivate_rule") as mock_deactivate:
+            mock_deactivate.side_effect = [True, True]
+
+            results = await engine.bulk_deactivate_rules(["rule_1", "rule_2"], "tenant_123")
+
+        assert results["deactivated"] == 2
+        assert results["failed"] == 0
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+@pytest.mark.asyncio
+class TestRuleConflictDetection:
+    """Test rule conflict detection."""
+
+    async def test_detect_no_conflicts(self):
+        """Test detecting no conflicts when rules don't overlap."""
+        engine = PricingEngine()
+
+        mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", ["prod_1"], [], 10)
+        mock_db_rule2 = self._create_mock_rule("rule_2", "Rule 2", ["prod_2"], [], 10)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_db_rule1, mock_db_rule2]
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            conflicts = await engine.detect_rule_conflicts("tenant_123")
+
+        assert len(conflicts) == 0
+
+    async def test_detect_priority_overlap_conflict(self):
+        """Test detecting priority overlap conflicts."""
+        engine = PricingEngine()
+
+        # Two rules with same priority and overlapping products
+        mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", ["prod_1"], [], 10)
+        mock_db_rule2 = self._create_mock_rule("rule_2", "Rule 2", ["prod_1"], [], 10)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_db_rule1, mock_db_rule2]
+
+        mock_session = AsyncMock(spec=AsyncSession)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            conflicts = await engine.detect_rule_conflicts("tenant_123")
+
+        assert len(conflicts) > 0
+        assert conflicts[0]["type"] == "priority_overlap"
+        assert conflicts[0]["priority"] == 10
+
+    def _create_mock_rule(
+        self, rule_id: str, name: str, product_ids: list, categories: list, priority: int
+    ):
+        """Helper to create mock rule for conflict detection."""
+        mock_rule = MagicMock(spec=BillingPricingRuleTable)
+        mock_rule.rule_id = rule_id
+        mock_rule.tenant_id = "tenant_123"
+        mock_rule.name = name
+        mock_rule.applies_to_product_ids = product_ids
+        mock_rule.applies_to_categories = categories
+        mock_rule.applies_to_all = False
+        mock_rule.min_quantity = None
+        mock_rule.customer_segments = []
+        mock_rule.discount_type = "percentage"
+        mock_rule.discount_value = Decimal("10")
+        mock_rule.starts_at = None
+        mock_rule.ends_at = None
+        mock_rule.max_uses = None
+        mock_rule.current_uses = 0
+        mock_rule.is_active = True
+        mock_rule.metadata_json = {}
+        mock_rule.priority = priority
+        mock_rule.created_at = datetime.now(timezone.utc)
+        mock_rule.updated_at = datetime.now(timezone.utc)
+        return mock_rule

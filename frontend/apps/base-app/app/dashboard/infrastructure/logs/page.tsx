@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,7 +61,7 @@ export default function LogsPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [levelFilter, serviceFilter, searchTerm]);
+  }, [levelFilter, serviceFilter, searchTerm, refetch]);
 
   const handleExport = () => {
     const exportData = JSON.stringify(logs, null, 2);
@@ -89,12 +89,12 @@ export default function LogsPage() {
 
   const getLevelIcon = (level: string) => {
     switch (level) {
-      case 'INFO': return <Info className="h-4 w-4 text-blue-500" />;
-      case 'DEBUG': return <Terminal className="h-4 w-4 text-gray-500" />;
-      case 'WARNING': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-      case 'ERROR': return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'CRITICAL': return <AlertCircle className="h-4 w-4 text-red-700" />;
-      default: return <Info className="h-4 w-4 text-gray-500" />;
+      case 'INFO': return <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+      case 'DEBUG': return <Terminal className="h-4 w-4 text-muted-foreground" />;
+      case 'WARNING': return <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />;
+      case 'ERROR': return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
+      case 'CRITICAL': return <AlertCircle className="h-4 w-4 text-red-700 dark:text-red-300" />;
+      default: return <Info className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -132,7 +132,7 @@ export default function LogsPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">System Logs</h1>
-          <p className="text-gray-500 mt-2">View and analyze application logs in real-time</p>
+          <p className="text-muted-foreground mt-2">View and analyze application logs in real-time</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -167,37 +167,37 @@ export default function LogsPage() {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-gray-500">Total</div>
+            <div className="text-sm font-medium text-muted-foreground">Total</div>
             <div className="text-2xl font-bold">{logStats.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-blue-500">Info</div>
+            <div className="text-sm font-medium text-blue-600 dark:text-blue-400">Info</div>
             <div className="text-2xl font-bold">{logStats.info}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-gray-500">Debug</div>
+            <div className="text-sm font-medium text-muted-foreground">Debug</div>
             <div className="text-2xl font-bold">{logStats.debug}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-yellow-500">Warning</div>
+            <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Warning</div>
             <div className="text-2xl font-bold">{logStats.warning}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-red-500">Error</div>
+            <div className="text-sm font-medium text-red-600 dark:text-red-400">Error</div>
             <div className="text-2xl font-bold">{logStats.error}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm font-medium text-red-700">Critical</div>
+            <div className="text-sm font-medium text-red-700 dark:text-red-300">Critical</div>
             <div className="text-2xl font-bold">{logStats.critical}</div>
           </CardContent>
         </Card>
@@ -224,7 +224,7 @@ export default function LogsPage() {
             <select
               value={levelFilter}
               onChange={(e) => setLevelFilter(e.target.value)}
-              className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+              className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
               <option value="all">All Levels</option>
               <option value="INFO">Info</option>
@@ -236,7 +236,7 @@ export default function LogsPage() {
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
-              className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+              className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
               <option value="all">All Services</option>
               {services.map((service) => (
@@ -272,16 +272,16 @@ export default function LogsPage() {
         <CardContent>
           {isLoading && logs.length === 0 ? (
             <div className="flex items-center justify-center h-[600px]">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-              <span className="ml-2 text-gray-500">Loading logs...</span>
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading logs...</span>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-[600px] text-red-500">
+            <div className="flex items-center justify-center h-[600px] text-red-600 dark:text-red-400">
               <AlertCircle className="h-8 w-8 mr-2" />
               <span>{error}</span>
             </div>
           ) : logs.length === 0 ? (
-            <div className="flex items-center justify-center h-[600px] text-gray-500">
+            <div className="flex items-center justify-center h-[600px] text-muted-foreground">
               <Info className="h-8 w-8 mr-2" />
               <span>No logs found</span>
             </div>
@@ -294,14 +294,14 @@ export default function LogsPage() {
                 {logs.map((log) => (
                   <div
                     key={log.id}
-                    className="group flex items-start gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded"
+                    className="group flex items-start gap-2 p-2 hover:bg-muted rounded"
                   >
                     <div className="flex-shrink-0 mt-0.5">
                       {getLevelIcon(log.level)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-muted-foreground">
                           {new Date(log.timestamp).toLocaleTimeString()}
                         </span>
                         <Badge variant={getLevelBadgeVariant(log.level)} className="text-xs">
@@ -311,16 +311,16 @@ export default function LogsPage() {
                           {log.service}
                         </Badge>
                         {log.metadata.request_id && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-muted-foreground">
                             {log.metadata.request_id}
                           </span>
                         )}
                       </div>
                       <div className="mt-1 break-all">
-                        <span className="text-gray-700 dark:text-gray-300">{log.message}</span>
+                        <span className="text-foreground">{log.message}</span>
                       </div>
                       {(log.metadata.user_id || log.metadata.duration) && (
-                        <div className="mt-1 flex gap-4 text-xs text-gray-500">
+                        <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
                           {log.metadata.user_id && <span>User: {log.metadata.user_id}</span>}
                           {log.metadata.duration && <span>Duration: {log.metadata.duration}ms</span>}
                           {log.metadata.ip && <span>IP: {log.metadata.ip}</span>}

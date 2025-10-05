@@ -17,6 +17,12 @@ import { metricsService, BillingMetrics } from '@/lib/services/metrics-service';
 import { AlertBanner } from '@/components/alerts/AlertBanner';
 import { apiClient } from '@/lib/api/client';
 import { RouteGuard } from '@/components/auth/PermissionGuard';
+import { SkeletonMetricCard } from '@/components/ui/skeleton';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { MetricCardEnhanced } from '@/components/ui/metric-card-enhanced';
+import { ErrorState } from '@/components/ui/error-state';
+import { LineChart } from '@/components/charts/LineChart';
+import { useDashboardMetrics } from '@/hooks/useRealTimeMetrics';
 
 interface MetricCardProps {
   title: string;
@@ -37,23 +43,23 @@ function MetricCard({ title, value, subtitle, icon: Icon, trend, href, currency 
     : value;
 
   const content = (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition-colors">
+    <div className="rounded-lg border border-border bg-card p-6 hover:border-border transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-slate-400">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-white">{formattedValue}</p>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{formattedValue}</p>
           {subtitle && (
-            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+            <p className="mt-1 text-sm text-foreground0">{subtitle}</p>
           )}
           {trend && (
-            <div className={`mt-2 flex items-center text-sm ${trend.isPositive ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`mt-2 flex items-center text-sm ${trend.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
               <TrendingUp className={`h-4 w-4 mr-1 ${!trend.isPositive ? 'rotate-180' : ''}`} />
               {Math.abs(trend.value)}% from last month
             </div>
           )}
         </div>
-        <div className="p-3 bg-slate-800 rounded-lg">
-          <Icon className="h-6 w-6 text-sky-400" />
+        <div className="p-3 bg-accent rounded-lg">
+          <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
       </div>
     </div>
@@ -63,7 +69,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, trend, href, currency 
     return (
       <Link href={href} className="block group relative">
         {content}
-        <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ArrowUpRight className="absolute top-4 right-4 h-4 w-4 text-foreground0 opacity-0 group-hover:opacity-100 transition-opacity" />
       </Link>
     );
   }
@@ -80,29 +86,31 @@ interface RevenueChartProps {
 }
 
 function RevenueChart({ data }: RevenueChartProps) {
-  const maxRevenue = Math.max(...data.map(d => d.revenue));
+  const chartData = data.map(d => ({
+    label: d.month,
+    value: d.revenue,
+  }));
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Revenue Trend</h3>
-      <div className="space-y-3">
-        {data.map((item) => (
-          <div key={item.month}>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-slate-400">{item.month}</span>
-              <span className="text-white font-medium">
-                ${(item.revenue / 1000).toFixed(1)}k
-              </span>
-            </div>
-            <div className="relative h-8 bg-slate-800 rounded-lg overflow-hidden">
-              <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-sky-500 to-sky-400 rounded-lg"
-                style={{ width: `${(item.revenue / maxRevenue) * 100}%` }}
-              />
-            </div>
+    <div className="rounded-lg border border-border bg-card p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-foreground">Revenue Trend</h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-blue-600 dark:bg-blue-400"></div>
+            <span>MRR</span>
           </div>
-        ))}
+        </div>
       </div>
+      <LineChart
+        data={chartData}
+        height={220}
+        showGrid
+        showLabels
+        showValues
+        animated
+        gradient
+      />
     </div>
   );
 }
@@ -118,36 +126,36 @@ interface PaymentActivityItem {
 
 function PaymentActivity({ items }: { items: PaymentActivityItem[] }) {
   const statusColors = {
-    success: 'text-green-400',
-    pending: 'text-yellow-400',
-    failed: 'text-red-400'
+    success: 'text-green-600 dark:text-green-400',
+    pending: 'text-yellow-600 dark:text-yellow-400',
+    failed: 'text-red-600 dark:text-red-400'
   };
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900">
-      <div className="p-6 border-b border-slate-800">
-        <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
+    <div className="rounded-lg border border-border bg-card">
+      <div className="p-6 border-b border-border">
+        <h3 className="text-lg font-semibold text-foreground">Recent Transactions</h3>
       </div>
-      <div className="divide-y divide-slate-800">
+      <div className="divide-y divide-border">
         {items.length === 0 ? (
-          <div className="p-6 text-center text-slate-500">
+          <div className="p-6 text-center text-foreground0">
             No recent transactions
           </div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="p-4 hover:bg-slate-800/50 transition-colors">
+            <div key={item.id} className="p-4 hover:bg-accent/50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-slate-800 rounded-lg">
-                    <CreditCard className="h-4 w-4 text-sky-400" />
+                  <div className="p-2 bg-accent rounded-lg">
+                    <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="font-medium text-white">{item.description}</p>
-                    <p className="text-xs text-slate-500 mt-1">{item.timestamp}</p>
+                    <p className="font-medium text-foreground">{item.description}</p>
+                    <p className="text-xs text-foreground0 mt-1">{item.timestamp}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-white">
+                  <p className="font-medium text-foreground">
                     ${(item.amount / 100).toFixed(2)}
                   </p>
                   <p className={`text-xs ${statusColors[item.status]}`}>
@@ -168,6 +176,7 @@ function BillingRevenuePageContent() {
   const [recentTransactions, setRecentTransactions] = useState<PaymentActivityItem[]>([]);
   const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; subscriptions: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBillingData();
@@ -179,6 +188,7 @@ function BillingRevenuePageContent() {
   const fetchBillingData = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       // Fetch billing metrics from the metrics service
       const billingMetrics = await metricsService.getBillingMetrics();
@@ -186,9 +196,9 @@ function BillingRevenuePageContent() {
 
       // Fetch recent transactions
       try {
-        const transactionsResponse = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/billing/payments?limit=5');
-        if (transactionsResponse.success && transactionsResponse.data) {
-          const transactions: PaymentActivityItem[] = transactionsResponse.data.map((t, index: number) => ({
+        const transactionsResponse = await apiClient.get<{payments: Array<Record<string, unknown>>}>('/api/v1/billing/payments?limit=5');
+        if (transactionsResponse.success && transactionsResponse.data?.payments) {
+          const transactions: PaymentActivityItem[] = transactionsResponse.data.payments.map((t, index: number) => ({
             id: (t.id as string) || `trans-${index}`,
             type: (t.type as 'payment' | 'invoice' | 'subscription' | 'refund') || 'payment',
             description: (t.description as string) || `Payment from ${(t.customer_name as string) || 'Customer'}`,
@@ -220,32 +230,26 @@ function BillingRevenuePageContent() {
       }
     } catch (err) {
       console.error('Failed to fetch billing metrics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load billing data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate fallback data if no metrics available
-  if (!loading && recentTransactions.length === 0) {
-    // Provide fallback transactions if API doesn't return any
-    setRecentTransactions([
-      {
-        id: 'demo-1',
-        type: 'payment',
-        description: 'Recent payment processed',
-        amount: metrics?.payments.totalProcessed || 0,
-        timestamp: 'Recently',
-        status: 'success'
-      }
-    ]);
-  }
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Billing & Revenue' },
+        ]}
+      />
+
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Billing & Revenue</h1>
-        <p className="mt-2 text-slate-400">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Billing & Revenue</h1>
+        <p className="mt-2 text-sm md:text-base text-muted-foreground">
           Manage invoices, subscriptions, payments, and pricing plans
         </p>
       </div>
@@ -254,43 +258,65 @@ function BillingRevenuePageContent() {
       <AlertBanner category="billing" maxAlerts={3} />
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
-          title="Monthly Recurring Revenue"
-          value={metrics?.revenue.mrr || 0}
-          subtitle="MRR"
-          icon={DollarSign}
-          trend={{
-            value: metrics?.revenue.revenueGrowth || 0,
-            isPositive: (metrics?.revenue.revenueGrowth || 0) > 0
-          }}
-          currency
-        />
-        <MetricCard
-          title="Active Subscriptions"
-          value={metrics?.subscriptions.active || 0}
-          subtitle={`${metrics?.subscriptions.trial || 0} in trial`}
-          icon={Package}
-          trend={{
-            value: Math.abs(metrics?.subscriptions.churnRate || 0),
-            isPositive: (metrics?.subscriptions.churnRate || 0) < 5
-          }}
-          href="/dashboard/billing-revenue/subscriptions"
-        />
-        <MetricCard
-          title="Outstanding Invoices"
-          value={metrics?.invoices.pending || 0}
-          subtitle={`${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(metrics?.invoices.overdueAmount || 0)} overdue`}
-          icon={FileText}
-          href="/dashboard/billing-revenue/invoices"
-        />
-        <MetricCard
-          title="Payment Success Rate"
-          value={`${metrics?.payments.successRate || 0}%`}
-          subtitle={`${metrics?.payments.failed || 0} failed`}
-          icon={CreditCard}
-          trend={{ value: 2.1, isPositive: true }}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {loading ? (
+          <>
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </>
+        ) : error ? (
+          <div className="col-span-full">
+            <ErrorState
+              message={error}
+              onRetry={fetchBillingData}
+              variant="card"
+            />
+          </div>
+        ) : (
+          <>
+            <MetricCardEnhanced
+              title="Monthly Recurring Revenue"
+              value={metrics?.revenue.mrr || 0}
+              subtitle="MRR"
+              icon={DollarSign}
+              trend={{
+                value: metrics?.revenue.revenueGrowth || 0,
+                isPositive: (metrics?.revenue.revenueGrowth || 0) > 0
+              }}
+              currency
+              emptyStateMessage="No revenue data available yet"
+            />
+            <MetricCardEnhanced
+              title="Active Subscriptions"
+              value={metrics?.subscriptions.active || 0}
+              subtitle={`${metrics?.subscriptions.trial || 0} in trial`}
+              icon={Package}
+              trend={{
+                value: Math.abs(metrics?.subscriptions.churnRate || 0),
+                isPositive: (metrics?.subscriptions.churnRate || 0) < 5
+              }}
+              href="/dashboard/billing-revenue/subscriptions"
+              emptyStateMessage="No active subscriptions"
+            />
+            <MetricCardEnhanced
+              title="Outstanding Invoices"
+              value={metrics?.invoices.pending || 0}
+              subtitle={`${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(metrics?.invoices.overdueAmount || 0)} overdue`}
+              icon={FileText}
+              href="/dashboard/billing-revenue/invoices"
+              emptyStateMessage="No pending invoices"
+            />
+            <MetricCardEnhanced
+              title="Payment Success Rate"
+              value={`${metrics?.payments.successRate || 0}%`}
+              subtitle={`${metrics?.payments.failed || 0} failed`}
+              icon={CreditCard}
+              emptyStateMessage="No payment data yet"
+            />
+          </>
+        )}
       </div>
 
       {/* Overdue Invoices Alert */}
@@ -300,7 +326,7 @@ function BillingRevenuePageContent() {
             <AlertCircle className="h-5 w-5 text-orange-400 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-orange-400">Payment Attention Required</p>
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {metrics.invoices.overdue} invoices are overdue totaling {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(metrics.invoices.overdueAmount || 0)}.
                 <Link href="/dashboard/billing-revenue/invoices?status=overdue" className="ml-2 text-orange-400 hover:text-orange-300">
                   View overdue invoices →
@@ -311,69 +337,69 @@ function BillingRevenuePageContent() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         <div className="lg:col-span-2 space-y-6">
           {/* Revenue Chart */}
           <RevenueChart data={revenueData} />
 
           {/* Quick Links */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Billing Management</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Billing Management</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Link
                 href="/dashboard/billing-revenue/invoices"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
-                  <FileText className="h-5 w-5 text-sky-400" />
+                <div className="p-2 bg-accent rounded-lg">
+                  <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Invoices</p>
-                  <p className="text-sm text-slate-400">View and manage invoices</p>
+                  <p className="font-medium text-foreground">Invoices</p>
+                  <p className="text-sm text-muted-foreground">View and manage invoices</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-foreground0" />
               </Link>
 
               <Link
                 href="/dashboard/billing-revenue/subscriptions"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
-                  <Calendar className="h-5 w-5 text-sky-400" />
+                <div className="p-2 bg-accent rounded-lg">
+                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Subscriptions</p>
-                  <p className="text-sm text-slate-400">Manage recurring billing</p>
+                  <p className="font-medium text-foreground">Subscriptions</p>
+                  <p className="text-sm text-muted-foreground">Manage recurring billing</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-foreground0" />
               </Link>
 
               <Link
                 href="/dashboard/billing-revenue/payments"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
-                  <CreditCard className="h-5 w-5 text-sky-400" />
+                <div className="p-2 bg-accent rounded-lg">
+                  <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Payments</p>
-                  <p className="text-sm text-slate-400">Process and track payments</p>
+                  <p className="font-medium text-foreground">Payments</p>
+                  <p className="text-sm text-muted-foreground">Process and track payments</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-foreground0" />
               </Link>
 
               <Link
                 href="/dashboard/billing-revenue/plans"
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 hover:border-border transition-colors"
               >
-                <div className="p-2 bg-slate-800 rounded-lg">
-                  <Package className="h-5 w-5 text-sky-400" />
+                <div className="p-2 bg-accent rounded-lg">
+                  <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-white">Pricing Plans</p>
-                  <p className="text-sm text-slate-400">Configure pricing tiers</p>
+                  <p className="font-medium text-foreground">Pricing Plans</p>
+                  <p className="text-sm text-muted-foreground">Configure pricing tiers</p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-500" />
+                <ArrowUpRight className="h-4 w-4 text-foreground0" />
               </Link>
             </div>
           </div>

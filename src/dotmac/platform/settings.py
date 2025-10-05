@@ -7,7 +7,7 @@ This is the single source of truth for all platform configuration.
 """
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     class DatabaseSettings(BaseModel):
         """Database configuration."""
 
-        url: Optional[PostgresDsn] = Field(None, description="Full database URL")
+        url: PostgresDsn | None = Field(None, description="Full database URL")
         host: str = Field("localhost", description="Database host")
         port: int = Field(5432, description="Database port")
         database: str = Field("dotmac", description="Database name")
@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     class RedisSettings(BaseModel):
         """Redis configuration."""
 
-        url: Optional[RedisDsn] = Field(None, description="Full Redis URL")
+        url: RedisDsn | None = Field(None, description="Full Redis URL")
         host: str = Field("localhost", description="Redis host")
         port: int = Field(6379, description="Redis port")
         password: str = Field("", description="Redis password")
@@ -303,7 +303,7 @@ class Settings(BaseSettings):
 
         # OpenTelemetry
         otel_enabled: bool = Field(True, description="Enable OpenTelemetry")
-        otel_endpoint: Optional[str] = Field(
+        otel_endpoint: str | None = Field(
             "http://localhost:4318/v1/traces",
             description="OTLP endpoint (default: local OTEL collector)",
         )
@@ -424,7 +424,7 @@ class Settings(BaseSettings):
 
         enabled: bool = Field(True, description="Enable rate limiting")
         default_limit: str = Field("100/hour", description="Default rate limit")
-        storage_url: Optional[str] = Field(
+        storage_url: str | None = Field(
             None, description="Storage URL for distributed rate limiting"
         )
         key_prefix: str = Field("rate_limit", description="Key prefix for storage")
@@ -445,8 +445,8 @@ class Settings(BaseSettings):
 
         enabled: bool = Field(False, description="Enable Vault/OpenBao")
         url: str = Field("http://localhost:8200", description="Vault/OpenBao URL")
-        token: Optional[str] = Field(None, description="Vault token")
-        namespace: Optional[str] = Field(None, description="Vault namespace")
+        token: str | None = Field(None, description="Vault token")
+        namespace: str | None = Field(None, description="Vault namespace")
         mount_path: str = Field("secret", description="Mount path")
         kv_version: int = Field(2, description="KV version (1 or 2)")
 
@@ -557,7 +557,7 @@ class Settings(BaseSettings):
 
 
 # Global settings instance
-_settings: Optional[Settings] = None
+_settings: Settings | None = None
 
 
 def get_settings() -> Settings:

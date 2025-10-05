@@ -8,8 +8,8 @@ import gzip
 import json
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator, Optional
 from xml.dom import minidom
 
 import pandas as pd
@@ -279,8 +279,8 @@ class YAMLExporter(BaseExporter):
 def create_exporter(
     format: DataFormat,
     config: TransferConfig,
-    options: Optional[ExportOptions] = None,
-    progress_callback: Optional[ProgressCallback] = None,
+    options: ExportOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> BaseExporter:
     """Create an exporter for the specified format."""
     options = options or ExportOptions()
@@ -307,10 +307,10 @@ def create_exporter(
 async def export_data(
     data: AsyncGenerator[DataBatch, None],
     file_path: str,
-    format: Optional[DataFormat] = None,
-    config: Optional[TransferConfig] = None,
-    options: Optional[ExportOptions] = None,
-    progress_callback: Optional[ProgressCallback] = None,
+    format: DataFormat | None = None,
+    config: TransferConfig | None = None,
+    options: ExportOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> ProgressInfo:
     """Export data to a file."""
     path = Path(file_path)

@@ -12,6 +12,9 @@ from sqlalchemy.exc import IntegrityError
 
 from dotmac.platform.billing.subscriptions.service import SubscriptionService
 from dotmac.platform.billing.subscriptions.models import (
+
+pytestmark = pytest.mark.asyncio
+
     SubscriptionPlan,
     Subscription,
     BillingCycle,
@@ -41,14 +44,11 @@ class TestSubscriptionServicePlans:
         return SubscriptionService()
 
     @pytest.mark.asyncio
-    async def test_create_plan_success(
-        self,
-        service,
-        plan_create_request,
-        tenant_id
-    ):
+    async def test_create_plan_success(self, service, plan_create_request, tenant_id):
         """Test successful plan creation."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -59,7 +59,9 @@ class TestSubscriptionServicePlans:
             mock_session_instance.commit = AsyncMock()
             mock_session_instance.refresh = AsyncMock()
 
-            with patch('dotmac.platform.billing.subscriptions.service.generate_plan_id') as mock_gen_id:
+            with patch(
+                "dotmac.platform.billing.subscriptions.service.generate_plan_id"
+            ) as mock_gen_id:
                 mock_gen_id.return_value = "plan_test123"
 
                 result = await service.create_plan(plan_create_request, tenant_id)
@@ -73,14 +75,11 @@ class TestSubscriptionServicePlans:
                 mock_session_instance.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_plan_duplicate_name(
-        self,
-        service,
-        plan_create_request,
-        tenant_id
-    ):
+    async def test_create_plan_duplicate_name(self, service, plan_create_request, tenant_id):
         """Test plan creation fails with duplicate name."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -99,7 +98,9 @@ class TestSubscriptionServicePlans:
     @pytest.mark.asyncio
     async def test_get_plan_success(self, service, tenant_id):
         """Test successful plan retrieval."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -133,7 +134,9 @@ class TestSubscriptionServicePlans:
     @pytest.mark.asyncio
     async def test_get_plan_not_found(self, service, tenant_id):
         """Test plan retrieval when plan doesn't exist."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -147,7 +150,9 @@ class TestSubscriptionServicePlans:
     @pytest.mark.asyncio
     async def test_list_plans(self, service, tenant_id):
         """Test listing plans with filters."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -200,7 +205,9 @@ class TestSubscriptionServicePlans:
     @pytest.mark.asyncio
     async def test_update_plan_success(self, service, tenant_id):
         """Test successful plan update."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -225,7 +232,9 @@ class TestSubscriptionServicePlans:
     @pytest.mark.asyncio
     async def test_deactivate_plan_success(self, service, tenant_id):
         """Test successful plan deactivation."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -254,28 +263,30 @@ class TestSubscriptionServiceSubscriptions:
 
     @pytest.mark.asyncio
     async def test_create_subscription_success(
-        self,
-        service,
-        subscription_create_request,
-        tenant_id,
-        sample_subscription_plan
+        self, service, subscription_create_request, tenant_id, sample_subscription_plan
     ):
         """Test successful subscription creation."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
             # Mock plan retrieval
-            with patch.object(service, 'get_plan') as mock_get_plan:
+            with patch.object(service, "get_plan") as mock_get_plan:
                 mock_get_plan.return_value = sample_subscription_plan
 
                 mock_session_instance.commit = AsyncMock()
                 mock_session_instance.refresh = AsyncMock()
 
-                with patch('dotmac.platform.billing.subscriptions.service.generate_subscription_id') as mock_gen_id:
+                with patch(
+                    "dotmac.platform.billing.subscriptions.service.generate_subscription_id"
+                ) as mock_gen_id:
                     mock_gen_id.return_value = "sub_test123"
 
-                    result = await service.create_subscription(subscription_create_request, tenant_id)
+                    result = await service.create_subscription(
+                        subscription_create_request, tenant_id
+                    )
 
                     assert result.customer_id == subscription_create_request.customer_id
                     assert result.plan_id == subscription_create_request.plan_id
@@ -286,13 +297,10 @@ class TestSubscriptionServiceSubscriptions:
 
     @pytest.mark.asyncio
     async def test_create_subscription_plan_not_found(
-        self,
-        service,
-        subscription_create_request,
-        tenant_id
+        self, service, subscription_create_request, tenant_id
     ):
         """Test subscription creation fails when plan not found."""
-        with patch.object(service, 'get_plan') as mock_get_plan:
+        with patch.object(service, "get_plan") as mock_get_plan:
             mock_get_plan.return_value = None
 
             with pytest.raises(PlanNotFoundError):
@@ -301,7 +309,9 @@ class TestSubscriptionServiceSubscriptions:
     @pytest.mark.asyncio
     async def test_get_subscription_success(self, service, tenant_id):
         """Test successful subscription retrieval."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -337,7 +347,9 @@ class TestSubscriptionServiceSubscriptions:
     @pytest.mark.asyncio
     async def test_list_subscriptions(self, service, tenant_id):
         """Test listing subscriptions with filters."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -374,7 +386,9 @@ class TestSubscriptionServiceSubscriptions:
     @pytest.mark.asyncio
     async def test_update_subscription_success(self, service, tenant_id):
         """Test successful subscription update."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -402,7 +416,9 @@ class TestSubscriptionServiceSubscriptions:
     @pytest.mark.asyncio
     async def test_update_subscription_not_found(self, service, tenant_id):
         """Test subscription update when subscription doesn't exist."""
-        with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+        with patch(
+            "dotmac.platform.billing.subscriptions.service.get_async_session"
+        ) as mock_session:
             mock_session_instance = AsyncMock()
             mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -427,10 +443,12 @@ class TestSubscriptionServiceLifecycle:
     @pytest.mark.asyncio
     async def test_cancel_subscription_immediate(self, service, tenant_id, sample_subscription):
         """Test immediate subscription cancellation."""
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = sample_subscription
 
-            with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+            with patch(
+                "dotmac.platform.billing.subscriptions.service.get_async_session"
+            ) as mock_session:
                 mock_session_instance = AsyncMock()
                 mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -441,8 +459,10 @@ class TestSubscriptionServiceLifecycle:
                 mock_session_instance.commit = AsyncMock()
                 mock_session_instance.refresh = AsyncMock()
 
-                with patch.object(service, '_create_event') as mock_create_event:
-                    result = await service.cancel_subscription("sub_123", immediate=True, tenant_id=tenant_id)
+                with patch.object(service, "_create_event") as mock_create_event:
+                    result = await service.cancel_subscription(
+                        "sub_123", immediate=True, tenant_id=tenant_id
+                    )
 
                     assert result is not None
                     assert mock_subscription.status == SubscriptionStatus.ENDED.value
@@ -452,10 +472,12 @@ class TestSubscriptionServiceLifecycle:
     @pytest.mark.asyncio
     async def test_cancel_subscription_at_period_end(self, service, tenant_id, sample_subscription):
         """Test subscription cancellation at period end."""
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = sample_subscription
 
-            with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+            with patch(
+                "dotmac.platform.billing.subscriptions.service.get_async_session"
+            ) as mock_session:
                 mock_session_instance = AsyncMock()
                 mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -466,8 +488,10 @@ class TestSubscriptionServiceLifecycle:
                 mock_session_instance.commit = AsyncMock()
                 mock_session_instance.refresh = AsyncMock()
 
-                with patch.object(service, '_create_event') as mock_create_event:
-                    result = await service.cancel_subscription("sub_123", immediate=False, tenant_id=tenant_id)
+                with patch.object(service, "_create_event") as mock_create_event:
+                    result = await service.cancel_subscription(
+                        "sub_123", immediate=False, tenant_id=tenant_id
+                    )
 
                     assert result is not None
                     assert mock_subscription.cancel_at_period_end is True
@@ -490,10 +514,12 @@ class TestSubscriptionServiceLifecycle:
             created_at=now,
         )
 
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = canceled_subscription
 
-            with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+            with patch(
+                "dotmac.platform.billing.subscriptions.service.get_async_session"
+            ) as mock_session:
                 mock_session_instance = AsyncMock()
                 mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -504,7 +530,7 @@ class TestSubscriptionServiceLifecycle:
                 mock_session_instance.commit = AsyncMock()
                 mock_session_instance.refresh = AsyncMock()
 
-                with patch.object(service, '_create_event') as mock_create_event:
+                with patch.object(service, "_create_event") as mock_create_event:
                     result = await service.reactivate_subscription("sub_123", tenant_id)
 
                     assert result is not None
@@ -528,7 +554,7 @@ class TestSubscriptionServiceLifecycle:
             created_at=now - timedelta(days=30),
         )
 
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = ended_subscription
 
             with pytest.raises(SubscriptionError) as exc_info:
@@ -578,13 +604,15 @@ class TestSubscriptionServiceLifecycle:
             proration_behavior=ProrationBehavior.CREATE_PRORATIONS,
         )
 
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = subscription
 
-            with patch.object(service, 'get_plan') as mock_get_plan:
+            with patch.object(service, "get_plan") as mock_get_plan:
                 mock_get_plan.side_effect = [old_plan, new_plan]
 
-                with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+                with patch(
+                    "dotmac.platform.billing.subscriptions.service.get_async_session"
+                ) as mock_session:
                     mock_session_instance = AsyncMock()
                     mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -595,8 +623,10 @@ class TestSubscriptionServiceLifecycle:
                     mock_session_instance.commit = AsyncMock()
                     mock_session_instance.refresh = AsyncMock()
 
-                    with patch.object(service, '_create_event') as mock_create_event:
-                        updated_sub, proration = await service.change_plan("sub_123", change_request, tenant_id)
+                    with patch.object(service, "_create_event") as mock_create_event:
+                        updated_sub, proration = await service.change_plan(
+                            "sub_123", change_request, tenant_id
+                        )
 
                         assert updated_sub is not None
                         assert proration is not None
@@ -622,10 +652,12 @@ class TestSubscriptionServiceUsageTracking:
             timestamp=datetime.now(timezone.utc),
         )
 
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = sample_subscription
 
-            with patch('dotmac.platform.billing.subscriptions.service.get_async_session') as mock_session:
+            with patch(
+                "dotmac.platform.billing.subscriptions.service.get_async_session"
+            ) as mock_session:
                 mock_session_instance = AsyncMock()
                 mock_session.return_value.__aenter__.return_value = mock_session_instance
 
@@ -655,7 +687,7 @@ class TestSubscriptionServiceUsageTracking:
             timestamp=datetime.now(timezone.utc) + timedelta(days=60),  # Future timestamp
         )
 
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = sample_subscription
 
             with pytest.raises(SubscriptionError) as exc_info:
@@ -666,7 +698,7 @@ class TestSubscriptionServiceUsageTracking:
     @pytest.mark.asyncio
     async def test_get_usage_for_period(self, service, tenant_id, sample_subscription):
         """Test getting usage for current period."""
-        with patch.object(service, 'get_subscription') as mock_get_sub:
+        with patch.object(service, "get_subscription") as mock_get_sub:
             mock_get_sub.return_value = sample_subscription
 
             result = await service.get_usage_for_period("sub_123", tenant_id)
@@ -734,7 +766,7 @@ class TestSubscriptionServiceHelpers:
             customer_id="customer-456",
             plan_id="plan_old",
             current_period_start=now - timedelta(days=15),  # 15 days into 30-day period
-            current_period_end=now + timedelta(days=15),    # 15 days remaining
+            current_period_end=now + timedelta(days=15),  # 15 days remaining
             status=SubscriptionStatus.ACTIVE,
             created_at=now,
         )

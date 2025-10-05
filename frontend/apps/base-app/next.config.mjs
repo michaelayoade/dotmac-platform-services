@@ -29,6 +29,10 @@ const nextConfig = {
         source: '/health',
         destination: `${backendUrl}/health`,
       },
+      {
+        source: '/ready',
+        destination: `${backendUrl}/ready`,
+      },
     ];
   },
   webpack: (config) => {

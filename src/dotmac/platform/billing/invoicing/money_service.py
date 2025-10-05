@@ -205,8 +205,7 @@ class MoneyInvoiceService(InvoiceService):
 
         # Calculate discount amount using Money
         discount_amount = money_handler.multiply_money(
-            money_invoice.subtotal,
-            discount_percentage / 100
+            money_invoice.subtotal, discount_percentage / 100
         )
 
         # Update invoice
@@ -216,7 +215,7 @@ class MoneyInvoiceService(InvoiceService):
         money_invoice.total_amount = money_handler.add_money(
             money_invoice.subtotal,
             money_invoice.tax_amount or money_handler.create_money("0", money_invoice.currency),
-            money_handler.multiply_money(discount_amount, -1)  # Negative for subtraction
+            money_handler.multiply_money(discount_amount, -1),  # Negative for subtraction
         )
 
         # Add reason to notes
@@ -278,25 +277,19 @@ class MoneyInvoiceService(InvoiceService):
 
             # Calculate tax using Money
             line_item.tax_rate = tax_rate
-            line_item.tax_amount = money_handler.multiply_money(
-                line_item.total_price,
-                tax_rate
-            )
+            line_item.tax_amount = money_handler.multiply_money(line_item.total_price, tax_rate)
 
             # Add to total tax
             total_tax = money_handler.add_money(total_tax, line_item.tax_amount)
 
         # Update invoice totals
         money_invoice.tax_amount = total_tax
-        money_invoice.total_amount = money_handler.add_money(
-            money_invoice.subtotal,
-            total_tax
-        )
+        money_invoice.total_amount = money_handler.add_money(money_invoice.subtotal, total_tax)
 
         if money_invoice.discount_amount:
             money_invoice.total_amount = money_handler.add_money(
                 money_invoice.total_amount,
-                money_handler.multiply_money(money_invoice.discount_amount, -1)
+                money_handler.multiply_money(money_invoice.discount_amount, -1),
             )
 
         return money_invoice

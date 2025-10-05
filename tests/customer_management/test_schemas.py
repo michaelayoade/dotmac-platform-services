@@ -117,8 +117,7 @@ class TestCustomerBaseSchema:
 
         errors = exc_info.value.errors()
         assert any(
-            error["loc"] == ("first_name",) and "at most 100 characters"
-            in str(error["msg"])
+            error["loc"] == ("first_name",) and "at most 100 characters" in str(error["msg"])
             for error in errors
         )
 
@@ -132,8 +131,7 @@ class TestCustomerBaseSchema:
 
         errors = exc_info.value.errors()
         assert any(
-            error["loc"] == ("first_name",) and "at least 1 character"
-            in str(error["msg"])
+            error["loc"] == ("first_name",) and "at least 1 character" in str(error["msg"])
             for error in errors
         )
 

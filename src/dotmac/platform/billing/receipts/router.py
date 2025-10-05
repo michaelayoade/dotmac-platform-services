@@ -2,8 +2,6 @@
 Receipt API router
 """
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -41,7 +39,7 @@ class GenerateReceiptForInvoiceRequest(BaseModel):
 class ReceiptListResponse(BaseModel):
     """Receipt list response"""
 
-    receipts: List[Receipt]
+    receipts: list[Receipt]
     total_count: int
     has_more: bool
 
@@ -50,7 +48,7 @@ class ReceiptListResponse(BaseModel):
 # Router Definition
 # ============================================================================
 
-router = APIRouter(prefix="/receipts", tags=["receipts"])
+router = APIRouter(prefix="/receipts", tags=["Billing - Receipts"])
 
 
 # ============================================================================
@@ -149,9 +147,9 @@ async def get_receipt(
 @router.get("", response_model=ReceiptListResponse)
 async def list_receipts(
     request: Request,
-    customer_id: Optional[str] = Query(None, description="Filter by customer ID"),
-    payment_id: Optional[str] = Query(None, description="Filter by payment ID"),
-    invoice_id: Optional[str] = Query(None, description="Filter by invoice ID"),
+    customer_id: str | None = Query(None, description="Filter by customer ID"),
+    payment_id: str | None = Query(None, description="Filter by payment ID"),
+    invoice_id: str | None = Query(None, description="Filter by invoice ID"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),

@@ -7,6 +7,8 @@ from urllib.parse import urlencode
 
 from dotmac.platform.tenant.tenant import TenantIdentityResolver
 
+pytestmark = pytest.mark.asyncio
+
 
 def make_request(headers=None, query=None, state_dict=None) -> Request:
     scope = {
@@ -27,7 +29,11 @@ def make_request(headers=None, query=None, state_dict=None) -> Request:
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_resolve_prefers_header_then_query_then_state():
-    r = TenantIdentityResolver()
+    from dotmac.platform.tenant.config import TenantConfiguration, TenantMode
+
+    # Create a multi-tenant config for this test
+    config = TenantConfiguration(mode=TenantMode.MULTI)
+    r = TenantIdentityResolver(config=config)
 
     # Header wins
     req = make_request(

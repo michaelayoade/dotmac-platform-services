@@ -126,42 +126,42 @@ const notificationCategories = [
     name: 'Security Alerts',
     description: 'Login attempts, password changes, 2FA updates',
     icon: ShieldAlert,
-    color: 'text-red-600',
+    color: 'text-red-600 dark:text-red-400',
   },
   {
     id: 'billing',
     name: 'Billing & Payments',
     description: 'Invoices, payment confirmations, subscription changes',
     icon: CreditCard,
-    color: 'text-green-600',
+    color: 'text-green-600 dark:text-green-400',
   },
   {
     id: 'updates',
     name: 'Product Updates',
     description: 'New features, improvements, maintenance notices',
     icon: TrendingUp,
-    color: 'text-blue-600',
+    color: 'text-blue-600 dark:text-blue-400',
   },
   {
     id: 'marketing',
     name: 'Marketing',
     description: 'Promotions, newsletters, tips and tricks',
     icon: Mail,
-    color: 'text-purple-600',
+    color: 'text-purple-600 dark:text-purple-400',
   },
   {
     id: 'team',
     name: 'Team Activity',
     description: 'Member invites, role changes, collaborations',
     icon: Users,
-    color: 'text-yellow-600',
+    color: 'text-yellow-600 dark:text-yellow-400',
   },
   {
     id: 'system',
     name: 'System Notifications',
     description: 'Errors, warnings, system status updates',
     icon: AlertCircle,
-    color: 'text-gray-600',
+    color: 'text-muted-foreground',
   },
 ];
 
@@ -239,7 +239,7 @@ export default function NotificationSettingsPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Notification Settings</h1>
-          <p className="text-gray-500 mt-2">Manage how and when you receive notifications</p>
+          <p className="text-muted-foreground mt-2">Manage how and when you receive notifications</p>
         </div>
         {hasChanges && (
           <div className="flex gap-2">
@@ -265,7 +265,7 @@ export default function NotificationSettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base">Pause All Notifications</Label>
-              <p className="text-sm text-gray-500">Temporarily disable all notifications</p>
+              <p className="text-sm text-muted-foreground">Temporarily disable all notifications</p>
             </div>
             <Switch />
           </div>
@@ -273,7 +273,7 @@ export default function NotificationSettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base">Quiet Hours</Label>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 No notifications from {preferences.quietHours.start} to {preferences.quietHours.end}
               </p>
             </div>
@@ -299,7 +299,7 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <Mail className="h-5 w-5 text-blue-600" />
+                  <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   <div>
                     <CardTitle className="text-base">Email Notifications</CardTitle>
                     <CardDescription>Receive notifications via email</CardDescription>
@@ -390,7 +390,7 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <Smartphone className="h-5 w-5 text-green-600" />
+                  <Smartphone className="h-5 w-5 text-green-600 dark:text-green-400" />
                   <div>
                     <CardTitle className="text-base">Push Notifications</CardTitle>
                     <CardDescription>Receive notifications on your devices</CardDescription>
@@ -448,7 +448,7 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <Monitor className="h-5 w-5 text-purple-600" />
+                  <Monitor className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   <div>
                     <CardTitle className="text-base">In-App Notifications</CardTitle>
                     <CardDescription>Show notifications within the application</CardDescription>
@@ -484,7 +484,7 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <MessageSquare className="h-5 w-5 text-yellow-600" />
+                  <MessageSquare className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                   <div>
                     <CardTitle className="text-base">SMS Notifications</CardTitle>
                     <CardDescription>Receive text messages for urgent alerts</CardDescription>
@@ -520,7 +520,7 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <MessageSquare className="h-5 w-5 text-pink-600" />
+                  <MessageSquare className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                   <div>
                     <CardTitle className="text-base">Slack Integration</CardTitle>
                     <CardDescription>Send notifications to your Slack workspace</CardDescription>
@@ -559,7 +559,7 @@ export default function NotificationSettingsPage() {
                         <Icon className={`h-5 w-5 mt-0.5 ${category.color}`} />
                         <div className="flex-1">
                           <p className="font-medium">{category.name}</p>
-                          <p className="text-sm text-gray-500">{category.description}</p>
+                          <p className="text-sm text-muted-foreground">{category.description}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 ml-8">
@@ -629,14 +629,14 @@ export default function NotificationSettingsPage() {
             <CardHeader>
               <CardTitle>Quiet Hours</CardTitle>
               <CardDescription>
-                Set times when you don\'t want to receive notifications
+                Set times when you don&apos;t want to receive notifications
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Enable Quiet Hours</Label>
-                  <p className="text-sm text-gray-500">Pause non-urgent notifications during set hours</p>
+                  <p className="text-sm text-muted-foreground">Pause non-urgent notifications during set hours</p>
                 </div>
                 <Switch
                   checked={preferences.quietHours.enabled}
@@ -660,7 +660,7 @@ export default function NotificationSettingsPage() {
                           });
                           setHasChanges(true);
                         }}
-                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
                       >
                         <option value="20:00">8:00 PM</option>
                         <option value="21:00">9:00 PM</option>
@@ -680,7 +680,7 @@ export default function NotificationSettingsPage() {
                           });
                           setHasChanges(true);
                         }}
-                        className="h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
                       >
                         <option value="06:00">6:00 AM</option>
                         <option value="07:00">7:00 AM</option>
@@ -692,7 +692,7 @@ export default function NotificationSettingsPage() {
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label>Allow Urgent Notifications</Label>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-muted-foreground">
                         Receive critical security and system alerts during quiet hours
                       </p>
                     </div>
@@ -720,8 +720,8 @@ export default function NotificationSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center text-gray-500 py-8">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <div className="text-center text-muted-foreground py-8">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-sm">Weekly scheduling coming soon</p>
                 <p className="text-xs mt-2">Set different notification rules for weekdays and weekends</p>
               </div>

@@ -27,12 +27,12 @@ class TestPluginRouterFunctions:
     @pytest.mark.asyncio
     async def test_get_registry_initialization(self):
         """Test registry initialization in get_registry dependency."""
-        with patch('dotmac.platform.plugins.router.get_plugin_registry') as mock_get:
+        with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = MagicMock()
             mock_registry.initialize = AsyncMock()
             # Ensure _initialized attribute doesn't exist initially
-            if hasattr(mock_registry, '_initialized'):
-                delattr(mock_registry, '_initialized')
+            if hasattr(mock_registry, "_initialized"):
+                delattr(mock_registry, "_initialized")
             mock_get.return_value = mock_registry
 
             # First call - should initialize
@@ -40,7 +40,7 @@ class TestPluginRouterFunctions:
             assert result == mock_registry
             mock_registry.initialize.assert_called_once()
             # Function should set _initialized
-            assert hasattr(mock_registry, '_initialized')
+            assert hasattr(mock_registry, "_initialized")
             assert mock_registry._initialized is True
 
             # Reset for second call
@@ -54,7 +54,7 @@ class TestPluginRouterFunctions:
     @pytest.mark.asyncio
     async def test_registry_already_initialized(self):
         """Test get_registry when registry is already initialized."""
-        with patch('dotmac.platform.plugins.router.get_plugin_registry') as mock_get:
+        with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = AsyncMock()
             mock_registry._initialized = True  # Already initialized
             mock_registry.initialize = AsyncMock()
@@ -71,12 +71,14 @@ class TestRouterImports:
     def test_router_imports(self):
         """Test that router module imports correctly."""
         from dotmac.platform.plugins.router import router, get_registry
+
         assert router is not None
         assert get_registry is not None
 
     def test_router_configuration(self):
         """Test router configuration."""
         from dotmac.platform.plugins.router import router
+
         assert router.prefix == "/plugins"
         assert "Plugin Management" in router.tags
 
@@ -87,6 +89,7 @@ class TestRouterImports:
             TestConnectionRequest,
             UpdatePluginConfigurationRequest,
         )
+
         assert CreatePluginInstanceRequest is not None
         assert TestConnectionRequest is not None
         assert UpdatePluginConfigurationRequest is not None
@@ -98,7 +101,7 @@ class TestRouterImports:
         request = CreatePluginInstanceRequest(
             plugin_name="Test Plugin",
             instance_name="Test Instance",
-            configuration={"api_key": "test"}
+            configuration={"api_key": "test"},
         )
         assert request.plugin_name == "Test Plugin"
         assert request.instance_name == "Test Instance"
@@ -178,12 +181,9 @@ class TestPluginSchemaResponse:
             description="Test",
             fields=[
                 FieldSpec(
-                    key="test_field",
-                    label="Test Field",
-                    type=FieldType.STRING,
-                    required=True
+                    key="test_field", label="Test Field", type=FieldType.STRING, required=True
                 )
-            ]
+            ],
         )
 
         # Should be able to convert to dict
@@ -203,10 +203,10 @@ class TestPluginSchemaResponse:
                 type=PluginType.NOTIFICATION,
                 version="1.0.0",
                 description="Test",
-                fields=[]
+                fields=[],
             ),
             status=PluginStatus.ACTIVE,
-            has_configuration=True
+            has_configuration=True,
         )
 
         # Should be able to convert to dict
@@ -221,12 +221,12 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_registry_error_in_get_registry(self):
         """Test error handling in get_registry."""
-        with patch('dotmac.platform.plugins.router.get_plugin_registry') as mock_get:
+        with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = MagicMock()
             mock_registry.initialize = AsyncMock(side_effect=Exception("Init failed"))
             # Ensure _initialized doesn't exist
-            if hasattr(mock_registry, '_initialized'):
-                delattr(mock_registry, '_initialized')
+            if hasattr(mock_registry, "_initialized"):
+                delattr(mock_registry, "_initialized")
             mock_get.return_value = mock_registry
 
             # Should raise the exception from initialize
@@ -234,4 +234,4 @@ class TestErrorHandling:
                 await get_registry()
             mock_registry.initialize.assert_called_once()
             # Registry shouldn't have _initialized attribute set on error
-            assert not hasattr(mock_registry, '_initialized')
+            assert not hasattr(mock_registry, "_initialized")

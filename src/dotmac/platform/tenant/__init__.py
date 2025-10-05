@@ -20,9 +20,9 @@ __all__ = [
     "set_tenant_config",
 ]
 
+import contextvars
 from enum import Enum
 from typing import Any
-import contextvars
 
 # Context variable to store the current tenant ID
 _tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -62,6 +62,7 @@ def get_current_tenant_id() -> str | None:
 
     # Fallback to default tenant in single-tenant mode
     from .config import get_tenant_config
+
     config = get_tenant_config()
     if config.is_single_tenant:
         return config.default_tenant_id
@@ -77,4 +78,10 @@ def set_current_tenant_id(tenant_id: str | None) -> None:
     _tenant_context.set(tenant_id)
 
 
-__all__ += ["TenantIsolationLevel", "TenantResolutionStrategy", "get_tenant_context", "get_current_tenant_id", "set_current_tenant_id"]
+__all__ += [
+    "TenantIsolationLevel",
+    "TenantResolutionStrategy",
+    "get_tenant_context",
+    "get_current_tenant_id",
+    "set_current_tenant_id",
+]

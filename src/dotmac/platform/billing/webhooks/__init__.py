@@ -1,6 +1,6 @@
 """Billing webhook handlers"""
 
-from .handlers import WebhookHandler, StripeWebhookHandler, PayPalWebhookHandler
+from .handlers import PayPalWebhookHandler, StripeWebhookHandler, WebhookHandler
 from .router import router
 
 __all__ = [

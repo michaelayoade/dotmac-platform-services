@@ -41,12 +41,12 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-slate-950">
+    <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-background">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-50 mb-2">Reset your password</h1>
-          <p className="text-slate-400">
-            Enter your email address and we'll send you a link to reset your password
+          <h1 className="text-3xl font-bold text-foreground mb-2">Reset your password</h1>
+          <p className="text-muted-foreground">
+            Enter your email address and we&apos;ll send you a link to reset your password
           </p>
         </div>
 
@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-lg p-8 space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="bg-card/50 backdrop-blur border border-border rounded-lg p-8 space-y-6">
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm">
                 {error}
@@ -71,16 +71,16 @@ export default function ForgotPasswordPage() {
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-2">
                 Email address
               </label>
               <input
                 id="email"
                 type="email"
                 {...register('email')}
-                className={`w-full px-3 py-2 bg-slate-800 border ${
-                  errors.email ? 'border-red-500' : 'border-slate-700'
-                } rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 bg-accent border ${
+                  errors.email ? 'border-red-500' : 'border-border'
+                } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
                 placeholder="you@example.com"
                 data-testid="email-input"
               />
@@ -92,14 +92,14 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-sky-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-sky-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="reset-password-button"
             >
               {loading ? 'Sending...' : 'Send reset link'}
             </button>
 
             <div className="text-center">
-              <Link href="/login" className="text-sm text-slate-400 hover:text-slate-300">
+              <Link href="/login" className="text-sm text-muted-foreground hover:text-muted-foreground">
                 Back to login
               </Link>
             </div>

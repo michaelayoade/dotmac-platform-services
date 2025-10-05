@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from dotmac.platform.communications.metrics_service import (
     CommunicationMetricsService,
-    get_metrics_service
+    get_metrics_service,
 )
 from dotmac.platform.communications.models import (
     CommunicationType,
@@ -32,7 +32,7 @@ class TestMetricsServiceIntegration:
             recipient="test@example.com",
             subject="Test Email",
             sender="sender@example.com",
-            text_body="Test body"
+            text_body="Test body",
         )
 
         assert log_entry.id is not None
@@ -45,16 +45,14 @@ class TestMetricsServiceIntegration:
 
         # Create a communication
         log_entry = await service.log_communication(
-            type=CommunicationType.EMAIL,
-            recipient="update@example.com",
-            subject="Status Test"
+            type=CommunicationType.EMAIL, recipient="update@example.com", subject="Status Test"
         )
 
         # Update its status
         success = await service.update_communication_status(
             communication_id=log_entry.id,
             status=CommunicationStatus.SENT,
-            provider_message_id="msg_123"
+            provider_message_id="msg_123",
         )
 
         assert success is True
@@ -77,24 +75,16 @@ class TestMetricsServiceIntegration:
 
         # Create some communications
         log1 = await service.log_communication(
-            type=CommunicationType.EMAIL,
-            recipient="user1@example.com",
-            subject="Email 1"
+            type=CommunicationType.EMAIL, recipient="user1@example.com", subject="Email 1"
         )
 
         log2 = await service.log_communication(
-            type=CommunicationType.EMAIL,
-            recipient="user2@example.com",
-            subject="Email 2"
+            type=CommunicationType.EMAIL, recipient="user2@example.com", subject="Email 2"
         )
 
         # Update statuses
-        await service.update_communication_status(
-            log1.id, CommunicationStatus.SENT
-        )
-        await service.update_communication_status(
-            log2.id, CommunicationStatus.FAILED
-        )
+        await service.update_communication_status(log1.id, CommunicationStatus.SENT)
+        await service.update_communication_status(log2.id, CommunicationStatus.FAILED)
 
         # Get stats
         stats = await service.get_stats()
@@ -109,9 +99,7 @@ class TestMetricsServiceIntegration:
         # Create multiple communications
         for i in range(5):
             await service.log_communication(
-                type=CommunicationType.EMAIL,
-                recipient=f"user{i}@example.com",
-                subject=f"Email {i}"
+                type=CommunicationType.EMAIL, recipient=f"user{i}@example.com", subject=f"Email {i}"
             )
 
         # Get recent activity
@@ -125,22 +113,16 @@ class TestMetricsServiceIntegration:
 
         # Create EMAIL communications
         await service.log_communication(
-            type=CommunicationType.EMAIL,
-            recipient="email@example.com",
-            subject="Email"
+            type=CommunicationType.EMAIL, recipient="email@example.com", subject="Email"
         )
 
         # Create SMS communication
         await service.log_communication(
-            type=CommunicationType.SMS,
-            recipient="+1234567890",
-            subject="SMS"
+            type=CommunicationType.SMS, recipient="+1234567890", subject="SMS"
         )
 
         # Filter by EMAIL
-        activity = await service.get_recent_activity(
-            type_filter=CommunicationType.EMAIL
-        )
+        activity = await service.get_recent_activity(type_filter=CommunicationType.EMAIL)
 
         assert all(log.type == CommunicationType.EMAIL for log in activity)
 
@@ -153,7 +135,7 @@ class TestMetricsServiceIntegration:
             type=CommunicationType.EMAIL,
             recipient="tenant1@example.com",
             subject="Tenant 1",
-            tenant_id="tenant1"
+            tenant_id="tenant1",
         )
 
         # Create for tenant2
@@ -161,7 +143,7 @@ class TestMetricsServiceIntegration:
             type=CommunicationType.EMAIL,
             recipient="tenant2@example.com",
             subject="Tenant 2",
-            tenant_id="tenant2"
+            tenant_id="tenant2",
         )
 
         await service.update_communication_status(log1.id, CommunicationStatus.SENT)
@@ -177,16 +159,13 @@ class TestMetricsServiceIntegration:
         """Test logging with custom metadata."""
         service = CommunicationMetricsService(async_db_session)
 
-        metadata = {
-            "campaign_id": "camp_123",
-            "tags": ["promotional", "newsletter"]
-        }
+        metadata = {"campaign_id": "camp_123", "tags": ["promotional", "newsletter"]}
 
         log_entry = await service.log_communication(
             type=CommunicationType.EMAIL,
             recipient="meta@example.com",
             subject="Metadata Test",
-            metadata=metadata
+            metadata=metadata,
         )
 
         assert log_entry.metadata_ == metadata
@@ -200,7 +179,7 @@ class TestMetricsServiceIntegration:
             recipient="template@example.com",
             subject="Template Test",
             template_id="tpl_123",
-            template_name="welcome_email"
+            template_name="welcome_email",
         )
 
         assert log_entry.template_id == "tpl_123"
@@ -216,7 +195,7 @@ class TestMetricsServiceIntegration:
             recipient="user@example.com",
             subject="User Test",
             user_id=user_id,
-            tenant_id="tenant_123"
+            tenant_id="tenant_123",
         )
 
         assert log_entry.user_id == user_id

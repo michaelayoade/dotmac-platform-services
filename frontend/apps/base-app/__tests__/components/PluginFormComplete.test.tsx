@@ -214,8 +214,7 @@ describe('PluginForm Complete Coverage Tests', () => {
 
     // Remove FileReader temporarily
     const originalFileReader = global.FileReader;
-    // @ts-ignore
-    delete global.FileReader;
+    delete (global as any).FileReader;
 
     render(<PluginForm
       plugin={pluginWithFile}

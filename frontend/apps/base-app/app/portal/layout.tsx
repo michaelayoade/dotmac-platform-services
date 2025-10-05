@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,8 +15,9 @@ import {
   Handshake,
   BarChart3,
 } from "lucide-react";
+import { platformConfig } from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = platformConfig.apiBaseUrl;
 
 interface NavItem {
   name: string;
@@ -44,14 +45,7 @@ export default function PartnerPortalLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-  // Skip auth check for login page
-  useEffect(() => {
-    if (pathname !== "/portal/login" && pathname !== "/portal/register") {
-      fetchPartnerProfile();
-    }
-  }, [pathname]);
-
-  const fetchPartnerProfile = async () => {
+  const fetchPartnerProfile = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/v1/partners/portal/profile`, {
         credentials: "include",
@@ -72,9 +66,16 @@ export default function PartnerPortalLayout({
       console.error("Failed to fetch partner profile:", error);
       router.push("/portal/login");
     }
-  };
+  }, [router]);
 
-  const handleLogout = async () => {
+  // Skip auth check for login page
+  useEffect(() => {
+    if (pathname !== "/portal/login" && pathname !== "/portal/register") {
+      fetchPartnerProfile();
+    }
+  }, [pathname, fetchPartnerProfile]);
+
+  const handleLogout = useCallback(async () => {
     try {
       await fetch(`${API_BASE}/api/v1/partners/portal/logout`, {
         method: "POST",
@@ -85,7 +86,7 @@ export default function PartnerPortalLayout({
       console.error("Logout error:", error);
       router.push("/portal/login");
     }
-  };
+  }, [router]);
 
   // Don't show layout for login/register pages
   if (pathname === "/portal/login" || pathname === "/portal/register") {
@@ -93,14 +94,14 @@ export default function PartnerPortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Top Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900 border-b border-slate-800">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center">
             <button
               type="button"
-              className="lg:hidden -m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-slate-400 hover:bg-slate-800"
+              className="lg:hidden -m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-muted-foreground hover:bg-accent"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
               <Menu className="h-6 w-6" />
@@ -111,44 +112,44 @@ export default function PartnerPortalLayout({
               </div>
               <div>
                 <div className="text-lg font-semibold text-white">Partner Portal</div>
-                <div className="text-xs text-slate-400">{partner?.company_name}</div>
+                <div className="text-xs text-muted-foreground">{partner?.company_name}</div>
               </div>
             </div>
           </div>
 
           {/* Right side - User menu */}
           <div className="flex items-center gap-4">
-            <div className="hidden md:block text-sm text-slate-400">
+            <div className="hidden md:block text-sm text-muted-foreground">
               {partner?.partner_number && `#${partner.partner_number}`}
             </div>
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent transition-colors"
               >
                 <span>{partner?.company_name || "Partner"}</span>
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-md bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5">
+                <div className="absolute right-0 mt-2 w-56 rounded-md bg-accent shadow-lg ring-1 ring-black ring-opacity-5">
                   <div className="py-1">
-                    <div className="px-4 py-2 text-sm text-slate-400">
-                      <div className="font-semibold text-slate-200">
+                    <div className="px-4 py-2 text-sm text-muted-foreground">
+                      <div className="font-semibold text-foreground">
                         {partner?.company_name}
                       </div>
                       <div className="text-xs">{partner?.partner_number}</div>
                     </div>
-                    <hr className="my-1 border-slate-700" />
+                    <hr className="my-1 border-border" />
                     <Link
                       href="/portal/settings"
-                      className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                      className="block px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       Settings
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                      className="block w-full text-left px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
                     >
                       <div className="flex items-center gap-2">
                         <LogOut className="h-4 w-4" />
@@ -165,7 +166,7 @@ export default function PartnerPortalLayout({
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 pt-16 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-card pt-16 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -173,7 +174,7 @@ export default function PartnerPortalLayout({
         <div className="lg:hidden absolute top-20 right-4">
           <button
             onClick={() => setSidebarOpen(false)}
-            className="rounded-md p-2 text-slate-400 hover:bg-slate-800"
+            className="rounded-md p-2 text-muted-foreground hover:bg-accent"
           >
             <X className="h-5 w-5" />
           </button>
@@ -192,7 +193,7 @@ export default function PartnerPortalLayout({
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-blue-600 text-white"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                     onClick={() => setSidebarOpen(false)}
                   >
@@ -206,8 +207,8 @@ export default function PartnerPortalLayout({
         </nav>
 
         {/* Bottom section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
-          <div className="text-xs text-slate-500">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+          <div className="text-xs text-foreground0">
             <div>Need help?</div>
             <a
               href="mailto:partners@dotmac.com"

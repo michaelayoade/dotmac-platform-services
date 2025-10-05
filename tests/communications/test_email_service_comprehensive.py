@@ -29,16 +29,14 @@ class TestEmailServiceSMTP:
             smtp_port=587,
             smtp_user="user@example.com",
             smtp_password="password",
-            use_tls=True
+            use_tls=True,
         )
 
         message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="Test Subject",
-            text_body="Test body"
+            to=["recipient@example.com"], subject="Test Subject", text_body="Test body"
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -52,19 +50,11 @@ class TestEmailServiceSMTP:
 
     async def test_send_email_without_tls(self):
         """Test email send without TLS."""
-        service = EmailService(
-            smtp_host="localhost",
-            smtp_port=25,
-            use_tls=False
-        )
+        service = EmailService(smtp_host="localhost", smtp_port=25, use_tls=False)
 
-        message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="Test",
-            text_body="Body"
-        )
+        message = EmailMessage(to=["recipient@example.com"], subject="Test", text_body="Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -78,14 +68,12 @@ class TestEmailServiceSMTP:
         """Test handling of SMTP failure."""
         service = EmailService()
 
-        message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="Test",
-            text_body="Body"
-        )
+        message = EmailMessage(to=["recipient@example.com"], subject="Test", text_body="Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
-            mock_smtp.return_value.__enter__.side_effect = smtplib.SMTPException("Connection failed")
+        with patch("smtplib.SMTP") as mock_smtp:
+            mock_smtp.return_value.__enter__.side_effect = smtplib.SMTPException(
+                "Connection failed"
+            )
 
             response = await service.send_email(message)
 
@@ -101,10 +89,10 @@ class TestEmailServiceSMTP:
             subject="Test",
             text_body="Body",
             cc=["cc@example.com"],
-            bcc=["bcc@example.com"]
+            bcc=["bcc@example.com"],
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -114,7 +102,7 @@ class TestEmailServiceSMTP:
             assert response.recipients_count == 3
             # Verify all recipients were included
             call_args = mock_server.send_message.call_args
-            recipients = call_args[1]['to_addrs']
+            recipients = call_args[1]["to_addrs"]
             assert len(recipients) == 3
 
 
@@ -125,12 +113,10 @@ class TestEmailServiceMIME:
         """Test MIME creation with text body only."""
         service = EmailService(default_from="sender@example.com")
         message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="Test",
-            text_body="Plain text body"
+            to=["recipient@example.com"], subject="Test", text_body="Plain text body"
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -139,19 +125,17 @@ class TestEmailServiceMIME:
             # Verify MIME message was created properly
             call_args = mock_server.send_message.call_args
             mime_msg = call_args[0][0]
-            assert mime_msg['Subject'] == "Test"
-            assert mime_msg['From'] == "sender@example.com"
+            assert mime_msg["Subject"] == "Test"
+            assert mime_msg["From"] == "sender@example.com"
 
     async def test_create_mime_with_html_only(self):
         """Test MIME creation with HTML body only."""
         service = EmailService()
         message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="HTML Test",
-            html_body="<p>HTML body</p>"
+            to=["recipient@example.com"], subject="HTML Test", html_body="<p>HTML body</p>"
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -159,7 +143,7 @@ class TestEmailServiceMIME:
 
             call_args = mock_server.send_message.call_args
             mime_msg = call_args[0][0]
-            assert mime_msg['Subject'] == "HTML Test"
+            assert mime_msg["Subject"] == "HTML Test"
 
     async def test_create_mime_with_custom_from(self):
         """Test MIME creation with custom from address and name."""
@@ -169,10 +153,10 @@ class TestEmailServiceMIME:
             subject="Custom From",
             text_body="Body",
             from_email="custom@example.com",
-            from_name="Custom Sender"
+            from_name="Custom Sender",
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -180,7 +164,7 @@ class TestEmailServiceMIME:
 
             call_args = mock_server.send_message.call_args
             mime_msg = call_args[0][0]
-            assert '"Custom Sender" <custom@example.com>' in mime_msg['From']
+            assert '"Custom Sender" <custom@example.com>' in mime_msg["From"]
 
     async def test_create_mime_with_reply_to(self):
         """Test MIME creation with reply-to address."""
@@ -189,10 +173,10 @@ class TestEmailServiceMIME:
             to=["recipient@example.com"],
             subject="Reply To Test",
             text_body="Body",
-            reply_to="replyto@example.com"
+            reply_to="replyto@example.com",
         )
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -200,17 +184,14 @@ class TestEmailServiceMIME:
 
             call_args = mock_server.send_message.call_args
             mime_msg = call_args[0][0]
-            assert mime_msg['Reply-To'] == "replyto@example.com"
+            assert mime_msg["Reply-To"] == "replyto@example.com"
 
     async def test_create_mime_no_body(self):
         """Test MIME creation with no body (minimal email)."""
         service = EmailService()
-        message = EmailMessage(
-            to=["recipient@example.com"],
-            subject="No Body"
-        )
+        message = EmailMessage(to=["recipient@example.com"], subject="No Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -219,7 +200,7 @@ class TestEmailServiceMIME:
             call_args = mock_server.send_message.call_args
             mime_msg = call_args[0][0]
             # Should add empty text part
-            assert mime_msg['Subject'] == "No Body"
+            assert mime_msg["Subject"] == "No Body"
 
 
 class TestEmailServiceBulk:
@@ -234,7 +215,7 @@ class TestEmailServiceBulk:
             for i in range(5)
         ]
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -252,7 +233,7 @@ class TestEmailServiceBulk:
             for i in range(3)
         ]
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             # First two succeed, third fails
             mock_smtp.return_value.__enter__.side_effect = [
@@ -277,11 +258,11 @@ class TestEmailServiceBulk:
             for i in range(15)
         ]
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
-            with patch('dotmac.platform.communications.email_service.logger') as mock_logger:
+            with patch("dotmac.platform.communications.email_service.logger") as mock_logger:
                 responses = await service.send_bulk_emails(messages)
 
                 assert len(responses) == 15
@@ -298,13 +279,9 @@ class TestEmailServiceWithDatabase:
         mock_db = AsyncMock()
         service = EmailService(db=mock_db, tenant_id="test_tenant")
 
-        message = EmailMessage(
-            to=["user@example.com"],
-            subject="Test",
-            text_body="Body"
-        )
+        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -319,13 +296,9 @@ class TestEmailServiceWithDatabase:
         mock_db = AsyncMock()
         service = EmailService(db=mock_db, tenant_id="default_tenant")
 
-        message = EmailMessage(
-            to=["user@example.com"],
-            subject="Test",
-            text_body="Body"
-        )
+        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -339,13 +312,9 @@ class TestEmailServiceWithDatabase:
         service = EmailService()
         mock_db = AsyncMock()
 
-        message = EmailMessage(
-            to=["user@example.com"],
-            subject="Test",
-            text_body="Body"
-        )
+        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
 
-        with patch('smtplib.SMTP') as mock_smtp:
+        with patch("smtplib.SMTP") as mock_smtp:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
@@ -367,21 +336,16 @@ class TestEmailServiceFactory:
 
     async def test_send_email_convenience_function(self):
         """Test the convenience send_email function."""
-        with patch('dotmac.platform.communications.email_service.get_email_service') as mock_get_service:
+        with patch(
+            "dotmac.platform.communications.email_service.get_email_service"
+        ) as mock_get_service:
             mock_service = AsyncMock()
             mock_service.send_email.return_value = EmailResponse(
-                id="msg_123",
-                status="sent",
-                message="OK",
-                recipients_count=1
+                id="msg_123", status="sent", message="OK", recipients_count=1
             )
             mock_get_service.return_value = mock_service
 
-            response = await send_email(
-                to=["user@example.com"],
-                subject="Test",
-                text_body="Body"
-            )
+            response = await send_email(to=["user@example.com"], subject="Test", text_body="Body")
 
             assert response.id == "msg_123"
             assert response.status == "sent"
@@ -389,13 +353,12 @@ class TestEmailServiceFactory:
 
     async def test_send_email_convenience_with_html(self):
         """Test convenience function with HTML body."""
-        with patch('dotmac.platform.communications.email_service.get_email_service') as mock_get_service:
+        with patch(
+            "dotmac.platform.communications.email_service.get_email_service"
+        ) as mock_get_service:
             mock_service = AsyncMock()
             mock_service.send_email.return_value = EmailResponse(
-                id="msg_456",
-                status="sent",
-                message="OK",
-                recipients_count=1
+                id="msg_456", status="sent", message="OK", recipients_count=1
             )
             mock_get_service.return_value = mock_service
 
@@ -404,7 +367,7 @@ class TestEmailServiceFactory:
                 subject="HTML Test",
                 text_body="Plain",
                 html_body="<p>HTML</p>",
-                from_email="custom@example.com"
+                from_email="custom@example.com",
             )
 
             assert response.status == "sent"

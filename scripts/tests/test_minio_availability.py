@@ -6,7 +6,11 @@ Test which storage backend is actually being used.
 import asyncio
 import os
 from dotmac.platform.settings import settings
-from dotmac.platform.file_storage.service import get_storage_service, FileStorageService, StorageBackend
+from dotmac.platform.file_storage.service import (
+    get_storage_service,
+    FileStorageService,
+    StorageBackend,
+)
 
 
 def test_minio_availability():
@@ -33,6 +37,7 @@ def test_minio_availability():
     print("-" * 40)
     try:
         import minio
+
         print(f"  ✓ MinIO Python client installed (version: {minio.__version__})")
     except ImportError as e:
         print(f"  ✗ MinIO Python client NOT installed: {e}")
@@ -55,6 +60,7 @@ def test_minio_availability():
 
             # This will raise an error if MinIO is not accessible
             from minio import Minio
+
             client = storage.client
 
             if client.bucket_exists(settings.storage.bucket):
@@ -76,6 +82,7 @@ def test_minio_availability():
 
     # Clear the singleton to force re-initialization
     import dotmac.platform.file_storage.service as service_module
+
     service_module._storage_service = None
 
     # Get the service and see what backend it uses
@@ -104,7 +111,7 @@ def test_minio_availability():
             file_name="backend_test.txt",
             content_type="text/plain",
             path="test",
-            tenant_id="test_tenant"
+            tenant_id="test_tenant",
         )
         print(f"  ✓ File stored with ID: {file_id}")
 
@@ -130,7 +137,11 @@ def test_minio_availability():
     print("-" * 40)
 
     if service.backend_type == StorageBackend.LOCAL:
-        print("  Currently using LOCAL storage (files stored at: {})".format(settings.storage.local_path))
+        print(
+            "  Currently using LOCAL storage (files stored at: {})".format(
+                settings.storage.local_path
+            )
+        )
         print()
         print("  To use MinIO:")
         print("  1. Ensure MinIO server is running:")

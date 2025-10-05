@@ -6,18 +6,18 @@ dates, SKUs, and business rules validation.
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import structlog
 
 from dotmac.platform.billing.exceptions import (
     BillingConfigurationError,
-    ProductError,
-    PricingError,
-    SubscriptionError,
     PaymentError,
+    PricingError,
+    ProductError,
+    SubscriptionError,
 )
 
 logger = structlog.get_logger(__name__)
@@ -87,10 +87,10 @@ class CurrencyValidator:
     @classmethod
     def validate_amount(
         cls,
-        amount: Union[int, float, Decimal],
+        amount: int | float | Decimal,
         currency: str,
-        min_amount: Optional[Union[int, float]] = None,
-        max_amount: Optional[Union[int, float]] = None,
+        min_amount: int | float | None = None,
+        max_amount: int | float | None = None,
     ) -> Decimal:
         """
         Validate monetary amount for a given currency.
@@ -227,9 +227,9 @@ class DateRangeValidator:
         """
         # Ensure dates are timezone-aware
         if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
+            start_date = start_date.replace(tzinfo=UTC)
         if end_date.tzinfo is None:
-            end_date = end_date.replace(tzinfo=timezone.utc)
+            end_date = end_date.replace(tzinfo=UTC)
 
         # Check date order
         if end_date <= start_date:
@@ -289,7 +289,7 @@ class PricingRuleValidator:
     def validate_discount(
         cls,
         discount_type: str,
-        discount_value: Union[int, float, Decimal],
+        discount_value: int | float | Decimal,
         max_percentage: float = 100.0,
     ) -> Decimal:
         """
@@ -334,8 +334,8 @@ class PricingRuleValidator:
 
     @classmethod
     def validate_quantity_rules(
-        cls, min_quantity: Optional[int], max_quantity: Optional[int]
-    ) -> tuple[Optional[int], Optional[int]]:
+        cls, min_quantity: int | None, max_quantity: int | None
+    ) -> tuple[int | None, int | None]:
         """
         Validate quantity-based pricing rules.
 
@@ -438,9 +438,9 @@ class BusinessRulesValidator:
             PaymentError: If refund is not eligible
         """
         # Check refund window
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if payment_date.tzinfo is None:
-            payment_date = payment_date.replace(tzinfo=timezone.utc)
+            payment_date = payment_date.replace(tzinfo=UTC)
 
         days_since_payment = (now - payment_date).days
         if days_since_payment > refund_window_days:
@@ -467,18 +467,18 @@ class ValidationContext:
     """Context manager for batch validation with detailed error collection."""
 
     def __init__(self):
-        self.errors: List[Dict[str, Any]] = []
-        self.warnings: List[Dict[str, Any]] = []
+        self.errors: list[dict[str, Any]] = []
+        self.warnings: list[dict[str, Any]] = []
 
     def add_error(
-        self, field: str, message: str, value: Any = None, recovery_hint: Optional[str] = None
+        self, field: str, message: str, value: Any | None = None, recovery_hint: str | None = None
     ):
         """Add validation error."""
         self.errors.append(
             {"field": field, "message": message, "value": value, "recovery_hint": recovery_hint}
         )
 
-    def add_warning(self, field: str, message: str, value: Any = None):
+    def add_warning(self, field: str, message: str, value: Any | None = None):
         """Add validation warning."""
         self.warnings.append({"field": field, "message": message, "value": value})
 

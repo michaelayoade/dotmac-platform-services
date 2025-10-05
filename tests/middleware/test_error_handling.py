@@ -14,6 +14,8 @@ from unittest.mock import Mock
 import pytest
 from fastapi import Request
 
+pytestmark = pytest.mark.asyncio
+
 
 class ErrorType(Enum):
     """Error type enumeration"""

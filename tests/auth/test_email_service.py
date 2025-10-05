@@ -59,7 +59,9 @@ def make_fake_email_service(status: str = "sent"):
 async def test_send_welcome_email_success():
     fake_service = make_fake_email_service("sent")
 
-    with patch("dotmac.platform.communications.email_service.get_email_service", return_value=fake_service):
+    with patch(
+        "dotmac.platform.communications.email_service.get_email_service", return_value=fake_service
+    ):
         result = await send_welcome_email("user@example.com", "User")
 
     assert result is True
@@ -70,7 +72,9 @@ async def test_send_welcome_email_success():
 async def test_send_welcome_email_failure():
     fake_service = make_fake_email_service("failed")
 
-    with patch("dotmac.platform.communications.email_service.get_email_service", return_value=fake_service):
+    with patch(
+        "dotmac.platform.communications.email_service.get_email_service", return_value=fake_service
+    ):
         result = await send_welcome_email("user@example.com", "User")
 
     assert result is False
@@ -80,7 +84,9 @@ async def test_send_welcome_email_failure():
 async def test_send_password_reset_email_success(patch_redis):
     fake_service = make_fake_email_service("sent")
 
-    with patch("dotmac.platform.communications.email_service.get_email_service", return_value=fake_service):
+    with patch(
+        "dotmac.platform.communications.email_service.get_email_service", return_value=fake_service
+    ):
         success, token = await send_password_reset_email("user@example.com", "Tester")
 
     assert success is True
@@ -93,7 +99,9 @@ async def test_send_password_reset_email_success(patch_redis):
 async def test_send_password_reset_email_failure(patch_redis):
     fake_service = make_fake_email_service("failed")
 
-    with patch("dotmac.platform.communications.email_service.get_email_service", return_value=fake_service):
+    with patch(
+        "dotmac.platform.communications.email_service.get_email_service", return_value=fake_service
+    ):
         success, token = await send_password_reset_email("user@example.com", "Tester")
 
     assert success is False
@@ -122,7 +130,9 @@ def test_verify_reset_token_invalid(patch_redis):
 async def test_send_password_reset_success_email():
     fake_service = make_fake_email_service("sent")
 
-    with patch("dotmac.platform.communications.email_service.get_email_service", return_value=fake_service):
+    with patch(
+        "dotmac.platform.communications.email_service.get_email_service", return_value=fake_service
+    ):
         success = await send_password_reset_success_email("user@example.com", "Tester")
 
     assert success is True

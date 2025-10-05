@@ -1,11 +1,12 @@
 """Tests for Celery tasks module."""
+
 import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
 # Import the entire module to ensure coverage tracking
-import dotmac.platform.tasks
-from dotmac.platform.tasks import (
+import dotmac.platform.core.tasks
+from dotmac.platform.core.tasks import (
     app,
     idempotent_task,
     get_celery_app,
@@ -16,7 +17,7 @@ from dotmac.platform.tasks import (
 class TestEnhancedCeleryInstrumentation:
     """Test enhanced Celery instrumentation functionality."""
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_disabled_by_otel(self, mock_settings):
         """Test instrumentation disabled when OTEL is disabled."""
         mock_settings.observability.otel_enabled = False
@@ -24,7 +25,7 @@ class TestEnhancedCeleryInstrumentation:
         # Should not raise exception
         init_celery_instrumentation()
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_disabled_by_celery_setting(self, mock_settings):
         """Test instrumentation disabled when Celery instrumentation is disabled."""
         mock_settings.observability.otel_enabled = True
@@ -33,18 +34,18 @@ class TestEnhancedCeleryInstrumentation:
         # Should not raise exception
         init_celery_instrumentation()
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_missing_package(self, mock_settings):
         """Test instrumentation with missing package."""
         mock_settings.observability.otel_enabled = True
         mock_settings.observability.otel_instrument_celery = True
 
         # Mock the specific import that fails
-        with patch.dict('sys.modules', {'opentelemetry.instrumentation.celery': None}):
+        with patch.dict("sys.modules", {"opentelemetry.instrumentation.celery": None}):
             # Should not raise exception
             init_celery_instrumentation()
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_success(self, mock_settings):
         """Test successful instrumentation."""
         mock_settings.observability.otel_enabled = True
@@ -53,7 +54,9 @@ class TestEnhancedCeleryInstrumentation:
         mock_settings.observability.otel_endpoint = "http://localhost:4318"
 
         # Mock CeleryInstrumentor
-        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+        with patch(
+            "opentelemetry.instrumentation.celery.CeleryInstrumentor"
+        ) as mock_instrumentor_class:
             mock_instrumentor = Mock()
             mock_instrumentor._instrumented = False
             mock_instrumentor_class.return_value = mock_instrumentor
@@ -63,14 +66,16 @@ class TestEnhancedCeleryInstrumentation:
             # Should instrument
             mock_instrumentor.instrument.assert_called_once()
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_already_instrumented(self, mock_settings):
         """Test when already instrumented."""
         mock_settings.observability.otel_enabled = True
         mock_settings.observability.otel_instrument_celery = True
 
         # Mock already instrumented
-        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+        with patch(
+            "opentelemetry.instrumentation.celery.CeleryInstrumentor"
+        ) as mock_instrumentor_class:
             mock_instrumentor = Mock()
             mock_instrumentor._instrumented = True
             mock_instrumentor_class.return_value = mock_instrumentor
@@ -80,14 +85,16 @@ class TestEnhancedCeleryInstrumentation:
             # Should not instrument again
             mock_instrumentor.instrument.assert_not_called()
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_init_celery_instrumentation_error_handling(self, mock_settings):
         """Test error handling during instrumentation."""
         mock_settings.observability.otel_enabled = True
         mock_settings.observability.otel_instrument_celery = True
 
         # Mock instrumentation error
-        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor") as mock_instrumentor_class:
+        with patch(
+            "opentelemetry.instrumentation.celery.CeleryInstrumentor"
+        ) as mock_instrumentor_class:
             mock_instrumentor = Mock()
             mock_instrumentor._instrumented = False
             mock_instrumentor.instrument.side_effect = Exception("Instrumentation error")
@@ -103,6 +110,7 @@ class TestCeleryTasks:
     def test_celery_app_exists(self):
         """Test that Celery app is properly initialized."""
         from celery import Celery
+
         assert isinstance(app, Celery)
         assert app.main == "dotmac"
 
@@ -111,7 +119,7 @@ class TestCeleryTasks:
         result = get_celery_app()
         assert result is app
 
-    @patch("dotmac.platform.tasks.settings")
+    @patch("dotmac.platform.core.tasks.settings")
     def test_celery_app_configuration(self, mock_settings):
         """Test that Celery app is configured with settings."""
         # Verify that configuration is applied
@@ -119,7 +127,7 @@ class TestCeleryTasks:
         assert app.conf.result_serializer is not None
         assert app.conf.accept_content is not None
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_with_redis(self, mock_redis):
         """Test idempotent task with Redis available."""
         # Mock Redis operations
@@ -138,7 +146,7 @@ class TestCeleryTasks:
         mock_redis.set.assert_called_once()
         mock_redis.setex.assert_called_once()
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_already_processing(self, mock_redis):
         """Test idempotent task when already processing."""
         # Mock Redis operations - lock acquisition fails
@@ -155,7 +163,7 @@ class TestCeleryTasks:
         # Should check for cached result
         mock_redis.get.assert_called_once()
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_no_cached_result(self, mock_redis):
         """Test idempotent task when processing but no cached result."""
         mock_redis.set.return_value = False  # Lock not acquired
@@ -169,10 +177,11 @@ class TestCeleryTasks:
 
         assert result is None
 
-    @patch("dotmac.platform.tasks.redis_client", None)
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.redis_client", None)
+    @patch("dotmac.platform.core.tasks.logger")
     def test_idempotent_task_no_redis(self, mock_logger):
         """Test idempotent task without Redis."""
+
         @idempotent_task(ttl=300)
         def test_task():
             return "result"
@@ -184,7 +193,7 @@ class TestCeleryTasks:
             "Redis not available, executing task without idempotency"
         )
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_with_exception(self, mock_redis):
         """Test idempotent task when task raises exception."""
         mock_redis.set.return_value = True  # Lock acquired
@@ -200,7 +209,7 @@ class TestCeleryTasks:
         # Should release lock on failure
         mock_redis.delete.assert_called_once()
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_redis_exception(self, mock_redis):
         """Test idempotent task when Redis raises exception."""
         mock_redis.set.side_effect = Exception("Redis error")
@@ -214,7 +223,7 @@ class TestCeleryTasks:
         # Should fall back to executing task
         assert result == "fallback_result"
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_key_generation(self, mock_redis):
         """Test idempotent task key generation."""
         mock_redis.set.return_value = True
@@ -231,7 +240,7 @@ class TestCeleryTasks:
         assert task_key.startswith("task:idempotent:")
         assert len(task_key.split(":")) == 3  # prefix:type:hash
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_cached_result_bytes(self, mock_redis):
         """Test idempotent task with bytes cached result."""
         mock_redis.set.return_value = False
@@ -245,7 +254,7 @@ class TestCeleryTasks:
 
         assert result == {"test": "value"}
 
-    @patch("dotmac.platform.tasks.redis_client")
+    @patch("dotmac.platform.core.tasks.redis_client")
     def test_idempotent_task_cached_result_string(self, mock_redis):
         """Test idempotent task with string cached result."""
         mock_redis.set.return_value = False
@@ -263,8 +272,8 @@ class TestCeleryTasks:
 class TestCeleryInstrumentation:
     """Test Celery instrumentation functionality."""
 
-    @patch("dotmac.platform.tasks.settings")
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.settings")
+    @patch("dotmac.platform.core.tasks.logger")
     def test_init_celery_instrumentation_disabled_otel(self, mock_logger, mock_settings):
         """Test instrumentation when OpenTelemetry is disabled."""
         mock_settings.observability.otel_enabled = False
@@ -275,8 +284,8 @@ class TestCeleryInstrumentation:
             "OpenTelemetry is disabled in settings, skipping Celery instrumentation"
         )
 
-    @patch("dotmac.platform.tasks.settings")
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.settings")
+    @patch("dotmac.platform.core.tasks.logger")
     def test_init_celery_instrumentation_disabled_celery(self, mock_logger, mock_settings):
         """Test instrumentation when Celery instrumentation is disabled."""
         mock_settings.observability.otel_enabled = True
@@ -284,12 +293,10 @@ class TestCeleryInstrumentation:
 
         init_celery_instrumentation()
 
-        mock_logger.debug.assert_called_once_with(
-            "Celery instrumentation is disabled in settings"
-        )
+        mock_logger.debug.assert_called_once_with("Celery instrumentation is disabled in settings")
 
-    @patch("dotmac.platform.tasks.settings")
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.settings")
+    @patch("dotmac.platform.core.tasks.logger")
     def test_init_celery_instrumentation_success(self, mock_logger, mock_settings):
         """Test successful Celery instrumentation."""
         mock_settings.observability.otel_enabled = True
@@ -307,21 +314,24 @@ class TestCeleryInstrumentation:
                 "Celery instrumentation enabled for OpenTelemetry tracing"
             )
 
-    @patch("dotmac.platform.tasks.settings")
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.settings")
+    @patch("dotmac.platform.core.tasks.logger")
     def test_init_celery_instrumentation_import_error(self, mock_logger, mock_settings):
         """Test instrumentation with import error."""
         mock_settings.observability.otel_enabled = True
         mock_settings.observability.otel_instrument_celery = True
 
-        with patch("opentelemetry.instrumentation.celery.CeleryInstrumentor", side_effect=ImportError("Module not found")):
+        with patch(
+            "opentelemetry.instrumentation.celery.CeleryInstrumentor",
+            side_effect=ImportError("Module not found"),
+        ):
             # Should not raise exception
             init_celery_instrumentation()
 
             mock_logger.warning.assert_called()
 
-    @patch("dotmac.platform.tasks.settings")
-    @patch("dotmac.platform.tasks.logger")
+    @patch("dotmac.platform.core.tasks.settings")
+    @patch("dotmac.platform.core.tasks.logger")
     def test_init_celery_instrumentation_general_error(self, mock_logger, mock_settings):
         """Test instrumentation with general error."""
         mock_settings.observability.otel_enabled = True
@@ -336,11 +346,13 @@ class TestCeleryInstrumentation:
             # Should not raise exception
             init_celery_instrumentation()
 
-            mock_logger.error.assert_called_with("Failed to instrument Celery: Instrumentation failed")
+            mock_logger.error.assert_called_with(
+                "Failed to instrument Celery: Instrumentation failed"
+            )
 
     def test_module_exports(self):
         """Test that all required exports are available."""
-        from dotmac.platform import tasks
+        from dotmac.platform.core import tasks
 
         assert hasattr(tasks, "app")
         assert hasattr(tasks, "idempotent_task")

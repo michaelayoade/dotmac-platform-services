@@ -6,7 +6,7 @@ to integrate with the DotMac platform.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .schema import PluginConfig, PluginHealthCheck, PluginTestResult
 
@@ -25,7 +25,7 @@ class PluginProvider(ABC):
         pass
 
     @abstractmethod
-    async def configure(self, config: Dict[str, Any]) -> bool:
+    async def configure(self, config: dict[str, Any]) -> bool:
         """
         Configure the plugin with provided settings.
 
@@ -52,7 +52,7 @@ class PluginProvider(ABC):
             timestamp="",  # Will be set by registry
         )
 
-    async def test_connection(self, config: Dict[str, Any]) -> PluginTestResult:
+    async def test_connection(self, config: dict[str, Any]) -> PluginTestResult:
         """
         Test connection with the provided configuration.
 
@@ -78,8 +78,8 @@ class NotificationProvider(PluginProvider):
         self,
         recipient: str,
         message: str,
-        subject: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        subject: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """
         Send a notification.
@@ -105,8 +105,8 @@ class PaymentProvider(PluginProvider):
         amount: float,
         currency: str,
         payment_method: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Process a payment.
 
@@ -126,7 +126,9 @@ class StorageProvider(PluginProvider):
     """Base class for storage providers."""
 
     @abstractmethod
-    async def store_file(self, key: str, content: bytes, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def store_file(
+        self, key: str, content: bytes, metadata: dict[str, Any] | None = None
+    ) -> str:
         """
         Store a file.
 
@@ -158,7 +160,7 @@ class SearchProvider(PluginProvider):
     """Base class for search providers."""
 
     @abstractmethod
-    async def index_document(self, index: str, doc_id: str, document: Dict[str, Any]) -> bool:
+    async def index_document(self, index: str, doc_id: str, document: dict[str, Any]) -> bool:
         """
         Index a document.
 
@@ -173,7 +175,9 @@ class SearchProvider(PluginProvider):
         pass
 
     @abstractmethod
-    async def search_documents(self, index: str, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def search_documents(
+        self, index: str, query: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
         """
         Search for documents.
 
@@ -192,7 +196,7 @@ class AuthenticationProvider(PluginProvider):
     """Base class for authentication providers."""
 
     @abstractmethod
-    async def authenticate_user(self, credentials: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def authenticate_user(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
         """
         Authenticate a user.
 
@@ -209,7 +213,7 @@ class IntegrationProvider(PluginProvider):
     """Base class for general integration providers."""
 
     @abstractmethod
-    async def execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_action(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
         """
         Execute an integration action.
 
@@ -227,7 +231,7 @@ class AnalyticsProvider(PluginProvider):
     """Base class for analytics providers."""
 
     @abstractmethod
-    async def track_event(self, event: str, properties: Dict[str, Any]) -> bool:
+    async def track_event(self, event: str, properties: dict[str, Any]) -> bool:
         """
         Track an analytics event.
 
@@ -245,7 +249,7 @@ class WorkflowProvider(PluginProvider):
     """Base class for workflow providers."""
 
     @abstractmethod
-    async def execute_workflow(self, workflow_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_workflow(self, workflow_id: str, inputs: dict[str, Any]) -> dict[str, Any]:
         """
         Execute a workflow.
 

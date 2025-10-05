@@ -2,7 +2,7 @@
 Billing settings data models
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, validator
@@ -14,26 +14,26 @@ class CompanyInfo(BaseModel):
     """Company information settings"""
 
     name: str = Field(..., min_length=1, max_length=200)
-    legal_name: Optional[str] = Field(None, max_length=200)
-    tax_id: Optional[str] = Field(None, max_length=50)
-    registration_number: Optional[str] = Field(None, max_length=50)
+    legal_name: str | None = Field(None, max_length=200)
+    tax_id: str | None = Field(None, max_length=50)
+    registration_number: str | None = Field(None, max_length=50)
 
     # Address
     address_line1: str = Field(..., min_length=1, max_length=100)
-    address_line2: Optional[str] = Field(None, max_length=100)
+    address_line2: str | None = Field(None, max_length=100)
     city: str = Field(..., min_length=1, max_length=50)
-    state: Optional[str] = Field(None, max_length=50)
+    state: str | None = Field(None, max_length=50)
     postal_code: str = Field(..., min_length=1, max_length=20)
     country: str = Field(..., min_length=2, max_length=2)
 
     # Contact information
-    phone: Optional[str] = Field(None, max_length=20)
-    email: Optional[str] = Field(None, max_length=100)
-    website: Optional[str] = Field(None, max_length=100)
+    phone: str | None = Field(None, max_length=20)
+    email: str | None = Field(None, max_length=100)
+    website: str | None = Field(None, max_length=100)
 
     # Branding
-    logo_url: Optional[str] = Field(None, description="URL to company logo")
-    brand_color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    logo_url: str | None = Field(None, description="URL to company logo")
+    brand_color: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     class Config:
         json_schema_extra = {
@@ -48,7 +48,7 @@ class CompanyInfo(BaseModel):
                 "country": "US",
                 "phone": "+1 (555) 123-4567",
                 "email": "billing@acme.com",
-                "website": "https://acme.com"
+                "website": "https://acme.com",
             }
         }
 
@@ -61,17 +61,16 @@ class TaxSettings(BaseModel):
     tax_inclusive_pricing: bool = Field(False, description="Whether prices include tax")
 
     # Tax registration
-    tax_registrations: List[Dict[str, str]] = Field(
-        default_factory=list,
-        description="Tax registrations by jurisdiction"
+    tax_registrations: list[dict[str, str]] = Field(
+        default_factory=list, description="Tax registrations by jurisdiction"
     )
 
     # Default rates (fallback when no specific rates configured)
     default_tax_rate: float = Field(0.0, ge=0, le=100)
 
     # Integration settings
-    tax_provider: Optional[str] = Field(None, description="External tax service provider")
-    tax_provider_config: Dict[str, Any] = Field(default_factory=dict)
+    tax_provider: str | None = Field(None, description="External tax service provider")
+    tax_provider_config: dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         json_schema_extra = {
@@ -81,8 +80,8 @@ class TaxSettings(BaseModel):
                 "default_tax_rate": 8.25,
                 "tax_registrations": [
                     {"jurisdiction": "US-CA", "registration_number": "123-456-789"},
-                    {"jurisdiction": "US-NY", "registration_number": "987-654-321"}
-                ]
+                    {"jurisdiction": "US-NY", "registration_number": "987-654-321"},
+                ],
             }
         }
 
@@ -91,26 +90,23 @@ class PaymentSettings(BaseModel):
     """Payment processing settings"""
 
     # Supported payment methods
-    enabled_payment_methods: List[str] = Field(
-        default_factory=lambda: ["card", "bank_account"],
-        description="Enabled payment methods"
+    enabled_payment_methods: list[str] = Field(
+        default_factory=lambda: ["card", "bank_account"], description="Enabled payment methods"
     )
 
     # Default currency
     default_currency: str = Field("USD", min_length=3, max_length=3)
-    supported_currencies: List[str] = Field(
-        default_factory=lambda: ["USD"],
-        description="List of supported currencies"
+    supported_currencies: list[str] = Field(
+        default_factory=lambda: ["USD"], description="List of supported currencies"
     )
 
     # Payment terms
     default_payment_terms: int = Field(30, ge=0, description="Default payment terms in days")
-    late_payment_fee: Optional[float] = Field(None, ge=0, description="Late payment fee percentage")
+    late_payment_fee: float | None = Field(None, ge=0, description="Late payment fee percentage")
 
     # Provider settings
-    payment_processors: Dict[str, Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Payment processor configurations"
+    payment_processors: dict[str, dict[str, Any]] = Field(
+        default_factory=dict, description="Payment processor configurations"
     )
 
     # Retry settings
@@ -125,7 +121,7 @@ class PaymentSettings(BaseModel):
                 "default_currency": "USD",
                 "supported_currencies": ["USD", "EUR", "GBP"],
                 "default_payment_terms": 30,
-                "late_payment_fee": 1.5
+                "late_payment_fee": 1.5,
             }
         }
 
@@ -142,19 +138,19 @@ class InvoiceSettings(BaseModel):
 
     # Content
     include_payment_instructions: bool = Field(True)
-    payment_instructions: Optional[str] = Field(None, max_length=500)
+    payment_instructions: str | None = Field(None, max_length=500)
 
-    footer_text: Optional[str] = Field(None, max_length=500)
-    terms_and_conditions: Optional[str] = Field(None, max_length=2000)
+    footer_text: str | None = Field(None, max_length=500)
+    terms_and_conditions: str | None = Field(None, max_length=2000)
 
     # Notifications
     send_invoice_emails: bool = Field(True)
     send_payment_reminders: bool = Field(True)
-    reminder_schedule_days: List[int] = Field(default_factory=lambda: [7, 3, 1])
+    reminder_schedule_days: list[int] = Field(default_factory=lambda: [7, 3, 1])
 
     # PDF customization
     logo_on_invoices: bool = Field(True)
-    color_scheme: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    color_scheme: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     class Config:
         json_schema_extra = {
@@ -164,7 +160,7 @@ class InvoiceSettings(BaseModel):
                 "payment_instructions": "Please pay within 30 days of invoice date.",
                 "send_invoice_emails": True,
                 "send_payment_reminders": True,
-                "reminder_schedule_days": [7, 3, 1]
+                "reminder_schedule_days": [7, 3, 1],
             }
         }
 
@@ -179,12 +175,11 @@ class NotificationSettings(BaseModel):
     send_receipt_emails: bool = Field(True)
 
     # Webhook settings
-    webhook_url: Optional[str] = Field(None, description="Webhook endpoint URL")
-    webhook_events: List[str] = Field(
-        default_factory=list,
-        description="Events to send webhooks for"
+    webhook_url: str | None = Field(None, description="Webhook endpoint URL")
+    webhook_events: list[str] = Field(
+        default_factory=list, description="Events to send webhooks for"
     )
-    webhook_secret: Optional[str] = Field(None, description="Webhook signature secret")
+    webhook_secret: str | None = Field(None, description="Webhook signature secret")
 
 
 class BillingSettings(BillingBaseModel):
@@ -200,7 +195,7 @@ class BillingSettings(BillingBaseModel):
     notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
 
     # Feature flags
-    features_enabled: Dict[str, bool] = Field(
+    features_enabled: dict[str, bool] = Field(
         default_factory=lambda: {
             "invoicing": True,
             "payments": True,
@@ -213,10 +208,10 @@ class BillingSettings(BillingBaseModel):
     )
 
     # Custom settings
-    custom_settings: Dict[str, Any] = Field(default_factory=dict)
+    custom_settings: dict[str, Any] = Field(default_factory=dict)
 
     # API settings
-    api_settings: Dict[str, Any] = Field(
+    api_settings: dict[str, Any] = Field(
         default_factory=lambda: {
             "rate_limits": {"requests_per_minute": 1000},
             "api_version": "v1",
@@ -238,15 +233,9 @@ class BillingSettings(BillingBaseModel):
                     "city": "San Francisco",
                     "state": "CA",
                     "postal_code": "94105",
-                    "country": "US"
+                    "country": "US",
                 },
-                "payment_settings": {
-                    "default_currency": "USD",
-                    "default_payment_terms": 30
-                },
-                "invoice_settings": {
-                    "default_due_days": 30,
-                    "send_invoice_emails": True
-                }
+                "payment_settings": {"default_currency": "USD", "default_payment_terms": 30},
+                "invoice_settings": {"default_due_days": 30, "send_invoice_emails": True},
             }
         }

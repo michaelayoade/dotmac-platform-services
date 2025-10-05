@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
   Plus,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { platformConfig } from '@/lib/config';
 import { RouteGuard } from '@/components/auth/PermissionGuard';
+import { logger } from '@/lib/logger';
 
 interface Secret {
   path: string;
@@ -52,20 +53,7 @@ function SecretsPageContent() {
     type: 'success'
   });
 
-  useEffect(() => {
-    fetchSecrets();
-  }, []);
-
-  useEffect(() => {
-    if (toast.show) {
-      const timer = setTimeout(() => {
-        setToast({ ...toast, show: false });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast.show]);
-
-  const fetchSecrets = async () => {
+  const fetchSecrets = useCallback(async () => {
     try {
       const response = await fetch(`${platformConfig.apiBaseUrl}/api/v1/secrets`, {
         credentials: 'include',
@@ -80,14 +68,28 @@ function SecretsPageContent() {
       } else if (response.status === 401) {
         window.location.href = '/login';
       } else {
-        console.error('Failed to fetch secrets:', response.status);
+        logger.error('Failed to fetch secrets', { status: response.status });
       }
     } catch (error) {
-      console.error('Error fetching secrets:', error);
+      logger.error('Error fetching secrets', { error });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSecrets();
+  }, [fetchSecrets]);
+
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ ...toast, show: false });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [toast.show]);
 
   const fetchSecretValue = async (path: string) => {
     try {
@@ -106,7 +108,7 @@ function SecretsPageContent() {
         window.location.href = '/login';
       }
     } catch (error) {
-      console.error('Error fetching secret value:', error);
+      logger.error('Error fetching secret value', { path, error });
     }
   };
 
@@ -152,7 +154,7 @@ function SecretsPageContent() {
         showToast('Failed to create secret', 'error');
       }
     } catch (error) {
-      console.error('Error creating secret:', error);
+      logger.error('Error creating secret', { path: newSecretData.path, error });
       showToast('Error creating secret', 'error');
     }
   };
@@ -175,8 +177,8 @@ function SecretsPageContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Secrets Management</h1>
-          <p className="text-gray-600">Securely store and manage application secrets</p>
+          <h1 className="text-2xl font-bold text-foreground">Secrets Management</h1>
+          <p className="text-muted-foreground">Securely store and manage application secrets</p>
         </div>
         <button
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
@@ -202,43 +204,43 @@ function SecretsPageContent() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
             <Shield className="h-8 w-8 text-blue-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Secrets</p>
-              <p className="text-2xl font-bold text-gray-900">{secrets.length}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Secrets</p>
+              <p className="text-2xl font-bold text-foreground">{secrets.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
             <Key className="h-8 w-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">API Keys</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">API Keys</p>
+              <p className="text-2xl font-bold text-foreground">
                 {secrets.filter(s => s.path.includes('api') || s.path.includes('key')).length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
             <Lock className="h-8 w-8 text-purple-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Databases</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Databases</p>
+              <p className="text-2xl font-bold text-foreground">
                 {secrets.filter(s => s.path.includes('db') || s.path.includes('database')).length}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center">
             <Calendar className="h-8 w-8 text-yellow-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Updated Today</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Updated Today</p>
+              <p className="text-2xl font-bold text-foreground">
                 {secrets.filter(s => {
                   const updated = new Date(s.updated_at);
                   const today = new Date();
@@ -251,15 +253,15 @@ function SecretsPageContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-card rounded-lg shadow">
+        <div className="p-6 border-b border-border">
           <div className="flex items-center space-x-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <input
                 type="text"
                 placeholder="Search secrets by path or description..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -269,22 +271,22 @@ function SecretsPageContent() {
 
         {/* Secrets Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-accent">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Secret Path
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Description
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Version
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Last Updated
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Created By
                 </th>
                 <th className="relative px-6 py-3">
@@ -292,9 +294,9 @@ function SecretsPageContent() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-card divide-y divide-border">
               {filteredSecrets.map((secret) => (
-                <tr key={secret.path} className="hover:bg-gray-50">
+                <tr key={secret.path} className="hover:bg-accent">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -303,7 +305,7 @@ function SecretsPageContent() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 font-mono">
+                        <div className="text-sm font-medium text-foreground font-mono">
                           {secret.path}
                         </div>
                         {secret.metadata?.tags && (
@@ -311,7 +313,7 @@ function SecretsPageContent() {
                             {secret.metadata.tags.map((tag) => (
                               <span
                                 key={tag}
-                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800"
+                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-muted text-muted-foreground"
                               >
                                 {tag}
                               </span>
@@ -321,19 +323,19 @@ function SecretsPageContent() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     {secret.metadata?.description || 'No description'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     v{secret.version || 1}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
                       {new Date(secret.updated_at).toLocaleDateString()}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     {secret.metadata?.created_by || 'System'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -351,7 +353,7 @@ function SecretsPageContent() {
                       <button className="text-red-600 hover:text-red-900" title="Delete secret">
                         <Trash2 className="h-4 w-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-900">
+                      <button className="text-muted-foreground hover:text-foreground">
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                     </div>
@@ -363,9 +365,9 @@ function SecretsPageContent() {
 
           {filteredSecrets.length === 0 && (
             <div className="text-center py-12">
-              <Shield className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No secrets found</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <Shield className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-sm font-medium text-foreground">No secrets found</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {searchQuery
                   ? 'Try adjusting your search criteria'
                   : 'Get started by adding your first secret'
@@ -389,39 +391,39 @@ function SecretsPageContent() {
 
       {/* Secret Value Modal */}
       {selectedSecret && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600/50 dark:bg-black/50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-96 shadow-lg rounded-md bg-card">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Secret Value</h3>
+                <h3 className="text-lg font-medium text-foreground">Secret Value</h3>
                 <button
                   onClick={() => setSelectedSecret(null)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                 >
                   ✕
                 </button>
               </div>
-              <p className="text-sm text-gray-600 mb-4 font-mono">{selectedSecret}</p>
+              <p className="text-sm text-muted-foreground mb-4 font-mono">{selectedSecret}</p>
 
-              <div className="bg-gray-50 p-4 rounded-md">
+              <div className="bg-accent p-4 rounded-md">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Value:</span>
+                  <span className="text-sm font-medium text-foreground">Value:</span>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setShowValue(!showValue)}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                     <button
                       onClick={() => copyToClipboard(secretValue)}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-                <div className="font-mono text-sm bg-white p-2 rounded border">
+                <div className="font-mono text-sm bg-background p-2 rounded border">
                   {showValue ? secretValue : '••••••••••••••••'}
                 </div>
               </div>
@@ -429,7 +431,7 @@ function SecretsPageContent() {
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={() => setSelectedSecret(null)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-accent"
                 >
                   Close
                 </button>
@@ -441,17 +443,17 @@ function SecretsPageContent() {
 
       {/* Create Secret Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600/50 dark:bg-black/50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border border-border w-full max-w-md shadow-lg rounded-md bg-card">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Create New Secret</h3>
+                <h3 className="text-lg font-medium text-foreground">Create New Secret</h3>
                 <button
                   onClick={() => {
                     setShowCreateModal(false);
                     setNewSecretData({ path: '', value: '', description: '', tags: '' });
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                 >
                   ✕
                 </button>
@@ -459,7 +461,7 @@ function SecretsPageContent() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Secret Path
                   </label>
                   <input
@@ -467,12 +469,12 @@ function SecretsPageContent() {
                     placeholder="e.g., database/password"
                     value={newSecretData.path}
                     onChange={(e) => setNewSecretData({ ...newSecretData, path: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Secret Value
                   </label>
                   <textarea
@@ -480,12 +482,12 @@ function SecretsPageContent() {
                     value={newSecretData.value}
                     onChange={(e) => setNewSecretData({ ...newSecretData, value: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Description (optional)
                   </label>
                   <input
@@ -493,12 +495,12 @@ function SecretsPageContent() {
                     placeholder="Brief description of this secret"
                     value={newSecretData.description}
                     onChange={(e) => setNewSecretData({ ...newSecretData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Tags (optional, comma-separated)
                   </label>
                   <input
@@ -506,7 +508,7 @@ function SecretsPageContent() {
                     placeholder="e.g., production, sensitive"
                     value={newSecretData.tags}
                     onChange={(e) => setNewSecretData({ ...newSecretData, tags: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -517,7 +519,7 @@ function SecretsPageContent() {
                     setShowCreateModal(false);
                     setNewSecretData({ path: '', value: '', description: '', tags: '' });
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-accent"
                 >
                   Cancel
                 </button>

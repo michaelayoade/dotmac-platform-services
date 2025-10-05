@@ -2,7 +2,7 @@
 Analytics service factory and management.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 
@@ -11,13 +11,13 @@ from .otel_collector import create_otel_collector
 
 logger = structlog.get_logger(__name__)
 
-_analytics_instances: Dict[str, BaseAnalyticsCollector] = {}
+_analytics_instances: dict[str, BaseAnalyticsCollector] = {}
 
 
 class AnalyticsService:
     """Unified analytics service wrapper."""
 
-    def __init__(self, collector: Optional[BaseAnalyticsCollector] = None):
+    def __init__(self, collector: BaseAnalyticsCollector | None = None):
         self.collector = collector or create_otel_collector(
             tenant_id="default", service_name="platform"
         )
@@ -103,7 +103,7 @@ class AnalyticsService:
         """Close the analytics service."""
         await self.collector.flush()
 
-    def create_request_span(self, endpoint: str, method: str, attributes: Dict[str, Any]):
+    def create_request_span(self, endpoint: str, method: str, attributes: dict[str, Any]):
         """Create a request span for tracing."""
         return self.collector.tracer.start_span(name=f"{method} {endpoint}", attributes=attributes)
 
@@ -111,7 +111,7 @@ class AnalyticsService:
 def get_analytics_service(
     tenant_id: str = "default",
     service_name: str = "platform",
-    signoz_endpoint: Optional[str] = None,
+    signoz_endpoint: str | None = None,
     **kwargs,
 ) -> AnalyticsService:
     """

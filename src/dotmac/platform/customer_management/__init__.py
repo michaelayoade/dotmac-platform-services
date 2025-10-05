@@ -12,13 +12,13 @@ This module provides comprehensive customer relationship management capabilities
 
 from dotmac.platform.customer_management.models import (
     Customer,
-    CustomerSegment,
     CustomerActivity,
     CustomerNote,
+    CustomerSegment,
     CustomerTag,
 )
-from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.customer_management.router import router as customer_router
+from dotmac.platform.customer_management.service import CustomerService
 
 __all__ = [
     "Customer",

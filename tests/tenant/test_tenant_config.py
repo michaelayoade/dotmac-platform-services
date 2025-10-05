@@ -47,10 +47,7 @@ class TestTenantConfiguration:
 
     def test_multi_tenant_with_fallback(self):
         """Test multi-tenant with fallback to default."""
-        config = TenantConfiguration(
-            mode=TenantMode.MULTI,
-            require_tenant_header=False
-        )
+        config = TenantConfiguration(mode=TenantMode.MULTI, require_tenant_header=False)
         assert config.is_multi_tenant
         assert not config.require_tenant_header
         assert config.get_tenant_id_for_request("tenant123") == "tenant123"
@@ -58,10 +55,7 @@ class TestTenantConfiguration:
 
     def test_custom_default_tenant_id(self):
         """Test custom default tenant ID."""
-        config = TenantConfiguration(
-            mode=TenantMode.SINGLE,
-            default_tenant_id="my-company"
-        )
+        config = TenantConfiguration(mode=TenantMode.SINGLE, default_tenant_id="my-company")
         assert config.default_tenant_id == "my-company"
         assert config.get_tenant_id_for_request(None) == "my-company"
 
@@ -80,12 +74,15 @@ class TestTenantConfiguration:
         assert config.default_tenant_id == "acme-corp"
         assert not config.require_tenant_header
 
-    @patch.dict(os.environ, {
-        "TENANT_MODE": "multi",
-        "REQUIRE_TENANT_HEADER": "false",
-        "TENANT_HEADER_NAME": "X-Organization-ID",
-        "TENANT_QUERY_PARAM": "org_id",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "TENANT_MODE": "multi",
+            "REQUIRE_TENANT_HEADER": "false",
+            "TENANT_HEADER_NAME": "X-Organization-ID",
+            "TENANT_QUERY_PARAM": "org_id",
+        },
+    )
     def test_environment_custom_settings(self):
         """Test custom settings from environment."""
         config = TenantConfiguration()
@@ -94,10 +91,13 @@ class TestTenantConfiguration:
         assert config.tenant_header_name == "X-Organization-ID"
         assert config.tenant_query_param == "org_id"
 
-    @patch.dict(os.environ, {
-        "ENABLE_TENANT_SWITCHING": "true",
-        "ENABLE_CROSS_TENANT_QUERIES": "true",
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "ENABLE_TENANT_SWITCHING": "true",
+            "ENABLE_CROSS_TENANT_QUERIES": "true",
+        },
+    )
     def test_advanced_features(self):
         """Test advanced feature flags."""
         config = TenantConfiguration()
@@ -109,10 +109,7 @@ class TestTenantConfiguration:
         original_config = get_tenant_config()
 
         # Set new configuration
-        new_config = TenantConfiguration(
-            mode=TenantMode.MULTI,
-            default_tenant_id="global-test"
-        )
+        new_config = TenantConfiguration(mode=TenantMode.MULTI, default_tenant_id="global-test")
         set_tenant_config(new_config)
 
         # Verify it was set

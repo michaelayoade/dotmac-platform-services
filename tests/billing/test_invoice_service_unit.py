@@ -1,383 +1,526 @@
-"""Comprehensive unit tests for InvoiceService to reach 70%+ coverage.
+"""
+Unit Tests for Invoice Service (Business Logic).
 
-This test suite focuses on covering uncovered lines (55-167, 174-186, etc.)
-using proper async mocking to avoid database configuration issues.
+Strategy: Mock ALL dependencies (database, metrics, event bus)
+Focus: Test invoice lifecycle, validation, status transitions in isolation
 """
 
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.invoicing.service import InvoiceService
-from dotmac.platform.billing.core.entities import InvoiceEntity, InvoiceLineItemEntity
+from dotmac.platform.billing.core.entities import InvoiceEntity
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
-from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
 from dotmac.platform.billing.core.exceptions import (
-    InvalidInvoiceStatusError,
     InvoiceNotFoundError,
+    InvalidInvoiceStatusError,
 )
+from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
 
 
-@pytest.fixture
-def mock_db_session():
-    """Create a mock async database session."""
-    session = AsyncMock(spec=AsyncSession)
-    session.add = MagicMock()
-    session.commit = AsyncMock()
-    session.refresh = AsyncMock()
-    session.execute = AsyncMock()
-    return session
+class TestInvoiceCreation:
+    """Test invoice creation with idempotency."""
 
+    @pytest.fixture
+    def mock_db(self):
+        """Mock database session."""
+        db = AsyncMock(spec=AsyncSession)
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        db.add = MagicMock()
+        return db
 
-@pytest.fixture
-def invoice_service(mock_db_session):
-    """Create InvoiceService with mocked dependencies."""
-    with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"), \
-         patch("dotmac.platform.billing.invoicing.service.get_event_bus"):
-        service = InvoiceService(db_session=mock_db_session)
-        return service
+    @pytest.fixture
+    def invoice_service(self, mock_db):
+        """Create invoice service with mocked dependencies."""
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
 
+    @pytest.fixture
+    def line_items(self):
+        """Create sample line items."""
+        return [
+            {
+                "description": "Product A",
+                "quantity": 2,
+                "unit_price": 50.00,
+                "total_price": 100.00,
+                "product_id": "prod_a",
+                "tax_rate": 0.0,
+                "tax_amount": 0.0,
+                "discount_percentage": 0.0,
+                "discount_amount": 0.0,
+                "extra_data": {},
+            },
+            {
+                "description": "Product B",
+                "quantity": 1,
+                "unit_price": 25.00,
+                "total_price": 25.00,
+                "product_id": "prod_b",
+                "tax_rate": 0.0,
+                "tax_amount": 0.0,
+                "discount_percentage": 0.0,
+                "discount_amount": 0.0,
+                "extra_data": {},
+            },
+        ]
 
-@pytest.fixture
-def sample_line_items():
-    """Sample line items for invoice creation."""
-    return [
-        {
-            "description": "Product A",
-            "quantity": 2,
-            "unit_price": Decimal("50.00"),
-            "total_price": Decimal("100.00"),
-            "tax_rate": Decimal("0.10"),
-            "tax_amount": Decimal("10.00"),
-            "discount_percentage": Decimal("0.00"),
-            "discount_amount": Decimal("0.00"),
-            "product_id": "prod_1",
-            "subscription_id": None,
-            "extra_data": {},
-        },
-        {
-            "description": "Product B",
-            "quantity": 1,
-            "unit_price": Decimal("75.00"),
-            "total_price": Decimal("75.00"),
-            "tax_rate": Decimal("0.10"),
-            "tax_amount": Decimal("7.50"),
-            "discount_percentage": Decimal("0.05"),
-            "discount_amount": Decimal("3.75"),
-            "product_id": "prod_2",
-            "subscription_id": "sub_1",
-            "extra_data": {"promo": "SAVE5"},
-        },
-    ]
+    async def test_create_invoice_success(self, invoice_service, mock_db, line_items):
+        """Test successful invoice creation."""
+        with patch.object(invoice_service, "_get_invoice_by_idempotency_key", return_value=None):
+            with patch.object(
+                invoice_service, "_generate_invoice_number", return_value="INV-2025-001"
+            ):
+                with patch.object(
+                    invoice_service, "_create_invoice_transaction", return_value=None
+                ):
+                    with patch(
+                        "dotmac.platform.billing.invoicing.service.get_event_bus"
+                    ) as mock_event_bus:
+                        mock_event_bus.return_value.publish = AsyncMock()
 
+                        invoice = await invoice_service.create_invoice(
+                            tenant_id="tenant-1",
+                            customer_id="cust_123",
+                            billing_email="customer@example.com",
+                            billing_address={"street": "123 Main St", "city": "Boston"},
+                            line_items=line_items,
+                            currency="USD",
+                            due_days=30,
+                        )
 
-class TestInvoiceServiceCreateInvoice:
-    """Test create_invoice method - covering lines 55-167."""
+                        # Verify invoice was added to DB
+                        assert mock_db.add.called
+                        assert mock_db.commit.called
 
-    @pytest.mark.asyncio
-    async def test_create_invoice_with_idempotency_key_returns_existing(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that idempotency key returns existing invoice - lines 55-58."""
-        existing_invoice_entity = InvoiceEntity(
-            tenant_id="tenant_1",
-            invoice_id="inv_existing",
-            invoice_number="INV-001",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
+                        # Verify webhook was published
+                        assert mock_event_bus.return_value.publish.called
+
+    async def test_create_invoice_idempotency(self, invoice_service, line_items):
+        """Test idempotency - same key returns existing invoice."""
+        existing_invoice = InvoiceEntity(
+            invoice_id="inv_123",
+            tenant_id="tenant-1",
+            invoice_number="INV-2025-001",
+            customer_id="cust_123",
+            billing_email="customer@example.com",
+            billing_address={},
             issue_date=datetime.now(timezone.utc),
             due_date=datetime.now(timezone.utc) + timedelta(days=30),
             currency="USD",
-            subtotal=Decimal("100.00"),
-            tax_amount=Decimal("10.00"),
-            discount_amount=Decimal("0.00"),
-            total_amount=Decimal("110.00"),
-            remaining_balance=Decimal("110.00"),
+            subtotal=100,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=100,
+            remaining_balance=100,
             status=InvoiceStatus.DRAFT,
             payment_status=PaymentStatus.PENDING,
+            line_items=[],
         )
 
-        # Mock _get_invoice_by_idempotency_key to return existing
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(
-            return_value=existing_invoice_entity
-        )
-
-        result = await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-            idempotency_key="test_key_123",
-        )
-
-        assert result.invoice_id == "inv_existing"
-        assert result.invoice_number == "INV-001"
-        invoice_service._get_invoice_by_idempotency_key.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_calculates_due_date_from_due_days(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that due_date is calculated from due_days - lines 61-63."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-002")
-        invoice_service._create_invoice_transaction = AsyncMock()
-
-        # Mock metrics and event bus
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        before_create = datetime.now(timezone.utc)
-        result = await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-            due_days=15,  # Should calculate due_date as today + 15 days
-        )
-
-        # Check that due_date is approximately 15 days from now
-        expected_due = before_create + timedelta(days=15)
-        assert (result.due_date - expected_due).total_seconds() < 60  # Within 1 minute
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_calculates_totals_from_line_items(
-        self, invoice_service, sample_line_items
-    ):
-        """Test invoice total calculations - lines 65-79."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-003")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        result = await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-            currency="USD",
-        )
-
-        # Verify calculations
-        # subtotal = 100.00 + 75.00 = 175.00
-        # tax_amount = 10.00 + 7.50 = 17.50
-        # discount_amount = 0.00 + 3.75 = 3.75
-        # total = 175.00 + 17.50 - 3.75 = 188.75
-        assert result.subtotal == Decimal("175.00")
-        assert result.tax_amount == Decimal("17.50")
-        assert result.discount_amount == Decimal("3.75")
-        assert result.total_amount == Decimal("188.75")
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_saves_line_items(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that line items are created and added - lines 110-125."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-004")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        result = await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-        )
-
-        # Verify database operations
-        invoice_service.db.add.assert_called_once()
-        invoice_service.db.commit.assert_awaited_once()
-        invoice_service.db.refresh.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_creates_transaction(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that transaction is created - line 133."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-005")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-        )
-
-        invoice_service._create_invoice_transaction.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_records_metrics(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that metrics are recorded - lines 136-141."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-006")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        await invoice_service.create_invoice(
-            tenant_id="tenant_1",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            line_items=sample_line_items,
-            currency="EUR",
-        )
-
-        invoice_service.metrics.record_invoice_created.assert_called_once()
-        call_kwargs = invoice_service.metrics.record_invoice_created.call_args.kwargs
-        assert call_kwargs["tenant_id"] == "tenant_1"
-        assert call_kwargs["customer_id"] == "cust_1"
-        assert call_kwargs["currency"] == "EUR"
-
-    @pytest.mark.asyncio
-    async def test_create_invoice_publishes_webhook_event(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that webhook event is published - lines 144-160."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-007")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
-
-        with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_bus:
-            mock_bus.return_value.publish = AsyncMock()
-
-            await invoice_service.create_invoice(
-                tenant_id="tenant_1",
-                customer_id="cust_1",
-                billing_email="test@example.com",
-                billing_address={"street": "123 Main St"},
-                line_items=sample_line_items,
-                subscription_id="sub_123",
+        with patch.object(
+            invoice_service,
+            "_get_invoice_by_idempotency_key",
+            return_value=existing_invoice,
+        ):
+            invoice = await invoice_service.create_invoice(
+                tenant_id="tenant-1",
+                customer_id="cust_123",
+                billing_email="customer@example.com",
+                billing_address={},
+                line_items=line_items,
+                idempotency_key="idem_123",
             )
 
-            mock_bus.return_value.publish.assert_awaited_once()
-            call_kwargs = mock_bus.return_value.publish.call_args.kwargs
-            assert call_kwargs["tenant_id"] == "tenant_1"
-            assert "invoice_id" in call_kwargs["event_data"]
+            # Should return existing invoice without creating new one
+            assert invoice.invoice_id == "inv_123"
+            assert invoice.invoice_number == "INV-2025-001"
 
-    @pytest.mark.asyncio
-    async def test_create_invoice_handles_webhook_failure(
-        self, invoice_service, sample_line_items
-    ):
-        """Test that webhook failure doesn't break invoice creation - lines 161-165."""
-        invoice_service._get_invoice_by_idempotency_key = AsyncMock(return_value=None)
-        invoice_service._generate_invoice_number = AsyncMock(return_value="INV-008")
-        invoice_service._create_invoice_transaction = AsyncMock()
-        invoice_service.metrics.record_invoice_created = MagicMock()
+    async def test_create_invoice_calculates_totals(self, invoice_service, mock_db):
+        """Test that invoice totals are calculated correctly."""
+        line_items = [
+            {
+                "description": "Product with tax",
+                "quantity": 1,
+                "unit_price": 100.00,
+                "total_price": 100.00,
+                "tax_rate": 0.10,
+                "tax_amount": 10.00,
+                "discount_percentage": 0.05,
+                "discount_amount": 5.00,
+                "extra_data": {},
+            }
+        ]
 
-        with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_bus:
-            mock_bus.return_value.publish = AsyncMock(side_effect=Exception("Webhook failed"))
+        with patch.object(invoice_service, "_get_invoice_by_idempotency_key", return_value=None):
+            with patch.object(invoice_service, "_generate_invoice_number", return_value="INV-001"):
+                with patch.object(
+                    invoice_service, "_create_invoice_transaction", return_value=None
+                ):
+                    with patch("dotmac.platform.billing.invoicing.service.get_event_bus"):
+                        invoice = await invoice_service.create_invoice(
+                            tenant_id="tenant-1",
+                            customer_id="cust_123",
+                            billing_email="test@example.com",
+                            billing_address={},
+                            line_items=line_items,
+                        )
 
-            # Should still succeed despite webhook failure
-            result = await invoice_service.create_invoice(
-                tenant_id="tenant_1",
-                customer_id="cust_1",
-                billing_email="test@example.com",
-                billing_address={"street": "123 Main St"},
-                line_items=sample_line_items,
+                        # Get created invoice from db.add call
+                        created_invoice = mock_db.add.call_args[0][0]
+
+                        # Verify totals: subtotal + tax - discount
+                        assert created_invoice.subtotal == 100
+                        assert created_invoice.tax_amount == 10
+                        assert created_invoice.discount_amount == 5
+                        assert created_invoice.total_amount == 105  # 100 + 10 - 5
+
+
+class TestInvoiceFinalization:
+    """Test invoice finalization (draft -> open)."""
+
+    @pytest.fixture
+    def invoice_service(self):
+        """Create invoice service."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
+
+    @pytest.fixture
+    def draft_invoice(self):
+        """Create draft invoice."""
+        return InvoiceEntity(
+            invoice_id="inv_123",
+            tenant_id="tenant-1",
+            invoice_number="INV-001",
+            customer_id="cust_123",
+            billing_email="customer@example.com",
+            billing_address={},
+            issue_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            currency="USD",
+            subtotal=100,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=100,
+            remaining_balance=100,
+            status=InvoiceStatus.DRAFT,
+            payment_status=PaymentStatus.PENDING,
+            line_items=[],
+        )
+
+    async def test_finalize_invoice_success(self, invoice_service, draft_invoice):
+        """Test successful invoice finalization."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=draft_invoice):
+            with patch.object(invoice_service, "_send_invoice_notification", return_value=None):
+                invoice = await invoice_service.finalize_invoice(
+                    tenant_id="tenant-1", invoice_id="inv_123"
+                )
+
+                # Status should be changed to OPEN
+                assert draft_invoice.status == InvoiceStatus.OPEN
+
+    async def test_finalize_non_draft_invoice_error(self, invoice_service, draft_invoice):
+        """Test error when finalizing non-draft invoice."""
+        # Make invoice already open
+        draft_invoice.status = InvoiceStatus.OPEN
+
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=draft_invoice):
+            with pytest.raises(InvalidInvoiceStatusError) as exc:
+                await invoice_service.finalize_invoice(tenant_id="tenant-1", invoice_id="inv_123")
+
+            assert "draft" in str(exc.value).lower()
+
+    async def test_finalize_invoice_not_found(self, invoice_service):
+        """Test error when invoice doesn't exist."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=None):
+            with pytest.raises(InvoiceNotFoundError):
+                await invoice_service.finalize_invoice(
+                    tenant_id="tenant-1", invoice_id="inv_invalid"
+                )
+
+
+class TestInvoiceVoiding:
+    """Test invoice voiding logic."""
+
+    @pytest.fixture
+    def invoice_service(self):
+        """Create invoice service."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
+
+    @pytest.fixture
+    def open_invoice(self):
+        """Create open unpaid invoice."""
+        return InvoiceEntity(
+            invoice_id="inv_123",
+            tenant_id="tenant-1",
+            invoice_number="INV-001",
+            customer_id="cust_123",
+            billing_email="customer@example.com",
+            billing_address={},
+            issue_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            currency="USD",
+            subtotal=100,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=100,
+            remaining_balance=100,
+            status=InvoiceStatus.OPEN,
+            payment_status=PaymentStatus.PENDING,
+            line_items=[],
+        )
+
+    async def test_void_invoice_success(self, invoice_service, open_invoice):
+        """Test successful invoice voiding."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            with patch.object(invoice_service, "_create_void_transaction", return_value=None):
+                with patch(
+                    "dotmac.platform.billing.invoicing.service.get_event_bus"
+                ) as mock_event_bus:
+                    mock_event_bus.return_value.publish = AsyncMock()
+
+                    invoice = await invoice_service.void_invoice(
+                        tenant_id="tenant-1",
+                        invoice_id="inv_123",
+                        reason="Customer requested cancellation",
+                        voided_by="admin_user",
+                    )
+
+                    # Status should be changed to VOID
+                    assert open_invoice.status == InvoiceStatus.VOID
+                    assert open_invoice.voided_at is not None
+                    assert "Customer requested" in open_invoice.internal_notes
+
+    async def test_void_paid_invoice_error(self, invoice_service, open_invoice):
+        """Test error when voiding paid invoice."""
+        # Make invoice paid
+        open_invoice.payment_status = PaymentStatus.SUCCEEDED
+
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            with pytest.raises(InvalidInvoiceStatusError) as exc:
+                await invoice_service.void_invoice(tenant_id="tenant-1", invoice_id="inv_123")
+
+            assert "paid" in str(exc.value).lower()
+
+    async def test_void_already_voided_invoice_idempotent(self, invoice_service, open_invoice):
+        """Test voiding already voided invoice is idempotent."""
+        # Make invoice already void
+        open_invoice.status = InvoiceStatus.VOID
+
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            invoice = await invoice_service.void_invoice(tenant_id="tenant-1", invoice_id="inv_123")
+
+            # Should return without error
+            assert invoice.status == InvoiceStatus.VOID
+
+
+class TestInvoicePayment:
+    """Test invoice payment marking."""
+
+    @pytest.fixture
+    def invoice_service(self):
+        """Create invoice service."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
+
+    @pytest.fixture
+    def open_invoice(self):
+        """Create open unpaid invoice."""
+        return InvoiceEntity(
+            invoice_id="inv_123",
+            tenant_id="tenant-1",
+            invoice_number="INV-001",
+            customer_id="cust_123",
+            billing_email="customer@example.com",
+            billing_address={},
+            issue_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            currency="USD",
+            subtotal=100,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=100,
+            remaining_balance=100,
+            status=InvoiceStatus.OPEN,
+            payment_status=PaymentStatus.PENDING,
+            line_items=[],
+        )
+
+    async def test_mark_invoice_paid_success(self, invoice_service, open_invoice):
+        """Test marking invoice as paid."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_event_bus:
+                mock_event_bus.return_value.publish = AsyncMock()
+
+                invoice = await invoice_service.mark_invoice_paid(
+                    tenant_id="tenant-1",
+                    invoice_id="inv_123",
+                    payment_id="pay_123",
+                )
+
+                # Status should be PAID
+                assert open_invoice.status == InvoiceStatus.PAID
+                assert open_invoice.payment_status == PaymentStatus.SUCCEEDED
+                assert open_invoice.remaining_balance == 0
+                assert open_invoice.paid_at is not None
+
+    async def test_mark_invoice_paid_publishes_webhook(self, invoice_service, open_invoice):
+        """Test that marking invoice paid publishes webhook."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_event_bus:
+                mock_event_bus.return_value.publish = AsyncMock()
+
+                await invoice_service.mark_invoice_paid(
+                    tenant_id="tenant-1",
+                    invoice_id="inv_123",
+                    payment_id="pay_123",
+                )
+
+                # Verify webhook was published
+                mock_event_bus.return_value.publish.assert_called_once()
+                call_args = mock_event_bus.return_value.publish.call_args[1]
+                assert call_args["event_type"] == "invoice.paid"
+                assert call_args["event_data"]["payment_id"] == "pay_123"
+
+
+class TestCreditApplication:
+    """Test credit application to invoices."""
+
+    @pytest.fixture
+    def invoice_service(self):
+        """Create invoice service."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        mock_db.add = MagicMock()
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
+
+    @pytest.fixture
+    def open_invoice(self):
+        """Create open invoice with $100 balance."""
+        return InvoiceEntity(
+            invoice_id="inv_123",
+            tenant_id="tenant-1",
+            invoice_number="INV-001",
+            customer_id="cust_123",
+            billing_email="customer@example.com",
+            billing_address={},
+            issue_date=datetime.now(timezone.utc),
+            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            currency="USD",
+            subtotal=100,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=100,
+            remaining_balance=100,
+            total_credits_applied=0,
+            credit_applications=[],
+            status=InvoiceStatus.OPEN,
+            payment_status=PaymentStatus.PENDING,
+            line_items=[],
+        )
+
+    async def test_apply_partial_credit(self, invoice_service, open_invoice, mock_db):
+        """Test applying partial credit to invoice."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            invoice = await invoice_service.apply_credit_to_invoice(
+                tenant_id="tenant-1",
+                invoice_id="inv_123",
+                credit_amount=30,
+                credit_application_id="credit_app_123",
             )
 
-            assert result.invoice_number == "INV-008"
+            # Balance should be reduced
+            assert open_invoice.total_credits_applied == 30
+            assert open_invoice.remaining_balance == 70  # 100 - 30
+            assert open_invoice.payment_status == PaymentStatus.PARTIALLY_REFUNDED
+
+    async def test_apply_full_credit(self, invoice_service, open_invoice, mock_db):
+        """Test applying full credit marks invoice as paid."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            invoice = await invoice_service.apply_credit_to_invoice(
+                tenant_id="tenant-1",
+                invoice_id="inv_123",
+                credit_amount=100,  # Full amount
+                credit_application_id="credit_app_123",
+            )
+
+            # Invoice should be fully paid
+            assert open_invoice.total_credits_applied == 100
+            assert open_invoice.remaining_balance == 0
+            assert open_invoice.payment_status == PaymentStatus.SUCCEEDED
+            assert open_invoice.status == InvoiceStatus.PAID
+
+    async def test_apply_credit_creates_transaction(self, invoice_service, open_invoice, mock_db):
+        """Test that credit application creates transaction record."""
+        with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
+            await invoice_service.apply_credit_to_invoice(
+                tenant_id="tenant-1",
+                invoice_id="inv_123",
+                credit_amount=50,
+                credit_application_id="credit_app_123",
+            )
+
+            # Verify transaction was added
+            assert mock_db.add.called
+            transaction = mock_db.add.call_args[0][0]
+            assert transaction.amount == 50
+            assert transaction.transaction_type.value == "credit"
 
 
-class TestInvoiceServiceGetInvoice:
-    """Test get_invoice method - covering lines 174-186."""
+class TestInvoiceListing:
+    """Test invoice listing and filtering."""
 
-    @pytest.mark.asyncio
-    async def test_get_invoice_with_line_items(self, invoice_service):
-        """Test getting invoice with line items - lines 178-179."""
-        mock_invoice = InvoiceEntity(
-            tenant_id="tenant_1",
-            invoice_id="inv_1",
-            invoice_number="INV-001",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
-            currency="USD",
-            subtotal=Decimal("100.00"),
-            tax_amount=Decimal("10.00"),
-            discount_amount=Decimal("0.00"),
-            total_amount=Decimal("110.00"),
-            remaining_balance=Decimal("110.00"),
-            status=InvoiceStatus.DRAFT,
-            payment_status=PaymentStatus.PENDING,
-        )
+    @pytest.fixture
+    def invoice_service(self):
+        """Create invoice service."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
+            return InvoiceService(db_session=mock_db)
 
-        # Mock database query result
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = MagicMock(return_value=mock_invoice)
-        invoice_service.db.execute = AsyncMock(return_value=mock_result)
+    async def test_list_invoices_tenant_isolation(self, invoice_service):
+        """Test that list_invoices filters by tenant_id."""
+        with patch.object(
+            invoice_service.db,
+            "execute",
+            return_value=MagicMock(
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+            ),
+        ) as mock_execute:
+            invoices = await invoice_service.list_invoices(
+                tenant_id="tenant-1",
+                customer_id="cust_123",
+                status=InvoiceStatus.OPEN,
+            )
 
-        result = await invoice_service.get_invoice(
-            tenant_id="tenant_1",
-            invoice_id="inv_1",
-            include_line_items=True,
-        )
+            # Verify query was executed
+            assert mock_execute.called
+            assert isinstance(invoices, list)
 
-        assert result is not None
-        assert result.invoice_id == "inv_1"
-        invoice_service.db.execute.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_get_invoice_without_line_items(self, invoice_service):
-        """Test getting invoice without line items - line 178 not executed."""
-        mock_invoice = InvoiceEntity(
-            tenant_id="tenant_1",
-            invoice_id="inv_2",
-            invoice_number="INV-002",
-            customer_id="cust_1",
-            billing_email="test@example.com",
-            billing_address={"street": "123 Main St"},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
-            currency="USD",
-            subtotal=Decimal("100.00"),
-            tax_amount=Decimal("10.00"),
-            discount_amount=Decimal("0.00"),
-            total_amount=Decimal("110.00"),
-            remaining_balance=Decimal("110.00"),
-            status=InvoiceStatus.DRAFT,
-            payment_status=PaymentStatus.PENDING,
-        )
-
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = MagicMock(return_value=mock_invoice)
-        invoice_service.db.execute = AsyncMock(return_value=mock_result)
-
-        result = await invoice_service.get_invoice(
-            tenant_id="tenant_1",
-            invoice_id="inv_2",
-            include_line_items=False,
-        )
-
-        assert result is not None
-        assert result.invoice_id == "inv_2"
-
-    @pytest.mark.asyncio
     async def test_get_invoice_not_found(self, invoice_service):
-        """Test getting non-existent invoice returns None - line 186."""
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = MagicMock(return_value=None)
-        invoice_service.db.execute = AsyncMock(return_value=mock_result)
+        """Test get_invoice returns None when not found."""
+        with patch.object(
+            invoice_service.db,
+            "execute",
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)),
+        ):
+            invoice = await invoice_service.get_invoice(
+                tenant_id="tenant-1", invoice_id="inv_invalid"
+            )
 
-        result = await invoice_service.get_invoice(
-            tenant_id="tenant_1",
-            invoice_id="inv_nonexistent",
-        )
-
-        assert result is None
+            assert invoice is None

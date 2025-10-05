@@ -9,6 +9,8 @@ from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultError
 from dotmac.platform.secrets.api import list_secrets
 from dotmac.platform.secrets.api import SecretInfo, SecretListResponse
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestVaultClientInventory:
     """Test AsyncVaultClient inventory methods."""
@@ -17,10 +19,7 @@ class TestVaultClientInventory:
     def vault_client(self):
         """Create async vault client with mocked HTTP client."""
         client = AsyncVaultClient(
-            url="http://localhost:8200",
-            token="test-token",
-            mount_path="secret",
-            kv_version=2
+            url="http://localhost:8200", token="test-token", mount_path="secret", kv_version=2
         )
         return client
 
@@ -36,14 +35,14 @@ class TestVaultClientInventory:
                 "current_version": 2,
                 "versions": {
                     "1": {"created_time": "2023-01-01T00:00:00Z"},
-                    "2": {"created_time": "2023-01-02T00:00:00Z"}
+                    "2": {"created_time": "2023-01-02T00:00:00Z"},
                 },
                 "cas_required": False,
-                "delete_version_after": None
+                "delete_version_after": None,
             }
         }
 
-        with patch.object(vault_client.client, 'get', return_value=mock_response):
+        with patch.object(vault_client.client, "get", return_value=mock_response):
             metadata = await vault_client.get_secret_metadata("test/secret")
 
             assert metadata["created_time"] == "2023-01-01T00:00:00Z"
@@ -56,7 +55,7 @@ class TestVaultClientInventory:
         mock_response = MagicMock()
         mock_response.status_code = 404
 
-        with patch.object(vault_client.client, 'get', return_value=mock_response):
+        with patch.object(vault_client.client, "get", return_value=mock_response):
             metadata = await vault_client.get_secret_metadata("nonexistent")
 
             assert metadata["error"] == "Secret not found"
@@ -74,22 +73,24 @@ class TestVaultClientInventory:
     async def test_list_secrets_with_metadata_success(self, vault_client):
         """Test listing secrets with metadata."""
         # Mock list_secrets response
-        with patch.object(vault_client, 'list_secrets', return_value=["secret1", "secret2"]):
+        with patch.object(vault_client, "list_secrets", return_value=["secret1", "secret2"]):
             # Mock metadata responses
             metadata_1 = {
                 "created_time": "2023-01-01T00:00:00Z",
                 "updated_time": "2023-01-01T12:00:00Z",
                 "current_version": 1,
-                "cas_required": False
+                "cas_required": False,
             }
             metadata_2 = {
                 "created_time": "2023-01-02T00:00:00Z",
                 "updated_time": "2023-01-02T06:00:00Z",
                 "current_version": 3,
-                "cas_required": True
+                "cas_required": True,
             }
 
-            with patch.object(vault_client, 'get_secret_metadata', side_effect=[metadata_1, metadata_2]):
+            with patch.object(
+                vault_client, "get_secret_metadata", side_effect=[metadata_1, metadata_2]
+            ):
                 secrets = await vault_client.list_secrets_with_metadata("app/")
 
                 assert len(secrets) == 2
@@ -108,12 +109,16 @@ class TestVaultClientInventory:
     @pytest.mark.asyncio
     async def test_list_secrets_with_metadata_error_handling(self, vault_client):
         """Test error handling when getting metadata."""
-        with patch.object(vault_client, 'list_secrets', return_value=["secret1", "secret2"]):
+        with patch.object(vault_client, "list_secrets", return_value=["secret1", "secret2"]):
             # First metadata succeeds, second fails
-            with patch.object(vault_client, 'get_secret_metadata', side_effect=[
-                {"created_time": "2023-01-01T00:00:00Z", "current_version": 1},
-                Exception("Connection timeout")
-            ]):
+            with patch.object(
+                vault_client,
+                "get_secret_metadata",
+                side_effect=[
+                    {"created_time": "2023-01-01T00:00:00Z", "current_version": 1},
+                    Exception("Connection timeout"),
+                ],
+            ):
                 secrets = await vault_client.list_secrets_with_metadata("app/")
 
                 assert len(secrets) == 2
@@ -128,8 +133,10 @@ class TestVaultClientInventory:
     @pytest.mark.asyncio
     async def test_list_secrets_with_metadata_empty_path(self, vault_client):
         """Test listing secrets from root path."""
-        with patch.object(vault_client, 'list_secrets', return_value=["root-secret"]):
-            with patch.object(vault_client, 'get_secret_metadata', return_value={"current_version": 1}):
+        with patch.object(vault_client, "list_secrets", return_value=["root-secret"]):
+            with patch.object(
+                vault_client, "get_secret_metadata", return_value={"current_version": 1}
+            ):
                 secrets = await vault_client.list_secrets_with_metadata("")
 
                 assert len(secrets) == 1
@@ -157,20 +164,16 @@ class TestSecretsInventoryAPI:
                 "metadata": {
                     "source": "vault",
                     "versions": {"1": {}, "2": {}},
-                    "cas_required": False
-                }
+                    "cas_required": False,
+                },
             },
             {
                 "path": "app/api-key",
                 "created_time": "2023-01-02T00:00:00Z",
                 "updated_time": "2023-01-02T00:00:00Z",
                 "version": 1,
-                "metadata": {
-                    "source": "vault",
-                    "versions": {"1": {}},
-                    "cas_required": True
-                }
-            }
+                "metadata": {"source": "vault", "versions": {"1": {}}, "cas_required": True},
+            },
         ]
 
         response = await list_secrets(vault=mock_vault_client, prefix="app/")
@@ -218,14 +221,14 @@ class TestSecretsInventoryAPI:
                 "path": "valid/secret",
                 "created_time": "2023-01-01T00:00:00Z",
                 "version": 1,
-                "metadata": {"source": "vault"}
+                "metadata": {"source": "vault"},
             },
             {
                 # Missing required path
                 "created_time": "2023-01-01T00:00:00Z",
                 "version": 1,
-                "metadata": {"source": "vault"}
-            }
+                "metadata": {"source": "vault"},
+            },
         ]
 
         response = await list_secrets(vault=mock_vault_client, prefix="")
@@ -263,8 +266,8 @@ class TestSecretsInventoryAPI:
                     "custom_field": "custom_value",
                     "numeric_field": 42,
                     "boolean_field": True,
-                    "nested": {"key": "value"}
-                }
+                    "nested": {"key": "value"},
+                },
             }
         ]
 

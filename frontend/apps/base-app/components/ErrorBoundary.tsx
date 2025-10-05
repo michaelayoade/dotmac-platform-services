@@ -86,7 +86,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="error-content">
             <h1 className="error-title">Oops! Something went wrong</h1>
             <p className="error-message">
-              We're sorry for the inconvenience. The error has been logged and we'll look into it.
+              We&apos;re sorry for the inconvenience. The error has been logged and we&apos;ll look into it.
             </p>
 
             {/* Show error details in development */}

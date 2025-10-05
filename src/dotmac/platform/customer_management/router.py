@@ -11,8 +11,8 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.customer_management.schemas import (
     CustomerActivityCreate,
     CustomerActivityResponse,
@@ -32,7 +32,7 @@ from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(tags=["customers"])
+router = APIRouter(tags=["Customer Management"])
 
 
 def _convert_customer_to_response(customer) -> CustomerResponse:
@@ -40,9 +40,9 @@ def _convert_customer_to_response(customer) -> CustomerResponse:
     # Create a dict from the customer model
     customer_dict = {}
     for key in CustomerResponse.model_fields:
-        if key == 'metadata':
+        if key == "metadata":
             # Map metadata_ to metadata
-            customer_dict['metadata'] = customer.metadata_ if hasattr(customer, 'metadata_') else {}
+            customer_dict["metadata"] = customer.metadata_ if hasattr(customer, "metadata_") else {}
         elif hasattr(customer, key):
             customer_dict[key] = getattr(customer, key)
     return CustomerResponse.model_validate(customer_dict)
@@ -247,7 +247,11 @@ async def search_customers(
         )
 
 
-@router.post("/{customer_id}/activities", response_model=CustomerActivityResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{customer_id}/activities",
+    response_model=CustomerActivityResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_customer_activity(
     customer_id: UUID,
     data: CustomerActivityCreate,
@@ -263,7 +267,7 @@ async def add_customer_activity(
         activity = await service.add_activity(
             customer_id=customer_id,
             data=data,
-            performed_by=UUID(current_user.user_id),
+            performed_by=current_user.user_id,
         )
         return _convert_activity_to_response(activity)
     except HTTPException:
@@ -286,9 +290,9 @@ def _convert_activity_to_response(activity) -> CustomerActivityResponse:
     """Convert CustomerActivity model to CustomerActivityResponse, handling metadata_ field."""
     activity_dict = {}
     for key in CustomerActivityResponse.model_fields:
-        if key == 'metadata':
+        if key == "metadata":
             # Map metadata_ to metadata
-            activity_dict['metadata'] = activity.metadata_ if hasattr(activity, 'metadata_') else {}
+            activity_dict["metadata"] = activity.metadata_ if hasattr(activity, "metadata_") else {}
         elif hasattr(activity, key):
             activity_dict[key] = getattr(activity, key)
     return CustomerActivityResponse.model_validate(activity_dict)
@@ -315,7 +319,9 @@ async def get_customer_activities(
     return [_convert_activity_to_response(a) for a in activities]
 
 
-@router.post("/{customer_id}/notes", response_model=CustomerNoteResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{customer_id}/notes", response_model=CustomerNoteResponse, status_code=status.HTTP_201_CREATED
+)
 async def add_customer_note(
     customer_id: UUID,
     data: CustomerNoteCreate,
@@ -400,7 +406,9 @@ async def record_purchase(
     )
 
 
-@router.post("/segments", response_model=CustomerSegmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/segments", response_model=CustomerSegmentResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_segment(
     data: CustomerSegmentCreate,
     service: Annotated[CustomerService, Depends(get_customer_service)],
@@ -464,6 +472,14 @@ async def get_customer_metrics(
     """
     metrics = await service.get_customer_metrics()
 
+    # Map top_segments from service format to schema format
+    top_segments = [
+        {"name": segment["name"], "count": segment["member_count"]}
+        for segment in metrics.get("top_segments", [])
+    ]
+
+    logger.info(f"Returning top_segments: {top_segments}")
+
     return CustomerMetrics(
         total_customers=metrics["total_customers"],
         active_customers=metrics["active_customers"],
@@ -474,5 +490,5 @@ async def get_customer_metrics(
         customers_by_status=metrics.get("customers_by_status", {}),
         customers_by_tier=metrics.get("customers_by_tier", {}),
         customers_by_type=metrics.get("customers_by_type", {}),
-        top_segments=metrics.get("top_segments", []),
+        top_segments=top_segments,
     )

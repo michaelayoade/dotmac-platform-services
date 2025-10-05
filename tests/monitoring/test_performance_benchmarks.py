@@ -28,6 +28,8 @@ from dotmac.platform.monitoring.benchmarks import (
 )
 from dotmac.platform.monitoring.integrations import PrometheusIntegration
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestPerformanceBenchmarkRealism:
     """Test that benchmarks produce realistic and consistent results."""
@@ -172,8 +174,8 @@ class TestBenchmarkIntegrationWithMonitoring:
                 {
                     "benchmark_type": result.benchmark_type.value,
                     "benchmark_name": result.name,
-                    "benchmark_id": result.id
-                }
+                    "benchmark_id": result.id,
+                },
             )
 
         # Verify metrics were recorded
@@ -188,10 +190,7 @@ class TestBenchmarkIntegrationWithMonitoring:
     @pytest.mark.asyncio
     async def test_benchmark_suite_monitoring_integration(self, prometheus_integration):
         """Test integration of benchmark suite with monitoring."""
-        config = BenchmarkSuiteConfig(
-            name="Monitoring Integration Suite",
-            parallel_execution=False
-        )
+        config = BenchmarkSuiteConfig(name="Monitoring Integration Suite", parallel_execution=False)
         suite = BenchmarkSuite(config)
         suite.add_benchmark(CPUBenchmark(duration_seconds=1))
         suite.add_benchmark(MemoryBenchmark(allocation_mb=5, iterations=50))
@@ -205,19 +204,19 @@ class TestBenchmarkIntegrationWithMonitoring:
         for stat_name, stat_value in stats.items():
             if isinstance(stat_value, (int, float)):
                 prometheus_integration.record_metric(
-                    f"benchmark_suite_{stat_name}",
-                    stat_value,
-                    {"suite_name": config.name}
+                    f"benchmark_suite_{stat_name}", stat_value, {"suite_name": config.name}
                 )
 
         # Verify suite metrics were recorded
-        suite_metrics = [m for m in prometheus_integration.get_metrics()
-                        if m.name.startswith("benchmark_suite_")]
+        suite_metrics = [
+            m for m in prometheus_integration.get_metrics() if m.name.startswith("benchmark_suite_")
+        ]
         assert len(suite_metrics) > 0
 
         # Check specific metrics
-        total_benchmarks_metric = next((m for m in suite_metrics
-                                      if m.name == "benchmark_suite_total_benchmarks"), None)
+        total_benchmarks_metric = next(
+            (m for m in suite_metrics if m.name == "benchmark_suite_total_benchmarks"), None
+        )
         assert total_benchmarks_metric is not None
         assert total_benchmarks_metric.value == 2
 
@@ -235,9 +234,7 @@ class TestBenchmarkManagerWorkflows:
         """Test complete benchmark execution workflow."""
         # Create and register suite
         config = BenchmarkSuiteConfig(
-            name="Complete Workflow Suite",
-            parallel_execution=False,
-            timeout_seconds=30
+            name="Complete Workflow Suite", parallel_execution=False, timeout_seconds=30
         )
         suite = BenchmarkSuite(config)
         suite.add_benchmark(CPUBenchmark(duration_seconds=1))
@@ -256,9 +253,7 @@ class TestBenchmarkManagerWorkflows:
         assert len(history) >= 2
 
         # Test history filtering
-        cpu_history = benchmark_manager.get_benchmark_history(
-            benchmark_type=BenchmarkType.CPU
-        )
+        cpu_history = benchmark_manager.get_benchmark_history(benchmark_type=BenchmarkType.CPU)
         memory_history = benchmark_manager.get_benchmark_history(
             benchmark_type=BenchmarkType.MEMORY
         )
@@ -270,19 +265,13 @@ class TestBenchmarkManagerWorkflows:
     async def test_parallel_suite_execution_performance(self, benchmark_manager):
         """Test that parallel execution provides performance benefits."""
         # Sequential suite
-        sequential_config = BenchmarkSuiteConfig(
-            name="Sequential Suite",
-            parallel_execution=False
-        )
+        sequential_config = BenchmarkSuiteConfig(name="Sequential Suite", parallel_execution=False)
         sequential_suite = BenchmarkSuite(sequential_config)
         sequential_suite.add_benchmark(CPUBenchmark(duration_seconds=1))
         sequential_suite.add_benchmark(MemoryBenchmark(allocation_mb=5, iterations=50))
 
         # Parallel suite
-        parallel_config = BenchmarkSuiteConfig(
-            name="Parallel Suite",
-            parallel_execution=True
-        )
+        parallel_config = BenchmarkSuiteConfig(name="Parallel Suite", parallel_execution=True)
         parallel_suite = BenchmarkSuite(parallel_config)
         parallel_suite.add_benchmark(CPUBenchmark(duration_seconds=1))
         parallel_suite.add_benchmark(MemoryBenchmark(allocation_mb=5, iterations=50))
@@ -312,6 +301,7 @@ class TestBenchmarkManagerWorkflows:
     @pytest.mark.asyncio
     async def test_benchmark_error_handling_and_recovery(self, benchmark_manager):
         """Test error handling and recovery in benchmark workflows."""
+
         class FlakySuite:
             def __init__(self):
                 self.attempt_count = 0
@@ -333,11 +323,7 @@ class TestBenchmarkManagerWorkflows:
         flaky_suite_instance = FlakySuite()
 
         # Create suite with retry configuration
-        config = BenchmarkSuiteConfig(
-            name="Error Recovery Suite",
-            retry_failed=True,
-            retry_count=2
-        )
+        config = BenchmarkSuiteConfig(name="Error Recovery Suite", retry_failed=True, retry_count=2)
         suite = BenchmarkSuite(config)
         suite.add_benchmark(flaky_suite_instance.create_flaky_benchmark())
         suite.add_benchmark(CPUBenchmark(duration_seconds=1))  # This should always succeed
@@ -435,7 +421,7 @@ class TestEndToEndBenchmarkingWorkflow:
             name="Complete Pipeline Suite",
             description="End-to-end testing suite",
             parallel_execution=True,
-            timeout_seconds=30
+            timeout_seconds=30,
         )
         suite = BenchmarkSuite(config)
         suite.add_benchmark(CPUBenchmark(duration_seconds=1))
@@ -462,8 +448,8 @@ class TestEndToEndBenchmarkingWorkflow:
                         "benchmark_type": result.benchmark_type.value,
                         "benchmark_name": result.name.replace(" ", "_").lower(),
                         "benchmark_id": result.id,
-                        "status": result.status.value
-                    }
+                        "status": result.status.value,
+                    },
                 )
 
             # Record benchmark duration
@@ -473,8 +459,8 @@ class TestEndToEndBenchmarkingWorkflow:
                 {
                     "benchmark_type": result.benchmark_type.value,
                     "benchmark_name": result.name.replace(" ", "_").lower(),
-                    "benchmark_id": result.id
-                }
+                    "benchmark_id": result.id,
+                },
             )
 
         # Record suite-level metrics
@@ -484,7 +470,7 @@ class TestEndToEndBenchmarkingWorkflow:
                 prometheus_integration.record_metric(
                     f"dotmac_benchmark_suite_{stat_name}",
                     stat_value,
-                    {"suite_name": config.name.replace(" ", "_").lower()}
+                    {"suite_name": config.name.replace(" ", "_").lower()},
                 )
 
         # Verify complete metrics export

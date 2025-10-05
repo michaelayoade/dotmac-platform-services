@@ -31,9 +31,7 @@ def create_admin_user():
 
     with engine.begin() as conn:
         # Check if user already exists
-        result = conn.execute(text(
-            "SELECT id FROM users WHERE email = :email"
-        ), {"email": email})
+        result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": email})
 
         existing_user = result.fetchone()
         if existing_user:
@@ -41,7 +39,9 @@ def create_admin_user():
             print(f"User {email} already exists with ID: {user_id}")
         else:
             # Create user
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 INSERT INTO users (
                     id, username, email, password_hash, full_name,
                     is_active, is_verified, created_at, updated_at
@@ -50,23 +50,24 @@ def create_admin_user():
                     :id, :username, :email, :password_hash, :full_name,
                     :is_active, :is_verified, :created_at, :updated_at
                 )
-            """), {
-                "id": user_id,
-                "username": username,
-                "email": email,
-                "password_hash": password_hash,
-                "full_name": "System Administrator",
-                "is_active": True,
-                "is_verified": True,
-                "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
-            })
+            """
+                ),
+                {
+                    "id": user_id,
+                    "username": username,
+                    "email": email,
+                    "password_hash": password_hash,
+                    "full_name": "System Administrator",
+                    "is_active": True,
+                    "is_verified": True,
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc),
+                },
+            )
             print(f"✓ Created user: {email}")
 
         # Get admin role
-        result = conn.execute(text(
-            "SELECT id FROM roles WHERE name = 'admin'"
-        ))
+        result = conn.execute(text("SELECT id FROM roles WHERE name = 'admin'"))
         admin_role = result.fetchone()
 
         if not admin_role:
@@ -76,49 +77,59 @@ def create_admin_user():
         admin_role_id = admin_role[0]
 
         # Check if user already has admin role
-        result = conn.execute(text(
-            "SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"
-        ), {"user_id": user_id, "role_id": admin_role_id})
+        result = conn.execute(
+            text("SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
+            {"user_id": user_id, "role_id": admin_role_id},
+        )
 
         if result.fetchone():
             print(f"User {email} already has admin role")
         else:
             # Assign admin role
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 INSERT INTO user_roles (user_id, role_id, granted_at, granted_by)
                 VALUES (:user_id, :role_id, :granted_at, :granted_by)
-            """), {
-                "user_id": user_id,
-                "role_id": admin_role_id,
-                "granted_at": datetime.now(timezone.utc),
-                "granted_by": user_id  # Self-granted for bootstrap
-            })
+            """
+                ),
+                {
+                    "user_id": user_id,
+                    "role_id": admin_role_id,
+                    "granted_at": datetime.now(timezone.utc),
+                    "granted_by": user_id,  # Self-granted for bootstrap
+                },
+            )
             print(f"✓ Assigned admin role to: {email}")
 
         # Also assign superuser role for full access
-        result = conn.execute(text(
-            "SELECT id FROM roles WHERE name = 'superuser'"
-        ))
+        result = conn.execute(text("SELECT id FROM roles WHERE name = 'superuser'"))
         superuser_role = result.fetchone()
 
         if superuser_role:
             superuser_role_id = superuser_role[0]
 
             # Check if user already has superuser role
-            result = conn.execute(text(
-                "SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"
-            ), {"user_id": user_id, "role_id": superuser_role_id})
+            result = conn.execute(
+                text("SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
+                {"user_id": user_id, "role_id": superuser_role_id},
+            )
 
             if not result.fetchone():
-                conn.execute(text("""
+                conn.execute(
+                    text(
+                        """
                     INSERT INTO user_roles (user_id, role_id, granted_at, granted_by)
                     VALUES (:user_id, :role_id, :granted_at, :granted_by)
-                """), {
-                    "user_id": user_id,
-                    "role_id": superuser_role_id,
-                    "granted_at": datetime.now(timezone.utc),
-                    "granted_by": user_id
-                })
+                """
+                    ),
+                    {
+                        "user_id": user_id,
+                        "role_id": superuser_role_id,
+                        "granted_at": datetime.now(timezone.utc),
+                        "granted_by": user_id,
+                    },
+                )
                 print(f"✓ Assigned superuser role to: {email}")
 
         print(f"\n✅ Admin user ready!")
@@ -154,6 +165,7 @@ def main():
         print("2. Database migrations have been run")
         print("3. RBAC seed script has been run")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

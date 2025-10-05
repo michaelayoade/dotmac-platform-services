@@ -9,25 +9,21 @@ Provides functionality for:
 """
 
 import uuid
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.core.entities import (
-    CashRegister,
-    CashReconciliation,
-)
-from dotmac.platform.billing.exceptions import BillingError
+from dotmac.platform.billing.bank_accounts.entities import CashReconciliation, CashRegister
 from dotmac.platform.billing.bank_accounts.models import (
     CashRegisterCreate,
-    CashRegisterResponse,
     CashRegisterReconciliationCreate,
     CashRegisterReconciliationResponse,
+    CashRegisterResponse,
 )
+from dotmac.platform.billing.exceptions import BillingError
 
 logger = structlog.get_logger(__name__)
 
@@ -86,8 +82,8 @@ class CashRegisterService:
                 is_active=True,
                 last_reconciled=None,
                 created_by=created_by,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 meta_data={},
             )
 
@@ -119,7 +115,7 @@ class CashRegisterService:
         self,
         tenant_id: str,
         include_inactive: bool = False,
-    ) -> List[CashRegisterResponse]:
+    ) -> list[CashRegisterResponse]:
         """
         Get all cash registers for a tenant.
 
@@ -134,7 +130,7 @@ class CashRegisterService:
             query = select(CashRegister).where(CashRegister.tenant_id == tenant_id)
 
             if not include_inactive:
-                query = query.where(CashRegister.is_active == True)
+                query = query.where(CashRegister.is_active)
 
             result = await self.db.execute(query)
             registers = result.scalars().all()
@@ -153,7 +149,7 @@ class CashRegisterService:
         self,
         tenant_id: str,
         register_id: str,
-    ) -> Optional[CashRegisterResponse]:
+    ) -> CashRegisterResponse | None:
         """
         Get a specific cash register.
 
@@ -213,7 +209,7 @@ class CashRegisterService:
                     and_(
                         CashRegister.tenant_id == tenant_id,
                         CashRegister.register_id == register_id,
-                        CashRegister.is_active == True,
+                        CashRegister.is_active,
                     )
                 )
             )
@@ -237,20 +233,22 @@ class CashRegisterService:
             # Update float
             old_float = float(register.current_float)
             register.current_float = Decimal(str(new_float))
-            register.updated_at = datetime.now(timezone.utc)
+            register.updated_at = datetime.now(UTC)
             register.updated_by = updated_by
 
             # Add to metadata
             if not register.meta_data:
                 register.meta_data = {}
             register.meta_data["float_history"] = register.meta_data.get("float_history", [])
-            register.meta_data["float_history"].append({
-                "old_float": old_float,
-                "new_float": new_float,
-                "reason": reason,
-                "updated_by": updated_by,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            register.meta_data["float_history"].append(
+                {
+                    "old_float": old_float,
+                    "new_float": new_float,
+                    "reason": reason,
+                    "updated_by": updated_by,
+                    "updated_at": datetime.now(UTC).isoformat(),
+                }
+            )
 
             await self.db.commit()
             await self.db.refresh(register)
@@ -302,7 +300,7 @@ class CashRegisterService:
                     and_(
                         CashRegister.tenant_id == tenant_id,
                         CashRegister.register_id == register_id,
-                        CashRegister.is_active == True,
+                        CashRegister.is_active,
                     )
                 )
             )
@@ -325,7 +323,7 @@ class CashRegisterService:
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
                 register_id=register_id,
-                reconciliation_date=data.reconciliation_date or datetime.now(timezone.utc),
+                reconciliation_date=data.reconciliation_date or datetime.now(UTC),
                 opening_float=float(register.initial_float),
                 closing_float=float(register.current_float),
                 expected_cash=Decimal(str(expected_cash)),
@@ -334,14 +332,14 @@ class CashRegisterService:
                 reconciled_by=reconciled_by,
                 notes=data.notes,
                 shift_id=data.shift_id,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 meta_data=data.metadata or {},
             )
 
             self.db.add(reconciliation)
 
             # Update register last reconciled
-            register.last_reconciled = datetime.now(timezone.utc)
+            register.last_reconciled = datetime.now(UTC)
             register.current_float = Decimal(str(actual_cash))  # Reset to actual
 
             await self.db.commit()
@@ -426,13 +424,13 @@ class CashRegisterService:
 
             # Deactivate
             register.is_active = False
-            register.updated_at = datetime.now(timezone.utc)
+            register.updated_at = datetime.now(UTC)
             register.updated_by = deactivated_by
 
             # Add to metadata
             if not register.meta_data:
                 register.meta_data = {}
-            register.meta_data["deactivated_at"] = datetime.now(timezone.utc).isoformat()
+            register.meta_data["deactivated_at"] = datetime.now(UTC).isoformat()
             register.meta_data["deactivated_by"] = deactivated_by
 
             await self.db.commit()

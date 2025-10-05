@@ -69,11 +69,9 @@ class TestBillingRetry:
     @pytest.mark.asyncio
     async def test_retry_on_payment_error(self):
         """Test retry on PaymentError."""
-        mock_func = AsyncMock(side_effect=[
-            PaymentError("Payment failed"),
-            PaymentError("Payment failed"),
-            "success"
-        ])
+        mock_func = AsyncMock(
+            side_effect=[PaymentError("Payment failed"), PaymentError("Payment failed"), "success"]
+        )
 
         strategy = LinearBackoff(delay=0.01, increment=0)  # Fast for testing
         retry = BillingRetry(max_attempts=3, strategy=strategy)
@@ -113,18 +111,11 @@ class TestBillingRetry:
     @pytest.mark.asyncio
     async def test_on_retry_callback(self):
         """Test on_retry callback is called."""
-        mock_func = AsyncMock(side_effect=[
-            PaymentError("Failed"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[PaymentError("Failed"), "success"])
         on_retry_mock = AsyncMock()
 
         strategy = LinearBackoff(delay=0.01, increment=0)
-        retry = BillingRetry(
-            max_attempts=3,
-            strategy=strategy,
-            on_retry=on_retry_mock
-        )
+        retry = BillingRetry(max_attempts=3, strategy=strategy, on_retry=on_retry_mock)
 
         result = await retry.execute(mock_func)
 
@@ -160,6 +151,7 @@ class TestWithRetryDecorator:
     @pytest.mark.asyncio
     async def test_decorator_with_args(self):
         """Test decorator with function arguments."""
+
         @with_retry(max_attempts=2)
         async def process_payment(payment_id: str, amount: float):
             if payment_id == "fail":
@@ -274,9 +266,7 @@ class TestRecoveryContext:
 
         async with RecoveryContext() as ctx:
             result = await ctx.execute_with_fallback(
-                primary=primary,
-                fallback=fallback,
-                arg1="test"
+                primary=primary, fallback=fallback, arg1="test"
             )
 
         assert result == "primary_result"
@@ -295,9 +285,7 @@ class TestRecoveryContext:
 
         async with RecoveryContext() as ctx:
             result = await ctx.execute_with_fallback(
-                primary=primary,
-                fallback=fallback,
-                payment_id="123"
+                primary=primary, fallback=fallback, payment_id="123"
             )
 
         assert result == "fallback_result"
@@ -318,10 +306,7 @@ class TestRecoveryContext:
 
         async with RecoveryContext() as ctx:
             with pytest.raises(PaymentError) as exc_info:
-                await ctx.execute_with_fallback(
-                    primary=primary,
-                    fallback=fallback
-                )
+                await ctx.execute_with_fallback(primary=primary, fallback=fallback)
 
         assert str(exc_info.value) == "Fallback failed"
         assert len(ctx.attempts) == 2
@@ -350,11 +335,7 @@ class TestIdempotencyManager:
         manager = IdempotencyManager()
         mock_func = AsyncMock(return_value="result")
 
-        result = await manager.ensure_idempotent(
-            key="unique-key",
-            func=mock_func,
-            arg1="test"
-        )
+        result = await manager.ensure_idempotent(key="unique-key", func=mock_func, arg1="test")
 
         assert result == "result"
         mock_func.assert_called_once_with(arg1="test")
@@ -391,10 +372,7 @@ class TestIdempotencyManager:
     async def test_failure_not_cached(self):
         """Test failures are not cached."""
         manager = IdempotencyManager()
-        mock_func = AsyncMock(side_effect=[
-            PaymentError("First attempt failed"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[PaymentError("First attempt failed"), "success"])
 
         # First attempt fails
         with pytest.raises(PaymentError):
@@ -414,16 +392,10 @@ class TestIdempotencyManager:
 
         # Add old entry (expired - 2 seconds ago)
         old_time = now - timedelta(seconds=2)
-        manager._cache["old_key"] = {
-            "result": "old_result",
-            "timestamp": old_time
-        }
+        manager._cache["old_key"] = {"result": "old_result", "timestamp": old_time}
 
         # Add recent entry (not expired)
-        manager._cache["recent_key"] = {
-            "result": "recent_result",
-            "timestamp": now
-        }
+        manager._cache["recent_key"] = {"result": "recent_result", "timestamp": now}
 
         # Cleanup should remove old entry
         manager.cleanup_expired()
@@ -438,17 +410,13 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_retry_with_circuit_breaker(self):
         """Test retry mechanism with circuit breaker."""
-        mock_func = AsyncMock(side_effect=[
-            BillingError("Fail 1"),
-            BillingError("Fail 2"),
-            "success"
-        ])
+        mock_func = AsyncMock(
+            side_effect=[BillingError("Fail 1"), BillingError("Fail 2"), "success"]
+        )
 
         breaker = CircuitBreaker(failure_threshold=5)
         retry = BillingRetry(
-            max_attempts=3,
-            strategy=LinearBackoff(0.01, 0),
-            retryable_exceptions=(BillingError,)
+            max_attempts=3, strategy=LinearBackoff(0.01, 0), retryable_exceptions=(BillingError,)
         )
 
         async def wrapped_func():
@@ -473,24 +441,13 @@ class TestIntegration:
             return f"Payment {call_count}"
 
         manager = IdempotencyManager()
-        retry = BillingRetry(
-            max_attempts=2,
-            strategy=LinearBackoff(0.01, 0)
-        )
+        retry = BillingRetry(max_attempts=2, strategy=LinearBackoff(0.01, 0))
 
         # First execution with retry
-        result1 = await retry.execute(
-            manager.ensure_idempotent,
-            "payment-123",
-            payment_func
-        )
+        result1 = await retry.execute(manager.ensure_idempotent, "payment-123", payment_func)
 
         # Second execution should use cache
-        result2 = await retry.execute(
-            manager.ensure_idempotent,
-            "payment-123",
-            payment_func
-        )
+        result2 = await retry.execute(manager.ensure_idempotent, "payment-123", payment_func)
 
         assert result1 == result2 == "Payment 2"
         assert call_count == 2  # Only retried once, second used cache

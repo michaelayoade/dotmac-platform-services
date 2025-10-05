@@ -88,7 +88,7 @@ def sample_import_request():
         "format": "csv",
         "batch_size": 1000,
         "encoding": "utf-8",
-        "validation_level": "basic"
+        "validation_level": "basic",
     }
 
 
@@ -101,7 +101,7 @@ def sample_export_request():
         "format": "csv",
         "compression": "none",
         "batch_size": 1000,
-        "encoding": "utf-8"
+        "encoding": "utf-8",
     }
 
 
@@ -144,7 +144,7 @@ class TestImportEndpoint:
         invalid_request = {
             "source_type": "invalid_source",
             "source_path": "",
-            "format": "invalid_format"
+            "format": "invalid_format",
         }
 
         response = client.post("/data-transfer/import", json=invalid_request)
@@ -160,7 +160,7 @@ class TestImportEndpoint:
             "encoding": "utf-16",
             "validation_level": "strict",
             "mapping": {"col1": "field1", "col2": "field2"},
-            "options": {"delimiter": ";", "header_row": 1}
+            "options": {"delimiter": ";", "header_row": 1},
         }
 
         response = client.post("/data-transfer/import", json=request_data)
@@ -218,7 +218,7 @@ class TestExportEndpoint:
             "format": "csv",
             "compression": "gzip",
             "batch_size": 2000,
-            "encoding": "utf-8"
+            "encoding": "utf-8",
         }
 
         response = client.post("/data-transfer/export", json=request_data)
@@ -233,11 +233,22 @@ class TestExportEndpoint:
         invalid_request = {
             "target_type": "invalid_target",
             "target_path": "",
-            "format": "invalid_format"
+            "format": "invalid_format",
         }
 
         response = client.post("/data-transfer/export", json=invalid_request)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("dotmac.platform.data_transfer.router.uuid4")
+    def test_export_data_exception_handling(self, mock_uuid4, client, sample_export_request):
+        """Test exception handling in export endpoint."""
+        mock_uuid4.side_effect = Exception("UUID generation failed")
+
+        response = client.post("/data-transfer/export", json=sample_export_request)
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        data = response.json()
+        assert data["detail"] == "Failed to create export job"
 
 
 class TestJobStatusEndpoint:
@@ -270,6 +281,18 @@ class TestJobStatusEndpoint:
         data = response.json()
         assert data["detail"] == "Invalid job ID format"
 
+    @patch("dotmac.platform.data_transfer.router.datetime")
+    def test_get_job_status_exception_handling(self, mock_datetime, client):
+        """Test exception handling in job status endpoint."""
+        job_id = str(uuid4())
+        mock_datetime.now.side_effect = Exception("Datetime error")
+
+        response = client.get(f"/data-transfer/jobs/{job_id}")
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        data = response.json()
+        assert data["detail"] == "Failed to get job status"
+
 
 class TestListJobsEndpoint:
     """Test the /jobs endpoint."""
@@ -290,7 +313,9 @@ class TestListJobsEndpoint:
 
     def test_list_jobs_with_filters(self, client):
         """Test listing jobs with filters."""
-        response = client.get("/data-transfer/jobs?type=import&status=completed&page=1&page_size=10")
+        response = client.get(
+            "/data-transfer/jobs?type=import&status=completed&page=1&page_size=10"
+        )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -370,7 +395,9 @@ class TestRouterIntegration:
 
     def test_router_response_models(self):
         """Test that endpoints have correct response models."""
-        routes = {route.path: route for route in data_transfer_router.routes if hasattr(route, 'path')}
+        routes = {
+            route.path: route for route in data_transfer_router.routes if hasattr(route, "path")
+        }
 
         # Check import endpoint
         import_route = routes.get("/import")
@@ -385,10 +412,15 @@ class TestRouterIntegration:
     def test_endpoint_http_methods(self):
         """Test that endpoints accept correct HTTP methods."""
         from fastapi import FastAPI
+
         app = FastAPI()
         app.include_router(data_transfer_router, prefix="/data-transfer")
 
-        routes = {f"{route.path}:{list(route.methods)[0]}" for route in app.routes if hasattr(route, 'methods') and route.methods}
+        routes = {
+            f"{route.path}:{list(route.methods)[0]}"
+            for route in app.routes
+            if hasattr(route, "methods") and route.methods
+        }
 
         assert "/data-transfer/import:POST" in routes
         assert "/data-transfer/export:POST" in routes

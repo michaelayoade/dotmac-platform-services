@@ -4,41 +4,39 @@ Subscription management service.
 Handles complete subscription lifecycle with simple, clear operations.
 """
 
-import structlog
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict, Any
+from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, or_, select
+import structlog
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.subscriptions.models import (
-    SubscriptionPlan,
-    Subscription,
-    SubscriptionEvent,
-    SubscriptionPlanCreateRequest,
-    SubscriptionCreateRequest,
-    SubscriptionUpdateRequest,
-    SubscriptionPlanChangeRequest,
-    UsageRecordRequest,
-    BillingCycle,
-    SubscriptionStatus,
-    SubscriptionEventType,
-    ProrationBehavior,
-    ProrationResult,
-)
-from dotmac.platform.billing.models import (
-    BillingSubscriptionPlanTable,
-    BillingSubscriptionTable,
-    BillingSubscriptionEventTable,
-)
 from dotmac.platform.billing.exceptions import (
+    PlanNotFoundError,
     SubscriptionError,
     SubscriptionNotFoundError,
-    PlanNotFoundError,
 )
-from dotmac.platform.settings import settings
+from dotmac.platform.billing.models import (
+    BillingSubscriptionEventTable,
+    BillingSubscriptionPlanTable,
+    BillingSubscriptionTable,
+)
+from dotmac.platform.billing.subscriptions.models import (
+    BillingCycle,
+    ProrationBehavior,
+    ProrationResult,
+    Subscription,
+    SubscriptionCreateRequest,
+    SubscriptionEventType,
+    SubscriptionPlan,
+    SubscriptionPlanChangeRequest,
+    SubscriptionPlanCreateRequest,
+    SubscriptionStatus,
+    SubscriptionUpdateRequest,
+    UsageRecordRequest,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -69,9 +67,7 @@ class SubscriptionService:
     # ========================================
 
     async def create_plan(
-        self,
-        plan_data: SubscriptionPlanCreateRequest,
-        tenant_id: str
+        self, plan_data: SubscriptionPlanCreateRequest, tenant_id: str
     ) -> SubscriptionPlan:
         """Create a new subscription plan."""
 
@@ -115,7 +111,7 @@ class SubscriptionService:
         stmt = select(BillingSubscriptionPlanTable).where(
             and_(
                 BillingSubscriptionPlanTable.plan_id == plan_id,
-                BillingSubscriptionPlanTable.tenant_id == tenant_id
+                BillingSubscriptionPlanTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -129,10 +125,10 @@ class SubscriptionService:
     async def list_plans(
         self,
         tenant_id: str,
-        product_id: Optional[str] = None,
-        billing_cycle: Optional[BillingCycle] = None,
-        active_only: bool = True
-    ) -> List[SubscriptionPlan]:
+        product_id: str | None = None,
+        billing_cycle: BillingCycle | None = None,
+        active_only: bool = True,
+    ) -> list[SubscriptionPlan]:
         """List subscription plans with filtering."""
 
         stmt = select(BillingSubscriptionPlanTable).where(
@@ -146,7 +142,7 @@ class SubscriptionService:
             stmt = stmt.where(BillingSubscriptionPlanTable.billing_cycle == billing_cycle.value)
 
         if active_only:
-            stmt = stmt.where(BillingSubscriptionPlanTable.is_active == True)
+            stmt = stmt.where(BillingSubscriptionPlanTable.is_active)
 
         stmt = stmt.order_by(BillingSubscriptionPlanTable.name)
 
@@ -160,9 +156,7 @@ class SubscriptionService:
     # ========================================
 
     async def create_subscription(
-        self,
-        subscription_data: SubscriptionCreateRequest,
-        tenant_id: str
+        self, subscription_data: SubscriptionCreateRequest, tenant_id: str
     ) -> Subscription:
         """Create new subscription with proper lifecycle setup."""
 
@@ -170,7 +164,7 @@ class SubscriptionService:
         plan = await self.get_plan(subscription_data.plan_id, tenant_id)
 
         # Calculate subscription periods
-        start_date = subscription_data.start_date or datetime.now(timezone.utc)
+        start_date = subscription_data.start_date or datetime.now(UTC)
         period_start = start_date
         period_end = self._calculate_period_end(period_start, plan.billing_cycle)
 
@@ -187,17 +181,17 @@ class SubscriptionService:
 
         # Create subscription record
         db_subscription = BillingSubscriptionTable(
-                subscription_id=generate_subscription_id(),
-                tenant_id=tenant_id,
-                customer_id=subscription_data.customer_id,
-                plan_id=subscription_data.plan_id,
-                current_period_start=period_start,
-                current_period_end=period_end,
-                status=status.value,
-                trial_end=trial_end,
-                custom_price=subscription_data.custom_price,
-                metadata_json=subscription_data.metadata,
-            )
+            subscription_id=generate_subscription_id(),
+            tenant_id=tenant_id,
+            customer_id=subscription_data.customer_id,
+            plan_id=subscription_data.plan_id,
+            current_period_start=period_start,
+            current_period_end=period_end,
+            status=status.value,
+            trial_end=trial_end,
+            custom_price=subscription_data.custom_price,
+            metadata_json=subscription_data.metadata,
+        )
 
         self.db.add(db_subscription)
         await self.db.commit()
@@ -212,9 +206,11 @@ class SubscriptionService:
             {
                 "plan_id": plan.plan_id,
                 "trial_days": plan.trial_days,
-                "custom_price": str(subscription_data.custom_price) if subscription_data.custom_price else None,
+                "custom_price": (
+                    str(subscription_data.custom_price) if subscription_data.custom_price else None
+                ),
             },
-            tenant_id
+            tenant_id,
         )
 
         logger.info(
@@ -235,7 +231,7 @@ class SubscriptionService:
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -249,12 +245,12 @@ class SubscriptionService:
     async def list_subscriptions(
         self,
         tenant_id: str,
-        customer_id: Optional[str] = None,
-        plan_id: Optional[str] = None,
-        status: Optional[SubscriptionStatus] = None,
+        customer_id: str | None = None,
+        plan_id: str | None = None,
+        status: SubscriptionStatus | None = None,
         page: int = 1,
-        limit: int = 50
-    ) -> List[Subscription]:
+        limit: int = 50,
+    ) -> list[Subscription]:
         """List subscriptions with filtering and pagination."""
 
         stmt = select(BillingSubscriptionTable).where(
@@ -283,10 +279,7 @@ class SubscriptionService:
         return [self._db_to_pydantic_subscription(db_sub) for db_sub in db_subscriptions]
 
     async def update_subscription(
-        self,
-        subscription_id: str,
-        updates: SubscriptionUpdateRequest,
-        tenant_id: str
+        self, subscription_id: str, updates: SubscriptionUpdateRequest, tenant_id: str
     ) -> Subscription:
         """Update subscription details."""
 
@@ -294,7 +287,7 @@ class SubscriptionService:
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -308,7 +301,7 @@ class SubscriptionService:
 
         for field, value in update_data.items():
             if field == "metadata":
-                setattr(db_subscription, "metadata_json", value)
+                db_subscription.metadata_json = value
             else:
                 setattr(db_subscription, field, value)
 
@@ -335,8 +328,8 @@ class SubscriptionService:
         subscription_id: str,
         change_request: SubscriptionPlanChangeRequest,
         tenant_id: str,
-        user_id: Optional[str] = None
-    ) -> tuple[Subscription, Optional[ProrationResult]]:
+        user_id: str | None = None,
+    ) -> tuple[Subscription, ProrationResult | None]:
         """Change subscription plan with proration handling."""
 
         subscription = await self.get_subscription(subscription_id, tenant_id)
@@ -355,12 +348,12 @@ class SubscriptionService:
             proration_result = self._calculate_proration(subscription, old_plan, new_plan)
 
         # Update subscription
-        effective_date = change_request.effective_date or datetime.now(timezone.utc)
+        effective_date = change_request.effective_date or datetime.now(UTC)
 
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -381,11 +374,13 @@ class SubscriptionService:
                 "old_plan_id": old_plan.plan_id,
                 "new_plan_id": new_plan.plan_id,
                 "proration_behavior": change_request.proration_behavior,
-                "proration_amount": str(proration_result.proration_amount) if proration_result else "0",
+                "proration_amount": (
+                    str(proration_result.proration_amount) if proration_result else "0"
+                ),
                 "effective_date": effective_date.isoformat(),
             },
             tenant_id,
-            user_id
+            user_id,
         )
 
         logger.info(
@@ -404,7 +399,7 @@ class SubscriptionService:
         subscription_id: str,
         tenant_id: str,
         at_period_end: bool = True,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ) -> Subscription:
         """Cancel subscription (immediate or at period end)."""
 
@@ -413,13 +408,13 @@ class SubscriptionService:
         if not subscription.is_active():
             raise SubscriptionError("Subscription is not active")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         immediate = not at_period_end
 
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -451,7 +446,7 @@ class SubscriptionService:
                 "period_end": subscription.current_period_end.isoformat(),
             },
             tenant_id,
-            user_id
+            user_id,
         )
 
         logger.info(
@@ -465,10 +460,7 @@ class SubscriptionService:
         return updated_subscription
 
     async def reactivate_subscription(
-        self,
-        subscription_id: str,
-        tenant_id: str,
-        user_id: Optional[str] = None
+        self, subscription_id: str, tenant_id: str, user_id: str | None = None
     ) -> Subscription:
         """Reactivate a canceled subscription (if still in current period)."""
 
@@ -477,13 +469,13 @@ class SubscriptionService:
         if subscription.status != SubscriptionStatus.CANCELED:
             raise SubscriptionError("Only canceled subscriptions can be reactivated")
 
-        if datetime.now(timezone.utc) > subscription.current_period_end:
+        if datetime.now(UTC) > subscription.current_period_end:
             raise SubscriptionError("Cannot reactivate subscription after period end")
 
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -502,9 +494,9 @@ class SubscriptionService:
         await self._create_event(
             subscription_id,
             SubscriptionEventType.RESUMED,
-            {"reactivated_at": datetime.now(timezone.utc).isoformat()},
+            {"reactivated_at": datetime.now(UTC).isoformat()},
             tenant_id,
-            user_id
+            user_id,
         )
 
         logger.info(
@@ -520,10 +512,8 @@ class SubscriptionService:
     # ========================================
 
     async def record_usage(
-        self,
-        usage_request: UsageRecordRequest,
-        tenant_id: str
-    ) -> Dict[str, int]:
+        self, usage_request: UsageRecordRequest, tenant_id: str
+    ) -> dict[str, int]:
         """Record usage for a subscription."""
 
         subscription = await self.get_subscription(usage_request.subscription_id, tenant_id)
@@ -531,29 +521,33 @@ class SubscriptionService:
         if not subscription.is_active():
             raise SubscriptionError("Cannot record usage for inactive subscription")
 
-        usage_timestamp = usage_request.timestamp or datetime.now(timezone.utc)
+        usage_timestamp = usage_request.timestamp or datetime.now(UTC)
 
         # Verify usage is within current period
-        if not (subscription.current_period_start <= usage_timestamp <= subscription.current_period_end):
+        if not (
+            subscription.current_period_start <= usage_timestamp <= subscription.current_period_end
+        ):
             raise SubscriptionError("Usage timestamp is outside current billing period")
 
-            stmt = select(BillingSubscriptionTable).where(
-                and_(
-                    BillingSubscriptionTable.subscription_id == usage_request.subscription_id,
-                    BillingSubscriptionTable.tenant_id == tenant_id
-                )
+        stmt = select(BillingSubscriptionTable).where(
+            and_(
+                BillingSubscriptionTable.subscription_id == usage_request.subscription_id,
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
-            result = await self.db.execute(stmt)
-            db_subscription = result.scalar_one_or_none()
+        )
+        result = await self.db.execute(stmt)
+        db_subscription = result.scalar_one_or_none()
 
-            # Update usage records
-            current_usage = db_subscription.usage_records or {}
-            current_usage[usage_request.usage_type] = current_usage.get(usage_request.usage_type, 0) + usage_request.quantity
+        # Update usage records
+        current_usage = db_subscription.usage_records or {}
+        current_usage[usage_request.usage_type] = (
+            current_usage.get(usage_request.usage_type, 0) + usage_request.quantity
+        )
 
-            db_subscription.usage_records = current_usage
+        db_subscription.usage_records = current_usage
 
-            await self.db.commit()
-            await self.db.refresh(db_subscription)
+        await self.db.commit()
+        await self.db.refresh(db_subscription)
 
         logger.info(
             "Usage recorded",
@@ -566,11 +560,7 @@ class SubscriptionService:
 
         return current_usage
 
-    async def get_usage_for_period(
-        self,
-        subscription_id: str,
-        tenant_id: str
-    ) -> Dict[str, int]:
+    async def get_usage_for_period(self, subscription_id: str, tenant_id: str) -> dict[str, int]:
         """Get current period usage for subscription."""
 
         subscription = await self.get_subscription(subscription_id, tenant_id)
@@ -581,19 +571,17 @@ class SubscriptionService:
     # ========================================
 
     async def get_subscriptions_due_for_renewal(
-        self,
-        tenant_id: str,
-        look_ahead_days: int = 1
-    ) -> List[Subscription]:
+        self, tenant_id: str, look_ahead_days: int = 1
+    ) -> list[Subscription]:
         """Get subscriptions that need renewal within the specified timeframe."""
 
-        cutoff_date = datetime.now(timezone.utc) + timedelta(days=look_ahead_days)
+        cutoff_date = datetime.now(UTC) + timedelta(days=look_ahead_days)
 
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.tenant_id == tenant_id,
                 BillingSubscriptionTable.status == SubscriptionStatus.ACTIVE.value,
-                BillingSubscriptionTable.current_period_end <= cutoff_date
+                BillingSubscriptionTable.current_period_end <= cutoff_date,
             )
         )
 
@@ -633,15 +621,14 @@ class SubscriptionService:
             raise SubscriptionError(f"Unsupported billing cycle: {billing_cycle}")
 
     def _calculate_proration(
-        self,
-        subscription: Subscription,
-        old_plan: SubscriptionPlan,
-        new_plan: SubscriptionPlan
+        self, subscription: Subscription, old_plan: SubscriptionPlan, new_plan: SubscriptionPlan
     ) -> ProrationResult:
         """Calculate simple proration for plan changes."""
 
-        now = datetime.now(timezone.utc)
-        total_period_seconds = (subscription.current_period_end - subscription.current_period_start).total_seconds()
+        now = datetime.now(UTC)
+        total_period_seconds = (
+            subscription.current_period_end - subscription.current_period_start
+        ).total_seconds()
         remaining_seconds = (subscription.current_period_end - now).total_seconds()
 
         if remaining_seconds <= 0:
@@ -690,20 +677,20 @@ class SubscriptionService:
         self,
         subscription_id: str,
         event_type: SubscriptionEventType,
-        event_data: Dict[str, Any],
+        event_data: dict[str, Any],
         tenant_id: str,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ):
         """Create a subscription event for audit trail."""
 
         db_event = BillingSubscriptionEventTable(
-                event_id=generate_event_id(),
-                tenant_id=tenant_id,
-                subscription_id=subscription_id,
-                event_type=event_type.value,
-                event_data=event_data,
-                user_id=user_id,
-            )
+            event_id=generate_event_id(),
+            tenant_id=tenant_id,
+            subscription_id=subscription_id,
+            event_type=event_type.value,
+            event_data=event_data,
+            user_id=user_id,
+        )
 
         self.db.add(db_event)
         await self.db.commit()
@@ -733,40 +720,46 @@ class SubscriptionService:
             updated_at=db_plan.updated_at,
         )
 
-    def _db_to_pydantic_subscription(self, db_subscription: BillingSubscriptionTable) -> Subscription:
+    def _db_to_pydantic_subscription(
+        self, db_subscription: BillingSubscriptionTable
+    ) -> Subscription:
         """Convert database subscription to Pydantic model."""
+
+        # Helper to ensure timezone-aware datetimes for SQLite compatibility
+        def ensure_tz_aware(dt: datetime | None) -> datetime | None:
+            if dt and dt.tzinfo is None:
+                return dt.replace(tzinfo=UTC)
+            return dt
+
         return Subscription(
             subscription_id=db_subscription.subscription_id,
             tenant_id=db_subscription.tenant_id,
             customer_id=db_subscription.customer_id,
             plan_id=db_subscription.plan_id,
-            current_period_start=db_subscription.current_period_start,
-            current_period_end=db_subscription.current_period_end,
+            current_period_start=ensure_tz_aware(db_subscription.current_period_start),
+            current_period_end=ensure_tz_aware(db_subscription.current_period_end),
             status=SubscriptionStatus(db_subscription.status),
-            trial_end=db_subscription.trial_end,
+            trial_end=ensure_tz_aware(db_subscription.trial_end),
             cancel_at_period_end=db_subscription.cancel_at_period_end,
-            canceled_at=db_subscription.canceled_at,
-            ended_at=db_subscription.ended_at,
+            canceled_at=ensure_tz_aware(db_subscription.canceled_at),
+            ended_at=ensure_tz_aware(db_subscription.ended_at),
             custom_price=db_subscription.custom_price,
             usage_records=db_subscription.usage_records or {},
             metadata=db_subscription.metadata_json or {},
-            created_at=db_subscription.created_at,
-            updated_at=db_subscription.updated_at,
+            created_at=ensure_tz_aware(db_subscription.created_at),
+            updated_at=ensure_tz_aware(db_subscription.updated_at),
         )
 
     async def _update_subscription_status(
-        self,
-        subscription_id: str,
-        status: SubscriptionStatus,
-        tenant_id: str
+        self, subscription_id: str, status: SubscriptionStatus, tenant_id: str
     ) -> bool:
         """Update subscription status."""
         stmt = select(BillingSubscriptionTable).where(
-                and_(
-                    BillingSubscriptionTable.subscription_id == subscription_id,
-                    BillingSubscriptionTable.tenant_id == tenant_id
-                )
+            and_(
+                BillingSubscriptionTable.subscription_id == subscription_id,
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
+        )
         result = await self.db.execute(stmt)
         db_subscription = result.scalar_one_or_none()
 
@@ -777,16 +770,12 @@ class SubscriptionService:
         await self.db.commit()
         return True
 
-    async def _reset_usage_for_new_period(
-        self,
-        subscription_id: str,
-        tenant_id: str
-    ) -> bool:
+    async def _reset_usage_for_new_period(self, subscription_id: str, tenant_id: str) -> bool:
         """Reset usage records for new billing period."""
         stmt = select(BillingSubscriptionTable).where(
             and_(
                 BillingSubscriptionTable.subscription_id == subscription_id,
-                BillingSubscriptionTable.tenant_id == tenant_id
+                BillingSubscriptionTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -803,18 +792,14 @@ class SubscriptionService:
         self,
         subscription_id: str,
         event_type: SubscriptionEventType,
-        event_data: Dict[str, Any],
+        event_data: dict[str, Any],
         tenant_id: str,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ) -> None:
         """Public method to record subscription events."""
         await self._create_event(subscription_id, event_type, event_data, tenant_id, user_id)
 
-    async def get_usage(
-        self,
-        subscription_id: str,
-        tenant_id: str
-    ) -> Optional[Dict[str, int]]:
+    async def get_usage(self, subscription_id: str, tenant_id: str) -> dict[str, int] | None:
         """Get current usage for a subscription."""
         subscription = await self.get_subscription(subscription_id, tenant_id)
         if not subscription:
@@ -822,11 +807,8 @@ class SubscriptionService:
         return subscription.usage_records
 
     async def calculate_proration_preview(
-        self,
-        subscription_id: str,
-        new_plan_id: str,
-        tenant_id: str
-    ) -> Optional[ProrationResult]:
+        self, subscription_id: str, new_plan_id: str, tenant_id: str
+    ) -> ProrationResult | None:
         """Preview proration calculation without making changes."""
         subscription = await self.get_subscription(subscription_id, tenant_id)
         if not subscription:

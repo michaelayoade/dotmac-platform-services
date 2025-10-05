@@ -166,7 +166,6 @@ class TestCoreModels:
         assert isinstance(config_error, DotMacError)
 
 
-
 @pytest.mark.unit
 class TestTenantContextValidation:
     """Test TenantContext validation and edge cases"""

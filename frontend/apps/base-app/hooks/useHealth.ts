@@ -31,7 +31,7 @@ export const useHealth = () => {
     setError(null);
 
     try {
-      const response = await apiClient.get<HealthSummary>('/health/ready');
+      const response = await apiClient.get<HealthSummary>('/ready');
 
       if ('success' in response && (response as any).success && (response as any).data) {
         setHealth((response as any).data);

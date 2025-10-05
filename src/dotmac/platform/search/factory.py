@@ -5,7 +5,7 @@ This module provides a factory for creating search backends based on
 feature flags and configuration, with clear error messages for missing dependencies.
 """
 
-from typing import TYPE_CHECKING, Dict, List, Type
+from typing import TYPE_CHECKING
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings
@@ -19,7 +19,7 @@ class SearchBackendRegistry:
     """Registry for search backend implementations."""
 
     def __init__(self):
-        self._backends: Dict[str, Type[SearchBackend]] = {}
+        self._backends: dict[str, type[SearchBackend]] = {}
         self._register_core_backends()
 
     def _register_core_backends(self):
@@ -29,22 +29,22 @@ class SearchBackendRegistry:
 
         self._backends["memory"] = InMemorySearchBackend
 
-    def register_backend(self, name: str, backend_class: Type[SearchBackend]):
+    def register_backend(self, name: str, backend_class: type[SearchBackend]):
         """Register a search backend implementation."""
         self._backends[name] = backend_class
 
-    def get_backend_class(self, name: str) -> Type[SearchBackend]:
+    def get_backend_class(self, name: str) -> type[SearchBackend]:
         """Get backend class by name."""
         if name not in self._backends:
             available = list(self._backends.keys())
             raise ValueError(f"Unknown search backend '{name}'. Available: {available}")
         return self._backends[name]
 
-    def list_available_backends(self) -> List[str]:
+    def list_available_backends(self) -> list[str]:
         """List all registered search backends."""
         return list(self._backends.keys())
 
-    def list_enabled_backends(self) -> List[str]:
+    def list_enabled_backends(self) -> list[str]:
         """List search backends that are enabled via feature flags."""
         enabled = ["memory"]  # Memory is always enabled
 
@@ -76,7 +76,6 @@ def _register_optional_backends():
             pass
 
 
-
 # Register optional backends on module import
 _register_optional_backends()
 
@@ -106,8 +105,7 @@ class SearchBackendFactory:
         # Validate MeiliSearch backend is enabled
         if backend_type == "meilisearch" and not settings.features.search_enabled:
             raise ValueError(
-                "MeiliSearch backend selected but not enabled. "
-                "Set FEATURES__SEARCH_ENABLED=true"
+                "MeiliSearch backend selected but not enabled. " "Set FEATURES__SEARCH_ENABLED=true"
             )
 
         # Check dependencies before creating
@@ -122,23 +120,21 @@ class SearchBackendFactory:
     def _auto_select_backend() -> str:
         """Auto-select the best available search backend."""
         # Prefer MeiliSearch if enabled and available
-        if (
-            settings.features.search_enabled
-            and DependencyChecker.check_feature_dependency("search_enabled")
+        if settings.features.search_enabled and DependencyChecker.check_feature_dependency(
+            "search_enabled"
         ):
             return "meilisearch"
-
 
         # Default to in-memory backend
         return "memory"
 
     @staticmethod
-    def list_available_backends() -> List[str]:
+    def list_available_backends() -> list[str]:
         """List all available search backends."""
         return _registry.list_available_backends()
 
     @staticmethod
-    def list_enabled_backends() -> List[str]:
+    def list_enabled_backends() -> list[str]:
         """List search backends that are enabled and have dependencies available."""
         return _registry.list_enabled_backends()
 

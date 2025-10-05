@@ -5,7 +5,6 @@ This module provides shared dependencies for billing endpoints,
 including tenant context resolution and database session management.
 """
 
-from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,7 +75,7 @@ class BillingServiceDeps:
     ):
         self.db = db
         self.request = request
-        self._tenant_id: Optional[str] = None
+        self._tenant_id: str | None = None
 
     @property
     def tenant_id(self) -> str:

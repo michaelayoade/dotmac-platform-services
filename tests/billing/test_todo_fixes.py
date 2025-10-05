@@ -6,9 +6,15 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from dotmac.platform.billing.invoicing.money_service import MoneyInvoiceService
-from dotmac.platform.billing.integration import BillingIntegrationService, BillingInvoiceRequest, InvoiceItem
+from dotmac.platform.billing.integration import (
+    BillingIntegrationService,
+    BillingInvoiceRequest,
+    InvoiceItem,
+)
 from dotmac.platform.billing.money_models import MoneyInvoice, MoneyInvoiceLineItem
 from dotmac.platform.billing.core.enums import InvoiceStatus
+
+pytestmark = pytest.mark.asyncio
 
 
 class TestMoneyServiceFix:
@@ -55,12 +61,22 @@ class TestMoneyServiceFix:
         mock_new_total = Mock()
 
         # Mock the methods
-        with patch.object(money_service, 'get_money_invoice', return_value=mock_invoice):
-            with patch.object(money_service, '_get_invoice_entity', return_value=mock_invoice_entity):
-                with patch.object(money_utils.money_handler, 'multiply_money', return_value=mock_discount_amount):
-                    with patch.object(money_utils.money_handler, 'add_money', return_value=mock_new_total):
-                        with patch.object(money_utils.money_handler, 'create_money', return_value=Mock()):
-                            with patch.object(money_service.adapter, 'money_to_legacy_invoice') as mock_adapter:
+        with patch.object(money_service, "get_money_invoice", return_value=mock_invoice):
+            with patch.object(
+                money_service, "_get_invoice_entity", return_value=mock_invoice_entity
+            ):
+                with patch.object(
+                    money_utils.money_handler, "multiply_money", return_value=mock_discount_amount
+                ):
+                    with patch.object(
+                        money_utils.money_handler, "add_money", return_value=mock_new_total
+                    ):
+                        with patch.object(
+                            money_utils.money_handler, "create_money", return_value=Mock()
+                        ):
+                            with patch.object(
+                                money_service.adapter, "money_to_legacy_invoice"
+                            ) as mock_adapter:
                                 mock_legacy = Mock()
                                 mock_legacy.discount_amount = 2000  # 20% discount in cents
                                 mock_legacy.total_amount = 8000
@@ -72,7 +88,7 @@ class TestMoneyServiceFix:
                                     tenant_id="tenant-123",
                                     invoice_id="inv-123",
                                     discount_percentage=20.0,
-                                    reason="Test discount"
+                                    reason="Test discount",
                                 )
 
                                 # Verify database update
@@ -94,9 +110,9 @@ class TestBillingIntegrationFix:
     @pytest.fixture
     def billing_service(self, mock_db):
         """Create billing integration service."""
-        with patch('dotmac.platform.billing.catalog.service.ProductService'):
-            with patch('dotmac.platform.billing.pricing.service.PricingEngine'):
-                with patch('dotmac.platform.billing.subscriptions.service.SubscriptionService'):
+        with patch("dotmac.platform.billing.catalog.service.ProductService"):
+            with patch("dotmac.platform.billing.pricing.service.PricingEngine"):
+                with patch("dotmac.platform.billing.subscriptions.service.SubscriptionService"):
                     service = BillingIntegrationService(mock_db)
                     # Mock the invoice service methods we need
                     service.invoice_service = Mock()

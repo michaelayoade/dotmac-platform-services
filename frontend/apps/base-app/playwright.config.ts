@@ -17,6 +17,20 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Visual regression testing configuration
+  expect: {
+    toHaveScreenshot: {
+      // Maximum pixel difference threshold
+      maxDiffPixels: 100,
+      // Threshold for considering pixels as different (0-1)
+      threshold: 0.2,
+      // Animations: "disabled" prevents flaky tests
+      animations: 'disabled',
+      // CSS animations and transitions
+      caret: 'hide',
+    },
+  },
+
   projects: [
     {
       name: 'chromium',

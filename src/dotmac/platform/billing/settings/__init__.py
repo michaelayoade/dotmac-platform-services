@@ -2,8 +2,8 @@
 Billing settings and configuration module
 """
 
+from .models import BillingSettings, CompanyInfo, InvoiceSettings, PaymentSettings, TaxSettings
 from .service import BillingSettingsService
-from .models import BillingSettings, CompanyInfo, TaxSettings, PaymentSettings, InvoiceSettings
 
 __all__ = [
     "BillingSettingsService",

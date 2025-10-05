@@ -2,9 +2,9 @@
 Data transfer request and response models with proper validation.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, field_validator
@@ -70,11 +70,11 @@ class ImportRequest(BaseModel):
         description="Path or URL to source data",
     )
     format: DataFormat = Field(..., description="Data format")
-    mapping: Optional[dict[str, str]] = Field(
+    mapping: dict[str, str] | None = Field(
         None,
         description="Field mapping (source_field: target_field)",
     )
-    options: Optional[dict[str, Any]] = Field(
+    options: dict[str, Any] | None = Field(
         None,
         description="Format-specific options",
     )
@@ -124,7 +124,7 @@ class ImportRequest(BaseModel):
 
     @field_validator("mapping")
     @classmethod
-    def validate_mapping(cls, v: Optional[dict[str, str]]) -> Optional[dict[str, str]]:
+    def validate_mapping(cls, v: dict[str, str] | None) -> dict[str, str] | None:
         """Validate field mapping."""
         if v is None:
             return None
@@ -154,16 +154,16 @@ class ExportRequest(BaseModel):
         description="Path or URL for target",
     )
     format: DataFormat = Field(..., description="Export format")
-    filters: Optional[dict[str, Any]] = Field(
+    filters: dict[str, Any] | None = Field(
         None,
         description="Data filters to apply",
     )
-    fields: Optional[list[str]] = Field(
+    fields: list[str] | None = Field(
         None,
         max_length=1000,
         description="Fields to export (None = all)",
     )
-    options: Optional[dict[str, Any]] = Field(
+    options: dict[str, Any] | None = Field(
         None,
         description="Format-specific options",
     )
@@ -209,7 +209,7 @@ class ExportRequest(BaseModel):
 
     @field_validator("fields")
     @classmethod
-    def validate_fields(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+    def validate_fields(cls, v: list[str] | None) -> list[str] | None:
         """Validate field list."""
         if v is None:
             return None
@@ -236,16 +236,16 @@ class TransferJobRequest(BaseModel):
         max_length=255,
         description="Job name",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None,
         max_length=1000,
         description="Job description",
     )
-    schedule: Optional[str] = Field(
+    schedule: str | None = Field(
         None,
         description="Cron schedule for recurring jobs",
     )
-    notification_email: Optional[str] = Field(
+    notification_email: str | None = Field(
         None,
         description="Email for job notifications",
     )
@@ -282,16 +282,16 @@ class TransferJobResponse(BaseModel):
         description="Progress percentage",
     )
     created_at: datetime = Field(..., description="Job creation time")
-    started_at: Optional[datetime] = Field(None, description="Job start time")
-    completed_at: Optional[datetime] = Field(None, description="Job completion time")
+    started_at: datetime | None = Field(None, description="Job start time")
+    completed_at: datetime | None = Field(None, description="Job completion time")
     records_processed: int = Field(0, ge=0, description="Records processed")
     records_failed: int = Field(0, ge=0, description="Records failed")
-    records_total: Optional[int] = Field(None, description="Total records to process")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
+    records_total: int | None = Field(None, description="Total records to process")
+    error_message: str | None = Field(None, description="Error message if failed")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
 
     @property
-    def duration(self) -> Optional[float]:
+    def duration(self) -> float | None:
         """Calculate job duration in seconds."""
         if self.started_at and self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()
@@ -324,12 +324,12 @@ class TransferValidationResult(BaseModel):
     is_valid: bool = Field(..., description="Whether validation passed")
     errors: list[str] = Field(default_factory=list, description="Validation errors")
     warnings: list[str] = Field(default_factory=list, description="Validation warnings")
-    record_count: Optional[int] = Field(None, description="Number of records found")
-    sample_data: Optional[list[dict[str, Any]]] = Field(
+    record_count: int | None = Field(None, description="Number of records found")
+    sample_data: list[dict[str, Any]] | None = Field(
         None,
         description="Sample of data records",
     )
-    schema: Optional[dict[str, str]] = Field(
+    json_schema: dict[str, str] | None = Field(
         None,
         description="Detected data schema",
     )
@@ -344,12 +344,12 @@ class TransferProgressUpdate(BaseModel):
     status: TransferStatus = Field(..., description="Current status")
     progress: float = Field(..., description="Progress percentage")
     current_batch: int = Field(..., description="Current batch number")
-    total_batches: Optional[int] = Field(None, description="Total number of batches")
+    total_batches: int | None = Field(None, description="Total number of batches")
     records_processed: int = Field(..., description="Records processed so far")
     records_failed: int = Field(..., description="Records failed so far")
-    current_file: Optional[str] = Field(None, description="Current file being processed")
-    message: Optional[str] = Field(None, description="Status message")
-    estimated_completion: Optional[datetime] = Field(
+    current_file: str | None = Field(None, description="Current file being processed")
+    message: str | None = Field(None, description="Status message")
+    estimated_completion: datetime | None = Field(
         None,
         description="Estimated completion time",
     )
@@ -391,8 +391,8 @@ class TransferStatistics(BaseModel):
     total_bytes_transferred: int = Field(..., description="Total bytes transferred")
     average_job_duration: float = Field(..., description="Average job duration in seconds")
     success_rate: float = Field(..., description="Overall success rate percentage")
-    busiest_hour: Optional[int] = Field(None, description="Hour with most activity (0-23)")
-    most_used_format: Optional[str] = Field(None, description="Most frequently used format")
+    busiest_hour: int | None = Field(None, description="Hour with most activity (0-23)")
+    most_used_format: str | None = Field(None, description="Most frequently used format")
 
 
 # ========================================
@@ -405,10 +405,12 @@ class TransferErrorResponse(BaseModel):
 
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
-    details: Optional[dict[str, Any]] = Field(None, description="Error details")
-    job_id: Optional[UUID] = Field(None, description="Related job ID")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
-    suggestions: Optional[list[str]] = Field(None, description="Suggestions for resolution")
+    details: dict[str, Any] | None = Field(None, description="Error details")
+    job_id: UUID | None = Field(None, description="Related job ID")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), description="Error timestamp"
+    )
+    suggestions: list[str] | None = Field(None, description="Suggestions for resolution")
 
 
 __all__ = [

@@ -4,7 +4,7 @@ Data models for service registry.
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -24,11 +24,11 @@ class ServiceHealth(BaseModel):
     """Service health information."""
 
     status: str
-    latency_ms: Optional[float] = None
-    cpu_usage: Optional[float] = None
-    memory_usage: Optional[float] = None
-    error_rate: Optional[float] = None
-    request_count: Optional[int] = None
+    latency_ms: float | None = None
+    cpu_usage: float | None = None
+    memory_usage: float | None = None
+    error_rate: float | None = None
+    request_count: int | None = None
     details: dict[str, Any] = Field(default_factory=dict)
     checked_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -45,9 +45,9 @@ class ServiceInfo(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     health_check_url: str
     status: ServiceStatus = ServiceStatus.UNKNOWN
-    health: Optional[ServiceHealth] = None
+    health: ServiceHealth | None = None
     registered_at: datetime
     last_heartbeat: datetime
     weight: int = Field(default=100, description="Load balancing weight")
-    region: Optional[str] = None
-    zone: Optional[str] = None
+    region: str | None = None
+    zone: str | None = None

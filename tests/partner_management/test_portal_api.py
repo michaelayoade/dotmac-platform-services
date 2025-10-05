@@ -17,6 +17,8 @@ from dotmac.platform.partner_management.schemas import (
     ReferralLeadCreate,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.mark.asyncio
 class TestPortalDashboard:
@@ -37,7 +39,6 @@ class TestPortalDashboard:
                 commission_model=CommissionModel.REVENUE_SHARE,
                 default_commission_rate=Decimal("0.20"),
             ),
-            
         )
 
         # Create some data
@@ -48,7 +49,6 @@ class TestPortalDashboard:
                 customer_id=customer_id,
                 engagement_type="direct",
             ),
-
         )
 
         base_amount = Decimal("1000.00")
@@ -62,7 +62,6 @@ class TestPortalDashboard:
                 base_amount=base_amount,
                 commission_rate=rate,
             ),
-
         )
 
         await service.create_referral(
@@ -71,7 +70,6 @@ class TestPortalDashboard:
                 contact_name="Test Lead",
                 contact_email="lead@example.com",
             ),
-
         )
 
         # Get dashboard stats
@@ -105,7 +103,6 @@ class TestPortalProfile:
                 primary_email="test@partner.com",
                 website="https://test.com",
             ),
-            
         )
 
         # Profile should match partner data
@@ -129,7 +126,6 @@ class TestPortalProfile:
                 company_name="Old Name",
                 primary_email="test@partner.com",
             ),
-            
         )
 
         # Update through portal
@@ -164,7 +160,6 @@ class TestPortalReferrals:
 
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create referrals
@@ -175,7 +170,6 @@ class TestPortalReferrals:
                     contact_name=f"Lead {i}",
                     contact_email=f"lead{i}@example.com",
                 ),
-
             )
 
         # List referrals
@@ -195,7 +189,6 @@ class TestPortalReferrals:
 
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Submit referral
@@ -239,7 +232,6 @@ class TestPortalCommissions:
                 primary_email="test@partner.com",
                 default_commission_rate=Decimal("0.15"),
             ),
-            
         )
 
         # Create commission events
@@ -254,7 +246,6 @@ class TestPortalCommissions:
                     base_amount=amount,
                     commission_rate=rate,
                 ),
-
             )
 
         # List commissions
@@ -278,7 +269,6 @@ class TestPortalCustomers:
 
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create customer accounts
@@ -289,7 +279,6 @@ class TestPortalCustomers:
                     customer_id=uuid4(),
                     engagement_type="direct" if i == 0 else "referral",
                 ),
-
             )
 
         # List customers

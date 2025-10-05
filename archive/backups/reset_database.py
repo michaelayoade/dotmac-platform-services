@@ -12,6 +12,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "dotmac")
 
+
 def reset_database():
     # Connect to PostgreSQL server (not to specific database)
     try:
@@ -20,7 +21,7 @@ def reset_database():
             password=DB_PASSWORD,
             host=DB_HOST,
             port=DB_PORT,
-            database="postgres"  # Connect to default database
+            database="postgres",  # Connect to default database
         )
         conn.autocommit = True
         cursor = conn.cursor()
@@ -28,8 +29,10 @@ def reset_database():
         # Terminate existing connections
         print(f"Terminating connections to {DB_NAME}...")
         cursor.execute(
-            sql.SQL("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()"),
-            [DB_NAME]
+            sql.SQL(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()"
+            ),
+            [DB_NAME],
         )
 
         # Drop database if exists
@@ -47,6 +50,7 @@ def reset_database():
     except Exception as e:
         print(f"❌ Error resetting database: {e}")
         raise
+
 
 if __name__ == "__main__":
     reset_database()

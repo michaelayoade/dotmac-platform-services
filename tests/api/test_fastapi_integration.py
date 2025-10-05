@@ -10,6 +10,8 @@ from unittest.mock import Mock
 
 import pytest
 
+pytestmark = pytest.mark.asyncio
+
 
 # Mock FastAPI components for testing
 class MockRequest:

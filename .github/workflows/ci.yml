@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
 
 env:
-  # Transitional total coverage threshold; start conservative to be green
-  COV_FAIL_UNDER: "33"
+  # Coverage threshold - enforcing 90% quality standard
+  COV_FAIL_UNDER: "90"
   # Diff coverage gate for changed lines in PRs
-  DIFF_COV_FAIL_UNDER: "90"
+  DIFF_COV_FAIL_UNDER: "95"
 
 jobs:
   build-test:
@@ -70,13 +70,13 @@ jobs:
         run: |
           poetry install --with dev
 
-      - name: Run unit tests with coverage (green baseline)
+      - name: Run unit tests with coverage (optimized)
         env:
           PYTHONPATH: "${{ github.workspace }}/src"
-          # Run only tests explicitly marked as unit; set a low fail-under initially
-          PYTEST_ADDOPTS: "-m unit -k 'not test_secrets_manager and not test_auth_init_exports and not test_platform_init and not test_logging_core and not test_session_manager_unit' --cov-fail-under=${{ env.COV_FAIL_UNDER }}"
+          # Parallel test execution for faster feedback
+          PYTEST_ADDOPTS: "-n auto -m unit -k 'not test_secrets_manager and not test_auth_init_exports and not test_platform_init and not test_logging_core and not test_session_manager_unit' --cov-fail-under=${{ env.COV_FAIL_UNDER }}"
         run: |
-          poetry run pytest -v
+          poetry run pytest -v --durations=10
 
       - name: Diff coverage gate (PRs only, non-blocking initially)
         if: github.event_name == 'pull_request'

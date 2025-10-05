@@ -35,18 +35,20 @@ class InvoiceMigrationAdapter:
             unit_price_decimal = Decimal(legacy_item.unit_price) / 100
 
             line_item_data = {
-                'description': legacy_item.description,
-                'quantity': legacy_item.quantity,
-                'unit_price': str(unit_price_decimal),
-                'tax_rate': legacy_item.tax_rate / 100 if legacy_item.tax_rate else 0,
-                'discount_percentage': legacy_item.discount_percentage / 100 if legacy_item.discount_percentage else 0,
+                "description": legacy_item.description,
+                "quantity": legacy_item.quantity,
+                "unit_price": str(unit_price_decimal),
+                "tax_rate": legacy_item.tax_rate / 100 if legacy_item.tax_rate else 0,
+                "discount_percentage": (
+                    legacy_item.discount_percentage / 100 if legacy_item.discount_percentage else 0
+                ),
             }
 
             # Add optional fields
             if legacy_item.product_id:
-                line_item_data['product_id'] = legacy_item.product_id
+                line_item_data["product_id"] = legacy_item.product_id
             if legacy_item.line_item_id:
-                line_item_data['line_item_id'] = legacy_item.line_item_id
+                line_item_data["line_item_id"] = legacy_item.line_item_id
 
             line_items.append(line_item_data)
 
@@ -80,8 +82,7 @@ class InvoiceMigrationAdapter:
         if legacy_invoice.total_credits_applied:
             credit_amount = Decimal(legacy_invoice.total_credits_applied) / 100
             money_invoice.total_credits_applied = money_handler.create_money(
-                str(credit_amount),
-                legacy_invoice.currency
+                str(credit_amount), legacy_invoice.currency
             )
 
         return money_invoice
@@ -115,15 +116,25 @@ class InvoiceMigrationAdapter:
                 product_id=money_item.product_id,
                 tax_rate=float(money_item.tax_rate * 100) if money_item.tax_rate else 0,
                 tax_amount=tax_amount_cents,
-                discount_percentage=float(money_item.discount_percentage * 100) if money_item.discount_percentage else 0,
+                discount_percentage=(
+                    float(money_item.discount_percentage * 100)
+                    if money_item.discount_percentage
+                    else 0
+                ),
                 discount_amount=discount_amount_cents,
             )
             legacy_items.append(legacy_item)
 
         # Convert main invoice amounts to cents (amount is a string)
         subtotal_cents = int(Decimal(money_invoice.subtotal.amount) * 100)
-        tax_amount_cents = int(Decimal(money_invoice.tax_amount.amount) * 100) if money_invoice.tax_amount else 0
-        discount_amount_cents = int(Decimal(money_invoice.discount_amount.amount) * 100) if money_invoice.discount_amount else 0
+        tax_amount_cents = (
+            int(Decimal(money_invoice.tax_amount.amount) * 100) if money_invoice.tax_amount else 0
+        )
+        discount_amount_cents = (
+            int(Decimal(money_invoice.discount_amount.amount) * 100)
+            if money_invoice.discount_amount
+            else 0
+        )
         total_amount_cents = int(Decimal(money_invoice.total_amount.amount) * 100)
 
         # Create legacy invoice
@@ -158,7 +169,9 @@ class InvoiceMigrationAdapter:
 
         # Handle credits
         if money_invoice.total_credits_applied:
-            legacy_invoice.total_credits_applied = int(Decimal(money_invoice.total_credits_applied.amount) * 100)
+            legacy_invoice.total_credits_applied = int(
+                Decimal(money_invoice.total_credits_applied.amount) * 100
+            )
 
         return legacy_invoice
 
@@ -201,9 +214,7 @@ class BatchMigrationService:
         self.adapter = InvoiceMigrationAdapter()
 
     async def migrate_invoices_batch(
-        self,
-        legacy_invoices: list[LegacyInvoice],
-        preserve_ids: bool = True
+        self, legacy_invoices: list[LegacyInvoice], preserve_ids: bool = True
     ) -> list[MoneyInvoice]:
         """
         Migrate a batch of legacy invoices to Money format.
@@ -235,9 +246,7 @@ class BatchMigrationService:
         return money_invoices
 
     def validate_migration(
-        self,
-        legacy_invoice: LegacyInvoice,
-        money_invoice: MoneyInvoice
+        self, legacy_invoice: LegacyInvoice, money_invoice: MoneyInvoice
     ) -> dict[str, Any]:
         """
         Validate that migration preserved all important data.
@@ -256,31 +265,37 @@ class BatchMigrationService:
         money_total_cents = int(money_invoice.total_amount.amount * 100)
 
         if legacy_total_cents != money_total_cents:
-            issues.append({
-                "field": "total_amount",
-                "legacy": legacy_total_cents,
-                "money": money_total_cents,
-                "difference": money_total_cents - legacy_total_cents
-            })
+            issues.append(
+                {
+                    "field": "total_amount",
+                    "legacy": legacy_total_cents,
+                    "money": money_total_cents,
+                    "difference": money_total_cents - legacy_total_cents,
+                }
+            )
 
         # Check line items count
         if len(legacy_invoice.line_items) != len(money_invoice.line_items):
-            issues.append({
-                "field": "line_items_count",
-                "legacy": len(legacy_invoice.line_items),
-                "money": len(money_invoice.line_items)
-            })
+            issues.append(
+                {
+                    "field": "line_items_count",
+                    "legacy": len(legacy_invoice.line_items),
+                    "money": len(money_invoice.line_items),
+                }
+            )
 
         # Check customer data preserved
         if legacy_invoice.customer_id != money_invoice.customer_id:
-            issues.append({
-                "field": "customer_id",
-                "legacy": legacy_invoice.customer_id,
-                "money": money_invoice.customer_id
-            })
+            issues.append(
+                {
+                    "field": "customer_id",
+                    "legacy": legacy_invoice.customer_id,
+                    "money": money_invoice.customer_id,
+                }
+            )
 
         return {
             "valid": len(issues) == 0,
             "issues": issues,
-            "invoice_number": legacy_invoice.invoice_number
+            "invoice_number": legacy_invoice.invoice_number,
         }

@@ -4,12 +4,12 @@ Subscription models for billing system.
 Simple subscription plans and customer subscriptions with clear lifecycle management.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.billing.models import BillingBaseModel
 
@@ -25,13 +25,13 @@ class BillingCycle(str, Enum):
 class SubscriptionStatus(str, Enum):
     """Subscription status values."""
 
-    INCOMPLETE = "incomplete"          # Payment method setup pending
-    TRIALING = "trialing"             # In trial period
-    ACTIVE = "active"                 # Active subscription
-    PAST_DUE = "past_due"            # Payment failed, retrying
-    CANCELED = "canceled"             # Canceled, still active until period end
-    ENDED = "ended"                   # Fully terminated
-    PAUSED = "paused"                # Temporarily suspended
+    INCOMPLETE = "incomplete"  # Payment method setup pending
+    TRIALING = "trialing"  # In trial period
+    ACTIVE = "active"  # Active subscription
+    PAST_DUE = "past_due"  # Payment failed, retrying
+    CANCELED = "canceled"  # Canceled, still active until period end
+    ENDED = "ended"  # Fully terminated
+    PAUSED = "paused"  # Temporarily suspended
 
 
 class SubscriptionEventType(str, Enum):
@@ -54,8 +54,8 @@ class SubscriptionEventType(str, Enum):
 class ProrationBehavior(str, Enum):
     """How to handle mid-cycle plan changes."""
 
-    NONE = "none"                     # No proration, change at next cycle
-    CREATE_PRORATIONS = "prorate"     # Create prorated charges/credits
+    NONE = "none"  # No proration, change at next cycle
+    CREATE_PRORATIONS = "prorate"  # Create prorated charges/credits
 
 
 class SubscriptionPlan(BillingBaseModel):
@@ -66,32 +66,30 @@ class SubscriptionPlan(BillingBaseModel):
 
     # Plan details
     name: str = Field(description="Plan name", max_length=255)
-    description: Optional[str] = Field(None, description="Plan description")
+    description: str | None = Field(None, description="Plan description")
 
     # Billing configuration
     billing_cycle: BillingCycle = Field(description="How often to bill")
     price: Decimal = Field(description="Plan price in minor units")
     currency: str = Field(default="USD", description="Price currency", max_length=3)
-    setup_fee: Optional[Decimal] = Field(None, description="One-time setup fee")
+    setup_fee: Decimal | None = Field(None, description="One-time setup fee")
 
     # Trial configuration
-    trial_days: Optional[int] = Field(None, description="Free trial period days")
+    trial_days: int | None = Field(None, description="Free trial period days")
 
     # Usage allowances for hybrid plans
-    included_usage: Dict[str, int] = Field(
-        default_factory=dict,
-        description="Included usage quotas (e.g., {'api_calls': 1000})"
+    included_usage: dict[str, int] = Field(
+        default_factory=dict, description="Included usage quotas (e.g., {'api_calls': 1000})"
     )
-    overage_rates: Dict[str, Decimal] = Field(
-        default_factory=dict,
-        description="Per-unit overage pricing (e.g., {'api_calls': '0.01'})"
+    overage_rates: dict[str, Decimal] = Field(
+        default_factory=dict, description="Per-unit overage pricing (e.g., {'api_calls': '0.01'})"
     )
 
     # Plan status
     is_active: bool = Field(default=True, description="Plan is available for signup")
 
     # Flexible metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
     model_config = ConfigDict(
         json_encoders={
@@ -102,7 +100,7 @@ class SubscriptionPlan(BillingBaseModel):
 
     @field_validator("price", "setup_fee")
     @classmethod
-    def validate_prices(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def validate_prices(cls, v: Decimal | None) -> Decimal | None:
         """Ensure prices are non-negative."""
         if v is not None and v < 0:
             raise ValueError("Price cannot be negative")
@@ -110,7 +108,7 @@ class SubscriptionPlan(BillingBaseModel):
 
     @field_validator("trial_days")
     @classmethod
-    def validate_trial_days(cls, v: Optional[int]) -> Optional[int]:
+    def validate_trial_days(cls, v: int | None) -> int | None:
         """Ensure trial days is reasonable."""
         if v is not None and (v < 0 or v > 365):
             raise ValueError("Trial days must be between 0 and 365")
@@ -144,27 +142,23 @@ class Subscription(BillingBaseModel):
     status: SubscriptionStatus = Field(description="Current subscription status")
 
     # Trial information
-    trial_end: Optional[datetime] = Field(None, description="Trial period end")
+    trial_end: datetime | None = Field(None, description="Trial period end")
 
     # Cancellation handling
     cancel_at_period_end: bool = Field(default=False, description="Cancel at current period end")
-    canceled_at: Optional[datetime] = Field(None, description="When subscription was canceled")
-    ended_at: Optional[datetime] = Field(None, description="When subscription fully ended")
+    canceled_at: datetime | None = Field(None, description="When subscription was canceled")
+    ended_at: datetime | None = Field(None, description="When subscription fully ended")
 
     # Pricing overrides
-    custom_price: Optional[Decimal] = Field(
-        None,
-        description="Customer-specific pricing override"
-    )
+    custom_price: Decimal | None = Field(None, description="Customer-specific pricing override")
 
     # Usage tracking for hybrid plans
-    usage_records: Dict[str, int] = Field(
-        default_factory=dict,
-        description="Current period usage tracking"
+    usage_records: dict[str, int] = Field(
+        default_factory=dict, description="Current period usage tracking"
     )
 
     # Flexible metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
     model_config = ConfigDict(
         json_encoders={
@@ -181,13 +175,13 @@ class Subscription(BillingBaseModel):
         """Check if subscription is in trial period."""
         if not self.trial_end:
             return False
-        return datetime.now(timezone.utc) < self.trial_end
+        return datetime.now(UTC) < self.trial_end
 
     def days_until_renewal(self) -> int:
         """Get days until next renewal."""
         if not self.is_active():
             return 0
-        delta = self.current_period_end - datetime.now(timezone.utc)
+        delta = self.current_period_end - datetime.now(UTC)
         return max(0, delta.days)
 
     def is_past_due(self) -> bool:
@@ -202,13 +196,10 @@ class SubscriptionEvent(BillingBaseModel):
     subscription_id: str = Field(description="Related subscription")
 
     event_type: SubscriptionEventType = Field(description="Type of event")
-    event_data: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Event-specific data"
-    )
+    event_data: dict[str, Any] = Field(default_factory=dict, description="Event-specific data")
 
     # User who triggered event (optional for system events)
-    user_id: Optional[str] = Field(None, description="User who triggered event")
+    user_id: str | None = Field(None, description="User who triggered event")
 
     model_config = ConfigDict(
         json_encoders={
@@ -219,24 +210,25 @@ class SubscriptionEvent(BillingBaseModel):
 
 # Request/Response Models
 
+
 class SubscriptionPlanCreateRequest(BaseModel):
     """Request model for creating subscription plans."""
 
     product_id: str = Field(description="Associated product ID")
     name: str = Field(description="Plan name", max_length=255)
-    description: Optional[str] = Field(None, description="Plan description")
+    description: str | None = Field(None, description="Plan description")
     billing_cycle: BillingCycle = Field(description="Billing frequency")
     price: Decimal = Field(description="Plan price in minor units")
     currency: str = Field(default="USD", max_length=3)
-    setup_fee: Optional[Decimal] = Field(None, description="One-time setup fee")
-    trial_days: Optional[int] = Field(None, description="Trial period days")
-    included_usage: Dict[str, int] = Field(default_factory=dict)
-    overage_rates: Dict[str, Decimal] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    setup_fee: Decimal | None = Field(None, description="One-time setup fee")
+    trial_days: int | None = Field(None, description="Trial period days")
+    included_usage: dict[str, int] = Field(default_factory=dict)
+    overage_rates: dict[str, Decimal] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("price", "setup_fee")
     @classmethod
-    def validate_prices(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def validate_prices(cls, v: Decimal | None) -> Decimal | None:
         """Ensure prices are non-negative."""
         if v is not None and v < 0:
             raise ValueError("Price cannot be negative")
@@ -248,14 +240,14 @@ class SubscriptionCreateRequest(BaseModel):
 
     customer_id: str = Field(description="Customer ID")
     plan_id: str = Field(description="Subscription plan ID")
-    start_date: Optional[datetime] = Field(None, description="Subscription start date")
-    custom_price: Optional[Decimal] = Field(None, description="Customer-specific pricing")
-    trial_end_override: Optional[datetime] = Field(None, description="Override trial end date")
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    start_date: datetime | None = Field(None, description="Subscription start date")
+    custom_price: Decimal | None = Field(None, description="Customer-specific pricing")
+    trial_end_override: datetime | None = Field(None, description="Override trial end date")
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("custom_price")
     @classmethod
-    def validate_custom_price(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def validate_custom_price(cls, v: Decimal | None) -> Decimal | None:
         """Ensure custom price is non-negative."""
         if v is not None and v < 0:
             raise ValueError("Custom price cannot be negative")
@@ -265,12 +257,12 @@ class SubscriptionCreateRequest(BaseModel):
 class SubscriptionUpdateRequest(BaseModel):
     """Request model for updating subscriptions."""
 
-    custom_price: Optional[Decimal] = Field(None, description="Update custom pricing")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Update metadata")
+    custom_price: Decimal | None = Field(None, description="Update custom pricing")
+    metadata: dict[str, Any] | None = Field(None, description="Update metadata")
 
     @field_validator("custom_price")
     @classmethod
-    def validate_custom_price(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def validate_custom_price(cls, v: Decimal | None) -> Decimal | None:
         """Ensure custom price is non-negative."""
         if v is not None and v < 0:
             raise ValueError("Custom price cannot be negative")
@@ -282,12 +274,10 @@ class SubscriptionPlanChangeRequest(BaseModel):
 
     new_plan_id: str = Field(description="New plan to switch to")
     proration_behavior: ProrationBehavior = Field(
-        default=ProrationBehavior.CREATE_PRORATIONS,
-        description="How to handle proration"
+        default=ProrationBehavior.CREATE_PRORATIONS, description="How to handle proration"
     )
-    effective_date: Optional[datetime] = Field(
-        None,
-        description="When to make the change (default: immediate)"
+    effective_date: datetime | None = Field(
+        None, description="When to make the change (default: immediate)"
     )
 
 
@@ -297,10 +287,7 @@ class UsageRecordRequest(BaseModel):
     subscription_id: str = Field(description="Subscription ID")
     usage_type: str = Field(description="Type of usage (api_calls, storage_gb, etc.)")
     quantity: int = Field(description="Usage quantity", ge=0)
-    timestamp: Optional[datetime] = Field(
-        None,
-        description="Usage timestamp (default: now)"
-    )
+    timestamp: datetime | None = Field(None, description="Usage timestamp (default: now)")
 
 
 class SubscriptionResponse(BaseModel):
@@ -313,15 +300,15 @@ class SubscriptionResponse(BaseModel):
     current_period_start: datetime
     current_period_end: datetime
     status: SubscriptionStatus
-    trial_end: Optional[datetime]
+    trial_end: datetime | None
     cancel_at_period_end: bool
-    canceled_at: Optional[datetime]
-    ended_at: Optional[datetime]
-    custom_price: Optional[Decimal]
-    usage_records: Dict[str, int]
-    metadata: Dict[str, Any]
+    canceled_at: datetime | None
+    ended_at: datetime | None
+    custom_price: Decimal | None
+    usage_records: dict[str, int]
+    metadata: dict[str, Any]
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: datetime | None
 
     # Computed fields
     is_in_trial: bool
@@ -342,18 +329,18 @@ class SubscriptionPlanResponse(BaseModel):
     tenant_id: str
     product_id: str
     name: str
-    description: Optional[str]
+    description: str | None
     billing_cycle: BillingCycle
     price: Decimal
     currency: str
-    setup_fee: Optional[Decimal]
-    trial_days: Optional[int]
-    included_usage: Dict[str, int]
-    overage_rates: Dict[str, Decimal]
+    setup_fee: Decimal | None
+    trial_days: int | None
+    included_usage: dict[str, int]
+    overage_rates: dict[str, Decimal]
     is_active: bool
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: datetime | None
 
     model_config = ConfigDict(
         json_encoders={
@@ -366,7 +353,9 @@ class SubscriptionPlanResponse(BaseModel):
 class ProrationResult(BaseModel):
     """Result of proration calculation."""
 
-    proration_amount: Decimal = Field(description="Proration amount (positive = charge, negative = credit)")
+    proration_amount: Decimal = Field(
+        description="Proration amount (positive = charge, negative = credit)"
+    )
     proration_description: str = Field(description="Human-readable description")
     old_plan_unused_amount: Decimal = Field(description="Unused amount from old plan")
     new_plan_prorated_amount: Decimal = Field(description="Prorated amount for new plan")

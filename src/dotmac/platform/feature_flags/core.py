@@ -7,7 +7,8 @@ Supports simple on/off flags, context-based evaluation, and A/B testing.
 
 import json
 import time
-from typing import Any, Callable, Dict, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import redis.asyncio as redis
 import structlog
@@ -19,17 +20,19 @@ logger = structlog.get_logger(__name__)
 
 # In-memory cache for fast lookups
 _flag_cache = TTLCache(maxsize=1000, ttl=60)  # 1 minute TTL
-_redis_client: Optional[redis.Redis] = None
+_redis_client: redis.Redis | None = None
 _redis_available = None  # Cache Redis availability check
 
 
 class FeatureFlagError(Exception):
     """Feature flag specific errors."""
+
     pass
 
 
 class RedisUnavailableError(FeatureFlagError):
     """Redis is not available for feature flags."""
+
     pass
 
 
@@ -42,7 +45,7 @@ async def _check_redis_availability() -> bool:
 
     try:
         # Get Redis URL from settings
-        redis_url = getattr(settings.redis, 'redis_url', None)
+        redis_url = getattr(settings.redis, "redis_url", None)
         if not redis_url:
             logger.warning("Redis URL not configured, feature flags will use in-memory fallback")
             _redis_available = False
@@ -58,12 +61,14 @@ async def _check_redis_availability() -> bool:
         return True
 
     except Exception as e:
-        logger.warning("Redis not available, feature flags will use in-memory fallback", error=str(e))
+        logger.warning(
+            "Redis not available, feature flags will use in-memory fallback", error=str(e)
+        )
         _redis_available = False
         return False
 
 
-async def get_redis_client() -> Optional[redis.Redis]:
+async def get_redis_client() -> redis.Redis | None:
     """Get Redis client for flags, returns None if Redis unavailable."""
     global _redis_client
 
@@ -87,7 +92,7 @@ async def get_redis_client() -> Optional[redis.Redis]:
     return _redis_client
 
 
-async def set_flag(name: str, enabled: bool, context: Optional[Dict[str, Any]] = None) -> None:
+async def set_flag(name: str, enabled: bool, context: dict[str, Any] | None = None) -> None:
     """Set feature flag value."""
     flag_data = {"enabled": enabled, "context": context or {}, "updated_at": int(time.time())}
 
@@ -101,12 +106,16 @@ async def set_flag(name: str, enabled: bool, context: Optional[Dict[str, Any]] =
             await client.hset("feature_flags", name, json.dumps(flag_data))  # type: ignore[misc]
             logger.info("Feature flag updated in Redis and cache", flag=name, enabled=enabled)
         except Exception as e:
-            logger.warning("Failed to persist flag to Redis, using cache only", flag=name, error=str(e))
+            logger.warning(
+                "Failed to persist flag to Redis, using cache only", flag=name, error=str(e)
+            )
     else:
-        logger.info("Feature flag updated in cache only (Redis unavailable)", flag=name, enabled=enabled)
+        logger.info(
+            "Feature flag updated in cache only (Redis unavailable)", flag=name, enabled=enabled
+        )
 
 
-async def is_enabled(name: str, context: Optional[Dict[str, Any]] = None) -> bool:
+async def is_enabled(name: str, context: dict[str, Any] | None = None) -> bool:
     """Check if feature flag is enabled."""
     # Check cache first
     if name in _flag_cache:
@@ -123,7 +132,9 @@ async def is_enabled(name: str, context: Optional[Dict[str, Any]] = None) -> boo
                     flag_data = json.loads(flag_json)
                     _flag_cache[name] = flag_data
             except Exception as e:
-                logger.warning("Failed to get flag from Redis, checking cache only", flag=name, error=str(e))
+                logger.warning(
+                    "Failed to get flag from Redis, checking cache only", flag=name, error=str(e)
+                )
 
         # If not found in Redis or Redis unavailable, check if we have a default
         if not flag_data:
@@ -145,7 +156,7 @@ async def is_enabled(name: str, context: Optional[Dict[str, Any]] = None) -> boo
     return enabled
 
 
-async def get_variant(name: str, context: Optional[Dict[str, Any]] = None) -> str:
+async def get_variant(name: str, context: dict[str, Any] | None = None) -> str:
     """Get A/B test variant. Returns 'control' if flag disabled."""
     if not await is_enabled(name, context):
         return "control"
@@ -158,7 +169,7 @@ async def get_variant(name: str, context: Optional[Dict[str, Any]] = None) -> st
     return "control"
 
 
-async def list_flags() -> Dict[str, Dict[str, Any]]:
+async def list_flags() -> dict[str, dict[str, Any]]:
     """List all feature flags."""
     result = {}
 
@@ -188,7 +199,9 @@ async def list_flags() -> Dict[str, Dict[str, Any]]:
         except Exception as e:
             logger.warning("Failed to list flags from Redis, returning cache only", error=str(e))
 
-    logger.debug("Listed feature flags", count=len(result), source="Redis+Cache" if client else "Cache")
+    logger.debug(
+        "Listed feature flags", count=len(result), source="Redis+Cache" if client else "Cache"
+    )
     return result
 
 
@@ -213,21 +226,26 @@ async def delete_flag(name: str) -> bool:
 
     success = deleted_from_redis or deleted_from_cache
     if success:
-        logger.info("Feature flag deleted", flag=name, from_redis=deleted_from_redis, from_cache=deleted_from_cache)
+        logger.info(
+            "Feature flag deleted",
+            flag=name,
+            from_redis=deleted_from_redis,
+            from_cache=deleted_from_cache,
+        )
     else:
         logger.warning("Feature flag not found for deletion", flag=name)
 
     return success
 
 
-async def get_flag_status() -> Dict[str, Any]:
+async def get_flag_status() -> dict[str, Any]:
     """Get feature flag system status."""
     redis_available = await _check_redis_availability()
     cache_size = len(_flag_cache)
 
     status = {
         "redis_available": redis_available,
-        "redis_url": getattr(settings.redis, 'redis_url', None) if redis_available else None,
+        "redis_url": getattr(settings.redis, "redis_url", None) if redis_available else None,
         "cache_size": cache_size,
         "cache_maxsize": _flag_cache.maxsize,
         "cache_ttl": _flag_cache.ttl,

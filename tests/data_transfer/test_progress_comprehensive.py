@@ -493,7 +493,9 @@ class TestProgressTracker:
         """Test cleanup operation."""
         store = FileProgressStore(temp_dir / "progress")
         checkpoint_store = CheckpointStore(temp_dir / "checkpoints")
-        tracker = ProgressTracker(operation_id="test-op", store=store, checkpoint_store=checkpoint_store)
+        tracker = ProgressTracker(
+            operation_id="test-op", store=store, checkpoint_store=checkpoint_store
+        )
 
         # Save some data first
         await tracker.save()
@@ -834,6 +836,7 @@ class TestIntegration:
         # Update progress concurrently
         update_tasks = []
         for i, tracker in enumerate(operations):
+
             async def update_progress(t, op_id):
                 for j in range(10):
                     t.update(processed=10)

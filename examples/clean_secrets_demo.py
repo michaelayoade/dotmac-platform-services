@@ -6,6 +6,7 @@ This demonstrates why the factory pattern with protocols is better
 than backward compatibility aliases.
 """
 
+
 def demonstrate_old_confusing_approach():
     """Show the problems with the alias approach."""
     print("❌ OLD CONFUSING APPROACH (with aliases)")

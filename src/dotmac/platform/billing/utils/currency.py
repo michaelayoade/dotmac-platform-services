@@ -2,8 +2,7 @@
 Currency utilities for billing
 """
 
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from decimal import ROUND_HALF_UP, Decimal
 
 from dotmac.platform.billing.config import get_billing_config
 
@@ -16,16 +15,16 @@ class CurrencyFormatter:
 
     def format_amount(self, amount: int, include_symbol: bool = True) -> str:
         """Format amount from minor units to display string"""
-        
+
         if self.config.use_minor_units:
             # Convert from minor units (cents) to major units (dollars)
-            decimal_amount = Decimal(amount) / (10 ** self.config.currency_decimal_places)
+            decimal_amount = Decimal(amount) / (10**self.config.currency_decimal_places)
         else:
             decimal_amount = Decimal(amount)
-        
+
         # Format with proper decimal places
         formatted = f"{decimal_amount:.{self.config.currency_decimal_places}f}"
-        
+
         if include_symbol:
             # Apply currency format
             return self.config.currency_format.format(
@@ -38,41 +37,41 @@ class CurrencyFormatter:
 
     def parse_amount(self, amount_str: str) -> int:
         """Parse display amount to minor units"""
-        
+
         # Remove currency symbol and whitespace
         clean_str = amount_str.replace(self.config.currency_symbol, "").strip()
         clean_str = clean_str.replace(",", "")  # Remove thousands separator
-        
+
         # Convert to Decimal
         decimal_amount = Decimal(clean_str)
-        
+
         if self.config.use_minor_units:
             # Convert to minor units
-            minor_units = decimal_amount * (10 ** self.config.currency_decimal_places)
+            minor_units = decimal_amount * (10**self.config.currency_decimal_places)
             return int(minor_units.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         else:
             return int(decimal_amount)
 
     def convert_to_minor_units(self, major_amount: Decimal) -> int:
         """Convert major currency units to minor units"""
-        
+
         if self.config.use_minor_units:
-            minor_units = major_amount * (10 ** self.config.currency_decimal_places)
+            minor_units = major_amount * (10**self.config.currency_decimal_places)
             return int(minor_units.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         else:
             return int(major_amount)
 
     def convert_to_major_units(self, minor_amount: int) -> Decimal:
         """Convert minor currency units to major units"""
-        
+
         if self.config.use_minor_units:
-            return Decimal(minor_amount) / (10 ** self.config.currency_decimal_places)
+            return Decimal(minor_amount) / (10**self.config.currency_decimal_places)
         else:
             return Decimal(minor_amount)
 
     def get_currency_info(self) -> dict:
         """Get currency configuration information"""
-        
+
         return {
             "currency_code": self.config.default_currency,
             "currency_symbol": self.config.currency_symbol,
@@ -83,20 +82,20 @@ class CurrencyFormatter:
 
     def validate_amount(self, amount: int) -> bool:
         """Validate that amount is valid for the currency"""
-        
+
         # Check if amount is non-negative
         if amount < 0:
             return False
-        
+
         # Check if amount exceeds reasonable limits
         # Max: 999,999,999.99 in major units = 99,999,999,999 in minor units
         max_amount = 99_999_999_999 if self.config.use_minor_units else 999_999_999
-        
+
         return amount <= max_amount
 
 
 # Global formatter instance
-_currency_formatter: Optional[CurrencyFormatter] = None
+_currency_formatter: CurrencyFormatter | None = None
 
 
 def get_currency_formatter() -> CurrencyFormatter:

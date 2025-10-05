@@ -16,55 +16,52 @@ Integrated with DotMac platform services.
 from dotmac.platform.billing.catalog.models import (
     Product,
     ProductCategory,
-    ProductType,
-    UsageType,
-    TaxClass,
-    ProductCreateRequest,
-    ProductUpdateRequest,
     ProductCategoryCreateRequest,
+    ProductCategoryResponse,
+    ProductCreateRequest,
     ProductFilters,
     ProductResponse,
-    ProductCategoryResponse,
+    ProductType,
+    ProductUpdateRequest,
+    TaxClass,
+    UsageType,
 )
-
 from dotmac.platform.billing.catalog.service import ProductService
-
-from dotmac.platform.billing.exceptions import (
-    BillingError,
-    ProductError,
-    ProductNotFoundError,
-    CategoryNotFoundError,
-    SubscriptionError,
-    SubscriptionNotFoundError,
-    PlanNotFoundError,
-    PricingError,
-    InvalidPricingRuleError,
-    UsageTrackingError,
-    BillingConfigurationError,
-)
-
-from dotmac.platform.billing.models import (
-    BillingBaseModel,
-    BillingSQLModel,
-    BillingProductTable,
-    BillingProductCategoryTable,
-    BillingSubscriptionPlanTable,
-    BillingSubscriptionTable,
-    BillingSubscriptionEventTable,
-    BillingPricingRuleTable,
-    BillingRuleUsageTable,
-)
 
 # Import core models for tests
 from dotmac.platform.billing.core.models import (
+    Customer,
     Invoice,
+    InvoiceItem,
     InvoiceLineItem,
     Payment,
-    Customer,
-    Subscription,
-    Product,
     Price,
-    InvoiceItem,
+    Product,
+    Subscription,
+)
+from dotmac.platform.billing.exceptions import (
+    BillingConfigurationError,
+    BillingError,
+    CategoryNotFoundError,
+    InvalidPricingRuleError,
+    PlanNotFoundError,
+    PricingError,
+    ProductError,
+    ProductNotFoundError,
+    SubscriptionError,
+    SubscriptionNotFoundError,
+    UsageTrackingError,
+)
+from dotmac.platform.billing.models import (
+    BillingBaseModel,
+    BillingPricingRuleTable,
+    BillingProductCategoryTable,
+    BillingProductTable,
+    BillingRuleUsageTable,
+    BillingSQLModel,
+    BillingSubscriptionEventTable,
+    BillingSubscriptionPlanTable,
+    BillingSubscriptionTable,
 )
 
 __all__ = [
@@ -81,7 +78,6 @@ __all__ = [
     "ProductResponse",
     "ProductCategoryResponse",
     "ProductService",
-
     # Core billing models
     "Invoice",
     "InvoiceLineItem",
@@ -90,7 +86,6 @@ __all__ = [
     "Customer",
     "Subscription",
     "Price",
-
     # Exceptions
     "BillingError",
     "ProductError",
@@ -103,7 +98,6 @@ __all__ = [
     "InvalidPricingRuleError",
     "UsageTrackingError",
     "BillingConfigurationError",
-
     # Database models
     "BillingBaseModel",
     "BillingSQLModel",
@@ -114,7 +108,6 @@ __all__ = [
     "BillingSubscriptionEventTable",
     "BillingPricingRuleTable",
     "BillingRuleUsageTable",
-
     # Money-aware models and utilities
     "MoneyInvoice",
     "MoneyInvoiceLineItem",
@@ -129,8 +122,8 @@ __all__ = [
 ]
 
 # Import Money modules for convenience
-from dotmac.platform.billing.money_models import MoneyInvoice, MoneyInvoiceLineItem, MoneyField
-from dotmac.platform.billing.money_utils import money_handler, create_money, format_money
-from dotmac.platform.billing.money_migration import InvoiceMigrationAdapter, BatchMigrationService
 from dotmac.platform.billing.invoicing.money_service import MoneyInvoiceService
+from dotmac.platform.billing.money_migration import BatchMigrationService, InvoiceMigrationAdapter
+from dotmac.platform.billing.money_models import MoneyField, MoneyInvoice, MoneyInvoiceLineItem
+from dotmac.platform.billing.money_utils import create_money, format_money, money_handler
 from dotmac.platform.billing.pdf_generator_reportlab import ReportLabInvoiceGenerator

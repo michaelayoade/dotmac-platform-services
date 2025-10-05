@@ -74,8 +74,8 @@ const DynamicField = ({
   onToggleSecret: (key: string) => void;
   error?: string;
 }) => {
-  const baseInputClasses = `w-full px-3 py-2 bg-slate-800 border rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-    error ? 'border-rose-500' : 'border-slate-700'
+  const baseInputClasses = `w-full px-3 py-2 bg-accent border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+    error ? 'border-rose-500' : 'border-border'
   }`;
 
   const renderField = () => {
@@ -111,7 +111,7 @@ const DynamicField = ({
             <button
               type="button"
               onClick={() => onToggleSecret(field.key)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showSecrets[field.key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -125,9 +125,9 @@ const DynamicField = ({
               type="checkbox"
               checked={(value as boolean) || false}
               onChange={(e) => onChange(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-sky-500"
+              className="h-4 w-4 rounded border-border bg-accent text-sky-500 focus:ring-sky-500"
             />
-            <span className="text-sm text-slate-300">{field.description || 'Enable this option'}</span>
+            <span className="text-sm text-muted-foreground">{field.description || 'Enable this option'}</span>
           </label>
         );
 
@@ -244,7 +244,7 @@ const DynamicField = ({
               className={`${baseInputClasses} pr-10`}
               required={field.required}
             />
-            <Calendar className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Calendar className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         );
 
@@ -258,7 +258,7 @@ const DynamicField = ({
               className={`${baseInputClasses} pr-10`}
               required={field.required}
             />
-            <Clock className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Clock className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         );
 
@@ -282,17 +282,17 @@ const DynamicField = ({
               />
               <label
                 htmlFor={`file-${field.key}`}
-                className={`${baseInputClasses} cursor-pointer flex items-center gap-2 hover:bg-slate-700`}
+                className={`${baseInputClasses} cursor-pointer flex items-center gap-2 hover:bg-muted`}
               >
                 <Upload className="h-4 w-4" />
                 {value ? 'File selected' : 'Choose file...'}
               </label>
             </div>
-            {value && (
-              <div className="text-xs text-slate-400 truncate">
-                {(value as string).slice(0, 50)}...
+            {value && typeof value === 'string' ? (
+              <div className="text-xs text-muted-foreground truncate">
+                {value.slice(0, 50)}...
               </div>
-            )}
+            ) : null}
           </div>
         );
 
@@ -312,20 +312,20 @@ const DynamicField = ({
 
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-slate-300">
+      <label className="block text-sm font-medium text-muted-foreground">
         {field.label}
         {field.required && <span className="text-rose-400 ml-1">*</span>}
         {field.is_secret && <span className="text-amber-400 ml-1 text-xs">(Secret)</span>}
       </label>
       {field.description && field.type !== 'boolean' && (
-        <p className="text-xs text-slate-500">{field.description}</p>
+        <p className="text-xs text-foreground0">{field.description}</p>
       )}
       {renderField()}
       {error && (
         <p className="text-xs text-rose-400">{error}</p>
       )}
       {field.validation_rules && field.validation_rules.length > 0 && (
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-foreground0">
           <ul className="list-disc list-inside space-y-0.5">
             {field.validation_rules.map((rule, index) => (
               <li key={index}>{rule}</li>
@@ -519,16 +519,16 @@ export const PluginForm = ({
   }, {} as Record<string, FieldSpec[]>) || {};
 
   return (
-    <div className="fixed inset-0 bg-slate-900/75 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-900 border border-slate-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-card/75 flex items-center justify-center p-4 z-50">
+      <div className="bg-card border border-border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <h2 className="text-xl font-semibold text-slate-100">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">
             {instance ? 'Edit Plugin Configuration' : 'Add New Plugin Instance'}
           </h2>
           <button
             onClick={onCancel}
-            className="text-slate-400 hover:text-slate-200 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -540,7 +540,7 @@ export const PluginForm = ({
             {/* Plugin Selection */}
             {!instance && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-300">
+                <label className="block text-sm font-medium text-muted-foreground">
                   Plugin <span className="text-rose-400">*</span>
                 </label>
                 <select
@@ -550,7 +550,7 @@ export const PluginForm = ({
                     setSelectedPlugin(plugin || null);
                     setConfiguration({});
                   }}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 >
                   <option value="">Select a plugin...</option>
@@ -566,7 +566,7 @@ export const PluginForm = ({
 
             {/* Instance Name */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-muted-foreground">
                 Instance Name <span className="text-rose-400">*</span>
               </label>
               <input
@@ -574,7 +574,7 @@ export const PluginForm = ({
                 value={instanceName}
                 onChange={(e) => setInstanceName(e.target.value)}
                 placeholder="My Plugin Instance"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3 py-2 bg-accent border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
                 disabled={!!instance}
               />
@@ -583,10 +583,10 @@ export const PluginForm = ({
 
             {/* Plugin Information */}
             {selectedPlugin && (
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <h3 className="font-medium text-slate-100 mb-2">{selectedPlugin.name}</h3>
-                <p className="text-sm text-slate-400 mb-2">{selectedPlugin.description}</p>
-                <div className="flex items-center gap-4 text-xs text-slate-500">
+              <div className="bg-accent/50 rounded-lg p-4">
+                <h3 className="font-medium text-foreground mb-2">{selectedPlugin.name}</h3>
+                <p className="text-sm text-muted-foreground mb-2">{selectedPlugin.description}</p>
+                <div className="flex items-center gap-4 text-xs text-foreground0">
                   <span>Version: {selectedPlugin.version}</span>
                   {selectedPlugin.author && <span>By: {selectedPlugin.author}</span>}
                   <span>Type: {selectedPlugin.type}</span>
@@ -594,7 +594,7 @@ export const PluginForm = ({
                 {selectedPlugin.tags && (
                   <div className="flex items-center gap-1 mt-2">
                     {selectedPlugin.tags.map(tag => (
-                      <span key={tag} className="px-2 py-0.5 bg-slate-700 text-xs rounded-full">
+                      <span key={tag} className="px-2 py-0.5 bg-muted text-xs rounded-full">
                         {tag}
                       </span>
                     ))}
@@ -606,11 +606,11 @@ export const PluginForm = ({
             {/* Configuration Fields */}
             {selectedPlugin && Object.keys(groupedFields).map(groupName => (
               <div key={groupName} className="space-y-4">
-                <h3 className="text-lg font-medium text-slate-100 border-b border-slate-800 pb-2">
+                <h3 className="text-lg font-medium text-foreground border-b border-border pb-2">
                   {groupName}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {groupedFields[groupName]
+                  {(groupedFields[groupName] || [])
                     .sort((a, b) => (a.order || 0) - (b.order || 0))
                     .map(field => (
                     <div key={field.key} className={field.type === 'json' ? 'md:col-span-2' : ''}>
@@ -662,11 +662,11 @@ export const PluginForm = ({
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-slate-800 flex items-center justify-end gap-3">
+          <div className="p-6 border-t border-border flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-slate-400 hover:text-slate-200 transition-colors"
+              className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancel
             </button>
@@ -675,7 +675,7 @@ export const PluginForm = ({
                 type="button"
                 onClick={handleTestConnection}
                 disabled={testing}
-                className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 {testing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -688,7 +688,7 @@ export const PluginForm = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-muted text-white rounded-lg transition-colors flex items-center gap-2"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -11,10 +11,12 @@ from typing import Dict, Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+
 # Test module availability and imports
 try:
     from dotmac.platform.auth.core import UserInfo, JWTService
     from dotmac.platform.core.models import TenantContext
+
     HAS_AUTH_TENANT = True
 except ImportError:
     HAS_AUTH_TENANT = False
@@ -22,6 +24,7 @@ except ImportError:
 try:
     from dotmac.platform.secrets.factory import SecretsManager, SecretsManagerFactory
     from dotmac.platform.auth.core import JWTService
+
     HAS_SECRETS_AUTH = True
 except ImportError:
     HAS_SECRETS_AUTH = False
@@ -29,13 +32,15 @@ except ImportError:
 try:
     from dotmac.platform.data_transfer.factory import DataTransferFactory
     from dotmac.platform.file_storage.service import FileStorageService
+
     HAS_DATA_STORAGE = True
 except ImportError:
     HAS_DATA_STORAGE = False
 
 try:
     from dotmac.platform.analytics.otel_collector import create_otel_collector
-    from dotmac.platform.health_checks import HealthChecker
+    from dotmac.platform.monitoring.health_checks import HealthChecker
+
     HAS_ANALYTICS_MONITORING = True
 except ImportError:
     HAS_ANALYTICS_MONITORING = False
@@ -43,6 +48,7 @@ except ImportError:
 try:
     from dotmac.platform.communications.template_service import TemplateService
     from dotmac.platform.user_management.models import User
+
     HAS_COMMS_USER = True
 except ImportError:
     HAS_COMMS_USER = False
@@ -66,30 +72,23 @@ class TestAuthTenantIntegration:
         assert tenant_context.tenant_id == mock_user_info.tenant_id
 
         # Test that both models can work together
-        auth_and_tenant_data = {
-            "user": mock_user_info,
-            "tenant": tenant_context
-        }
+        auth_and_tenant_data = {"user": mock_user_info, "tenant": tenant_context}
         assert auth_and_tenant_data["user"].tenant_id == auth_and_tenant_data["tenant"].tenant_id
 
     @pytest.mark.skipif(not HAS_AUTH_TENANT, reason="Auth/Tenant modules not available")
     def test_jwt_service_with_tenant_claims(self, test_tenant_id):
         """Test JWT service can handle tenant-specific claims."""
-        jwt_service = JWTService(
-            algorithm="HS256",
-            secret="test-secret-key-for-integration-test"
-        )
+        jwt_service = JWTService(algorithm="HS256", secret="test-secret-key-for-integration-test")
 
         # Create token with tenant claims
-        claims = {
-            "sub": "user123",
-            "tenant_id": test_tenant_id,
-            "permissions": ["read", "write"]
-        }
+        claims = {"sub": "user123", "tenant_id": test_tenant_id, "permissions": ["read", "write"]}
 
         token = jwt_service.create_access_token(
             subject=claims["sub"],
-            additional_claims={"tenant_id": claims["tenant_id"], "permissions": claims["permissions"]}
+            additional_claims={
+                "tenant_id": claims["tenant_id"],
+                "permissions": claims["permissions"],
+            },
         )
         assert token is not None
 
@@ -103,18 +102,23 @@ class TestSecretsAuthIntegration:
     """Test integration between Secrets and Auth modules."""
 
     @pytest.mark.skipif(not HAS_SECRETS_AUTH, reason="Secrets/Auth modules not available")
+    @pytest.mark.asyncio
     async def test_jwt_service_with_secrets_manager(self):
         """Test JWT service can retrieve keys from secrets manager."""
         # Mock secrets manager
         mock_manager = Mock(spec=SecretsManager)
-        mock_manager.get_secret = Mock(return_value={
-            "private_key": "test-private-key",
-            "public_key": "test-public-key",
-            "algorithm": "RS256"
-        })
+        mock_manager.get_secret = Mock(
+            return_value={
+                "private_key": "test-private-key",
+                "public_key": "test-public-key",
+                "algorithm": "RS256",
+            }
+        )
 
         # Test JWT service initialization with secrets
-        with patch('dotmac.platform.secrets.factory.SecretsManagerFactory.create_secrets_manager') as mock_create:
+        with patch(
+            "dotmac.platform.secrets.factory.SecretsManagerFactory.create_secrets_manager"
+        ) as mock_create:
             mock_create.return_value = mock_manager
 
             # Create secrets manager and retrieve keys
@@ -127,7 +131,7 @@ class TestSecretsAuthIntegration:
     def test_auth_service_secrets_integration(self):
         """Test authentication services integrate with secrets management."""
         # Mock the secrets retrieval for JWT keys
-        with patch('dotmac.platform.auth.core.JWTService.__init__') as mock_jwt_init:
+        with patch("dotmac.platform.auth.core.JWTService.__init__") as mock_jwt_init:
             mock_jwt_init.return_value = None
 
             # Verify that JWT service would be initialized with secret keys
@@ -144,7 +148,7 @@ class TestDataTransferStorageIntegration:
     @pytest.mark.skipif(not HAS_DATA_STORAGE, reason="Data Transfer/Storage modules not available")
     def test_data_transfer_with_file_storage(self, mock_settings, transfer_config):
         """Test data transfer can work with file storage."""
-        with patch('dotmac.platform.data_transfer.factory.settings', mock_settings):
+        with patch("dotmac.platform.data_transfer.factory.settings", mock_settings):
             mock_settings.features.data_transfer_enabled = True
 
             # Create data transfer factory
@@ -153,7 +157,9 @@ class TestDataTransferStorageIntegration:
 
             # Mock file storage service
             mock_storage = AsyncMock()
-            mock_storage.upload = AsyncMock(return_value={"file_id": "123", "url": "https://example.com/file.csv"})
+            mock_storage.upload = AsyncMock(
+                return_value={"file_id": "123", "url": "https://example.com/file.csv"}
+            )
 
             # Test integration: data transfer processes file from storage
             file_info = {"file_id": "123", "path": "/tmp/test.csv"}
@@ -163,9 +169,10 @@ class TestDataTransferStorageIntegration:
             assert importer.config.batch_size == transfer_config.batch_size
 
     @pytest.mark.skipif(not HAS_DATA_STORAGE, reason="Data Transfer/Storage modules not available")
+    @pytest.mark.asyncio
     async def test_export_to_storage_integration(self, mock_settings):
         """Test exporting data and storing in file storage."""
-        with patch('dotmac.platform.data_transfer.factory.settings', mock_settings):
+        with patch("dotmac.platform.data_transfer.factory.settings", mock_settings):
             mock_settings.features.data_transfer_enabled = True
 
             # Create exporter
@@ -186,7 +193,9 @@ class TestDataTransferStorageIntegration:
 class TestAnalyticsMonitoringIntegration:
     """Test integration between Analytics and Monitoring modules."""
 
-    @pytest.mark.skipif(not HAS_ANALYTICS_MONITORING, reason="Analytics/Monitoring modules not available")
+    @pytest.mark.skipif(
+        not HAS_ANALYTICS_MONITORING, reason="Analytics/Monitoring modules not available"
+    )
     def test_health_check_with_analytics(self):
         """Test health checks can monitor analytics services."""
         health_checker = HealthChecker()
@@ -204,7 +213,10 @@ class TestAnalyticsMonitoringIntegration:
         health_result = analytics_health_check()
         assert health_result["status"] == "healthy"
 
-    @pytest.mark.skipif(not HAS_ANALYTICS_MONITORING, reason="Analytics/Monitoring modules not available")
+    @pytest.mark.skipif(
+        not HAS_ANALYTICS_MONITORING, reason="Analytics/Monitoring modules not available"
+    )
+    @pytest.mark.asyncio
     async def test_monitoring_with_metrics_collection(self):
         """Test monitoring system collects metrics from analytics."""
         collector = create_otel_collector("test-tenant", "monitoring-service")
@@ -224,6 +236,7 @@ class TestCommunicationsUserIntegration:
     """Test integration between Communications and User Management modules."""
 
     @pytest.mark.skipif(not HAS_COMMS_USER, reason="Communications/User modules not available")
+    @pytest.mark.asyncio
     async def test_template_service_with_user_data(self):
         """Test template service can render templates with user data."""
         # Mock user data
@@ -232,7 +245,7 @@ class TestCommunicationsUserIntegration:
             "username": "testuser",
             "email": "test@example.com",
             "first_name": "Test",
-            "last_name": "User"
+            "last_name": "User",
         }
 
         # Mock template service
@@ -254,7 +267,7 @@ class TestCommunicationsUserIntegration:
             "user_id": "user123",
             "type": "welcome",
             "template": "user_welcome",
-            "data": {"username": "newuser", "email": "new@example.com"}
+            "data": {"username": "newuser", "email": "new@example.com"},
         }
 
         # Mock communications service
@@ -288,14 +301,15 @@ class TestEndToEndIntegration:
             "user_id": mock_user_info.user_id,
             "tenant_id": tenant_context["tenant_id"],
             "action": "read",
-            "allowed": has_permission
+            "allowed": has_permission,
         }
 
         assert resource_access["allowed"] is True
 
+    @pytest.mark.asyncio
     async def test_data_processing_workflow(self, mock_settings):
         """Test data processing workflow across modules."""
-        with patch('dotmac.platform.data_transfer.factory.settings', mock_settings):
+        with patch("dotmac.platform.data_transfer.factory.settings", mock_settings):
             mock_settings.features.data_transfer_enabled = True
 
             # 1. Data ingestion (Data Transfer module)
@@ -314,10 +328,9 @@ class TestEndToEndIntegration:
             mock_analytics.track_event = Mock()
 
             # Track data processing event
-            mock_analytics.track_event("data_imported", {
-                "file_size": file_info["size"],
-                "format": "csv"
-            })
+            mock_analytics.track_event(
+                "data_imported", {"file_size": file_info["size"], "format": "csv"}
+            )
             mock_analytics.track_event.assert_called_once()
 
     def test_error_handling_integration(self):
@@ -327,7 +340,7 @@ class TestEndToEndIntegration:
             "auth_error": "Authentication failed",
             "storage_error": "File not found",
             "data_error": "Invalid format",
-            "tenant_error": "Tenant not found"
+            "tenant_error": "Tenant not found",
         }
 
         # Test error propagation and handling
@@ -335,7 +348,7 @@ class TestEndToEndIntegration:
             error_context = {
                 "type": error_type,
                 "message": error_message,
-                "timestamp": "2024-01-15T12:00:00Z"
+                "timestamp": "2024-01-15T12:00:00Z",
             }
 
             # Verify error structure is consistent
@@ -376,7 +389,7 @@ class TestModuleDependencyHealth:
                 "user_id": str,
                 "tenant_id": str,
                 "permissions": list,
-                "roles": list
+                "roles": list,
             }
 
             # This tests that UserInfo model structure is consistent
@@ -393,10 +406,7 @@ class TestModuleDependencyHealth:
             "debug": True,
             "database": {"url": "sqlite:///:memory:"},
             "redis": {"url": "redis://localhost:6379"},
-            "features": {
-                "data_transfer_enabled": True,
-                "tracing_enabled": False
-            }
+            "features": {"data_transfer_enabled": True, "tracing_enabled": False},
         }
 
         # Verify configuration structure
@@ -404,8 +414,10 @@ class TestModuleDependencyHealth:
         assert "features" in shared_config
         assert isinstance(shared_config["features"], dict)
 
+    @pytest.mark.asyncio
     async def test_async_compatibility(self):
         """Test async/await compatibility across modules."""
+
         # Test that async operations work across module boundaries
         async def mock_async_operation():
             return {"status": "success", "data": "test"}
@@ -426,15 +438,11 @@ class TestModuleDependencyHealth:
 
 # Integration test fixtures and utilities
 
+
 @pytest.fixture
 def integration_config():
     """Configuration for integration tests."""
-    return {
-        "test_mode": True,
-        "timeout": 30,
-        "retry_count": 3,
-        "mock_external_services": True
-    }
+    return {"test_mode": True, "timeout": 30, "retry_count": 3, "mock_external_services": True}
 
 
 @pytest.fixture
@@ -444,11 +452,12 @@ def cross_module_mocks():
         "auth_service": Mock(),
         "storage_service": Mock(),
         "analytics_service": Mock(),
-        "communication_service": Mock()
+        "communication_service": Mock(),
     }
 
 
 # Test utilities for integration testing
+
 
 class IntegrationTestHelper:
     """Helper class for integration testing."""
@@ -461,7 +470,7 @@ class IntegrationTestHelper:
             "authorization",
             "resource_access",
             "data_processing",
-            "notification"
+            "notification",
         ]
 
         results = {}
@@ -479,12 +488,7 @@ class IntegrationTestHelper:
     @staticmethod
     def mock_external_dependencies() -> Dict[str, Mock]:
         """Create mocks for external dependencies."""
-        return {
-            "database": Mock(),
-            "redis": Mock(),
-            "file_system": Mock(),
-            "external_api": Mock()
-        }
+        return {"database": Mock(), "redis": Mock(), "file_system": Mock(), "external_api": Mock()}
 
 
 # Export helper for use in other test files
@@ -496,5 +500,5 @@ __all__ = [
     "TestCommunicationsUserIntegration",
     "TestEndToEndIntegration",
     "TestModuleDependencyHealth",
-    "IntegrationTestHelper"
+    "IntegrationTestHelper",
 ]

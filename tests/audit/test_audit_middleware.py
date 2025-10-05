@@ -11,6 +11,8 @@ from dotmac.platform.audit.middleware import (
     create_audit_aware_dependency,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture
 def mock_request():
@@ -39,7 +41,7 @@ class TestAuditContextMiddleware:
             "Authorization": "Bearer test-token-123",
         }
 
-        with patch('dotmac.platform.auth.core.jwt_service') as mock_jwt:
+        with patch("dotmac.platform.auth.core.jwt_service") as mock_jwt:
             mock_jwt.verify_token.return_value = {
                 "sub": "user123",
                 "username": "john.doe",
@@ -69,7 +71,7 @@ class TestAuditContextMiddleware:
             "X-API-Key": "test-api-key-123",
         }
 
-        with patch('dotmac.platform.auth.core.api_key_service') as mock_api:
+        with patch("dotmac.platform.auth.core.api_key_service") as mock_api:
             mock_api.verify_api_key = AsyncMock()
             mock_api.verify_api_key.return_value = {
                 "user_id": "api-user-456",
@@ -97,10 +99,10 @@ class TestAuditContextMiddleware:
             "Authorization": "Bearer invalid-token",
         }
 
-        with patch('dotmac.platform.auth.core.jwt_service') as mock_jwt:
+        with patch("dotmac.platform.auth.core.jwt_service") as mock_jwt:
             mock_jwt.verify_token.side_effect = Exception("Invalid token")
 
-            with patch('dotmac.platform.tenant.set_current_tenant_id'):
+            with patch("dotmac.platform.tenant.set_current_tenant_id"):
                 call_next = AsyncMock()
                 call_next.return_value = MagicMock()
 
@@ -118,7 +120,7 @@ class TestAuditContextMiddleware:
         """Test middleware with no authentication header."""
         mock_request.headers = {}
 
-        with patch('dotmac.platform.tenant.set_current_tenant_id'):
+        with patch("dotmac.platform.tenant.set_current_tenant_id"):
             call_next = AsyncMock()
             call_next.return_value = MagicMock()
 
@@ -137,11 +139,11 @@ class TestAuditContextMiddleware:
             "Authorization": "Bearer test-token",
         }
 
-        with patch('dotmac.platform.auth.core.jwt_service') as mock_jwt:
+        with patch("dotmac.platform.auth.core.jwt_service") as mock_jwt:
             # Simulate an error during token processing
             mock_jwt.verify_token.side_effect = Exception("Database error")
 
-            with patch('dotmac.platform.tenant.set_current_tenant_id'):
+            with patch("dotmac.platform.tenant.set_current_tenant_id"):
                 call_next = AsyncMock()
                 call_next.return_value = MagicMock()
 
@@ -158,13 +160,13 @@ class TestAuditContextMiddleware:
             "Authorization": "Bearer test-token-123",
         }
 
-        with patch('dotmac.platform.auth.core.jwt_service') as mock_jwt:
+        with patch("dotmac.platform.auth.core.jwt_service") as mock_jwt:
             mock_jwt.verify_token.return_value = {
                 "sub": "user123",
                 "tenant_id": "tenant456",
             }
 
-            with patch('dotmac.platform.tenant.set_current_tenant_id') as mock_set_tenant:
+            with patch("dotmac.platform.tenant.set_current_tenant_id") as mock_set_tenant:
                 call_next = AsyncMock()
                 call_next.return_value = MagicMock()
 
@@ -172,6 +174,28 @@ class TestAuditContextMiddleware:
 
                 # Verify tenant context was set
                 mock_set_tenant.assert_called_once_with("tenant456")
+                call_next.assert_called_once_with(mock_request)
+
+    @pytest.mark.asyncio
+    async def test_middleware_handles_api_key_exception(self, middleware, mock_request):
+        """Test middleware handles API key extraction exception gracefully."""
+        mock_request.headers = {
+            "X-API-Key": "test-api-key-123",
+        }
+
+        with patch("dotmac.platform.auth.core.api_key_service") as mock_api:
+            # Simulate exception during API key verification
+            mock_api.verify_api_key = AsyncMock()
+            mock_api.verify_api_key.side_effect = Exception("API key service error")
+
+            with patch("dotmac.platform.tenant.set_current_tenant_id"):
+                call_next = AsyncMock()
+                call_next.return_value = MagicMock()
+
+                # Should not raise exception - should handle gracefully
+                await middleware.dispatch(mock_request, call_next)
+
+                # Request should continue even with API key error
                 call_next.assert_called_once_with(mock_request)
 
 
@@ -212,7 +236,7 @@ class TestAuditAwareDependency:
         mock_request = MagicMock()
         mock_request.state = MagicMock()
 
-        with patch('dotmac.platform.tenant.set_current_tenant_id'):
+        with patch("dotmac.platform.tenant.set_current_tenant_id"):
             wrapper = create_audit_aware_dependency(None)
             result = await wrapper(mock_request, None)
 
@@ -221,3 +245,28 @@ class TestAuditAwareDependency:
 
             # Should return None
             assert result is None
+
+    @pytest.mark.asyncio
+    async def test_audit_aware_dependency_sets_tenant_context(self):
+        """Test dependency sets tenant context when tenant_id is present."""
+        mock_request = MagicMock()
+        mock_request.state = MagicMock()
+
+        mock_user_info = MagicMock()
+        mock_user_info.user_id = "user123"
+        mock_user_info.username = "john.doe"
+        mock_user_info.email = "john@example.com"
+        mock_user_info.tenant_id = "tenant789"  # Has tenant_id
+        mock_user_info.roles = ["admin"]
+
+        mock_dependency = MagicMock(return_value=mock_user_info)
+
+        with patch("dotmac.platform.tenant.set_current_tenant_id") as mock_set_tenant:
+            wrapper = create_audit_aware_dependency(mock_dependency)
+            result = await wrapper(mock_request, mock_user_info)
+
+            # Verify tenant context was set
+            mock_set_tenant.assert_called_once_with("tenant789")
+
+            # Should return the user info
+            assert result == mock_user_info

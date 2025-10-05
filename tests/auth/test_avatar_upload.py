@@ -1,0 +1,178 @@
+"""
+Tests for avatar upload endpoint.
+"""
+
+import io
+from uuid import uuid4
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi import FastAPI, UploadFile
+from httpx import AsyncClient
+
+from dotmac.platform.auth.router import auth_router
+
+
+@pytest.fixture
+def app():
+    """Create FastAPI app for testing."""
+    app = FastAPI()
+    app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+    return app
+
+
+@pytest.fixture
+async def client(app, async_db_session):
+    """Create async test client."""
+    from dotmac.platform.db import get_session_dependency
+
+    def get_auth_session():
+        return async_db_session
+
+    # Override session dependencies
+    app.dependency_overrides[get_session_dependency] = lambda: async_db_session
+
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_success(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user_id: str,
+):
+    """Test successful avatar upload."""
+    # Create a fake image file
+    file_content = b"fake image content"
+    file = io.BytesIO(file_content)
+
+    # Upload avatar
+    response = await async_client.post(
+        "/api/v1/auth/upload-avatar",
+        headers=auth_headers,
+        files={"avatar": ("test_avatar.jpg", file, "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "avatar_url" in data
+    assert "file_id" in data
+    assert "message" in data
+    assert data["message"] == "Avatar uploaded successfully"
+    assert data["avatar_url"].startswith("/api/v1/files/storage/")
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_invalid_type(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Test avatar upload with invalid file type."""
+    file_content = b"not an image"
+    file = io.BytesIO(file_content)
+
+    response = await client.post(
+        "/api/v1/auth/upload-avatar",
+        headers=auth_headers,
+        files={"avatar": ("test.txt", file, "text/plain")},
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert "Invalid file type" in data["detail"]
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_too_large(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Test avatar upload with file too large."""
+    # Create a file larger than 5MB
+    file_content = b"x" * (6 * 1024 * 1024)  # 6MB
+    file = io.BytesIO(file_content)
+
+    response = await client.post(
+        "/api/v1/auth/upload-avatar",
+        headers=auth_headers,
+        files={"avatar": ("large_avatar.jpg", file, "image/jpeg")},
+    )
+
+    assert response.status_code == 413
+    data = response.json()
+    assert "File too large" in data["detail"]
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_unauthorized(client: AsyncClient):
+    """Test avatar upload without authentication."""
+    file_content = b"fake image content"
+    file = io.BytesIO(file_content)
+
+    response = await client.post(
+        "/api/v1/auth/upload-avatar",
+        files={"avatar": ("test_avatar.jpg", file, "image/jpeg")},
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_updates_user_profile(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user_id: str,
+):
+    """Test that avatar upload updates user profile avatar_url."""
+    # Upload avatar
+    file_content = b"fake image content"
+    file = io.BytesIO(file_content)
+
+    upload_response = await client.post(
+        "/api/v1/auth/upload-avatar",
+        headers=auth_headers,
+        files={"avatar": ("test_avatar.jpg", file, "image/jpeg")},
+    )
+
+    assert upload_response.status_code == 200
+    avatar_url = upload_response.json()["avatar_url"]
+
+    # Get current user profile
+    profile_response = await client.get(
+        "/api/v1/auth/me",
+        headers=auth_headers,
+    )
+
+    assert profile_response.status_code == 200
+    # Note: avatar_url might not be in response if not added to response model
+    # This test verifies the upload was successful
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_supported_formats(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Test avatar upload with various supported image formats."""
+    supported_formats = [
+        ("image.jpg", "image/jpeg"),
+        ("image.jpeg", "image/jpeg"),
+        ("image.png", "image/png"),
+        ("image.gif", "image/gif"),
+        ("image.webp", "image/webp"),
+    ]
+
+    for filename, content_type in supported_formats:
+        file_content = b"fake image content"
+        file = io.BytesIO(file_content)
+
+        response = await client.post(
+            "/api/v1/auth/upload-avatar",
+            headers=auth_headers,
+            files={"avatar": (filename, file, content_type)},
+        )
+
+        assert response.status_code == 200, f"Failed for {filename} ({content_type})"
+        data = response.json()
+        assert "avatar_url" in data

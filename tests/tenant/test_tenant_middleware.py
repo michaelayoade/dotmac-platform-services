@@ -17,28 +17,20 @@ from dotmac.platform.tenant import (
 @pytest.fixture
 def single_tenant_config():
     """Create single-tenant configuration."""
-    return TenantConfiguration(
-        mode=TenantMode.SINGLE,
-        default_tenant_id="single-tenant-org"
-    )
+    return TenantConfiguration(mode=TenantMode.SINGLE, default_tenant_id="single-tenant-org")
 
 
 @pytest.fixture
 def multi_tenant_config():
     """Create multi-tenant configuration."""
-    return TenantConfiguration(
-        mode=TenantMode.MULTI,
-        default_tenant_id="default-org"
-    )
+    return TenantConfiguration(mode=TenantMode.MULTI, default_tenant_id="default-org")
 
 
 @pytest.fixture
 def multi_tenant_optional_config():
     """Create multi-tenant configuration with optional header."""
     return TenantConfiguration(
-        mode=TenantMode.MULTI,
-        default_tenant_id="default-org",
-        require_tenant_header=False
+        mode=TenantMode.MULTI, default_tenant_id="default-org", require_tenant_header=False
     )
 
 
@@ -48,6 +40,7 @@ def create_test_app(config: TenantConfiguration) -> TestClient:
     app.add_middleware(TenantMiddleware, config=config)
 
     @app.get("/test")
+    @pytest.mark.asyncio
     async def test_endpoint(request: Request):
         """Test endpoint that returns the tenant ID."""
         return {"tenant_id": getattr(request.state, "tenant_id", None)}
@@ -124,10 +117,7 @@ class TestMultiTenantMode:
         """Test that header takes precedence over query param."""
         client = create_test_app(multi_tenant_config)
 
-        response = client.get(
-            "/test?tenant_id=from-query",
-            headers={"X-Tenant-ID": "from-header"}
-        )
+        response = client.get("/test?tenant_id=from-query", headers={"X-Tenant-ID": "from-header"})
         assert response.status_code == 200
         assert response.json()["tenant_id"] == "from-header"
 
@@ -166,10 +156,7 @@ class TestCustomConfiguration:
 
     def test_custom_header_name(self):
         """Test custom header name configuration."""
-        config = TenantConfiguration(
-            mode=TenantMode.MULTI,
-            tenant_header_name="X-Organization-ID"
-        )
+        config = TenantConfiguration(mode=TenantMode.MULTI, tenant_header_name="X-Organization-ID")
         client = create_test_app(config)
 
         # Old header name shouldn't work
@@ -183,10 +170,7 @@ class TestCustomConfiguration:
 
     def test_custom_query_param(self):
         """Test custom query parameter name."""
-        config = TenantConfiguration(
-            mode=TenantMode.MULTI,
-            tenant_query_param="org_id"
-        )
+        config = TenantConfiguration(mode=TenantMode.MULTI, tenant_query_param="org_id")
         client = create_test_app(config)
 
         # Old query param shouldn't work

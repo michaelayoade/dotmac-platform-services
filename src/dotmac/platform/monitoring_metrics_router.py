@@ -4,18 +4,16 @@ Monitoring and Metrics Router.
 Provides endpoints for system observability, error monitoring, and performance metrics.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-import random
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
@@ -33,6 +31,7 @@ metrics_router = APIRouter(tags=["Metrics"])
 
 class ErrorRateResponse(BaseModel):
     """Error rate monitoring response."""
+
     rate: float
     total_requests: int
     error_count: int
@@ -55,14 +54,14 @@ async def get_error_rate(
         from dotmac.platform.audit.models import AuditActivity
 
         # Calculate time window
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         window_start = now - timedelta(minutes=window_minutes)
 
         # Query audit logs for errors
         error_query = select(func.count(AuditActivity.id)).where(
             and_(
                 AuditActivity.created_at >= window_start,
-                AuditActivity.severity.in_(['ERROR', 'CRITICAL'])
+                AuditActivity.severity.in_(["ERROR", "CRITICAL"]),
             )
         )
 
@@ -98,7 +97,7 @@ async def get_error_rate(
             total_requests=0,
             error_count=0,
             time_window=f"{window_minutes}m",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
 
@@ -109,6 +108,7 @@ async def get_error_rate(
 
 class LatencyMetrics(BaseModel):
     """API latency metrics response."""
+
     p50: float
     p95: float
     p99: float
@@ -123,24 +123,51 @@ class LatencyMetrics(BaseModel):
 async def get_latency_metrics(
     window_minutes: int = Query(default=60, description="Time window in minutes"),
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session_dependency),
 ) -> LatencyMetrics:
     """
     Get API latency metrics including percentiles.
 
-    Returns P50, P95, P99 latency measurements.
+    Returns P50, P95, P99 latency measurements from audit activities.
+    Note: Returns zeros if no latency data is available in metadata.
     """
     try:
-        # For now, return mock data
-        # In production, this would query actual request latency data
-        # from OpenTelemetry or similar monitoring system
+        from dotmac.platform.audit.models import AuditActivity
 
-        # Generate realistic mock latency data
-        p50 = random.uniform(30, 80)
-        p95 = random.uniform(100, 300)
-        p99 = random.uniform(300, 800)
-        average = random.uniform(50, 150)
-        max_latency = random.uniform(800, 1500)
-        min_latency = random.uniform(10, 30)
+        # Calculate time window
+        now = datetime.now(UTC)
+        window_start = now - timedelta(minutes=window_minutes)
+
+        # Query audit activities with duration in details
+        query = select(AuditActivity.details).where(
+            and_(
+                AuditActivity.created_at >= window_start,
+                AuditActivity.details.isnot(None),
+            )
+        )
+
+        result = await session.execute(query)
+        details_list = result.scalars().all()
+
+        # Extract duration values
+        durations = []
+        for details in details_list:
+            if details and isinstance(details, dict) and "duration" in details:
+                durations.append(float(details["duration"]))
+
+        if durations:
+            durations.sort()
+            count = len(durations)
+
+            p50 = durations[int(count * 0.50)]
+            p95 = durations[int(count * 0.95)]
+            p99 = durations[int(count * 0.99)] if count > 1 else durations[-1]
+            average = sum(durations) / count
+            max_latency = max(durations)
+            min_latency = min(durations)
+        else:
+            # No latency data available
+            p50 = p95 = p99 = average = max_latency = min_latency = 0.0
 
         return LatencyMetrics(
             p50=round(p50, 2),
@@ -150,7 +177,7 @@ async def get_latency_metrics(
             max=round(max_latency, 2),
             min=round(min_latency, 2),
             time_window=f"{window_minutes}m",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=now.isoformat(),
         )
 
     except Exception as e:
@@ -163,12 +190,13 @@ async def get_latency_metrics(
             max=0.0,
             min=0.0,
             time_window=f"{window_minutes}m",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
 
 class ResourceMetrics(BaseModel):
     """System resource metrics response."""
+
     cpu: float
     memory: float
     disk: float
@@ -182,29 +210,37 @@ async def get_resource_metrics(
     current_user: UserInfo = Depends(get_current_user),
 ) -> ResourceMetrics:
     """
-    Get system resource utilization metrics.
+    Get system resource utilization metrics using psutil.
 
-    Returns CPU, memory, disk, and network usage.
+    Returns real-time CPU, memory, disk, and network usage.
     """
     try:
-        # For now, return mock data
-        # In production, this would query actual system metrics
-        # from psutil or similar monitoring system
+        import psutil
 
-        # Generate realistic mock resource data
-        cpu = random.uniform(20, 80)
-        memory = random.uniform(40, 85)
-        disk = random.uniform(50, 75)
-        network_in = random.uniform(10, 100)
-        network_out = random.uniform(10, 100)
+        # Get CPU usage (1 second interval for accuracy)
+        cpu_percent = psutil.cpu_percent(interval=1)
+
+        # Get memory usage
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+
+        # Get disk usage for root partition
+        disk = psutil.disk_usage("/")
+        disk_percent = disk.percent
+
+        # Get network I/O counters
+        net_io = psutil.net_io_counters()
+        # Convert bytes to MB/s (approximate since we don't track time delta)
+        network_in_mb = net_io.bytes_recv / (1024 * 1024)
+        network_out_mb = net_io.bytes_sent / (1024 * 1024)
 
         return ResourceMetrics(
-            cpu=round(cpu, 2),
-            memory=round(memory, 2),
-            disk=round(disk, 2),
-            network_in=round(network_in, 2),
-            network_out=round(network_out, 2),
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            cpu=round(cpu_percent, 2),
+            memory=round(memory_percent, 2),
+            disk=round(disk_percent, 2),
+            network_in=round(network_in_mb, 2),
+            network_out=round(network_out_mb, 2),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     except Exception as e:
@@ -215,7 +251,7 @@ async def get_resource_metrics(
             disk=0.0,
             network_in=0.0,
             network_out=0.0,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
 

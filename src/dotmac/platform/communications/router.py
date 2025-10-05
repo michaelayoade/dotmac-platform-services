@@ -4,24 +4,28 @@ Communications router.
 FastAPI router for communications services.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.auth.dependencies import UserInfo, get_current_user_optional
+from dotmac.platform.db import get_async_db
 
 from .email_service import EmailMessage, EmailResponse, get_email_service
-from .task_service import get_task_service, queue_email, queue_bulk_emails
-from .template_service import (
-    RenderedTemplate, get_template_service,
-    create_template, render_template, quick_render
-)
 from .metrics_service import get_metrics_service
-from .models import CommunicationType, CommunicationStatus
-from dotmac.platform.db import get_async_db
-from dotmac.platform.auth.dependencies import get_current_user_optional, UserInfo
+from .models import CommunicationStatus, CommunicationType
+from .task_service import get_task_service, queue_bulk_emails, queue_email
+from .template_service import (
+    RenderedTemplate,
+    create_template,
+    get_template_service,
+    quick_render,
+    render_template,
+)
+
 # Clean implementation - no backward compatibility
 
 logger = structlog.get_logger(__name__)
@@ -32,20 +36,22 @@ router = APIRouter(tags=["Communications"])
 
 # === Email Endpoints ===
 
+
 class EmailRequest(BaseModel):
     """Email request model."""
-    to: List[EmailStr] = Field(..., description="Recipients")
+
+    to: list[EmailStr] = Field(..., description="Recipients")
     subject: str = Field(..., min_length=1, description="Subject")
-    text_body: Optional[str] = Field(None, description="Text body")
-    html_body: Optional[str] = Field(None, description="HTML body")
-    from_email: Optional[EmailStr] = Field(None, description="From email")
-    from_name: Optional[str] = Field(None, description="From name")
+    text_body: str | None = Field(None, description="Text body")
+    html_body: str | None = Field(None, description="HTML body")
+    from_email: EmailStr | None = Field(None, description="From email")
+    from_name: str | None = Field(None, description="From name")
 
 
 @router.post("/email/send", response_model=EmailResponse)
 async def send_email_endpoint(
     request: EmailRequest,
-    current_user: Optional[UserInfo] = Depends(get_current_user_optional),
+    current_user: UserInfo | None = Depends(get_current_user_optional),
 ):
     """Send a single email immediately."""
     try:
@@ -78,7 +84,7 @@ async def send_email_endpoint(
             text_body=request.text_body,
             html_body=request.html_body,
             from_email=request.from_email,
-            from_name=request.from_name
+            from_name=request.from_name,
         )
 
         response = await email_service.send_email(message)
@@ -88,11 +94,15 @@ async def send_email_endpoint(
             try:
                 async with get_async_db() as db:
                     metrics_service = get_metrics_service(db)
-                    status = CommunicationStatus.SENT if response.status == "sent" else CommunicationStatus.FAILED
+                    status = (
+                        CommunicationStatus.SENT
+                        if response.status == "sent"
+                        else CommunicationStatus.FAILED
+                    )
                     await metrics_service.update_communication_status(
                         communication_id=log_entry.id,
                         status=status,
-                        provider_message_id=response.id
+                        provider_message_id=response.id,
                     )
             except Exception as db_error:
                 logger.warning("Could not update communication status", error=str(db_error))
@@ -101,17 +111,14 @@ async def send_email_endpoint(
             "Email sent via API",
             message_id=response.id,
             recipients=len(request.to),
-            status=response.status
+            status=response.status,
         )
 
         return response
 
     except Exception as e:
         logger.error("Email send failed", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Email send failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Email send failed: {str(e)}")
 
 
 @router.post("/email/queue")
@@ -122,7 +129,7 @@ async def queue_email_endpoint(request: EmailRequest):
             to=request.to,
             subject=request.subject,
             text_body=request.text_body,
-            html_body=request.html_body
+            html_body=request.html_body,
         )
 
         logger.info("Email queued", task_id=task_id, recipients=len(request.to))
@@ -130,35 +137,35 @@ async def queue_email_endpoint(request: EmailRequest):
         return {
             "task_id": task_id,
             "status": "queued",
-            "message": "Email queued for background sending"
+            "message": "Email queued for background sending",
         }
 
     except Exception as e:
         logger.error("Email queue failed", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Email queue failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Email queue failed: {str(e)}")
 
 
 # === Template Endpoints ===
 
+
 class TemplateRequest(BaseModel):
     """Template creation request."""
+
     name: str = Field(..., min_length=1, description="Template name")
     subject_template: str = Field(..., description="Subject template")
-    text_template: Optional[str] = Field(None, description="Text template")
-    html_template: Optional[str] = Field(None, description="HTML template")
+    text_template: str | None = Field(None, description="Text template")
+    html_template: str | None = Field(None, description="HTML template")
 
 
 class TemplateResponse(BaseModel):
     """Template response."""
+
     id: str
     name: str
     subject_template: str
-    text_template: Optional[str]
-    html_template: Optional[str]
-    variables: List[str]
+    text_template: str | None
+    html_template: str | None
+    variables: list[str]
     created_at: datetime
 
 
@@ -170,7 +177,7 @@ async def create_template_endpoint(request: TemplateRequest):
             name=request.name,
             subject_template=request.subject_template,
             text_template=request.text_template,
-            html_template=request.html_template
+            html_template=request.html_template,
         )
 
         return TemplateResponse(
@@ -180,18 +187,15 @@ async def create_template_endpoint(request: TemplateRequest):
             text_template=template.text_template,
             html_template=template.html_template,
             variables=template.variables,
-            created_at=template.created_at
+            created_at=template.created_at,
         )
 
     except Exception as e:
         logger.error("Template creation failed", error=str(e))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Template creation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Template creation failed: {str(e)}")
 
 
-@router.get("/templates", response_model=List[TemplateResponse])
+@router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates_endpoint():
     """List all templates."""
     try:
@@ -206,17 +210,14 @@ async def list_templates_endpoint():
                 text_template=template.text_template,
                 html_template=template.html_template,
                 variables=template.variables,
-                created_at=template.created_at
+                created_at=template.created_at,
             )
             for template in templates
         ]
 
     except Exception as e:
         logger.error("Template listing failed", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Template listing failed"
-        )
+        raise HTTPException(status_code=500, detail="Template listing failed")
 
 
 @router.get("/templates/{template_id}", response_model=TemplateResponse)
@@ -227,10 +228,7 @@ async def get_template_endpoint(template_id: str):
         template = service.get_template(template_id)
 
         if not template:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Template not found: {template_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
 
         return TemplateResponse(
             id=template.id,
@@ -239,23 +237,21 @@ async def get_template_endpoint(template_id: str):
             text_template=template.text_template,
             html_template=template.html_template,
             variables=template.variables,
-            created_at=template.created_at
+            created_at=template.created_at,
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Template get failed", template_id=template_id, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Template retrieval failed"
-        )
+        raise HTTPException(status_code=500, detail="Template retrieval failed")
 
 
 class RenderRequest(BaseModel):
     """Template render request."""
+
     template_id: str = Field(..., description="Template ID")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Template data")
+    data: dict[str, Any] = Field(default_factory=dict, description="Template data")
 
 
 @router.post("/templates/render", response_model=RenderedTemplate)
@@ -266,16 +262,10 @@ async def render_template_endpoint(request: RenderRequest):
         return result
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("Template render failed", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Template render failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Template render failed: {str(e)}")
 
 
 @router.delete("/templates/{template_id}")
@@ -286,10 +276,7 @@ async def delete_template_endpoint(template_id: str):
         deleted = service.delete_template(template_id)
 
         if not deleted:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Template not found: {template_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
 
         return {"message": "Template deleted successfully"}
 
@@ -297,18 +284,17 @@ async def delete_template_endpoint(template_id: str):
         raise
     except Exception as e:
         logger.error("Template deletion failed", template_id=template_id, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Template deletion failed"
-        )
+        raise HTTPException(status_code=500, detail="Template deletion failed")
 
 
 # === Bulk Email Endpoints ===
 
+
 class BulkEmailRequest(BaseModel):
     """Bulk email request."""
+
     job_name: str = Field(..., description="Job name")
-    messages: List[EmailRequest] = Field(..., description="Email messages to send")
+    messages: list[EmailRequest] = Field(..., description="Email messages to send")
 
 
 @router.post("/bulk-email/queue")
@@ -322,7 +308,7 @@ async def queue_bulk_email_job(request: BulkEmailRequest):
                 text_body=msg.text_body,
                 html_body=msg.html_body,
                 from_email=msg.from_email,
-                from_name=msg.from_name
+                from_name=msg.from_name,
             )
             for msg in request.messages
         ]
@@ -332,15 +318,12 @@ async def queue_bulk_email_job(request: BulkEmailRequest):
         return {
             "job_id": job_id,
             "status": "queued",
-            "message": f"Bulk email job queued with {len(messages)} messages"
+            "message": f"Bulk email job queued with {len(messages)} messages",
         }
 
     except Exception as e:
         logger.error("Bulk email queue failed", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Bulk email queue failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Bulk email queue failed: {str(e)}")
 
 
 @router.get("/bulk-email/status/{job_id}")
@@ -351,10 +334,7 @@ async def get_bulk_email_status(job_id: str):
         status = task_service.get_task_status(job_id)
 
         if status is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Job not found: {job_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
 
         return status
 
@@ -362,10 +342,7 @@ async def get_bulk_email_status(job_id: str):
         raise
     except Exception as e:
         logger.error("Bulk email status check failed", job_id=job_id, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Status check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
 
 @router.post("/bulk-email/cancel/{job_id}")
@@ -382,10 +359,7 @@ async def cancel_bulk_email_job(job_id: str):
 
     except Exception as e:
         logger.error("Bulk email cancel failed", job_id=job_id, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Cancel failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Cancel failed: {str(e)}")
 
 
 @router.get("/tasks/{task_id}")
@@ -399,16 +373,14 @@ async def get_task_status(task_id: str):
 
     except Exception as e:
         logger.error("Task status check failed", task_id=task_id, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Task status check failed"
-        )
+        raise HTTPException(status_code=500, detail="Task status check failed")
 
 
 # === Clean API - No Legacy Endpoints ===
 
 
 # === Health Check ===
+
 
 @router.get("/health")
 async def health_check():
@@ -418,33 +390,35 @@ async def health_check():
         service_status = {
             "email_service": "available",
             "task_service": "available",
-            "template_service": "available"
+            "template_service": "available",
         }
 
         return {
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "services": service_status,
-            "version": "simplified"
+            "version": "simplified",
         }
 
     except Exception as e:
         logger.error("Health check failed", error=str(e))
         return {
             "status": "unhealthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "error": str(e)
+            "timestamp": datetime.now(UTC).isoformat(),
+            "error": str(e),
         }
 
 
 # === Quick Utilities ===
 
+
 class QuickRenderRequest(BaseModel):
     """Quick template render request."""
+
     subject: str = Field(..., description="Subject template")
-    text_body: Optional[str] = Field(None, description="Text body template")
-    html_body: Optional[str] = Field(None, description="HTML body template")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Template data")
+    text_body: str | None = Field(None, description="Text body template")
+    html_body: str | None = Field(None, description="HTML body template")
+    data: dict[str, Any] = Field(default_factory=dict, description="Template data")
 
 
 @router.post("/quick-render")
@@ -455,44 +429,44 @@ async def quick_render_endpoint(request: QuickRenderRequest):
             subject=request.subject,
             text_body=request.text_body,
             html_body=request.html_body,
-            data=request.data
+            data=request.data,
         )
 
         return result
 
     except Exception as e:
         logger.error("Quick render failed", error=str(e))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Quick render failed: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Quick render failed: {str(e)}")
 
 
 # === Stats and Activity Endpoints ===
 
+
 class CommunicationStats(BaseModel):
     """Communication statistics model."""
+
     sent: int = Field(default=0, description="Total sent")
     delivered: int = Field(default=0, description="Total delivered")
     failed: int = Field(default=0, description="Total failed")
     pending: int = Field(default=0, description="Total pending")
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CommunicationActivity(BaseModel):
     """Communication activity model."""
+
     id: str = Field(..., description="Activity ID")
     type: str = Field(..., description="Communication type (email/webhook/sms)")
     recipient: str = Field(..., description="Recipient")
-    subject: Optional[str] = Field(None, description="Subject")
+    subject: str | None = Field(None, description="Subject")
     status: str = Field(..., description="Status (sent/delivered/failed/pending)")
     timestamp: datetime = Field(..., description="Activity timestamp")
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: dict[str, Any] | None = Field(default_factory=dict)
 
 
 @router.get("/stats", response_model=CommunicationStats)
 async def get_communication_stats(
-    current_user: Optional[UserInfo] = Depends(get_current_user_optional),
+    current_user: UserInfo | None = Depends(get_current_user_optional),
 ):
     """Get communication statistics."""
     try:
@@ -513,43 +487,35 @@ async def get_communication_stats(
                     sent=stats_data.get("sent", 0),
                     delivered=stats_data.get("delivered", 0),
                     failed=stats_data.get("failed", 0),
-                    pending=stats_data.get("pending", 0)
+                    pending=stats_data.get("pending", 0),
                 )
 
                 logger.info(
                     "Communication stats retrieved from database",
                     tenant_id=tenant_id,
-                    stats=stats_data
+                    stats=stats_data,
                 )
                 return stats
         except Exception as db_error:
             logger.warning("Database not available, returning mock stats", error=str(db_error))
 
         # Return mock data when database is not available
-        stats = CommunicationStats(
-            sent=1234,
-            delivered=1156,
-            failed=23,
-            pending=55
-        )
+        stats = CommunicationStats(sent=1234, delivered=1156, failed=23, pending=55)
 
         logger.info("Communication stats retrieved (mock data)")
         return stats
 
     except Exception as e:
         logger.error("Failed to get communication stats", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve communication statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve communication statistics")
 
 
-@router.get("/activity", response_model=List[CommunicationActivity])
+@router.get("/activity", response_model=list[CommunicationActivity])
 async def get_recent_activity(
     limit: int = 10,
     offset: int = 0,
-    type_filter: Optional[str] = None,
-    current_user: Optional[UserInfo] = Depends(get_current_user_optional),
+    type_filter: str | None = None,
+    current_user: UserInfo | None = Depends(get_current_user_optional),
 ):
     """Get recent communication activity."""
     try:
@@ -572,10 +538,7 @@ async def get_recent_activity(
 
                 # Fetch real activity from database
                 logs = await metrics_service.get_recent_activity(
-                    limit=limit,
-                    offset=offset,
-                    type_filter=comm_type,
-                    tenant_id=tenant_id
+                    limit=limit, offset=offset, type_filter=comm_type, tenant_id=tenant_id
                 )
 
                 # Convert to response models
@@ -586,8 +549,8 @@ async def get_recent_activity(
                         recipient=log.recipient,
                         subject=log.subject,
                         status=log.status.value,
-                        timestamp=log.created_at or datetime.now(timezone.utc),
-                        metadata=log.metadata_ or {}
+                        timestamp=log.created_at or datetime.now(UTC),
+                        metadata=log.metadata_ or {},
                     )
                     for log in logs
                 ]
@@ -595,7 +558,7 @@ async def get_recent_activity(
                 logger.info(
                     "Communication activity retrieved from database",
                     count=len(activities),
-                    tenant_id=tenant_id
+                    tenant_id=tenant_id,
                 )
                 return activities
         except Exception as db_error:
@@ -609,7 +572,7 @@ async def get_recent_activity(
                 recipient="user@example.com",
                 subject="Welcome to DotMac Platform",
                 status="delivered",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             CommunicationActivity(
                 id="act_2",
@@ -617,7 +580,7 @@ async def get_recent_activity(
                 recipient="https://api.example.com/webhook",
                 subject="User Registration Event",
                 status="sent",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             CommunicationActivity(
                 id="act_3",
@@ -625,7 +588,7 @@ async def get_recent_activity(
                 recipient="admin@example.com",
                 subject="Password Reset Request",
                 status="delivered",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             CommunicationActivity(
                 id="act_4",
@@ -633,8 +596,8 @@ async def get_recent_activity(
                 recipient="+1234567890",
                 subject="Verification Code: 123456",
                 status="pending",
-                timestamp=datetime.now(timezone.utc)
-            )
+                timestamp=datetime.now(UTC),
+            ),
         ]
 
         # Apply type filter if provided
@@ -642,14 +605,11 @@ async def get_recent_activity(
             activities = [a for a in activities if a.type == type_filter]
 
         # Apply pagination
-        activities = activities[offset:offset + limit]
+        activities = activities[offset : offset + limit]
 
         logger.info("Communication activity retrieved (mock data)", count=len(activities))
         return activities
 
     except Exception as e:
         logger.error("Failed to get communication activity", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve communication activity"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve communication activity")

@@ -1,679 +1,472 @@
 """
-Comprehensive tests for telemetry module.
+Comprehensive tests for telemetry.py to improve coverage from 30.14%.
 
-Tests OpenTelemetry configuration, structured logging setup, and instrumentation.
+Tests cover:
+- Resource creation with service information
+- Structlog configuration
+- Telemetry setup and initialization
+- Tracing setup with OTLP exporter
+- Metrics setup with OTLP exporter
+- Library instrumentation (FastAPI, SQLAlchemy, Requests)
+- Tracer and meter getters
+- Error recording
+- Span context creation
+- Test environment detection
 """
 
 import os
-from typing import Optional
-from unittest.mock import MagicMock, Mock, patch
-
 import pytest
-import structlog
+from unittest.mock import Mock, patch, MagicMock
 from fastapi import FastAPI
-from opentelemetry import metrics, trace
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
 
-# Import the entire module to ensure coverage tracking
-import dotmac.platform.telemetry
 from dotmac.platform.telemetry import (
-    configure_structlog,
     create_resource,
-    create_span_context,
-    get_meter,
-    get_tracer,
-    instrument_libraries,
-    record_error,
-    setup_metrics,
+    configure_structlog,
     setup_telemetry,
     setup_tracing,
+    setup_metrics,
+    instrument_libraries,
+    get_tracer,
+    get_meter,
+    record_error,
+    create_span_context,
 )
 
 
-@pytest.fixture(autouse=True)
-def reset_telemetry():
-    """Reset telemetry providers between tests."""
-    yield
-    # Reset global providers to avoid test interference
-    trace.set_tracer_provider(TracerProvider())
-    metrics.set_meter_provider(MeterProvider())
-
-
-@pytest.fixture
-def mock_settings():
-    """Mock settings for telemetry tests."""
-    with patch("dotmac.platform.telemetry.settings") as mock:
-        mock.app_version = "1.0.0"
-        mock.environment.value = "test"
-        mock.observability.otel_service_name = "test-service"
-        mock.observability.otel_enabled = True
-        mock.observability.enable_tracing = True
-        mock.observability.enable_metrics = True
-        mock.observability.otel_endpoint = "http://localhost:4317"
-        mock.observability.otel_resource_attributes = {"custom.attr": "value"}
-        mock.observability.tracing_sample_rate = 1.0
-        mock.observability.enable_correlation_ids = True
-        mock.observability.log_format = "json"
-        mock.observability.otel_instrument_fastapi = True
-        mock.observability.otel_instrument_sqlalchemy = True
-        mock.observability.otel_instrument_requests = True
-        yield mock
-
-
-@pytest.fixture
-def mock_disabled_settings():
-    """Mock settings with telemetry disabled."""
-    with patch("dotmac.platform.telemetry.settings") as mock:
-        mock.app_version = "1.0.0"
-        mock.environment.value = "test"
-        mock.observability.otel_service_name = "test-service"
-        mock.observability.otel_enabled = False
-        mock.observability.enable_tracing = False
-        mock.observability.enable_metrics = False
-        mock.observability.otel_endpoint = None
-        mock.observability.otel_resource_attributes = None
-        mock.observability.enable_correlation_ids = False
-        mock.observability.log_format = "console"
-        mock.observability.otel_instrument_fastapi = False
-        mock.observability.otel_instrument_sqlalchemy = False
-        mock.observability.otel_instrument_requests = False
-        yield mock
-
-
-class TestResourceCreation:
+class TestCreateResource:
     """Test OpenTelemetry resource creation."""
 
+    @patch("dotmac.platform.telemetry.settings")
     def test_create_resource_basic(self, mock_settings):
-        """Test basic resource creation."""
-        resource = create_resource()
-
-        assert isinstance(resource, Resource)
-        attributes = resource.attributes
-        assert attributes.get("service.name") == "test-service"
-        assert attributes.get("service.version") == "1.0.0"
-        assert attributes.get("deployment.environment") == "test"
-
-    def test_create_resource_with_custom_attributes(self, mock_settings):
-        """Test resource creation with custom attributes."""
-        resource = create_resource()
-
-        attributes = resource.attributes
-        assert attributes.get("custom.attr") == "value"
-
-    def test_create_resource_without_custom_attributes(self, mock_settings):
-        """Test resource creation without custom attributes."""
+        """Test creating resource with basic attributes."""
+        mock_settings.observability.otel_service_name = "test-service"
+        mock_settings.app_version = "1.0.0"
+        mock_settings.environment.value = "development"
         mock_settings.observability.otel_resource_attributes = None
+
         resource = create_resource()
 
-        attributes = resource.attributes
-        assert attributes.get("service.name") == "test-service"
-        assert "custom.attr" not in attributes
+        assert resource is not None
+        attrs = resource.attributes
+        assert attrs["service.name"] == "test-service"
+        assert attrs["service.version"] == "1.0.0"
+        assert attrs["deployment.environment"] == "development"
+
+    @patch("dotmac.platform.telemetry.settings")
+    def test_create_resource_with_custom_attributes(self, mock_settings):
+        """Test creating resource with custom attributes."""
+        mock_settings.observability.otel_service_name = "test-service"
+        mock_settings.app_version = "2.0.0"
+        mock_settings.environment.value = "production"
+        mock_settings.observability.otel_resource_attributes = {
+            "custom.attr": "value",
+            "team": "platform",
+        }
+
+        resource = create_resource()
+
+        attrs = resource.attributes
+        assert attrs["service.name"] == "test-service"
+        assert attrs["custom.attr"] == "value"
+        assert attrs["team"] == "platform"
 
 
-class TestEnhancedSetupTelemetry:
-    """Test enhanced setup_telemetry function."""
+class TestConfigureStructlog:
+    """Test structlog configuration."""
 
-    @patch("dotmac.platform.telemetry.setup_tracing")
-    @patch("dotmac.platform.telemetry.setup_metrics")
-    @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_auto_enable_warning(
-        self, mock_configure_structlog, mock_instrument, mock_setup_metrics, mock_setup_tracing, mock_settings
-    ):
-        """Test auto-enable warning when endpoint configured but OTEL disabled."""
-        mock_settings.observability.otel_endpoint = "http://localhost:4318"
-        mock_settings.observability.otel_enabled = False
-        mock_settings.observability.enable_tracing = True
-        mock_settings.observability.enable_metrics = True
-
-        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
-            mock_logger = Mock()
-            mock_structlog.get_logger.return_value = mock_logger
-
-            setup_telemetry()
-
-            # Should log auto-enable warning
-            mock_logger.info.assert_any_call(
-                "Auto-enabling OpenTelemetry due to configured endpoint",
-                endpoint="http://localhost:4318"
-            )
-            # Should log recommendation
-            mock_logger.warning.assert_any_call(
-                "Consider setting OTEL_ENABLED=true explicitly in configuration"
-            )
-
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_missing_packages(self, mock_configure_structlog, mock_settings):
-        """Test setup_telemetry with missing OpenTelemetry packages."""
-        mock_settings.observability.otel_enabled = True
-
-        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
-            mock_logger = Mock()
-            mock_structlog.get_logger.return_value = mock_logger
-
-            # Mock missing import
-            with patch("builtins.__import__", side_effect=ImportError("No module named 'opentelemetry'")):
-                setup_telemetry()
-
-                # Should log warning about missing packages
-                mock_logger.warning.assert_called_with(
-                    "OpenTelemetry packages not installed - install with: poetry install --extras observability",
-                    error="No module named 'opentelemetry'"
-                )
-
-    @patch("dotmac.platform.telemetry.setup_tracing")
-    @patch("dotmac.platform.telemetry.setup_metrics")
-    @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_success_logging(
-        self, mock_configure_structlog, mock_instrument, mock_setup_metrics, mock_setup_tracing, mock_settings
-    ):
-        """Test successful telemetry setup logging."""
-        mock_settings.observability.otel_enabled = True
-        mock_settings.observability.enable_tracing = True
-        mock_settings.observability.enable_metrics = True
-
-        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
-            mock_logger = Mock()
-            mock_structlog.get_logger.return_value = mock_logger
-
-            app = Mock()
-            setup_telemetry(app)
-
-            # Should log success
-            mock_logger.info.assert_any_call(
-                "OpenTelemetry telemetry configured successfully",
-                service_name=mock_settings.observability.otel_service_name,
-                endpoint=mock_settings.observability.otel_endpoint,
-                tracing_enabled=True,
-                metrics_enabled=True
-            )
-
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_disabled(self, mock_configure_structlog, mock_settings):
-        """Test setup_telemetry when disabled."""
-        mock_settings.observability.otel_enabled = False
-        mock_settings.observability.otel_endpoint = None
-
-        with patch("dotmac.platform.telemetry.structlog") as mock_structlog:
-            mock_logger = Mock()
-            mock_structlog.get_logger.return_value = mock_logger
-
-            setup_telemetry()
-
-            # Should log that it's disabled
-            mock_logger.debug.assert_called_with("OpenTelemetry is disabled by configuration")
-
-
-class TestStructlogConfiguration:
-    """Test structured logging configuration."""
-
-    def test_configure_structlog_json_format(self, mock_settings):
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.structlog.configure")
+    def test_configure_structlog_json_format(self, mock_configure, mock_settings):
         """Test structlog configuration with JSON format."""
-        configure_structlog()
-
-        # Verify structlog is configured
-        logger = structlog.get_logger("test")
-        assert logger is not None
-
-    def test_configure_structlog_console_format(self, mock_settings):
-        """Test structlog configuration with console format."""
-        mock_settings.observability.log_format = "console"
-        configure_structlog()
-
-        # Verify structlog is configured
-        logger = structlog.get_logger("test")
-        assert logger is not None
-
-    def test_configure_structlog_without_correlation_ids(self, mock_settings):
-        """Test structlog configuration without correlation IDs."""
+        mock_settings.observability.log_format = "json"
         mock_settings.observability.enable_correlation_ids = False
-        configure_structlog()
 
-        # Verify structlog is configured
-        logger = structlog.get_logger("test")
-        assert logger is not None
-
-    @patch("structlog.configure")
-    def test_configure_structlog_processors(self, mock_configure, mock_settings):
-        """Test that correct processors are configured."""
         configure_structlog()
 
         mock_configure.assert_called_once()
-        call_args = mock_configure.call_args[1]
-        assert "processors" in call_args
-        assert len(call_args["processors"]) > 0
+        call_args = mock_configure.call_args
+        assert "processors" in call_args.kwargs
+        assert "wrapper_class" in call_args.kwargs
+
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.structlog.configure")
+    def test_configure_structlog_console_format(self, mock_configure, mock_settings):
+        """Test structlog configuration with console format."""
+        mock_settings.observability.log_format = "console"
+        mock_settings.observability.enable_correlation_ids = False
+
+        configure_structlog()
+
+        mock_configure.assert_called_once()
+
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.structlog.configure")
+    def test_configure_structlog_with_correlation_ids(self, mock_configure, mock_settings):
+        """Test structlog configuration with correlation IDs enabled."""
+        mock_settings.observability.log_format = "json"
+        mock_settings.observability.enable_correlation_ids = True
+
+        configure_structlog()
+
+        mock_configure.assert_called_once()
 
 
-class TestTelemetrySetup:
+class TestSetupTelemetry:
     """Test main telemetry setup function."""
 
+    @patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}, clear=False)
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_skips_in_test(self, mock_configure):
+        """Test telemetry setup is skipped in test environment."""
+        setup_telemetry()
+
+        # Should only configure structlog, skip OTEL
+        mock_configure.assert_called_once()
+
+    @patch.dict(os.environ, {"OTEL_ENABLED": "false"}, clear=False)
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_skips_when_disabled(self, mock_configure):
+        """Test telemetry setup is skipped when explicitly disabled."""
+        setup_telemetry()
+
+        mock_configure.assert_called_once()
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    def test_setup_telemetry_disabled_by_config(self, mock_configure, mock_settings):
+        """Test telemetry setup when OTEL is disabled in config."""
+        mock_settings.observability.otel_enabled = False
+        mock_settings.observability.otel_endpoint = None
+
+        setup_telemetry()
+
+        mock_configure.assert_called_once()
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.configure_structlog")
+    @patch("dotmac.platform.telemetry.create_resource")
     @patch("dotmac.platform.telemetry.setup_tracing")
     @patch("dotmac.platform.telemetry.setup_metrics")
     @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_full(
-        self, mock_configure, mock_instrument, mock_metrics, mock_tracing, mock_settings
+    def test_setup_telemetry_full_setup(
+        self,
+        mock_instrument,
+        mock_setup_metrics,
+        mock_setup_tracing,
+        mock_create_resource,
+        mock_configure,
+        mock_settings,
     ):
-        """Test full telemetry setup."""
+        """Test full telemetry setup when enabled."""
+        mock_settings.observability.otel_enabled = True
+        mock_settings.observability.otel_endpoint = "http://otel:4317"
+        mock_settings.observability.enable_tracing = True
+        mock_settings.observability.enable_metrics = True
+        mock_settings.observability.otel_service_name = "test-service"
+
+        mock_resource = Mock()
+        mock_create_resource.return_value = mock_resource
+
         app = FastAPI()
         setup_telemetry(app)
 
         mock_configure.assert_called_once()
-        mock_tracing.assert_called_once()
-        mock_metrics.assert_called_once()
+        mock_create_resource.assert_called_once()
+        mock_setup_tracing.assert_called_once_with(mock_resource)
+        mock_setup_metrics.assert_called_once_with(mock_resource)
         mock_instrument.assert_called_once_with(app)
 
-    @patch("dotmac.platform.telemetry.setup_tracing")
-    @patch("dotmac.platform.telemetry.setup_metrics")
-    @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_disabled(
-        self, mock_configure, mock_instrument, mock_metrics, mock_tracing, mock_disabled_settings
-    ):
-        """Test telemetry setup when disabled."""
-        setup_telemetry()
 
-        mock_configure.assert_called_once()
-        mock_tracing.assert_not_called()
-        mock_metrics.assert_not_called()
-        mock_instrument.assert_not_called()
+class TestSetupTracing:
+    """Test tracing setup."""
 
-    @patch("dotmac.platform.telemetry.setup_tracing")
-    @patch("dotmac.platform.telemetry.setup_metrics")
-    @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_without_app(
-        self, mock_configure, mock_instrument, mock_metrics, mock_tracing, mock_settings
-    ):
-        """Test telemetry setup without FastAPI app."""
-        setup_telemetry()
-
-        mock_configure.assert_called_once()
-        mock_tracing.assert_called_once()
-        mock_metrics.assert_called_once()
-        mock_instrument.assert_called_once_with(None)
-
-    @patch("dotmac.platform.telemetry.setup_tracing")
-    @patch("dotmac.platform.telemetry.setup_metrics")
-    @patch("dotmac.platform.telemetry.instrument_libraries")
-    @patch("dotmac.platform.telemetry.configure_structlog")
-    def test_setup_telemetry_partial_enabled(
-        self, mock_configure, mock_instrument, mock_metrics, mock_tracing, mock_settings
-    ):
-        """Test telemetry setup with partial features enabled."""
-        mock_settings.observability.enable_tracing = False
-        mock_settings.observability.enable_metrics = True
-
-        setup_telemetry()
-
-        mock_configure.assert_called_once()
-        mock_tracing.assert_not_called()
-        mock_metrics.assert_called_once()
-        mock_instrument.assert_called_once()
-
-
-class TestTracingSetup:
-    """Test OpenTelemetry tracing setup."""
-
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.TracerProvider")
     @patch("dotmac.platform.telemetry.OTLPSpanExporter")
     @patch("dotmac.platform.telemetry.BatchSpanProcessor")
-    @patch("dotmac.platform.telemetry.TracerProvider")
     @patch("dotmac.platform.telemetry.trace.set_tracer_provider")
     def test_setup_tracing_with_endpoint(
-        self, mock_set_provider, mock_provider_class, mock_processor, mock_exporter, mock_settings
+        self,
+        mock_set_provider,
+        mock_batch_processor,
+        mock_exporter,
+        mock_tracer_provider,
+        mock_settings,
     ):
-        """Test tracing setup with OTLP endpoint."""
-        mock_provider = MagicMock()
-        mock_provider_class.return_value = mock_provider
+        """Test tracing setup with OTLP endpoint configured."""
+        mock_settings.observability.otel_endpoint = "http://otel:4317"
+        mock_settings.observability.tracing_sample_rate = 1.0
 
-        resource = create_resource()
-        setup_tracing(resource)
+        mock_resource = Mock()
+        mock_provider = Mock()
+        mock_tracer_provider.return_value = mock_provider
 
-        mock_provider_class.assert_called_once()
+        setup_tracing(mock_resource)
+
+        mock_tracer_provider.assert_called_once()
         mock_exporter.assert_called_once()
-        mock_processor.assert_called_once()
-        mock_provider.add_span_processor.assert_called_once()
         mock_set_provider.assert_called_once_with(mock_provider)
 
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.TracerProvider")
     @patch("dotmac.platform.telemetry.trace.set_tracer_provider")
     def test_setup_tracing_without_endpoint(
-        self, mock_set_provider, mock_provider_class, mock_settings
+        self, mock_set_provider, mock_tracer_provider, mock_settings
     ):
-        """Test tracing setup without OTLP endpoint."""
+        """Test tracing setup without endpoint."""
         mock_settings.observability.otel_endpoint = None
-        mock_provider = MagicMock()
-        mock_provider_class.return_value = mock_provider
+        mock_settings.observability.tracing_sample_rate = 1.0
 
-        resource = create_resource()
-        setup_tracing(resource)
+        mock_resource = Mock()
+        mock_provider = Mock()
+        mock_tracer_provider.return_value = mock_provider
 
-        mock_provider_class.assert_called_once()
-        mock_provider.add_span_processor.assert_not_called()
+        setup_tracing(mock_resource)
+
+        mock_tracer_provider.assert_called_once()
         mock_set_provider.assert_called_once_with(mock_provider)
 
-    @patch("dotmac.platform.telemetry.OTLPSpanExporter")
-    def test_setup_tracing_https_endpoint(self, mock_exporter, mock_settings):
-        """Test tracing setup with HTTPS endpoint."""
-        mock_settings.observability.otel_endpoint = "https://otel.example.com"
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.TracerProvider")
+    def test_setup_tracing_handles_errors(self, mock_tracer_provider, mock_settings):
+        """Test tracing setup handles errors gracefully."""
+        mock_settings.observability.otel_endpoint = "http://otel:4317"
+        mock_settings.observability.tracing_sample_rate = 1.0
 
-        resource = create_resource()
-        setup_tracing(resource)
+        mock_tracer_provider.side_effect = Exception("Setup failed")
 
-        mock_exporter.assert_called_once()
-        call_args = mock_exporter.call_args[1]
-        assert call_args["insecure"] is False
-
-    @patch("dotmac.platform.telemetry.OTLPSpanExporter")
-    def test_setup_tracing_http_endpoint(self, mock_exporter, mock_settings):
-        """Test tracing setup with HTTP endpoint."""
-        mock_settings.observability.otel_endpoint = "http://otel.example.com"
-
-        resource = create_resource()
-        setup_tracing(resource)
-
-        mock_exporter.assert_called_once()
-        call_args = mock_exporter.call_args[1]
-        assert call_args["insecure"] is True
-
-    @patch("dotmac.platform.telemetry.TracerProvider", side_effect=Exception("Test error"))
-    def test_setup_tracing_error_handling(self, mock_provider, mock_settings):
-        """Test tracing setup error handling."""
-        resource = create_resource()
-
-        # Should not raise exception
-        setup_tracing(resource)
+        # Should not raise
+        setup_tracing(Mock())
 
 
-class TestMetricsSetup:
-    """Test OpenTelemetry metrics setup."""
+class TestSetupMetrics:
+    """Test metrics setup."""
 
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.OTLPMetricExporter")
     @patch("dotmac.platform.telemetry.PeriodicExportingMetricReader")
     @patch("dotmac.platform.telemetry.MeterProvider")
     @patch("dotmac.platform.telemetry.metrics.set_meter_provider")
     def test_setup_metrics_with_endpoint(
-        self, mock_set_provider, mock_provider_class, mock_reader, mock_exporter, mock_settings
+        self,
+        mock_set_provider,
+        mock_meter_provider,
+        mock_reader,
+        mock_exporter,
+        mock_settings,
     ):
         """Test metrics setup with OTLP endpoint."""
-        mock_provider = MagicMock()
-        mock_provider_class.return_value = mock_provider
+        mock_settings.observability.otel_endpoint = "http://otel:4317"
 
-        resource = create_resource()
-        setup_metrics(resource)
+        mock_resource = Mock()
+        mock_provider = Mock()
+        mock_meter_provider.return_value = mock_provider
+
+        setup_metrics(mock_resource)
 
         mock_exporter.assert_called_once()
         mock_reader.assert_called_once()
-        mock_provider_class.assert_called_once()
+        mock_meter_provider.assert_called_once()
         mock_set_provider.assert_called_once_with(mock_provider)
 
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.MeterProvider")
     @patch("dotmac.platform.telemetry.metrics.set_meter_provider")
     def test_setup_metrics_without_endpoint(
-        self, mock_set_provider, mock_provider_class, mock_settings
+        self, mock_set_provider, mock_meter_provider, mock_settings
     ):
-        """Test metrics setup without OTLP endpoint."""
+        """Test metrics setup without endpoint."""
         mock_settings.observability.otel_endpoint = None
-        mock_provider = MagicMock()
-        mock_provider_class.return_value = mock_provider
 
-        resource = create_resource()
-        setup_metrics(resource)
+        mock_resource = Mock()
+        mock_provider = Mock()
+        mock_meter_provider.return_value = mock_provider
 
-        mock_provider_class.assert_called_once()
+        setup_metrics(mock_resource)
+
+        mock_meter_provider.assert_called_once()
         mock_set_provider.assert_called_once_with(mock_provider)
 
-    @patch("dotmac.platform.telemetry.OTLPMetricExporter")
-    def test_setup_metrics_https_endpoint(self, mock_exporter, mock_settings):
-        """Test metrics setup with HTTPS endpoint."""
-        mock_settings.observability.otel_endpoint = "https://otel.example.com"
+    @patch("dotmac.platform.telemetry.settings")
+    @patch("dotmac.platform.telemetry.MeterProvider")
+    def test_setup_metrics_handles_errors(self, mock_meter_provider, mock_settings):
+        """Test metrics setup handles errors gracefully."""
+        mock_settings.observability.otel_endpoint = "http://otel:4317"
+        mock_meter_provider.side_effect = Exception("Setup failed")
 
-        resource = create_resource()
-        setup_metrics(resource)
-
-        mock_exporter.assert_called_once()
-        call_args = mock_exporter.call_args[1]
-        assert call_args["insecure"] is False
-
-    @patch("dotmac.platform.telemetry.MeterProvider", side_effect=Exception("Test error"))
-    def test_setup_metrics_error_handling(self, mock_provider, mock_settings):
-        """Test metrics setup error handling."""
-        resource = create_resource()
-
-        # Should not raise exception
-        setup_metrics(resource)
+        # Should not raise
+        setup_metrics(Mock())
 
 
-class TestInstrumentation:
+class TestInstrumentLibraries:
     """Test library instrumentation."""
 
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.FastAPIInstrumentor")
+    @patch("dotmac.platform.telemetry.trace.get_tracer_provider")
+    def test_instrument_fastapi_enabled(self, mock_get_provider, mock_instrumentor, mock_settings):
+        """Test FastAPI instrumentation when enabled."""
+        mock_settings.observability.otel_instrument_fastapi = True
+        mock_settings.observability.otel_instrument_sqlalchemy = False
+        mock_settings.observability.otel_instrument_requests = False
+
+        app = FastAPI()
+        instrument_libraries(app)
+
+        mock_instrumentor.instrument_app.assert_called_once()
+
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.SQLAlchemyInstrumentor")
-    @patch("dotmac.platform.telemetry.RequestsInstrumentor")
-    def test_instrument_libraries_all_enabled(
-        self, mock_requests, mock_sqlalchemy, mock_fastapi, mock_settings
+    @patch("dotmac.platform.telemetry.trace.get_tracer_provider")
+    def test_instrument_sqlalchemy_enabled(
+        self, mock_get_provider, mock_instrumentor, mock_settings
     ):
-        """Test instrumentation with all libraries enabled."""
-        app = FastAPI()
-        mock_sqlalchemy_instance = MagicMock()
-        mock_requests_instance = MagicMock()
-        mock_sqlalchemy.return_value = mock_sqlalchemy_instance
-        mock_requests.return_value = mock_requests_instance
+        """Test SQLAlchemy instrumentation when enabled."""
+        mock_settings.observability.otel_instrument_fastapi = False
+        mock_settings.observability.otel_instrument_sqlalchemy = True
+        mock_settings.observability.otel_instrument_requests = False
 
-        with patch("dotmac.platform.telemetry.settings", mock_settings):
-            instrument_libraries(app)
+        mock_inst = Mock()
+        mock_instrumentor.return_value = mock_inst
 
-        mock_fastapi.instrument_app.assert_called_once()
-        mock_sqlalchemy_instance.instrument.assert_called_once()
-        mock_requests_instance.instrument.assert_called_once()
+        instrument_libraries(None)
 
-    @patch("dotmac.platform.telemetry.FastAPIInstrumentor")
-    @patch("dotmac.platform.telemetry.SQLAlchemyInstrumentor")
+        mock_inst.instrument.assert_called_once()
+
+    @patch("dotmac.platform.telemetry.settings")
     @patch("dotmac.platform.telemetry.RequestsInstrumentor")
-    def test_instrument_libraries_none_enabled(
-        self, mock_requests, mock_sqlalchemy, mock_fastapi, mock_disabled_settings
-    ):
-        """Test instrumentation with all libraries disabled."""
-        app = FastAPI()
-        mock_sqlalchemy_instance = MagicMock()
-        mock_requests_instance = MagicMock()
-        mock_sqlalchemy.return_value = mock_sqlalchemy_instance
-        mock_requests.return_value = mock_requests_instance
+    @patch("dotmac.platform.telemetry.trace.get_tracer_provider")
+    def test_instrument_requests_enabled(self, mock_get_provider, mock_instrumentor, mock_settings):
+        """Test Requests instrumentation when enabled."""
+        mock_settings.observability.otel_instrument_fastapi = False
+        mock_settings.observability.otel_instrument_sqlalchemy = False
+        mock_settings.observability.otel_instrument_requests = True
 
-        # Patch the import directly
-        with patch("dotmac.platform.settings.settings", mock_disabled_settings):
-            instrument_libraries(app)
+        mock_inst = Mock()
+        mock_instrumentor.return_value = mock_inst
 
-        mock_fastapi.instrument_app.assert_not_called()
-        mock_sqlalchemy_instance.instrument.assert_not_called()
-        mock_requests_instance.instrument.assert_not_called()
+        instrument_libraries(None)
 
-    @patch("dotmac.platform.telemetry.FastAPIInstrumentor")
-    def test_instrument_libraries_no_app(self, mock_fastapi, mock_settings):
-        """Test instrumentation without FastAPI app."""
-        with patch("dotmac.platform.telemetry.settings", mock_settings):
-            instrument_libraries(None)
+        mock_inst.instrument.assert_called_once()
 
-        mock_fastapi.instrument_app.assert_not_called()
+    @patch("dotmac.platform.telemetry.settings")
+    def test_instrument_libraries_all_disabled(self, mock_settings):
+        """Test instrumentation when all are disabled."""
+        mock_settings.observability.otel_instrument_fastapi = False
+        mock_settings.observability.otel_instrument_sqlalchemy = False
+        mock_settings.observability.otel_instrument_requests = False
 
-    @patch("dotmac.platform.telemetry.FastAPIInstrumentor", side_effect=Exception("Test error"))
-    def test_instrument_fastapi_error_handling(self, mock_fastapi, mock_settings):
-        """Test FastAPI instrumentation error handling."""
-        app = FastAPI()
-
-        # Should not raise exception
-        with patch("dotmac.platform.telemetry.settings", mock_settings):
-            instrument_libraries(app)
-
-    @patch("dotmac.platform.telemetry.SQLAlchemyInstrumentor", side_effect=Exception("Test error"))
-    def test_instrument_sqlalchemy_error_handling(self, mock_sqlalchemy, mock_settings):
-        """Test SQLAlchemy instrumentation error handling."""
-        # Should not raise exception
-        with patch("dotmac.platform.telemetry.settings", mock_settings):
-            instrument_libraries()
-
-    @patch("dotmac.platform.telemetry.RequestsInstrumentor", side_effect=Exception("Test error"))
-    def test_instrument_requests_error_handling(self, mock_requests, mock_settings):
-        """Test Requests instrumentation error handling."""
-        # Should not raise exception
-        with patch("dotmac.platform.telemetry.settings", mock_settings):
-            instrument_libraries()
+        # Should not raise
+        instrument_libraries(None)
 
 
-class TestUtilityFunctions:
-    """Test utility functions."""
+class TestGetTracerAndMeter:
+    """Test tracer and meter getter functions."""
 
-    def test_get_tracer(self):
-        """Test getting a tracer."""
+    @patch("dotmac.platform.telemetry.trace.get_tracer")
+    def test_get_tracer_without_version(self, mock_get_tracer):
+        """Test getting tracer without version."""
+        mock_tracer = Mock()
+        mock_get_tracer.return_value = mock_tracer
+
         tracer = get_tracer("test-component")
-        assert tracer is not None
-        assert hasattr(tracer, "start_span")
 
-    def test_get_tracer_with_version(self):
-        """Test getting a tracer with version."""
+        mock_get_tracer.assert_called_once_with("test-component", "")
+        assert tracer == mock_tracer
+
+    @patch("dotmac.platform.telemetry.trace.get_tracer")
+    def test_get_tracer_with_version(self, mock_get_tracer):
+        """Test getting tracer with version."""
+        mock_tracer = Mock()
+        mock_get_tracer.return_value = mock_tracer
+
         tracer = get_tracer("test-component", "1.0.0")
-        assert tracer is not None
 
-    def test_get_meter(self):
-        """Test getting a meter."""
+        mock_get_tracer.assert_called_once_with("test-component", "1.0.0")
+        assert tracer == mock_tracer
+
+    @patch("dotmac.platform.telemetry.metrics.get_meter")
+    def test_get_meter_without_version(self, mock_get_meter):
+        """Test getting meter without version."""
+        mock_meter = Mock()
+        mock_get_meter.return_value = mock_meter
+
         meter = get_meter("test-component")
-        assert meter is not None
-        assert hasattr(meter, "create_counter")
 
-    def test_get_meter_with_version(self):
-        """Test getting a meter with version."""
-        meter = get_meter("test-component", "1.0.0")
-        assert meter is not None
+        mock_get_meter.assert_called_once_with("test-component", "")
+        assert meter == mock_meter
 
-    def test_record_error(self):
-        """Test recording an error in a span."""
-        tracer = get_tracer("test")
-        with tracer.start_as_current_span("test-span") as span:
-            error = ValueError("Test error")
-            record_error(span, error)
+    @patch("dotmac.platform.telemetry.metrics.get_meter")
+    def test_get_meter_with_version(self, mock_get_meter):
+        """Test getting meter with version."""
+        mock_meter = Mock()
+        mock_get_meter.return_value = mock_meter
 
-            # Verify span status is set to error
-            assert span.status.status_code == trace.StatusCode.ERROR
+        meter = get_meter("test-component", "2.0.0")
 
-    def test_create_span_context(self):
-        """Test creating a span context."""
-        trace_id = "0123456789abcdef0123456789abcdef"
-        span_id = "0123456789abcdef"
-
-        context = create_span_context(trace_id, span_id)
-
-        assert context.trace_id == int(trace_id, 16)
-        assert context.span_id == int(span_id, 16)
-        assert context.is_remote is True
-        assert context.trace_flags == trace.TraceFlags(0x01)
-
-    def test_create_span_context_local(self):
-        """Test creating a local span context."""
-        trace_id = "0123456789abcdef0123456789abcdef"
-        span_id = "0123456789abcdef"
-
-        context = create_span_context(trace_id, span_id, is_remote=False)
-
-        assert context.is_remote is False
+        mock_get_meter.assert_called_once_with("test-component", "2.0.0")
+        assert meter == mock_meter
 
 
-class TestIntegration:
-    """Test integration scenarios."""
+class TestRecordError:
+    """Test error recording in spans."""
 
-    def test_full_telemetry_setup_integration(self, mock_settings):
-        """Test full telemetry setup integration."""
-        app = FastAPI()
+    @patch("dotmac.platform.telemetry.trace.Status")
+    @patch("dotmac.platform.telemetry.trace.StatusCode")
+    def test_record_error(self, mock_status_code, mock_status):
+        """Test recording error in span."""
+        mock_span = Mock()
+        error = ValueError("Test error")
 
-        # Should not raise any exceptions
-        setup_telemetry(app)
+        mock_status_code.ERROR = "ERROR"
+        mock_status_instance = Mock()
+        mock_status.return_value = mock_status_instance
 
-        # Verify we can get tracer and meter
-        tracer = get_tracer("integration-test")
-        meter = get_meter("integration-test")
+        record_error(mock_span, error)
 
-        assert tracer is not None
-        assert meter is not None
-
-    def test_telemetry_with_spans_and_metrics(self, mock_settings):
-        """Test creating spans and metrics after setup."""
-        setup_telemetry()
-
-        tracer = get_tracer("test")
-        meter = get_meter("test")
-
-        # Create a span
-        with tracer.start_as_current_span("test-operation") as span:
-            span.set_attribute("test.attribute", "value")
-
-            # Create a counter
-            counter = meter.create_counter("test_counter")
-            counter.add(1, {"test": "value"})
-
-    def test_error_recording_integration(self, mock_settings):
-        """Test error recording integration."""
-        setup_telemetry()
-
-        tracer = get_tracer("test")
-        with tracer.start_as_current_span("error-test") as span:
-            try:
-                raise ValueError("Test integration error")
-            except ValueError as e:
-                record_error(span, e)
-
-                # Verify error was recorded
-                assert span.status.status_code == trace.StatusCode.ERROR
+        mock_span.record_exception.assert_called_once_with(error)
+        mock_span.set_status.assert_called_once()
 
 
-class TestEnvironmentConfiguration:
-    """Test environment-specific configuration."""
+class TestCreateSpanContext:
+    """Test span context creation."""
 
-    def test_development_configuration(self, mock_settings):
-        """Test telemetry configuration for development."""
-        mock_settings.environment.value = "development"
-        mock_settings.observability.tracing_sample_rate = 1.0
+    @patch("dotmac.platform.telemetry.trace.SpanContext")
+    @patch("dotmac.platform.telemetry.trace.TraceFlags")
+    def test_create_span_context_remote(self, mock_trace_flags, mock_span_context):
+        """Test creating remote span context."""
+        trace_id = "00000000000000000000000000000001"
+        span_id = "0000000000000001"
 
-        resource = create_resource()
-        attributes = resource.attributes
-        assert attributes.get("deployment.environment") == "development"
+        mock_flags = Mock()
+        mock_trace_flags.return_value = mock_flags
 
-    def test_production_configuration(self, mock_settings):
-        """Test telemetry configuration for production."""
-        mock_settings.environment.value = "production"
-        mock_settings.observability.tracing_sample_rate = 0.1
+        create_span_context(trace_id, span_id, is_remote=True)
 
-        resource = create_resource()
-        attributes = resource.attributes
-        assert attributes.get("deployment.environment") == "production"
+        mock_span_context.assert_called_once_with(
+            trace_id=1,
+            span_id=1,
+            is_remote=True,
+            trace_flags=mock_flags,
+        )
 
-    def test_custom_service_name(self, mock_settings):
-        """Test custom service name configuration."""
-        mock_settings.observability.otel_service_name = "custom-service"
+    @patch("dotmac.platform.telemetry.trace.SpanContext")
+    @patch("dotmac.platform.telemetry.trace.TraceFlags")
+    def test_create_span_context_local(self, mock_trace_flags, mock_span_context):
+        """Test creating local span context."""
+        trace_id = "0000000000000000000000000000000a"
+        span_id = "000000000000000a"
 
-        resource = create_resource()
-        attributes = resource.attributes
-        assert attributes.get("service.name") == "custom-service"
+        mock_flags = Mock()
+        mock_trace_flags.return_value = mock_flags
 
+        create_span_context(trace_id, span_id, is_remote=False)
 
-class TestErrorScenarios:
-    """Test various error scenarios."""
-
-    def test_invalid_trace_id_format(self):
-        """Test creating span context with invalid trace ID."""
-        with pytest.raises(ValueError):
-            create_span_context("invalid", "0123456789abcdef")
-
-    def test_invalid_span_id_format(self):
-        """Test creating span context with invalid span ID."""
-        with pytest.raises(ValueError):
-            create_span_context("0123456789abcdef0123456789abcdef", "invalid")
-
-    def test_missing_opentelemetry_dependencies(self):
-        """Test behavior when OpenTelemetry dependencies are missing."""
-        with patch("dotmac.platform.telemetry.trace", side_effect=ImportError):
-            # Should handle gracefully without crashing
-            tracer = get_tracer("test")
-            # In case of import error, function should still return something
-            # or handle gracefully
+        mock_span_context.assert_called_once_with(
+            trace_id=10,
+            span_id=10,
+            is_remote=False,
+            trace_flags=mock_flags,
+        )

@@ -6,6 +6,7 @@ Provides comprehensive monitoring capabilities including:
 - Benchmarking and performance tracking
 - Observability data collection
 - Alert management
+- Health checks
 - REST APIs for logs and traces
 """
 
@@ -16,6 +17,13 @@ from .benchmarks import (
     BenchmarkResult,
     BenchmarkSuite,
     PerformanceBenchmark,
+)
+from .health_checks import (
+    HealthChecker,
+    ServiceHealth,
+    ServiceStatus,
+    check_startup_dependencies,
+    ensure_infrastructure_running,
 )
 from .integrations import (
     MetricData,
@@ -35,6 +43,12 @@ __all__ = [
     "PerformanceBenchmark",
     "BenchmarkResult",
     "BenchmarkSuite",
+    # Health checks
+    "HealthChecker",
+    "ServiceHealth",
+    "ServiceStatus",
+    "check_startup_dependencies",
+    "ensure_infrastructure_running",
     # Routers
     "logs_router",
     "traces_router",

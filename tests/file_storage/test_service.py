@@ -398,7 +398,7 @@ class TestFileStorageService:
     @pytest.mark.asyncio
     async def test_service_with_local_backend(self, tmp_path):
         """Test service with local backend."""
-        with patch('dotmac.platform.file_storage.service.settings') as mock_settings:
+        with patch("dotmac.platform.file_storage.service.settings") as mock_settings:
             mock_settings.storage.local_path = str(tmp_path)
 
             service = FileStorageService(backend=StorageBackend.LOCAL)
@@ -493,7 +493,7 @@ class TestEndToEndFileOperations:
     @pytest.mark.asyncio
     async def test_complete_file_lifecycle(self, tmp_path):
         """Test complete file lifecycle: upload, retrieve, update, delete."""
-        with patch('dotmac.platform.file_storage.service.settings') as mock_settings:
+        with patch("dotmac.platform.file_storage.service.settings") as mock_settings:
             mock_settings.storage.local_path = str(tmp_path)
             mock_settings.storage.backend = StorageBackend.LOCAL
 

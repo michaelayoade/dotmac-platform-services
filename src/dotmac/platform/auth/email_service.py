@@ -1,11 +1,11 @@
 """Simplified auth email utilities using communications module directly."""
 
 import secrets
-from typing import Optional, Tuple
 
 import structlog
 
-from ..caching import get_redis
+from dotmac.platform.core.caching import get_redis
+
 from ..settings import settings
 
 logger = structlog.get_logger(__name__)
@@ -25,7 +25,7 @@ async def send_welcome_email(email: str, user_name: str) -> bool:
     try:
         from ..communications.email_service import EmailMessage, get_email_service
 
-        app_name = getattr(settings, 'app_name', 'DotMac Platform')
+        app_name = getattr(settings, "app_name", "DotMac Platform")
         subject = f"Welcome to {app_name}!"
 
         content = f"""
@@ -48,10 +48,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace('\n', '<br>')
+            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
         )
 
         # Send using async communications service
@@ -64,7 +61,7 @@ The {app_name} Team
         return False
 
 
-async def send_password_reset_email(email: str, user_name: str) -> Tuple[bool, Optional[str]]:
+async def send_password_reset_email(email: str, user_name: str) -> tuple[bool, str | None]:
     """
     Send password reset email using communications module.
 
@@ -76,7 +73,7 @@ async def send_password_reset_email(email: str, user_name: str) -> Tuple[bool, O
         Tuple of (success, reset_token)
     """
     try:
-        app_name = getattr(settings, 'app_name', 'DotMac Platform')
+        app_name = getattr(settings, "app_name", "DotMac Platform")
 
         # Generate reset token
         reset_token = secrets.token_urlsafe(32)
@@ -111,10 +108,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace('\n', '<br>')
+            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
         )
 
         # Send using async communications service
@@ -128,7 +122,7 @@ The {app_name} Team
         return False, None
 
 
-def verify_reset_token(token: str) -> Optional[str]:
+def verify_reset_token(token: str) -> str | None:
     """
     Verify password reset token and return associated email.
 
@@ -146,7 +140,7 @@ def verify_reset_token(token: str) -> Optional[str]:
         if email:
             # Token is valid, delete it (one-time use)
             redis.delete(token_key)
-            return email.decode('utf-8') if isinstance(email, bytes) else email
+            return email.decode("utf-8") if isinstance(email, bytes) else email
 
         return None
 
@@ -167,7 +161,7 @@ async def send_password_reset_success_email(email: str, user_name: str) -> bool:
         True if sent successfully, False otherwise
     """
     try:
-        app_name = getattr(settings, 'app_name', 'DotMac Platform')
+        app_name = getattr(settings, "app_name", "DotMac Platform")
         subject = f"Your Password Has Been Reset - {app_name}"
 
         content = f"""
@@ -190,10 +184,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace('\n', '<br>')
+            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
         )
 
         # Send using async communications service
@@ -224,10 +215,10 @@ class AuthEmailServiceFacade:
 
     async def send_password_reset_email(
         self, email: str, user_name: str
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         return await send_password_reset_email(email, user_name)
 
-    def verify_reset_token(self, token: str) -> Optional[str]:
+    def verify_reset_token(self, token: str) -> str | None:
         return verify_reset_token(token)
 
     async def send_password_reset_success_email(self, email: str, user_name: str) -> bool:

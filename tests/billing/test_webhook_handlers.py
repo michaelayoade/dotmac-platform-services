@@ -18,6 +18,8 @@ from dotmac.platform.billing.webhooks.handlers import (
     PayPalWebhookHandler,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture
 def mock_db():
@@ -44,7 +46,9 @@ def stripe_config():
 @pytest.fixture
 def stripe_handler(mock_db, stripe_config):
     """Stripe webhook handler"""
-    with patch("dotmac.platform.billing.webhooks.handlers.get_billing_config", return_value=stripe_config):
+    with patch(
+        "dotmac.platform.billing.webhooks.handlers.get_billing_config", return_value=stripe_config
+    ):
         handler = StripeWebhookHandler(mock_db, stripe_config)
         handler.payment_service = AsyncMock()
         handler.invoice_service = AsyncMock()
@@ -125,9 +129,7 @@ class TestStripeWebhookHandler:
         assert result["payment_intent_id"] == "pi_123"
 
         # Verify service calls
-        stripe_handler.payment_service.get_payment.assert_called_once_with(
-            "tenant1", "pay_123"
-        )
+        stripe_handler.payment_service.get_payment.assert_called_once_with("tenant1", "pay_123")
         stripe_handler.invoice_service.mark_invoice_paid.assert_called_once_with(
             "tenant1", "inv_123", payment_id="pay_123"
         )

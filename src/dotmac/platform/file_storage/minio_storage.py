@@ -5,7 +5,7 @@ Simple MinIO storage client for file management.
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
 import structlog
 from minio import Minio
@@ -33,11 +33,11 @@ class MinIOStorage:
 
     def __init__(
         self,
-        endpoint: Optional[str] = None,
-        access_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
-        bucket: Optional[str] = None,
-        secure: Optional[bool] = None,
+        endpoint: str | None = None,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        bucket: str | None = None,
+        secure: bool | None = None,
     ):
         """Initialize MinIO client with settings."""
         # Use provided values or fall back to settings
@@ -45,6 +45,15 @@ class MinIOStorage:
         access_key = access_key or settings.storage.access_key or "minioadmin"
         secret_key = secret_key or settings.storage.secret_key or "minioadmin123"
         self.bucket = bucket or settings.storage.bucket or "dotmac"
+
+        # Log credentials being used (mask secret)
+        logger.info(
+            "Initializing MinIO client",
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_masked=secret_key[:4] + "***" if secret_key else None,
+            bucket=self.bucket,
+        )
 
         # Remove http:// or https:// prefix for minio client
         if endpoint.startswith("http://"):
@@ -56,12 +65,17 @@ class MinIOStorage:
         else:
             secure = secure if secure is not None else settings.storage.use_ssl
 
-        self.client = Minio(
-            endpoint=endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
-            secure=secure,
-        )
+        try:
+            self.client = Minio(
+                endpoint=endpoint,
+                access_key=access_key,
+                secret_key=secret_key,
+                secure=secure,
+            )
+            logger.info(f"MinIO client created successfully with endpoint {endpoint}")
+        except Exception as e:
+            logger.error(f"Failed to create MinIO client: {e}")
+            raise
 
         # Ensure bucket exists
         try:
@@ -155,7 +169,7 @@ class MinIOStorage:
         self,
         prefix: str = "",
         tenant_id: str = "",
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> list[FileInfo]:
         """List files in MinIO."""
         if tenant_id:
@@ -239,7 +253,7 @@ class MinIOStorage:
 
 
 # Global storage instance
-_storage: Optional[MinIOStorage] = None
+_storage: MinIOStorage | None = None
 
 
 def get_storage() -> MinIOStorage:

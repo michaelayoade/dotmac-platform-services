@@ -3,11 +3,10 @@ Tax management service
 """
 
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import and_, select, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -47,7 +46,7 @@ class TaxService:
             rate=6.25,
             tax_type="sales",
         )
-        
+
         # EU VAT examples
         self.calculator.add_tax_rate(
             jurisdiction="EU-DE",
@@ -70,7 +69,7 @@ class TaxService:
             tax_type="vat",
             is_inclusive=True,
         )
-        
+
         # Canadian GST/PST examples
         self.calculator.add_tax_rate(
             jurisdiction="CA-ON",
@@ -97,16 +96,16 @@ class TaxService:
         tenant_id: str,
         invoice_id: str,
         jurisdiction: str,
-        line_items: List[Dict[str, any]],
-    ) -> Dict[str, any]:
+        line_items: list[dict[str, any]],
+    ) -> dict[str, any]:
         """Calculate tax for an invoice"""
-        
+
         # Calculate tax for line items
         total_tax, items_with_tax = self.calculator.calculate_line_item_tax(
             line_items=line_items,
             jurisdiction=jurisdiction,
         )
-        
+
         # Store tax calculation in transaction
         await self._create_tax_transaction(
             tenant_id=tenant_id,
@@ -114,7 +113,7 @@ class TaxService:
             tax_amount=total_tax,
             jurisdiction=jurisdiction,
         )
-        
+
         return {
             "tax_amount": total_tax,
             "line_items": items_with_tax,
@@ -126,18 +125,18 @@ class TaxService:
         self,
         tenant_id: str,
         invoice_id: str,
-        jurisdiction: Optional[str] = None,
-    ) -> Dict[str, any]:
+        jurisdiction: str | None = None,
+    ) -> dict[str, any]:
         """Recalculate tax for an existing invoice"""
-        
+
         # Get invoice
         invoice = await self._get_invoice(tenant_id, invoice_id)
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
-        
+
         # Use provided jurisdiction or invoice's jurisdiction
         tax_jurisdiction = jurisdiction or self._extract_jurisdiction(invoice.billing_address)
-        
+
         # Convert line items to dict format
         line_items = [
             {
@@ -149,7 +148,7 @@ class TaxService:
             }
             for item in invoice.line_items
         ]
-        
+
         # Calculate tax
         result = await self.calculate_invoice_tax(
             tenant_id=tenant_id,
@@ -157,14 +156,14 @@ class TaxService:
             jurisdiction=tax_jurisdiction,
             line_items=line_items,
         )
-        
+
         # Update invoice tax amount
         invoice.tax_amount = result["tax_amount"]
         invoice.total_amount = invoice.subtotal + invoice.tax_amount - invoice.discount_amount
-        invoice.updated_at = datetime.utcnow()
-        
+        invoice.updated_at = datetime.now(UTC)
+
         await self.db.commit()
-        
+
         return result
 
     async def get_tax_summary_by_jurisdiction(
@@ -172,9 +171,9 @@ class TaxService:
         tenant_id: str,
         start_date: datetime,
         end_date: datetime,
-    ) -> List[Dict[str, any]]:
+    ) -> list[dict[str, any]]:
         """Get tax summary grouped by jurisdiction"""
-        
+
         # Query transactions for tax amounts
         stmt = (
             select(
@@ -185,27 +184,29 @@ class TaxService:
             .where(
                 and_(
                     TransactionEntity.tenant_id == tenant_id,
-                    TransactionEntity.type == TransactionType.TAX,
+                    TransactionEntity.transaction_type == TransactionType.TAX,
                     TransactionEntity.created_at >= start_date,
                     TransactionEntity.created_at <= end_date,
                 )
             )
             .group_by(TransactionEntity.extra_data["jurisdiction"])
         )
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         summary = []
         for row in rows:
-            summary.append({
-                "jurisdiction": row.jurisdiction,
-                "total_tax_collected": row.total_tax,
-                "transaction_count": row.transaction_count,
-                "period_start": start_date.isoformat(),
-                "period_end": end_date.isoformat(),
-            })
-        
+            summary.append(
+                {
+                    "jurisdiction": row.jurisdiction,
+                    "total_tax_collected": row.total_tax,
+                    "transaction_count": row.transaction_count,
+                    "period_start": start_date.isoformat(),
+                    "period_end": end_date.isoformat(),
+                }
+            )
+
         return summary
 
     async def get_tax_liability_report(
@@ -213,50 +214,44 @@ class TaxService:
         tenant_id: str,
         start_date: datetime,
         end_date: datetime,
-        jurisdiction: Optional[str] = None,
-    ) -> Dict[str, any]:
+        jurisdiction: str | None = None,
+    ) -> dict[str, any]:
         """Generate tax liability report"""
-        
+
         # Build query
         conditions = [
             TransactionEntity.tenant_id == tenant_id,
-            TransactionEntity.type == TransactionType.TAX,
+            TransactionEntity.transaction_type == TransactionType.TAX,
             TransactionEntity.created_at >= start_date,
             TransactionEntity.created_at <= end_date,
         ]
-        
+
         if jurisdiction:
-            conditions.append(
-                TransactionEntity.extra_data["jurisdiction"] == jurisdiction
-            )
-        
+            conditions.append(TransactionEntity.extra_data["jurisdiction"] == jurisdiction)
+
         # Get tax collected
-        stmt = (
-            select(
-                func.sum(TransactionEntity.amount).label("tax_collected"),
-                func.count(TransactionEntity.transaction_id).label("transaction_count"),
-            )
-            .where(and_(*conditions))
-        )
-        
+        stmt = select(
+            func.sum(TransactionEntity.amount).label("tax_collected"),
+            func.count(TransactionEntity.transaction_id).label("transaction_count"),
+        ).where(and_(*conditions))
+
         result = await self.db.execute(stmt)
         row = result.one()
-        
+
         # Get refunded tax (from credit notes)
         refund_conditions = conditions.copy()
-        refund_conditions[1] = TransactionEntity.type == TransactionType.CREDIT
-        
-        refund_stmt = (
-            select(func.sum(TransactionEntity.amount).label("tax_refunded"))
-            .where(and_(*refund_conditions))
+        refund_conditions[1] = TransactionEntity.transaction_type == TransactionType.CREDIT
+
+        refund_stmt = select(func.sum(TransactionEntity.amount).label("tax_refunded")).where(
+            and_(*refund_conditions)
         )
-        
+
         refund_result = await self.db.execute(refund_stmt)
         refund_row = refund_result.one()
-        
+
         tax_collected = row.tax_collected or 0
         tax_refunded = refund_row.tax_refunded or 0
-        
+
         return {
             "tenant_id": tenant_id,
             "period_start": start_date.isoformat(),
@@ -272,16 +267,16 @@ class TaxService:
         self,
         tax_number: str,
         jurisdiction: str,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """Validate a tax identification number"""
-        
+
         # Basic validation rules by jurisdiction
         validation_rules = {
             "EU": self._validate_eu_vat,
             "US": self._validate_us_ein,
             "CA": self._validate_ca_gst,
         }
-        
+
         # Determine validation method
         for prefix, validator in validation_rules.items():
             if jurisdiction.startswith(prefix):
@@ -291,9 +286,9 @@ class TaxService:
                     "jurisdiction": jurisdiction,
                     "is_valid": is_valid,
                     "message": message,
-                    "validated_at": datetime.utcnow().isoformat(),
+                    "validated_at": datetime.now(UTC).isoformat(),
                 }
-        
+
         return {
             "tax_number": tax_number,
             "jurisdiction": jurisdiction,
@@ -303,42 +298,42 @@ class TaxService:
 
     def _validate_eu_vat(self, vat_number: str) -> tuple[bool, str]:
         """Validate EU VAT number format"""
-        
+
         # Remove spaces and uppercase
         vat = vat_number.replace(" ", "").upper()
-        
+
         # Basic format check (2 letter country code + numbers)
         if len(vat) < 8 or not vat[:2].isalpha():
             return False, "Invalid VAT number format"
-        
+
         # In production, this would call VIES API
         return True, "Format valid (online verification not implemented)"
 
     def _validate_us_ein(self, ein: str) -> tuple[bool, str]:
         """Validate US EIN format"""
-        
+
         # Remove hyphens
         ein_clean = ein.replace("-", "")
-        
+
         # Check format (9 digits)
         if not ein_clean.isdigit() or len(ein_clean) != 9:
             return False, "EIN must be 9 digits"
-        
+
         return True, "Valid EIN format"
 
     def _validate_ca_gst(self, gst_number: str) -> tuple[bool, str]:
         """Validate Canadian GST number format"""
-        
+
         # Remove spaces
         gst = gst_number.replace(" ", "").upper()
-        
+
         # Check format (9 digits + RT + 4 digits)
         if len(gst) != 15 or not gst[9:11] == "RT":
             return False, "Invalid GST number format"
-        
+
         return True, "Valid GST format"
 
-    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> Optional[InvoiceEntity]:
+    async def _get_invoice(self, tenant_id: str, invoice_id: str) -> InvoiceEntity | None:
         """Get invoice entity"""
         stmt = (
             select(InvoiceEntity)
@@ -348,9 +343,7 @@ class TaxService:
                     InvoiceEntity.invoice_id == invoice_id,
                 )
             )
-            .options(
-                selectinload(InvoiceEntity.line_items)
-            )
+            .options(selectinload(InvoiceEntity.line_items))
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -363,31 +356,31 @@ class TaxService:
         jurisdiction: str,
     ) -> None:
         """Create tax transaction record"""
-        
+
         transaction = TransactionEntity(
             tenant_id=tenant_id,
             transaction_id=str(uuid4()),
-            type=TransactionType.TAX,
+            transaction_type=TransactionType.TAX,
             amount=tax_amount,
             currency="USD",  # Should come from settings
-            reference_id=invoice_id,
-            reference_type="invoice",
+            customer_id="system",  # Tax transactions are system-generated
+            invoice_id=invoice_id,
             description=f"Tax calculation for invoice {invoice_id}",
             extra_data={
                 "jurisdiction": jurisdiction,
-                "calculated_at": datetime.utcnow().isoformat(),
+                "calculated_at": datetime.now(UTC).isoformat(),
             },
-            created_at=datetime.utcnow(),
+            transaction_date=datetime.now(UTC),
         )
         self.db.add(transaction)
         await self.db.commit()
 
-    def _extract_jurisdiction(self, billing_address: Dict[str, str]) -> str:
+    def _extract_jurisdiction(self, billing_address: dict[str, str]) -> str:
         """Extract tax jurisdiction from billing address"""
-        
+
         country = billing_address.get("country", "US")
         state = billing_address.get("state", "")
-        
+
         # Format jurisdiction code
         if country == "US" and state:
             return f"US-{state.upper()}"

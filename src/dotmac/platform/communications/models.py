@@ -7,9 +7,9 @@ SQLAlchemy models for tracking email, webhook, and SMS communications.
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
-from sqlalchemy import JSON, Boolean, Enum as SQLEnum, String, Text, Integer
+from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,6 +18,7 @@ from dotmac.platform.db import Base, TenantMixin, TimestampMixin
 
 class CommunicationType(str, Enum):
     """Types of communications."""
+
     EMAIL = "email"
     WEBHOOK = "webhook"
     SMS = "sms"
@@ -26,6 +27,7 @@ class CommunicationType(str, Enum):
 
 class CommunicationStatus(str, Enum):
     """Communication delivery status."""
+
     PENDING = "pending"
     SENT = "sent"
     DELIVERED = "delivered"
@@ -49,39 +51,39 @@ class CommunicationLog(Base, TimestampMixin, TenantMixin):
         SQLEnum(CommunicationType), nullable=False, index=True
     )
     recipient: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
-    sender: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    subject: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    sender: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Content
-    text_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    html_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    text_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    html_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Status tracking
     status: Mapped[CommunicationStatus] = mapped_column(
         SQLEnum(CommunicationStatus),
         default=CommunicationStatus.PENDING,
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Delivery tracking
-    sent_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    delivered_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    failed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Provider information
-    provider: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    provider_message_id: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Template tracking
-    template_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    template_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    template_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    template_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Associated entities
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
-    job_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    job_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
     # Metadata
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
@@ -123,15 +125,15 @@ class CommunicationTemplate(Base, TimestampMixin, TenantMixin):
 
     # Template identification
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[CommunicationType] = mapped_column(
         SQLEnum(CommunicationType), default=CommunicationType.EMAIL, nullable=False
     )
 
     # Template content
-    subject_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    text_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    html_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    subject_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    html_template: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Template variables and validation
     variables: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -143,7 +145,7 @@ class CommunicationTemplate(Base, TimestampMixin, TenantMixin):
 
     # Usage tracking
     usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_used_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Metadata
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
@@ -198,7 +200,7 @@ class CommunicationStats(Base, TimestampMixin, TenantMixin):
     total_pending: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Performance metrics
-    avg_delivery_time_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
+    avg_delivery_time_seconds: Mapped[float | None] = mapped_column(nullable=True)
 
     # Metadata
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)

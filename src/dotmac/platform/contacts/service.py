@@ -3,28 +3,36 @@ Contact Management Service Layer
 
 Provides business logic for contact operations with caching and validation.
 """
-from datetime import datetime
-from typing import List, Optional, Dict, Any, Set
+
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, or_
+import structlog
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 
-from dotmac.platform.caching import cache_get, cache_set, cache_delete
-from dotmac.platform.tenant import get_current_tenant_id
 from dotmac.platform.contacts.models import (
-    Contact, ContactMethod, ContactMethodType,
-    ContactLabelDefinition, ContactFieldDefinition,
-    ContactActivity, ContactStatus, ContactStage
+    Contact,
+    ContactActivity,
+    ContactFieldDefinition,
+    ContactLabelDefinition,
+    ContactMethod,
+    ContactMethodType,
+    ContactStage,
+    ContactStatus,
 )
 from dotmac.platform.contacts.schemas import (
-    ContactCreate, ContactUpdate, ContactResponse,
-    ContactMethodCreate, ContactMethodUpdate,
-    ContactLabelDefinitionCreate, ContactFieldDefinitionCreate,
-    ContactActivityCreate
+    ContactActivityCreate,
+    ContactCreate,
+    ContactFieldDefinitionCreate,
+    ContactLabelDefinitionCreate,
+    ContactMethodCreate,
+    ContactMethodUpdate,
+    ContactUpdate,
 )
-import structlog
+from dotmac.platform.core.caching import cache_delete, cache_get, cache_set
 
 logger = structlog.get_logger(__name__)
 
@@ -36,10 +44,7 @@ class ContactService:
         self.db = db
 
     async def create_contact(
-        self,
-        contact_data: ContactCreate,
-        tenant_id: UUID,
-        owner_id: Optional[UUID] = None
+        self, contact_data: ContactCreate, tenant_id: UUID, owner_id: UUID | None = None
     ) -> Contact:
         """Create a new contact."""
         # Generate display name if not provided
@@ -120,7 +125,7 @@ class ContactService:
                 select(ContactLabelDefinition).where(
                     and_(
                         ContactLabelDefinition.id.in_(contact_data.label_ids),
-                        ContactLabelDefinition.tenant_id == tenant_id
+                        ContactLabelDefinition.tenant_id == tenant_id,
                     )
                 )
             )
@@ -140,8 +145,8 @@ class ContactService:
         contact_id: UUID,
         tenant_id: UUID,
         include_methods: bool = True,
-        include_labels: bool = True
-    ) -> Optional[Contact]:
+        include_labels: bool = True,
+    ) -> Contact | None:
         """Get a contact by ID."""
         cache_key = f"contact:{tenant_id}:{contact_id}"
 
@@ -156,7 +161,7 @@ class ContactService:
             and_(
                 Contact.id == contact_id,
                 Contact.tenant_id == tenant_id,
-                Contact.deleted_at.is_(None)
+                Contact.deleted_at.is_(None),
             )
         )
 
@@ -176,23 +181,22 @@ class ContactService:
         return contact
 
     async def update_contact(
-        self,
-        contact_id: UUID,
-        contact_data: ContactUpdate,
-        tenant_id: UUID
-    ) -> Optional[Contact]:
+        self, contact_id: UUID, contact_data: ContactUpdate, tenant_id: UUID
+    ) -> Contact | None:
         """Update a contact."""
-        contact = await self.get_contact(contact_id, tenant_id, include_methods=False, include_labels=False)
+        contact = await self.get_contact(
+            contact_id, tenant_id, include_methods=False, include_labels=False
+        )
         if not contact:
             return None
 
         # Update fields if provided
-        update_fields = contact_data.dict(exclude_unset=True)
+        update_fields = contact_data.model_dump(exclude_unset=True)
         for field, value in update_fields.items():
             if hasattr(contact, field):
                 setattr(contact, field, value)
 
-        contact.updated_at = datetime.utcnow()
+        contact.updated_at = datetime.now(UTC)
         await self.db.commit()
         await self.db.refresh(contact)
 
@@ -207,17 +211,19 @@ class ContactService:
         contact_id: UUID,
         tenant_id: UUID,
         hard_delete: bool = False,
-        deleted_by: Optional[UUID] = None
+        deleted_by: UUID | None = None,
     ) -> bool:
         """Delete a contact (soft or hard)."""
-        contact = await self.get_contact(contact_id, tenant_id, include_methods=False, include_labels=False)
+        contact = await self.get_contact(
+            contact_id, tenant_id, include_methods=False, include_labels=False
+        )
         if not contact:
             return False
 
         if hard_delete:
             await self.db.delete(contact)
         else:
-            contact.deleted_at = datetime.utcnow()
+            contact.deleted_at = datetime.now(UTC)
             contact.deleted_by = deleted_by
 
         await self.db.commit()
@@ -225,68 +231,95 @@ class ContactService:
         # Clear cache
         self._clear_contact_cache(tenant_id, contact_id)
 
-        logger.info(f"{'Hard' if hard_delete else 'Soft'} deleted contact {contact_id} for tenant {tenant_id}")
+        logger.info(
+            f"{'Hard' if hard_delete else 'Soft'} deleted contact {contact_id} for tenant {tenant_id}"
+        )
         return True
+
+    def _build_base_conditions(self, tenant_id: UUID, include_deleted: bool) -> list:
+        """Build base tenant and deletion filter conditions."""
+        conditions = [Contact.tenant_id == tenant_id]
+        if not include_deleted:
+            conditions.append(Contact.deleted_at.is_(None))
+        return conditions
+
+    def _build_text_search_condition(self, query: str):
+        """Build text search condition across multiple fields."""
+        return or_(
+            Contact.display_name.ilike(f"%{query}%"),
+            Contact.first_name.ilike(f"%{query}%"),
+            Contact.last_name.ilike(f"%{query}%"),
+            Contact.company.ilike(f"%{query}%"),
+            Contact.notes.ilike(f"%{query}%"),
+        )
+
+    def _build_attribute_conditions(
+        self,
+        customer_id: UUID | None,
+        status: ContactStatus | None,
+        stage: ContactStage | None,
+        owner_id: UUID | None,
+    ) -> list:
+        """Build attribute filter conditions."""
+        conditions = []
+
+        if customer_id:
+            conditions.append(Contact.customer_id == customer_id)
+        if status:
+            conditions.append(Contact.status == status)
+        if stage:
+            conditions.append(Contact.stage == stage)
+        if owner_id:
+            conditions.append(Contact.owner_id == owner_id)
+
+        return conditions
+
+    def _build_tag_conditions(self, tags: list[str]):
+        """Build tag filter conditions."""
+        tag_conditions = []
+        for tag in tags:
+            tag_conditions.append(Contact.tags.contains([tag]))
+        if tag_conditions:
+            return or_(*tag_conditions)
+        return None
 
     async def search_contacts(
         self,
         tenant_id: UUID,
-        query: Optional[str] = None,
-        customer_id: Optional[UUID] = None,
-        status: Optional[ContactStatus] = None,
-        stage: Optional[ContactStage] = None,
-        owner_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        label_ids: Optional[List[UUID]] = None,
+        query: str | None = None,
+        customer_id: UUID | None = None,
+        status: ContactStatus | None = None,
+        stage: ContactStage | None = None,
+        owner_id: UUID | None = None,
+        tags: list[str] | None = None,
+        label_ids: list[UUID] | None = None,
         limit: int = 100,
         offset: int = 0,
-        include_deleted: bool = False
-    ) -> tuple[List[Contact], int]:
+        include_deleted: bool = False,
+    ) -> tuple[list[Contact], int]:
         """Search contacts with filtering."""
-        # Build base query
-        conditions = [Contact.tenant_id == tenant_id]
+        # Build base conditions
+        conditions = self._build_base_conditions(tenant_id, include_deleted)
 
-        if not include_deleted:
-            conditions.append(Contact.deleted_at.is_(None))
-
+        # Add text search
         if query:
-            search_conditions = or_(
-                Contact.display_name.ilike(f"%{query}%"),
-                Contact.first_name.ilike(f"%{query}%"),
-                Contact.last_name.ilike(f"%{query}%"),
-                Contact.company.ilike(f"%{query}%"),
-                Contact.notes.ilike(f"%{query}%")
-            )
-            conditions.append(search_conditions)
+            conditions.append(self._build_text_search_condition(query))
 
-        if customer_id:
-            conditions.append(Contact.customer_id == customer_id)
+        # Add attribute filters
+        conditions.extend(self._build_attribute_conditions(customer_id, status, stage, owner_id))
 
-        if status:
-            conditions.append(Contact.status == status)
-
-        if stage:
-            conditions.append(Contact.stage == stage)
-
-        if owner_id:
-            conditions.append(Contact.owner_id == owner_id)
-
+        # Add tag filters
         if tags:
-            # Check if any of the tags match
-            tag_conditions = []
-            for tag in tags:
-                tag_conditions.append(Contact.tags.contains([tag]))
-            if tag_conditions:
-                conditions.append(or_(*tag_conditions))
+            tag_condition = self._build_tag_conditions(tags)
+            if tag_condition is not None:
+                conditions.append(tag_condition)
 
         # Build main query
         stmt = select(Contact).where(and_(*conditions))
 
         # Add label filtering if specified
         if label_ids:
-            stmt = stmt.join(Contact.labels).where(
-                ContactLabelDefinition.id.in_(label_ids)
-            )
+            stmt = stmt.join(Contact.labels).where(ContactLabelDefinition.id.in_(label_ids))
 
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -302,13 +335,12 @@ class ContactService:
         return contacts, total
 
     async def add_contact_method(
-        self,
-        contact_id: UUID,
-        method_data: ContactMethodCreate,
-        tenant_id: UUID
-    ) -> Optional[ContactMethod]:
+        self, contact_id: UUID, method_data: ContactMethodCreate, tenant_id: UUID
+    ) -> ContactMethod | None:
         """Add a contact method to a contact."""
-        contact = await self.get_contact(contact_id, tenant_id, include_methods=False, include_labels=False)
+        contact = await self.get_contact(
+            contact_id, tenant_id, include_methods=False, include_labels=False
+        )
         if not contact:
             return None
 
@@ -344,18 +376,19 @@ class ContactService:
         return method
 
     async def update_contact_method(
-        self,
-        method_id: UUID,
-        method_data: ContactMethodUpdate,
-        tenant_id: UUID
-    ) -> Optional[ContactMethod]:
+        self, method_id: UUID, method_data: ContactMethodUpdate, tenant_id: UUID
+    ) -> ContactMethod | None:
         """Update a contact method."""
         # Get the method with contact check
-        stmt = select(ContactMethod).join(Contact).where(
-            and_(
-                ContactMethod.id == method_id,
-                Contact.tenant_id == tenant_id,
-                Contact.deleted_at.is_(None)
+        stmt = (
+            select(ContactMethod)
+            .join(Contact)
+            .where(
+                and_(
+                    ContactMethod.id == method_id,
+                    Contact.tenant_id == tenant_id,
+                    Contact.deleted_at.is_(None),
+                )
             )
         )
         result = await self.db.execute(stmt)
@@ -365,12 +398,12 @@ class ContactService:
             return None
 
         # Update fields
-        update_fields = method_data.dict(exclude_unset=True)
+        update_fields = method_data.model_dump(exclude_unset=True)
         for field, value in update_fields.items():
             if hasattr(method, field):
                 setattr(method, field, value)
 
-        method.updated_at = datetime.utcnow()
+        method.updated_at = datetime.now(UTC)
         await self.db.commit()
         await self.db.refresh(method)
 
@@ -380,18 +413,18 @@ class ContactService:
         logger.info(f"Updated contact method {method_id}")
         return method
 
-    async def delete_contact_method(
-        self,
-        method_id: UUID,
-        tenant_id: UUID
-    ) -> bool:
+    async def delete_contact_method(self, method_id: UUID, tenant_id: UUID) -> bool:
         """Delete a contact method."""
         # Get the method with contact check
-        stmt = select(ContactMethod).join(Contact).where(
-            and_(
-                ContactMethod.id == method_id,
-                Contact.tenant_id == tenant_id,
-                Contact.deleted_at.is_(None)
+        stmt = (
+            select(ContactMethod)
+            .join(Contact)
+            .where(
+                and_(
+                    ContactMethod.id == method_id,
+                    Contact.tenant_id == tenant_id,
+                    Contact.deleted_at.is_(None),
+                )
             )
         )
         result = await self.db.execute(stmt)
@@ -415,10 +448,12 @@ class ContactService:
         contact_id: UUID,
         activity_data: ContactActivityCreate,
         tenant_id: UUID,
-        performed_by: UUID
-    ) -> Optional[ContactActivity]:
+        performed_by: UUID,
+    ) -> ContactActivity | None:
         """Add an activity to a contact."""
-        contact = await self.get_contact(contact_id, tenant_id, include_methods=False, include_labels=False)
+        contact = await self.get_contact(
+            contact_id, tenant_id, include_methods=False, include_labels=False
+        )
         if not contact:
             return None
 
@@ -427,7 +462,7 @@ class ContactService:
             activity_type=activity_data.activity_type,
             subject=activity_data.subject,
             description=activity_data.description,
-            activity_date=activity_data.activity_date or datetime.utcnow(),
+            activity_date=activity_data.activity_date or datetime.now(UTC),
             duration_minutes=activity_data.duration_minutes,
             status=activity_data.status,
             outcome=activity_data.outcome,
@@ -447,15 +482,13 @@ class ContactService:
         return activity
 
     async def get_contact_activities(
-        self,
-        contact_id: UUID,
-        tenant_id: UUID,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[ContactActivity]:
+        self, contact_id: UUID, tenant_id: UUID, limit: int = 50, offset: int = 0
+    ) -> list[ContactActivity]:
         """Get activities for a contact."""
         # Verify contact belongs to tenant
-        contact = await self.get_contact(contact_id, tenant_id, include_methods=False, include_labels=False)
+        contact = await self.get_contact(
+            contact_id, tenant_id, include_methods=False, include_labels=False
+        )
         if not contact:
             return []
 
@@ -470,7 +503,7 @@ class ContactService:
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
-    def _clear_contact_cache(self, tenant_id: UUID, contact_id: Optional[UUID] = None):
+    def _clear_contact_cache(self, tenant_id: UUID, contact_id: UUID | None = None):
         """Clear contact-related cache entries."""
         if contact_id:
             cache_delete(f"contact:{tenant_id}:{contact_id}")
@@ -489,7 +522,7 @@ class ContactLabelService:
         self,
         label_data: ContactLabelDefinitionCreate,
         tenant_id: UUID,
-        created_by: Optional[UUID] = None
+        created_by: UUID | None = None,
     ) -> ContactLabelDefinition:
         """Create a new label definition."""
         # Generate slug if not provided
@@ -521,16 +554,13 @@ class ContactLabelService:
         return label
 
     async def get_label_definitions(
-        self,
-        tenant_id: UUID,
-        category: Optional[str] = None,
-        include_hidden: bool = False
-    ) -> List[ContactLabelDefinition]:
+        self, tenant_id: UUID, category: str | None = None, include_hidden: bool = False
+    ) -> list[ContactLabelDefinition]:
         """Get label definitions for a tenant."""
         conditions = [ContactLabelDefinition.tenant_id == tenant_id]
 
         if not include_hidden:
-            conditions.append(ContactLabelDefinition.is_visible == True)
+            conditions.append(ContactLabelDefinition.is_visible)
 
         if category:
             conditions.append(ContactLabelDefinition.category == category)
@@ -555,7 +585,7 @@ class ContactFieldService:
         self,
         field_data: ContactFieldDefinitionCreate,
         tenant_id: UUID,
-        created_by: Optional[UUID] = None
+        created_by: UUID | None = None,
     ) -> ContactFieldDefinition:
         """Create a new field definition."""
         # Generate field key if not provided
@@ -596,16 +626,13 @@ class ContactFieldService:
         return field
 
     async def get_field_definitions(
-        self,
-        tenant_id: UUID,
-        field_group: Optional[str] = None,
-        include_hidden: bool = False
-    ) -> List[ContactFieldDefinition]:
+        self, tenant_id: UUID, field_group: str | None = None, include_hidden: bool = False
+    ) -> list[ContactFieldDefinition]:
         """Get field definitions for a tenant."""
         conditions = [ContactFieldDefinition.tenant_id == tenant_id]
 
         if not include_hidden:
-            conditions.append(ContactFieldDefinition.is_visible == True)
+            conditions.append(ContactFieldDefinition.is_visible)
 
         if field_group:
             conditions.append(ContactFieldDefinition.field_group == field_group)
@@ -620,10 +647,8 @@ class ContactFieldService:
         return result.scalars().all()
 
     async def validate_custom_fields(
-        self,
-        custom_fields: Dict[str, Any],
-        tenant_id: UUID
-    ) -> tuple[bool, List[str]]:
+        self, custom_fields: dict[str, Any], tenant_id: UUID
+    ) -> tuple[bool, list[str]]:
         """Validate custom fields against field definitions."""
         errors = []
 

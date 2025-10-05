@@ -6,31 +6,30 @@ Provides REST API for uploading files and managing import jobs.
 
 import io
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.auth.models import UserClaims
-from dotmac.platform.database import get_db
+from dotmac.platform.billing.dependencies import get_tenant_id
 from dotmac.platform.data_import import (
     DataImportService,
-    ImportJob,
     ImportJobStatus,
     ImportJobType,
 )
 from dotmac.platform.data_import.schemas import (
-    ImportJobResponse,
-    ImportJobListResponse,
-    ImportStatusResponse,
     ImportFailureResponse,
+    ImportJobListResponse,
+    ImportJobResponse,
+    ImportStatusResponse,
 )
-from dotmac.platform.tenant.dependencies import get_tenant_id
+from dotmac.platform.database import get_async_session as get_db
 
-router = APIRouter(tags=["data-import"])
+router = APIRouter(tags=["Data Import"])
 
 
 @router.post("/upload/{entity_type}")
@@ -41,7 +40,7 @@ async def upload_import_file(
     dry_run: bool = Form(default=False),
     use_async: bool = Form(default=False),
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ) -> ImportJobResponse:
     """
@@ -151,12 +150,12 @@ async def upload_import_file(
 
 @router.get("/jobs")
 async def list_import_jobs(
-    status: Optional[ImportJobStatus] = Query(None),
-    job_type: Optional[ImportJobType] = Query(None),
+    status: ImportJobStatus | None = Query(None),
+    job_type: ImportJobType | None = Query(None),
     limit: int = Query(default=20, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ) -> ImportJobListResponse:
     """
@@ -193,7 +192,7 @@ async def list_import_jobs(
 async def get_import_job(
     job_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ) -> ImportJobResponse:
     """
@@ -222,7 +221,7 @@ async def get_import_job(
 async def get_import_job_status(
     job_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ) -> ImportStatusResponse:
     """
@@ -248,7 +247,8 @@ async def get_import_job_status(
     task_status = None
     if job.celery_task_id:
         from celery.result import AsyncResult
-        from dotmac.platform.tasks import app
+
+        from dotmac.platform.core.tasks import app
 
         task = AsyncResult(job.celery_task_id, app=app)
         if task.state == "PENDING":
@@ -278,9 +278,9 @@ async def get_import_failures(
     job_id: UUID,
     limit: int = Query(default=100, le=1000),
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-) -> List[ImportFailureResponse]:
+) -> list[ImportFailureResponse]:
     """
     Get failure details for an import job.
 
@@ -314,9 +314,9 @@ async def get_import_failures(
 @router.get("/jobs/{job_id}/export-failures")
 async def export_import_failures(
     job_id: UUID,
-    format: str = Query(default="csv", regex="^(csv|json)$"),
+    format: str = Query(default="csv", pattern="^(csv|json)$"),
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """
@@ -397,9 +397,9 @@ async def export_import_failures(
 async def cancel_import_job(
     job_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Cancel a running import job.
 
@@ -428,7 +428,8 @@ async def cancel_import_job(
     # Cancel Celery task if applicable
     if job.celery_task_id:
         from celery.result import AsyncResult
-        from dotmac.platform.tasks import app
+
+        from dotmac.platform.core.tasks import app
 
         task = AsyncResult(job.celery_task_id, app=app)
         task.revoke(terminate=True)

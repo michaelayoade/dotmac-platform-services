@@ -126,7 +126,7 @@ class TestThroughputCalculation:
 class TestCompletionTimeEstimation:
     """Test completion time estimation utility."""
 
-    @patch('dotmac.platform.data_transfer.utils.datetime')
+    @patch("dotmac.platform.data_transfer.utils.datetime")
     def test_estimate_completion_time_normal(self, mock_datetime):
         """Test normal completion time estimation."""
         mock_now = datetime(2023, 1, 1, 12, 0, 0)
@@ -311,7 +311,7 @@ class TestImportOptionsCreation:
         options = create_import_options(DataFormat.PARQUET)
 
         # Should have default values
-        assert hasattr(options, 'encoding')
+        assert hasattr(options, "encoding")
 
 
 class TestExportOptionsCreation:
@@ -394,7 +394,9 @@ class TestDataPipeline:
         """Sample export options."""
         return create_export_options(DataFormat.JSON)
 
-    def test_data_pipeline_initialization(self, sample_config, sample_import_options, sample_export_options):
+    def test_data_pipeline_initialization(
+        self, sample_config, sample_import_options, sample_export_options
+    ):
         """Test DataPipeline initialization."""
         source_path = Path("/source/file.csv")
         target_path = Path("/target/file.json")
@@ -422,7 +424,9 @@ class TestDataPipeline:
         # Should have generated an operation ID
         UUID(pipeline.operation_id)  # Should not raise
 
-    def test_data_pipeline_progress_callbacks(self, sample_config, sample_import_options, sample_export_options):
+    def test_data_pipeline_progress_callbacks(
+        self, sample_config, sample_import_options, sample_export_options
+    ):
         """Test DataPipeline progress callback methods."""
         pipeline = DataPipeline(
             source_path=Path("/source/file.csv"),
@@ -452,7 +456,7 @@ class TestDataPipeline:
 class TestDataPipelineCreation:
     """Test data pipeline creation utility."""
 
-    @patch('dotmac.platform.data_transfer.utils.detect_format')
+    @patch("dotmac.platform.data_transfer.utils.detect_format")
     def test_create_data_pipeline_auto_detect_source(self, mock_detect_format):
         """Test creating pipeline with auto-detected source format."""
         mock_detect_format.return_value = DataFormat.CSV
@@ -525,7 +529,7 @@ class TestFileConversion:
     """Test file conversion utility."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.data_transfer.utils.create_data_pipeline')
+    @patch("dotmac.platform.data_transfer.utils.create_data_pipeline")
     async def test_convert_file(self, mock_create_pipeline):
         """Test file conversion utility."""
         mock_pipeline = AsyncMock()
@@ -547,7 +551,7 @@ class TestFileConversion:
         mock_pipeline.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.data_transfer.utils.create_data_pipeline')
+    @patch("dotmac.platform.data_transfer.utils.create_data_pipeline")
     async def test_convert_file_with_callback(self, mock_create_pipeline):
         """Test file conversion with progress callback."""
         mock_pipeline = AsyncMock()
@@ -564,14 +568,14 @@ class TestFileConversion:
         # Verify pipeline was created with callback
         mock_create_pipeline.assert_called_once()
         call_args = mock_create_pipeline.call_args
-        assert call_args.kwargs['progress_callback'] == progress_callback
+        assert call_args.kwargs["progress_callback"] == progress_callback
 
 
 class TestFileValidationAndCleaning:
     """Test file validation and cleaning utility."""
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.data_transfer.utils.create_data_pipeline')
+    @patch("dotmac.platform.data_transfer.utils.create_data_pipeline")
     async def test_validate_and_clean_file(self, mock_create_pipeline):
         """Test file validation and cleaning utility."""
         mock_pipeline = AsyncMock()
@@ -596,13 +600,13 @@ class TestFileValidationAndCleaning:
 
         # Verify pipeline was created with validation settings
         call_args = mock_create_pipeline.call_args
-        assert call_args.kwargs['validator'] == validator
-        assert call_args.kwargs['transformer'] == transformer
-        assert call_args.kwargs['config'].validate_data is True
-        assert call_args.kwargs['config'].skip_invalid is True
+        assert call_args.kwargs["validator"] == validator
+        assert call_args.kwargs["transformer"] == transformer
+        assert call_args.kwargs["config"].validate_data is True
+        assert call_args.kwargs["config"].skip_invalid is True
 
     @pytest.mark.asyncio
-    @patch('dotmac.platform.data_transfer.utils.create_data_pipeline')
+    @patch("dotmac.platform.data_transfer.utils.create_data_pipeline")
     async def test_validate_and_clean_file_no_skip(self, mock_create_pipeline):
         """Test file validation without skipping invalid records."""
         mock_pipeline = AsyncMock()
@@ -619,4 +623,68 @@ class TestFileValidationAndCleaning:
 
         # Verify config has correct skip_invalid setting
         call_args = mock_create_pipeline.call_args
-        assert call_args.kwargs['config'].skip_invalid is False
+        assert call_args.kwargs["config"].skip_invalid is False
+
+
+class TestDataPipelineExecute:
+    """Test DataPipeline.execute() method for coverage."""
+
+    @pytest.mark.asyncio
+    async def test_pipeline_execute_with_validator_transformer(self, tmp_path):
+        """Test pipeline execute with validator and transformer."""
+        import tempfile
+        import csv
+
+        # Create source CSV file
+        source_file = tmp_path / "source.csv"
+        with open(source_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["id", "value"])
+            writer.writeheader()
+            writer.writerow({"id": "1", "value": "10"})
+            writer.writerow({"id": "2", "value": "invalid"})
+            writer.writerow({"id": "3", "value": "30"})
+
+        target_file = tmp_path / "target.csv"
+
+        # Validator: only accept numeric values
+        def validator(record: DataRecord) -> bool:
+            try:
+                int(record.data.get("value", ""))
+                return True
+            except ValueError:
+                return False
+
+        # Transformer: double the value
+        def transformer(record: DataRecord) -> DataRecord:
+            record.data["value"] = str(int(record.data["value"]) * 2)
+            return record
+
+        config = TransferConfig(skip_invalid=True, validate_data=True)
+        import_opts = ImportOptions()
+        export_opts = ExportOptions()
+
+        pipeline = DataPipeline(
+            source_path=source_file,
+            target_path=target_file,
+            source_format=DataFormat.CSV,
+            target_format=DataFormat.CSV,
+            config=config,
+            import_options=import_opts,
+            export_options=export_opts,
+            validator=validator,
+            transformer=transformer,
+        )
+
+        result = await pipeline.execute()
+
+        assert result.status == TransferStatus.COMPLETED
+        assert target_file.exists()
+
+        # Verify transformed data
+        with open(target_file, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            # Should have 2 rows (invalid row skipped)
+            assert len(rows) == 2
+            assert rows[0]["value"] == "20"  # 10 * 2
+            assert rows[1]["value"] == "60"  # 30 * 2

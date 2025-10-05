@@ -364,7 +364,7 @@ export default function FeatureFlagsPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Feature Flags</h1>
-          <p className="text-gray-500 mt-2">Manage feature toggles and rollouts</p>
+          <p className="text-muted-foreground mt-2">Manage feature toggles and rollouts</p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -416,7 +416,7 @@ export default function FeatureFlagsPage() {
                     id="flag-type"
                     value={newFlag.type}
                     onChange={(e) => setNewFlag({ ...newFlag, type: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                    className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                   >
                     <option value="boolean">Boolean</option>
                     <option value="number">Number</option>
@@ -430,7 +430,7 @@ export default function FeatureFlagsPage() {
                     id="flag-environment"
                     value={newFlag.environment}
                     onChange={(e) => setNewFlag({ ...newFlag, environment: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                    className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                   >
                     <option value="development">Development</option>
                     <option value="staging">Staging</option>
@@ -445,7 +445,7 @@ export default function FeatureFlagsPage() {
                     id="flag-targeting"
                     value={newFlag.targeting}
                     onChange={(e) => setNewFlag({ ...newFlag, targeting: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                    className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                   >
                     <option value="all">All Users</option>
                     <option value="segment">User Segment</option>
@@ -514,7 +514,7 @@ export default function FeatureFlagsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Enabled</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -529,7 +529,7 @@ export default function FeatureFlagsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Production</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -557,15 +557,15 @@ export default function FeatureFlagsPage() {
         </Card>
       </div>
 
-      <Tabs>
+      <Tabs defaultValue="flags">
         <TabsList>
-          <TabsTrigger>Feature Flags</TabsTrigger>
-          <TabsTrigger>Audit History</TabsTrigger>
-          <TabsTrigger>Code Examples</TabsTrigger>
+          <TabsTrigger value="flags">Feature Flags</TabsTrigger>
+          <TabsTrigger value="history">Audit History</TabsTrigger>
+          <TabsTrigger value="examples">Code Examples</TabsTrigger>
         </TabsList>
 
         {/* Flags Tab */}
-        <TabsContent className="space-y-4">
+        <TabsContent value="flags" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
@@ -583,7 +583,7 @@ export default function FeatureFlagsPage() {
                   <select
                     value={filterEnvironment}
                     onChange={(e) => setFilterEnvironment(e.target.value)}
-                    className="h-10 w-[150px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                    className="h-10 w-[150px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
                   >
                     <option value="all">All Environments</option>
                     <option value="production">Production</option>
@@ -593,7 +593,7 @@ export default function FeatureFlagsPage() {
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="h-10 w-[120px] rounded-md border border-slate-700 bg-slate-800 px-3 text-sm text-white"
+                    className="h-10 w-[120px] rounded-md border border-border bg-card px-3 text-sm text-foreground"
                   >
                     <option value="all">All Status</option>
                     <option value="enabled">Enabled</option>
@@ -621,8 +621,8 @@ export default function FeatureFlagsPage() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{flag.displayName}</div>
-                          <div className="text-sm text-gray-500">{flag.name}</div>
-                          <div className="text-xs text-gray-400 mt-1">{flag.description}</div>
+                          <div className="text-sm text-muted-foreground">{flag.name}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{flag.description}</div>
                         </div>
                       </TableCell>
                       <TableCell>{getEnvironmentBadge(flag.environment)}</TableCell>
@@ -648,7 +648,7 @@ export default function FeatureFlagsPage() {
                       <TableCell>
                         <div className="text-sm">
                           {new Date(flag.updatedAt).toLocaleDateString()}
-                          <div className="text-xs text-gray-500">{flag.lastModifiedBy}</div>
+                          <div className="text-xs text-muted-foreground">{flag.lastModifiedBy}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -695,7 +695,7 @@ export default function FeatureFlagsPage() {
                                 setSelectedFlag(flag);
                                 setIsDeleteOpen(true);
                               }}
-                              className="text-red-600"
+                              className="text-red-600 dark:text-red-400"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete
@@ -712,7 +712,7 @@ export default function FeatureFlagsPage() {
         </TabsContent>
 
         {/* History Tab */}
-        <TabsContent className="space-y-4">
+        <TabsContent value="history" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Audit History</CardTitle>
@@ -741,9 +741,9 @@ export default function FeatureFlagsPage() {
                       </TableCell>
                       <TableCell>{entry.user}</TableCell>
                       <TableCell>
-                        <span className="text-red-500 line-through">{String(entry.oldValue)}</span>
+                        <span className="text-red-600 dark:text-red-400 line-through">{String(entry.oldValue)}</span>
                         {' → '}
-                        <span className="text-green-500">{String(entry.newValue)}</span>
+                        <span className="text-green-600 dark:text-green-400">{String(entry.newValue)}</span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -754,7 +754,7 @@ export default function FeatureFlagsPage() {
         </TabsContent>
 
         {/* Code Examples Tab */}
-        <TabsContent className="space-y-4">
+        <TabsContent value="examples" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Implementation Examples</CardTitle>
@@ -766,7 +766,7 @@ export default function FeatureFlagsPage() {
                   <Code className="h-4 w-4" />
                   JavaScript/TypeScript
                 </h4>
-                <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto text-sm">
+                <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
 {`import { getFeatureFlag } from '@dotmac/feature-flags';
 
 // Check if a feature is enabled
@@ -789,7 +789,7 @@ console.log(\`Rate limit: \${rateLimit}\`);`}
                   <Code className="h-4 w-4" />
                   Python
                 </h4>
-                <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto text-sm">
+                <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
 {`from dotmac.feature_flags import get_flag
 
 # Check boolean flag
@@ -809,7 +809,7 @@ print(f"Rate limit: {rate_limit}")`}
                   <Code className="h-4 w-4" />
                   React Hook
                 </h4>
-                <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto text-sm">
+                <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
 {`import { useFeatureFlag } from '@dotmac/react-feature-flags';
 
 function MyComponent() {
@@ -837,14 +837,14 @@ function MyComponent() {
           </DialogHeader>
           {selectedFlag && (
             <div className="py-4">
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="bg-red-100 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-md p-4">
                 <div className="flex items-start">
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-3" />
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 mr-3" />
                   <div>
-                    <p className="text-sm text-red-800">
+                    <p className="text-sm text-red-800 dark:text-red-300">
                       <strong>{selectedFlag.displayName}</strong> will be permanently deleted.
                     </p>
-                    <p className="text-sm text-red-700 mt-1">
+                    <p className="text-sm text-red-700 dark:text-red-400 mt-1">
                       Flag name: {selectedFlag.name}
                     </p>
                   </div>

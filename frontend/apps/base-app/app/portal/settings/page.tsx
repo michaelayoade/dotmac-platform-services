@@ -51,7 +51,7 @@ export default function PartnerSettingsPage() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="text-slate-400">Loading settings...</div>
+          <div className="text-muted-foreground">Loading settings...</div>
         </div>
       </div>
     );
@@ -62,7 +62,7 @@ export default function PartnerSettingsPage() {
       <div className="p-6">
         <div className="text-center py-12">
           <div className="text-red-400">Failed to load profile</div>
-          <div className="text-sm text-slate-500 mt-2">
+          <div className="text-sm text-foreground0 mt-2">
             {error?.message || "Please try again"}
           </div>
         </div>
@@ -75,44 +75,44 @@ export default function PartnerSettingsPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-white">Settings</h1>
-        <p className="text-slate-400 mt-1">Manage your partner account settings</p>
+        <p className="text-muted-foreground mt-1">Manage your partner account settings</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Sidebar - Partner Info */}
         <div className="space-y-6">
-          <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+          <div className="bg-card p-6 rounded-lg border border-border">
             <h2 className="text-lg font-semibold text-white mb-4">
               Partner Information
             </h2>
             <div className="space-y-3 text-sm">
               <div>
-                <div className="text-slate-400">Partner Number</div>
+                <div className="text-muted-foreground">Partner Number</div>
                 <div className="text-white font-medium">
                   {profile.partner_number}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400">Status</div>
+                <div className="text-muted-foreground">Status</div>
                 <div className="text-white font-medium capitalize">
                   {profile.status}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400">Tier</div>
+                <div className="text-muted-foreground">Tier</div>
                 <div className="text-white font-medium capitalize">
                   {profile.tier}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400">Commission Model</div>
+                <div className="text-muted-foreground">Commission Model</div>
                 <div className="text-white font-medium capitalize">
                   {profile.commission_model.replace("_", " ")}
                 </div>
               </div>
               {profile.default_commission_rate && (
                 <div>
-                  <div className="text-slate-400">Default Commission Rate</div>
+                  <div className="text-muted-foreground">Default Commission Rate</div>
                   <div className="text-white font-medium">
                     {(profile.default_commission_rate * 100).toFixed(2)}%
                   </div>
@@ -121,19 +121,19 @@ export default function PartnerSettingsPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+          <div className="bg-card p-6 rounded-lg border border-border">
             <h2 className="text-lg font-semibold text-white mb-4">
               Account Dates
             </h2>
             <div className="space-y-3 text-sm">
               <div>
-                <div className="text-slate-400">Created</div>
+                <div className="text-muted-foreground">Created</div>
                 <div className="text-white">
                   {new Date(profile.created_at).toLocaleDateString()}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400">Last Updated</div>
+                <div className="text-muted-foreground">Last Updated</div>
                 <div className="text-white">
                   {new Date(profile.updated_at).toLocaleDateString()}
                 </div>
@@ -153,18 +153,18 @@ export default function PartnerSettingsPage() {
             </div>
           )}
 
-          <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+          <div className="bg-card p-6 rounded-lg border border-border">
             <h2 className="text-xl font-semibold text-white mb-6">
               Profile Information
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Company Name <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground0" />
                   <input
                     type="text"
                     required
@@ -172,88 +172,88 @@ export default function PartnerSettingsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, company_name: e.target.value })
                     }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-blue-500"
                     placeholder="Your Company Inc."
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Legal Name
                 </label>
                 <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground0" />
                   <input
                     type="text"
                     value={formData.legal_name}
                     onChange={(e) =>
                       setFormData({ ...formData, legal_name: e.target.value })
                     }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-blue-500"
                     placeholder="Your Company Legal Name LLC"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Website
                 </label>
                 <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground0" />
                   <input
                     type="url"
                     value={formData.website}
                     onChange={(e) =>
                       setFormData({ ...formData, website: e.target.value })
                     }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-blue-500"
                     placeholder="https://yourcompany.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Billing Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground0" />
                   <input
                     type="email"
                     value={formData.billing_email}
                     onChange={(e) =>
                       setFormData({ ...formData, billing_email: e.target.value })
                     }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-blue-500"
                     placeholder="billing@yourcompany.com"
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-foreground0 mt-1">
                   Commission payments and invoices will be sent to this email
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Phone Number
                 </label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground0" />
                   <input
                     type="tel"
                     value={formData.phone}
                     onChange={(e) =>
                       setFormData({ ...formData, phone: e.target.value })
                     }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-accent border border-border rounded-lg text-white focus:outline-none focus:border-blue-500"
                     placeholder="+1 (555) 123-4567"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => {
@@ -267,7 +267,7 @@ export default function PartnerSettingsPage() {
                       });
                     }
                   }}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-accent hover:bg-muted text-white rounded-lg transition-colors"
                 >
                   Reset
                 </button>
@@ -284,15 +284,15 @@ export default function PartnerSettingsPage() {
           </div>
 
           {/* Read-Only Section */}
-          <div className="bg-slate-900 p-6 rounded-lg border border-slate-800 mt-6">
+          <div className="bg-card p-6 rounded-lg border border-border mt-6">
             <h2 className="text-xl font-semibold text-white mb-4">
               Contact Information
             </h2>
             <div className="space-y-3 text-sm">
               <div>
-                <div className="text-slate-400">Primary Email</div>
+                <div className="text-muted-foreground">Primary Email</div>
                 <div className="text-white">{profile.primary_email}</div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-foreground0 mt-1">
                   This is your login email and cannot be changed from the portal
                 </p>
               </div>

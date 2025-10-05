@@ -52,7 +52,7 @@ class TestAuthError:
 
     def test_auth_error_to_dict(self):
         """Test converting error to dictionary."""
-        error = AuthError("Test", error_code="CODE",  details={"key": "value"})
+        error = AuthError("Test", error_code="CODE", details={"key": "value"})
         result = error.to_dict()
         assert result["error"] == "CODE"
         assert result["message"] == "Test"

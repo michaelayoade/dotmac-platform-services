@@ -17,7 +17,7 @@ export default function PartnerCustomersPage() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="text-slate-400">Loading customers...</div>
+          <div className="text-muted-foreground">Loading customers...</div>
         </div>
       </div>
     );
@@ -28,7 +28,7 @@ export default function PartnerCustomersPage() {
       <div className="p-6">
         <div className="text-center py-12">
           <div className="text-red-400">Failed to load customers</div>
-          <div className="text-sm text-slate-500 mt-2">{error.message}</div>
+          <div className="text-sm text-foreground0 mt-2">{error.message}</div>
         </div>
       </div>
     );
@@ -47,21 +47,21 @@ export default function PartnerCustomersPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-white">My Customers</h1>
-        <p className="text-slate-400 mt-1">
+        <p className="text-muted-foreground mt-1">
           Customers assigned to your partnership
         </p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Total Customers</div>
+              <div className="text-sm text-muted-foreground mb-1">Total Customers</div>
               <div className="text-3xl font-bold text-white">
                 {customerList.length}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
+              <div className="text-xs text-foreground0 mt-1">
                 {activeCustomers.length} active
               </div>
             </div>
@@ -71,10 +71,10 @@ export default function PartnerCustomersPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Total Revenue</div>
+              <div className="text-sm text-muted-foreground mb-1">Total Revenue</div>
               <div className="text-2xl font-bold text-white">
                 ${totalRevenue.toLocaleString()}
               </div>
@@ -85,10 +85,10 @@ export default function PartnerCustomersPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">
+              <div className="text-sm text-muted-foreground mb-1">
                 Total Commissions
               </div>
               <div className="text-2xl font-bold text-white">
@@ -101,10 +101,10 @@ export default function PartnerCustomersPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-lg border border-slate-800">
+        <div className="bg-card p-6 rounded-lg border border-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-slate-400 mb-1">Active Rate</div>
+              <div className="text-sm text-muted-foreground mb-1">Active Rate</div>
               <div className="text-2xl font-bold text-white">
                 {customerList.length > 0
                   ? ((activeCustomers.length / customerList.length) * 100).toFixed(
@@ -124,18 +124,18 @@ export default function PartnerCustomersPage() {
       {/* Customers List */}
       <div className="space-y-3">
         {customerList.length === 0 ? (
-          <div className="bg-slate-900 p-12 rounded-lg border border-slate-800 text-center">
-            <Users className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 mb-2">No customers assigned yet</p>
-            <p className="text-sm text-slate-500">
-              Customers will appear here when they're assigned to your partnership
+          <div className="bg-card p-12 rounded-lg border border-border text-center">
+            <Users className="w-12 h-12 text-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-2">No customers assigned yet</p>
+            <p className="text-sm text-foreground0">
+              Customers will appear here when they&apos;re assigned to your partnership
             </p>
           </div>
         ) : (
           customerList.map((customer) => (
             <div
               key={customer.id}
-              className="bg-slate-900 p-4 rounded-lg border border-slate-800"
+              className="bg-card p-4 rounded-lg border border-border"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -155,7 +155,7 @@ export default function PartnerCustomersPage() {
                         Active
                       </span>
                     ) : (
-                      <span className="px-2 py-1 text-xs rounded bg-slate-500/10 text-slate-400">
+                      <span className="px-2 py-1 text-xs rounded bg-card0/10 text-muted-foreground">
                         Inactive
                       </span>
                     )}
@@ -163,27 +163,27 @@ export default function PartnerCustomersPage() {
 
                   <div className="grid md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-slate-400">Start Date:</span>
+                      <span className="text-muted-foreground">Start Date:</span>
                       <span className="ml-2 text-white">
                         {new Date(customer.start_date).toLocaleDateString()}
                       </span>
                     </div>
                     {customer.end_date && (
                       <div>
-                        <span className="text-slate-400">End Date:</span>
+                        <span className="text-muted-foreground">End Date:</span>
                         <span className="ml-2 text-white">
                           {new Date(customer.end_date).toLocaleDateString()}
                         </span>
                       </div>
                     )}
                     <div>
-                      <span className="text-slate-400">Revenue:</span>
+                      <span className="text-muted-foreground">Revenue:</span>
                       <span className="ml-2 text-white">
                         ${customer.total_revenue.toLocaleString()}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-400">Commissions:</span>
+                      <span className="text-muted-foreground">Commissions:</span>
                       <span className="ml-2 text-white">
                         ${customer.total_commissions.toLocaleString()}
                       </span>
@@ -192,7 +192,7 @@ export default function PartnerCustomersPage() {
 
                   {customer.custom_commission_rate && (
                     <div className="mt-2 text-sm">
-                      <span className="text-slate-400">
+                      <span className="text-muted-foreground">
                         Custom Commission Rate:
                       </span>
                       <span className="ml-2 text-yellow-400">
@@ -201,7 +201,7 @@ export default function PartnerCustomersPage() {
                     </div>
                   )}
 
-                  <div className="mt-2 text-xs text-slate-500">
+                  <div className="mt-2 text-xs text-foreground0">
                     Customer ID: {customer.customer_id}
                   </div>
                 </div>

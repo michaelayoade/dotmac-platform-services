@@ -4,9 +4,9 @@ Receipt management module
 Provides receipt generation, storage, and delivery functionality.
 """
 
-from .service import ReceiptService
+from .generators import HTMLReceiptGenerator, PDFReceiptGenerator
 from .models import Receipt, ReceiptLineItem
-from .generators import PDFReceiptGenerator, HTMLReceiptGenerator
+from .service import ReceiptService
 
 __all__ = [
     "ReceiptService",

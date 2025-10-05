@@ -93,7 +93,7 @@ export function CreateCustomerModal({
         timezone: 'UTC',
         opt_in_marketing: false,
         opt_in_updates: true,
-        tags: editingCustomer.tags.join(', '),
+        tags: (editingCustomer.tags ?? []).join(', '),
         notes: '',
       };
     }

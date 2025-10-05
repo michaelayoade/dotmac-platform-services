@@ -59,7 +59,9 @@ async def search(
 
 
 @search_router.post("/index")
-async def index_content(content: dict[str, Any], current_user: UserInfo = Depends(get_current_user)) -> dict:
+async def index_content(
+    content: dict[str, Any], current_user: UserInfo = Depends(get_current_user)
+) -> dict:
     """Index new content for search."""
     if current_user:
         logger.info(f"User {current_user.user_id} indexing content")
@@ -69,7 +71,9 @@ async def index_content(content: dict[str, Any], current_user: UserInfo = Depend
 
 
 @search_router.delete("/index/{content_id}")
-async def remove_from_index(content_id: str, current_user: UserInfo = Depends(get_current_user)) -> dict:
+async def remove_from_index(
+    content_id: str, current_user: UserInfo = Depends(get_current_user)
+) -> dict:
     """Remove content from search index."""
     if current_user:
         logger.info(f"User {current_user.user_id} removing {content_id} from index")

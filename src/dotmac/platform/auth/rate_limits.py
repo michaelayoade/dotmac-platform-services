@@ -5,7 +5,6 @@ This module defines rate limits for auth endpoints to prevent abuse.
 The limits are applied in production but gracefully skipped in tests.
 """
 
-
 # Rate limits for auth endpoints
 # These are applied in production via the app configuration
 
@@ -27,7 +26,7 @@ def apply_auth_rate_limits(app):
     - Token refresh abuse
     - Password reset abuse
     """
-    for endpoint, limit in AUTH_RATE_LIMITS.items():
+    for _endpoint, _limit in AUTH_RATE_LIMITS.items():
         # Apply limiter to specific endpoint
         # This approach allows tests to work without Request objects
         pass  # Actual application happens via middleware

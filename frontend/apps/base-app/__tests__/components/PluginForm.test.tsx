@@ -203,7 +203,10 @@ describe('PluginForm', () => {
       renderPluginForm();
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       expect(screen.getByText('Please select a plugin')).toBeInTheDocument();
     });
@@ -308,10 +311,14 @@ describe('PluginForm', () => {
       expect(secretField.type).toBe('password');
 
       if (toggleButton) {
-        await user.click(toggleButton);
+        await act(async () => {
+          await user.click(toggleButton);
+        });
         expect(secretField.type).toBe('text');
 
-        await user.click(toggleButton);
+        await act(async () => {
+          await user.click(toggleButton);
+        });
         expect(secretField.type).toBe('password');
       }
     });
@@ -326,10 +333,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const instanceNameField = screen.getByLabelText(/Instance Name/);
-      await user.type(instanceNameField, 'Test Instance');
+
+      await act(async () => {
+        await user.type(instanceNameField, 'Test Instance');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Phone Number is required/)).toBeInTheDocument();
@@ -342,10 +355,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const apiTokenField = screen.getByLabelText(/API Token/);
-      await user.type(apiTokenField, 'short');
+
+      await act(async () => {
+        await user.type(apiTokenField, 'short');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Minimum length is 50 characters/)).toBeInTheDocument();
@@ -356,10 +375,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const emailField = screen.getByLabelText(/Contact Email/);
-      await user.type(emailField, 'invalid-email');
+
+      await act(async () => {
+        await user.type(emailField, 'invalid-email');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Invalid email format/)).toBeInTheDocument();
@@ -370,10 +395,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const urlField = screen.getByLabelText(/Webhook URL/);
-      await user.type(urlField, 'invalid-url');
+
+      await act(async () => {
+        await user.type(urlField, 'invalid-url');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Invalid URL format/)).toBeInTheDocument();
@@ -384,10 +415,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const phoneField = screen.getByLabelText(/Phone Number/);
-      await user.type(phoneField, '123456');
+
+      await act(async () => {
+        await user.type(phoneField, '123456');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Invalid phone number format/)).toBeInTheDocument();
@@ -398,10 +435,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const retryCountField = screen.getByLabelText(/Message Retry Count/);
-      await user.type(retryCountField, '10');
+
+      await act(async () => {
+        await user.type(retryCountField, '10');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Maximum value is 5/)).toBeInTheDocument();
@@ -412,10 +455,16 @@ describe('PluginForm', () => {
       const user = userEvent.setup();
 
       const jsonField = screen.getByLabelText(/Custom Headers/);
-      await user.type(jsonField, '{ invalid json');
+
+      await act(async () => {
+        await user.type(jsonField, '{ invalid json');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Invalid JSON format/)).toBeInTheDocument();
@@ -431,13 +480,18 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onSubmit });
 
       // Fill required fields
-      await user.type(screen.getByLabelText(/Instance Name/), 'Test Instance');
-      await user.type(screen.getByLabelText(/Phone Number/), '+1234567890');
-      await user.type(screen.getByLabelText(/API Token/), 'a'.repeat(50));
-      await user.type(screen.getByLabelText(/Business Account ID/), 'test-account-id');
+      await act(async () => {
+        await user.type(screen.getByLabelText(/Instance Name/), 'Test Instance');
+        await user.type(screen.getByLabelText(/Phone Number/), '+1234567890');
+        await user.type(screen.getByLabelText(/API Token/), 'a'.repeat(50));
+        await user.type(screen.getByLabelText(/Business Account ID/), 'test-account-id');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(onSubmit).toHaveBeenCalledWith({
@@ -459,13 +513,18 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onSubmit });
 
       // Fill required fields
-      await user.type(screen.getByLabelText(/Instance Name/), 'Test Instance');
-      await user.type(screen.getByLabelText(/Phone Number/), '+1234567890');
-      await user.type(screen.getByLabelText(/API Token/), 'a'.repeat(50));
-      await user.type(screen.getByLabelText(/Business Account ID/), 'test-account-id');
+      await act(async () => {
+        await user.type(screen.getByLabelText(/Instance Name/), 'Test Instance');
+        await user.type(screen.getByLabelText(/Phone Number/), '+1234567890');
+        await user.type(screen.getByLabelText(/API Token/), 'a'.repeat(50));
+        await user.type(screen.getByLabelText(/Business Account ID/), 'test-account-id');
+      });
 
       const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
-      await user.click(submitButton);
+
+      await act(async () => {
+        await user.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Submission failed/)).toBeInTheDocument();
@@ -499,7 +558,10 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onTestConnection });
 
       const testButton = screen.getByRole('button', { name: /Test Connection/ });
-      await user.click(testButton);
+
+      await act(async () => {
+        await user.click(testButton);
+      });
 
       await waitFor(() => {
         expect(onTestConnection).toHaveBeenCalledWith('', expect.any(Object));
@@ -516,7 +578,10 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onTestConnection });
 
       const testButton = screen.getByRole('button', { name: /Test Connection/ });
-      await user.click(testButton);
+
+      await act(async () => {
+        await user.click(testButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Connection successful/)).toBeInTheDocument();
@@ -533,7 +598,10 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onTestConnection });
 
       const testButton = screen.getByRole('button', { name: /Test Connection/ });
-      await user.click(testButton);
+
+      await act(async () => {
+        await user.click(testButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/Connection failed/)).toBeInTheDocument();
@@ -602,7 +670,10 @@ describe('PluginForm', () => {
       renderPluginForm({ plugin: mockWhatsAppPlugin, onCancel });
 
       const cancelButton = screen.getByRole('button', { name: /Cancel/ });
-      await user.click(cancelButton);
+
+      await act(async () => {
+        await user.click(cancelButton);
+      });
 
       expect(onCancel).toHaveBeenCalled();
     });
@@ -618,7 +689,9 @@ describe('PluginForm', () => {
                          document.querySelector('[data-testid="close-button"]');
 
       if (closeButton) {
-        await user.click(closeButton);
+        await act(async () => {
+          await user.click(closeButton);
+        });
         expect(onCancel).toHaveBeenCalled();
       }
     });

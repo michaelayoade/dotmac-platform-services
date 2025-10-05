@@ -79,7 +79,9 @@ async def demo_file_storage():
             match = file_data == original_content
             status = "✓ MATCH" if match else "✗ MISMATCH"
 
-            print(f"  • {metadata['file_name']:20} - Size: {metadata['file_size']:6} bytes - {status}")
+            print(
+                f"  • {metadata['file_name']:20} - Size: {metadata['file_size']:6} bytes - {status}"
+            )
 
             if not match:
                 print(f"    Expected: {original_content[:50]}...")
@@ -97,7 +99,9 @@ async def demo_file_storage():
 
     files = await storage.list_files(tenant_id="demo_tenant")
     for file_metadata in files[:5]:  # Show first 5 files
-        print(f"  • {file_metadata.file_name:20} - {file_metadata.file_size:6} bytes - {file_metadata.created_at.strftime('%Y-%m-%d %H:%M')}")
+        print(
+            f"  • {file_metadata.file_name:20} - {file_metadata.file_size:6} bytes - {file_metadata.created_at.strftime('%Y-%m-%d %H:%M')}"
+        )
 
     print(f"\n  Total files in storage: {len(files)}")
     print()
@@ -168,6 +172,7 @@ async def demo_file_storage():
     # Show storage location for local backend
     if StorageBackend.LOCAL:
         from dotmac.platform.file_storage.service import LocalFileStorage
+
         local_storage = LocalFileStorage()
         print(f"\nLocal files stored at: {local_storage.base_path}")
         print("You can inspect the files directly in this directory.")

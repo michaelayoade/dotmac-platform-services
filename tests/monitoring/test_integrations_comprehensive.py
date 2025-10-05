@@ -39,10 +39,7 @@ class TestMetricData:
         labels = {"service": "api", "method": "GET"}
 
         metric = MetricData(
-            name="http_requests_total",
-            value=1500,
-            labels=labels,
-            timestamp=timestamp
+            name="http_requests_total", value=1500, labels=labels, timestamp=timestamp
         )
 
         assert metric.name == "http_requests_total"
@@ -91,7 +88,7 @@ class TestPrometheusIntegration:
     def test_prometheus_integration_initialization(self, prometheus_integration):
         """Test Prometheus integration initialization."""
         assert prometheus_integration.metrics == []
-        assert hasattr(prometheus_integration, 'logger')
+        assert hasattr(prometheus_integration, "logger")
 
     def test_record_metric_basic(self, prometheus_integration):
         """Test basic metric recording."""
@@ -164,7 +161,7 @@ class TestPrometheusIntegration:
         prometheus_integration.record_metric("simple_gauge", 95.5)
 
         format_output = prometheus_integration.to_prometheus_format()
-        lines = format_output.strip().split('\n')
+        lines = format_output.strip().split("\n")
 
         assert len(lines) == 2
         assert "simple_counter 42" in lines
@@ -173,9 +170,7 @@ class TestPrometheusIntegration:
     def test_to_prometheus_format_with_labels(self, prometheus_integration):
         """Test Prometheus format conversion with labels."""
         prometheus_integration.record_metric(
-            "http_requests_total",
-            1234,
-            {"method": "GET", "status": "200"}
+            "http_requests_total", 1234, {"method": "GET", "status": "200"}
         )
 
         format_output = prometheus_integration.to_prometheus_format()
@@ -190,10 +185,12 @@ class TestPrometheusIntegration:
         """Test Prometheus format with multiple metrics, some with and without labels."""
         prometheus_integration.record_metric("simple_counter", 10)
         prometheus_integration.record_metric("labeled_counter", 20, {"env": "prod"})
-        prometheus_integration.record_metric("multi_label_gauge", 30, {"env": "dev", "service": "api"})
+        prometheus_integration.record_metric(
+            "multi_label_gauge", 30, {"env": "dev", "service": "api"}
+        )
 
         format_output = prometheus_integration.to_prometheus_format()
-        lines = format_output.strip().split('\n')
+        lines = format_output.strip().split("\n")
 
         assert len(lines) == 3
 
@@ -218,9 +215,7 @@ class TestPrometheusIntegration:
     def test_to_prometheus_format_special_label_values(self, prometheus_integration):
         """Test Prometheus format with special characters in label values."""
         prometheus_integration.record_metric(
-            "test_metric",
-            1,
-            {"path": "/api/v1/users", "user_agent": "Mozilla/5.0"}
+            "test_metric", 1, {"path": "/api/v1/users", "user_agent": "Mozilla/5.0"}
         )
 
         format_output = prometheus_integration.to_prometheus_format()
@@ -316,7 +311,7 @@ class TestPrometheusIntegration:
         assert format_time < 1.0  # Should take less than 1 second
 
         # Verify format is correct
-        lines = prometheus_format.strip().split('\n')
+        lines = prometheus_format.strip().split("\n")
         assert len(lines) == 1000
 
     def test_metric_data_immutability_protection(self, prometheus_integration):

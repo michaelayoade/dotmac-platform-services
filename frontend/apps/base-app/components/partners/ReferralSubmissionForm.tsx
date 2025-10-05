@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { platformConfig } from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = platformConfig.apiBaseUrl;
 
 interface ReferralSubmissionFormProps {
   partnerId: string;
@@ -91,7 +92,7 @@ export default function ReferralSubmissionForm({
         <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
           <div className="text-green-400 font-semibold">Referral Submitted!</div>
           <div className="text-sm text-green-300 mt-1">
-            Your referral has been submitted successfully. We'll track its progress and notify you of updates.
+            Your referral has been submitted successfully. We&apos;ll track its progress and notify you of updates.
           </div>
         </div>
       )}
@@ -220,7 +221,7 @@ export default function ReferralSubmissionForm({
       <div className="mt-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
         <h4 className="text-sm font-semibold text-white mb-2">Commission Information</h4>
         <p className="text-xs text-slate-400">
-          You'll earn commissions based on your partner tier and commission model when this referral converts to a paying customer. Track the status of all your referrals in the Referrals tab.
+          You&apos;ll earn commissions based on your partner tier and commission model when this referral converts to a paying customer. Track the status of all your referrals in the Referrals tab.
         </p>
       </div>
     </div>

@@ -7,20 +7,21 @@ import asyncio
 import os
 
 # Set environment variables before importing the app modules
-os.environ['STORAGE__PROVIDER'] = 'minio'
-os.environ['STORAGE__ENDPOINT'] = 'localhost:9000'
-os.environ['STORAGE__ACCESS_KEY'] = 'minioadmin'
-os.environ['STORAGE__SECRET_KEY'] = 'minioadmin123'
-os.environ['STORAGE__BUCKET'] = 'dotmac'
-os.environ['STORAGE__USE_SSL'] = 'false'
-os.environ['FEATURES__STORAGE_MINIO_ENABLED'] = 'true'
+os.environ["STORAGE__PROVIDER"] = "minio"
+os.environ["STORAGE__ENDPOINT"] = "localhost:9000"
+os.environ["STORAGE__ACCESS_KEY"] = "minioadmin"
+os.environ["STORAGE__SECRET_KEY"] = "minioadmin123"
+os.environ["STORAGE__BUCKET"] = "dotmac"
+os.environ["STORAGE__USE_SSL"] = "false"
+os.environ["FEATURES__STORAGE_MINIO_ENABLED"] = "true"
 
 # Force reloading of settings with new environment variables
 import sys
-if 'dotmac.platform.settings' in sys.modules:
-    del sys.modules['dotmac.platform.settings']
-if 'dotmac.platform.file_storage.service' in sys.modules:
-    del sys.modules['dotmac.platform.file_storage.service']
+
+if "dotmac.platform.settings" in sys.modules:
+    del sys.modules["dotmac.platform.settings"]
+if "dotmac.platform.file_storage.service" in sys.modules:
+    del sys.modules["dotmac.platform.file_storage.service"]
 
 from dotmac.platform.settings import settings
 from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
@@ -39,8 +40,12 @@ async def test_minio_operations():
     print("-" * 50)
     print(f"  Provider:     {settings.storage.provider}")
     print(f"  Endpoint:     {settings.storage.endpoint}")
-    print(f"  Access Key:   {'***' + settings.storage.access_key[-4:] if settings.storage.access_key else 'Not set'}")
-    print(f"  Secret Key:   {'***' + settings.storage.secret_key[-4:] if settings.storage.secret_key else 'Not set'}")
+    print(
+        f"  Access Key:   {'***' + settings.storage.access_key[-4:] if settings.storage.access_key else 'Not set'}"
+    )
+    print(
+        f"  Secret Key:   {'***' + settings.storage.secret_key[-4:] if settings.storage.secret_key else 'Not set'}"
+    )
     print(f"  Bucket:       {settings.storage.bucket}")
     print(f"  Use SSL:      {settings.storage.use_ssl}")
     print()
@@ -116,7 +121,9 @@ async def test_minio_operations():
         files = await storage.list_files(tenant_id="minio-test-tenant")
         print(f"  Found {len(files)} file(s) in MinIO:")
         for f in files[:5]:
-            print(f"    • {f.file_name:20} - {f.file_size:6} bytes - {f.created_at.strftime('%H:%M:%S')}")
+            print(
+                f"    • {f.file_name:20} - {f.file_size:6} bytes - {f.created_at.strftime('%H:%M:%S')}"
+            )
     except Exception as e:
         print(f"  ❌ Failed to list files: {e}")
 
@@ -133,7 +140,9 @@ async def test_minio_operations():
             if file_data:
                 matches = file_data == original_file["content"]
                 status = "✅ Content matches" if matches else "❌ Content mismatch"
-                print(f"  • {original_file['name']:20} - Retrieved {len(file_data):6} bytes - {status}")
+                print(
+                    f"  • {original_file['name']:20} - Retrieved {len(file_data):6} bytes - {status}"
+                )
             else:
                 print(f"  ❌ Failed to retrieve {original_file['name']}")
         except Exception as e:

@@ -509,15 +509,11 @@ class TestPricingRuleUpdateRequest:
         """Test pricing rule update request validation."""
         # Test invalid discount value
         with pytest.raises(ValidationError):
-            PricingRuleUpdateRequest(
-                discount_value=Decimal("-5")  # Invalid negative discount
-            )
+            PricingRuleUpdateRequest(discount_value=Decimal("-5"))  # Invalid negative discount
 
         # Test invalid max_uses
         with pytest.raises(ValidationError):
-            PricingRuleUpdateRequest(
-                max_uses=0  # Invalid - must be >= 1
-            )
+            PricingRuleUpdateRequest(max_uses=0)  # Invalid - must be >= 1
 
     def test_update_request_partial_updates(self):
         """Test partial updates in update request."""

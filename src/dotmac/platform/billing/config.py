@@ -3,7 +3,7 @@ Billing module configuration
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -12,8 +12,8 @@ class StripeConfig(BaseModel):
     """Stripe configuration"""
 
     api_key: str = Field(..., description="Stripe API key")
-    webhook_secret: Optional[str] = Field(None, description="Stripe webhook secret")
-    publishable_key: Optional[str] = Field(None, description="Stripe publishable key")
+    webhook_secret: str | None = Field(None, description="Stripe webhook secret")
+    publishable_key: str | None = Field(None, description="Stripe publishable key")
 
 
 class PayPalConfig(BaseModel):
@@ -21,17 +21,17 @@ class PayPalConfig(BaseModel):
 
     client_id: str = Field(..., description="PayPal client ID")
     client_secret: str = Field(..., description="PayPal client secret")
-    webhook_id: Optional[str] = Field(None, description="PayPal webhook ID")
+    webhook_id: str | None = Field(None, description="PayPal webhook ID")
     environment: str = Field("sandbox", description="PayPal environment (sandbox/live)")
 
 
 class TaxConfig(BaseModel):
     """Tax configuration"""
 
-    provider: Optional[str] = Field(None, description="Tax provider (avalara, taxjar)")
-    avalara_api_key: Optional[str] = Field(None, description="Avalara API key")
-    avalara_company_code: Optional[str] = Field(None, description="Avalara company code")
-    taxjar_api_token: Optional[str] = Field(None, description="TaxJar API token")
+    provider: str | None = Field(None, description="Tax provider (avalara, taxjar)")
+    avalara_api_key: str | None = Field(None, description="Avalara API key")
+    avalara_company_code: str | None = Field(None, description="Avalara company code")
+    taxjar_api_token: str | None = Field(None, description="TaxJar API token")
     default_tax_rate: float = Field(0.0, description="Default tax rate percentage")
 
 
@@ -42,10 +42,7 @@ class CurrencyConfig(BaseModel):
     currency_symbol: str = Field("$", description="Currency symbol")
     currency_decimal_places: int = Field(2, description="Number of decimal places")
     currency_format: str = Field("{symbol}{amount}", description="Currency display format")
-    use_minor_units: bool = Field(
-        True,
-        description="Store amounts in minor units (cents)"
-    )
+    use_minor_units: bool = Field(True, description="Store amounts in minor units (cents)")
 
 
 class InvoiceConfig(BaseModel):
@@ -97,15 +94,15 @@ class BillingConfig(BaseModel):
     """Main billing configuration"""
 
     # Provider configurations
-    stripe: Optional[StripeConfig] = None
-    paypal: Optional[PayPalConfig] = None
+    stripe: StripeConfig | None = None
+    paypal: PayPalConfig | None = None
 
     # Module configurations
     tax: TaxConfig = Field(default_factory=TaxConfig)
     currency: CurrencyConfig = Field(default_factory=CurrencyConfig)
     invoice: InvoiceConfig = Field(default_factory=InvoiceConfig)
     payment: PaymentConfig = Field(default_factory=PaymentConfig)
-    webhook: Optional[WebhookConfig] = None
+    webhook: WebhookConfig | None = None
 
     # Feature flags
     enable_subscriptions: bool = Field(True, description="Enable subscription billing")
@@ -123,7 +120,7 @@ class BillingConfig(BaseModel):
     def from_env(cls) -> "BillingConfig":
         """Create configuration from environment variables"""
 
-        config_dict: Dict[str, Any] = {}
+        config_dict: dict[str, Any] = {}
 
         # Stripe configuration
         if os.getenv("STRIPE_API_KEY"):
@@ -177,7 +174,8 @@ class BillingConfig(BaseModel):
             default_provider=os.getenv("DEFAULT_PAYMENT_PROVIDER", "stripe"),
             auto_retry_failed=os.getenv("AUTO_RETRY_FAILED_PAYMENTS", "true").lower() == "true",
             max_retry_attempts=int(os.getenv("MAX_PAYMENT_RETRY_ATTEMPTS", "3")),
-            require_verification=os.getenv("REQUIRE_PAYMENT_VERIFICATION", "true").lower() == "true",
+            require_verification=os.getenv("REQUIRE_PAYMENT_VERIFICATION", "true").lower()
+            == "true",
         )
         config_dict["payment"] = payment_config
 
@@ -191,22 +189,32 @@ class BillingConfig(BaseModel):
             )
 
         # Feature flags
-        config_dict["enable_subscriptions"] = os.getenv("ENABLE_SUBSCRIPTIONS", "true").lower() == "true"
-        config_dict["enable_credit_notes"] = os.getenv("ENABLE_CREDIT_NOTES", "true").lower() == "true"
-        config_dict["enable_tax_calculation"] = os.getenv("ENABLE_TAX_CALCULATION", "true").lower() == "true"
-        config_dict["enable_multi_currency"] = os.getenv("ENABLE_MULTI_CURRENCY", "true").lower() == "true"
+        config_dict["enable_subscriptions"] = (
+            os.getenv("ENABLE_SUBSCRIPTIONS", "true").lower() == "true"
+        )
+        config_dict["enable_credit_notes"] = (
+            os.getenv("ENABLE_CREDIT_NOTES", "true").lower() == "true"
+        )
+        config_dict["enable_tax_calculation"] = (
+            os.getenv("ENABLE_TAX_CALCULATION", "true").lower() == "true"
+        )
+        config_dict["enable_multi_currency"] = (
+            os.getenv("ENABLE_MULTI_CURRENCY", "true").lower() == "true"
+        )
         config_dict["enable_webhooks"] = os.getenv("ENABLE_WEBHOOKS", "false").lower() == "true"
 
         # Audit and compliance
         config_dict["audit_log_enabled"] = os.getenv("BILLING_AUDIT_LOG", "true").lower() == "true"
-        config_dict["pci_compliance_mode"] = os.getenv("PCI_COMPLIANCE_MODE", "false").lower() == "true"
+        config_dict["pci_compliance_mode"] = (
+            os.getenv("PCI_COMPLIANCE_MODE", "false").lower() == "true"
+        )
         config_dict["data_retention_days"] = int(os.getenv("BILLING_DATA_RETENTION_DAYS", "2555"))
 
         return cls(**config_dict)
 
 
 # Global configuration instance
-_billing_config: Optional[BillingConfig] = None
+_billing_config: BillingConfig | None = None
 
 
 def get_billing_config() -> BillingConfig:

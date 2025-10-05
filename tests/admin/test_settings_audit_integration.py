@@ -328,10 +328,7 @@ class TestSettingsAuditIntegration:
             assert log.user_id == "user1"
 
         # Test filtering by both
-        user1_db_logs = service.get_audit_logs(
-            category=SettingsCategory.DATABASE,
-            user_id="user1"
-        )
+        user1_db_logs = service.get_audit_logs(category=SettingsCategory.DATABASE, user_id="user1")
         assert len(user1_db_logs) == 1
         assert user1_db_logs[0].user_id == "user1"
         assert user1_db_logs[0].category == SettingsCategory.DATABASE
@@ -342,8 +339,7 @@ class TestSettingsAuditIntegration:
         service.update_category_settings(
             category=SettingsCategory.DATABASE,
             update_request=SettingsUpdateRequest(
-                updates={"pool_size": 10},
-                reason="Pre-export update"
+                updates={"pool_size": 10}, reason="Pre-export update"
             ),
             user_id="exporter",
             user_email="export@example.com",
@@ -351,9 +347,7 @@ class TestSettingsAuditIntegration:
 
         # Export settings as JSON
         exported = service.export_settings(
-            categories=[SettingsCategory.DATABASE],
-            include_sensitive=False,
-            format="json"
+            categories=[SettingsCategory.DATABASE], include_sensitive=False, format="json"
         )
 
         # Parse the export

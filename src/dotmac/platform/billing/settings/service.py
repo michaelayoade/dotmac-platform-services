@@ -3,19 +3,20 @@ Billing settings service
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.billing.metrics import get_billing_metrics
 
 from .models import (
     BillingSettings,
     CompanyInfo,
-    TaxSettings,
-    PaymentSettings,
     InvoiceSettings,
     NotificationSettings,
+    PaymentSettings,
+    TaxSettings,
 )
-from dotmac.platform.billing.metrics import get_billing_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,7 @@ class BillingSettingsService:
         logger.info(f"Retrieved billing settings for tenant {tenant_id}")
         return default_settings
 
-    async def update_settings(
-        self, tenant_id: str, settings: BillingSettings
-    ) -> BillingSettings:
+    async def update_settings(self, tenant_id: str, settings: BillingSettings) -> BillingSettings:
         """Update billing settings for tenant"""
 
         # Validate settings
@@ -98,7 +97,7 @@ class BillingSettingsService:
         return await self.update_settings(tenant_id, settings)
 
     async def update_feature_flags(
-        self, tenant_id: str, features: Dict[str, bool]
+        self, tenant_id: str, features: dict[str, bool]
     ) -> BillingSettings:
         """Update feature flags"""
 
@@ -112,18 +111,14 @@ class BillingSettingsService:
         settings = await self.get_settings(tenant_id)
         return settings.features_enabled.get(feature_name, False)
 
-    async def update_custom_setting(
-        self, tenant_id: str, key: str, value: Any
-    ) -> BillingSettings:
+    async def update_custom_setting(self, tenant_id: str, key: str, value: Any) -> BillingSettings:
         """Update custom setting"""
 
         settings = await self.get_settings(tenant_id)
         settings.custom_settings[key] = value
         return await self.update_settings(tenant_id, settings)
 
-    async def get_custom_setting(
-        self, tenant_id: str, key: str, default: Any = None
-    ) -> Any:
+    async def get_custom_setting(self, tenant_id: str, key: str, default: Any | None = None) -> Any:
         """Get custom setting value"""
 
         settings = await self.get_settings(tenant_id)
@@ -135,7 +130,7 @@ class BillingSettingsService:
         default_settings = self._get_default_settings(tenant_id)
         return await self.update_settings(tenant_id, default_settings)
 
-    async def validate_settings_for_tenant(self, tenant_id: str) -> Dict[str, Any]:
+    async def validate_settings_for_tenant(self, tenant_id: str) -> dict[str, Any]:
         """Validate current settings and return validation report"""
 
         settings = await self.get_settings(tenant_id)
@@ -166,12 +161,17 @@ class BillingSettingsService:
             validation_report["valid"] = False
 
         # Validate invoice settings
-        if settings.invoice_settings.send_payment_reminders and not settings.invoice_settings.reminder_schedule_days:
+        if (
+            settings.invoice_settings.send_payment_reminders
+            and not settings.invoice_settings.reminder_schedule_days
+        ):
             validation_report["warnings"].append(
                 "Payment reminders enabled but no reminder schedule configured"
             )
 
-        logger.info(f"Settings validation for tenant {tenant_id}: {'valid' if validation_report['valid'] else 'invalid'}")
+        logger.info(
+            f"Settings validation for tenant {tenant_id}: {'valid' if validation_report['valid'] else 'invalid'}"
+        )
         return validation_report
 
     # ============================================================================
@@ -205,7 +205,10 @@ class BillingSettingsService:
         # Add any business logic validation here
 
         # Validate currency codes
-        if settings.payment_settings.default_currency not in settings.payment_settings.supported_currencies:
+        if (
+            settings.payment_settings.default_currency
+            not in settings.payment_settings.supported_currencies
+        ):
             raise ValueError("Default currency must be in supported currencies list")
 
         # Validate tax registrations format

@@ -80,6 +80,7 @@ def app_client(mock_analytics_service):
         )
 
     from dotmac.platform.auth.dependencies import get_current_user
+
     app.dependency_overrides[get_current_user] = override_get_current_user
 
     app.include_router(analytics_router, prefix="/analytics")
@@ -290,10 +291,10 @@ class TestEventQuerying:
         response = client.get(
             "/analytics/events",
             params={
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
             },
-            )
+        )
 
         assert response.status_code == 200
         # Verify service was called with correct dates
@@ -341,13 +342,13 @@ class TestMetricQuerying:
         service.query_metrics.return_value = mock_metrics
 
         response = client.get(
-                "/analytics/metrics",
+            "/analytics/metrics",
             params={
-                    "metric_name": "request_count",
-                    "aggregation": "sum",
-                    "interval": "hour",
-                },
-            )
+                "metric_name": "request_count",
+                "aggregation": "sum",
+                "interval": "hour",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -461,12 +462,12 @@ class TestReportGeneration:
         end_date = datetime.now(timezone.utc)
 
         response = client.get(
-                "/analytics/reports/usage",
+            "/analytics/reports/usage",
             params={
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
             },
-            )
+        )
 
         assert response.status_code == 200
         # Verify service was called with correct parameters

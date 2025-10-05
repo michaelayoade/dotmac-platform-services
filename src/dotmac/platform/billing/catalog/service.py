@@ -2,34 +2,33 @@
 Product catalog service - simple CRUD operations with business logic.
 """
 
-import structlog
 from decimal import Decimal
-from typing import List, Optional
 from uuid import uuid4
 
+import structlog
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.catalog.models import (
     Product,
     ProductCategory,
-    ProductCreateRequest,
-    ProductUpdateRequest,
     ProductCategoryCreateRequest,
+    ProductCreateRequest,
     ProductFilters,
     ProductType,
+    ProductUpdateRequest,
     UsageType,
 )
-from dotmac.platform.billing.models import (
-    BillingProductTable,
-    BillingProductCategoryTable,
-)
 from dotmac.platform.billing.exceptions import (
-    ProductError,
-    ProductNotFoundError,
+    BillingConfigurationError,
     CategoryNotFoundError,
     DuplicateProductError,
-    BillingConfigurationError,
+    ProductError,
+    ProductNotFoundError,
+)
+from dotmac.platform.billing.models import (
+    BillingProductCategoryTable,
+    BillingProductTable,
 )
 
 logger = structlog.get_logger(__name__)
@@ -52,9 +51,7 @@ class ProductService:
         self.db = db_session
 
     async def create_category(
-        self,
-        category_data: ProductCategoryCreateRequest,
-        tenant_id: str
+        self, category_data: ProductCategoryCreateRequest, tenant_id: str
     ) -> ProductCategory:
         """Create a new product category."""
 
@@ -98,11 +95,7 @@ class ProductService:
 
         return category
 
-    async def create_product(
-        self,
-        product_data: ProductCreateRequest,
-        tenant_id: str
-    ) -> Product:
+    async def create_product(self, product_data: ProductCreateRequest, tenant_id: str) -> Product:
         """
         Create a new product with SKU uniqueness validation.
 
@@ -124,7 +117,7 @@ class ProductService:
             if existing:
                 raise DuplicateProductError(
                     f"Product with SKU '{product_data.sku}' already exists in tenant {tenant_id}",
-                    sku=product_data.sku
+                    sku=product_data.sku,
                 )
 
             # Validate usage configuration
@@ -133,13 +126,13 @@ class ProductService:
                     raise BillingConfigurationError(
                         f"Usage type is required for {product_data.product_type} products",
                         config_key="usage_type",
-                        recovery_hint=f"Specify a usage_type when creating {product_data.product_type} products"
+                        recovery_hint=f"Specify a usage_type when creating {product_data.product_type} products",
                     )
                 if not product_data.usage_unit_name:
                     raise BillingConfigurationError(
                         f"Usage unit name is required for {product_data.product_type} products",
                         config_key="usage_unit_name",
-                        recovery_hint="Specify the unit name for usage measurement (e.g., 'requests', 'GB', 'hours')"
+                        recovery_hint="Specify the unit name for usage measurement (e.g., 'requests', 'GB', 'hours')",
                     )
 
         except (DuplicateProductError, BillingConfigurationError):
@@ -149,12 +142,12 @@ class ProductService:
                 "Unexpected error during product validation",
                 sku=product_data.sku,
                 tenant_id=tenant_id,
-                error=str(e)
+                error=str(e),
             )
             raise ProductError(
                 f"Failed to validate product: {str(e)}",
                 context={"sku": product_data.sku},
-                recovery_hint="Check product data and retry"
+                recovery_hint="Check product data and retry",
             )
 
         # Create database record
@@ -184,12 +177,12 @@ class ProductService:
                 "Database error creating product",
                 sku=product_data.sku,
                 tenant_id=tenant_id,
-                error=str(e)
+                error=str(e),
             )
             raise ProductError(
                 f"Failed to create product in database: {str(e)}",
                 context={"sku": product_data.sku, "name": product_data.name},
-                recovery_hint="Check database connectivity and retry"
+                recovery_hint="Check database connectivity and retry",
             )
 
         # Convert to Pydantic model
@@ -241,7 +234,7 @@ class ProductService:
             stmt = select(BillingProductTable).where(
                 and_(
                     BillingProductTable.product_id == product_id,
-                    BillingProductTable.tenant_id == tenant_id
+                    BillingProductTable.tenant_id == tenant_id,
                 )
             )
             result = await self.db.execute(stmt)
@@ -251,30 +244,26 @@ class ProductService:
                 "Database error fetching product",
                 product_id=product_id,
                 tenant_id=tenant_id,
-                error=str(e)
+                error=str(e),
             )
             raise ProductError(
                 f"Failed to fetch product: {str(e)}",
                 context={"product_id": product_id},
-                recovery_hint="Check database connectivity and retry"
+                recovery_hint="Check database connectivity and retry",
             )
 
         if not db_product:
             raise ProductNotFoundError(
-                f"Product {product_id} not found in tenant {tenant_id}",
-                product_id=product_id
+                f"Product {product_id} not found in tenant {tenant_id}", product_id=product_id
             )
 
         return self._db_to_pydantic_product(db_product)
 
-    async def get_product_by_sku(self, sku: str, tenant_id: str) -> Optional[Product]:
+    async def get_product_by_sku(self, sku: str, tenant_id: str) -> Product | None:
         """Get product by SKU within tenant."""
 
         stmt = select(BillingProductTable).where(
-            and_(
-                BillingProductTable.sku == sku.upper(),
-                BillingProductTable.tenant_id == tenant_id
-            )
+            and_(BillingProductTable.sku == sku.upper(), BillingProductTable.tenant_id == tenant_id)
         )
         result = await self.db.execute(stmt)
         db_product = result.scalar_one_or_none()
@@ -287,10 +276,10 @@ class ProductService:
     async def list_products(
         self,
         tenant_id: str,
-        filters: Optional[ProductFilters] = None,
+        filters: ProductFilters | None = None,
         page: int = 1,
-        limit: int = 50
-    ) -> List[Product]:
+        limit: int = 50,
+    ) -> list[Product]:
         """List products with filtering and pagination."""
 
         if filters is None:
@@ -316,7 +305,7 @@ class ProductService:
                 or_(
                     BillingProductTable.name.ilike(search_term),
                     BillingProductTable.description.ilike(search_term),
-                    BillingProductTable.sku.ilike(search_term)
+                    BillingProductTable.sku.ilike(search_term),
                 )
             )
 
@@ -333,10 +322,7 @@ class ProductService:
         return [self._db_to_pydantic_product(db_product) for db_product in db_products]
 
     async def update_product(
-        self,
-        product_id: str,
-        updates: ProductUpdateRequest,
-        tenant_id: str
+        self, product_id: str, updates: ProductUpdateRequest, tenant_id: str
     ) -> Product:
         """Update product with validation."""
 
@@ -344,7 +330,7 @@ class ProductService:
         stmt = select(BillingProductTable).where(
             and_(
                 BillingProductTable.product_id == product_id,
-                BillingProductTable.tenant_id == tenant_id
+                BillingProductTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -358,7 +344,7 @@ class ProductService:
 
         for field, value in update_data.items():
             if field == "metadata":
-                setattr(db_product, "metadata_json", value)
+                db_product.metadata_json = value
             elif field == "tax_class" and value:
                 setattr(db_product, field, value.value)
             else:
@@ -376,19 +362,14 @@ class ProductService:
 
         return self._db_to_pydantic_product(db_product)
 
-    async def update_price(
-        self,
-        product_id: str,
-        new_price: Decimal,
-        tenant_id: str
-    ) -> Product:
+    async def update_price(self, product_id: str, new_price: Decimal, tenant_id: str) -> Product:
         """Simple price update - no versioning."""
 
         # Get existing product
         stmt = select(BillingProductTable).where(
             and_(
                 BillingProductTable.product_id == product_id,
-                BillingProductTable.tenant_id == tenant_id
+                BillingProductTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -420,7 +401,7 @@ class ProductService:
         stmt = select(BillingProductTable).where(
             and_(
                 BillingProductTable.product_id == product_id,
-                BillingProductTable.tenant_id == tenant_id
+                BillingProductTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -443,14 +424,16 @@ class ProductService:
         return self._db_to_pydantic_product(db_product)
 
     async def list_categories(
-        self,
-        tenant_id: str,
-        active_only: bool = True
-    ) -> List[ProductCategory]:
+        self, tenant_id: str, active_only: bool = True
+    ) -> list[ProductCategory]:
         """List product categories, ordered by sort_order."""
 
-        stmt = select(BillingProductCategoryTable).where(BillingProductCategoryTable.tenant_id == tenant_id)
-        stmt = stmt.order_by(BillingProductCategoryTable.sort_order, BillingProductCategoryTable.name)
+        stmt = select(BillingProductCategoryTable).where(
+            BillingProductCategoryTable.tenant_id == tenant_id
+        )
+        stmt = stmt.order_by(
+            BillingProductCategoryTable.sort_order, BillingProductCategoryTable.name
+        )
 
         result = await self.db.execute(stmt)
         db_categories = result.scalars().all()
@@ -463,7 +446,7 @@ class ProductService:
         stmt = select(BillingProductCategoryTable).where(
             and_(
                 BillingProductCategoryTable.category_id == category_id,
-                BillingProductCategoryTable.tenant_id == tenant_id
+                BillingProductCategoryTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)
@@ -474,14 +457,16 @@ class ProductService:
 
         return self._db_to_pydantic_category(db_category)
 
-    async def get_usage_products(self, tenant_id: str) -> List[Product]:
+    async def get_usage_products(self, tenant_id: str) -> list[Product]:
         """Get products configured for usage-based billing."""
 
         stmt = select(BillingProductTable).where(
             and_(
                 BillingProductTable.tenant_id == tenant_id,
-                BillingProductTable.product_type.in_([ProductType.USAGE_BASED.value, ProductType.HYBRID.value]),
-                BillingProductTable.is_active == True
+                BillingProductTable.product_type.in_(
+                    [ProductType.USAGE_BASED.value, ProductType.HYBRID.value]
+                ),
+                BillingProductTable.is_active,
             )
         )
 
@@ -491,22 +476,18 @@ class ProductService:
         return [self._db_to_pydantic_product(db_product) for db_product in db_products]
 
     async def get_products_by_category(
-        self,
-        category: str,
-        tenant_id: str,
-        active_only: bool = True
-    ) -> List[Product]:
+        self, category: str, tenant_id: str, active_only: bool = True
+    ) -> list[Product]:
         """Get all products in a specific category."""
 
         stmt = select(BillingProductTable).where(
             and_(
-                BillingProductTable.tenant_id == tenant_id,
-                BillingProductTable.category == category
+                BillingProductTable.tenant_id == tenant_id, BillingProductTable.category == category
             )
         )
 
         if active_only:
-            stmt = stmt.where(BillingProductTable.is_active == True)
+            stmt = stmt.where(BillingProductTable.is_active)
 
         stmt = stmt.order_by(BillingProductTable.name)
 
@@ -517,17 +498,13 @@ class ProductService:
 
     # Private helper methods
 
-    async def _get_category_by_name(
-        self,
-        name: str,
-        tenant_id: str
-    ) -> Optional[ProductCategory]:
+    async def _get_category_by_name(self, name: str, tenant_id: str) -> ProductCategory | None:
         """Get category by name within tenant."""
 
         stmt = select(BillingProductCategoryTable).where(
             and_(
                 BillingProductCategoryTable.name == name,
-                BillingProductCategoryTable.tenant_id == tenant_id
+                BillingProductCategoryTable.tenant_id == tenant_id,
             )
         )
         result = await self.db.execute(stmt)

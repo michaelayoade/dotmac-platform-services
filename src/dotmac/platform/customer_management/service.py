@@ -9,7 +9,7 @@ import collections
 import itertools
 import operator
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -39,7 +39,6 @@ from dotmac.platform.customer_management.schemas import (
     CustomerUpdate,
 )
 
-
 # Import proper tenant resolution from platform tenant module
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -53,6 +52,7 @@ def validate_uuid(value: str, field_name: str = "id") -> UUID:
     except (ValueError, AttributeError) as e:
         raise ValueError(f"Invalid UUID for {field_name}: {value}") from e
 
+
 logger = structlog.get_logger(__name__)
 
 
@@ -64,7 +64,9 @@ class CustomerService:
         # Initialize collections for efficient analytics
         self._customer_stats_cache = collections.defaultdict(int)
 
-    def _get_customer_cache_key(self, customer_id: str, include_activities: bool = False, include_notes: bool = False) -> str:
+    def _get_customer_cache_key(
+        self, customer_id: str, include_activities: bool = False, include_notes: bool = False
+    ) -> str:
         """Generate cache key for customer data using standard library."""
         return f"customer:{customer_id}:activities:{include_activities}:notes:{include_notes}"
 
@@ -200,7 +202,7 @@ class CustomerService:
         self.session.add(activity)
 
         # Add tags using standard SQLAlchemy
-        for tag_name in (data.tags or []):
+        for tag_name in data.tags or []:
             tag = CustomerTag(
                 customer_id=customer.id,
                 tenant_id=tenant_id,
@@ -230,9 +232,7 @@ class CustomerService:
         customer_id, tenant_id = self._validate_and_get_tenant(customer_id)
 
         # Build query with optional includes using SQLAlchemy's selectinload
-        query = self._get_base_customer_query(tenant_id).where(
-            Customer.id == customer_id
-        )
+        query = self._get_base_customer_query(tenant_id).where(Customer.id == customer_id)
 
         if include_activities:
             query = query.options(selectinload(Customer.activities))
@@ -298,10 +298,12 @@ class CustomerService:
             return None
 
         # Update using Pydantic exclude_unset (standard pattern)
-        update_data = data.model_dump(exclude_unset=True, exclude={"tags", "metadata", "custom_fields"})
+        update_data = data.model_dump(
+            exclude_unset=True, exclude={"tags", "metadata", "custom_fields"}
+        )
 
         if update_data:
-            update_data["updated_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
+            update_data["updated_at"] = datetime.now(UTC).replace(tzinfo=None)
             update_data["updated_by"] = updated_by
 
             # Standard SQLAlchemy update
@@ -334,6 +336,14 @@ class CustomerService:
 
         # Create activity log
         if update_data or changes:
+            # Try to convert updated_by to UUID, skip if invalid
+            performed_by_uuid = None
+            if updated_by:
+                try:
+                    performed_by_uuid = UUID(updated_by)
+                except (ValueError, AttributeError):
+                    logger.warning("Invalid UUID for updated_by, skipping", updated_by=updated_by)
+
             activity = CustomerActivity(
                 customer_id=customer.id,
                 tenant_id=tenant_id,
@@ -341,7 +351,7 @@ class CustomerService:
                 title="Customer updated",
                 description=f"Customer {customer.full_name} was updated",
                 metadata_={"updated_fields": list(update_data.keys()) + changes},
-                performed_by=updated_by,
+                performed_by=performed_by_uuid,
             )
             self.session.add(activity)
 
@@ -370,7 +380,7 @@ class CustomerService:
             await self.session.delete(customer)
         else:
             # Soft delete using standard pattern
-            customer.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            customer.deleted_at = datetime.now(UTC).replace(tzinfo=None)
             customer.deleted_by = deleted_by
             customer.status = CustomerStatus.ARCHIVED
 
@@ -420,9 +430,7 @@ class CustomerService:
                 Customer.company_name,
                 Customer.customer_number,
             ]
-            query = query.where(
-                or_(*[field.ilike(search_term) for field in search_fields])
-            )
+            query = query.where(or_(*[field.ilike(search_term) for field in search_fields]))
 
         # Use collections for efficient filtering
         filter_conditions = []
@@ -456,7 +464,7 @@ class CustomerService:
         self,
         customer_id: UUID | str,
         data: CustomerActivityCreate,
-        performed_by: str | None = None,
+        performed_by: str | UUID | None = None,
     ) -> CustomerActivity:
         """Add customer activity using standard patterns."""
         customer_id = validate_uuid(customer_id, "customer_id")
@@ -467,10 +475,23 @@ class CustomerService:
         if not customer:
             raise ValueError(f"Customer not found: {customer_id}")
 
+        # Convert performed_by to UUID if it's a string
+        performed_by_uuid = None
+        if performed_by:
+            if isinstance(performed_by, UUID):
+                performed_by_uuid = performed_by
+            else:
+                try:
+                    performed_by_uuid = UUID(performed_by)
+                except (ValueError, AttributeError):
+                    logger.warning(
+                        "Invalid UUID for performed_by, skipping", performed_by=performed_by
+                    )
+
         activity = CustomerActivity(
             customer_id=customer_id,
             tenant_id=tenant_id,
-            performed_by=performed_by,
+            performed_by=performed_by_uuid,
             **data.model_dump(),
         )
 
@@ -526,7 +547,10 @@ class CustomerService:
         # Convert created_by string to UUID if provided
         created_by_id = None
         if created_by:
-            created_by_id = validate_uuid(created_by, "created_by")
+            try:
+                created_by_id = UUID(created_by) if isinstance(created_by, str) else created_by
+            except (ValueError, AttributeError):
+                logger.warning("Invalid UUID for created_by, skipping", created_by=created_by)
 
         note = CustomerNote(
             customer_id=customer_id,
@@ -537,14 +561,14 @@ class CustomerService:
 
         self.session.add(note)
 
-        # Also create activity
+        # Also create activity - use the UUID we already converted
         activity = CustomerActivity(
             customer_id=customer_id,
             tenant_id=tenant_id,
             activity_type=ActivityType.NOTE_ADDED,
             title="Note added",
             description=f"Note added: {data.subject}",
-            performed_by=created_by,
+            performed_by=created_by_id,
             metadata_={"note_subject": data.subject},
         )
         self.session.add(activity)
@@ -597,8 +621,7 @@ class CustomerService:
 
             # Check uniqueness using standard query
             result = await self.session.execute(
-                select(Customer.id)
-                .where(
+                select(Customer.id).where(
                     and_(
                         Customer.customer_number == number,
                         Customer.tenant_id == tenant_id,
@@ -643,7 +666,7 @@ class CustomerService:
         # Update customer purchase metrics using standard SQLAlchemy
         customer.total_purchases = (customer.total_purchases or 0) + 1
         customer.lifetime_value = (customer.lifetime_value or Decimal("0")) + amount
-        customer.last_purchase_date = datetime.now(timezone.utc).replace(tzinfo=None)
+        customer.last_purchase_date = datetime.now(UTC).replace(tzinfo=None)
 
         if customer.first_purchase_date is None:
             customer.first_purchase_date = customer.last_purchase_date
@@ -672,6 +695,7 @@ class CustomerService:
         await self.session.refresh(activity)
 
         return activity
+
     # ANALYTICS AND STATISTICS (using collections)
 
     async def get_customer_statistics(self) -> dict[str, Any]:
@@ -712,10 +736,7 @@ class CustomerService:
         }
 
     async def batch_process_customers(
-        self,
-        customer_ids: list[UUID | str],
-        operation: str,
-        batch_size: int = 100
+        self, customer_ids: list[UUID | str], operation: str, batch_size: int = 100
     ) -> dict[str, list]:
         """Process customers in batches using itertools for efficiency."""
         results = {"success": [], "failed": []}
@@ -745,7 +766,9 @@ class CustomerService:
                 results["success"].extend(batch_uuids)
 
             except Exception as e:
-                logger.error("Batch processing failed", batch=batch, operation=operation, error=str(e))
+                logger.error(
+                    "Batch processing failed", batch=batch, operation=operation, error=str(e)
+                )
                 results["failed"].extend(batch)
 
         return results
@@ -763,7 +786,7 @@ class CustomerService:
             )
             .values(
                 status=CustomerStatus.ARCHIVED,
-                updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                updated_at=datetime.now(UTC).replace(tzinfo=None),
             )
         )
         await self.session.execute(stmt)
@@ -782,7 +805,7 @@ class CustomerService:
             )
             .values(
                 status=CustomerStatus.ACTIVE,
-                updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                updated_at=datetime.now(UTC).replace(tzinfo=None),
             )
         )
         await self.session.execute(stmt)
@@ -803,7 +826,9 @@ class CustomerService:
 
         return filtered
 
-    def sort_customers(self, customers: list[Customer], sort_by: str = "created_at", reverse: bool = True) -> list[Customer]:
+    def sort_customers(
+        self, customers: list[Customer], sort_by: str = "created_at", reverse: bool = True
+    ) -> list[Customer]:
         """Sort customers using operator for cleaner code."""
         sort_key_map = {
             "created_at": operator.attrgetter("created_at"),
@@ -832,8 +857,7 @@ class CustomerService:
         """
         if purchase_amount:
             await self.record_purchase(
-                customer_id=customer_id,
-                amount=Decimal(str(purchase_amount))
+                customer_id=customer_id, amount=Decimal(str(purchase_amount))
             )
 
     async def create_segment(
@@ -867,8 +891,8 @@ class CustomerService:
             criteria=data.criteria,
             is_dynamic=data.is_dynamic,
             member_count=member_count,
-            last_calculated=datetime.now(timezone.utc) if data.is_dynamic else None,
-            priority=data.priority if hasattr(data, 'priority') else 0,
+            last_calculated=datetime.now(UTC) if data.is_dynamic else None,
+            priority=data.priority if hasattr(data, "priority") else 0,
         )
 
         self.session.add(segment)
@@ -880,7 +904,7 @@ class CustomerService:
             tenant_id=tenant_id,
             segment_name=segment.name,
             segment_id=str(segment.id),
-            member_count=member_count
+            member_count=member_count,
         )
 
         return segment
@@ -902,8 +926,7 @@ class CustomerService:
 
         # Fetch segment from database
         segment_query = select(CustomerSegment).filter(
-            CustomerSegment.id == segment_id,
-            CustomerSegment.tenant_id == tenant_id
+            CustomerSegment.id == segment_id, CustomerSegment.tenant_id == tenant_id
         )
         result = await self.session.execute(segment_query)
         segment = result.scalar_one_or_none()
@@ -915,7 +938,7 @@ class CustomerService:
             logger.warning(
                 "Attempted to recalculate static segment",
                 segment_id=str(segment_id),
-                segment_name=segment.name
+                segment_name=segment.name,
             )
             return segment.member_count
 
@@ -924,7 +947,7 @@ class CustomerService:
 
         # Update segment with new member count
         segment.member_count = member_count
-        segment.last_calculated = datetime.now(timezone.utc)
+        segment.last_calculated = datetime.now(UTC)
 
         await self.session.commit()
 
@@ -933,7 +956,7 @@ class CustomerService:
             tenant_id=tenant_id,
             segment_id=str(segment_id),
             segment_name=segment.name,
-            member_count=member_count
+            member_count=member_count,
         )
 
         return member_count
@@ -948,15 +971,12 @@ class CustomerService:
         tenant_id = self._resolve_tenant_id()
 
         # Get total and active customers
-        total_query = select(func.count(Customer.id)).filter(
-            Customer.tenant_id == tenant_id
-        )
+        total_query = select(func.count(Customer.id)).filter(Customer.tenant_id == tenant_id)
         total_result = await self.session.execute(total_query)
         total_customers = total_result.scalar() or 0
 
         active_query = select(func.count(Customer.id)).filter(
-            Customer.tenant_id == tenant_id,
-            Customer.status == CustomerStatus.ACTIVE
+            Customer.tenant_id == tenant_id, Customer.status == CustomerStatus.ACTIVE
         )
         active_result = await self.session.execute(active_query)
         active_customers = active_result.scalar() or 0
@@ -969,12 +989,8 @@ class CustomerService:
 
         # Get revenue metrics
         revenue_query = select(
-            func.sum(Customer.lifetime_value),
-            func.avg(Customer.lifetime_value)
-        ).filter(
-            Customer.tenant_id == tenant_id,
-            Customer.status == CustomerStatus.ACTIVE
-        )
+            func.sum(Customer.lifetime_value), func.avg(Customer.lifetime_value)
+        ).filter(Customer.tenant_id == tenant_id, Customer.status == CustomerStatus.ACTIVE)
         revenue_result = await self.session.execute(revenue_query)
         revenue_row = revenue_result.one()
 
@@ -982,39 +998,31 @@ class CustomerService:
         avg_lifetime_value = float(revenue_row[1] or 0)
 
         # Get customers by status
-        status_query = select(
-            Customer.status,
-            func.count(Customer.id)
-        ).filter(
-            Customer.tenant_id == tenant_id
-        ).group_by(Customer.status)
+        status_query = (
+            select(Customer.status, func.count(Customer.id))
+            .filter(Customer.tenant_id == tenant_id)
+            .group_by(Customer.status)
+        )
 
         status_result = await self.session.execute(status_query)
-        customers_by_status = {
-            status.value: count for status, count in status_result
-        }
+        customers_by_status = {status.value: count for status, count in status_result}
 
         # Get customers by tier
-        tier_query = select(
-            Customer.tier,
-            func.count(Customer.id)
-        ).filter(
-            Customer.tenant_id == tenant_id
-        ).group_by(Customer.tier)
+        tier_query = (
+            select(Customer.tier, func.count(Customer.id))
+            .filter(Customer.tenant_id == tenant_id)
+            .group_by(Customer.tier)
+        )
 
         tier_result = await self.session.execute(tier_query)
-        customers_by_tier = {
-            tier.value if tier else "none": count
-            for tier, count in tier_result
-        }
+        customers_by_tier = {tier.value if tier else "none": count for tier, count in tier_result}
 
         # Get customers by type
-        type_query = select(
-            Customer.customer_type,
-            func.count(Customer.id)
-        ).filter(
-            Customer.tenant_id == tenant_id
-        ).group_by(Customer.customer_type)
+        type_query = (
+            select(Customer.customer_type, func.count(Customer.id))
+            .filter(Customer.tenant_id == tenant_id)
+            .group_by(Customer.customer_type)
+        )
 
         type_result = await self.session.execute(type_query)
         customers_by_type = {
@@ -1023,20 +1031,23 @@ class CustomerService:
         }
 
         # Get new customers this month
-        from datetime import datetime, timezone
-        start_of_month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        from datetime import datetime
+
+        start_of_month = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         new_customers_query = select(func.count(Customer.id)).filter(
-            Customer.tenant_id == tenant_id,
-            Customer.created_at >= start_of_month
+            Customer.tenant_id == tenant_id, Customer.created_at >= start_of_month
         )
         new_customers_result = await self.session.execute(new_customers_query)
         new_customers_this_month = new_customers_result.scalar() or 0
 
         # Get top segments (limit to 5)
-        segments_query = select(CustomerSegment).filter(
-            CustomerSegment.tenant_id == tenant_id
-        ).order_by(CustomerSegment.member_count.desc()).limit(5)
+        segments_query = (
+            select(CustomerSegment)
+            .filter(CustomerSegment.tenant_id == tenant_id)
+            .order_by(CustomerSegment.member_count.desc())
+            .limit(5)
+        )
 
         segments_result = await self.session.execute(segments_query)
         segments = segments_result.scalars().all()
@@ -1046,7 +1057,7 @@ class CustomerService:
                 "segment_id": str(segment.id),
                 "name": segment.name,
                 "member_count": segment.member_count,
-                "is_dynamic": segment.is_dynamic
+                "is_dynamic": segment.is_dynamic,
             }
             for segment in segments
         ]
@@ -1064,11 +1075,7 @@ class CustomerService:
             "top_segments": top_segments,
         }
 
-    async def _calculate_segment_members(
-        self,
-        criteria: dict[str, Any],
-        tenant_id: str
-    ) -> int:
+    async def _calculate_segment_members(self, criteria: dict[str, Any], tenant_id: str) -> int:
         """
         Calculate number of customers matching segment criteria.
 
@@ -1079,9 +1086,7 @@ class CustomerService:
         Returns:
             Number of matching customers
         """
-        query = select(func.count(Customer.id)).filter(
-            Customer.tenant_id == tenant_id
-        )
+        query = select(func.count(Customer.id)).filter(Customer.tenant_id == tenant_id)
 
         # Apply criteria filters
         if "status" in criteria:
@@ -1089,6 +1094,7 @@ class CustomerService:
 
         if "tier" in criteria:
             from dotmac.platform.customer_management.models import CustomerTier
+
             query = query.filter(Customer.tier == CustomerTier(criteria["tier"]))
 
         if "min_lifetime_value" in criteria:

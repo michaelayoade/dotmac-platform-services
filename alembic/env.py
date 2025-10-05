@@ -42,6 +42,7 @@ from dotmac.platform.core.models import *
 
 # Auth and user management
 from dotmac.platform.auth.models import *
+
 try:
     from dotmac.platform.user_management.models import *
 except ImportError:
@@ -61,6 +62,7 @@ from dotmac.platform.billing.pricing.models import *
 from dotmac.platform.billing.subscriptions.models import *
 from dotmac.platform.billing.settings.models import *
 from dotmac.platform.billing.receipts.models import *
+
 try:
     from dotmac.platform.billing.money_models import *
 except ImportError:
@@ -76,6 +78,7 @@ from dotmac.platform.audit.models import *
 
 # Data operations
 from dotmac.platform.data_transfer.models import *
+
 try:
     from dotmac.platform.data_import.models import *
 except ImportError:

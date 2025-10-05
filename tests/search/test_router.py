@@ -34,7 +34,7 @@ def mock_user():
         email="test@example.com",
         tenant_id="test-tenant",
         roles=["user"],
-        permissions=["read", "write"]
+        permissions=["read", "write"],
     )
 
 
@@ -79,6 +79,7 @@ class TestSearchRouter:
     def test_search_endpoint_with_type_filter(self, client, mock_user):
         """Test search with type filter."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=test&type=document&limit=10")
@@ -90,6 +91,7 @@ class TestSearchRouter:
     def test_search_endpoint_pagination_limits(self, client, mock_user):
         """Test search pagination limits."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Test minimum limit
@@ -115,6 +117,7 @@ class TestSearchRouter:
     def test_search_endpoint_missing_query(self, client, mock_user):
         """Test search without required query parameter."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/")
@@ -123,6 +126,7 @@ class TestSearchRouter:
     def test_search_endpoint_default_values(self, client, mock_user):
         """Test search with default parameter values."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=test")
@@ -141,10 +145,11 @@ class TestSearchRouter:
         # Depending on auth implementation, this might be 401 or 403
         assert response.status_code in [401, 403]
 
-    @patch('dotmac.platform.search.router.logger')
+    @patch("dotmac.platform.search.router.logger")
     def test_search_endpoint_logging(self, mock_logger, client, mock_user):
         """Test that search requests are logged."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.get("/search/?q=important+search&limit=5")
@@ -160,12 +165,13 @@ class TestSearchRouter:
     def test_index_content_authenticated(self, client, mock_user):
         """Test indexing content with authenticated user."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         content = {
             "title": "Test Document",
             "content": "This is test content for indexing",
-            "category": "test"
+            "category": "test",
         }
 
         response = client.post("/search/index", json=content)
@@ -180,10 +186,7 @@ class TestSearchRouter:
 
     def test_index_content_anonymous(self, client):
         """Test indexing content without authentication."""
-        content = {
-            "title": "Test Document",
-            "content": "This is test content"
-        }
+        content = {"title": "Test Document", "content": "This is test content"}
 
         # This endpoint requires authentication, so should return 401
         response = client.post("/search/index", json=content)
@@ -199,10 +202,11 @@ class TestSearchRouter:
 
         assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.logger')
+    @patch("dotmac.platform.search.router.logger")
     def test_index_content_logging_authenticated(self, mock_logger, client, mock_user):
         """Test indexing content logging for authenticated user."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
         content = {"title": "Test Document"}
 
@@ -216,13 +220,16 @@ class TestSearchRouter:
 
     def test_index_content_invalid_json(self, client):
         """Test indexing with invalid JSON."""
-        response = client.post("/search/index", content="invalid json", headers={"Content-Type": "application/json"})
+        response = client.post(
+            "/search/index", content="invalid json", headers={"Content-Type": "application/json"}
+        )
 
         assert response.status_code == 422
 
     def test_remove_from_index_authenticated(self, client, mock_user):
         """Test removing content from index with authenticated user."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.delete("/search/index/test-content-id")
@@ -247,10 +254,11 @@ class TestSearchRouter:
         # This endpoint requires authentication, so should return 401
         assert response.status_code == 401
 
-    @patch('dotmac.platform.search.router.logger')
+    @patch("dotmac.platform.search.router.logger")
     def test_remove_from_index_logging_authenticated(self, mock_logger, client, mock_user):
         """Test removing content logging for authenticated user."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         response = client.delete("/search/index/test-id")
@@ -264,6 +272,7 @@ class TestSearchRouter:
     def test_remove_from_index_special_characters(self, client, mock_user):
         """Test removing content with special characters in ID."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         content_id = "test-id-with-special@chars"  # Some special chars get URL encoded
@@ -285,7 +294,7 @@ class TestSearchResponseModels:
             "title": "Test Document",
             "content": "This is test content snippet",
             "score": 0.95,
-            "metadata": {"category": "test", "tags": ["python", "search"]}
+            "metadata": {"category": "test", "tags": ["python", "search"]},
         }
 
         result = SearchResult(**result_data)
@@ -304,7 +313,7 @@ class TestSearchResponseModels:
             "type": "document",
             "title": "Test Document",
             "content": "Test content",
-            "score": 0.85
+            "score": 0.85,
             # metadata should use default empty dict
         }
 
@@ -314,20 +323,14 @@ class TestSearchResponseModels:
 
     def test_search_response_model(self):
         """Test SearchResponse model validation."""
-        result = SearchResult(
-            id="1",
-            type="doc",
-            title="Test",
-            content="Content",
-            score=0.9
-        )
+        result = SearchResult(id="1", type="doc", title="Test", content="Content", score=0.9)
 
         response_data = {
             "query": "test search",
             "results": [result],
             "total": 1,
             "page": 1,
-            "facets": {"types": {"document": 1}, "categories": {"tech": 1}}
+            "facets": {"types": {"document": 1}, "categories": {"tech": 1}},
         }
 
         response = SearchResponse(**response_data)
@@ -345,7 +348,7 @@ class TestSearchResponseModels:
             "query": "test",
             "results": [],
             "total": 0,
-            "page": 1
+            "page": 1,
             # facets should use default empty dict
         }
 
@@ -361,13 +364,7 @@ class TestSearchResponseModels:
             SearchResult()  # Missing required fields
 
         # Test that all required fields work when provided
-        result = SearchResult(
-            id="test-123",
-            type="doc",
-            title="Test",
-            content="Content",
-            score=0.9
-        )
+        result = SearchResult(id="test-123", type="doc", title="Test", content="Content", score=0.9)
         assert result.id == "test-123"
 
     def test_search_response_model_validation_errors(self):
@@ -378,12 +375,7 @@ class TestSearchResponseModels:
             SearchResponse()  # Missing required fields
 
         with pytest.raises(ValidationError):
-            SearchResponse(
-                query="test",
-                results="not a list",  # Should be list
-                total=0,
-                page=1
-            )
+            SearchResponse(query="test", results="not a list", total=0, page=1)  # Should be list
 
 
 class TestRouterIntegration:
@@ -392,6 +384,7 @@ class TestRouterIntegration:
     def test_complete_search_flow(self, client, mock_user):
         """Test complete search workflow."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Index some content
@@ -428,6 +421,7 @@ class TestRouterIntegration:
     def test_search_query_encoding(self, client, mock_user):
         """Test search with URL-encoded queries."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Test with spaces and special characters
@@ -443,6 +437,7 @@ class TestRouterIntegration:
     def test_search_edge_cases(self, client, mock_user):
         """Test search edge cases."""
         from dotmac.platform.search.router import get_current_user
+
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
 
         # Empty query

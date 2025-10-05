@@ -87,9 +87,7 @@ class TestCurrencyValidator:
     def test_validate_amount_with_limits(self):
         """Test amount validation with min/max limits."""
         # Within limits
-        result = CurrencyValidator.validate_amount(
-            50, "USD", min_amount=10, max_amount=100
-        )
+        result = CurrencyValidator.validate_amount(50, "USD", min_amount=10, max_amount=100)
         assert result == Decimal("50")
 
         # Below minimum
@@ -169,9 +167,7 @@ class TestDateRangeValidator:
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 1, 31, tzinfo=timezone.utc)
 
-        validated_start, validated_end = DateRangeValidator.validate_billing_period(
-            start, end
-        )
+        validated_start, validated_end = DateRangeValidator.validate_billing_period(start, end)
 
         assert validated_start == start
         assert validated_end == end
@@ -181,9 +177,7 @@ class TestDateRangeValidator:
         start = datetime(2024, 1, 1)  # Naive
         end = datetime(2024, 1, 31)  # Naive
 
-        validated_start, validated_end = DateRangeValidator.validate_billing_period(
-            start, end
-        )
+        validated_start, validated_end = DateRangeValidator.validate_billing_period(start, end)
 
         assert validated_start.tzinfo == timezone.utc
         assert validated_end.tzinfo == timezone.utc
@@ -319,25 +313,19 @@ class TestBusinessRulesValidator:
         """Test valid subscription change."""
         # Active subscription
         BusinessRulesValidator.validate_subscription_change(
-            current_plan_id="basic",
-            new_plan_id="premium",
-            current_status="active"
+            current_plan_id="basic", new_plan_id="premium", current_status="active"
         )
 
         # Trial subscription
         BusinessRulesValidator.validate_subscription_change(
-            current_plan_id="trial",
-            new_plan_id="basic",
-            current_status="trial"
+            current_plan_id="trial", new_plan_id="basic", current_status="trial"
         )
 
     def test_validate_subscription_change_invalid_status(self):
         """Test subscription change with invalid status."""
         with pytest.raises(SubscriptionError) as exc_info:
             BusinessRulesValidator.validate_subscription_change(
-                current_plan_id="basic",
-                new_plan_id="premium",
-                current_status="cancelled"
+                current_plan_id="basic", new_plan_id="premium", current_status="cancelled"
             )
 
         assert "Cannot change plan for subscription in cancelled status" in str(exc_info.value)
@@ -346,9 +334,7 @@ class TestBusinessRulesValidator:
         """Test changing to same plan."""
         with pytest.raises(SubscriptionError) as exc_info:
             BusinessRulesValidator.validate_subscription_change(
-                current_plan_id="basic",
-                new_plan_id="basic",
-                current_status="active"
+                current_plan_id="basic", new_plan_id="basic", current_status="active"
             )
 
         assert "New plan is the same as current plan" in str(exc_info.value)
@@ -363,7 +349,7 @@ class TestBusinessRulesValidator:
             payment_date=payment_date,
             amount=amount,
             refunded_amount=refunded,
-            refund_window_days=30
+            refund_window_days=30,
         )
 
     def test_validate_refund_eligibility_window_expired(self):
@@ -377,7 +363,7 @@ class TestBusinessRulesValidator:
                 payment_date=payment_date,
                 amount=amount,
                 refunded_amount=refunded,
-                refund_window_days=30
+                refund_window_days=30,
             )
 
         assert "Refund window of 30 days has expired" in str(exc_info.value)
@@ -390,9 +376,7 @@ class TestBusinessRulesValidator:
 
         with pytest.raises(PaymentError) as exc_info:
             BusinessRulesValidator.validate_refund_eligibility(
-                payment_date=payment_date,
-                amount=amount,
-                refunded_amount=refunded
+                payment_date=payment_date, amount=amount, refunded_amount=refunded
             )
 
         assert "Payment has already been fully refunded" in str(exc_info.value)
@@ -405,9 +389,7 @@ class TestBusinessRulesValidator:
 
         # Should handle naive dates
         BusinessRulesValidator.validate_refund_eligibility(
-            payment_date=payment_date,
-            amount=amount,
-            refunded_amount=refunded
+            payment_date=payment_date, amount=amount, refunded_amount=refunded
         )
 
 
@@ -421,10 +403,7 @@ class TestValidationContext:
         assert not ctx.has_errors()
 
         ctx.add_error(
-            field="amount",
-            message="Invalid amount",
-            value=-50,
-            recovery_hint="Use positive amount"
+            field="amount", message="Invalid amount", value=-50, recovery_hint="Use positive amount"
         )
 
         assert ctx.has_errors()
@@ -438,11 +417,7 @@ class TestValidationContext:
         """Test adding warnings to context."""
         ctx = ValidationContext()
 
-        ctx.add_warning(
-            field="currency",
-            message="Uncommon currency",
-            value="XOF"
-        )
+        ctx.add_warning(field="currency", message="Uncommon currency", value="XOF")
 
         assert not ctx.has_errors()
         assert len(ctx.warnings) == 1

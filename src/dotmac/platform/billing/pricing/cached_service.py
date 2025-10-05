@@ -5,25 +5,25 @@ Caches pricing rules and calculation results to minimize database queries
 and improve response times for frequent pricing operations.
 """
 
-import structlog
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import List, Optional
 
-from dotmac.platform.billing.pricing.models import (
-    PricingRule,
-    PricingRuleCreateRequest,
-    PriceCalculationRequest,
-    PriceCalculationResult,
-)
-from dotmac.platform.billing.pricing.service import PricingEngine
+import structlog
+
 from dotmac.platform.billing.cache import (
     BillingCache,
+    BillingCacheConfig,
     CacheKey,
     CacheTier,
     get_billing_cache,
-    BillingCacheConfig,
 )
+from dotmac.platform.billing.pricing.models import (
+    PriceCalculationRequest,
+    PriceCalculationResult,
+    PricingRule,
+    PricingRuleCreateRequest,
+)
+from dotmac.platform.billing.pricing.service import PricingEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -57,11 +57,7 @@ class CachedPricingEngine(PricingEngine):
         # Try cache first
         cached_rule = await self.cache.get(cache_key)
         if cached_rule:
-            logger.debug(
-                "Pricing rule retrieved from cache",
-                rule_id=rule_id,
-                tenant_id=tenant_id
-            )
+            logger.debug("Pricing rule retrieved from cache", rule_id=rule_id, tenant_id=tenant_id)
             return PricingRule.model_validate(cached_rule)
 
         # Load from database
@@ -72,7 +68,7 @@ class CachedPricingEngine(PricingEngine):
             cache_key,
             rule.model_dump(),
             ttl=self.config.PRICING_RULE_TTL,
-            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"]
+            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"],
         )
 
         return rule
@@ -81,9 +77,9 @@ class CachedPricingEngine(PricingEngine):
         self,
         tenant_id: str,
         active_only: bool = True,
-        product_id: Optional[str] = None,
-        category: Optional[str] = None
-    ) -> List[PricingRule]:
+        product_id: str | None = None,
+        category: str | None = None,
+    ) -> list[PricingRule]:
         """
         List pricing rules with caching for common queries.
 
@@ -104,18 +100,13 @@ class CachedPricingEngine(PricingEngine):
         cached_rules = await self.cache.get(cache_key)
         if cached_rules:
             logger.debug(
-                "Pricing rules retrieved from cache",
-                tenant_id=tenant_id,
-                product_id=product_id
+                "Pricing rules retrieved from cache", tenant_id=tenant_id, product_id=product_id
             )
             return [PricingRule.model_validate(r) for r in cached_rules]
 
         # Load from database
         rules = await super().list_pricing_rules(
-            tenant_id,
-            active_only=active_only,
-            product_id=product_id,
-            category=category
+            tenant_id, active_only=active_only, product_id=product_id, category=category
         )
 
         # Cache the result
@@ -124,16 +115,13 @@ class CachedPricingEngine(PricingEngine):
                 cache_key,
                 [r.model_dump() for r in rules],
                 ttl=self.config.PRICING_RULE_TTL,
-                tags=[f"tenant:{tenant_id}", "pricing_rules"]
+                tags=[f"tenant:{tenant_id}", "pricing_rules"],
             )
 
         return rules
 
     async def calculate_price(
-        self,
-        request: PriceCalculationRequest,
-        tenant_id: str,
-        use_cache: bool = True
+        self, request: PriceCalculationRequest, tenant_id: str, use_cache: bool = True
     ) -> PriceCalculationResult:
         """
         Calculate price with result caching.
@@ -145,10 +133,7 @@ class CachedPricingEngine(PricingEngine):
         """
         # Generate cache key for this calculation
         cache_key = CacheKey.price_calculation(
-            request.product_id,
-            request.quantity,
-            request.customer_id,
-            tenant_id
+            request.product_id, request.quantity, request.customer_id, tenant_id
         )
 
         # Try cache if enabled
@@ -159,24 +144,17 @@ class CachedPricingEngine(PricingEngine):
                     "Price calculation retrieved from cache",
                     product_id=request.product_id,
                     quantity=request.quantity,
-                    customer_id=request.customer_id
+                    customer_id=request.customer_id,
                 )
                 return PriceCalculationResult.model_validate(cached_result)
 
         # Get applicable pricing rules (these will be cached)
         applicable_rules = await self._get_applicable_rules(
-            request.product_id,
-            request.quantity,
-            request.customer_segments,
-            tenant_id
+            request.product_id, request.quantity, request.customer_segments, tenant_id
         )
 
         # Perform calculation
-        result = await self._calculate_with_rules(
-            request,
-            applicable_rules,
-            tenant_id
-        )
+        result = await self._calculate_with_rules(request, applicable_rules, tenant_id)
 
         # Cache the result if enabled
         if use_cache and result:
@@ -188,16 +166,14 @@ class CachedPricingEngine(PricingEngine):
                 tags=[
                     f"tenant:{tenant_id}",
                     f"product:{request.product_id}",
-                    f"customer:{request.customer_id}"
-                ]
+                    f"customer:{request.customer_id}",
+                ],
             )
 
         return result
 
     async def create_pricing_rule(
-        self,
-        rule_data: PricingRuleCreateRequest,
-        tenant_id: str
+        self, rule_data: PricingRuleCreateRequest, tenant_id: str
     ) -> PricingRule:
         """
         Create pricing rule and invalidate relevant caches.
@@ -223,23 +199,16 @@ class CachedPricingEngine(PricingEngine):
             cache_key,
             rule.model_dump(),
             ttl=self.config.PRICING_RULE_TTL,
-            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule.rule_id}"]
+            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule.rule_id}"],
         )
 
         logger.info(
-            "Pricing rule created and cache updated",
-            rule_id=rule.rule_id,
-            tenant_id=tenant_id
+            "Pricing rule created and cache updated", rule_id=rule.rule_id, tenant_id=tenant_id
         )
 
         return rule
 
-    async def update_pricing_rule(
-        self,
-        rule_id: str,
-        updates: dict,
-        tenant_id: str
-    ) -> PricingRule:
+    async def update_pricing_rule(self, rule_id: str, updates: dict, tenant_id: str) -> PricingRule:
         """
         Update pricing rule and refresh caches.
         """
@@ -265,24 +234,62 @@ class CachedPricingEngine(PricingEngine):
             cache_key,
             rule.model_dump(),
             ttl=self.config.PRICING_RULE_TTL,
-            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"]
+            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"],
         )
 
         logger.info(
-            "Pricing rule updated and cache refreshed",
-            rule_id=rule_id,
-            tenant_id=tenant_id
+            "Pricing rule updated and cache refreshed", rule_id=rule_id, tenant_id=tenant_id
         )
 
         return rule
 
+    def _check_quantity_requirement(self, rule: PricingRule, quantity: int) -> bool:
+        """Check if rule's quantity requirement is met."""
+        if rule.min_quantity and quantity < rule.min_quantity:
+            return False
+        return True
+
+    def _check_customer_segments(self, rule: PricingRule, customer_segments: list[str]) -> bool:
+        """Check if rule's customer segment requirement is met."""
+        if rule.customer_segments:
+            if not any(seg in customer_segments for seg in rule.customer_segments):
+                return False
+        return True
+
+    def _check_time_constraints(self, rule: PricingRule) -> bool:
+        """Check if rule's time constraints are met."""
+        now = datetime.now(UTC)
+        if rule.starts_at and now < rule.starts_at:
+            return False
+        if rule.ends_at and now > rule.ends_at:
+            return False
+        return True
+
+    def _check_usage_limits(self, rule: PricingRule) -> bool:
+        """Check if rule's usage limit has been reached."""
+        if rule.max_uses and rule.current_uses >= rule.max_uses:
+            return False
+        return True
+
+    def _is_rule_applicable(
+        self, rule: PricingRule, product_id: str, quantity: int, customer_segments: list[str]
+    ) -> bool:
+        """Check if a rule is applicable given all conditions."""
+        if not self._rule_applies_to_product(rule, product_id):
+            return False
+        if not self._check_quantity_requirement(rule, quantity):
+            return False
+        if not self._check_customer_segments(rule, customer_segments):
+            return False
+        if not self._check_time_constraints(rule):
+            return False
+        if not self._check_usage_limits(rule):
+            return False
+        return True
+
     async def _get_applicable_rules(
-        self,
-        product_id: str,
-        quantity: int,
-        customer_segments: List[str],
-        tenant_id: str
-    ) -> List[PricingRule]:
+        self, product_id: str, quantity: int, customer_segments: list[str], tenant_id: str
+    ) -> list[PricingRule]:
         """
         Get applicable rules with caching optimization.
 
@@ -291,7 +298,9 @@ class CachedPricingEngine(PricingEngine):
         """
         # Create a cache key for this specific combination
         segments_hash = CacheKey.generate_hash({"segments": sorted(customer_segments)})
-        cache_key = f"billing:pricing:applicable:{tenant_id}:{product_id}:{quantity}:{segments_hash}"
+        cache_key = (
+            f"billing:pricing:applicable:{tenant_id}:{product_id}:{quantity}:{segments_hash}"
+        )
 
         # Try cache first
         cached_rules = await self.cache.get(cache_key, tier=CacheTier.L1_MEMORY)
@@ -301,34 +310,12 @@ class CachedPricingEngine(PricingEngine):
         # Get all rules for this tenant (cached)
         all_rules = await self.list_pricing_rules(tenant_id, active_only=True)
 
-        # Filter applicable rules
-        applicable = []
-        for rule in all_rules:
-            # Check if rule applies to this product
-            if not self._rule_applies_to_product(rule, product_id):
-                continue
-
-            # Check quantity requirements
-            if rule.min_quantity and quantity < rule.min_quantity:
-                continue
-
-            # Check customer segments
-            if rule.customer_segments:
-                if not any(seg in customer_segments for seg in rule.customer_segments):
-                    continue
-
-            # Check time constraints
-            now = datetime.now(timezone.utc)
-            if rule.starts_at and now < rule.starts_at:
-                continue
-            if rule.ends_at and now > rule.ends_at:
-                continue
-
-            # Check usage limits
-            if rule.max_uses and rule.current_uses >= rule.max_uses:
-                continue
-
-            applicable.append(rule)
+        # Filter applicable rules using helper
+        applicable = [
+            rule
+            for rule in all_rules
+            if self._is_rule_applicable(rule, product_id, quantity, customer_segments)
+        ]
 
         # Cache the filtered results
         if applicable:
@@ -336,7 +323,7 @@ class CachedPricingEngine(PricingEngine):
                 cache_key,
                 [r.model_dump() for r in applicable],
                 ttl=300,  # 5 minutes
-                tier=CacheTier.L1_MEMORY
+                tier=CacheTier.L1_MEMORY,
             )
 
         return applicable
@@ -355,10 +342,7 @@ class CachedPricingEngine(PricingEngine):
         return False
 
     async def _calculate_with_rules(
-        self,
-        request: PriceCalculationRequest,
-        rules: List[PricingRule],
-        tenant_id: str
+        self, request: PriceCalculationRequest, rules: list[PricingRule], tenant_id: str
     ) -> PriceCalculationResult:
         """
         Perform the actual price calculation with rules.
@@ -368,6 +352,7 @@ class CachedPricingEngine(PricingEngine):
         """
         # Get product details (this would be cached in CachedProductService)
         from dotmac.platform.billing.catalog.cached_service import CachedProductService
+
         product_service = CachedProductService()
         product = await product_service.get_product(request.product_id, tenant_id)
 
@@ -402,28 +387,31 @@ class CachedPricingEngine(PricingEngine):
             currency=product.currency,
             base_price=base_price,
             subtotal=subtotal,
-            discounts=[{
-                "rule_id": applied_rule.rule_id if applied_rule else None,
-                "rule_name": applied_rule.name if applied_rule else None,
-                "discount_amount": discount_amount
-            }] if applied_rule else [],
+            discounts=(
+                [
+                    {
+                        "rule_id": applied_rule.rule_id if applied_rule else None,
+                        "rule_name": applied_rule.name if applied_rule else None,
+                        "discount_amount": discount_amount,
+                    }
+                ]
+                if applied_rule
+                else []
+            ),
             total_discount_amount=discount_amount,
             final_price=final_price,
             applied_rules=[applied_rule.rule_id] if applied_rule else [],
             calculation_metadata={
                 "customer_segments": request.customer_segments,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
         )
 
     async def warm_pricing_cache(self, tenant_id: str):
         """
         Pre-load frequently used pricing rules into cache.
         """
-        logger.info(
-            "Warming pricing cache",
-            tenant_id=tenant_id
-        )
+        logger.info("Warming pricing cache", tenant_id=tenant_id)
 
         # Load all active pricing rules
         rules = await super().list_pricing_rules(tenant_id, active_only=True)
@@ -435,14 +423,10 @@ class CachedPricingEngine(PricingEngine):
                 cache_key,
                 rule.model_dump(),
                 ttl=self.config.PRICING_RULE_TTL,
-                tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule.rule_id}"]
+                tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule.rule_id}"],
             )
             cached_count += 1
 
-        logger.info(
-            "Pricing cache warmed",
-            tenant_id=tenant_id,
-            cached_count=cached_count
-        )
+        logger.info("Pricing cache warmed", tenant_id=tenant_id, cached_count=cached_count)
 
         return cached_count

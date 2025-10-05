@@ -6,7 +6,7 @@ Provides request/response validation models following project patterns.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import (
@@ -26,7 +26,6 @@ from dotmac.platform.partner_management.models import (
     ReferralStatus,
 )
 
-
 # ============================================================================
 # Partner Schemas
 # ============================================================================
@@ -43,13 +42,13 @@ class PartnerBase(BaseModel):
     )
 
     company_name: str = Field(min_length=1, max_length=255)
-    legal_name: Optional[str] = Field(None, max_length=255)
-    website: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
+    legal_name: str | None = Field(None, max_length=255)
+    website: str | None = Field(None, max_length=255)
+    description: str | None = None
 
     tier: PartnerTier = Field(default=PartnerTier.BRONZE)
     commission_model: CommissionModel = Field(default=CommissionModel.REVENUE_SHARE)
-    default_commission_rate: Optional[Decimal] = Field(
+    default_commission_rate: Decimal | None = Field(
         None,
         ge=Decimal("0"),
         le=Decimal("1"),
@@ -58,37 +57,37 @@ class PartnerBase(BaseModel):
 
     # Contact information
     primary_email: EmailStr
-    billing_email: Optional[EmailStr] = None
-    support_email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=30)
+    billing_email: EmailStr | None = None
+    support_email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=30)
 
     # Address
-    address_line1: Optional[str] = Field(None, max_length=200)
-    address_line2: Optional[str] = Field(None, max_length=200)
-    city: Optional[str] = Field(None, max_length=100)
-    state_province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=20)
-    country: Optional[str] = Field(None, pattern="^[A-Z]{2}$", description="ISO 3166-1 alpha-2")
+    address_line1: str | None = Field(None, max_length=200)
+    address_line2: str | None = Field(None, max_length=200)
+    city: str | None = Field(None, max_length=100)
+    state_province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=20)
+    country: str | None = Field(None, pattern="^[A-Z]{2}$", description="ISO 3166-1 alpha-2")
 
     # Business information
-    tax_id: Optional[str] = Field(None, max_length=50)
-    vat_number: Optional[str] = Field(None, max_length=50)
-    business_registration: Optional[str] = Field(None, max_length=100)
+    tax_id: str | None = Field(None, max_length=50)
+    vat_number: str | None = Field(None, max_length=50)
+    business_registration: str | None = Field(None, max_length=100)
 
     # SLA
-    sla_response_hours: Optional[int] = Field(None, ge=0)
-    sla_uptime_percentage: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("100"))
+    sla_response_hours: int | None = Field(None, ge=0)
+    sla_uptime_percentage: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
 
     @field_validator("primary_email", "billing_email", "support_email")
     @classmethod
-    def normalize_email(cls, v: Optional[EmailStr]) -> Optional[str]:
+    def normalize_email(cls, v: EmailStr | None) -> str | None:
         if v:
             return v.lower()
         return v
 
     @field_validator("phone")
     @classmethod
-    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+    def validate_phone(cls, v: str | None) -> str | None:
         if v and not v.replace("+", "").replace("-", "").replace(" ", "").isdigit():
             raise ValueError("Phone number must contain only digits, +, -, and spaces")
         return v
@@ -97,7 +96,7 @@ class PartnerBase(BaseModel):
 class PartnerCreate(PartnerBase):
     """Schema for creating a new partner."""
 
-    external_id: Optional[str] = Field(None, max_length=100)
+    external_id: str | None = Field(None, max_length=100)
     metadata: dict[str, Any] = Field(default_factory=dict)
     custom_fields: dict[str, Any] = Field(default_factory=dict)
 
@@ -112,47 +111,47 @@ class PartnerUpdate(BaseModel):
     )
 
     # All fields optional for partial updates
-    company_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    legal_name: Optional[str] = Field(None, max_length=255)
-    website: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = None
+    company_name: str | None = Field(None, min_length=1, max_length=255)
+    legal_name: str | None = Field(None, max_length=255)
+    website: str | None = Field(None, max_length=255)
+    description: str | None = None
 
-    status: Optional[PartnerStatus] = None
-    tier: Optional[PartnerTier] = None
-    commission_model: Optional[CommissionModel] = None
-    default_commission_rate: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    status: PartnerStatus | None = None
+    tier: PartnerTier | None = None
+    commission_model: CommissionModel | None = None
+    default_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
 
     # Contact information
-    primary_email: Optional[EmailStr] = None
-    billing_email: Optional[EmailStr] = None
-    support_email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=30)
+    primary_email: EmailStr | None = None
+    billing_email: EmailStr | None = None
+    support_email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=30)
 
     # Address
-    address_line1: Optional[str] = Field(None, max_length=200)
-    address_line2: Optional[str] = Field(None, max_length=200)
-    city: Optional[str] = Field(None, max_length=100)
-    state_province: Optional[str] = Field(None, max_length=100)
-    postal_code: Optional[str] = Field(None, max_length=20)
-    country: Optional[str] = Field(None, pattern="^[A-Z]{2}$")
+    address_line1: str | None = Field(None, max_length=200)
+    address_line2: str | None = Field(None, max_length=200)
+    city: str | None = Field(None, max_length=100)
+    state_province: str | None = Field(None, max_length=100)
+    postal_code: str | None = Field(None, max_length=20)
+    country: str | None = Field(None, pattern="^[A-Z]{2}$")
 
     # Business information
-    tax_id: Optional[str] = Field(None, max_length=50)
-    vat_number: Optional[str] = Field(None, max_length=50)
-    business_registration: Optional[str] = Field(None, max_length=100)
+    tax_id: str | None = Field(None, max_length=50)
+    vat_number: str | None = Field(None, max_length=50)
+    business_registration: str | None = Field(None, max_length=100)
 
     # SLA
-    sla_response_hours: Optional[int] = Field(None, ge=0)
-    sla_uptime_percentage: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("100"))
+    sla_response_hours: int | None = Field(None, ge=0)
+    sla_uptime_percentage: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
 
     # Dates
-    partnership_end_date: Optional[datetime] = None
-    last_review_date: Optional[datetime] = None
-    next_review_date: Optional[datetime] = None
+    partnership_end_date: datetime | None = None
+    last_review_date: datetime | None = None
+    next_review_date: datetime | None = None
 
     # Metadata
-    metadata: Optional[dict[str, Any]] = None
-    custom_fields: Optional[dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
+    custom_fields: dict[str, Any] | None = None
 
 
 class PartnerResponse(PartnerBase):
@@ -163,10 +162,10 @@ class PartnerResponse(PartnerBase):
     status: PartnerStatus
 
     # Dates
-    partnership_start_date: Optional[datetime] = None
-    partnership_end_date: Optional[datetime] = None
-    last_review_date: Optional[datetime] = None
-    next_review_date: Optional[datetime] = None
+    partnership_start_date: datetime | None = None
+    partnership_end_date: datetime | None = None
+    last_review_date: datetime | None = None
+    next_review_date: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -210,7 +209,7 @@ class PartnerUserBase(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    phone: Optional[str] = Field(None, max_length=30)
+    phone: str | None = Field(None, max_length=30)
     role: str = Field(min_length=1, max_length=50, description="Role within partner organization")
     is_primary_contact: bool = Field(default=False)
 
@@ -224,7 +223,7 @@ class PartnerUserCreate(PartnerUserBase):
     """Schema for creating a partner user."""
 
     partner_id: UUID
-    user_id: Optional[UUID] = Field(None, description="Link to auth user account")
+    user_id: UUID | None = Field(None, description="Link to auth user account")
 
 
 class PartnerUserUpdate(BaseModel):
@@ -236,13 +235,13 @@ class PartnerUserUpdate(BaseModel):
         extra="forbid",
     )
 
-    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=30)
-    role: Optional[str] = Field(None, min_length=1, max_length=50)
-    is_primary_contact: Optional[bool] = None
-    is_active: Optional[bool] = None
+    first_name: str | None = Field(None, min_length=1, max_length=100)
+    last_name: str | None = Field(None, min_length=1, max_length=100)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=30)
+    role: str | None = Field(None, min_length=1, max_length=50)
+    is_primary_contact: bool | None = None
+    is_active: bool | None = None
 
 
 class PartnerUserResponse(PartnerUserBase):
@@ -250,7 +249,7 @@ class PartnerUserResponse(PartnerUserBase):
 
     id: UUID
     partner_id: UUID
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -274,8 +273,8 @@ class PartnerAccountBase(BaseModel):
     partner_id: UUID
     customer_id: UUID
     engagement_type: str = Field(min_length=1, max_length=50)
-    custom_commission_rate: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("1"))
-    notes: Optional[str] = None
+    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    notes: str | None = None
 
 
 class PartnerAccountCreate(PartnerAccountBase):
@@ -293,12 +292,12 @@ class PartnerAccountUpdate(BaseModel):
         extra="forbid",
     )
 
-    engagement_type: Optional[str] = Field(None, min_length=1, max_length=50)
-    custom_commission_rate: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("1"))
-    is_active: Optional[bool] = None
-    end_date: Optional[datetime] = None
-    notes: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    engagement_type: str | None = Field(None, min_length=1, max_length=50)
+    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    is_active: bool | None = None
+    end_date: datetime | None = None
+    notes: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class PartnerAccountResponse(PartnerAccountBase):
@@ -306,7 +305,7 @@ class PartnerAccountResponse(PartnerAccountBase):
 
     id: UUID
     start_date: datetime
-    end_date: Optional[datetime] = None
+    end_date: datetime | None = None
     is_active: bool
     metadata: dict[str, Any]
     created_at: datetime
@@ -337,11 +336,11 @@ class PartnerCommissionEventBase(BaseModel):
 class PartnerCommissionEventCreate(PartnerCommissionEventBase):
     """Schema for creating commission event."""
 
-    invoice_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
-    base_amount: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    commission_rate: Optional[Decimal] = Field(None, ge=Decimal("0"), le=Decimal("1"))
-    notes: Optional[str] = None
+    invoice_id: UUID | None = None
+    customer_id: UUID | None = None
+    base_amount: Decimal | None = Field(None, ge=Decimal("0"))
+    commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    notes: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -354,24 +353,24 @@ class PartnerCommissionEventUpdate(BaseModel):
         extra="forbid",
     )
 
-    status: Optional[CommissionStatus] = None
-    payout_id: Optional[UUID] = None
-    notes: Optional[str] = None
+    status: CommissionStatus | None = None
+    payout_id: UUID | None = None
+    notes: str | None = None
 
 
 class PartnerCommissionEventResponse(PartnerCommissionEventBase):
     """Schema for commission event response."""
 
     id: UUID
-    invoice_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
-    base_amount: Optional[Decimal] = None
-    commission_rate: Optional[Decimal] = None
+    invoice_id: UUID | None = None
+    customer_id: UUID | None = None
+    base_amount: Decimal | None = None
+    commission_rate: Decimal | None = None
     status: CommissionStatus
     event_date: datetime
-    payout_id: Optional[UUID] = None
-    paid_at: Optional[datetime] = None
-    notes: Optional[str] = None
+    payout_id: UUID | None = None
+    paid_at: datetime | None = None
+    notes: str | None = None
     metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -402,12 +401,12 @@ class ReferralLeadBase(BaseModel):
     )
 
     partner_id: UUID
-    company_name: Optional[str] = Field(None, max_length=255)
+    company_name: str | None = Field(None, max_length=255)
     contact_name: str = Field(min_length=1, max_length=255)
     contact_email: EmailStr
-    contact_phone: Optional[str] = Field(None, max_length=30)
-    estimated_value: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    notes: Optional[str] = None
+    contact_phone: str | None = Field(None, max_length=30)
+    estimated_value: Decimal | None = Field(None, ge=Decimal("0"))
+    notes: str | None = None
 
     @field_validator("contact_email")
     @classmethod
@@ -418,7 +417,7 @@ class ReferralLeadBase(BaseModel):
 class ReferralLeadCreate(ReferralLeadBase):
     """Schema for creating referral lead."""
 
-    source: Optional[str] = Field(None, max_length=100, description="Referral source/campaign")
+    source: str | None = Field(None, max_length=100, description="Referral source/campaign")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -431,19 +430,19 @@ class ReferralLeadUpdate(BaseModel):
         extra="forbid",
     )
 
-    company_name: Optional[str] = Field(None, max_length=255)
-    contact_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    contact_email: Optional[EmailStr] = None
-    contact_phone: Optional[str] = Field(None, max_length=30)
-    estimated_value: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    status: Optional[ReferralStatus] = None
-    notes: Optional[str] = None
-    converted_customer_id: Optional[UUID] = None
-    conversion_date: Optional[datetime] = None
-    actual_value: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    first_contact_date: Optional[datetime] = None
-    qualified_date: Optional[datetime] = None
-    metadata: Optional[dict[str, Any]] = None
+    company_name: str | None = Field(None, max_length=255)
+    contact_name: str | None = Field(None, min_length=1, max_length=255)
+    contact_email: EmailStr | None = None
+    contact_phone: str | None = Field(None, max_length=30)
+    estimated_value: Decimal | None = Field(None, ge=Decimal("0"))
+    status: ReferralStatus | None = None
+    notes: str | None = None
+    converted_customer_id: UUID | None = None
+    conversion_date: datetime | None = None
+    actual_value: Decimal | None = Field(None, ge=Decimal("0"))
+    first_contact_date: datetime | None = None
+    qualified_date: datetime | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class ReferralLeadResponse(ReferralLeadBase):
@@ -452,12 +451,12 @@ class ReferralLeadResponse(ReferralLeadBase):
     id: UUID
     status: ReferralStatus
     submitted_date: datetime
-    converted_customer_id: Optional[UUID] = None
-    conversion_date: Optional[datetime] = None
-    actual_value: Optional[Decimal] = None
-    first_contact_date: Optional[datetime] = None
-    qualified_date: Optional[datetime] = None
-    source: Optional[str] = None
+    converted_customer_id: UUID | None = None
+    conversion_date: datetime | None = None
+    actual_value: Decimal | None = None
+    first_contact_date: datetime | None = None
+    qualified_date: datetime | None = None
+    source: str | None = None
     metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -517,7 +516,7 @@ class PartnerPayoutSummary(BaseModel):
 
     # Status
     status: PayoutStatus
-    payout_date: Optional[datetime] = None
+    payout_date: datetime | None = None
 
     # Event breakdown
     events: list[PartnerCommissionEventResponse] = Field(default_factory=list)

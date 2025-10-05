@@ -2,24 +2,23 @@
 Audit service for tracking and retrieving activities across the platform.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 from fastapi import Request
-from sqlalchemy import select, func, desc, and_
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
+    ActivitySeverity,
+    ActivityType,
     AuditActivity,
     AuditActivityCreate,
-    AuditActivityResponse,
     AuditActivityList,
+    AuditActivityResponse,
     AuditFilterParams,
-    ActivityType,
-    ActivitySeverity,
 )
-
 
 logger = structlog.get_logger(__name__)
 
@@ -27,7 +26,7 @@ logger = structlog.get_logger(__name__)
 class AuditService:
     """Service for audit activity tracking and retrieval."""
 
-    def __init__(self, session: Optional[AsyncSession] = None):
+    def __init__(self, session: AsyncSession | None = None):
         self._session = session
 
     def _get_session(self):
@@ -35,13 +34,16 @@ class AuditService:
         if self._session:
             # Return a context manager that yields the existing session
             from contextlib import asynccontextmanager
+
             @asynccontextmanager
             async def session_context():
                 yield self._session
+
             return session_context()
         else:
             # For service usage, create new session
             from ..db import AsyncSessionLocal
+
             return AsyncSessionLocal()
 
     async def log_activity(
@@ -50,15 +52,15 @@ class AuditService:
         action: str,
         description: str,
         *,
-        user_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        resource_type: Optional[str] = None,
-        resource_id: Optional[str] = None,
+        user_id: str | None = None,
+        tenant_id: str | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
         severity: ActivitySeverity = ActivitySeverity.LOW,
-        details: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        request_id: Optional[str] = None,
+        details: dict[str, Any] | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        request_id: str | None = None,
     ) -> AuditActivity:
         """Log an audit activity."""
         async with self._get_session() as session:
@@ -94,12 +96,7 @@ class AuditService:
             return activity
 
     async def log_request_activity(
-        self,
-        request: Request,
-        activity_type: ActivityType,
-        action: str,
-        description: str,
-        **kwargs
+        self, request: Request, activity_type: ActivityType, action: str, description: str, **kwargs
     ) -> AuditActivity:
         """Log activity from a FastAPI request context."""
         # Extract request metadata
@@ -127,52 +124,87 @@ class AuditService:
             ip_address=ip_address,
             user_agent=user_agent,
             request_id=request_id,
-            **kwargs
+            **kwargs,
         )
+
+    def _build_user_tenant_conditions(
+        self,
+        filters: AuditFilterParams,
+        for_user: str | None,
+        for_tenant: str | None,
+    ) -> list:
+        """Build user and tenant filter conditions."""
+        conditions = []
+
+        if filters.user_id:
+            conditions.append(AuditActivity.user_id == filters.user_id)
+        elif for_user:
+            conditions.append(AuditActivity.user_id == for_user)
+
+        if filters.tenant_id:
+            conditions.append(AuditActivity.tenant_id == filters.tenant_id)
+        elif for_tenant:
+            conditions.append(AuditActivity.tenant_id == for_tenant)
+
+        return conditions
+
+    def _build_attribute_conditions(self, filters: AuditFilterParams) -> list:
+        """Build activity attribute filter conditions."""
+        conditions = []
+
+        if filters.activity_type:
+            conditions.append(AuditActivity.activity_type == filters.activity_type)
+
+        if filters.severity:
+            conditions.append(AuditActivity.severity == filters.severity)
+
+        if filters.resource_type:
+            conditions.append(AuditActivity.resource_type == filters.resource_type)
+
+        if filters.resource_id:
+            conditions.append(AuditActivity.resource_id == filters.resource_id)
+
+        return conditions
+
+    def _build_date_conditions(self, filters: AuditFilterParams) -> list:
+        """Build date range filter conditions."""
+        conditions = []
+
+        if filters.start_date:
+            conditions.append(AuditActivity.timestamp >= filters.start_date)
+
+        if filters.end_date:
+            conditions.append(AuditActivity.timestamp <= filters.end_date)
+
+        return conditions
+
+    def _build_all_conditions(
+        self,
+        filters: AuditFilterParams,
+        for_user: str | None,
+        for_tenant: str | None,
+    ) -> list:
+        """Build all filter conditions."""
+        conditions = []
+        conditions.extend(self._build_user_tenant_conditions(filters, for_user, for_tenant))
+        conditions.extend(self._build_attribute_conditions(filters))
+        conditions.extend(self._build_date_conditions(filters))
+        return conditions
 
     async def get_activities(
         self,
         filters: AuditFilterParams,
         *,
-        for_user: Optional[str] = None,
-        for_tenant: Optional[str] = None,
+        for_user: str | None = None,
+        for_tenant: str | None = None,
     ) -> AuditActivityList:
         """Get filtered and paginated audit activities."""
         async with self._get_session() as session:
             # Build base query
             query = select(AuditActivity)
 
-            # Apply filters
-            conditions = []
-
-            if filters.user_id:
-                conditions.append(AuditActivity.user_id == filters.user_id)
-            elif for_user:
-                conditions.append(AuditActivity.user_id == for_user)
-
-            if filters.tenant_id:
-                conditions.append(AuditActivity.tenant_id == filters.tenant_id)
-            elif for_tenant:
-                conditions.append(AuditActivity.tenant_id == for_tenant)
-
-            if filters.activity_type:
-                conditions.append(AuditActivity.activity_type == filters.activity_type)
-
-            if filters.severity:
-                conditions.append(AuditActivity.severity == filters.severity)
-
-            if filters.resource_type:
-                conditions.append(AuditActivity.resource_type == filters.resource_type)
-
-            if filters.resource_id:
-                conditions.append(AuditActivity.resource_id == filters.resource_id)
-
-            if filters.start_date:
-                conditions.append(AuditActivity.timestamp >= filters.start_date)
-
-            if filters.end_date:
-                conditions.append(AuditActivity.timestamp <= filters.end_date)
-
+            # Apply all filter conditions
+            conditions = self._build_all_conditions(filters, for_user, for_tenant)
             if conditions:
                 query = query.where(and_(*conditions))
 
@@ -197,7 +229,9 @@ class AuditService:
             has_prev = filters.page > 1
 
             return AuditActivityList(
-                activities=[AuditActivityResponse.model_validate(activity) for activity in activities],
+                activities=[
+                    AuditActivityResponse.model_validate(activity) for activity in activities
+                ],
                 total=total,
                 page=filters.page,
                 per_page=filters.per_page,
@@ -208,13 +242,13 @@ class AuditService:
     async def get_recent_activities(
         self,
         *,
-        user_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        user_id: str | None = None,
+        tenant_id: str | None = None,
         limit: int = 20,
         days: int = 30,
-    ) -> List[AuditActivityResponse]:
+    ) -> list[AuditActivityResponse]:
         """Get recent activities for frontend dashboard."""
-        since_date = datetime.now(timezone.utc) - timedelta(days=days)
+        since_date = datetime.now(UTC) - timedelta(days=days)
 
         filters = AuditFilterParams(
             user_id=user_id,
@@ -230,13 +264,13 @@ class AuditService:
     async def get_activity_summary(
         self,
         *,
-        user_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        user_id: str | None = None,
+        tenant_id: str | None = None,
         days: int = 7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get activity summary statistics."""
         async with self._get_session() as session:
-            since_date = datetime.now(timezone.utc) - timedelta(days=days)
+            since_date = datetime.now(UTC) - timedelta(days=days)
 
             # Build base query
             query = select(AuditActivity).where(AuditActivity.timestamp >= since_date)
@@ -251,15 +285,12 @@ class AuditService:
                 query = query.where(and_(*conditions))
 
             # Get total activities
-            count_result = await session.execute(
-                select(func.count()).select_from(query.subquery())
-            )
+            count_result = await session.execute(select(func.count()).select_from(query.subquery()))
             total_activities = count_result.scalar()
 
             # Get activities by type
-            type_query = (
-                select(AuditActivity.activity_type, func.count())
-                .where(AuditActivity.timestamp >= since_date)
+            type_query = select(AuditActivity.activity_type, func.count()).where(
+                AuditActivity.timestamp >= since_date
             )
             if conditions:
                 type_query = type_query.where(and_(*conditions))
@@ -269,9 +300,8 @@ class AuditService:
             activities_by_type = dict(type_result.all())
 
             # Get activities by severity
-            severity_query = (
-                select(AuditActivity.severity, func.count())
-                .where(AuditActivity.timestamp >= since_date)
+            severity_query = select(AuditActivity.severity, func.count()).where(
+                AuditActivity.timestamp >= since_date
             )
             if conditions:
                 severity_query = severity_query.where(and_(*conditions))
@@ -291,12 +321,9 @@ class AuditService:
 
 # Helper functions for common audit scenarios
 
+
 async def log_user_activity(
-    user_id: str,
-    activity_type: ActivityType,
-    action: str,
-    description: str,
-    **kwargs
+    user_id: str, activity_type: ActivityType, action: str, description: str, **kwargs
 ) -> AuditActivity:
     """Helper to log user-specific activities."""
     service = AuditService()
@@ -305,15 +332,12 @@ async def log_user_activity(
         action=action,
         description=description,
         user_id=user_id,
-        **kwargs
+        **kwargs,
     )
 
 
 async def log_api_activity(
-    request: Request,
-    action: str,
-    description: str,
-    **kwargs
+    request: Request, action: str, description: str, **kwargs
 ) -> AuditActivity:
     """Helper to log API request activities."""
     service = AuditService()
@@ -322,15 +346,12 @@ async def log_api_activity(
         activity_type=ActivityType.API_REQUEST,
         action=action,
         description=description,
-        **kwargs
+        **kwargs,
     )
 
 
 async def log_system_activity(
-    activity_type: ActivityType,
-    action: str,
-    description: str,
-    **kwargs
+    activity_type: ActivityType, action: str, description: str, **kwargs
 ) -> AuditActivity:
     """Helper to log system-level activities."""
     service = AuditService()
@@ -339,5 +360,5 @@ async def log_system_activity(
         action=action,
         description=description,
         severity=ActivitySeverity.MEDIUM,
-        **kwargs
+        **kwargs,
     )

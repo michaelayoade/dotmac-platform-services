@@ -3,8 +3,8 @@ Settings management service for admin operations.
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
@@ -13,13 +13,13 @@ from pydantic import BaseModel, ValidationError
 from dotmac.platform import settings as platform_settings
 from dotmac.platform.admin.settings.models import (
     AuditLog,
+    SettingField,
     SettingsBackup,
     SettingsCategory,
     SettingsCategoryInfo,
     SettingsResponse,
     SettingsUpdateRequest,
     SettingsValidationResult,
-    SettingField,
 )
 
 logger = structlog.get_logger(__name__)
@@ -69,14 +69,14 @@ class SettingsManagementService:
     def __init__(self):
         """Initialize settings management service."""
         self.settings = platform_settings.settings
-        self._audit_logs: List[AuditLog] = []
-        self._backups: Dict[UUID, SettingsBackup] = {}
+        self._audit_logs: list[AuditLog] = []
+        self._backups: dict[UUID, SettingsBackup] = {}
 
     def get_category_settings(
         self,
         category: SettingsCategory,
         include_sensitive: bool = False,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
     ) -> SettingsResponse:
         """
         Get settings for a specific category.
@@ -94,10 +94,7 @@ class SettingsManagementService:
             raise ValueError(f"Invalid settings category: {category}")
 
         settings_obj = getattr(self.settings, attr_name)
-        fields = self._extract_fields(
-            settings_obj,
-            include_sensitive=include_sensitive
-        )
+        fields = self._extract_fields(settings_obj, include_sensitive=include_sensitive)
 
         # Get last update info from audit logs
         last_update_info = self._get_last_update_info(category)
@@ -116,8 +113,8 @@ class SettingsManagementService:
         update_request: SettingsUpdateRequest,
         user_id: str,
         user_email: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> SettingsResponse:
         """
         Update settings for a specific category.
@@ -160,7 +157,7 @@ class SettingsManagementService:
         if not update_request.validate_only and changes:
             audit_entry = AuditLog(
                 id=uuid4(),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 user_id=user_id,
                 user_email=user_email,
                 category=category,
@@ -185,7 +182,7 @@ class SettingsManagementService:
     def validate_settings(
         self,
         category: SettingsCategory,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> SettingsValidationResult:
         """
         Validate settings updates without applying them.
@@ -238,7 +235,7 @@ class SettingsManagementService:
 
         return result
 
-    def get_all_categories(self) -> List[SettingsCategoryInfo]:
+    def get_all_categories(self) -> list[SettingsCategoryInfo]:
         """
         Get information about all available settings categories.
 
@@ -255,30 +252,29 @@ class SettingsManagementService:
             settings_obj = getattr(self.settings, attr_name)
             fields = self._extract_fields(settings_obj)
 
-            has_sensitive = any(
-                self._is_sensitive_field(field.name)
-                for field in fields
-            )
+            has_sensitive = any(self._is_sensitive_field(field.name) for field in fields)
 
             restart_required = category in self.RESTART_REQUIRED_SETTINGS
 
-            categories.append(SettingsCategoryInfo(
-                category=category,
-                display_name=SettingsCategory.get_display_name(category),
-                description=self._get_category_description(category),
-                fields_count=len(fields),
-                has_sensitive_fields=has_sensitive,
-                restart_required=restart_required,
-                last_updated=self._get_last_update_time(category),
-            ))
+            categories.append(
+                SettingsCategoryInfo(
+                    category=category,
+                    display_name=SettingsCategory.get_display_name(category),
+                    description=self._get_category_description(category),
+                    fields_count=len(fields),
+                    has_sensitive_fields=has_sensitive,
+                    restart_required=restart_required,
+                    last_updated=self._get_last_update_time(category),
+                )
+            )
 
         return categories
 
     def create_backup(
         self,
         name: str,
-        description: Optional[str],
-        categories: Optional[List[SettingsCategory]],
+        description: str | None,
+        categories: list[SettingsCategory] | None,
         user_id: str,
     ) -> SettingsBackup:
         """
@@ -305,7 +301,7 @@ class SettingsManagementService:
 
         backup = SettingsBackup(
             id=uuid4(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             created_by=user_id,
             name=name,
             description=description,
@@ -329,7 +325,7 @@ class SettingsManagementService:
         backup_id: UUID,
         user_id: str,
         user_email: str,
-    ) -> Dict[SettingsCategory, SettingsResponse]:
+    ) -> dict[SettingsCategory, SettingsResponse]:
         """
         Restore settings from a backup.
 
@@ -366,7 +362,7 @@ class SettingsManagementService:
                 if changes:
                     audit_entry = AuditLog(
                         id=uuid4(),
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=datetime.now(UTC),
                         user_id=user_id,
                         user_email=user_email,
                         category=category,
@@ -389,10 +385,10 @@ class SettingsManagementService:
 
     def get_audit_logs(
         self,
-        category: Optional[SettingsCategory] = None,
-        user_id: Optional[str] = None,
+        category: SettingsCategory | None = None,
+        user_id: str | None = None,
         limit: int = 100,
-    ) -> List[AuditLog]:
+    ) -> list[AuditLog]:
         """
         Get audit logs for settings changes.
 
@@ -419,7 +415,7 @@ class SettingsManagementService:
 
     def export_settings(
         self,
-        categories: Optional[List[SettingsCategory]] = None,
+        categories: list[SettingsCategory] | None = None,
         include_sensitive: bool = False,
         format: str = "json",
     ) -> str:
@@ -466,7 +462,7 @@ class SettingsManagementService:
         self,
         settings_obj: BaseModel,
         include_sensitive: bool = False,
-    ) -> List[SettingField]:
+    ) -> list[SettingField]:
         """Extract fields from a settings object."""
         fields = []
 
@@ -481,15 +477,17 @@ class SettingsManagementService:
                 if value:
                     value = "***MASKED***"
 
-            fields.append(SettingField(
-                name=field_name,
-                value=value,
-                type=str(field_info.annotation),
-                description=field_info.description,
-                default=field_info.default,
-                required=field_info.is_required(),
-                sensitive=is_sensitive,
-            ))
+            fields.append(
+                SettingField(
+                    name=field_name,
+                    value=value,
+                    type=str(field_info.annotation),
+                    description=field_info.description,
+                    default=field_info.default,
+                    required=field_info.is_required(),
+                    sensitive=is_sensitive,
+                )
+            )
 
         return fields
 
@@ -517,14 +515,14 @@ class SettingsManagementService:
         }
         return descriptions.get(category, "")
 
-    def _get_last_update_time(self, category: SettingsCategory) -> Optional[datetime]:
+    def _get_last_update_time(self, category: SettingsCategory) -> datetime | None:
         """Get last update time for a category from audit logs."""
         for log in self._audit_logs:
             if log.category == category:
                 return log.timestamp
         return None
 
-    def _get_last_update_info(self, category: SettingsCategory) -> Dict[str, Any]:
+    def _get_last_update_info(self, category: SettingsCategory) -> dict[str, Any]:
         """Get last update information for a category from audit logs."""
         # Sort logs by timestamp descending to get the most recent
         sorted_logs = sorted(self._audit_logs, key=lambda x: x.timestamp, reverse=True)
@@ -539,7 +537,7 @@ class SettingsManagementService:
 
         return {}
 
-    def _mask_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _mask_sensitive_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Mask sensitive values in data dictionary."""
         masked = {}
         for key, value in data.items():
@@ -552,11 +550,11 @@ class SettingsManagementService:
                 masked[key] = value
         return masked
 
-    def _to_env_format(self, data: Dict[str, Any], prefix: str = "") -> str:
+    def _to_env_format(self, data: dict[str, Any], prefix: str = "") -> str:
         """Convert settings data to environment variable format."""
         lines = []
 
-        def process_dict(d: Dict[str, Any], current_prefix: str):
+        def process_dict(d: dict[str, Any], current_prefix: str):
             for key, value in d.items():
                 env_key = f"{current_prefix}{key}".upper()
 

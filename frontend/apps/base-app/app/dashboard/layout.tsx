@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SkipLink } from '@/components/ui/skip-link';
 import {
   Home,
   Settings,
@@ -33,6 +34,7 @@ import {
   Handshake
 } from 'lucide-react';
 import { TenantSelector } from '@/components/tenant-selector';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { apiClient } from '@/lib/api/client';
 import { logger } from '@/lib/utils/logger';
 import { Can } from '@/components/auth/PermissionGuard';
@@ -135,7 +137,7 @@ const sections: NavSection[] = [
     label: 'Settings',
     icon: Settings,
     href: '/dashboard/settings',
-    permission: 'settings.read',
+    // No permission required for Settings section - Profile is accessible to all users
     items: [
       { name: 'Profile', href: '/dashboard/settings/profile', icon: User },
       { name: 'Organization', href: '/dashboard/settings/organization', icon: Users, permission: 'settings.read' },
@@ -178,8 +180,9 @@ export default function DashboardLayout({
   const userData = user as { id?: string; username?: string; email?: string; full_name?: string; roles?: string[] } | null;
 
   // Filter sections based on permissions
-  const visibleSections = sections.filter(section =>
-    checkSectionVisibility(section, hasPermission)
+  const visibleSections = useMemo(
+    () => sections.filter(section => checkSectionVisibility(section, hasPermission)),
+    [hasPermission]
   );
 
   // Toggle section expansion
@@ -197,11 +200,34 @@ export default function DashboardLayout({
 
   // Auto-expand active section
   useEffect(() => {
+    const activeSections = new Set<string>();
+
     visibleSections.forEach(section => {
-      if (section.items?.some(item => pathname === item.href ||
-         (item.href !== '/dashboard' && pathname.startsWith(item.href)))) {
-        setExpandedSections(prev => new Set(prev).add(section.id));
+      const hasActiveItem = section.items?.some(item =>
+        pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+      );
+
+      if (hasActiveItem) {
+        activeSections.add(section.id);
       }
+    });
+
+    if (activeSections.size === 0) {
+      return;
+    }
+
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      let changed = false;
+
+      activeSections.forEach(sectionId => {
+        if (!next.has(sectionId)) {
+          next.add(sectionId);
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
     });
   }, [pathname, visibleSections]);
 
@@ -243,55 +269,62 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
+      <SkipLink />
       {/* Top Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900 border-b border-slate-800">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border" aria-label="Main navigation">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center">
             <button
               type="button"
-              className="lg:hidden -m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-slate-400 hover:bg-slate-800"
+              className="lg:hidden -m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-muted-foreground hover:bg-accent min-h-[44px] min-w-[44px]"
               onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle sidebar"
+              aria-expanded={sidebarOpen}
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-6 w-6" aria-hidden="true" />
             </button>
             <div className="flex items-center ml-4 lg:ml-0">
-              <div className="text-xl font-semibold text-white">DotMac Platform</div>
+              <div className="text-xl font-semibold text-foreground">DotMac Platform</div>
             </div>
           </div>
 
-          {/* Right side - Tenant selector and User menu */}
+          {/* Right side - Tenant selector, Theme toggle and User menu */}
           <div className="flex items-center gap-4">
             <TenantSelector />
+            <ThemeToggle />
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent transition-colors min-h-[44px]"
+                aria-label="User menu"
+                aria-expanded={userMenuOpen}
+                aria-haspopup="true"
               >
-                <User className="h-5 w-5" />
+                <User className="h-5 w-5" aria-hidden="true" />
                 <span className="hidden sm:block">{userData?.username || 'User'}</span>
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-md bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5">
+                <div className="absolute right-0 mt-2 w-56 rounded-md bg-popover shadow-lg ring-1 ring-border">
                   <div className="py-1">
-                    <div className="px-4 py-2 text-sm text-slate-400">
-                      <div className="font-semibold text-slate-200">{userData?.full_name || userData?.username}</div>
+                    <div className="px-4 py-2 text-sm text-muted-foreground">
+                      <div className="font-semibold text-foreground">{userData?.full_name || userData?.username}</div>
                       <div className="text-xs">{userData?.email}</div>
                       <div className="text-xs mt-1">Role: {userData?.roles?.join(', ') || 'User'}</div>
                     </div>
-                    <hr className="my-1 border-slate-700" />
+                    <hr className="my-1 border-border" />
                     <Link
                       href="/dashboard/profile"
-                      className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-accent"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       Profile Settings
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                      className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent"
                     >
                       <div className="flex items-center gap-2">
                         <LogOut className="h-4 w-4" />
@@ -304,24 +337,24 @@ export default function DashboardLayout({
             </div>
           </div>
         </div>
-      </div>
+      </nav>
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 pt-16 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border pt-16 transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Mobile close button */}
-        <div className="lg:hidden absolute top-20 right-4">
+        <div className="lg:hidden absolute top-20 right-4 z-10">
           <button
             onClick={() => setSidebarOpen(false)}
-            className="rounded-md p-2 text-slate-400 hover:bg-slate-800"
+            className="rounded-md p-2 text-muted-foreground hover:bg-accent"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Navigation items */}
-        <nav className="mt-8 px-4">
+        {/* Navigation items - scrollable area */}
+        <nav className="flex-1 overflow-y-auto mt-8 px-4 pb-4">
           <ul className="space-y-1">
             {visibleSections.map((section) => {
               const isExpanded = expandedSections.has(section.id);
@@ -341,10 +374,10 @@ export default function DashboardLayout({
                         href={section.href}
                         className={`flex-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                           isSectionActive && !hasActiveChild
-                            ? 'bg-sky-500/10 text-sky-400'
+                            ? 'bg-primary/10 text-primary'
                             : hasActiveChild
-                            ? 'text-slate-200'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                         }`}
                         onClick={() => setSidebarOpen(false)}
                       >
@@ -354,7 +387,7 @@ export default function DashboardLayout({
                       {section.items && section.items.length > 0 && (
                         <button
                           onClick={() => toggleSection(section.id)}
-                          className="p-1 mr-1 text-slate-400 hover:text-slate-200 transition-colors"
+                          className="p-1 mr-1 text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <ChevronRight className={`h-4 w-4 transform transition-transform ${
                             isExpanded ? 'rotate-90' : ''
@@ -365,7 +398,7 @@ export default function DashboardLayout({
 
                     {/* Section items */}
                     {section.items && isExpanded && (
-                      <ul className="mt-1 ml-4 border-l border-slate-800 space-y-1">
+                      <ul className="mt-1 ml-4 border-l border-border space-y-1">
                         {section.items.map((item) => {
                           const isItemActive = pathname === item.href ||
                             (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -379,15 +412,15 @@ export default function DashboardLayout({
                                     href={item.href}
                                     className={`flex items-center gap-3 rounded-lg px-3 py-1.5 ml-2 text-sm transition-colors ${
                                       isItemActive
-                                        ? 'bg-sky-500/10 text-sky-400'
-                                        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                                     }`}
                                     onClick={() => setSidebarOpen(false)}
                                   >
                                     <item.icon className="h-4 w-4 flex-shrink-0" />
                                     <span>{item.name}</span>
                                     {item.badge && (
-                                      <span className="ml-auto bg-sky-500/20 text-sky-400 text-xs px-2 py-0.5 rounded-full">
+                                      <span className="ml-auto bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
                                         {item.badge}
                                       </span>
                                     )}
@@ -404,15 +437,15 @@ export default function DashboardLayout({
                                 href={item.href}
                                 className={`flex items-center gap-3 rounded-lg px-3 py-1.5 ml-2 text-sm transition-colors ${
                                   isItemActive
-                                    ? 'bg-sky-500/10 text-sky-400'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                                 }`}
                                 onClick={() => setSidebarOpen(false)}
                               >
                                 <item.icon className="h-4 w-4 flex-shrink-0" />
                                 <span>{item.name}</span>
                                 {item.badge && (
-                                  <span className="ml-auto bg-sky-500/20 text-sky-400 text-xs px-2 py-0.5 rounded-full">
+                                  <span className="ml-auto bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
                                     {item.badge}
                                   </span>
                                 )}
@@ -430,8 +463,8 @@ export default function DashboardLayout({
         </nav>
 
         {/* Bottom section with version info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
-          <div className="text-xs text-slate-500">
+        <div className="flex-shrink-0 p-4 border-t border-border bg-card">
+          <div className="text-xs text-muted-foreground">
             <div>Platform Version: 1.0.0</div>
             <div>Environment: Development</div>
           </div>
@@ -440,7 +473,7 @@ export default function DashboardLayout({
 
       {/* Main content area */}
       <div className="lg:pl-64 pt-16">
-        <main className="min-h-screen">
+        <main id="main-content" className="min-h-screen p-4 sm:p-6 lg:p-8 bg-background" aria-label="Main content">
           {children}
         </main>
       </div>
@@ -448,7 +481,7 @@ export default function DashboardLayout({
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/50 dark:bg-black/70 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

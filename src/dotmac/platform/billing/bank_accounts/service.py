@@ -2,33 +2,32 @@
 Bank account and manual payment service
 """
 
-import logging
-from datetime import datetime
-from typing import Optional, List
-import secrets
 import hashlib
+import logging
+import secrets
+from datetime import UTC, datetime
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.bank_accounts.entities import (
+    BankAccountStatus,
     CompanyBankAccount,
     ManualPayment,
-    PaymentReconciliation,
-    BankAccountStatus,
     PaymentMethodType,
+    PaymentReconciliation,
 )
 from dotmac.platform.billing.bank_accounts.models import (
-    CompanyBankAccountCreate,
-    CompanyBankAccountUpdate,
-    CompanyBankAccountResponse,
+    BankAccountSummary,
+    BankTransferCreate,
     CashPaymentCreate,
     CheckPaymentCreate,
-    BankTransferCreate,
-    MobileMoneyCreate,
+    CompanyBankAccountCreate,
+    CompanyBankAccountResponse,
+    CompanyBankAccountUpdate,
     ManualPaymentResponse,
+    MobileMoneyCreate,
     PaymentSearchFilters,
-    BankAccountSummary,
 )
 from dotmac.platform.billing.core.exceptions import (
     BillingError,
@@ -45,10 +44,7 @@ class BankAccountService:
         self.db = db
 
     async def create_bank_account(
-        self,
-        tenant_id: str,
-        data: CompanyBankAccountCreate,
-        created_by: str
+        self, tenant_id: str, data: CompanyBankAccountCreate, created_by: str
     ) -> CompanyBankAccountResponse:
         """Create a new company bank account"""
 
@@ -89,40 +85,30 @@ class BankAccountService:
         return self._to_response(account)
 
     async def get_bank_accounts(
-        self,
-        tenant_id: str,
-        include_inactive: bool = False
-    ) -> List[CompanyBankAccountResponse]:
+        self, tenant_id: str, include_inactive: bool = False
+    ) -> list[CompanyBankAccountResponse]:
         """Get all bank accounts for a tenant"""
 
-        query = select(CompanyBankAccount).where(
-            CompanyBankAccount.tenant_id == tenant_id
-        )
+        query = select(CompanyBankAccount).where(CompanyBankAccount.tenant_id == tenant_id)
 
         if not include_inactive:
-            query = query.where(CompanyBankAccount.is_active == True)
+            query = query.where(CompanyBankAccount.is_active)
 
-        result = await self.db.execute(query.order_by(
-            CompanyBankAccount.is_primary.desc(),
-            CompanyBankAccount.account_name
-        ))
+        result = await self.db.execute(
+            query.order_by(CompanyBankAccount.is_primary.desc(), CompanyBankAccount.account_name)
+        )
         accounts = result.scalars().all()
 
         return [self._to_response(account) for account in accounts]
 
     async def get_bank_account(
-        self,
-        tenant_id: str,
-        account_id: int
-    ) -> Optional[CompanyBankAccountResponse]:
+        self, tenant_id: str, account_id: int
+    ) -> CompanyBankAccountResponse | None:
         """Get a specific bank account"""
 
         result = await self.db.execute(
             select(CompanyBankAccount).where(
-                and_(
-                    CompanyBankAccount.tenant_id == tenant_id,
-                    CompanyBankAccount.id == account_id
-                )
+                and_(CompanyBankAccount.tenant_id == tenant_id, CompanyBankAccount.id == account_id)
             )
         )
         account = result.scalar_one_or_none()
@@ -133,20 +119,13 @@ class BankAccountService:
         return self._to_response(account)
 
     async def update_bank_account(
-        self,
-        tenant_id: str,
-        account_id: int,
-        data: CompanyBankAccountUpdate,
-        updated_by: str
+        self, tenant_id: str, account_id: int, data: CompanyBankAccountUpdate, updated_by: str
     ) -> CompanyBankAccountResponse:
         """Update a bank account"""
 
         result = await self.db.execute(
             select(CompanyBankAccount).where(
-                and_(
-                    CompanyBankAccount.tenant_id == tenant_id,
-                    CompanyBankAccount.id == account_id
-                )
+                and_(CompanyBankAccount.tenant_id == tenant_id, CompanyBankAccount.id == account_id)
             )
         )
         account = result.scalar_one_or_none()
@@ -163,7 +142,7 @@ class BankAccountService:
             setattr(account, field, value)
 
         account.updated_by = updated_by
-        account.updated_at = datetime.utcnow()
+        account.updated_at = datetime.now(UTC)
 
         await self.db.commit()
         await self.db.refresh(account)
@@ -172,20 +151,13 @@ class BankAccountService:
         return self._to_response(account)
 
     async def verify_bank_account(
-        self,
-        tenant_id: str,
-        account_id: int,
-        verified_by: str,
-        notes: Optional[str] = None
+        self, tenant_id: str, account_id: int, verified_by: str, notes: str | None = None
     ) -> CompanyBankAccountResponse:
         """Mark a bank account as verified"""
 
         result = await self.db.execute(
             select(CompanyBankAccount).where(
-                and_(
-                    CompanyBankAccount.tenant_id == tenant_id,
-                    CompanyBankAccount.id == account_id
-                )
+                and_(CompanyBankAccount.tenant_id == tenant_id, CompanyBankAccount.id == account_id)
             )
         )
         account = result.scalar_one_or_none()
@@ -194,11 +166,11 @@ class BankAccountService:
             raise BillingError(f"Bank account {account_id} not found")
 
         account.status = BankAccountStatus.VERIFIED
-        account.verified_at = datetime.utcnow()
+        account.verified_at = datetime.now(UTC)
         account.verified_by = verified_by
         account.verification_notes = notes
         account.updated_by = verified_by
-        account.updated_at = datetime.utcnow()
+        account.updated_at = datetime.now(UTC)
 
         await self.db.commit()
         await self.db.refresh(account)
@@ -207,19 +179,13 @@ class BankAccountService:
         return self._to_response(account)
 
     async def deactivate_bank_account(
-        self,
-        tenant_id: str,
-        account_id: int,
-        updated_by: str
+        self, tenant_id: str, account_id: int, updated_by: str
     ) -> CompanyBankAccountResponse:
         """Deactivate a bank account"""
 
         result = await self.db.execute(
             select(CompanyBankAccount).where(
-                and_(
-                    CompanyBankAccount.tenant_id == tenant_id,
-                    CompanyBankAccount.id == account_id
-                )
+                and_(CompanyBankAccount.tenant_id == tenant_id, CompanyBankAccount.id == account_id)
             )
         )
         account = result.scalar_one_or_none()
@@ -232,7 +198,7 @@ class BankAccountService:
 
         account.is_active = False
         account.updated_by = updated_by
-        account.updated_at = datetime.utcnow()
+        account.updated_at = datetime.now(UTC)
 
         await self.db.commit()
         await self.db.refresh(account)
@@ -240,11 +206,7 @@ class BankAccountService:
         logger.info(f"Deactivated bank account {account_id}")
         return self._to_response(account)
 
-    async def get_bank_account_summary(
-        self,
-        tenant_id: str,
-        account_id: int
-    ) -> BankAccountSummary:
+    async def get_bank_account_summary(self, tenant_id: str, account_id: int) -> BankAccountSummary:
         """Get bank account with summary statistics"""
 
         account_response = await self.get_bank_account(tenant_id, account_id)
@@ -252,7 +214,7 @@ class BankAccountService:
             raise BillingError(f"Bank account {account_id} not found")
 
         # Calculate MTD deposits
-        today = datetime.utcnow()
+        today = datetime.now(UTC)
         month_start = datetime(today.year, today.month, 1)
 
         mtd_result = await self.db.execute(
@@ -261,7 +223,7 @@ class BankAccountService:
                     ManualPayment.tenant_id == tenant_id,
                     ManualPayment.bank_account_id == account_id,
                     ManualPayment.payment_date >= month_start,
-                    ManualPayment.status.in_(["verified", "reconciled"])
+                    ManualPayment.status.in_(["verified", "reconciled"]),
                 )
             )
         )
@@ -276,7 +238,7 @@ class BankAccountService:
                     ManualPayment.tenant_id == tenant_id,
                     ManualPayment.bank_account_id == account_id,
                     ManualPayment.payment_date >= year_start,
-                    ManualPayment.status.in_(["verified", "reconciled"])
+                    ManualPayment.status.in_(["verified", "reconciled"]),
                 )
             )
         )
@@ -288,7 +250,7 @@ class BankAccountService:
                 and_(
                     ManualPayment.tenant_id == tenant_id,
                     ManualPayment.bank_account_id == account_id,
-                    ManualPayment.status == "pending"
+                    ManualPayment.status == "pending",
                 )
             )
         )
@@ -296,13 +258,16 @@ class BankAccountService:
 
         # Get last reconciliation
         recon_result = await self.db.execute(
-            select(PaymentReconciliation.reconciliation_date).where(
+            select(PaymentReconciliation.reconciliation_date)
+            .where(
                 and_(
                     PaymentReconciliation.tenant_id == tenant_id,
                     PaymentReconciliation.bank_account_id == account_id,
-                    PaymentReconciliation.status == "completed"
+                    PaymentReconciliation.status == "completed",
                 )
-            ).order_by(PaymentReconciliation.reconciliation_date.desc()).limit(1)
+            )
+            .order_by(PaymentReconciliation.reconciliation_date.desc())
+            .limit(1)
         )
         last_reconciliation = recon_result.scalar()
 
@@ -311,22 +276,15 @@ class BankAccountService:
             total_deposits_mtd=float(total_deposits_mtd),
             total_deposits_ytd=float(total_deposits_ytd),
             pending_payments=pending_payments,
-            last_reconciliation=last_reconciliation
+            last_reconciliation=last_reconciliation,
         )
 
     # Private helper methods
-    async def _unset_primary_accounts(
-        self,
-        tenant_id: str,
-        exclude_id: Optional[int] = None
-    ):
+    async def _unset_primary_accounts(self, tenant_id: str, exclude_id: int | None = None):
         """Unset primary flag on all accounts except the excluded one"""
 
         query = select(CompanyBankAccount).where(
-            and_(
-                CompanyBankAccount.tenant_id == tenant_id,
-                CompanyBankAccount.is_primary == True
-            )
+            and_(CompanyBankAccount.tenant_id == tenant_id, CompanyBankAccount.is_primary)
         )
 
         if exclude_id:
@@ -342,7 +300,7 @@ class BankAccountService:
         """Encrypt account number (use proper encryption in production)"""
         # This is a simple hash for demo - use proper encryption in production
         salt = secrets.token_hex(16)
-        hashed = hashlib.pbkdf2_hmac('sha256', account_number.encode(), salt.encode(), 100000)
+        hashed = hashlib.pbkdf2_hmac("sha256", account_number.encode(), salt.encode(), 100000)
         return f"{salt}${hashed.hex()}"
 
     def _to_response(self, account: CompanyBankAccount) -> CompanyBankAccountResponse:
@@ -369,7 +327,7 @@ class BankAccountService:
             created_at=account.created_at,
             updated_at=account.updated_at,
             notes=account.notes,
-            metadata=account.meta_data or {}
+            metadata=account.meta_data or {},
         )
 
 
@@ -380,10 +338,7 @@ class ManualPaymentService:
         self.db = db
 
     async def record_cash_payment(
-        self,
-        tenant_id: str,
-        data: CashPaymentCreate,
-        recorded_by: str
+        self, tenant_id: str, data: CashPaymentCreate, recorded_by: str
     ) -> ManualPaymentResponse:
         """Record a cash payment"""
 
@@ -418,10 +373,7 @@ class ManualPaymentService:
         return self._to_payment_response(payment)
 
     async def record_check_payment(
-        self,
-        tenant_id: str,
-        data: CheckPaymentCreate,
-        recorded_by: str
+        self, tenant_id: str, data: CheckPaymentCreate, recorded_by: str
     ) -> ManualPaymentResponse:
         """Record a check payment"""
 
@@ -456,10 +408,7 @@ class ManualPaymentService:
         return self._to_payment_response(payment)
 
     async def record_bank_transfer(
-        self,
-        tenant_id: str,
-        data: BankTransferCreate,
-        recorded_by: str
+        self, tenant_id: str, data: BankTransferCreate, recorded_by: str
     ) -> ManualPaymentResponse:
         """Record a bank transfer"""
 
@@ -495,10 +444,7 @@ class ManualPaymentService:
         return self._to_payment_response(payment)
 
     async def record_mobile_money(
-        self,
-        tenant_id: str,
-        data: MobileMoneyCreate,
-        recorded_by: str
+        self, tenant_id: str, data: MobileMoneyCreate, recorded_by: str
     ) -> ManualPaymentResponse:
         """Record a mobile money payment"""
 
@@ -533,17 +479,11 @@ class ManualPaymentService:
         return self._to_payment_response(payment)
 
     async def search_payments(
-        self,
-        tenant_id: str,
-        filters: PaymentSearchFilters,
-        limit: int = 100,
-        offset: int = 0
-    ) -> List[ManualPaymentResponse]:
+        self, tenant_id: str, filters: PaymentSearchFilters, limit: int = 100, offset: int = 0
+    ) -> list[ManualPaymentResponse]:
         """Search manual payments with filters"""
 
-        query = select(ManualPayment).where(
-            ManualPayment.tenant_id == tenant_id
-        )
+        query = select(ManualPayment).where(ManualPayment.tenant_id == tenant_id)
 
         if filters.customer_id:
             query = query.where(ManualPayment.customer_id == filters.customer_id)
@@ -581,20 +521,13 @@ class ManualPaymentService:
         return [self._to_payment_response(payment) for payment in payments]
 
     async def verify_payment(
-        self,
-        tenant_id: str,
-        payment_id: int,
-        verified_by: str,
-        notes: Optional[str] = None
+        self, tenant_id: str, payment_id: int, verified_by: str, notes: str | None = None
     ) -> ManualPaymentResponse:
         """Mark a payment as verified"""
 
         result = await self.db.execute(
             select(ManualPayment).where(
-                and_(
-                    ManualPayment.tenant_id == tenant_id,
-                    ManualPayment.id == payment_id
-                )
+                and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id == payment_id)
             )
         )
         payment = result.scalar_one_or_none()
@@ -604,9 +537,9 @@ class ManualPaymentService:
 
         payment.status = "verified"
         payment.approved_by = verified_by
-        payment.approved_at = datetime.utcnow()
+        payment.approved_at = datetime.now(UTC)
         payment.updated_by = verified_by
-        payment.updated_at = datetime.utcnow()
+        payment.updated_at = datetime.now(UTC)
 
         if notes:
             existing_notes = payment.notes or ""
@@ -621,18 +554,15 @@ class ManualPaymentService:
     async def reconcile_payments(
         self,
         tenant_id: str,
-        payment_ids: List[int],
+        payment_ids: list[int],
         reconciled_by: str,
-        notes: Optional[str] = None
-    ) -> List[ManualPaymentResponse]:
+        notes: str | None = None,
+    ) -> list[ManualPaymentResponse]:
         """Reconcile multiple payments"""
 
         result = await self.db.execute(
             select(ManualPayment).where(
-                and_(
-                    ManualPayment.tenant_id == tenant_id,
-                    ManualPayment.id.in_(payment_ids)
-                )
+                and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id.in_(payment_ids))
             )
         )
         payments = result.scalars().all()
@@ -643,11 +573,11 @@ class ManualPaymentService:
         reconciled_payments = []
         for payment in payments:
             payment.reconciled = True
-            payment.reconciled_at = datetime.utcnow()
+            payment.reconciled_at = datetime.now(UTC)
             payment.reconciled_by = reconciled_by
             payment.status = "reconciled"
             payment.updated_by = reconciled_by
-            payment.updated_at = datetime.utcnow()
+            payment.updated_at = datetime.now(UTC)
 
             if notes:
                 existing_notes = payment.notes or ""
@@ -660,14 +590,11 @@ class ManualPaymentService:
         logger.info(f"Reconciled {len(payments)} payments")
         return [self._to_payment_response(payment) for payment in reconciled_payments]
 
-    async def get_payment(self, tenant_id: str, payment_id: int) -> Optional[ManualPaymentResponse]:
+    async def get_payment(self, tenant_id: str, payment_id: int) -> ManualPaymentResponse | None:
         """Get a specific payment"""
         result = await self.db.execute(
             select(ManualPayment).where(
-                and_(
-                    ManualPayment.tenant_id == tenant_id,
-                    ManualPayment.id == payment_id
-                )
+                and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id == payment_id)
             )
         )
         payment = result.scalar_one_or_none()
@@ -677,10 +604,7 @@ class ManualPaymentService:
         """Add attachment URL to payment"""
         result = await self.db.execute(
             select(ManualPayment).where(
-                and_(
-                    ManualPayment.tenant_id == tenant_id,
-                    ManualPayment.id == payment_id
-                )
+                and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id == payment_id)
             )
         )
         payment = result.scalar_one_or_none()
@@ -689,12 +613,12 @@ class ManualPaymentService:
             if not payment.attachments:
                 payment.attachments = []
             payment.attachments.append(attachment_url)
-            payment.updated_at = datetime.utcnow()
+            payment.updated_at = datetime.now(UTC)
             await self.db.commit()
 
     def _generate_payment_reference(self, prefix: str) -> str:
         """Generate unique payment reference"""
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         random_suffix = secrets.token_hex(3).upper()
         return f"{prefix}-{timestamp}-{random_suffix}"
 
@@ -735,5 +659,5 @@ class ManualPaymentService:
             approved_at=payment.approved_at,
             created_at=payment.created_at,
             updated_at=payment.updated_at,
-            metadata=payment.meta_data or {}
+            metadata=payment.meta_data or {},
         )

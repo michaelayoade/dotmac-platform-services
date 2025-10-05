@@ -24,6 +24,8 @@ from dotmac.platform.partner_management.schemas import (
     ReferralLeadCreate,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.mark.asyncio
 class TestPartnerServiceCRUD:
@@ -97,12 +99,10 @@ class TestPartnerServiceCRUD:
         # Create multiple partners
         await service.create_partner(
             PartnerCreate(company_name="Active Partner", primary_email="active@test.com"),
-            
         )
 
         partner2 = await service.create_partner(
             PartnerCreate(company_name="Pending Partner", primary_email="pending@test.com"),
-            
         )
 
         # List all partners
@@ -125,7 +125,6 @@ class TestPartnerAccounts:
         # Create partner
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create account assignment
@@ -155,7 +154,6 @@ class TestPartnerAccounts:
         # Create partner
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create multiple accounts
@@ -166,7 +164,6 @@ class TestPartnerAccounts:
                     customer_id=uuid4(),
                     engagement_type="direct",
                 ),
-
             )
 
         # List accounts
@@ -191,7 +188,6 @@ class TestCommissionTracking:
                 primary_email="test@partner.com",
                 default_commission_rate=Decimal("0.15"),
             ),
-            
         )
 
         # Create commission event
@@ -230,7 +226,6 @@ class TestCommissionTracking:
                 primary_email="test@partner.com",
                 default_commission_rate=Decimal("0.10"),
             ),
-            
         )
 
         # Commission with default rate
@@ -245,7 +240,6 @@ class TestCommissionTracking:
                 base_amount=base1,
                 commission_rate=rate1,
             ),
-
         )
 
         # Commission with custom rate
@@ -260,7 +254,6 @@ class TestCommissionTracking:
                 base_amount=base2,
                 commission_rate=rate2,  # Custom rate
             ),
-
         )
 
         assert event1.commission_amount == Decimal("100.00")
@@ -278,7 +271,6 @@ class TestReferralManagement:
         # Create partner
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create referral
@@ -307,7 +299,6 @@ class TestReferralManagement:
         # Create partner and referral
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         referral = await service.create_referral(
@@ -316,7 +307,6 @@ class TestReferralManagement:
                 contact_name="John Doe",
                 contact_email="john@example.com",
             ),
-
         )
 
         # Convert referral
@@ -345,7 +335,6 @@ class TestPartnerMetrics:
         # Create partner
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create commission events
@@ -360,7 +349,6 @@ class TestPartnerMetrics:
                     base_amount=amount,
                     commission_rate=rate,
                 ),
-
             )
 
         # Refresh and verify totals
@@ -376,7 +364,6 @@ class TestPartnerMetrics:
         # Create partner
         partner = await service.create_partner(
             PartnerCreate(company_name="Test Partner", primary_email="test@partner.com"),
-            
         )
 
         # Create 10 referrals, convert 3
@@ -387,7 +374,6 @@ class TestPartnerMetrics:
                     contact_name=f"Lead {i}",
                     contact_email=f"lead{i}@example.com",
                 ),
-                
             )
 
             if i < 3:

@@ -5,7 +5,7 @@ Provides a simple interface to fetch secrets from HashiCorp Vault or OpenBao.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -34,8 +34,8 @@ class VaultClient:
     def __init__(
         self,
         url: str,
-        token: Optional[str] = None,
-        namespace: Optional[str] = None,
+        token: str | None = None,
+        namespace: str | None = None,
         mount_path: str = "secret",
         kv_version: int = 2,
         timeout: float = 30.0,
@@ -83,7 +83,7 @@ class VaultClient:
             # KV v1 uses direct path
             return f"/v1/{self.mount_path}/{path}"
 
-    def get_secret(self, path: str) -> Dict[str, Any]:
+    def get_secret(self, path: str) -> dict[str, Any]:
         """
         Retrieve a secret from Vault.
 
@@ -118,7 +118,7 @@ class VaultClient:
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to retrieve secret from {path}: {e}")
 
-    def get_secrets(self, paths: list[str]) -> Dict[str, Dict[str, Any]]:
+    def get_secrets(self, paths: list[str]) -> dict[str, dict[str, Any]]:
         """
         Retrieve multiple secrets from Vault.
 
@@ -137,7 +137,7 @@ class VaultClient:
                 secrets[path] = {}
         return secrets
 
-    def set_secret(self, path: str, data: Dict[str, Any]) -> None:
+    def set_secret(self, path: str, data: dict[str, Any]) -> None:
         """
         Store a secret in Vault.
 
@@ -269,8 +269,8 @@ class AsyncVaultClient:
     def __init__(
         self,
         url: str,
-        token: Optional[str] = None,
-        namespace: Optional[str] = None,
+        token: str | None = None,
+        namespace: str | None = None,
         mount_path: str = "secret",
         kv_version: int = 2,
         timeout: float = 30.0,
@@ -305,7 +305,7 @@ class AsyncVaultClient:
         else:
             return f"/v1/{self.mount_path}/{path}"
 
-    async def get_secret(self, path: str) -> Dict[str, Any]:
+    async def get_secret(self, path: str) -> dict[str, Any]:
         """Async version of get_secret."""
         try:
             secret_path = self._get_secret_path(path)
@@ -328,7 +328,7 @@ class AsyncVaultClient:
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to retrieve secret from {path}: {e}")
 
-    async def get_secrets(self, paths: list[str]) -> Dict[str, Dict[str, Any]]:
+    async def get_secrets(self, paths: list[str]) -> dict[str, dict[str, Any]]:
         """Async version of get_secrets."""
         import asyncio
 
@@ -336,7 +336,7 @@ class AsyncVaultClient:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         secrets = {}
-        for path, result in zip(paths, results):
+        for path, result in zip(paths, results, strict=False):
             if isinstance(result, Exception):
                 logger.error(f"Failed to fetch secret at {path}: {result}")
                 secrets[path] = {}
@@ -345,7 +345,7 @@ class AsyncVaultClient:
 
         return secrets
 
-    async def set_secret(self, path: str, data: Dict[str, Any]) -> None:
+    async def set_secret(self, path: str, data: dict[str, Any]) -> None:
         """Async version of set_secret."""
         try:
             secret_path = self._get_secret_path(path)
@@ -402,7 +402,7 @@ class AsyncVaultClient:
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to list secrets at {path}: {e}")
 
-    async def get_secret_metadata(self, path: str) -> Dict[str, Any]:
+    async def get_secret_metadata(self, path: str) -> dict[str, Any]:
         """
         Get metadata for a specific secret (KV v2 only).
 
@@ -433,7 +433,7 @@ class AsyncVaultClient:
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to get metadata for {path}: {e}")
 
-    async def list_secrets_with_metadata(self, path: str = "") -> list[Dict[str, Any]]:
+    async def list_secrets_with_metadata(self, path: str = "") -> list[dict[str, Any]]:
         """
         List secrets with their metadata.
 
@@ -458,7 +458,7 @@ class AsyncVaultClient:
                     "created_time": None,
                     "updated_time": None,
                     "version": None,
-                    "metadata": {"source": "vault"}
+                    "metadata": {"source": "vault"},
                 }
 
                 # Try to get metadata for each secret
@@ -466,17 +466,21 @@ class AsyncVaultClient:
                     if self.kv_version == 2:
                         metadata = await self.get_secret_metadata(full_path)
                         if "error" not in metadata:
-                            secret_info.update({
-                                "created_time": metadata.get("created_time"),
-                                "updated_time": metadata.get("updated_time"),
-                                "version": metadata.get("current_version"),
-                                "metadata": {
-                                    "source": "vault",
-                                    "versions": metadata.get("versions", {}),
-                                    "cas_required": metadata.get("cas_required", False),
-                                    "delete_version_after": metadata.get("delete_version_after", None)
+                            secret_info.update(
+                                {
+                                    "created_time": metadata.get("created_time"),
+                                    "updated_time": metadata.get("updated_time"),
+                                    "version": metadata.get("current_version"),
+                                    "metadata": {
+                                        "source": "vault",
+                                        "versions": metadata.get("versions", {}),
+                                        "cas_required": metadata.get("cas_required", False),
+                                        "delete_version_after": metadata.get(
+                                            "delete_version_after", None
+                                        ),
+                                    },
                                 }
-                            })
+                            )
                 except Exception as e:
                     secret_info["metadata"]["metadata_error"] = str(e)
 

@@ -60,14 +60,14 @@ class TestFieldSpec:
             required=True,
             min_length=5,
             max_length=100,
-            pattern=r'^[\w\.-]+@[\w\.-]+\.\w+$',
+            pattern=r"^[\w\.-]+@[\w\.-]+\.\w+$",
             validation_rules=[
                 ValidationRule(
                     type="pattern",
-                    value=r'^[\w\.-]+@[\w\.-]+\.\w+$',
-                    message="Invalid email format"
+                    value=r"^[\w\.-]+@[\w\.-]+\.\w+$",
+                    message="Invalid email format",
                 )
-            ]
+            ],
         )
 
         assert field.min_length == 5
@@ -85,7 +85,7 @@ class TestFieldSpec:
             options=[
                 SelectOption(value="dev", label="Development"),
                 SelectOption(value="prod", label="Production"),
-            ]
+            ],
         )
 
         assert field.type == FieldType.SELECT
@@ -142,7 +142,7 @@ class TestPluginConfig:
                     label="Field 1",
                     type=FieldType.STRING,
                 )
-            ]
+            ],
         )
 
         assert config.name == "Test Plugin"
@@ -190,7 +190,7 @@ class TestPluginConfig:
                 fields=[
                     FieldSpec(key="field1", label="Field 1", type=FieldType.STRING),
                     FieldSpec(key="field1", label="Field 1 Duplicate", type=FieldType.STRING),
-                ]
+                ],
             )
 
         assert "Field keys must be unique" in str(exc_info.value)
@@ -201,11 +201,7 @@ class TestPluginConfig:
         valid_names = ["Test Plugin", "plugin-name", "plugin_name", "Plugin123"]
         for name in valid_names:
             config = PluginConfig(
-                name=name,
-                type=PluginType.ANALYTICS,
-                version="1.0.0",
-                description="Test",
-                fields=[]
+                name=name, type=PluginType.ANALYTICS, version="1.0.0", description="Test", fields=[]
             )
             assert config.name == name
 
@@ -216,7 +212,7 @@ class TestPluginConfig:
                 type=PluginType.ANALYTICS,
                 version="1.0.0",
                 description="Test",
-                fields=[]
+                fields=[],
             )
 
 
@@ -232,7 +228,7 @@ class TestPluginInstance:
             type=PluginType.PAYMENT,
             version="1.0.0",
             description="Test",
-            fields=[]
+            fields=[],
         )
 
         instance = PluginInstance(
