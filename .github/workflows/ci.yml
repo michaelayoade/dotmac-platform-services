@@ -299,6 +299,10 @@ jobs:
       - name: Run database migrations
         env:
           DATABASE_URL: "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test"
+          DOTMAC_REDIS_URL: "redis://localhost:6379/0"
+          DOTMAC_MINIO_ENDPOINT: "localhost:9000"
+          DOTMAC_MINIO_ACCESS_KEY: "minioadmin"
+          DOTMAC_MINIO_SECRET_KEY: "minioadmin"
         run: |
           poetry run alembic upgrade head
 
