@@ -123,6 +123,14 @@ ROUTER_CONFIGS = [
         requires_auth=True,
     ),
     RouterConfig(
+        module_path="dotmac.platform.tenant.usage_billing_router",
+        router_name="router",
+        prefix="",  # Already has /api/v1/tenants prefix in the router
+        tags=["Tenant Usage Billing"],
+        description="Usage tracking and billing integration",
+        requires_auth=True,
+    ),
+    RouterConfig(
         module_path="dotmac.platform.feature_flags.router",
         router_name="feature_flags_router",
         prefix="/api/v1/feature-flags",

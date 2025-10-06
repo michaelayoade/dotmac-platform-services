@@ -272,3 +272,58 @@ def sample_tenant() -> Mock:
 def tenant_service(mock_tenant_service: AsyncMock) -> AsyncMock:
     """Alias for mock_tenant_service."""
     return mock_tenant_service
+
+
+@pytest.fixture
+async def authenticated_client(
+    mock_tenant_service: AsyncMock,
+    mock_subscription_service: AsyncMock,
+    usage_billing_integration: TenantUsageBillingIntegration,
+):
+    """Create authenticated async HTTP client with dependency overrides."""
+    from fastapi import FastAPI
+    from httpx import AsyncClient, ASGITransport
+
+    # Create test app
+    app = FastAPI()
+
+    # Import and setup dependencies - use auth.core since that's what the router imports
+    from src.dotmac.platform.auth.core import UserInfo, get_current_user
+    from src.dotmac.platform.database import get_async_session
+    from src.dotmac.platform.tenant.usage_billing_router import (
+        get_subscription_service,
+        get_tenant_service,
+        get_usage_billing_integration,
+        router,
+    )
+
+    # Override dependencies with mocks
+    async def mock_get_current_user():
+        """Return test user."""
+        return UserInfo(
+            user_id="test-user-123",
+            email="test@example.com",
+            username="testuser",
+            roles=["admin"],
+            permissions=["read", "write", "admin"],
+            tenant_id="tenant-123",
+        )
+
+    async def mock_get_session():
+        """Return mock session."""
+        return AsyncMock()
+
+    # Override the correct get_current_user from auth.core (not auth.dependencies)
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_async_session] = mock_get_session
+    app.dependency_overrides[get_tenant_service] = lambda: mock_tenant_service
+    app.dependency_overrides[get_subscription_service] = lambda: mock_subscription_service
+    app.dependency_overrides[get_usage_billing_integration] = lambda: usage_billing_integration
+
+    # Include the router
+    app.include_router(router)
+
+    # Create async client
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
