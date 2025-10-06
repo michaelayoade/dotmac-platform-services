@@ -27,35 +27,28 @@ def app():
 @pytest.fixture
 async def test_user(async_db_session):
     """Create a test user in the database."""
-    from sqlalchemy import text
-
-    # Create user directly with SQL to avoid ORM field validation issues
-    # For SQLite, use string representation of UUID
-    user_id = "550e8400-e29b-41d4-a716-446655440000"
-    password_hash = hash_password("correct_password")
-
-    await async_db_session.execute(
-        text(
-            """
-            INSERT INTO users (id, username, email, password_hash, tenant_id, mfa_enabled, mfa_secret, is_active, is_verified, phone_verified, roles, permissions)
-            VALUES (:id, :username, :email, :password_hash, :tenant_id, :mfa_enabled, :mfa_secret, true, false, false, '[]', '[]')
-        """
-        ),
-        {
-            "id": user_id,
-            "username": "testuser",
-            "email": "test@example.com",
-            "password_hash": password_hash,
-            "tenant_id": "test-tenant",
-            "mfa_enabled": False,
-            "mfa_secret": None,
-        },
+    # Use ORM instead of raw SQL - let SQLAlchemy handle all fields
+    user = User(
+        id=uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+        username="testuser",
+        email="test@example.com",
+        password_hash=hash_password("correct_password"),
+        tenant_id="test-tenant",
+        mfa_enabled=False,
+        mfa_secret=None,
+        is_active=True,
+        is_verified=False,
+        phone_verified=False,
+        is_superuser=False,
+        is_platform_admin=False,
+        failed_login_attempts=0,
+        roles=[],
+        permissions=[],
+        metadata_={},
     )
+    async_db_session.add(user)
     await async_db_session.commit()
-
-    # Fetch the user
-    result = await async_db_session.execute(select(User).where(User.id == uuid.UUID(user_id)))
-    user = result.scalar_one()
+    await async_db_session.refresh(user)
     return user
 
 

@@ -34,65 +34,56 @@ def app():
 @pytest.fixture
 async def test_user_with_2fa(async_db_session):
     """Create a test user with 2FA enabled."""
-    from sqlalchemy import text
-
-    user_id = "550e8400-e29b-41d4-a716-446655440001"
-    password_hash = hash_password("test_password")
     secret = mfa_service.generate_secret()
 
-    await async_db_session.execute(
-        text(
-            """
-            INSERT INTO users (id, username, email, password_hash, tenant_id, mfa_enabled, mfa_secret, is_active, is_verified, phone_verified, roles, permissions, created_at, updated_at)
-            VALUES (:id, :username, :email, :password_hash, :tenant_id, :mfa_enabled, :mfa_secret, true, true, false, '[]', '[]', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """
-        ),
-        {
-            "id": user_id,
-            "username": "testuser_2fa",
-            "email": "test2fa@example.com",
-            "password_hash": password_hash,
-            "tenant_id": "test-tenant",
-            "mfa_enabled": True,
-            "mfa_secret": secret,
-        },
+    user = User(
+        id=uuid.UUID("550e8400-e29b-41d4-a716-446655440001"),
+        username="testuser_2fa",
+        email="test2fa@example.com",
+        password_hash=hash_password("test_password"),
+        tenant_id="test-tenant",
+        mfa_enabled=True,
+        mfa_secret=secret,
+        is_active=True,
+        is_verified=True,
+        phone_verified=False,
+        is_superuser=False,
+        is_platform_admin=False,
+        failed_login_attempts=0,
+        roles=[],
+        permissions=[],
+        metadata_={},
     )
+    async_db_session.add(user)
     await async_db_session.commit()
-
-    result = await async_db_session.execute(select(User).where(User.id == uuid.UUID(user_id)))
-    user = result.scalar_one()
+    await async_db_session.refresh(user)
     return user
 
 
 @pytest.fixture
 async def test_user_without_2fa(async_db_session):
     """Create a test user without 2FA."""
-    from sqlalchemy import text
-
-    user_id = "550e8400-e29b-41d4-a716-446655440002"
-    password_hash = hash_password("test_password")
-
-    await async_db_session.execute(
-        text(
-            """
-            INSERT INTO users (id, username, email, password_hash, tenant_id, mfa_enabled, mfa_secret, is_active, is_verified, phone_verified, roles, permissions, created_at, updated_at)
-            VALUES (:id, :username, :email, :password_hash, :tenant_id, :mfa_enabled, :mfa_secret, true, true, false, '[]', '[]', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """
-        ),
-        {
-            "id": user_id,
-            "username": "testuser_no2fa",
-            "email": "testno2fa@example.com",
-            "password_hash": password_hash,
-            "tenant_id": "test-tenant",
-            "mfa_enabled": False,
-            "mfa_secret": None,
-        },
+    user = User(
+        id=uuid.UUID("550e8400-e29b-41d4-a716-446655440002"),
+        username="testuser_no2fa",
+        email="testno2fa@example.com",
+        password_hash=hash_password("test_password"),
+        tenant_id="test-tenant",
+        mfa_enabled=False,
+        mfa_secret=None,
+        is_active=True,
+        is_verified=True,
+        phone_verified=False,
+        is_superuser=False,
+        is_platform_admin=False,
+        failed_login_attempts=0,
+        roles=[],
+        permissions=[],
+        metadata_={},
     )
+    async_db_session.add(user)
     await async_db_session.commit()
-
-    result = await async_db_session.execute(select(User).where(User.id == uuid.UUID(user_id)))
-    user = result.scalar_one()
+    await async_db_session.refresh(user)
     return user
 
 
