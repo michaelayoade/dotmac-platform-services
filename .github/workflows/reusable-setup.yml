@@ -17,7 +17,7 @@ on:
         description: 'pnpm version to use'
         required: false
         type: string
-        default: '8'
+        default: '9'
       install-python:
         description: 'Whether to install Python dependencies'
         required: false
