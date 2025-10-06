@@ -75,7 +75,8 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}/src"
           # Run all tests except integration and slow tests - matches local development
           # This includes router, service, and functional tests with test databases
-          PYTEST_ADDOPTS: "-n auto -m 'not integration and not slow' --ignore=tests/test_observability.py --ignore=tests/test_real_services.py --ignore=tests/auth/test_mfa_service.py --cov-fail-under=${{ env.COV_FAIL_UNDER }}"
+          # NOTE: Removed -n auto due to database initialization issues with pytest-xdist workers
+          PYTEST_ADDOPTS: "-m 'not integration and not slow' --ignore=tests/test_observability.py --ignore=tests/test_real_services.py --ignore=tests/auth/test_mfa_service.py --cov-fail-under=${{ env.COV_FAIL_UNDER }}"
         run: |
           poetry run pytest tests/ \
             --cov=src/dotmac \
