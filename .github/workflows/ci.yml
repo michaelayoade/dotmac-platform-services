@@ -130,9 +130,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm build
-
       - name: Lint all packages
         run: |
           pnpm -r --filter "./shared/packages/**" lint || true
@@ -183,9 +180,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build shared packages
-        run: pnpm build
 
       - name: Run unit tests for shared packages
         run: |
