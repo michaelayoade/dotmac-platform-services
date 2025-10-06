@@ -96,6 +96,11 @@ export const PluginHealthDashboard = ({
     setLoading(true);
     try {
       await onRefresh();
+    } catch (error) {
+      // Handle refresh errors gracefully
+      console.error('Failed to refresh health checks:', error);
+      // Error is logged but doesn't crash the UI
+      // Could add toast notification here in the future
     } finally {
       setLoading(false);
     }
@@ -142,13 +147,13 @@ export const PluginHealthDashboard = ({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="plugin-health-dashboard">
       {/* Health Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="plugin-stats">
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-foreground">{healthPercentage}%</div>
+              <div className="text-2xl font-semibold text-foreground" data-testid="health-percentage">{healthPercentage}%</div>
               <div className="text-sm text-muted-foreground">Overall Health</div>
             </div>
             <div className={`p-2 rounded-full ${
@@ -180,7 +185,7 @@ export const PluginHealthDashboard = ({
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-foreground">{healthyCount}</div>
+              <div className="text-2xl font-semibold text-foreground" data-testid="health-healthy-count">{healthyCount}</div>
               <div className="text-sm text-muted-foreground">Healthy</div>
             </div>
             <CheckCircle className="h-8 w-8 text-emerald-500" />
@@ -190,7 +195,7 @@ export const PluginHealthDashboard = ({
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-foreground">{unhealthyCount}</div>
+              <div className="text-2xl font-semibold text-foreground" data-testid="health-issues-count">{unhealthyCount}</div>
               <div className="text-sm text-muted-foreground">Issues</div>
             </div>
             <XCircle className="h-8 w-8 text-rose-500" />
@@ -200,7 +205,7 @@ export const PluginHealthDashboard = ({
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-semibold text-foreground">{formatResponseTime(avgResponseTime)}</div>
+              <div className="text-2xl font-semibold text-foreground" data-testid="health-avg-response">{formatResponseTime(avgResponseTime)}</div>
               <div className="text-sm text-muted-foreground">Avg Response</div>
             </div>
             <Zap className="h-8 w-8 text-sky-500" />
@@ -215,6 +220,7 @@ export const PluginHealthDashboard = ({
           onClick={handleRefresh}
           disabled={loading}
           className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-muted text-white rounded-lg transition-colors flex items-center gap-2"
+          data-testid="refresh-health-button"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Checking...' : 'Refresh Health'}
@@ -228,12 +234,13 @@ export const PluginHealthDashboard = ({
           const isSelected = selectedInstance === instance.id;
 
           return (
-            <div key={instance.id} className="bg-card/50 border border-border rounded-lg overflow-hidden">
+            <div key={instance.id} className="bg-card/50 border border-border rounded-lg overflow-hidden" data-testid="health-instance">
               <div
                 className={`p-4 cursor-pointer transition-colors ${
                   isSelected ? 'bg-accent/50' : 'hover:bg-accent/30'
                 }`}
                 onClick={() => setSelectedInstance(isSelected ? null : instance.id)}
+                data-testid="health-instance-row"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">

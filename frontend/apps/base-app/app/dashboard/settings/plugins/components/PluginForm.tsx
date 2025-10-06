@@ -83,6 +83,7 @@ const DynamicField = ({
       case 'string':
         return (
           <input
+            id={`field-${field.key}`}
             type="text"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -99,6 +100,7 @@ const DynamicField = ({
         return (
           <div className="relative">
             <input
+              id={`field-${field.key}`}
               type={showSecrets[field.key] ? 'text' : 'password'}
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
@@ -122,6 +124,7 @@ const DynamicField = ({
         return (
           <label className="flex items-center gap-2 cursor-pointer">
             <input
+              id={`field-${field.key}`}
               type="checkbox"
               checked={(value as boolean) || false}
               onChange={(e) => onChange(e.target.checked)}
@@ -134,6 +137,7 @@ const DynamicField = ({
       case 'integer':
         return (
           <input
+            id={`field-${field.key}`}
             type="number"
             value={(value as string) || ''}
             onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
@@ -149,6 +153,7 @@ const DynamicField = ({
       case 'float':
         return (
           <input
+            id={`field-${field.key}`}
             type="number"
             value={(value as string) || ''}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
@@ -164,6 +169,7 @@ const DynamicField = ({
       case 'select':
         return (
           <select
+            id={`field-${field.key}`}
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             className={baseInputClasses}
@@ -181,6 +187,7 @@ const DynamicField = ({
       case 'json':
         return (
           <textarea
+            id={`field-${field.key}`}
             value={typeof value === 'object' ? JSON.stringify(value, null, 2) : (value as string) || ''}
             onChange={(e) => {
               try {
@@ -200,6 +207,7 @@ const DynamicField = ({
       case 'url':
         return (
           <input
+            id={`field-${field.key}`}
             type="url"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -212,6 +220,7 @@ const DynamicField = ({
       case 'email':
         return (
           <input
+            id={`field-${field.key}`}
             type="email"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -224,6 +233,7 @@ const DynamicField = ({
       case 'phone':
         return (
           <input
+            id={`field-${field.key}`}
             type="tel"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -238,6 +248,7 @@ const DynamicField = ({
         return (
           <div className="relative">
             <input
+              id={`field-${field.key}`}
               type="date"
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
@@ -252,6 +263,7 @@ const DynamicField = ({
         return (
           <div className="relative">
             <input
+              id={`field-${field.key}`}
               type="datetime-local"
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
@@ -299,6 +311,7 @@ const DynamicField = ({
       default:
         return (
           <input
+            id={`field-${field.key}`}
             type="text"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -312,7 +325,7 @@ const DynamicField = ({
 
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-muted-foreground">
+      <label htmlFor={`field-${field.key}`} className="block text-sm font-medium text-muted-foreground">
         {field.label}
         {field.required && <span className="text-rose-400 ml-1">*</span>}
         {field.is_secret && <span className="text-amber-400 ml-1 text-xs">(Secret)</span>}
@@ -528,6 +541,7 @@ export const PluginForm = ({
           </h2>
           <button
             onClick={onCancel}
+            aria-label="Close"
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-5 w-5" />
@@ -535,15 +549,16 @@ export const PluginForm = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col max-h-[calc(90vh-80px)]">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col max-h-[calc(90vh-80px)]" data-testid="plugin-form">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Plugin Selection */}
             {!instance && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-muted-foreground">
+                <label htmlFor="plugin-select" className="block text-sm font-medium text-muted-foreground">
                   Plugin <span className="text-rose-400">*</span>
                 </label>
                 <select
+                  id="plugin-select"
                   value={selectedPlugin?.name || ''}
                   onChange={(e) => {
                     const plugin = availablePlugins.find(p => p.name === e.target.value);
@@ -566,10 +581,11 @@ export const PluginForm = ({
 
             {/* Instance Name */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-muted-foreground">
+              <label htmlFor="instance-name" className="block text-sm font-medium text-muted-foreground">
                 Instance Name <span className="text-rose-400">*</span>
               </label>
               <input
+                id="instance-name"
                 type="text"
                 value={instanceName}
                 onChange={(e) => setInstanceName(e.target.value)}
@@ -689,6 +705,7 @@ export const PluginForm = ({
               type="submit"
               disabled={loading}
               className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-muted text-white rounded-lg transition-colors flex items-center gap-2"
+              data-testid="submit-plugin-form"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

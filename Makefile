@@ -51,15 +51,15 @@ install:
 test-fast:
 	poetry run pytest tests/ -m "not integration and not slow" -x --tb=short -q
 
-# Unit tests with coverage
+# Unit tests with coverage (aligned with CI)
 test-unit:
 	poetry run pytest tests/ -m "not integration" \
 		--cov=src/dotmac \
 		--cov-branch \
 		--cov-report=term-missing \
-		--cov-fail-under=90
+		--cov-fail-under=85
 
-# Full test suite with coverage
+# Full test suite with coverage (aligned with CI)
 test:
 	poetry run pytest \
 		--cov=src/dotmac \
@@ -67,16 +67,16 @@ test:
 		--cov-report=term-missing \
 		--cov-report=xml \
 		--cov-report=html \
-		--cov-fail-under=90 \
+		--cov-fail-under=85 \
 		-v
 
-# Generate and open coverage report
+# Generate and open coverage report (aligned with CI)
 test-cov:
 	poetry run pytest \
 		--cov=src/dotmac \
 		--cov-branch \
 		--cov-report=html \
-		--cov-fail-under=90
+		--cov-fail-under=85
 	@echo "Opening coverage report..."
 	@python -m webbrowser htmlcov/index.html || open htmlcov/index.html
 

@@ -314,7 +314,7 @@ class TestInvoicePayment:
             line_items=line_items,
         )
 
-        with pytest.raises(BusinessRuleError, match="exceeds invoice total"):
+        with pytest.raises(BusinessRuleError, match="exceeds remaining balance"):
             invoice.apply_payment(
                 payment_id="pay-456",
                 amount=Money(amount=150.00, currency="USD"),

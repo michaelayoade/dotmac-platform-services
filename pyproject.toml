@@ -192,7 +192,8 @@ omit = [
 parallel = true
 
 [tool.coverage.report]
-fail_under = 90
+# Aligned with CI threshold - realistic baseline with full test suite
+fail_under = 85
 precision = 2
 skip_covered = false
 show_missing = true

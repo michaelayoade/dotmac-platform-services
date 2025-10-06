@@ -261,7 +261,7 @@ export default function PluginsPage() {
   }
 
   return (
-    <div className="p-6">
+    <main role="main" className="p-6">
       <div className="max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="mb-6">
@@ -509,6 +509,6 @@ export default function PluginsPage() {
           />
         )}
       </div>
-    </div>
+    </main>
   );
 }

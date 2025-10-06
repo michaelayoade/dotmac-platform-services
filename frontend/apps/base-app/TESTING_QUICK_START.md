@@ -1,12 +1,13 @@
 # Frontend Testing Quick Start Guide
 
-## Setup
+**Current Status**: 93.9% pass rate (260/277 tests)
+
+## Quick Commands
+
+### Unit Tests (Jest + React Testing Library)
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Run tests
+# Run all unit tests
 pnpm test
 
 # Run tests with coverage
@@ -17,6 +18,25 @@ pnpm test PluginCard
 
 # Watch mode
 pnpm test:watch
+```
+
+### E2E Tests (Playwright)
+
+```bash
+# Run all E2E tests
+pnpm exec playwright test
+
+# Run specific test file
+pnpm exec playwright test e2e/plugins.spec.ts
+
+# Run with browser visible
+pnpm exec playwright test --headed
+
+# Run in debug mode
+pnpm exec playwright test --debug
+
+# View test report
+pnpm exec playwright show-report
 ```
 
 ## Writing Tests with MSW

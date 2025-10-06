@@ -21,6 +21,9 @@ const config = {
     '^@dotmac/primitives$': '<rootDir>/__mocks__/primitives.js',
     '^lucide-react$': '<rootDir>/__mocks__/lucide-react.js',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(msw)/)',
+  ],
   testMatch: [
     '**/__tests__/**/*.{js,jsx,ts,tsx}',
     '**/?(*.)+(spec|test).{js,jsx,ts,tsx}'
@@ -31,6 +34,8 @@ const config = {
     '/e2e/',
     '__tests__/types/',
     '__tests__/a11y/setup.ts',
+    '__tests__/mocks/server.ts',
+    '__tests__/mocks/handlers.ts',
   ],
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',

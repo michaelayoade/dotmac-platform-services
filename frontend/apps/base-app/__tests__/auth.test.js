@@ -31,17 +31,16 @@ describe('auth utilities', () => {
 
     const { login } = require('../lib/auth');
 
-    const result = await login({ email: 'user@example.com', password: 'secret' });
+    const result = await login({ email: 'admin@example.com', password: 'admin123' });
 
-    // In test environment (jsdom), platformConfig.apiBaseUrl is '' (empty string for client-side)
-    // So we expect relative URLs
+    // Expect full URL with base URL from environment
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/auth/login/cookie',
+      expect.stringContaining('/api/v1/auth/login/cookie'),
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'user@example.com', password: 'secret' }),
+        body: JSON.stringify({ username: 'admin@example.com', password: 'admin123' }),
       })
     );
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
@@ -80,19 +79,19 @@ describe('auth utilities', () => {
 
     const { register } = require('../lib/auth');
 
-    const result = await register({ email: 'user@example.com', password: 'secret', name: 'User' });
+    const result = await register({ email: 'admin@example.com', password: 'admin123', name: 'System Administrator' });
 
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/auth/register',
+      expect.stringContaining('/api/v1/auth/register'),
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: 'user',
-          email: 'user@example.com',
-          password: 'secret',
-          full_name: 'User',
+          username: 'admin',
+          email: 'admin@example.com',
+          password: 'admin123',
+          full_name: 'System Administrator',
         }),
       })
     );
@@ -100,7 +99,7 @@ describe('auth utilities', () => {
   });
 
   test('getCurrentUser fetches with credentials include', async () => {
-    const mockUser = { id: '1', email: 'user@example.com' };
+    const mockUser = { id: '1', email: 'admin@example.com', full_name: 'System Administrator' };
     const mockResponse = {
       ok: true,
       json: jest.fn().mockResolvedValue(mockUser),
@@ -112,7 +111,7 @@ describe('auth utilities', () => {
     const result = await getCurrentUser();
 
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/auth/me',
+      expect.stringContaining('/api/v1/auth/me'),
       { credentials: 'include' }
     );
     expect(result).toEqual(mockUser);
@@ -136,7 +135,7 @@ describe('auth utilities', () => {
     await logout();
 
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/auth/logout',
+      expect.stringContaining('/api/v1/auth/logout'),
       { method: 'POST', credentials: 'include' }
     );
   });
@@ -149,7 +148,7 @@ describe('auth utilities', () => {
 
     await expect(isAuthenticated()).resolves.toBe(true);
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/auth/verify',
+      expect.stringContaining('/api/v1/auth/verify'),
       { credentials: 'include' }
     );
   });

@@ -38,7 +38,7 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, children, ...props }, ref) => {
     // Accessibility: Warn in development if button has no accessible label
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV !== 'production') {
       const hasTextContent = typeof children === 'string' || (React.Children.count(children) > 0 &&
         React.Children.toArray(children).some(child => typeof child === 'string' && child.trim().length > 0));
       const hasAriaLabel = props['aria-label'] || props['aria-labelledby'];

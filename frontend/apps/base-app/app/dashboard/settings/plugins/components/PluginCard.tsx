@@ -119,7 +119,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
   const secretFields = plugin.fields.filter(f => f.is_secret).length;
 
   return (
-    <div className="bg-card/50 border border-border rounded-lg hover:border-border transition-colors">
+    <div className="bg-card/50 border border-border rounded-lg hover:border-border transition-colors" data-testid="plugin-card">
       {/* Card Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-start gap-3">
@@ -129,7 +129,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-medium text-foreground truncate">{plugin.name}</h3>
+                <h3 className="font-medium text-foreground truncate" data-testid="plugin-name">{plugin.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{plugin.description}</p>
               </div>
               <div className={`px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(plugin.type)}`}>
@@ -317,6 +317,7 @@ export const PluginCard = ({ plugin, instances, onInstall }: PluginCardProps) =>
           <button
             onClick={() => onInstall(plugin)}
             className="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-sm rounded-lg transition-colors flex items-center gap-1.5"
+            data-testid="install-plugin-button"
           >
             <Plus className="h-4 w-4" />
             Add Instance

@@ -107,7 +107,8 @@ const mockPlugin: PluginConfig = {
       label: "Phone Field",
       type: "phone",
       description: "Phone field",
-      required: false
+      required: false,
+      pattern: "^\\+?[0-9]{10,}$"
     },
     {
       key: "date_field",
@@ -176,9 +177,7 @@ describe('PluginForm Coverage Tests', () => {
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Maximum value is 100/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Maximum value is 100/)).toBeInTheDocument();
   });
 
   it('handles float field validation', async () => {
@@ -188,25 +187,28 @@ describe('PluginForm Coverage Tests', () => {
     const instanceNameField = screen.getByLabelText(/Instance Name/);
     await user.type(instanceNameField, 'Test Instance');
 
+    // Fill required field first
+    const secretField = screen.getByLabelText(/Secret Field/);
+    await user.type(secretField, 'secret123');
+
     const floatField = screen.getByLabelText(/Float Field/);
-    await user.type(floatField, '0.05'); // Below min
+    // Use fireEvent to bypass HTML validation
+    fireEvent.change(floatField, { target: { value: '0.05' } }); // Below min
 
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Minimum value is 0.1/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Minimum value is 0.1/)).toBeInTheDocument();
   });
 
   it('handles select field interactions', async () => {
     const user = userEvent.setup();
     render(<PluginForm {...defaultProps} />);
 
-    const selectField = screen.getByLabelText(/Select Field/);
+    const selectField = screen.getByLabelText(/Select Field/) as HTMLSelectElement;
     await user.selectOptions(selectField, 'option2');
 
-    expect((screen.getByDisplayValue('option2') as HTMLSelectElement).value).toBe('option2');
+    expect(selectField.value).toBe('option2');
   });
 
   it('handles URL field validation', async () => {
@@ -222,9 +224,7 @@ describe('PluginForm Coverage Tests', () => {
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Please enter a valid URL/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Invalid URL format/)).toBeInTheDocument();
   });
 
   it('handles email field validation', async () => {
@@ -240,9 +240,7 @@ describe('PluginForm Coverage Tests', () => {
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Please enter a valid email address/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Invalid email format/)).toBeInTheDocument();
   });
 
   it('handles phone field validation', async () => {
@@ -252,15 +250,17 @@ describe('PluginForm Coverage Tests', () => {
     const instanceNameField = screen.getByLabelText(/Instance Name/);
     await user.type(instanceNameField, 'Test Instance');
 
+    // Fill required field first
+    const secretField = screen.getByLabelText(/Secret Field/);
+    await user.type(secretField, 'secret123');
+
     const phoneField = screen.getByLabelText(/Phone Field/);
     await user.type(phoneField, '123'); // Too short
 
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Please enter a valid phone number/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Invalid phone number format/)).toBeInTheDocument();
   });
 
   it('handles date field interactions', async () => {
@@ -295,33 +295,33 @@ describe('PluginForm Coverage Tests', () => {
     const secretField = screen.getByLabelText(/Secret Field/);
     await user.type(secretField, 'secret123');
 
-    // Fill optional fields
+    // Fill optional fields using fireEvent for speed
     const integerField = screen.getByLabelText(/Integer Field/);
-    await user.type(integerField, '50');
+    fireEvent.change(integerField, { target: { value: '50' } });
 
     const floatField = screen.getByLabelText(/Float Field/);
-    await user.type(floatField, '25.5');
+    fireEvent.change(floatField, { target: { value: '25.5' } });
 
     const selectField = screen.getByLabelText(/Select Field/);
     await user.selectOptions(selectField, 'option1');
 
     const urlField = screen.getByLabelText(/URL Field/);
-    await user.type(urlField, 'https://example.com');
+    fireEvent.change(urlField, { target: { value: 'https://example.com' } });
 
     const emailField = screen.getByLabelText(/Email Field/);
-    await user.type(emailField, 'test@example.com');
+    fireEvent.change(emailField, { target: { value: 'test@example.com' } });
 
     const phoneField = screen.getByLabelText(/Phone Field/);
-    await user.type(phoneField, '+1234567890');
+    fireEvent.change(phoneField, { target: { value: '+1234567890' } });
 
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
-        instanceName: 'Test Instance',
-        pluginName: 'Coverage Plugin',
-        config: {
+        instance_name: 'Test Instance',
+        plugin_name: 'Coverage Plugin',
+        configuration: {
           secret_field: 'secret123',
           boolean_field: true,
           integer_field: 50,
@@ -329,9 +329,8 @@ describe('PluginForm Coverage Tests', () => {
           select_field: 'option1',
           url_field: 'https://example.com',
           email_field: 'test@example.com',
-          phone_field: '+1234567890',
-          date_field: '',
-          datetime_field: ''
+          phone_field: '+1234567890'
+          // date_field and datetime_field are empty so not included
         }
       });
     });
@@ -350,7 +349,10 @@ describe('PluginForm Coverage Tests', () => {
 
   it('handles test connection success', async () => {
     const user = userEvent.setup();
-    const onTestConnection = jest.fn().mockResolvedValue(undefined);
+    const onTestConnection = jest.fn().mockResolvedValue({
+      success: true,
+      message: 'Connection successful'
+    });
     render(<PluginForm {...defaultProps} onTestConnection={onTestConnection} />);
 
     // Fill required fields
@@ -363,17 +365,13 @@ describe('PluginForm Coverage Tests', () => {
     const testButton = screen.getByRole('button', { name: /Test Connection/ });
     await user.click(testButton);
 
+    // Wait for onTestConnection to be called with correct params
     await waitFor(() => {
-      expect(onTestConnection).toHaveBeenCalledWith({
-        instanceName: 'Test Instance',
-        pluginName: 'Coverage Plugin',
-        config: expect.any(Object)
-      });
+      expect(onTestConnection).toHaveBeenCalledWith('', expect.any(Object));
     });
 
-    await waitFor(() => {
-      expect(screen.getByText(/Connection test successful!/)).toBeInTheDocument();
-    });
+    // Wait for success message
+    expect(await screen.findByText(/Connection successful/)).toBeInTheDocument();
   });
 
   it('handles empty form submission with validation errors', async () => {
@@ -383,9 +381,7 @@ describe('PluginForm Coverage Tests', () => {
     const submitButton = screen.getByRole('button', { name: /Create Plugin/ });
     await user.click(submitButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Instance Name is required/)).toBeInTheDocument();
-      expect(screen.getByText(/Secret Field is required/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/Instance name is required/)).toBeInTheDocument();
+    expect(await screen.findByText(/Secret Field is required/)).toBeInTheDocument();
   });
 });
