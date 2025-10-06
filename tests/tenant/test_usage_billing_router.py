@@ -4,12 +4,16 @@ Comprehensive tests for tenant usage billing router.
 Tests all endpoints in usage_billing_router.py to achieve 90%+ coverage.
 """
 
+import asyncio
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Mark all tests in this module to use module-scoped event loop
+pytestmark = pytest.mark.asyncio(scope="module")
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
@@ -20,14 +24,26 @@ from dotmac.platform.tenant.models import Tenant
 from dotmac.platform.tenant.schemas import TenantCreate
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    import asyncio
+    """
+    Create a module-scoped event loop for this test file.
 
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    Note: This file uses module scope instead of session scope to avoid conflicts
+    with other test files that use function-scoped event loops.
+    """
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    policy.set_event_loop(loop)
+
     yield loop
-    loop.close()
+
+    # Cleanup
+    try:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.run_until_complete(loop.shutdown_default_executor())
+    finally:
+        loop.close()
 
 
 @pytest.fixture
