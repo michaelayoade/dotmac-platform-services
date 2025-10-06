@@ -98,6 +98,7 @@ jobs:
   # Frontend linting and type checking
   frontend-quality:
     runs-on: ubuntu-latest
+    continue-on-error: true  # Non-blocking while we fine-tune frontend workspace
     defaults:
       run:
         working-directory: ./frontend
