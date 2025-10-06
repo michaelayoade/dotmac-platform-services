@@ -1,270 +1,401 @@
 # DotMac Platform Services
 [![Python](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://python.org)
+[![Coverage](https://img.shields.io/badge/coverage-85%25-green.svg)](.)
+[![Tests](https://img.shields.io/badge/tests-6146%20passing-green.svg)](.)
 
-Unified platform services package providing authentication, secrets management, and observability capabilities for DotMac applications.
+**Complete SaaS platform backend** providing authentication, billing, customer management, communications, and 25+ integrated services for building production-ready applications.
 
-## Requirements
+## 🎯 What is DotMac Platform Services?
 
-- Python 3.12
+A **batteries-included backend platform** that eliminates months of infrastructure work. Deploy a complete SaaS backend with authentication, billing, multi-tenancy, communications, file storage, and analytics in minutes instead of months.
 
-## Features
+### Core Value Proposition
 
-### 🔐 Authentication Services
-- JWT token management with RS256/HS256 support
-- Role-Based Access Control (RBAC) engine
-- Multi-factor authentication (TOTP, SMS, Email)
-- Session management with Redis backend
-- Service-to-service authentication
-- API key management
-- OAuth2/OIDC provider integration
+✅ **Skip the Infrastructure**: All essential SaaS services pre-integrated
+✅ **Production Ready**: Battle-tested with 85%+ test coverage (6,146 tests)
+✅ **Multi-Tenant by Default**: Built-in tenant isolation and management
+✅ **Modern Stack**: Python 3.12+, FastAPI, SQLAlchemy 2.0, Pydantic v2
+✅ **API-First**: RESTful APIs + GraphQL with auto-generated documentation
 
-### 🔒 Secrets Management
-- HashiCorp Vault integration
-- Field-level encryption/decryption
-- Secrets rotation automation
-- Multi-tenant secrets isolation
-- Environment-based configuration
-- Audit logging for secret access
+## 📦 Complete Feature Set
 
-### 📊 Observability
-- OpenTelemetry tracing and metrics
-- OTLP metrics export (SigNoz)
-- Structured logging with correlation IDs
-- Performance monitoring
-- Business metrics tracking
-- Health check endpoints
-- Dashboard integration ready
+### 🔐 Authentication & Security
+- **JWT Authentication** - RS256/HS256 token management with refresh tokens
+- **Role-Based Access Control (RBAC)** - Flexible permissions system
+- **Multi-Factor Authentication (MFA)** - TOTP, SMS, Email support
+- **Session Management** - Redis-backed sessions with SSO support
+- **API Key Management** - Service-to-service authentication
+- **OAuth2/OIDC Integration** - Social login providers
+- **Platform Admin** - Cross-tenant super admin capabilities
 
-## Installation
+### 💰 Billing & Revenue Management
+- **Subscription Management** - Recurring billing with multiple plans
+- **Product Catalog** - Flexible product and pricing management
+- **Invoice Generation** - Automated invoicing with PDF export
+- **Payment Processing** - Stripe integration with webhook handling
+- **Usage-Based Billing** - Metered billing and quotas
+- **Multi-Currency Support** - International pricing
+- **Tax Calculation** - Automated tax computation
+- **Bank Accounts & Manual Payments** - Offline payment tracking
+- **Credit Notes & Refunds** - Full refund workflow
 
-Note: Requires Python 3.12–3.13.
+### 👥 Customer & User Management
+- **Customer Relationship Management** - Complete customer lifecycle
+- **User Management** - User profiles, roles, and permissions
+- **Contact Management** - Centralized contact database
+- **Partner Management** - Partner onboarding and commission tracking
+- **Tenant Management** - Multi-organization support with isolation
+
+### 📧 Communications
+- **Email Service** - Template-based email with SendGrid/SMTP
+- **SMS Notifications** - Twilio integration
+- **Email Templates** - Jinja2 templating with versioning
+- **Bulk Messaging** - Queue-based batch communications
+- **Webhook Management** - Generic webhook subscriptions and delivery
+- **Event System** - Domain events for decoupled architecture
+
+### 📊 Analytics & Monitoring
+- **Business Analytics** - Customer metrics, revenue analytics
+- **Event Tracking** - Custom event collection and aggregation
+- **OpenTelemetry Integration** - Distributed tracing and metrics
+- **Structured Logging** - Correlation IDs and log aggregation
+- **Health Checks** - Readiness and liveness probes
+- **Performance Monitoring** - Response time and throughput metrics
+- **GraphQL Analytics API** - Flexible query interface for dashboards
+
+### 🗄️ Data Management
+- **File Storage** - MinIO/S3-compatible object storage
+- **Data Import/Export** - CSV, JSON, Excel support
+- **Data Transfer** - Bulk data operations with progress tracking
+- **Search Functionality** - Elasticsearch/OpenSearch integration
+- **Audit Logging** - Complete audit trail for compliance
+
+### ⚙️ Platform Services
+- **Feature Flags** - Toggle features by tenant/user
+- **Plugin System** - Extensible plugin architecture (WhatsApp, etc.)
+- **Admin Settings** - Platform-wide configuration
+- **Secrets Management** - HashiCorp Vault/OpenBao integration
+- **Service Registry** - Consul-based service discovery
+- **Resilience Patterns** - Circuit breakers, retries, rate limiting
+
+## 🚀 Quick Start
+
+### Requirements
+
+- Python 3.12 or 3.13
+- PostgreSQL 14+ (or SQLite for development)
+- Redis 6+ (for sessions and caching)
+- Optional: Vault/OpenBao, MinIO, Elasticsearch
+
+### Installation
 
 ```bash
-# Basic installation (PyPI)
-pip install dotmac-platform-services
+# Clone the repository
+git clone https://github.com/michaelayoade/dotmac-platform-services.git
+cd dotmac-platform-services
 
-# From source (editable)
-pip install -e .
+# Install with Poetry
+poetry install --with dev
+
+# Set up infrastructure (PostgreSQL, Redis, Vault, MinIO, etc.)
+make infra-up
+
+# Run database migrations
+poetry run alembic upgrade head
+
+# Seed initial data (optional)
+make seed-db
+
+# Start the development server
+make dev-backend
 ```
 
-## Quick Start
+The API will be available at:
+- **API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+- **GraphQL**: http://localhost:8000/api/v1/graphql
 
-The full quick start with runnable snippets now lives in the documentation site: see
-[`docs/quick_start.md`](docs/quick_start.md).
+### Environment Configuration
 
-- Authentication entry point: [`dotmac.platform.auth`](src/dotmac/platform/auth/)
-- Secrets entry point: [`dotmac.platform.secrets`](src/dotmac/platform/secrets/)
-- Observability entry point: [`dotmac.platform.observability`](src/dotmac/platform/observability/)
+Create a `.env` file:
 
-## Architecture
+```bash
+# Database
+DATABASE_URL=postgresql://dotmac_user:password@localhost:5432/dotmac
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Tenant Mode
+TENANT_MODE=multi  # or "single" for single-tenant
+DEFAULT_TENANT_ID=default
+
+# Optional Services
+VAULT__ENABLED=false  # Set to true if using Vault
+VAULT_URL=http://localhost:8200
+VAULT_TOKEN=root
+
+OTEL_ENABLED=false  # Set to true for observability
+OTEL_ENDPOINT=http://localhost:4318
+```
+
+## 🏗️ Architecture
 
 ### Design Principles
 
-1. **DRY (Don't Repeat Yourself)**: Shared utilities in dotmac-core
-2. **Logical Grouping**: Related functionality organized together
-3. **Production Ready**: Battle-tested components with comprehensive testing
-4. **Clear Dependencies**: core → platform-services → business-logic
-5. **Extensible**: Plugin architecture for custom providers
+1. **Multi-Tenant First** - Complete tenant isolation at database and API level
+2. **Domain-Driven Design** - Business logic organized by domain boundaries
+3. **Event-Driven** - Decoupled architecture with domain events
+4. **API-First** - RESTful + GraphQL with OpenAPI documentation
+5. **Production Ready** - Comprehensive testing, logging, monitoring
+
+### Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Language** | Python 3.12+ |
+| **Web Framework** | FastAPI with Pydantic v2 |
+| **Database** | SQLAlchemy 2.0 + Alembic (PostgreSQL/SQLite) |
+| **Caching** | Redis |
+| **Task Queue** | Celery with Redis broker |
+| **Authentication** | JWT (PyJWT) with RBAC |
+| **Secrets** | HashiCorp Vault / OpenBao |
+| **File Storage** | MinIO (S3-compatible) |
+| **Search** | Elasticsearch / OpenSearch |
+| **Observability** | OpenTelemetry (Jaeger/SigNoz) |
+| **Testing** | pytest + pytest-asyncio (6,146 tests) |
 
 ### Package Structure
 
 ```
-dotmac/platform/
-├── auth/           # Authentication services
-│   ├── jwt.py      # JWT token management
-│   ├── rbac.py     # Role-based access control
-│   ├── sessions.py # Session management
-│   ├── mfa.py      # Multi-factor authentication
-│   └── providers/  # OAuth2/OIDC providers
-├── secrets/        # Secrets management
-│   ├── manager.py  # Secrets manager interface
-│   ├── vault.py    # HashiCorp Vault provider
-│   ├── encryption.py # Field encryption
-│   └── rotation.py # Secrets rotation
-└── observability/  # Monitoring and observability
-    ├── tracing.py  # OpenTelemetry tracing
-    ├── metrics.py  # Metrics registry (OTLP)
-    ├── logging.py  # Structured logging
-    └── health.py   # Health checks
+src/dotmac/platform/
+├── auth/                  # Authentication, RBAC, MFA, sessions
+├── billing/               # Subscriptions, invoices, payments
+│   ├── catalog/          # Product catalog
+│   ├── subscriptions/    # Subscription management
+│   ├── pricing/          # Pricing engine
+│   ├── invoicing/        # Invoice generation
+│   ├── payments/         # Payment processing
+│   ├── bank_accounts/    # Manual payments
+│   └── webhooks/         # Stripe webhooks
+├── customer_management/   # CRM functionality
+├── user_management/       # User profiles and management
+├── communications/        # Email, SMS, templates
+├── partner_management/    # Partner onboarding and commissions
+├── tenant/               # Multi-tenant organization management
+├── analytics/            # Business analytics and metrics
+├── file_storage/         # Object storage (MinIO/S3)
+├── data_transfer/        # Import/export operations
+├── data_import/          # File-based imports
+├── search/               # Search functionality
+├── webhooks/             # Webhook management
+├── contacts/             # Contact database
+├── plugins/              # Plugin system
+├── feature_flags/        # Feature toggles
+├── secrets/              # Vault integration
+├── audit/                # Audit logging
+├── monitoring/           # Logs, traces, metrics
+├── observability/        # OpenTelemetry setup
+├── admin/                # Admin settings
+└── core/                 # Shared utilities
 ```
 
-## Public API
+## 📚 API Endpoints
 
-- Core (`dotmac.platform`)
-  - `get_version()`, `config` (global `PlatformConfig`), `initialize_platform_services(...)`
-  - Factories: `create_jwt_service(...)`, `create_secrets_manager(...)`, `create_observability_manager(...)`
-  - Registry: `register_service(name, service)`, `get_service(name)`, `get_initialized_services()`
+Over **40 API routes** organized by domain:
 
-- Auth (`dotmac.platform.auth`)
-  - Services: `JWTService`, `create_complete_auth_system(config)`, `add_auth_middleware(app, config=..., service_name=...)`
-  - Config: `get_platform_config(config)`
-  - Availability helpers: `is_jwt_available()`, `is_rbac_available()`, `is_session_available()`, `is_mfa_available()`, `is_api_keys_available()`, `is_edge_validation_available()`, `is_service_auth_available()`
-  - Exceptions (import from `dotmac.platform.auth.exceptions`):
-    - Classes: `AuthenticationError`, `AuthorizationError`, `TokenExpired`, `InvalidToken`, etc.
-    - Mapping: `EXCEPTION_STATUS_MAP`, helper: `get_http_status(exc)`
-  - Notes: Edge validation, service-to-service auth, OAuth, MFA, and API keys are optional and require the corresponding extras installed.
+### Authentication (`/api/v1/auth`)
+- `POST /login/cookie` - Login with HTTP-only cookies
+- `POST /register` - User registration
+- `POST /logout` - Logout
+- `GET /me` - Current user profile
+- `POST /refresh` - Refresh access token
+- `POST /mfa/enable` - Enable MFA
+- `GET /api-keys` - List API keys
 
-- Secrets (`dotmac.platform.secrets`)
-  - Manager: `SecretsManager`
-  - Providers: `OpenBaoProvider` (alias: `VaultProvider`), factories: `create_openbao_provider(...)`
-  - Config helpers: `SecretsConfig`, `create_default_config(...)`, `create_openbao_config(...)`, `create_production_config(...)`
-  - Encryption & rotation (optional): `SymmetricEncryptionService`, `EncryptedField`, `RotationScheduler`, rules and policies
+### Billing (`/api/v1/billing`)
+- **Subscriptions**: Create, update, cancel subscriptions
+- **Invoices**: Generate, list, download invoices
+- **Payments**: Process payments, webhooks
+- **Catalog**: Manage products and pricing
+- **Bank Accounts**: Manual payment tracking
 
-- Observability (`dotmac.platform.observability`)
-  - Manager: `ObservabilityManager`, `add_observability_middleware(app)`
-  - Logging/tracing/metrics helpers: `get_logger(...)`, `get_tracer(...)`, `initialize_metrics_registry(...)`
-  - Health: `check_otel_health()`, `check_metrics_registry_health()`
+### Customers (`/api/v1/customers`)
+- CRUD operations for customers
+- Customer metrics and analytics
+- Contact assignment
 
-- Database helpers (`dotmac.platform.database.session`)
-  - Sessions: `get_database_session()` (sync), `get_db_session()` (async)
-  - Engine: `create_async_database_engine(url, **kwargs)`
-  - Health: `check_database_health()`
+### Communications (`/api/v1/communications`)
+- Send emails and SMS
+- Template management
+- Bulk message operations
+- Delivery tracking
 
-### Optional Extras
+### File Storage (`/api/v1/files/storage`)
+- Upload/download files
+- File metadata management
+- Storage quotas
 
-Install optional features via extras:
+### Tenants (`/api/v1/tenants`)
+- Organization management
+- Tenant settings and quotas
+- Usage tracking
 
-- `server`: Uvicorn server integrations
-- `vault`: OpenBao/Vault client (`hvac`)
-- `mfa`: TOTP/QR support (`pyotp`, `qrcode`)
-- `sqlite`: Async SQLite driver (`aiosqlite`)
-- `postgres`: Async PostgreSQL drivers (`asyncpg`, `psycopg2-binary`)
+### Analytics (`/api/v1/analytics`)
+- Event tracking
+- Custom metrics
+- Business KPIs
 
-Examples:
+### GraphQL (`/api/v1/graphql`)
+- Flexible analytics queries
+- Dashboard data aggregation
+- Real-time metrics
+
+[View complete API documentation at `/docs` when running]
+
+## 🧪 Testing
+
+### Test Coverage
+
+- **6,146 automated tests** with 85%+ coverage
+- Unit, integration, and end-to-end tests
+- Mock-based testing for external services
+- Parallel test execution with pytest-xdist
+
+### Running Tests
 
 ```bash
-pip install "dotmac-platform-services[server]"
-pip install "dotmac-platform-services[mfa]"
-pip install "dotmac-platform-services[postgres]"
+# Quick tests (no coverage)
+make test-fast
+
+# Full test suite with coverage
+make test-unit
+
+# Integration tests (requires infrastructure)
+make test-integration
+
+# Specific module
+poetry run pytest tests/billing/ -v
+
+# Coverage report
+make test-cov  # Opens HTML report
 ```
 
-### Integration with DotMac Core
+### CI/CD
 
-Platform Services integrates seamlessly with other DotMac packages:
+- **GitHub Actions** with Python 3.12 and 3.13 matrix
+- **85% baseline coverage** requirement
+- **95% diff coverage** for new code
+- Bandit security scanning
+- Dependency vulnerability audits
+- Automated test runs on every PR
 
-- **dotmac-core**: Shared utilities, exceptions, and base classes
-- **dotmac-database**: Database session management and models
-- **dotmac-tenant**: Multi-tenant awareness and isolation
+## 🔧 Development
 
-## Configuration
-
-### Environment Variables
+### Available Commands
 
 ```bash
-# Authentication
-DOTMAC_JWT_SECRET_KEY=your-jwt-secret
-DOTMAC_JWT_ALGORITHM=HS256
-DOTMAC_JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
-
-# Secrets Management
-DOTMAC_VAULT_URL=https://vault.company.com
-DOTMAC_VAULT_TOKEN=vault-token
-DOTMAC_VAULT_MOUNT_POINT=secret
-
-# Observability
-DOTMAC_OTLP_ENDPOINT=http://localhost:4317
-
-DOTMAC_LOG_LEVEL=INFO
+make install          # Install dependencies
+make dev              # Start full stack (infra + backend + frontend)
+make dev-backend      # Backend only
+make dev-frontend     # Frontend only
+make infra-up         # Start infrastructure (PostgreSQL, Redis, etc.)
+make infra-down       # Stop infrastructure
+make seed-db          # Seed database with test data
+make format           # Auto-format code (black, isort, ruff)
+make lint             # Run linters
+make test-unit        # Run tests with coverage
+make clean            # Clean build artifacts
 ```
 
-### Application Factory Integration
+### Code Quality Standards
 
-```python
-from fastapi import FastAPI
-from dotmac.platform.auth import add_auth_middleware
-from dotmac.platform.observability import add_observability_middleware
+- **PEP 8** compliance enforced
+- **Black** code formatting
+- **isort** import sorting
+- **Ruff** linting (100+ rules)
+- **mypy** type checking
+- **Bandit** security scanning
+- **85% test coverage** minimum
 
-app = FastAPI()
+## 🌐 Frontend Integration
 
-# Add platform services
-add_auth_middleware(app)
-add_observability_middleware(app)
-```
+Includes a **Next.js 14 frontend** (`frontend/apps/base-app/`) with:
 
-## Development
+- TypeScript + React 18
+- TailwindCSS + shadcn/ui components
+- OpenAPI client auto-generation
+- Multi-theme support (light/dark)
+- Responsive dashboard layouts
+- Real-time metrics and charts
 
-### Setup
+Frontend connects to backend via:
+- REST API calls with auto-generated TypeScript types
+- GraphQL for analytics dashboards
+- Server-side rendering with Next.js
 
-```bash
-cd dotmac-platform-services
-poetry install --with dev
-```
+## 📖 Documentation
 
-## OpenBao via Docker
+### Available Documentation
 
-```yaml
-# docker-compose.yml
-version: "3.9"
-services:
-  openbao:
-    image: openbao/openbao:latest  # or hashicorp/vault:latest
-    container_name: openbao
-    ports:
-      - "8200:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    cap_add: ["IPC_LOCK"]
-```
+- **[DEV_SETUP_GUIDE.md](docs/guides/DEV_SETUP_GUIDE.md)** - Complete development setup
+- **[TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Testing strategy and patterns
+- **[CI_CD_ENVIRONMENT_ALIGNMENT.md](CI_CD_ENVIRONMENT_ALIGNMENT.md)** - CI/CD configuration
+- **[API Documentation](http://localhost:8000/docs)** - Interactive OpenAPI docs (when running)
+- **[CLAUDE.md](CLAUDE.md)** - AI-assisted development guidelines
 
-Then configure the app via environment variables:
+### Quick Reference
 
-```bash
-export DOTMAC_VAULT_URL=http://localhost:8200
-export DOTMAC_VAULT_TOKEN=root
-export DOTMAC_VAULT_MOUNT_POINT=secret
-```
+| Task | Command | Documentation |
+|------|---------|---------------|
+| Setup dev environment | `make install && make infra-up` | DEV_SETUP_GUIDE.md |
+| Run tests | `make test-unit` | TESTING_GUIDE.md |
+| Add new module | Follow DDD patterns | Architecture docs |
+| Deploy to production | Use Docker compose | Deployment guide |
 
-For KV v2, ensure the `secret` mount is enabled (dev images usually do this for you):
+## 🤝 Contributing
 
-```bash
-docker exec openbao sh -lc "vault secrets enable -version=2 -path=secret kv"
-```
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
-### Testing
+- Code of conduct
+- Development workflow
+- Pull request process
+- Coding standards
+- Testing requirements
 
-```bash
-# Run all tests
-poetry run pytest
+## 📝 License
 
-# Run with coverage
-poetry run pytest --cov
+MIT License - see [LICENSE](LICENSE) file for details.
 
-# Run specific test file
-poetry run pytest tests/test_auth.py -v
-```
+## 🎯 Use Cases
 
-### Code Quality
+Perfect for building:
 
-```bash
-# Format code
-poetry run black src tests
+- **SaaS Applications** - Multi-tenant with built-in billing
+- **B2B Platforms** - Customer management and partner portals
+- **API-as-a-Service** - Authentication and usage tracking included
+- **Marketplaces** - Complete transaction and communication flows
+- **Internal Tools** - RBAC and audit logging out of the box
 
-# Lint code
-poetry run ruff check src tests
+## 🚦 Project Status
 
-# Type checking
-poetry run mypy src
-```
-## License
+- ✅ **Production Ready** - Used in live deployments
+- ✅ **Actively Maintained** - Regular updates and security patches
+- ✅ **Well Tested** - 6,146 tests with 85%+ coverage
+- ✅ **Documented** - Comprehensive API and development docs
+- ✅ **Modern Stack** - Python 3.12+, FastAPI, Pydantic v2
 
-MIT License - see LICENSE file for details.
+## 📞 Support
+
+- **Documentation**: [docs/INDEX.md](docs/INDEX.md)
+- **Issues**: [GitHub Issues](https://github.com/michaelayoade/dotmac-platform-services/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/michaelayoade/dotmac-platform-services/discussions)
 
 ---
 
-## 📚 Documentation
-
-**Comprehensive Documentation Index**: See [`docs/INDEX.md`](docs/INDEX.md)
-
-### Quick Links
-- **Setup Guide**: [`docs/guides/DEV_SETUP_GUIDE.md`](docs/guides/DEV_SETUP_GUIDE.md)
-- **Testing Guide**: [`docs/guides/QUICK_START_NEW_TESTS.md`](docs/guides/QUICK_START_NEW_TESTS.md)
-- **Architecture**: [`docs/architecture/`](docs/architecture/)
-- **Coverage Reports**: [`docs/coverage-reports/`](docs/coverage-reports/)
-- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-
-### Recent Achievements
-- ✅ **90%+ Test Coverage** across all critical modules
-- ✅ **CI/CD Coverage Threshold**: Increased to 90% (from 80%)
-- ✅ **Documentation Organized**: 225+ files structured in clear categories
-- ✅ **Clean Codebase**: Root directory streamlined to essentials only
+**Built with** ❤️ **for developers who want to ship products, not infrastructure.**
