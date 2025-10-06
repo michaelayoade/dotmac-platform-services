@@ -296,9 +296,27 @@ jobs:
         run: |
           poetry install --with dev
 
+      - name: Run database migrations
+        env:
+          DATABASE_URL: "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test"
+        run: |
+          poetry run alembic upgrade head
+
       - name: Run tests with coverage (full test suite, excluding integration/slow)
         env:
           PYTHONPATH: "${{ github.workspace }}/src"
+          # Use PostgreSQL service for tests
+          DATABASE_URL: "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test"
+          DOTMAC_DATABASE_URL: "postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test"
+          DOTMAC_DATABASE_URL_ASYNC: "postgresql+asyncpg://dotmac_user:change-me-in-production@localhost:5432/dotmac_test"
+          # Redis URL for tests
+          DOTMAC_REDIS_URL: "redis://localhost:6379/0"
+          # MinIO configuration for tests
+          DOTMAC_MINIO_ENDPOINT: "localhost:9000"
+          DOTMAC_MINIO_ACCESS_KEY: "minioadmin"
+          DOTMAC_MINIO_SECRET_KEY: "minioadmin"
+          DOTMAC_MINIO_BUCKET: "dotmac"
+          DOTMAC_MINIO_SECURE: "false"
           # Run all tests except integration and slow tests - matches local development
           # This includes router, service, and functional tests with test databases
           # NOTE: Removed -n auto due to database initialization issues with pytest-xdist workers
