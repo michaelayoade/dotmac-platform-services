@@ -353,7 +353,7 @@ class TestTenantUsage:
         assert usage.api_calls == 1000
         assert usage.storage_gb == 5.5
         assert usage.active_users == 10
-        assert usage.bandwidth_gb == 2.3
+        assert float(usage.bandwidth_gb) == 2.3  # Convert Decimal to float for comparison
 
     async def test_get_tenant_usage(self, tenant_service, sample_tenant):
         """Test getting usage records."""
@@ -398,7 +398,13 @@ class TestTenantUsage:
             sample_tenant.id, start_date=start_date
         )
 
-        assert all(u.period_start >= start_date for u in usage_records)
+        # Make datetimes comparable (SQLite returns naive datetimes)
+        start_date_naive = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+        assert all(
+            (u.period_start.replace(tzinfo=None) if u.period_start.tzinfo else u.period_start)
+            >= start_date_naive
+            for u in usage_records
+        )
 
     async def test_update_usage_counters(self, tenant_service, sample_tenant):
         """Test updating tenant usage counters."""

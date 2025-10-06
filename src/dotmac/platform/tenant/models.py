@@ -281,7 +281,10 @@ class TenantInvitation(Base, TimestampMixin):
     @property
     def is_expired(self) -> bool:
         """Check if invitation has expired."""
-        return datetime.now(UTC) > self.expires_at
+        now = datetime.now(UTC)
+        # Handle both timezone-aware and naive datetimes (SQLite returns naive)
+        expires_at = self.expires_at.replace(tzinfo=UTC) if self.expires_at.tzinfo is None else self.expires_at
+        return now > expires_at
 
     @property
     def is_pending(self) -> bool:

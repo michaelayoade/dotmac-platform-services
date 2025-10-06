@@ -39,7 +39,7 @@ class TestRecordUsageWithBilling:
             "active_users": 3,
         }
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing",
             json=usage_data,
         )
@@ -63,7 +63,7 @@ class TestRecordUsageWithBilling:
             "api_calls": 500,
         }
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing?subscription_id=sub-explicit",
             json=usage_data,
         )
@@ -88,7 +88,7 @@ class TestRecordUsageWithBilling:
             "active_users": 0,
         }
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing",
             json=usage_data,
         )
@@ -107,7 +107,7 @@ class TestRecordUsageWithBilling:
             "api_calls": 1000,
         }
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             "/api/v1/tenants/nonexistent-tenant/usage/record-with-billing",
             json=usage_data,
         )
@@ -125,7 +125,7 @@ class TestRecordUsageWithBilling:
             "api_calls": 1000,
         }
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing",
             json=usage_data,
         )
@@ -152,7 +152,7 @@ class TestSyncUsageToBilling:
             users=7,
         )
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/sync-billing",
         )
 
@@ -166,7 +166,7 @@ class TestSyncUsageToBilling:
         sample_tenant,
     ):
         """Test usage sync with explicit subscription ID."""
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/sync-billing?subscription_id=sub-123",
         )
 
@@ -182,7 +182,7 @@ class TestSyncUsageToBilling:
         # Mock no subscriptions
         mock_subscription_service.list_subscriptions = AsyncMock(return_value=[])
 
-        response = authenticated_client.post(
+        response = await authenticated_client.post(
             f"/api/v1/tenants/{sample_tenant.id}/usage/sync-billing",
         )
 
@@ -209,7 +209,7 @@ class TestGetUsageOverages:
             users=12,  # Limit is 10
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/overages",
         )
 
@@ -233,7 +233,7 @@ class TestGetUsageOverages:
             users=5,
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/overages",
         )
 
@@ -251,7 +251,7 @@ class TestGetUsageOverages:
         start_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         end_date = datetime.now(timezone.utc).isoformat()
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/overages",
             params={
                 "period_start": start_date,
@@ -282,7 +282,7 @@ class TestGetBillingPreview:
             users=8,
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/billing/preview?include_overages=true",
         )
 
@@ -299,7 +299,7 @@ class TestGetBillingPreview:
         sample_tenant,
     ):
         """Test billing preview excluding overages."""
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/billing/preview?include_overages=false",
         )
 
@@ -318,7 +318,7 @@ class TestGetBillingPreview:
         sample_tenant,
     ):
         """Test billing preview defaults to including overages."""
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/billing/preview",
         )
 
@@ -346,7 +346,7 @@ class TestGetUsageBillingStatus:
             users=5,
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -374,7 +374,7 @@ class TestGetUsageBillingStatus:
             users=12,  # Over limit
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -402,7 +402,7 @@ class TestGetUsageBillingStatus:
             users=8,  # 80% of 10
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -431,7 +431,7 @@ class TestGetUsageBillingStatus:
             users=5,  # 50%
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -447,7 +447,7 @@ class TestGetUsageBillingStatus:
         authenticated_client,
     ):
         """Test billing status for non-existent tenant."""
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             "/api/v1/tenants/nonexistent-tenant/usage/billing-status",
         )
 
@@ -468,7 +468,7 @@ class TestGetUsageBillingStatus:
             users=4,
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -495,9 +495,9 @@ class TestEndpointAuthentication:
 
         for method, url in endpoints:
             if method == "POST":
-                response = client.post(url, json={})
+                response = await client.post(url, json={})
             else:
-                response = client.get(url)
+                response = await client.get(url)
 
             # Should require authentication
             assert response.status_code in [
@@ -530,7 +530,7 @@ class TestErrorHandling:
                 "api_calls": 1000,
             }
 
-            response = authenticated_client.post(
+            response = await authenticated_client.post(
                 f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing",
                 json=usage_data,
             )
@@ -554,7 +554,7 @@ class TestRecommendationGeneration:
             api_calls=15000,  # Over limit
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -575,7 +575,7 @@ class TestRecommendationGeneration:
             storage_gb=60.0,  # Over limit
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
@@ -595,7 +595,7 @@ class TestRecommendationGeneration:
             users=12,  # Over limit
         )
 
-        response = authenticated_client.get(
+        response = await authenticated_client.get(
             f"/api/v1/tenants/{sample_tenant.id}/usage/billing-status",
         )
 
