@@ -338,64 +338,51 @@ def mock_tenant_service() -> AsyncMock:
     service.create_tenant = AsyncMock(side_effect=mock_create_tenant)
 
     # Mock tenant settings methods
-    tenant_settings = {}  # Store settings by (tenant_id, key)
+    tenant_settings = {}  # Store full settings by (tenant_id, key)
 
     async def mock_set_tenant_setting(tenant_id, setting_data):
         """Mock set tenant setting."""
         from src.dotmac.platform.tenant.models import TenantSetting
 
         key = (tenant_id, setting_data.key)
-        setting_id = tenant_settings.get(key, len(tenant_settings) + 1)
-        tenant_settings[key] = setting_id
+        # Get existing setting or create new one
+        if key in tenant_settings:
+            setting = tenant_settings[key]
+            # Update existing
+            setting.value = setting_data.value
+            setting.value_type = getattr(setting_data, 'value_type', 'string')
+            setting.updated_at = datetime.now(timezone.utc)
+        else:
+            # Create new
+            setting_id = len(tenant_settings) + 1
+            setting = SimpleNamespace(
+                id=setting_id,
+                tenant_id=tenant_id,
+                key=setting_data.key,
+                value=setting_data.value,
+                value_type=getattr(setting_data, 'value_type', 'string'),
+                description=getattr(setting_data, 'description', None),
+                is_encrypted=getattr(setting_data, 'is_encrypted', False),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            tenant_settings[key] = setting
 
-        return SimpleNamespace(
-            
-            id=setting_id,
-            tenant_id=tenant_id,
-            key=setting_data.key,
-            value=setting_data.value,
-            value_type=setting_data.value_type,
-            description=setting_data.description if hasattr(setting_data, 'description') else None,
-            is_encrypted=setting_data.is_encrypted if hasattr(setting_data, 'is_encrypted') else False,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
+        return setting
 
     async def mock_get_tenant_settings(tenant_id):
         """Mock get all tenant settings."""
-        from src.dotmac.platform.tenant.models import TenantSetting
-
         return [
-            Mock(
-                
-                id=setting_id,
-                tenant_id=tenant_id,
-                key=key[1],
-                value="mock_value",
-                value_type="string",
-                description="Mock setting",
-                is_encrypted=False,
-            )
-            for key, setting_id in tenant_settings.items()
+            setting
+            for key, setting in tenant_settings.items()
             if key[0] == tenant_id
         ]
 
     async def mock_get_tenant_setting(tenant_id, key):
         """Mock get specific tenant setting."""
-        from src.dotmac.platform.tenant.models import TenantSetting
-
         setting_key = (tenant_id, key)
         if setting_key in tenant_settings:
-            return SimpleNamespace(
-                
-                id=tenant_settings[setting_key],
-                tenant_id=tenant_id,
-                key=key,
-                value="mock_value",
-                value_type="string",
-                description="Mock setting",
-                is_encrypted=False,
-            )
+            return tenant_settings[setting_key]
         return None
 
     async def mock_delete_tenant_setting(tenant_id, key):
@@ -534,8 +521,10 @@ def mock_tenant_service() -> AsyncMock:
         return SimpleNamespace(
             tenant_id=tenant_id,
             total_users=tenant.current_users,
+            active_users=tenant.current_users,  # Same as total_users for mock
             total_api_calls=tenant.current_api_calls,
             total_storage_gb=float(tenant.current_storage_gb),
+            total_bandwidth_gb=0.0,  # Mock value
             user_limit=tenant.max_users,
             api_limit=tenant.max_api_calls_per_month,
             storage_limit=tenant.max_storage_gb,
@@ -548,6 +537,40 @@ def mock_tenant_service() -> AsyncMock:
         )
 
     service.get_tenant_stats = AsyncMock(side_effect=mock_get_tenant_stats)
+
+    # Mock update_features and update_metadata methods
+    async def mock_update_features(tenant_id, features_data, updated_by=None):
+        """Mock update tenant features."""
+        # Ensure tenant exists in created_tenants
+        if tenant_id in created_tenants:
+            tenant = created_tenants[tenant_id]
+        else:
+            tenant = await mock_get_tenant(tenant_id)
+            created_tenants[tenant_id] = tenant
+
+        # Update features dict
+        if hasattr(features_data, 'features'):
+            tenant.features.update(features_data.features)
+        tenant.updated_at = datetime.now(timezone.utc)
+        return tenant
+
+    async def mock_update_metadata(tenant_id, metadata_data, updated_by=None):
+        """Mock update tenant metadata."""
+        # Ensure tenant exists in created_tenants
+        if tenant_id in created_tenants:
+            tenant = created_tenants[tenant_id]
+        else:
+            tenant = await mock_get_tenant(tenant_id)
+            created_tenants[tenant_id] = tenant
+
+        # Update custom_metadata dict
+        if hasattr(metadata_data, 'custom_metadata'):
+            tenant.custom_metadata.update(metadata_data.custom_metadata)
+        tenant.updated_at = datetime.now(timezone.utc)
+        return tenant
+
+    service.update_features = AsyncMock(side_effect=mock_update_features)
+    service.update_metadata = AsyncMock(side_effect=mock_update_metadata)
 
     return service
 
