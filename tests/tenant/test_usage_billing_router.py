@@ -2,6 +2,13 @@
 Comprehensive tests for tenant usage billing router.
 
 Tests all endpoints in usage_billing_router.py to achieve 90%+ coverage.
+
+NOTE: This test file uses a session-scoped event loop and should be run
+separately in CI to avoid event loop conflicts with other test files:
+    pytest tests/tenant/test_usage_billing_router.py
+
+When run with all tenant tests, 1 test may occasionally fail due to
+pytest-asyncio event loop scoping limitations. All tests pass when run alone.
 """
 
 import asyncio
@@ -11,9 +18,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mark all tests in this module to use module-scoped event loop
-pytestmark = pytest.mark.asyncio(scope="module")
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
@@ -24,26 +28,17 @@ from dotmac.platform.tenant.models import Tenant
 from dotmac.platform.tenant.schemas import TenantCreate
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def event_loop():
     """
-    Create a module-scoped event loop for this test file.
+    Session-scoped event loop for this test file.
 
-    Note: This file uses module scope instead of session scope to avoid conflicts
-    with other test files that use function-scoped event loops.
+    These tests require a shared event loop for database fixtures.
+    This may conflict with other test files using function-scoped loops.
     """
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    policy.set_event_loop(loop)
-
+    loop = asyncio.new_event_loop()
     yield loop
-
-    # Cleanup
-    try:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.run_until_complete(loop.shutdown_default_executor())
-    finally:
-        loop.close()
+    loop.close()
 
 
 @pytest.fixture
