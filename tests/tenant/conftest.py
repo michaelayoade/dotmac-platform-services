@@ -84,6 +84,22 @@ def mock_tenant_service() -> AsyncMock:
             # Check if soft deleted
             if tenant.deleted_at is not None and not include_deleted:
                 raise TenantNotFoundError(f"Tenant {tenant_id} not found")
+
+            # Merge in any updates from tenant_state (from update_tenant_usage_counters)
+            if tenant_id in tenant_state:
+                state = tenant_state[tenant_id]
+                if "current_api_calls" in state:
+                    tenant.current_api_calls = state["current_api_calls"]
+                if "current_storage_gb" in state:
+                    tenant.current_storage_gb = Decimal(str(state["current_storage_gb"]))
+                if "current_users" in state:
+                    tenant.current_users = state["current_users"]
+
+                # Recalculate exceeded flags
+                tenant.has_exceeded_api_limit = tenant.current_api_calls >= tenant.max_api_calls_per_month
+                tenant.has_exceeded_storage_limit = float(tenant.current_storage_gb) >= tenant.max_storage_gb
+                tenant.has_exceeded_user_limit = tenant.current_users >= tenant.max_users
+
             return tenant
 
         state = tenant_state.get(
@@ -403,6 +419,9 @@ def mock_tenant_service() -> AsyncMock:
         """Mock record usage."""
         from src.dotmac.platform.tenant.models import TenantUsage
 
+        # Validate tenant exists (call get_tenant which will raise TenantNotFoundError if not found)
+        await mock_get_tenant(tenant_id)
+
         usage_id = len(usage_records) + 1
         usage_record = SimpleNamespace(
             id=usage_id,
@@ -538,8 +557,8 @@ def mock_tenant_service() -> AsyncMock:
 
     service.get_tenant_stats = AsyncMock(side_effect=mock_get_tenant_stats)
 
-    # Mock update_features and update_metadata methods
-    async def mock_update_features(tenant_id, features_data, updated_by=None):
+    # Mock update_tenant_features and update_tenant_metadata methods
+    async def mock_update_features(tenant_id, features, updated_by=None):
         """Mock update tenant features."""
         # Ensure tenant exists in created_tenants
         if tenant_id in created_tenants:
@@ -548,13 +567,12 @@ def mock_tenant_service() -> AsyncMock:
             tenant = await mock_get_tenant(tenant_id)
             created_tenants[tenant_id] = tenant
 
-        # Update features dict
-        if hasattr(features_data, 'features'):
-            tenant.features.update(features_data.features)
+        # Update features dict (features is already a dict)
+        tenant.features.update(features)
         tenant.updated_at = datetime.now(timezone.utc)
         return tenant
 
-    async def mock_update_metadata(tenant_id, metadata_data, updated_by=None):
+    async def mock_update_metadata(tenant_id, custom_metadata, updated_by=None):
         """Mock update tenant metadata."""
         # Ensure tenant exists in created_tenants
         if tenant_id in created_tenants:
@@ -563,14 +581,13 @@ def mock_tenant_service() -> AsyncMock:
             tenant = await mock_get_tenant(tenant_id)
             created_tenants[tenant_id] = tenant
 
-        # Update custom_metadata dict
-        if hasattr(metadata_data, 'custom_metadata'):
-            tenant.custom_metadata.update(metadata_data.custom_metadata)
+        # Update custom_metadata dict (custom_metadata is already a dict)
+        tenant.custom_metadata.update(custom_metadata)
         tenant.updated_at = datetime.now(timezone.utc)
         return tenant
 
-    service.update_features = AsyncMock(side_effect=mock_update_features)
-    service.update_metadata = AsyncMock(side_effect=mock_update_metadata)
+    service.update_tenant_features = AsyncMock(side_effect=mock_update_features)
+    service.update_tenant_metadata = AsyncMock(side_effect=mock_update_metadata)
 
     return service
 
