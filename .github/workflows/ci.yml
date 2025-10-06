@@ -3,8 +3,22 @@ name: CI
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'frontend/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ "**" ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'frontend/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 env:
@@ -12,8 +26,184 @@ env:
   COV_FAIL_UNDER: "85"
   # Diff coverage gate for changed lines in PRs
   DIFF_COV_FAIL_UNDER: "95"
+  # Node/pnpm versions
+  NODE_VERSION: "20"
+  PNPM_VERSION: "8"
 
 jobs:
+  # Backend linting and type checking
+  backend-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Type check with mypy
+        run: poetry run mypy src/dotmac/platform --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Validate Pydantic models
+        run: |
+          echo "🔍 Validating Pydantic models..."
+          poetry run python -c "
+          import sys
+          from pathlib import Path
+
+          root = Path('src/dotmac/platform')
+          errors = []
+
+          for py_file in root.rglob('*.py'):
+              if '__pycache__' in str(py_file):
+                  continue
+              try:
+                  module_path = str(py_file.relative_to('src').with_suffix('')).replace('/', '.')
+                  __import__(module_path)
+              except Exception as e:
+                  errors.append(f'{py_file}: {e}')
+
+          if errors:
+              print('❌ Pydantic validation errors:')
+              for error in errors:
+                  print(f'  {error}')
+              sys.exit(1)
+          else:
+              print('✅ All Pydantic models validated successfully')
+          "
+
+  # Frontend linting and type checking
+  frontend-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build
+
+      - name: Lint all packages
+        run: |
+          pnpm --filter "@dotmac/*" lint
+          pnpm --filter "@dotmac/base-app" lint
+
+      - name: Type check all packages
+        run: |
+          pnpm --filter "@dotmac/*" type-check
+          pnpm --filter "@dotmac/base-app" type-check
+
+      - name: Security audit
+        run: pnpm audit --audit-level moderate
+        continue-on-error: true
+
+  # Frontend unit tests
+  frontend-tests:
+    runs-on: ubuntu-latest
+    needs: frontend-quality
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build
+
+      - name: Run unit tests for shared packages
+        run: |
+          pnpm --filter "@dotmac/ui" test --coverage --passWithNoTests
+          pnpm --filter "@dotmac/hooks" test --coverage --passWithNoTests
+          pnpm --filter "@dotmac/http-client" test --coverage --passWithNoTests
+          pnpm --filter "@dotmac/auth" test --coverage --passWithNoTests
+          pnpm --filter "@dotmac/analytics" test --coverage --passWithNoTests
+
+      - name: Run base app unit tests
+        run: pnpm --filter "@dotmac/base-app" test --coverage --passWithNoTests
+
+      - name: Upload frontend coverage
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./frontend
+          flags: frontend
+          fail_ci_if_error: false
+
+  # Backend tests
   build-test:
     runs-on: ubuntu-latest
     strategy:

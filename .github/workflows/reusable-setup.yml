@@ -1,0 +1,114 @@
+name: Reusable Environment Setup
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.12'
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '20'
+      pnpm-version:
+        description: 'pnpm version to use'
+        required: false
+        type: string
+        default: '8'
+      install-python:
+        description: 'Whether to install Python dependencies'
+        required: false
+        type: boolean
+        default: false
+      install-frontend:
+        description: 'Whether to install frontend dependencies'
+        required: false
+        type: boolean
+        default: false
+      build-frontend:
+        description: 'Whether to build frontend packages'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Python setup
+      - name: Set up Python
+        if: inputs.install-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Cache pip
+        if: inputs.install-python
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ inputs.python-version }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ inputs.python-version }}-
+
+      - name: Install Poetry
+        if: inputs.install-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      - name: Cache Poetry virtualenv
+        if: inputs.install-python
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ inputs.python-version }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-${{ inputs.python-version }}-
+
+      - name: Install Python dependencies
+        if: inputs.install-python
+        run: poetry install --with dev
+
+      # Frontend setup
+      - name: Setup Node.js
+        if: inputs.install-frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Setup pnpm
+        if: inputs.install-frontend
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - name: Get pnpm store directory
+        if: inputs.install-frontend
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: inputs.install-frontend
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install frontend dependencies
+        if: inputs.install-frontend
+        working-directory: ./frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend packages
+        if: inputs.build-frontend
+        working-directory: ./frontend
+        run: pnpm build

@@ -1,4 +1,10 @@
-name: Type Safety Validation
+name: Type Safety Validation (DEPRECATED)
+
+# NOTE: This workflow is DEPRECATED
+# Type safety validation has been moved to .github/workflows/ci.yml
+# - Backend type checking: backend-quality job
+# - Frontend type checking: frontend-quality job
+# This workflow will be removed in a future update.
 
 on:
   pull_request:
@@ -23,6 +29,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deprecation-notice:
+    name: Workflow Deprecated
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice
+        run: |
+          echo "⚠️  This workflow is deprecated."
+          echo "Type safety validation has moved to .github/workflows/ci.yml"
+          echo "  - Backend type checking: backend-quality job"
+          echo "  - Frontend type checking: frontend-quality job"
+          echo ""
+          echo "This workflow will be removed in a future update."
+          exit 0
+
   backend-types:
     name: Backend Type Validation
     runs-on: ubuntu-latest
