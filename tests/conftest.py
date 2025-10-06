@@ -280,9 +280,19 @@ if HAS_SQLALCHEMY:
         import pytest_asyncio
 
         @pytest_asyncio.fixture
-        async def async_db_engine():
-            """Async database engine for tests."""
+        async def async_db_engine(request):
+            """Async database engine for tests.
+
+            Each pytest-xdist worker gets its own isolated database to prevent conflicts.
+            """
             db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+
+            # For pytest-xdist: use worker ID to create separate databases per worker
+            worker_id = getattr(request.config, 'workerinput', {}).get('workerid', 'master')
+            if worker_id != 'master' and db_url.startswith("sqlite"):
+                # Use separate file-based SQLite DB for each worker
+                db_url = f"sqlite+aiosqlite:///test_db_{worker_id}.db"
+
             connect_args: dict[str, object] = {}
 
             try:
@@ -324,9 +334,19 @@ if HAS_SQLALCHEMY:
     except ImportError:
         # Fallback to regular pytest fixture
         @pytest.fixture
-        async def async_db_engine():
-            """Async database engine for tests."""
+        async def async_db_engine(request):
+            """Async database engine for tests.
+
+            Each pytest-xdist worker gets its own isolated database to prevent conflicts.
+            """
             db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+
+            # For pytest-xdist: use worker ID to create separate databases per worker
+            worker_id = getattr(request.config, 'workerinput', {}).get('workerid', 'master')
+            if worker_id != 'master' and db_url.startswith("sqlite"):
+                # Use separate file-based SQLite DB for each worker
+                db_url = f"sqlite+aiosqlite:///test_db_{worker_id}.db"
+
             connect_args: dict[str, object] = {}
 
             try:
