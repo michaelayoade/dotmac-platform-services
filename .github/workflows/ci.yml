@@ -296,6 +296,11 @@ jobs:
         run: |
           poetry install --with dev
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U dotmac_user; do sleep 1; done' || true
+          psql postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test -c "SELECT 1" || echo "DB not ready yet"
+
       - name: Run database migrations
         env:
           PYTHONPATH: "${{ github.workspace }}/src"
@@ -306,7 +311,17 @@ jobs:
           DOTMAC_MINIO_SECRET_KEY: "minioadmin"
         run: |
           echo "Running migrations with DATABASE_URL=$DATABASE_URL"
-          poetry run alembic upgrade head || { echo "Migration failed!"; poetry run alembic current; exit 1; }
+          echo "PYTHONPATH=$PYTHONPATH"
+          echo "Testing database connection..."
+          psql "$DATABASE_URL" -c "SELECT version();" || echo "Direct psql failed"
+          echo "Running alembic upgrade..."
+          poetry run alembic upgrade head -v || {
+            echo "Migration failed! Getting current state..."
+            poetry run alembic current
+            echo "Showing alembic history..."
+            poetry run alembic history --verbose
+            exit 1
+          }
 
       - name: Run tests with coverage (full test suite, excluding integration/slow)
         env:
