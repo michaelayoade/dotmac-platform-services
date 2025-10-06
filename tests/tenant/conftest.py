@@ -36,7 +36,7 @@ def mock_tenant_service() -> AsyncMock:
         from src.dotmac.platform.tenant.service import TenantNotFoundError
 
         # Validate tenant exists
-        if tenant_id == "nonexistent" or tenant_id == "invalid":
+        if tenant_id in ["nonexistent", "invalid", "nonexistent-tenant"]:
             raise TenantNotFoundError(f"Tenant {tenant_id} not found")
 
         return Mock(
@@ -73,7 +73,7 @@ def mock_tenant_service() -> AsyncMock:
         from src.dotmac.platform.tenant.service import TenantNotFoundError
 
         # Raise error for invalid tenant IDs
-        if tenant_id == "nonexistent" or tenant_id == "invalid":
+        if tenant_id in ["nonexistent", "invalid", "nonexistent-tenant"]:
             raise TenantNotFoundError(f"Tenant {tenant_id} not found")
 
         state = tenant_state.get(
@@ -101,19 +101,22 @@ def mock_tenant_service() -> AsyncMock:
             max_users = 1
 
         # Determine plan type based on tenant_id
-        plan_type = "professional"
+        from src.dotmac.platform.tenant.models import TenantPlanType, TenantStatus
+
+        plan_type = TenantPlanType.PROFESSIONAL
         if "free" in str(tenant_id).lower():
-            plan_type = "free"
+            plan_type = TenantPlanType.FREE
         elif "starter" in str(tenant_id).lower():
-            plan_type = "starter"
+            plan_type = TenantPlanType.STARTER
         elif "enterprise" in str(tenant_id).lower():
-            plan_type = "enterprise"
+            plan_type = TenantPlanType.ENTERPRISE
 
         return Mock(
             id=tenant_id,
             name="Test Organization",
             slug="test-org",
             plan_type=plan_type,
+            status=TenantStatus.ACTIVE,  # Use actual enum
             billing_cycle="monthly",
             max_users=max_users,
             max_api_calls_per_month=max_api_calls,
@@ -248,12 +251,14 @@ def usage_billing_integration(
 def sample_tenant() -> Mock:
     """Create a sample mock tenant for testing."""
     from decimal import Decimal
+    from src.dotmac.platform.tenant.models import TenantPlanType, TenantStatus
 
     return Mock(
         id="tenant-123",
         name="Test Organization",
         slug="test-org",
-        plan_type="professional",
+        plan_type=TenantPlanType.PROFESSIONAL,  # Use actual enum
+        status=TenantStatus.ACTIVE,  # Use actual enum
         billing_cycle="monthly",
         max_users=10,
         max_api_calls_per_month=10000,
@@ -272,6 +277,47 @@ def sample_tenant() -> Mock:
 def tenant_service(mock_tenant_service: AsyncMock) -> AsyncMock:
     """Alias for mock_tenant_service."""
     return mock_tenant_service
+
+
+@pytest.fixture
+async def client(
+    mock_tenant_service: AsyncMock,
+    mock_subscription_service: AsyncMock,
+    usage_billing_integration: TenantUsageBillingIntegration,
+):
+    """Create unauthenticated async HTTP client for testing auth requirements."""
+    from fastapi import FastAPI
+    from httpx import AsyncClient, ASGITransport
+
+    # Create test app
+    app = FastAPI()
+
+    # Import and setup dependencies
+    from src.dotmac.platform.database import get_async_session
+    from src.dotmac.platform.tenant.usage_billing_router import (
+        get_subscription_service,
+        get_tenant_service,
+        get_usage_billing_integration,
+        router,
+    )
+
+    # Override service dependencies (but NOT auth - we want to test auth failures)
+    async def mock_get_session():
+        """Return mock session."""
+        return AsyncMock()
+
+    app.dependency_overrides[get_async_session] = mock_get_session
+    app.dependency_overrides[get_tenant_service] = lambda: mock_tenant_service
+    app.dependency_overrides[get_subscription_service] = lambda: mock_subscription_service
+    app.dependency_overrides[get_usage_billing_integration] = lambda: usage_billing_integration
+
+    # Include the router
+    app.include_router(router)
+
+    # Create async client WITHOUT auth headers
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
 
 
 @pytest.fixture
