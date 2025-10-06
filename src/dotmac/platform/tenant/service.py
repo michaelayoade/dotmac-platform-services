@@ -341,6 +341,7 @@ class TenantService:
             return tenant
 
         tenant.restore()
+        # Status is preserved from before deletion
         tenant.updated_by = restored_by
         tenant.updated_at = datetime.now(UTC)
 

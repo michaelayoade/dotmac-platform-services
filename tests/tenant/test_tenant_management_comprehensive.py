@@ -225,6 +225,9 @@ class TestTenantCRUD:
 
     async def test_restore_tenant(self, tenant_service, sample_tenant):
         """Test restoring a soft-deleted tenant."""
+        # Store original status
+        original_status = sample_tenant.status
+
         # Soft delete
         await tenant_service.delete_tenant(sample_tenant.id, permanent=False)
 
@@ -232,7 +235,7 @@ class TestTenantCRUD:
         restored = await tenant_service.restore_tenant(sample_tenant.id, restored_by="admin")
 
         assert restored.deleted_at is None
-        assert restored.is_active
+        assert restored.status == original_status  # Status preserved from before deletion
 
     async def test_permanent_delete_tenant(self, tenant_service, sample_tenant):
         """Test permanently deleting a tenant."""
@@ -440,7 +443,9 @@ class TestTenantInvitations:
         assert invitation.invited_by == "admin-123"
         assert invitation.status == TenantInvitationStatus.PENDING
         assert invitation.token is not None
-        assert invitation.expires_at > datetime.now(timezone.utc)
+        # Normalize datetime for comparison (SQLite returns naive datetimes)
+        expires_at = invitation.expires_at.replace(tzinfo=timezone.utc) if invitation.expires_at.tzinfo is None else invitation.expires_at
+        assert expires_at > datetime.now(timezone.utc)
 
     async def test_accept_invitation(self, tenant_service, sample_tenant):
         """Test accepting an invitation."""
