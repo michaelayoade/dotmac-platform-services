@@ -98,10 +98,10 @@ class BillingConfig(BaseModel):
     paypal: PayPalConfig | None = None
 
     # Module configurations
-    tax: TaxConfig = Field(default_factory=TaxConfig)
-    currency: CurrencyConfig = Field(default_factory=CurrencyConfig)
-    invoice: InvoiceConfig = Field(default_factory=InvoiceConfig)
-    payment: PaymentConfig = Field(default_factory=PaymentConfig)
+    tax: TaxConfig = Field(default_factory=lambda: TaxConfig())
+    currency: CurrencyConfig = Field(default_factory=lambda: CurrencyConfig())
+    invoice: InvoiceConfig = Field(default_factory=lambda: InvoiceConfig())
+    payment: PaymentConfig = Field(default_factory=lambda: PaymentConfig())
     webhook: WebhookConfig | None = None
 
     # Feature flags

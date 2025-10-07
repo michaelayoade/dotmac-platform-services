@@ -31,7 +31,7 @@ logger = structlog.get_logger(__name__)
 class InvoiceService:
     """Invoice management service with tenant isolation"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
 

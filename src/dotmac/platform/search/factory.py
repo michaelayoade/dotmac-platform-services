@@ -5,7 +5,7 @@ This module provides a factory for creating search backends based on
 feature flags and configuration, with clear error messages for missing dependencies.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings
@@ -18,18 +18,18 @@ if TYPE_CHECKING:
 class SearchBackendRegistry:
     """Registry for search backend implementations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._backends: dict[str, type[SearchBackend]] = {}
         self._register_core_backends()
 
-    def _register_core_backends(self):
+    def _register_core_backends(self) -> None:
         """Register core search backends that are always available."""
         # In-memory search is always available
         from .service import InMemorySearchBackend
 
         self._backends["memory"] = InMemorySearchBackend
 
-    def register_backend(self, name: str, backend_class: type[SearchBackend]):
+    def register_backend(self, name: str, backend_class: type[SearchBackend]) -> None:
         """Register a search backend implementation."""
         self._backends[name] = backend_class
 
@@ -61,7 +61,7 @@ _registry = SearchBackendRegistry()
 
 
 # Conditional backend registration based on feature flags and dependencies
-def _register_optional_backends():
+def _register_optional_backends() -> None:
     """Register optional search backends if they're enabled and dependencies are available."""
 
     # MeiliSearch Backend
@@ -84,7 +84,7 @@ class SearchBackendFactory:
     """Factory for creating search backend instances."""
 
     @staticmethod
-    def create_backend(backend_type: str | None = None, **kwargs) -> SearchBackend:
+    def create_backend(backend_type: str | None = None, **kwargs: Any) -> SearchBackend:
         """
         Create a search backend instance.
 
@@ -157,23 +157,23 @@ class SearchBackendFactory:
 
 
 # Convenience functions
-def create_search_backend(backend_type: str | None = None, **kwargs) -> SearchBackend:
+def create_search_backend(backend_type: str | None = None, **kwargs: Any) -> SearchBackend:
     """Create a search backend instance. Convenience function."""
     return SearchBackendFactory.create_backend(backend_type, **kwargs)
 
 
-def get_default_search_backend(**kwargs) -> SearchBackend:
+def get_default_search_backend(**kwargs: Any) -> SearchBackend:
     """Get the default search backend (auto-selected)."""
     return SearchBackendFactory.create_backend(**kwargs)
 
 
 @require_dependency("search_enabled")
-def create_meilisearch_backend(**kwargs) -> SearchBackend:
+def create_meilisearch_backend(**kwargs: Any) -> SearchBackend:
     """Create a MeiliSearch backend (requires MeiliSearch to be enabled)."""
     return SearchBackendFactory.create_backend("meilisearch", **kwargs)
 
 
-def create_memory_backend(**kwargs) -> SearchBackend:
+def create_memory_backend(**kwargs: Any) -> SearchBackend:
     """Create an in-memory search backend (always available)."""
     return SearchBackendFactory.create_backend("memory", **kwargs)
 

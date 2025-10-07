@@ -192,7 +192,7 @@ def get_initialized_services() -> set[str]:
 
 
 # Quick access functions
-def create_jwt_service(**kwargs):
+def create_jwt_service(**kwargs: Any) -> Any:
     """Quick create JWT service with configuration.
 
     Maps flat auth config keys (e.g., jwt_secret_key, jwt_algorithm) to the
@@ -217,7 +217,7 @@ def create_jwt_service(**kwargs):
         )
 
 
-def create_secrets_manager(backend: str | None = None, **kwargs):
+def create_secrets_manager(backend: str | None = None, **kwargs: Any) -> Any:
     """
     Create a secrets manager with clean factory pattern.
 
@@ -260,7 +260,7 @@ def create_observability_manager(
     app: Any | None = None,
     *,
     auto_initialize: bool = False,
-    **kwargs,
+    **kwargs: Any,
 ) -> "_ObservabilityManager":
     """Create an observability manager backed by the telemetry helpers."""
 
@@ -285,10 +285,10 @@ try:
     from .core import create_application, get_application  # type: ignore
 except Exception:  # pragma: no cover - optional
 
-    def create_application(*args, **kwargs):  # type: ignore
+    def create_application(*args, **kwargs: Any):  # type: ignore
         raise ImportError("core.create_application unavailable")
 
-    def get_application(*args, **kwargs):  # type: ignore
+    def get_application(*args, **kwargs: Any):  # type: ignore
         return None
 
 

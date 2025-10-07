@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class RevenueReportGenerator:
     """Generate revenue-related reports"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def get_revenue_summary(
@@ -305,7 +305,7 @@ class RevenueReportGenerator:
 class CustomerReportGenerator:
     """Generate customer-related reports"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def get_customer_metrics(
@@ -411,7 +411,7 @@ class CustomerReportGenerator:
 class AgingReportGenerator:
     """Generate accounts receivable aging reports"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def get_aging_summary(self, tenant_id: str) -> dict[str, Any]:

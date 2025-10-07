@@ -135,7 +135,7 @@ class ContactCreate(ContactBase):
 
     @field_validator("display_name")
     @classmethod
-    def validate_display_name(cls, v, values):
+    def validate_display_name(cls, v, values) -> Any:
         """Ensure display name is set."""
         if v:
             return v

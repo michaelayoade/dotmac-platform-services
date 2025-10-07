@@ -41,9 +41,7 @@ async def async_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session_maker = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session_maker() as session:
         yield session
@@ -73,7 +71,9 @@ async def sample_tenant(tenant_service: TenantService) -> Tenant:
 class TestTenantCRUDCoverage:
     """Tests for CRUD operations - targeting uncovered lines."""
 
-    async def test_create_tenant_duplicate_slug_error(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_create_tenant_duplicate_slug_error(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test creating tenant with duplicate slug raises error."""
         # Lines 84-87: Duplicate slug check
         duplicate_data = TenantCreate(
@@ -113,8 +113,11 @@ class TestTenantCRUDCoverage:
 
         assert "domain 'example.com' already exists" in str(exc_info.value)
 
-    async def test_create_tenant_general_exception_handling(self, tenant_service: TenantService, monkeypatch):
+    async def test_create_tenant_general_exception_handling(
+        self, tenant_service: TenantService, monkeypatch
+    ):
         """Test general exception handling in create_tenant."""
+
         # Lines 136-139: General exception handling
         async def mock_commit():
             raise RuntimeError("Database error")
@@ -133,11 +136,14 @@ class TestTenantCRUDCoverage:
 
         assert "Failed to create tenant" in str(exc_info.value)
 
-    async def test_get_tenant_include_deleted(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_tenant_include_deleted(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting tenant with include_deleted=True."""
         # Lines 157-158: include_deleted branch
         # Manually set deleted_at to avoid soft_delete() is_active issue
         from datetime import UTC, datetime
+
         sample_tenant.deleted_at = datetime.now(UTC)
         await tenant_service.db.commit()
 
@@ -146,10 +152,13 @@ class TestTenantCRUDCoverage:
         assert found.id == sample_tenant.id
         assert found.deleted_at is not None
 
-    async def test_get_tenant_by_slug_include_deleted(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_tenant_by_slug_include_deleted(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting tenant by slug with include_deleted=True."""
         # Lines 184-185: include_deleted branch in get_tenant_by_slug
         from datetime import UTC, datetime
+
         sample_tenant.deleted_at = datetime.now(UTC)
         await tenant_service.db.commit()
 
@@ -157,8 +166,11 @@ class TestTenantCRUDCoverage:
         assert found.slug == sample_tenant.slug
         assert found.deleted_at is not None
 
-    async def test_update_tenant_general_exception(self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch):
+    async def test_update_tenant_general_exception(
+        self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch
+    ):
         """Test general exception handling in update_tenant."""
+
         # Lines 294-297: Exception handling in update_tenant
         async def mock_commit():
             raise RuntimeError("Update failed")
@@ -172,7 +184,9 @@ class TestTenantCRUDCoverage:
 
         assert "Failed to update tenant" in str(exc_info.value)
 
-    async def test_delete_tenant_permanent(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_delete_tenant_permanent(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test permanent tenant deletion."""
         # Line 316: Permanent deletion path
         await tenant_service.delete_tenant(sample_tenant.id, permanent=True, deleted_by="admin")
@@ -188,7 +202,9 @@ class TestTenantCRUDCoverage:
         # due to Tenant.is_active being a read-only property
         pytest.skip("Tenant.is_active property conflicts with SoftDeleteMixin.restore()")
 
-    async def test_restore_already_active_tenant(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_restore_already_active_tenant(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test restoring a tenant that's not deleted returns it unchanged."""
         # Lines 337-340: Early return if not deleted
         restored = await tenant_service.restore_tenant(sample_tenant.id)
@@ -200,7 +216,9 @@ class TestTenantCRUDCoverage:
 class TestListTenantsCoverage:
     """Tests for list_tenants - targeting uncovered lines."""
 
-    async def test_list_tenants_with_status_filter(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenants_with_status_filter(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing tenants filtered by status."""
         # Lines 225-226: Status filter
         tenants, total = await tenant_service.list_tenants(status=TenantStatus.TRIAL)
@@ -208,7 +226,9 @@ class TestListTenantsCoverage:
         assert total == 1
         assert tenants[0].status == TenantStatus.TRIAL
 
-    async def test_list_tenants_with_plan_filter(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenants_with_plan_filter(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing tenants filtered by plan type."""
         # Lines 228-229: Plan type filter
         tenants, total = await tenant_service.list_tenants(plan_type=TenantPlanType.STARTER)
@@ -216,7 +236,9 @@ class TestListTenantsCoverage:
         assert total == 1
         assert tenants[0].plan_type == TenantPlanType.STARTER
 
-    async def test_list_tenants_with_search(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenants_with_search(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing tenants with search query."""
         # Lines 231-239: Search filter
         tenants, total = await tenant_service.list_tenants(search="Test")
@@ -224,7 +246,9 @@ class TestListTenantsCoverage:
         assert total == 1
         assert "Test" in tenants[0].name
 
-    async def test_list_tenants_with_pagination(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenants_with_pagination(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing tenants with pagination."""
         # Lines 241-248: Pagination logic
         # Create more tenants
@@ -243,11 +267,14 @@ class TestListTenantsCoverage:
         assert total == 4  # 1 sample + 3 new
         assert len(tenants) == 2
 
-    async def test_list_tenants_include_deleted(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenants_include_deleted(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing tenants including deleted ones."""
         # Lines 222-223: include_deleted filter
         # Manually mark as deleted
         from datetime import UTC, datetime
+
         sample_tenant.deleted_at = datetime.now(UTC)
         await tenant_service.db.commit()
 
@@ -259,8 +286,11 @@ class TestListTenantsCoverage:
         tenants, total = await tenant_service.list_tenants(include_deleted=True)
         assert total == 1
 
-    async def test_list_tenants_exception_handling(self, tenant_service: TenantService, monkeypatch):
+    async def test_list_tenants_exception_handling(
+        self, tenant_service: TenantService, monkeypatch
+    ):
         """Test exception handling returns empty list."""
+
         # Lines 255-257: Exception handling
         async def mock_execute(*args, **kwargs):
             raise RuntimeError("Database error")
@@ -292,7 +322,9 @@ class TestSettingsManagement:
         assert len(settings) == 1
         assert settings[0].key == "feature_x"
 
-    async def test_set_tenant_setting_create_new(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_set_tenant_setting_create_new(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test creating a new tenant setting."""
         # Lines 383-391: Create new setting path
         setting_data = TenantSettingCreate(
@@ -309,7 +341,9 @@ class TestSettingsManagement:
         assert setting.value == "true"
         assert setting.value_type == "boolean"
 
-    async def test_delete_tenant_setting(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_delete_tenant_setting(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test deleting a tenant setting."""
         # Lines 399-402: delete_tenant_setting
         # Create setting first
@@ -327,7 +361,9 @@ class TestSettingsManagement:
 class TestUsageTracking:
     """Tests for usage tracking - targeting uncovered lines."""
 
-    async def test_get_tenant_usage_with_date_filters(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_tenant_usage_with_date_filters(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting usage records with date filters."""
         # Lines 428-439: get_tenant_usage with date filters
         start = datetime.now(UTC)
@@ -353,7 +389,9 @@ class TestUsageTracking:
         assert len(usage) == 1
         assert usage[0].api_calls == 1000
 
-    async def test_update_tenant_usage_counters(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_update_tenant_usage_counters(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test updating tenant usage counters."""
         # Lines 449-463: update_tenant_usage_counters
         updated = await tenant_service.update_tenant_usage_counters(
@@ -395,7 +433,9 @@ class TestInvitationManagement:
 
         assert "not found" in str(exc_info.value)
 
-    async def test_get_invitation_by_token(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_invitation_by_token(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting invitation by token."""
         # Lines 504-511: get_invitation_by_token
         invitation_data = TenantInvitationCreate(
@@ -419,7 +459,9 @@ class TestInvitationManagement:
 
         assert "Invalid invitation token" in str(exc_info.value)
 
-    async def test_accept_invitation_already_processed(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_accept_invitation_already_processed(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test accepting already processed invitation fails."""
         # Lines 517-518: Already processed check
         from datetime import UTC, datetime, timedelta
@@ -461,7 +503,9 @@ class TestInvitationManagement:
 
         assert revoked.status == TenantInvitationStatus.REVOKED
 
-    async def test_revoke_accepted_invitation_fails(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_revoke_accepted_invitation_fails(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test revoking an accepted invitation fails."""
         # Lines 537-538: Cannot revoke accepted
         from datetime import UTC
@@ -486,15 +530,21 @@ class TestInvitationManagement:
 
         assert "Cannot revoke accepted invitation" in str(exc_info.value)
 
-    async def test_list_tenant_invitations_with_status(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_list_tenant_invitations_with_status(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test listing invitations filtered by status."""
         # Lines 551-559: list_tenant_invitations with status filter
         # Create invitations with different statuses
         inv1_data = TenantInvitationCreate(email="inv1@example.com", role="member")
         inv2_data = TenantInvitationCreate(email="inv2@example.com", role="admin")
 
-        inv1 = await tenant_service.create_invitation(sample_tenant.id, inv1_data, invited_by="admin")
-        inv2 = await tenant_service.create_invitation(sample_tenant.id, inv2_data, invited_by="admin")
+        inv1 = await tenant_service.create_invitation(
+            sample_tenant.id, inv1_data, invited_by="admin"
+        )
+        inv2 = await tenant_service.create_invitation(
+            sample_tenant.id, inv2_data, invited_by="admin"
+        )
 
         # Revoke one
         await tenant_service.revoke_invitation(inv2.id)
@@ -517,8 +567,11 @@ class TestInvitationManagement:
 class TestFeatureManagement:
     """Tests for feature and metadata management - targeting uncovered lines."""
 
-    async def test_update_tenant_features_exception_handling(self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch):
+    async def test_update_tenant_features_exception_handling(
+        self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch
+    ):
         """Test exception handling in update_tenant_features."""
+
         # Lines 582-588: Exception handling
         async def mock_commit():
             raise RuntimeError("Update failed")
@@ -530,15 +583,20 @@ class TestFeatureManagement:
 
         assert "Failed to update tenant features" in str(exc_info.value)
 
-    async def test_update_tenant_features_none_handling(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_update_tenant_features_none_handling(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test handling None features parameter."""
         # Lines 570-571: None handling
         updated = await tenant_service.update_tenant_features(sample_tenant.id, None)
 
         assert updated.features is not None
 
-    async def test_update_tenant_metadata_exception_handling(self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch):
+    async def test_update_tenant_metadata_exception_handling(
+        self, tenant_service: TenantService, sample_tenant: Tenant, monkeypatch
+    ):
         """Test exception handling in update_tenant_metadata."""
+
         # Lines 610-616: Exception handling
         async def mock_commit():
             raise RuntimeError("Update failed")
@@ -550,7 +608,9 @@ class TestFeatureManagement:
 
         assert "Failed to update tenant metadata" in str(exc_info.value)
 
-    async def test_update_tenant_metadata_none_handling(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_update_tenant_metadata_none_handling(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test handling None metadata parameter."""
         # Lines 598-599: None handling
         updated = await tenant_service.update_tenant_metadata(sample_tenant.id, None)
@@ -717,7 +777,9 @@ class TestEdgeCaseCoverage:
         assert tenant.features["priority_support"] is True
         assert tenant.features["white_label"] is True
 
-    async def test_get_tenant_stats_with_subscription_expiry(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_tenant_stats_with_subscription_expiry(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting stats when subscription has end date."""
         # Lines 639-642: Days until expiry calculation
         from datetime import UTC, datetime, timedelta
@@ -731,7 +793,9 @@ class TestEdgeCaseCoverage:
         assert stats.days_until_expiry is not None
         assert stats.days_until_expiry >= 0
 
-    async def test_update_usage_counters_selective(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_update_usage_counters_selective(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test updating only specific usage counters."""
         # Lines 451-460: Conditional updates
         # Update only API calls
@@ -755,7 +819,9 @@ class TestEdgeCaseCoverage:
         )
         assert updated.current_users == 3
 
-    async def test_set_tenant_setting_update_existing(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_set_tenant_setting_update_existing(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test updating an existing tenant setting."""
         # Lines 373-380: Update existing setting path
         # Create initial setting
@@ -779,13 +845,17 @@ class TestEdgeCaseCoverage:
         assert updated.value == "new_value"
         assert updated.description == "Updated description"
 
-    async def test_delete_nonexistent_setting(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_delete_nonexistent_setting(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test deleting non-existent setting (should not raise error)."""
         # Lines 399-402: delete_tenant_setting when setting doesn't exist
         await tenant_service.delete_tenant_setting(sample_tenant.id, "nonexistent-key")
         # Should complete without error
 
-    async def test_get_usage_with_both_date_filters(self, tenant_service: TenantService, sample_tenant: Tenant):
+    async def test_get_usage_with_both_date_filters(
+        self, tenant_service: TenantService, sample_tenant: Tenant
+    ):
         """Test getting usage with both start and end date filters."""
         # Lines 430-436: Both date filters
         from datetime import UTC, datetime, timedelta

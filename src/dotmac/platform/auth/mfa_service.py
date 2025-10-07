@@ -23,7 +23,7 @@ logger = structlog.get_logger(__name__)
 class MFAService:
     """Service for managing two-factor authentication."""
 
-    def __init__(self, issuer: str = "DotMac Platform"):
+    def __init__(self, issuer: str = "DotMac Platform") -> None:
         """
         Initialize MFA service.
 

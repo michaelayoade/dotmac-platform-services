@@ -40,7 +40,7 @@ logger = structlog.get_logger(__name__)
 class ContactService:
     """Service for managing contacts and related entities."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_contact(
@@ -243,7 +243,7 @@ class ContactService:
             conditions.append(Contact.deleted_at.is_(None))
         return conditions
 
-    def _build_text_search_condition(self, query: str):
+    def _build_text_search_condition(self, query: str) -> Any:
         """Build text search condition across multiple fields."""
         return or_(
             Contact.display_name.ilike(f"%{query}%"),
@@ -274,7 +274,7 @@ class ContactService:
 
         return conditions
 
-    def _build_tag_conditions(self, tags: list[str]):
+    def _build_tag_conditions(self, tags: list[str]) -> Any:
         """Build tag filter conditions."""
         tag_conditions = []
         for tag in tags:
@@ -503,7 +503,7 @@ class ContactService:
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
-    def _clear_contact_cache(self, tenant_id: UUID, contact_id: UUID | None = None):
+    def _clear_contact_cache(self, tenant_id: UUID, contact_id: UUID | None = None) -> None:
         """Clear contact-related cache entries."""
         if contact_id:
             cache_delete(f"contact:{tenant_id}:{contact_id}")
@@ -515,7 +515,7 @@ class ContactService:
 class ContactLabelService:
     """Service for managing contact labels."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_label_definition(
@@ -578,7 +578,7 @@ class ContactLabelService:
 class ContactFieldService:
     """Service for managing custom contact fields."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_field_definition(

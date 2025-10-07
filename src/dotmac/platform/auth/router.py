@@ -104,14 +104,14 @@ def get_token_from_cookie(request: Request, cookie_name: str) -> str | None:
 # ========================================
 
 
-async def get_auth_session():
+async def get_auth_session() -> Any:
     """Adapter to reuse the shared session dependency helper."""
     async for session in get_session_dependency():
         yield session
 
 
 # Backwards compatibility: some tests patch this symbol directly
-async def get_async_session():  # pragma: no cover - compatibility wrapper
+async def get_async_session() -> Any:  # pragma: no cover - compatibility wrapper
     async for session in get_session_dependency():
         yield session
 

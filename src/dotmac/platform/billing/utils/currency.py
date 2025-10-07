@@ -10,7 +10,7 @@ from dotmac.platform.billing.config import get_billing_config
 class CurrencyFormatter:
     """Currency formatting utilities"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = get_billing_config().currency
 
     def format_amount(self, amount: int, include_symbol: bool = True) -> str:

@@ -2,6 +2,7 @@
 
 import hashlib
 from datetime import UTC, datetime
+from typing import Any, Dict
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -133,9 +134,6 @@ async def _enhanced_create_api_key(
         await client.set(f"api_key_lookup:{api_key_hash}", key_id)
     else:
         # Fallback to memory
-        if not hasattr(api_key_service, "_memory_meta"):
-            api_key_service._memory_meta = {}
-            api_key_service._memory_lookup = {}
         api_key_service._memory_meta[key_id] = enhanced_data
         # Store hash -> key_id mapping instead of plaintext -> key_id
         api_key_service._memory_lookup[api_key_hash] = key_id
@@ -146,7 +144,7 @@ async def _enhanced_create_api_key(
 async def _list_user_api_keys(user_id: str) -> list[dict]:
     """List all API keys for a user."""
     client = await api_key_service._get_redis()
-    keys = []
+    keys: list[dict[str, Any]] = []
 
     if client:
         # Scan for user's API key metadata
@@ -175,11 +173,10 @@ async def _get_api_key_by_id(key_id: str) -> dict | None:
         return api_key_service._deserialize(data_str) if data_str else None
     else:
         # Fallback to memory
-        memory_meta = getattr(api_key_service, "_memory_meta", {})
-        return memory_meta.get(key_id)
+        return api_key_service._memory_meta.get(key_id)
 
 
-async def _update_api_key_metadata(key_id: str, updates: dict) -> bool:
+async def _update_api_key_metadata(key_id: str, updates: dict[str, Any]) -> bool:
     """Update API key metadata."""
     client = await api_key_service._get_redis()
 
@@ -194,50 +191,52 @@ async def _update_api_key_metadata(key_id: str, updates: dict) -> bool:
         return True
     else:
         # Fallback to memory
-        memory_meta = getattr(api_key_service, "_memory_meta", {})
-        if key_id in memory_meta:
-            memory_meta[key_id].update(updates)
+        if key_id in api_key_service._memory_meta:
+            api_key_service._memory_meta[key_id].update(updates)
             return True
         return False
 
 
 async def _revoke_api_key_by_id(key_id: str) -> bool:
-    """Revoke API key by ID."""
-    # First get the actual API key
+    """
+    Revoke API key by ID.
+
+    SECURITY FIX: Since we store hashed keys in lookup, we need to use
+    revoke_api_key_by_hash() to avoid double-hashing.
+    """
     client = await api_key_service._get_redis()
-    api_key = None
+    api_key_hash = None
 
     if client:
-        # Find the API key from lookup
+        # Find the API key hash from lookup
         async for lookup_key in client.scan_iter(match="api_key_lookup:*"):
             stored_key_id = await client.get(lookup_key)
             if stored_key_id == key_id:
-                api_key = lookup_key.replace("api_key_lookup:", "")
+                # Extract the hash from the lookup key
+                api_key_hash = lookup_key.replace("api_key_lookup:", "")
                 break
     else:
         # Fallback to memory
-        memory_lookup = getattr(api_key_service, "_memory_lookup", {})
-        for key, stored_key_id in memory_lookup.items():
+        for key_hash, stored_key_id in api_key_service._memory_lookup.items():
             if stored_key_id == key_id:
-                api_key = key
+                api_key_hash = key_hash
                 break
 
-    if not api_key:
+    if not api_key_hash:
         return False
 
-    # Revoke the actual key and clean up metadata
-    success = await api_key_service.revoke_api_key(api_key)
+    # SECURITY FIX: Use revoke_by_hash since we already have the hash
+    # (not the plaintext). This avoids double-hashing.
+    success = await api_key_service.revoke_api_key_by_hash(api_key_hash)
 
     if success:
         if client:
             await client.delete(f"api_key_meta:{key_id}")
-            await client.delete(f"api_key_lookup:{api_key}")
+            await client.delete(f"api_key_lookup:{api_key_hash}")
         else:
             # Fallback to memory
-            memory_meta = getattr(api_key_service, "_memory_meta", {})
-            memory_lookup = getattr(api_key_service, "_memory_lookup", {})
-            memory_meta.pop(key_id, None)
-            memory_lookup.pop(api_key, None)
+            api_key_service._memory_meta.pop(key_id, None)
+            api_key_service._memory_lookup.pop(api_key_hash, None)
 
     return success
 
@@ -405,7 +404,7 @@ async def update_api_key(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
         # Prepare updates
-        updates = {}
+        updates: dict[str, Any] = {}
         if request.name is not None:
             updates["name"] = request.name
         if request.scopes is not None:
@@ -425,25 +424,31 @@ async def update_api_key(
 
         # Get updated data
         updated_data = await _get_api_key_by_id(key_id)
+        if not updated_data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load updated API key metadata",
+            )
 
+        updated_id = str(updated_data["id"])
         return APIKeyResponse(
-            id=updated_data["id"],
-            name=updated_data["name"],
-            scopes=updated_data["scopes"],
-            created_at=datetime.fromisoformat(updated_data["created_at"]),
+            id=updated_id,
+            name=str(updated_data["name"]),
+            scopes=list(updated_data["scopes"]),
+            created_at=datetime.fromisoformat(str(updated_data["created_at"])),
             expires_at=(
-                datetime.fromisoformat(updated_data["expires_at"])
+                datetime.fromisoformat(str(updated_data["expires_at"]))
                 if updated_data.get("expires_at")
                 else None
             ),
             description=updated_data.get("description"),
             last_used_at=(
-                datetime.fromisoformat(updated_data["last_used_at"])
+                datetime.fromisoformat(str(updated_data["last_used_at"]))
                 if updated_data.get("last_used_at")
                 else None
             ),
-            is_active=updated_data.get("is_active", True),
-            key_preview=f"sk_****{updated_data['id'][-4:]}",
+            is_active=bool(updated_data.get("is_active", True)),
+            key_preview=f"sk_****{updated_id[-4:]}",
         )
     except HTTPException:
         raise
@@ -458,7 +463,7 @@ async def update_api_key(
 async def revoke_api_key(
     key_id: str,
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> None:
     """Revoke API key."""
     try:
         key_data = await _get_api_key_by_id(key_id)

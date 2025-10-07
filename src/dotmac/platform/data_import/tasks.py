@@ -27,7 +27,7 @@ DEFAULT_CHUNK_SIZE = 500
 MAX_CHUNK_SIZE = 5000
 
 
-def get_async_session():
+def get_async_session() -> Any:
     """Create async database session for Celery tasks."""
     engine = create_async_engine(get_async_database_url(), echo=False)
     async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -529,7 +529,7 @@ def check_import_health() -> dict[str, Any]:
     """
     import asyncio
 
-    async def _check_health():
+    async def _check_health() -> Any:
         async with get_async_session() as session:
             from sqlalchemy import func, select
 

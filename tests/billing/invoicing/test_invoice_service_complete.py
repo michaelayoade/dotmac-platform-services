@@ -126,7 +126,9 @@ class TestPaymentStatusUpdate:
 
     async def test_update_payment_status_to_succeeded(self, invoice_service, sample_invoice_entity):
         """Test updating payment status to succeeded."""
-        with patch.object(invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity):
+        with patch.object(
+            invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity
+        ):
             invoice = await invoice_service.update_invoice_payment_status(
                 tenant_id="tenant-1",
                 invoice_id="inv_123",
@@ -142,7 +144,9 @@ class TestPaymentStatusUpdate:
         self, invoice_service, sample_invoice_entity
     ):
         """Test updating payment status to partially refunded."""
-        with patch.object(invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity):
+        with patch.object(
+            invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity
+        ):
             invoice = await invoice_service.update_invoice_payment_status(
                 tenant_id="tenant-1",
                 invoice_id="inv_123",
@@ -356,7 +360,9 @@ class TestInvoiceNotification:
 class TestTransactionCreation:
     """Test transaction record creation."""
 
-    async def test_create_invoice_transaction(self, invoice_service, sample_invoice_entity, mock_db):
+    async def test_create_invoice_transaction(
+        self, invoice_service, sample_invoice_entity, mock_db
+    ):
         """Test creating transaction for invoice."""
         await invoice_service._create_invoice_transaction(sample_invoice_entity)
 
@@ -383,7 +389,9 @@ class TestTransactionCreation:
 class TestGetInvoiceMethods:
     """Test invoice retrieval methods."""
 
-    async def test_get_invoice_with_line_items(self, invoice_service, sample_invoice_entity, mock_db):
+    async def test_get_invoice_with_line_items(
+        self, invoice_service, sample_invoice_entity, mock_db
+    ):
         """Test getting invoice with line items loaded."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = sample_invoice_entity
@@ -398,7 +406,9 @@ class TestGetInvoiceMethods:
         assert invoice is not None
         assert invoice.invoice_id == "inv_123"
 
-    async def test_get_invoice_without_line_items(self, invoice_service, sample_invoice_entity, mock_db):
+    async def test_get_invoice_without_line_items(
+        self, invoice_service, sample_invoice_entity, mock_db
+    ):
         """Test getting invoice without line items."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = sample_invoice_entity
@@ -412,7 +422,9 @@ class TestGetInvoiceMethods:
 
         assert invoice is not None
 
-    async def test_get_invoice_by_idempotency_key(self, invoice_service, sample_invoice_entity, mock_db):
+    async def test_get_invoice_by_idempotency_key(
+        self, invoice_service, sample_invoice_entity, mock_db
+    ):
         """Test getting invoice by idempotency key."""
         sample_invoice_entity.idempotency_key = "idem_123"
 
@@ -507,7 +519,9 @@ class TestWebhookPublishing:
 
     async def test_void_invoice_webhook_error_handled(self, invoice_service, sample_invoice_entity):
         """Test that webhook errors don't fail void operation."""
-        with patch.object(invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity):
+        with patch.object(
+            invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity
+        ):
             with patch.object(invoice_service, "_create_void_transaction"):
                 with patch(
                     "dotmac.platform.billing.invoicing.service.get_event_bus"
@@ -534,7 +548,9 @@ class TestCreditApplicationComplete:
         self, invoice_service, sample_invoice_entity, mock_db
     ):
         """Test that credit application ID is added to list."""
-        with patch.object(invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity):
+        with patch.object(
+            invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity
+        ):
             await invoice_service.apply_credit_to_invoice(
                 tenant_id="tenant-1",
                 invoice_id="inv_123",
@@ -557,7 +573,9 @@ class TestCreditApplicationComplete:
 
     async def test_apply_overcredit(self, invoice_service, sample_invoice_entity, mock_db):
         """Test applying credit greater than invoice amount."""
-        with patch.object(invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity):
+        with patch.object(
+            invoice_service, "_get_invoice_entity", return_value=sample_invoice_entity
+        ):
             await invoice_service.apply_credit_to_invoice(
                 tenant_id="tenant-1",
                 invoice_id="inv_123",

@@ -50,7 +50,7 @@ class BulkEmailResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _run_async(coro):
+def _run_async(coro) -> Any:
     """Execute an async coroutine from a synchronous Celery task."""
 
     try:

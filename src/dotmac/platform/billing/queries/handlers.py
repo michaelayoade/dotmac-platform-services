@@ -59,7 +59,7 @@ logger = structlog.get_logger(__name__)
 class InvoiceQueryHandler:
     """Handles invoice queries with optimized read models"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def handle_get_invoice(self, query: GetInvoiceQuery) -> InvoiceDetail | None:
@@ -272,7 +272,7 @@ class InvoiceQueryHandler:
 class PaymentQueryHandler:
     """Handles payment queries"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def handle_get_payment(self, query: GetPaymentQuery) -> PaymentDetail | None:
@@ -356,7 +356,7 @@ class PaymentQueryHandler:
 class SubscriptionQueryHandler:
     """Handles subscription queries"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def handle_get_subscription(

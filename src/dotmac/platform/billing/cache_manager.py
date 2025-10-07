@@ -6,6 +6,7 @@ monitoring, and maintenance capabilities.
 """
 
 import asyncio
+from typing import Any
 from datetime import UTC, datetime
 from enum import Enum
 
@@ -72,7 +73,7 @@ class BillingCacheManager:
     - Performance metrics tracking
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cache: BillingCache = get_billing_cache()
         self.config = BillingCacheConfig()
         self.invalidation_queue: list[dict] = []
@@ -95,7 +96,7 @@ class BillingCacheManager:
             CacheEvent.BULK_IMPORT: BulkImportHandler(),
         }
 
-    def _init_dependency_map(self):
+    def _init_dependency_map(self) -> None:
         """Initialize cache dependency mappings."""
         # Define which cache types depend on others
         self.dependency_map = {
@@ -205,14 +206,14 @@ class BillingCacheManager:
     ):
         """Schedule cache invalidation for later execution."""
 
-        async def delayed_invalidation():
+        async def delayed_invalidation() -> None:
             await asyncio.sleep(delay_seconds)
             await self._immediate_invalidation(event, tenant_id, entity_id)
 
         # Create task for delayed invalidation
         asyncio.create_task(delayed_invalidation())
 
-    async def process_invalidation_queue(self):
+    async def process_invalidation_queue(self) -> None:
         """Process queued invalidation requests."""
         if not self.invalidation_queue:
             return
@@ -267,7 +268,7 @@ class BillingCacheManager:
             patterns_cleared=len(patterns_to_clear),
         )
 
-    async def perform_cache_maintenance(self):
+    async def perform_cache_maintenance(self) -> Any:
         """
         Perform routine cache maintenance tasks.
 
@@ -298,7 +299,7 @@ class BillingCacheManager:
             "invalidation_queue_processed": len(self.invalidation_queue) == 0,
         }
 
-    async def warm_cache_for_tenant(self, tenant_id: str):
+    async def warm_cache_for_tenant(self, tenant_id: str) -> Any:
         """
         Warm cache for a specific tenant.
 
@@ -422,7 +423,7 @@ def get_cache_manager() -> BillingCacheManager:
     return _cache_manager
 
 
-async def setup_cache_maintenance_task():
+async def setup_cache_maintenance_task() -> None:
     """
     Set up periodic cache maintenance task.
 
@@ -430,7 +431,7 @@ async def setup_cache_maintenance_task():
     """
     cache_manager = get_cache_manager()
 
-    async def maintenance_loop():
+    async def maintenance_loop() -> None:
         while True:
             try:
                 await asyncio.sleep(3600)  # Run every hour

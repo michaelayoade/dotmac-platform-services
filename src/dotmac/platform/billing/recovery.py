@@ -37,7 +37,9 @@ class RetryStrategy:
 class ExponentialBackoff(RetryStrategy):
     """Exponential backoff retry strategy with jitter."""
 
-    def __init__(self, base_delay: float = 1.0, max_delay: float = 60.0, jitter: bool = True):
+    def __init__(
+        self, base_delay: float = 1.0, max_delay: float = 60.0, jitter: bool = True
+    ) -> None:
         self.base_delay = base_delay
         self.max_delay = max_delay
         self.jitter = jitter
@@ -53,7 +55,7 @@ class ExponentialBackoff(RetryStrategy):
 class LinearBackoff(RetryStrategy):
     """Linear backoff retry strategy."""
 
-    def __init__(self, delay: float = 1.0, increment: float = 1.0):
+    def __init__(self, delay: float = 1.0, increment: float = 1.0) -> None:
         self.delay = delay
         self.increment = increment
 
@@ -83,7 +85,7 @@ class BillingRetry:
         self.retryable_exceptions = retryable_exceptions
         self.on_retry = on_retry
 
-    async def execute(self, func: Callable[..., T], *args, **kwargs) -> T:
+    async def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """
         Execute function with retry logic.
 
@@ -164,9 +166,9 @@ def with_retry(
             pass
     """
 
-    def decorator(func):
+    def decorator(func) -> Any:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs: Any) -> Any:
             retry = BillingRetry(
                 max_attempts=max_attempts,
                 strategy=strategy,
@@ -207,7 +209,7 @@ class CircuitBreaker:
         self.last_failure_time = None
         self.state = self.CLOSED
 
-    async def call(self, func: Callable[..., T], *args, **kwargs) -> T:
+    async def call(self, func: Callable[..., T], *args, **kwargs: Any) -> T:
         """
         Execute function through circuit breaker.
 
@@ -251,7 +253,7 @@ class CircuitBreaker:
         time_since_failure = datetime.now(UTC).timestamp() - self.last_failure_time
         return time_since_failure >= self.recovery_timeout
 
-    def _on_success(self):
+    def _on_success(self) -> None:
         """Handle successful call."""
         if self.state == self.HALF_OPEN:
             logger.info("Circuit breaker reset to CLOSED")
@@ -259,7 +261,7 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_failure_time = None
 
-    def _on_failure(self):
+    def _on_failure(self) -> None:
         """Handle failed call."""
         self.failure_count += 1
         self.last_failure_time = datetime.now(UTC).timestamp()
@@ -286,7 +288,7 @@ class RecoveryContext:
             )
     """
 
-    def __init__(self, save_state: bool = True, state_key: str | None = None):
+    def __init__(self, save_state: bool = True, state_key: str | None = None) -> None:
         self.save_state = save_state
         self.state_key = state_key or str(uuid.uuid4())
         self.state: dict[str, Any] = {}
@@ -376,11 +378,11 @@ class IdempotencyManager:
     Prevents duplicate charges, refunds, and other critical operations.
     """
 
-    def __init__(self, cache_ttl: int = 3600):
+    def __init__(self, cache_ttl: int = 3600) -> None:
         self.cache_ttl = cache_ttl
         self._cache: dict[str, Any] = {}
 
-    async def ensure_idempotent(self, key: str, func: Callable[..., T], *args, **kwargs) -> T:
+    async def ensure_idempotent(self, key: str, func: Callable[..., T], *args, **kwargs: Any) -> T:
         """
         Execute function only if not already processed.
 
@@ -411,7 +413,7 @@ class IdempotencyManager:
             )
             raise
 
-    def cleanup_expired(self):
+    def cleanup_expired(self) -> None:
         """Remove expired entries from cache."""
         now = datetime.now(UTC)
         expired_keys = [

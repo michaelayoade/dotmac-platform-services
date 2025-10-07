@@ -35,19 +35,19 @@ class BillingSQLModel(SQLBaseModel):
     __abstract__ = True
 
     @declared_attr
-    def tenant_id(cls):
+    def tenant_id(cls) -> Any:
         return Column(String(50), nullable=False, index=True)
 
     @declared_attr
-    def created_at(cls):
+    def created_at(cls) -> Any:
         return Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
 
     @declared_attr
-    def updated_at(cls):
+    def updated_at(cls) -> Any:
         return Column(DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC))
 
     @declared_attr
-    def metadata_json(cls):
+    def metadata_json(cls) -> Any:
         return Column("metadata", JSON, nullable=False, default=dict)
 
 

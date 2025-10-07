@@ -264,7 +264,7 @@ class WebhookSubscriptionResponse(BaseModel):
 
     @field_validator("id", mode="before")
     @classmethod
-    def convert_uuid(cls, v):
+    def convert_uuid(cls, v: Any) -> Any:
         """Convert UUID to string."""
         return str(v) if v else None
 
@@ -288,7 +288,7 @@ class WebhookDeliveryResponse(BaseModel):
 
     @field_validator("id", "subscription_id", mode="before")
     @classmethod
-    def convert_uuid(cls, v):
+    def convert_uuid(cls, v: Any) -> Any:
         """Convert UUID to string."""
         return str(v) if v else None
 

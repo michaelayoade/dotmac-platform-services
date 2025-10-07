@@ -66,7 +66,7 @@ class SettingsManagementService:
         SettingsCategory.CELERY: ["broker_url", "result_backend"],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize settings management service."""
         self.settings = platform_settings.settings
         self._audit_logs: list[AuditLog] = []
@@ -554,7 +554,7 @@ class SettingsManagementService:
         """Convert settings data to environment variable format."""
         lines = []
 
-        def process_dict(d: dict[str, Any], current_prefix: str):
+        def process_dict(d: dict[str, Any], current_prefix: str) -> None:
             for key, value in d.items():
                 env_key = f"{current_prefix}{key}".upper()
 

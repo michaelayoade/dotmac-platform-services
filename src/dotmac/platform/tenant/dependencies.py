@@ -4,7 +4,7 @@ Tenant authorization dependencies.
 Provides FastAPI dependencies for tenant access control and validation.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,7 +254,7 @@ TenantOwnerAccess = Annotated[tuple[UserInfo, Tenant], Depends(require_tenant_ow
 
 
 # Feature-specific dependencies
-def require_feature(feature_name: str):
+def require_feature(feature_name: str) -> Any:
     """
     Create a dependency that checks for a specific feature.
 
@@ -278,7 +278,7 @@ def require_feature(feature_name: str):
 
 
 # Plan-specific dependencies
-def require_plan(min_plan: str):
+def require_plan(min_plan: str) -> Any:
     """
     Create a dependency that checks for minimum plan level.
 

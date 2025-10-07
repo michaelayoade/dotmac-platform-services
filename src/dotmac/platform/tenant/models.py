@@ -157,7 +157,11 @@ class Tenant(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
         if not self.trial_ends_at:
             return False
         # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        trial_ends_at = self.trial_ends_at.replace(tzinfo=UTC) if self.trial_ends_at.tzinfo is None else self.trial_ends_at
+        trial_ends_at = (
+            self.trial_ends_at.replace(tzinfo=UTC)
+            if self.trial_ends_at.tzinfo is None
+            else self.trial_ends_at
+        )
         return datetime.now(UTC) > trial_ends_at
 
     @property
@@ -285,7 +289,11 @@ class TenantInvitation(Base, TimestampMixin):
         """Check if invitation has expired."""
         now = datetime.now(UTC)
         # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        expires_at = self.expires_at.replace(tzinfo=UTC) if self.expires_at.tzinfo is None else self.expires_at
+        expires_at = (
+            self.expires_at.replace(tzinfo=UTC)
+            if self.expires_at.tzinfo is None
+            else self.expires_at
+        )
         return now > expires_at
 
     @property

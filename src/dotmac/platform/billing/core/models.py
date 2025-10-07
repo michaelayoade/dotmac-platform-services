@@ -67,7 +67,7 @@ class InvoiceLineItem(BaseModel):
 
     @field_validator("tax_amount", "discount_amount", mode="before")
     @classmethod
-    def to_minor_units(cls, value):
+    def to_minor_units(cls, value) -> Any:
         """Convert Decimal/float monetary values to integer minor units (cents)."""
         from decimal import ROUND_HALF_UP, Decimal
 

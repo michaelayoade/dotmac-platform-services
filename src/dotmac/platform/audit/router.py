@@ -42,7 +42,7 @@ async def list_activities(
     per_page: int = Query(50, ge=1, le=1000, description="Items per page"),
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> AuditActivityList:
     """
     Get paginated list of audit activities.
 
@@ -97,7 +97,7 @@ async def get_recent_activities(
     days: int = Query(7, ge=1, le=90, description="Number of days to look back"),
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> list[AuditActivityResponse]:
     """
     Get recent audit activities for dashboard/frontend views.
 
@@ -142,7 +142,7 @@ async def get_user_activities(
     days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> list[AuditActivityResponse]:
     """
     Get audit activities for a specific user.
 
@@ -197,7 +197,7 @@ async def get_activity_summary(
     days: int = Query(7, ge=1, le=90, description="Number of days to look back"),
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> dict:
     """
     Get activity summary statistics for the current tenant.
 
@@ -236,7 +236,7 @@ async def get_activity_details(
     request: Request,
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> AuditActivityResponse:
     """
     Get details for a specific audit activity.
 
@@ -297,7 +297,7 @@ async def create_frontend_logs(
     logs_request: FrontendLogsRequest,
     session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> FrontendLogsResponse:
     """
     Accept batched frontend logs from the client application.
 

@@ -109,7 +109,7 @@ class PaymentProvider(ABC):
 class StripePaymentProvider(PaymentProvider):
     """Stripe payment provider implementation"""
 
-    def __init__(self, api_key: str, webhook_secret: str | None = None):
+    def __init__(self, api_key: str, webhook_secret: str | None = None) -> None:
         self.api_key = api_key
         self.webhook_secret = webhook_secret
         # Import stripe here to avoid dependency if not using Stripe
@@ -338,7 +338,7 @@ class StripePaymentProvider(PaymentProvider):
 class MockPaymentProvider(PaymentProvider):
     """Mock payment provider for testing"""
 
-    def __init__(self, always_succeed: bool = True):
+    def __init__(self, always_succeed: bool = True) -> None:
         self.always_succeed = always_succeed
         self.payment_counter = 0
         self.refund_counter = 0

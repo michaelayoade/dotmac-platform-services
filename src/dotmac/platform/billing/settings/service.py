@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class BillingSettingsService:
     """Service for managing billing settings"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
 

@@ -5,6 +5,7 @@ Provides reusable caching decorators that can be used across all modules.
 """
 
 import hashlib
+from typing import Any
 import json
 from collections.abc import Callable
 from enum import Enum
@@ -49,7 +50,7 @@ def cached_result(
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs: Any) -> Any:
             # Generate cache key
             if key_params:
                 key_parts = [key_prefix]

@@ -47,7 +47,7 @@ def generate_category_id() -> str:
 class ProductService:
     """Simple product management service with basic CRUD operations."""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     async def create_category(
@@ -344,7 +344,7 @@ class ProductService:
 
         for field, value in update_data.items():
             if field == "metadata":
-                db_product.metadata_json = value
+                setattr(db_product, "metadata_json", value)
             elif field == "tax_class" and value:
                 setattr(db_product, field, value.value)
             else:
@@ -379,7 +379,7 @@ class ProductService:
             raise ProductNotFoundError(f"Product {product_id} not found")
 
         old_price = db_product.base_price
-        db_product.base_price = new_price
+        setattr(db_product, "base_price", new_price)
 
         await self.db.commit()
         await self.db.refresh(db_product)
@@ -410,7 +410,7 @@ class ProductService:
         if not db_product:
             raise ProductNotFoundError(f"Product {product_id} not found")
 
-        db_product.is_active = False
+        setattr(db_product, "is_active", False)
 
         await self.db.commit()
         await self.db.refresh(db_product)
@@ -517,34 +517,70 @@ class ProductService:
 
     def _db_to_pydantic_product(self, db_product: BillingProductTable) -> Product:
         """Convert database product to Pydantic model."""
+        from decimal import Decimal
+        from datetime import datetime, UTC
+
+        # Extract values from SQLAlchemy columns
+        product_id: str = str(db_product.product_id)
+        tenant_id: str = str(db_product.tenant_id)
+        sku: str = str(db_product.sku)
+        name: str = str(db_product.name)
+        description: str | None = str(db_product.description) if getattr(db_product, 'description', None) else None
+        category: str = str(db_product.category)
+        product_type_value: str = str(db_product.product_type)
+        base_price: Decimal = Decimal(str(db_product.base_price))
+        currency: str = str(db_product.currency)
+        tax_class: str = str(db_product.tax_class)
+        usage_unit_name: str | None = str(db_product.usage_unit_name) if getattr(db_product, 'usage_unit_name', None) else None
+        is_active: bool = bool(db_product.is_active)
+
+        usage_type_raw = getattr(db_product, 'usage_type', None)
+        usage_type = UsageType(usage_type_raw) if usage_type_raw else None
+
+        metadata: dict[str, Any] = getattr(db_product, 'metadata_json', None) or {}
+        created_at: datetime = getattr(db_product, 'created_at', datetime.now(UTC))
+        updated_at: datetime = getattr(db_product, 'updated_at', datetime.now(UTC))
+
         return Product(
-            product_id=db_product.product_id,
-            tenant_id=db_product.tenant_id,
-            sku=db_product.sku,
-            name=db_product.name,
-            description=db_product.description,
-            category=db_product.category,
-            product_type=ProductType(db_product.product_type),
-            base_price=db_product.base_price,
-            currency=db_product.currency,
-            tax_class=db_product.tax_class,
-            usage_type=UsageType(db_product.usage_type) if db_product.usage_type else None,
-            usage_unit_name=db_product.usage_unit_name,
-            is_active=db_product.is_active,
-            metadata=db_product.metadata_json,
-            created_at=db_product.created_at,
-            updated_at=db_product.updated_at,
+            product_id=product_id,
+            tenant_id=tenant_id,
+            sku=sku,
+            name=name,
+            description=description,
+            category=category,
+            product_type=ProductType(product_type_value),
+            base_price=base_price,
+            currency=currency,
+            tax_class=tax_class,
+            usage_type=usage_type,
+            usage_unit_name=usage_unit_name,
+            is_active=is_active,
+            metadata=metadata,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
     def _db_to_pydantic_category(self, db_category: BillingProductCategoryTable) -> ProductCategory:
         """Convert database category to Pydantic model."""
+        from datetime import datetime, UTC
+
+        # Extract values from SQLAlchemy columns
+        category_id: str = str(db_category.category_id)
+        tenant_id: str = str(db_category.tenant_id)
+        name: str = str(db_category.name)
+        description: str | None = str(db_category.description) if getattr(db_category, 'description', None) else None
+        default_tax_class_value: str = str(db_category.default_tax_class)
+        sort_order: int = int(getattr(db_category, 'sort_order', 0))
+        created_at: datetime = getattr(db_category, 'created_at', datetime.now(UTC))
+        updated_at: datetime = getattr(db_category, 'updated_at', datetime.now(UTC))
+
         return ProductCategory(
-            category_id=db_category.category_id,
-            tenant_id=db_category.tenant_id,
-            name=db_category.name,
-            description=db_category.description,
-            default_tax_class=db_category.default_tax_class,
-            sort_order=db_category.sort_order,
-            created_at=db_category.created_at,
-            updated_at=db_category.updated_at,
+            category_id=category_id,
+            tenant_id=tenant_id,
+            name=name,
+            description=description,
+            default_tax_class=TaxClass(default_tax_class_value),
+            sort_order=sort_order,
+            created_at=created_at,
+            updated_at=updated_at,
         )

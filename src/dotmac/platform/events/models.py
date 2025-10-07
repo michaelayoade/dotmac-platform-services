@@ -57,7 +57,9 @@ class Event(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique event ID")
     event_type: str = Field(..., description="Event type (e.g., 'invoice.created')")
     payload: dict[str, Any] = Field(default_factory=dict, description="Event data")
-    metadata: EventMetadata = Field(default_factory=EventMetadata, description="Event metadata")
+    metadata: EventMetadata = Field(
+        default_factory=lambda: EventMetadata(), description="Event metadata"
+    )
 
     # Tracking fields
     priority: EventPriority = Field(default=EventPriority.NORMAL, description="Event priority")

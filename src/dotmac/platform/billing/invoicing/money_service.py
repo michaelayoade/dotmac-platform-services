@@ -24,7 +24,7 @@ class MoneyInvoiceService(InvoiceService):
     currency calculations while maintaining compatibility with the legacy system.
     """
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         super().__init__(db_session)
         self.adapter = InvoiceMigrationAdapter()
         self.pdf_generator = ReportLabInvoiceGenerator()

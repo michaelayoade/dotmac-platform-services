@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 class WebhookSubscriptionService:
     """Service for managing webhook subscriptions."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_subscription(

@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class BankAccountService:
     """Service for managing company bank accounts"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def create_bank_account(
@@ -280,7 +280,7 @@ class BankAccountService:
         )
 
     # Private helper methods
-    async def _unset_primary_accounts(self, tenant_id: str, exclude_id: int | None = None):
+    async def _unset_primary_accounts(self, tenant_id: str, exclude_id: int | None = None) -> None:
         """Unset primary flag on all accounts except the excluded one"""
 
         query = select(CompanyBankAccount).where(
@@ -334,7 +334,7 @@ class BankAccountService:
 class ManualPaymentService:
     """Service for recording manual payments"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def record_cash_payment(

@@ -66,7 +66,7 @@ class FileMetadata(BaseModel):
 class LocalFileStorage:
     """Local filesystem storage backend."""
 
-    def __init__(self, base_path: str | None = None):
+    def __init__(self, base_path: str | None = None) -> None:
         """Initialize local storage."""
         self.base_path = Path(
             base_path or settings.storage.local_path or "/tmp/dotmac-storage"
@@ -252,7 +252,7 @@ class LocalFileStorage:
 class MemoryFileStorage:
     """In-memory storage backend for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize memory storage."""
         self.files: dict[str, bytes] = {}
         self.metadata: dict[str, FileMetadata] = {}
@@ -352,7 +352,7 @@ class MemoryFileStorage:
 class MinIOFileStorage:
     """MinIO/S3 storage backend wrapper."""
 
-    def __init__(self, minio_client: MinIOStorage | None = None):
+    def __init__(self, minio_client: MinIOStorage | None = None) -> None:
         """Initialize MinIO storage."""
         self.client = minio_client or get_storage()
         self.metadata_store = {}  # In production, use database or MinIO metadata
@@ -490,7 +490,7 @@ class MinIOFileStorage:
 class FileStorageService:
     """Unified file storage service with backend selection."""
 
-    def __init__(self, backend: str = StorageBackend.LOCAL):
+    def __init__(self, backend: str = StorageBackend.LOCAL) -> None:
         """Initialize storage service with specified backend."""
         self.backend_type = backend
 

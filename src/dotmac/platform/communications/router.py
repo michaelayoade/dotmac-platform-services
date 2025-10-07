@@ -122,7 +122,7 @@ async def send_email_endpoint(
 
 
 @router.post("/email/queue")
-async def queue_email_endpoint(request: EmailRequest):
+async def queue_email_endpoint(request: EmailRequest) -> Any:
     """Queue an email for background sending."""
     try:
         task_id = queue_email(
@@ -170,7 +170,7 @@ class TemplateResponse(BaseModel):
 
 
 @router.post("/templates", response_model=TemplateResponse)
-async def create_template_endpoint(request: TemplateRequest):
+async def create_template_endpoint(request: TemplateRequest) -> Any:
     """Create a new template."""
     try:
         template = create_template(
@@ -196,7 +196,7 @@ async def create_template_endpoint(request: TemplateRequest):
 
 
 @router.get("/templates", response_model=list[TemplateResponse])
-async def list_templates_endpoint():
+async def list_templates_endpoint() -> Any:
     """List all templates."""
     try:
         service = get_template_service()
@@ -221,7 +221,7 @@ async def list_templates_endpoint():
 
 
 @router.get("/templates/{template_id}", response_model=TemplateResponse)
-async def get_template_endpoint(template_id: str):
+async def get_template_endpoint(template_id: str) -> Any:
     """Get a specific template."""
     try:
         service = get_template_service()
@@ -255,7 +255,7 @@ class RenderRequest(BaseModel):
 
 
 @router.post("/templates/render", response_model=RenderedTemplate)
-async def render_template_endpoint(request: RenderRequest):
+async def render_template_endpoint(request: RenderRequest) -> Any:
     """Render a template with data."""
     try:
         result = render_template(request.template_id, request.data)
@@ -269,7 +269,7 @@ async def render_template_endpoint(request: RenderRequest):
 
 
 @router.delete("/templates/{template_id}")
-async def delete_template_endpoint(template_id: str):
+async def delete_template_endpoint(template_id: str) -> Any:
     """Delete a template."""
     try:
         service = get_template_service()
@@ -298,7 +298,7 @@ class BulkEmailRequest(BaseModel):
 
 
 @router.post("/bulk-email/queue")
-async def queue_bulk_email_job(request: BulkEmailRequest):
+async def queue_bulk_email_job(request: BulkEmailRequest) -> Any:
     """Queue a bulk email job."""
     try:
         messages = [
@@ -327,7 +327,7 @@ async def queue_bulk_email_job(request: BulkEmailRequest):
 
 
 @router.get("/bulk-email/status/{job_id}")
-async def get_bulk_email_status(job_id: str):
+async def get_bulk_email_status(job_id: str) -> Any:
     """Get bulk email job status."""
     try:
         task_service = get_task_service()
@@ -346,7 +346,7 @@ async def get_bulk_email_status(job_id: str):
 
 
 @router.post("/bulk-email/cancel/{job_id}")
-async def cancel_bulk_email_job(job_id: str):
+async def cancel_bulk_email_job(job_id: str) -> Any:
     """Cancel a bulk email job."""
     try:
         task_service = get_task_service()
@@ -363,7 +363,7 @@ async def cancel_bulk_email_job(job_id: str):
 
 
 @router.get("/tasks/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(task_id: str) -> Any:
     """Get the status of a background task."""
     try:
         task_service = get_task_service()
@@ -383,7 +383,7 @@ async def get_task_status(task_id: str):
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> Any:
     """Health check endpoint."""
     try:
         # Test basic functionality
@@ -422,7 +422,7 @@ class QuickRenderRequest(BaseModel):
 
 
 @router.post("/quick-render")
-async def quick_render_endpoint(request: QuickRenderRequest):
+async def quick_render_endpoint(request: QuickRenderRequest) -> Any:
     """Quickly render templates from strings."""
     try:
         result = quick_render(

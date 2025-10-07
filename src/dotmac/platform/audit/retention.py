@@ -60,7 +60,7 @@ class AuditRetentionPolicy:
 class AuditRetentionService:
     """Service for managing audit log retention and archiving."""
 
-    def __init__(self, policy: AuditRetentionPolicy | None = None):
+    def __init__(self, policy: AuditRetentionPolicy | None = None) -> None:
         """Initialize retention service with policy."""
         self.policy = policy or AuditRetentionPolicy()
 
@@ -168,7 +168,7 @@ class AuditRetentionService:
     async def _archive_logs(
         self,
         session: AsyncSession,
-        query,
+        query: Any,
         severity: str,
         cutoff_date: datetime,
     ) -> int:
@@ -433,7 +433,7 @@ class AuditRetentionService:
 
 
 # Scheduled task for automatic cleanup
-async def cleanup_audit_logs_task():
+async def cleanup_audit_logs_task() -> Any:
     """
     Scheduled task to run audit log cleanup.
 

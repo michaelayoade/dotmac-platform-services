@@ -57,7 +57,7 @@ class BillingInvoiceRequest(BaseModel):
 class BillingIntegrationService:
     """Service for integrating billing system with invoices and payments."""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.catalog_service = ProductService(db_session)
         self.subscription_service = SubscriptionService(db_session)

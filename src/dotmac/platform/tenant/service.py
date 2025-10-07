@@ -56,7 +56,7 @@ class TenantLimitExceededError(Exception):
 class TenantService:
     """Service for managing tenants."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """Initialize tenant service."""
         self.db = db
 

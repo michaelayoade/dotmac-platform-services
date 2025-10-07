@@ -241,7 +241,7 @@ class XMLImporter(BaseImporter):
             self._progress.error_message = str(e)
             raise ImportError(f"Failed to import XML: {e}") from e
 
-    def _xml_to_dict(self, element):
+    def _xml_to_dict(self, element) -> Any:
         """Convert XML element to dictionary."""
         result = {}
 

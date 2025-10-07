@@ -4,6 +4,7 @@ Simple tests for API functionality to build coverage quickly.
 """
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -13,42 +14,74 @@ pytestmark = pytest.mark.asyncio
 
 
 class SimpleAPIKeyService:
-    """Simple API key service for testing"""
+    """
+    Simple API key service for testing that mirrors production security.
+
+    SECURITY: API keys are hashed using SHA-256 before storage, matching
+    the production implementation in src/dotmac/platform/auth/core.py.
+    """
 
     def __init__(self):
-        self.api_keys = {}
+        self.api_keys = {}  # Stores hashed keys: {hash: key_data}
         self.next_id = 1
 
+    def _hash_api_key(self, api_key: str) -> str:
+        """Hash API key using SHA-256 (mirrors production)."""
+        return hashlib.sha256(api_key.encode()).hexdigest()
+
     def generate_api_key(self, user_id: str, name: str) -> dict:
-        """Generate a new API key"""
+        """
+        Generate a new API key.
+
+        Returns the plaintext key to the caller (only time it's visible),
+        but stores only the hash internally.
+        """
         key_id = f"key_{self.next_id}"
         api_key = f"dotmac_test_{self.next_id:06d}"
         self.next_id += 1
 
+        # Hash the key before storage (SECURITY: never store plaintext)
+        api_key_hash = self._hash_api_key(api_key)
+
         key_data = {
             "id": key_id,
-            "api_key": api_key,
+            "api_key_hash": api_key_hash,  # Store hash, not plaintext
             "user_id": user_id,
             "name": name,
             "active": True,
             "created_at": datetime.now(UTC),
         }
 
-        self.api_keys[key_id] = key_data
-        return key_data
+        self.api_keys[api_key_hash] = key_data
+
+        # Return plaintext key to caller (only time they see it)
+        return {**key_data, "api_key": api_key}
 
     def validate_api_key(self, api_key: str) -> dict | None:
-        """Validate an API key"""
-        for key_data in self.api_keys.values():
-            if key_data["api_key"] == api_key and key_data["active"]:
-                return key_data
+        """
+        Validate an API key by hashing and lookup.
+
+        SECURITY: Mirrors production - hash the input and look up by hash.
+        """
+        api_key_hash = self._hash_api_key(api_key)
+        key_data = self.api_keys.get(api_key_hash)
+
+        if key_data and key_data["active"]:
+            return key_data
         return None
 
     def revoke_api_key(self, key_id: str) -> bool:
-        """Revoke an API key"""
-        if key_id in self.api_keys:
-            self.api_keys[key_id]["active"] = False
-            return True
+        """
+        Revoke an API key by key_id.
+
+        SECURITY: Deletion happens by hash, not plaintext.
+        """
+        # Find the key by key_id
+        for api_key_hash, key_data in self.api_keys.items():
+            if key_data["id"] == key_id:
+                # Delete the hashed key entry
+                del self.api_keys[api_key_hash]
+                return True
         return False
 
 
@@ -144,14 +177,19 @@ class TestBasicAPIEndpoints:
         """Test successful API key revocation"""
         # Generate API key
         key_data = api_key_service.generate_api_key("user123", "Test Key")
+        plaintext_key = key_data["api_key"]
+
+        # Verify key works before revocation
+        validated = api_key_service.validate_api_key(plaintext_key)
+        assert validated is not None
 
         # Revoke the key
         revoked = api_key_service.revoke_api_key(key_data["id"])
         assert revoked is True
 
-        # Verify key is inactive
-        key_record = api_key_service.api_keys[key_data["id"]]
-        assert key_record["active"] is False
+        # Verify key no longer validates (deleted from storage)
+        validated_after = api_key_service.validate_api_key(plaintext_key)
+        assert validated_after is None
 
     @pytest.mark.asyncio
     async def test_revoke_nonexistent_api_key(self, api_key_service):

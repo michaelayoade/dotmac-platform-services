@@ -502,7 +502,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         }
 
     @property
-    def tracer(self):
+    def tracer(self) -> Any:
         """Get the tracer for distributed tracing."""
         return self._tracer
 
@@ -561,7 +561,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 class SimpleAnalyticsCollector(BaseAnalyticsCollector):
     """Simple in-memory analytics collector for when OpenTelemetry is not available."""
 
-    def __init__(self, tenant_id: str, service_name: str):
+    def __init__(self, tenant_id: str, service_name: str) -> None:
         super().__init__(tenant_id, service_name)
         self.metrics_store: list[Metric] = []
         self._metrics_summary = {
@@ -628,7 +628,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
         await self.collect(metric)
 
     @property
-    def tracer(self):
+    def tracer(self) -> Any:
         """Return a dummy tracer for compatibility."""
         return DummyTracer()
 
@@ -656,7 +656,7 @@ class DummyTracer:
 class DummySpan:
     """Dummy span for when OpenTelemetry is not available."""
 
-    def __init__(self, name: str, attributes: dict[str, Any] | None = None):
+    def __init__(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         self.name = name
         self.attributes = attributes or {}
 
@@ -666,13 +666,13 @@ class DummySpan:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    def set_attribute(self, key: str, value: Any):
+    def set_attribute(self, key: str, value: Any) -> None:
         self.attributes[key] = value
 
-    def set_status(self, status: Any):
+    def set_status(self, status: Any) -> None:
         pass
 
-    def record_exception(self, exception: Exception):
+    def record_exception(self, exception: Exception) -> None:
         pass
 
 

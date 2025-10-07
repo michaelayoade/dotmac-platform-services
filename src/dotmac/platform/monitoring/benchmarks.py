@@ -58,7 +58,7 @@ class BenchmarkMetric:
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 
@@ -78,7 +78,7 @@ class BenchmarkResult:
     metadata: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.end_time and self.start_time:
             self.duration = self.end_time - self.start_time
 
@@ -89,7 +89,7 @@ class BenchmarkResult:
             return self.duration.total_seconds()
         return 0.0
 
-    def add_metric(self, name: str, value: int | float, unit: str, **kwargs):
+    def add_metric(self, name: str, value: int | float, unit: str, **kwargs: Any) -> None:
         """Add a metric to the results."""
         metric = BenchmarkMetric(name=name, value=value, unit=unit, **kwargs)
         self.metrics.append(metric)
@@ -128,7 +128,7 @@ class PerformanceBenchmark(ABC):
         pass
 
     @abstractmethod
-    async def teardown(self):
+    async def teardown(self) -> None:
         """Cleanup benchmark environment."""
         pass
 
@@ -217,7 +217,7 @@ class PerformanceBenchmark(ABC):
 
         return result
 
-    async def _process_results(self, result: BenchmarkResult, raw_results: dict[str, Any]):
+    async def _process_results(self, result: BenchmarkResult, raw_results: dict[str, Any]) -> None:
         """Process raw benchmark results into structured metrics."""
         # Default processing - can be overridden by subclasses
         for key, value in raw_results.items():
@@ -228,7 +228,7 @@ class PerformanceBenchmark(ABC):
 class CPUBenchmark(PerformanceBenchmark):
     """CPU performance benchmark."""
 
-    def __init__(self, duration_seconds: int = 10, threads: int = 1):
+    def __init__(self, duration_seconds: int = 10, threads: int = 1) -> None:
         super().__init__("CPU Benchmark", BenchmarkType.CPU)
         self.duration_seconds = duration_seconds
         self.threads = threads
@@ -264,7 +264,7 @@ class CPUBenchmark(PerformanceBenchmark):
             "threads_used": self.threads,
         }
 
-    async def teardown(self):
+    async def teardown(self) -> None:
         """Cleanup CPU benchmark."""
         self.logger.info("CPU benchmark teardown complete")
 
@@ -272,11 +272,11 @@ class CPUBenchmark(PerformanceBenchmark):
 class MemoryBenchmark(PerformanceBenchmark):
     """Memory allocation and access benchmark."""
 
-    def __init__(self, allocation_mb: int = 100, iterations: int = 1000):
+    def __init__(self, allocation_mb: int = 100, iterations: int = 1000) -> None:
         super().__init__("Memory Benchmark", BenchmarkType.MEMORY)
         self.allocation_mb = allocation_mb
         self.iterations = iterations
-        self.allocated_data = []
+        self.allocated_data: list[bytearray] = []
 
     async def setup(self) -> bool:
         """Setup memory benchmark."""
@@ -321,7 +321,7 @@ class MemoryBenchmark(PerformanceBenchmark):
             "access_rate_mb_per_second": (total_bytes_accessed / 1024 / 1024) / access_time,
         }
 
-    async def teardown(self):
+    async def teardown(self) -> None:
         """Cleanup memory benchmark."""
         self.allocated_data.clear()
         self.logger.info("Memory benchmark teardown complete")
@@ -330,7 +330,7 @@ class MemoryBenchmark(PerformanceBenchmark):
 class NetworkBenchmark(PerformanceBenchmark):
     """Network latency and throughput benchmark."""
 
-    def __init__(self, target_host: str = "8.8.8.8", port: int = 53, iterations: int = 10):
+    def __init__(self, target_host: str = "8.8.8.8", port: int = 53, iterations: int = 10) -> None:
         super().__init__("Network Benchmark", BenchmarkType.NETWORK)
         self.target_host = target_host
         self.port = port
@@ -387,7 +387,7 @@ class NetworkBenchmark(PerformanceBenchmark):
             "median_latency_ms": median_latency,
         }
 
-    async def teardown(self):
+    async def teardown(self) -> None:
         """Cleanup network benchmark."""
         self.logger.info("Network benchmark teardown complete")
 
@@ -407,13 +407,13 @@ class BenchmarkSuiteConfig:
 class BenchmarkSuite:
     """Collection of benchmarks that can be run together."""
 
-    def __init__(self, config: BenchmarkSuiteConfig):
+    def __init__(self, config: BenchmarkSuiteConfig) -> None:
         self.config = config
         self.benchmarks: list[PerformanceBenchmark] = []
         self.results: list[BenchmarkResult] = []
         self.logger = logger.bind(suite=config.name)
 
-    def add_benchmark(self, benchmark: PerformanceBenchmark):
+    def add_benchmark(self, benchmark: PerformanceBenchmark) -> None:
         """Add a benchmark to the suite."""
         self.benchmarks.append(benchmark)
         self.logger.info("Benchmark added to suite", benchmark=benchmark.name)
@@ -500,7 +500,7 @@ class BenchmarkSuite:
     async def _run_parallel(self) -> list[BenchmarkResult]:
         """Run benchmarks in parallel."""
 
-        async def run_with_timeout(benchmark):
+        async def run_with_timeout(benchmark: PerformanceBenchmark) -> BenchmarkResult:
             try:
                 result = await asyncio.wait_for(
                     benchmark.run(), timeout=self.config.timeout_seconds
@@ -521,12 +521,14 @@ class BenchmarkSuite:
                 )
 
         tasks = [run_with_timeout(benchmark) for benchmark in self.benchmarks]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[BenchmarkResult | BaseException] = await asyncio.gather(
+            *tasks, return_exceptions=True
+        )
 
         # Handle exceptions
-        final_results = []
+        final_results: list[BenchmarkResult] = []
         for i, result in enumerate(results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 error_result = BenchmarkResult(
                     id=str(uuid4()),
                     name=self.benchmarks[i].name,
@@ -576,7 +578,7 @@ class BenchmarkSuite:
 class BenchmarkManager:
     """Central manager for coordinating benchmark execution and results."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_benchmarks: dict[str, asyncio.Task] = {}
         self.benchmark_history: list[BenchmarkResult] = []
         self.suites: dict[str, BenchmarkSuite] = {}
@@ -618,7 +620,7 @@ class BenchmarkManager:
             # Cleanup
             self.active_benchmarks.pop(task_id, None)
 
-    def register_suite(self, suite: BenchmarkSuite):
+    def register_suite(self, suite: BenchmarkSuite) -> None:
         """Register a benchmark suite."""
         self.suites[suite.config.name] = suite
         self.logger.info("Benchmark suite registered", suite=suite.config.name)
@@ -647,7 +649,7 @@ class BenchmarkManager:
             # Some tests may inject a non-awaitable mock; only await real awaitables
             if isinstance(task, asyncio.Task) or hasattr(task, "__await__"):
                 try:
-                    await task  # type: ignore[func-returns-value]
+                    await task
                 except asyncio.CancelledError:
                     pass
 
@@ -681,7 +683,7 @@ class BenchmarkManager:
 
         return history
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear benchmark execution history."""
         self.benchmark_history.clear()
         self.logger.info("Benchmark history cleared")

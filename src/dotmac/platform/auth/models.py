@@ -147,7 +147,7 @@ class Permission(Base):
         return f"<Permission(name='{self.name}', category='{self.category}')>"
 
 
-def _users_table():
+def _users_table() -> Any:
     """Return the users table without creating import cycles."""
     from dotmac.platform.user_management.models import (  # local import to avoid circular dependency
         User,
@@ -213,7 +213,7 @@ class Role(Base):
     )
     children = relationship("Role", backref="parent", remote_side=[id])
 
-    def get_all_permissions(self, db_session) -> list[Permission]:
+    def get_all_permissions(self, db_session: Any) -> list[Permission]:
         """Get all permissions including inherited from parent roles"""
         permissions = set(self.permissions)
 

@@ -3,6 +3,7 @@ Bank account and manual payment API endpoints
 """
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from dotmac.platform.billing.bank_accounts.models import (
     CashPaymentCreate,
     CashRegisterCreate,
     CashRegisterReconciliationCreate,
+    CashRegisterReconciliationResponse,
     CashRegisterResponse,
     CheckPaymentCreate,
     CompanyBankAccountCreate,
@@ -48,7 +50,7 @@ async def create_bank_account(
     account_data: CompanyBankAccountCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CompanyBankAccountResponse:
     """Create a new company bank account"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -72,7 +74,7 @@ async def list_bank_accounts(
     include_inactive: bool = Query(False, description="Include inactive accounts"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[CompanyBankAccountResponse]:
     """List all company bank accounts"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -94,7 +96,7 @@ async def get_bank_account(
     account_id: int,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CompanyBankAccountResponse:
     """Get a specific bank account"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -113,7 +115,7 @@ async def get_bank_account_summary(
     account_id: int,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BankAccountSummary:
     """Get bank account with summary statistics"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -135,7 +137,7 @@ async def update_bank_account(
     update_data: CompanyBankAccountUpdate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CompanyBankAccountResponse:
     """Update a bank account"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -160,7 +162,7 @@ async def verify_bank_account(
     notes: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CompanyBankAccountResponse:
     """Verify a bank account"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -184,7 +186,7 @@ async def deactivate_bank_account(
     account_id: int,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CompanyBankAccountResponse:
     """Deactivate a bank account"""
     service = BankAccountService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -213,7 +215,7 @@ async def record_cash_payment(
     payment_data: CashPaymentCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ManualPaymentResponse:
     """Record a cash payment"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -237,7 +239,7 @@ async def record_check_payment(
     payment_data: CheckPaymentCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ManualPaymentResponse:
     """Record a check payment"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -261,7 +263,7 @@ async def record_bank_transfer(
     payment_data: BankTransferCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ManualPaymentResponse:
     """Record a bank transfer"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -285,7 +287,7 @@ async def record_mobile_money(
     payment_data: MobileMoneyCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ManualPaymentResponse:
     """Record a mobile money payment"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -311,7 +313,7 @@ async def search_manual_payments(
     offset: int = Query(0, ge=0),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[ManualPaymentResponse]:
     """Search manual payments with filters"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -334,7 +336,7 @@ async def verify_payment(
     notes: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ManualPaymentResponse:
     """Verify a manual payment"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -357,7 +359,7 @@ async def reconcile_payments(
     request: ReconcilePaymentRequest,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[ManualPaymentResponse]:
     """Reconcile multiple payments"""
     service = ManualPaymentService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -384,7 +386,7 @@ async def upload_payment_attachment(
     file: UploadFile = File(...),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Upload an attachment for a payment (receipt, check image, etc.)"""
     tenant_id = current_user.tenant_id or "default"
     user_id = current_user.user_id
@@ -407,44 +409,51 @@ async def upload_payment_attachment(
         # Create unique filename
         import uuid
 
-        file_extension = file.filename.split(".")[-1] if "." in file.filename else "pdf"
+        # Handle optional filename with None check
+        filename = file.filename if file.filename is not None else "unknown.pdf"
+        file_extension = filename.split(".")[-1] if "." in filename else "pdf"
         unique_filename = f"payment_{payment_id}_{uuid.uuid4()}.{file_extension}"
 
         # Store file with metadata
-        file_metadata = await storage_service.store_file(
+        file_metadata_result = await storage_service.store_file(
             file_data=content,
             file_name=unique_filename,
             content_type=file.content_type or "application/octet-stream",
             tenant_id=tenant_id,
             metadata={
                 "payment_id": payment_id,
-                "original_filename": file.filename,
+                "original_filename": filename,
                 "uploaded_by": user_id,
                 "payment_reference": payment.payment_reference,
                 "payment_method": payment.payment_method,
             },
         )
 
-        # Update payment with attachment URL
-        attachment_url = (
-            f"/api/v1/billing/payments/{payment_id}/attachments/{file_metadata.file_id}"
+        # Extract file_id and file_size from result
+        file_id = (
+            file_metadata_result.file_id
+            if hasattr(file_metadata_result, "file_id")
+            else str(file_metadata_result)
         )
+        file_size = (
+            file_metadata_result.file_size if hasattr(file_metadata_result, "file_size") else 0
+        )
+
+        # Update payment with attachment URL
+        attachment_url = f"/api/v1/billing/payments/{payment_id}/attachments/{file_id}"
         await service.add_attachment(tenant_id, payment_id, attachment_url)
 
         logger.info(
-            "Payment attachment uploaded",
-            payment_id=payment_id,
-            file_id=file_metadata.file_id,
-            tenant_id=tenant_id,
+            f"Payment attachment uploaded: payment_id={payment_id}, file_id={file_id}, tenant_id={tenant_id}"
         )
 
         return {
             "message": "Attachment uploaded successfully",
             "payment_id": payment_id,
-            "file_id": file_metadata.file_id,
-            "filename": file.filename,
+            "file_id": file_id,
+            "filename": filename,
             "url": attachment_url,
-            "size": file_metadata.file_size,
+            "size": file_size,
         }
 
     except HTTPException:
@@ -466,7 +475,7 @@ async def create_cash_register(
     register_data: CashRegisterCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CashRegisterResponse:
     """Create a new cash register/point"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -490,7 +499,7 @@ async def list_cash_registers(
     include_inactive: bool = Query(False, description="Include inactive registers"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[CashRegisterResponse]:
     """List all cash registers"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -513,7 +522,7 @@ async def get_cash_register(
     register_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CashRegisterResponse:
     """Get a specific cash register"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -533,7 +542,7 @@ async def reconcile_cash_register(
     data: CashRegisterReconciliationCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CashRegisterReconciliationResponse:
     """Reconcile a cash register"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -559,7 +568,7 @@ async def update_cash_float(
     reason: str = Query(..., description="Reason for float change"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CashRegisterResponse:
     """Update cash register float"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -586,7 +595,7 @@ async def deactivate_cash_register(
     register_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> CashRegisterResponse:
     """Deactivate a cash register"""
     service = CashRegisterService(db)
     tenant_id = current_user.tenant_id or "default"

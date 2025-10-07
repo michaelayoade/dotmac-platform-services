@@ -49,7 +49,7 @@ def validate_uuid(value: str | UUID, field_name: str = "id") -> UUID:
 class PartnerService:
     """Core partner management service."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     def _resolve_tenant_id(self) -> str:

@@ -114,7 +114,7 @@ async def release_lock(key: str, lock_value: str) -> bool:
 class DistributedLock:
     """Simple distributed lock class for those who prefer OOP interface."""
 
-    def __init__(self, key: str, timeout: int = 30):
+    def __init__(self, key: str, timeout: int = 30) -> None:
         self.key = key
         self.timeout = timeout
         self.lock_value: str | None = None

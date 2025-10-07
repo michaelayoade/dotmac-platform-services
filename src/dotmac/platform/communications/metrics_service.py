@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 class CommunicationMetricsService:
     """Service for tracking and retrieving communication metrics."""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         """Initialize the metrics service.
 
         Args:

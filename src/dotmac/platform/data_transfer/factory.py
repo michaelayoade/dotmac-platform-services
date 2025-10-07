@@ -1,4 +1,5 @@
 """
+from typing import Any
 Data transfer factory with feature flag integration.
 
 This module provides factories for creating data importers and exporters
@@ -23,12 +24,12 @@ from .core import (
 class DataTransferRegistry:
     """Registry for data transfer implementations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._importers: dict[DataFormat, type[BaseImporter]] = {}
         self._exporters: dict[DataFormat, type[BaseExporter]] = {}
         self._register_core_formats()
 
-    def _register_core_formats(self):
+    def _register_core_formats(self) -> None:
         """Register core data formats that are always available."""
         # Core formats using standard library and pandas
         from .exporters import CSVExporter, JSONExporter, XMLExporter, YAMLExporter
@@ -55,11 +56,11 @@ class DataTransferRegistry:
             }
         )
 
-    def register_importer(self, format: DataFormat, importer_class: type[BaseImporter]):
+    def register_importer(self, format: DataFormat, importer_class: type[BaseImporter]) -> None:
         """Register an importer for a format."""
         self._importers[format] = importer_class
 
-    def register_exporter(self, format: DataFormat, exporter_class: type[BaseExporter]):
+    def register_exporter(self, format: DataFormat, exporter_class: type[BaseExporter]) -> None:
         """Register an exporter for a format."""
         self._exporters[format] = exporter_class
 
@@ -121,7 +122,7 @@ _registry = DataTransferRegistry()
 
 
 # Conditional format registration based on feature flags
-def _register_optional_formats():
+def _register_optional_formats() -> None:
     """Register optional data formats if they're enabled and dependencies are available."""
 
     # Excel Support
@@ -314,12 +315,12 @@ class DataTransferFactory:
 
 
 # Convenience functions
-def create_importer(format: DataFormat | str, **kwargs) -> BaseImporter:
+def create_importer(format: DataFormat | str, **kwargs: Any) -> BaseImporter:
     """Create a data importer. Convenience function."""
     return DataTransferFactory.create_importer(format, **kwargs)
 
 
-def create_exporter(format: DataFormat | str, **kwargs) -> BaseExporter:
+def create_exporter(format: DataFormat | str, **kwargs: Any) -> BaseExporter:
     """Create a data exporter. Convenience function."""
     return DataTransferFactory.create_exporter(format, **kwargs)
 
@@ -330,22 +331,22 @@ def detect_format(file_path: str | Path) -> DataFormat:
 
 
 @require_dependency("data_transfer_excel")
-def create_excel_importer(**kwargs) -> BaseImporter:
+def create_excel_importer(**kwargs: Any) -> BaseImporter:
     """Create an Excel importer (requires Excel support to be enabled)."""
     return DataTransferFactory.create_importer(DataFormat.EXCEL, **kwargs)
 
 
 @require_dependency("data_transfer_excel")
-def create_excel_exporter(**kwargs) -> BaseExporter:
+def create_excel_exporter(**kwargs: Any) -> BaseExporter:
     """Create an Excel exporter (requires Excel support to be enabled)."""
     return DataTransferFactory.create_exporter(DataFormat.EXCEL, **kwargs)
 
 
-def create_csv_importer(**kwargs) -> BaseImporter:
+def create_csv_importer(**kwargs: Any) -> BaseImporter:
     """Create a CSV importer (always available)."""
     return DataTransferFactory.create_importer(DataFormat.CSV, **kwargs)
 
 
-def create_csv_exporter(**kwargs) -> BaseExporter:
+def create_csv_exporter(**kwargs: Any) -> BaseExporter:
     """Create a CSV exporter (always available)."""
     return DataTransferFactory.create_exporter(DataFormat.CSV, **kwargs)

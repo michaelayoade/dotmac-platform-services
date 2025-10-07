@@ -758,9 +758,7 @@ class TestTenantSettings:
         )
 
         # Get specific setting
-        resp = await test_client_with_auth.get(
-            f"/api/v1/tenants/{tenant['id']}/settings/api_key"
-        )
+        resp = await test_client_with_auth.get(f"/api/v1/tenants/{tenant['id']}/settings/api_key")
         assert resp.status_code == 200
         data = resp.json()
         assert data["key"] == "api_key"
@@ -785,9 +783,7 @@ class TestTenantSettings:
         )
 
         # Delete setting
-        resp = await test_client_with_auth.delete(
-            f"/api/v1/tenants/{tenant['id']}/settings/temp"
-        )
+        resp = await test_client_with_auth.delete(f"/api/v1/tenants/{tenant['id']}/settings/temp")
         assert resp.status_code == 204
 
 
@@ -1008,8 +1004,7 @@ class TestResponsePropertiesCoverage:
 
         # Update to execute lines 198-208
         update_resp = await test_client_with_auth.patch(
-            f"/api/v1/tenants/{tenant['id']}",
-            json={"name": "Updated Props Tenant"}
+            f"/api/v1/tenants/{tenant['id']}", json={"name": "Updated Props Tenant"}
         )
         assert update_resp.status_code == 200
         update_data = update_resp.json()
@@ -1053,8 +1048,7 @@ class TestResponsePropertiesCoverage:
         tenant = await create_test_tenant(test_client_with_auth, "updateprop")
 
         response = await test_client_with_auth.patch(
-            f"/api/v1/tenants/{tenant['id']}",
-            json={"max_users": 50}
+            f"/api/v1/tenants/{tenant['id']}", json={"max_users": 50}
         )
         assert response.status_code == 200
         data = response.json()
@@ -1079,8 +1073,7 @@ class TestErrorScenarios:
     async def test_update_nonexistent_tenant_404(self, test_client_with_auth: AsyncClient):
         """Test updating non-existent tenant."""
         response = await test_client_with_auth.patch(
-            "/api/v1/tenants/00000000-0000-0000-0000-000000000000",
-            json={"name": "Updated"}
+            "/api/v1/tenants/00000000-0000-0000-0000-000000000000", json={"name": "Updated"}
         )
         assert response.status_code == 404
 
@@ -1095,7 +1088,7 @@ class TestSettingsCoverage:
         # Create setting
         create_resp = await test_client_with_auth.post(
             f"/api/v1/tenants/{tenant['id']}/settings",
-            json={"key": "api_key", "value": "secret123"}
+            json={"key": "api_key", "value": "secret123"},
         )
         assert create_resp.status_code == 200
 
@@ -1119,19 +1112,14 @@ class TestInvitationsCoverage:
         # Create invitation
         invite_resp = await test_client_with_auth.post(
             f"/api/v1/tenants/{tenant['id']}/invitations",
-            json={
-                "email": "invitee@example.com",
-                "role": "member"
-            }
+            json={"email": "invitee@example.com", "role": "member"},
         )
         assert invite_resp.status_code == 201
         invite_data = invite_resp.json()
         assert invite_data["email"] == "invitee@example.com"
 
         # List invitations
-        list_resp = await test_client_with_auth.get(
-            f"/api/v1/tenants/{tenant['id']}/invitations"
-        )
+        list_resp = await test_client_with_auth.get(f"/api/v1/tenants/{tenant['id']}/invitations")
         assert list_resp.status_code == 200
         invitations = list_resp.json()
         assert isinstance(invitations, list)

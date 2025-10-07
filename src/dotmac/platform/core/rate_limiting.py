@@ -64,7 +64,7 @@ class _LimiterProxy:
 limiter = _LimiterProxy()
 
 
-def rate_limit(limit: str):
+def rate_limit(limit: str) -> Any:
     """
     Rate limiting decorator using SlowAPI.
 
@@ -77,7 +77,7 @@ def rate_limit(limit: str):
             return {"message": "success"}
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable) -> Any:
         return get_limiter().limit(limit)(func)
 
     return decorator

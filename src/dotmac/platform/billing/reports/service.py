@@ -52,7 +52,7 @@ class ReportPeriod(Enum):
 class BillingReportService:
     """Main service for generating billing reports"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.revenue_generator = RevenueReportGenerator(db_session)
         self.customer_generator = CustomerReportGenerator(db_session)

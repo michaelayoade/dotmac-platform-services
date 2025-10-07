@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 class UserService:
     """Production user service with database operations."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         """Initialize with database session."""
         self.session = session
         # Configure password hashing

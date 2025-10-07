@@ -39,7 +39,7 @@ class CachedPricingEngine(PricingEngine):
     - Batch operations optimization
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.cache: BillingCache = get_billing_cache()
         self.config = BillingCacheConfig()
@@ -407,7 +407,7 @@ class CachedPricingEngine(PricingEngine):
             },
         )
 
-    async def warm_pricing_cache(self, tenant_id: str):
+    async def warm_pricing_cache(self, tenant_id: str) -> Any:
         """
         Pre-load frequently used pricing rules into cache.
         """

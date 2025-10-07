@@ -111,7 +111,9 @@ async def test_client_with_auth(test_app, async_db_session, mock_usage_billing_i
 
     test_app.dependency_overrides[get_current_user] = mock_get_current_user
     test_app.dependency_overrides[get_async_db] = override_get_async_db
-    test_app.dependency_overrides[get_usage_billing_integration] = override_get_usage_billing_integration
+    test_app.dependency_overrides[get_usage_billing_integration] = (
+        override_get_usage_billing_integration
+    )
 
     transport = ASGITransport(app=test_app)
     default_headers = {"X-Tenant-ID": "test-tenant"}
@@ -153,9 +155,7 @@ async def create_test_tenant(client: AsyncClient, suffix: str = "") -> dict:
 class TestUsageBillingRecordEndpoint:
     """Test POST /api/v1/tenants/{id}/usage/record-with-billing endpoint."""
 
-    async def test_record_usage_with_billing_success(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_record_usage_with_billing_success(self, test_client_with_auth: AsyncClient):
         """Test successful usage recording with billing integration."""
         # Create a tenant
         tenant = await create_test_tenant(test_client_with_auth, "record-usage")
@@ -177,9 +177,7 @@ class TestUsageBillingRecordEndpoint:
         assert "billing_records" in data or "status" in data
         assert data["status"] == "success"
 
-    async def test_record_usage_with_subscription_id(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_record_usage_with_subscription_id(self, test_client_with_auth: AsyncClient):
         """Test recording usage with explicit subscription ID."""
         tenant = await create_test_tenant(test_client_with_auth, "record-sub-id")
 
@@ -227,9 +225,7 @@ class TestUsageBillingRecordEndpoint:
 class TestUsageBillingSyncEndpoint:
     """Test POST /api/v1/tenants/{id}/usage/sync-billing endpoint."""
 
-    async def test_sync_usage_to_billing_success(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_sync_usage_to_billing_success(self, test_client_with_auth: AsyncClient):
         """Test successful sync of tenant usage to billing."""
         tenant = await create_test_tenant(test_client_with_auth, "sync-usage")
 
@@ -242,9 +238,7 @@ class TestUsageBillingSyncEndpoint:
         assert "synced_metrics" in data or "status" in data
         assert data["status"] == "success"
 
-    async def test_sync_usage_with_subscription_id(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_sync_usage_with_subscription_id(self, test_client_with_auth: AsyncClient):
         """Test sync with explicit subscription ID."""
         tenant = await create_test_tenant(test_client_with_auth, "sync-sub")
 
@@ -262,9 +256,7 @@ class TestUsageOveragesEndpoint:
         """Test getting overages without specifying period (current period)."""
         tenant = await create_test_tenant(test_client_with_auth, "overages-basic")
 
-        response = await test_client_with_auth.get(
-            f"/api/v1/tenants/{tenant['id']}/usage/overages"
-        )
+        response = await test_client_with_auth.get(f"/api/v1/tenants/{tenant['id']}/usage/overages")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -280,6 +272,7 @@ class TestUsageOveragesEndpoint:
 
         # URL encode the datetime parameters properly
         from urllib.parse import quote
+
         response = await test_client_with_auth.get(
             f"/api/v1/tenants/{tenant['id']}/usage/overages"
             f"?period_start={quote(period_start.isoformat())}"
@@ -294,9 +287,7 @@ class TestUsageOveragesEndpoint:
         """Test getting overages when tenant is within limits."""
         tenant = await create_test_tenant(test_client_with_auth, "no-overages")
 
-        response = await test_client_with_auth.get(
-            f"/api/v1/tenants/{tenant['id']}/usage/overages"
-        )
+        response = await test_client_with_auth.get(f"/api/v1/tenants/{tenant['id']}/usage/overages")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -306,9 +297,7 @@ class TestUsageOveragesEndpoint:
 class TestBillingPreviewEndpoint:
     """Test GET /api/v1/tenants/{id}/billing/preview endpoint."""
 
-    async def test_billing_preview_with_overages(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_preview_with_overages(self, test_client_with_auth: AsyncClient):
         """Test billing preview including overage calculations."""
         tenant = await create_test_tenant(test_client_with_auth, "preview-overages")
 
@@ -321,9 +310,7 @@ class TestBillingPreviewEndpoint:
         assert "base_cost" in data or "total_estimated" in data or "usage_breakdown" in data
         assert data.get("total_estimated") == 99.00
 
-    async def test_billing_preview_without_overages(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_preview_without_overages(self, test_client_with_auth: AsyncClient):
         """Test billing preview excluding overage calculations."""
         tenant = await create_test_tenant(test_client_with_auth, "preview-no-over")
 
@@ -353,9 +340,7 @@ class TestBillingPreviewEndpoint:
 class TestUsageBillingStatusEndpoint:
     """Test GET /api/v1/tenants/{id}/usage/billing-status endpoint."""
 
-    async def test_billing_status_within_limits(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_status_within_limits(self, test_client_with_auth: AsyncClient):
         """Test billing status when tenant is within all limits."""
         tenant = await create_test_tenant(test_client_with_auth, "status-within")
 
@@ -415,9 +400,7 @@ class TestUsageBillingStatusEndpoint:
             assert "message" in rec
             assert "severity" in rec
 
-    async def test_billing_status_usage_percentages(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_status_usage_percentages(self, test_client_with_auth: AsyncClient):
         """Test billing status calculates correct usage percentages."""
         tenant = await create_test_tenant(test_client_with_auth, "percentages")
 
@@ -439,9 +422,7 @@ class TestUsageBillingStatusEndpoint:
         assert "storage_gb" in usage
         assert "users" in usage
 
-    async def test_billing_status_tenant_not_found(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_status_tenant_not_found(self, test_client_with_auth: AsyncClient):
         """Test billing status returns 404 for non-existent tenant."""
         response = await test_client_with_auth.get(
             "/api/v1/tenants/nonexistent-tenant-id/usage/billing-status"
@@ -458,9 +439,7 @@ class TestRecommendationLogic:
     with mock-based approaches for more granular control.
     """
 
-    async def test_billing_status_endpoint_accessible(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_billing_status_endpoint_accessible(self, test_client_with_auth: AsyncClient):
         """Test that billing status endpoint is accessible and returns expected structure."""
         tenant = await create_test_tenant(test_client_with_auth, "status-test")
 
@@ -495,9 +474,7 @@ class TestRecommendationLogic:
 class TestUsageBillingIntegration:
     """Integration tests for complete usage billing workflows."""
 
-    async def test_end_to_end_usage_recording_and_preview(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_end_to_end_usage_recording_and_preview(self, test_client_with_auth: AsyncClient):
         """Test complete workflow: record usage -> sync -> check preview."""
         tenant = await create_test_tenant(test_client_with_auth, "e2e-workflow")
 
@@ -514,11 +491,12 @@ class TestUsageBillingIntegration:
             },
         )
         # May succeed or fail depending on billing setup
-        assert record_response.status_code in [status.HTTP_201_CREATED, status.HTTP_500_INTERNAL_SERVER_ERROR]
+        assert record_response.status_code in [
+            status.HTTP_201_CREATED,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        ]
 
-    async def test_check_status_after_overage(
-        self, test_client_with_auth: AsyncClient
-    ):
+    async def test_check_status_after_overage(self, test_client_with_auth: AsyncClient):
         """Test checking billing status endpoint."""
         tenant = await create_test_tenant(test_client_with_auth, "overage-status")
 
@@ -527,5 +505,3 @@ class TestUsageBillingIntegration:
             f"/api/v1/tenants/{tenant['id']}/usage/billing-status"
         )
         assert status_response.status_code == status.HTTP_200_OK
-
-

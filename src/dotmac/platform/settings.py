@@ -74,8 +74,7 @@ class Settings(BaseSettings):
     # Production MUST set TRUSTED_HOSTS explicitly or startup will fail
     # Development: empty list means "trust all" for convenience
     trusted_hosts: list[str] = Field(
-        default_factory=list,
-        description="Trusted hosts (required in production, empty=all in dev)"
+        default_factory=list, description="Trusted hosts (required in production, empty=all in dev)"
     )
 
     # ============================================================
@@ -201,8 +200,6 @@ class Settings(BaseSettings):
                     "Wildcard '*' or empty list is not allowed. "
                     "Set specific hostnames (e.g., TRUSTED_HOSTS=api.example.com,www.example.com)"
                 )
-
-
 
     # ============================================================
     # CORS Configuration

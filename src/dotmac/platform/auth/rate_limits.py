@@ -5,6 +5,8 @@ This module defines rate limits for auth endpoints to prevent abuse.
 The limits are applied in production but gracefully skipped in tests.
 """
 
+from typing import Any
+
 # Rate limits for auth endpoints
 # These are applied in production via the app configuration
 
@@ -16,7 +18,7 @@ AUTH_RATE_LIMITS = {
 }
 
 
-def apply_auth_rate_limits(app):
+def apply_auth_rate_limits(app: Any) -> None:
     """Apply rate limits to auth endpoints.
 
     This is called during app initialization to apply rate limits

@@ -80,7 +80,7 @@ function UsersPageContent() {
   useEffect(() => {
     if (toast.show) {
       const timer = setTimeout(() => {
-        setToast({ ...toast, show: false });
+        setToast(t => ({ ...t, show: false }));
       }, 3000);
       return () => clearTimeout(timer);
     }

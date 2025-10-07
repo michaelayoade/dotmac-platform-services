@@ -59,7 +59,7 @@ logger = structlog.get_logger(__name__)
 class CustomerService:
     """Core customer management service using standard library patterns."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         self.session = session
         # Initialize collections for efficient analytics
         self._customer_stats_cache = collections.defaultdict(int)
@@ -746,7 +746,7 @@ class CustomerService:
             batched = itertools.batched
         except AttributeError:
             # Fallback for Python < 3.12
-            def batched(iterable, n):
+            def batched(iterable, n) -> Any:
                 iterator = iter(iterable)
                 while batch := list(itertools.islice(iterator, n)):
                     yield batch

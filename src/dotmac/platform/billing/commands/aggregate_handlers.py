@@ -42,7 +42,7 @@ class AggregateInvoiceCommandHandler:
     3. Save aggregate back to repository (persists + publishes events)
     """
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.invoice_repo = SQLAlchemyInvoiceRepository(db_session)
         self.event_bus = get_event_bus()
@@ -321,7 +321,7 @@ class AggregatePaymentCommandHandler:
     Demonstrates DDD pattern for payment processing.
     """
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.payment_repo = SQLAlchemyPaymentRepository(db_session)
         self.event_bus = get_event_bus()

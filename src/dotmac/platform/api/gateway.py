@@ -133,7 +133,7 @@ class APIGateway:
     - Aggregation of multiple service calls
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize API Gateway."""
         self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self._cache: dict[str, tuple[Any, float]] = {}
@@ -157,8 +157,8 @@ class APIGateway:
         self,
         service_name: str,
         handler: Any,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> GatewayResponse:
         """
         Route request through circuit breaker.

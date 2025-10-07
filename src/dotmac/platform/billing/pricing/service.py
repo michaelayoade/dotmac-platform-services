@@ -50,7 +50,7 @@ def generate_usage_id() -> str:
 class PricingEngine:
     """Simple pricing engine with rule-based discounts."""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.product_service = ProductService(db_session)
 
@@ -227,7 +227,7 @@ class PricingEngine:
         if not db_rule:
             raise PricingError(f"Pricing rule {rule_id} not found")
 
-        db_rule.is_active = False
+        setattr(db_rule, "is_active", False)
 
         await self.db.commit()
         await self.db.refresh(db_rule)
@@ -482,7 +482,7 @@ class PricingEngine:
 
     async def _record_rule_usage(
         self, rule: PricingRule, context: PriceCalculationContext, tenant_id: str
-    ):
+    ) -> None:
         """Record that a rule was used."""
 
         # Create usage record
@@ -507,31 +507,73 @@ class PricingEngine:
         db_rule = result.scalar_one_or_none()
 
         if db_rule:
-            db_rule.current_uses += 1
+            current_uses = int(getattr(db_rule, 'current_uses', 0))
+            setattr(db_rule, 'current_uses', current_uses + 1)
 
         await self.db.commit()
 
     def _db_to_pydantic_rule(self, db_rule: BillingPricingRuleTable) -> PricingRule:
         """Convert database rule to Pydantic model."""
+        # Extract values from SQLAlchemy columns
+        rule_id: str = str(db_rule.rule_id)
+        tenant_id: str = str(db_rule.tenant_id)
+        name: str = str(db_rule.name)
+        description_raw = getattr(db_rule, 'description', None)
+        description: str | None = str(description_raw) if description_raw else None
+        applies_to_all: bool = bool(db_rule.applies_to_all)
+        is_active: bool = bool(db_rule.is_active)
+
+        # Handle list fields
+        applies_to_product_ids_raw = getattr(db_rule, 'applies_to_product_ids', None)
+        applies_to_product_ids: list[str] = applies_to_product_ids_raw if applies_to_product_ids_raw else []
+
+        applies_to_categories_raw = getattr(db_rule, 'applies_to_categories', None)
+        applies_to_categories: list[str] = applies_to_categories_raw if applies_to_categories_raw else []
+
+        customer_segments_raw = getattr(db_rule, 'customer_segments', None)
+        customer_segments: list[str] = customer_segments_raw if customer_segments_raw else []
+
+        # Handle numeric fields
+        min_quantity_raw = getattr(db_rule, 'min_quantity', None)
+        min_quantity: int | None = int(min_quantity_raw) if min_quantity_raw is not None else None
+
+        discount_value: Decimal = Decimal(str(db_rule.discount_value))
+        discount_type_value: str = str(db_rule.discount_type)
+
+        max_uses_raw = getattr(db_rule, 'max_uses', None)
+        max_uses: int | None = int(max_uses_raw) if max_uses_raw is not None else None
+
+        current_uses: int = int(getattr(db_rule, 'current_uses', 0))
+
+        # Handle datetime fields
+        starts_at: datetime | None = getattr(db_rule, 'starts_at', None)
+        ends_at: datetime | None = getattr(db_rule, 'ends_at', None)
+        created_at: datetime = getattr(db_rule, 'created_at', datetime.now(UTC))
+        updated_at: datetime = getattr(db_rule, 'updated_at', datetime.now(UTC))
+
+        # Handle metadata
+        metadata: dict[str, Any] = getattr(db_rule, 'metadata_json', None) or {}
+
         return PricingRule(
-            rule_id=db_rule.rule_id,
-            tenant_id=db_rule.tenant_id,
-            name=db_rule.name,
-            applies_to_product_ids=db_rule.applies_to_product_ids or [],
-            applies_to_categories=db_rule.applies_to_categories or [],
-            applies_to_all=db_rule.applies_to_all,
-            min_quantity=db_rule.min_quantity,
-            customer_segments=db_rule.customer_segments or [],
-            discount_type=DiscountType(db_rule.discount_type),
-            discount_value=db_rule.discount_value,
-            starts_at=db_rule.starts_at,
-            ends_at=db_rule.ends_at,
-            max_uses=db_rule.max_uses,
-            current_uses=db_rule.current_uses,
-            is_active=db_rule.is_active,
-            metadata=db_rule.metadata_json or {},
-            created_at=db_rule.created_at,
-            updated_at=db_rule.updated_at,
+            rule_id=rule_id,
+            tenant_id=tenant_id,
+            name=name,
+            description=description,
+            applies_to_product_ids=applies_to_product_ids,
+            applies_to_categories=applies_to_categories,
+            applies_to_all=applies_to_all,
+            min_quantity=min_quantity,
+            customer_segments=customer_segments,
+            discount_type=DiscountType(discount_type_value),
+            discount_value=discount_value,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            max_uses=max_uses,
+            current_uses=current_uses,
+            is_active=is_active,
+            metadata=metadata,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
     async def get_applicable_rules(
@@ -540,7 +582,7 @@ class PricingEngine:
         """Get rules that would apply for given request (for testing/preview)."""
         from dotmac.platform.billing.catalog.service import ProductCatalogService
 
-        catalog_service = ProductCatalogService()
+        catalog_service = ProductCatalogService(self.db)
         product = await catalog_service.get_product(request.product_id, tenant_id)
 
         context = PriceCalculationContext(
@@ -610,7 +652,7 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        db_rule.current_uses = 0
+        setattr(db_rule, "current_uses", 0)
         await self.db.commit()
         return True
 
@@ -628,7 +670,7 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        db_rule.is_active = True
+        setattr(db_rule, "is_active", True)
         await self.db.commit()
         return True
 
@@ -646,13 +688,13 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        db_rule.is_active = False
+        setattr(db_rule, "is_active", False)
         await self.db.commit()
         return True
 
     async def detect_rule_conflicts(self, tenant_id: str) -> list[dict[str, Any]]:
         """Detect potential conflicts between pricing rules."""
-        conflicts = []
+        conflicts: list[tuple[str, str, str]] = []
 
         stmt = (
             select(BillingPricingRuleTable)

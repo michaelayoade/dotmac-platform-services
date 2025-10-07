@@ -20,7 +20,7 @@ logger = structlog.get_logger(__name__)
 class ServiceClient:
     """HTTP client with service discovery and retry for Consul-registered services."""
 
-    def __init__(self, service_name: str, timeout: float = 30.0):
+    def __init__(self, service_name: str, timeout: float = 30.0) -> None:
         """Initialize service client.
 
         Args:

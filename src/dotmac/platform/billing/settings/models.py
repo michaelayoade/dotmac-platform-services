@@ -189,10 +189,12 @@ class BillingSettings(BillingBaseModel):
 
     # Core settings
     company_info: CompanyInfo
-    tax_settings: TaxSettings = Field(default_factory=TaxSettings)
-    payment_settings: PaymentSettings = Field(default_factory=PaymentSettings)
-    invoice_settings: InvoiceSettings = Field(default_factory=InvoiceSettings)
-    notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
+    tax_settings: TaxSettings = Field(default_factory=lambda: TaxSettings())
+    payment_settings: PaymentSettings = Field(default_factory=lambda: PaymentSettings())
+    invoice_settings: InvoiceSettings = Field(default_factory=lambda: InvoiceSettings())
+    notification_settings: NotificationSettings = Field(
+        default_factory=lambda: NotificationSettings()
+    )
 
     # Feature flags
     features_enabled: dict[str, bool] = Field(
@@ -219,7 +221,7 @@ class BillingSettings(BillingBaseModel):
     )
 
     @validator("company_info", pre=True)
-    def validate_company_info(cls, v):
+    def validate_company_info(cls, v) -> Any:
         if isinstance(v, dict):
             return CompanyInfo(**v)
         return v

@@ -17,41 +17,41 @@ _analytics_instances: dict[str, BaseAnalyticsCollector] = {}
 class AnalyticsService:
     """Unified analytics service wrapper."""
 
-    def __init__(self, collector: BaseAnalyticsCollector | None = None):
+    def __init__(self, collector: BaseAnalyticsCollector | None = None) -> None:
         self.collector = collector or create_otel_collector(
             tenant_id="default", service_name="platform"
         )
         self._events_store = []  # Simple in-memory store for demo
 
-    async def track_api_request(self, **kwargs):
+    async def track_api_request(self, **kwargs: Any) -> None:
         """Track API request metrics."""
         await self.collector.record_metric(
             name="api_request", value=1, metric_type="counter", labels=kwargs
         )
 
-    async def track_circuit_breaker(self, **kwargs):
+    async def track_circuit_breaker(self, **kwargs: Any) -> None:
         """Track circuit breaker state."""
         await self.collector.record_metric(
             name="circuit_breaker_state", value=1, metric_type="gauge", labels=kwargs
         )
 
-    async def track_rate_limit(self, **kwargs):
+    async def track_rate_limit(self, **kwargs: Any) -> None:
         """Track rate limit metrics."""
         await self.collector.record_metric(
             name="rate_limit", value=kwargs.get("remaining", 0), metric_type="gauge", labels=kwargs
         )
 
-    def get_aggregated_metrics(self, aggregation_type: str, time_window_seconds: int):
+    def get_aggregated_metrics(self, aggregation_type: str, time_window_seconds: int) -> Any:
         """Get aggregated metrics."""
         return self.collector.get_metrics_summary()
 
-    async def track_event(self, **kwargs):
+    async def track_event(self, **kwargs: Any) -> Any:
         """Track an analytics event."""
         event_id = f"event_{len(self._events_store) + 1}"
         self._events_store.append({"event_id": event_id, **kwargs})
         return event_id
 
-    async def record_metric(self, **kwargs):
+    async def record_metric(self, **kwargs: Any) -> None:
         """Record a metric."""
         metric_name = kwargs.get("metric_name", "custom_metric")
         value = kwargs.get("value", 1.0)
@@ -59,7 +59,7 @@ class AnalyticsService:
             name=metric_name, value=value, metric_type="gauge", labels=kwargs.get("tags", {})
         )
 
-    async def query_events(self, **kwargs):
+    async def query_events(self, **kwargs: Any) -> Any:
         """Query stored events."""
         # Simple filtering for demo
         events = self._events_store
@@ -69,18 +69,18 @@ class AnalyticsService:
             events = [e for e in events if e.get("event_type") == kwargs["event_type"]]
         return events[: kwargs.get("limit", 100)]
 
-    async def query_metrics(self, **kwargs):
+    async def query_metrics(self, **kwargs: Any) -> Any:
         """Query metrics."""
         return self.collector.get_metrics_summary()
 
-    async def aggregate_data(self, **kwargs):
+    async def aggregate_data(self, **kwargs: Any) -> Any:
         """Aggregate analytics data."""
         return {
             "total_events": len(self._events_store),
             "metrics_summary": self.collector.get_metrics_summary(),
         }
 
-    async def generate_report(self, **kwargs):
+    async def generate_report(self, **kwargs: Any) -> Any:
         """Generate analytics report."""
         return {
             "type": kwargs.get("report_type", "summary"),
@@ -90,7 +90,7 @@ class AnalyticsService:
             },
         }
 
-    async def get_dashboard_data(self, **kwargs):
+    async def get_dashboard_data(self, **kwargs: Any) -> Any:
         """Get dashboard data."""
         return {
             "widgets": [
@@ -99,11 +99,11 @@ class AnalyticsService:
             ]
         }
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the analytics service."""
         await self.collector.flush()
 
-    def create_request_span(self, endpoint: str, method: str, attributes: dict[str, Any]):
+    def create_request_span(self, endpoint: str, method: str, attributes: dict[str, Any]) -> Any:
         """Create a request span for tracing."""
         return self.collector.tracer.start_span(name=f"{method} {endpoint}", attributes=attributes)
 

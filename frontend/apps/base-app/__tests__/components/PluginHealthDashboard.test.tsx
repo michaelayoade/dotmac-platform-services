@@ -389,8 +389,11 @@ describe('PluginHealthDashboard', () => {
       const instanceRows = screen.getAllByTestId('health-instance-row');
       const firstRow = instanceRows[0];
 
+      // Type assertion: getAllByTestId guarantees at least one element exists
+      expect(firstRow).toBeDefined();
+
       await act(async () => {
-        await user.click(firstRow);
+        await user.click(firstRow!);
       });
 
       // Wait for expansion

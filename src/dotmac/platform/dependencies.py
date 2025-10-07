@@ -6,6 +6,7 @@ helpful error messages when they're missing.
 """
 
 import importlib
+from typing import Any
 
 from .settings import settings
 
@@ -13,7 +14,9 @@ from .settings import settings
 class DependencyError(ImportError):
     """Raised when a required dependency is missing."""
 
-    def __init__(self, feature: str, packages: str | list[str], install_cmd: str | None = None):
+    def __init__(
+        self, feature: str, packages: str | list[str], install_cmd: str | None = None
+    ) -> None:
         if isinstance(packages, str):
             packages = [packages]
 
@@ -193,7 +196,7 @@ class DependencyChecker:
                 cls.require_feature_dependency(feature_flag)
 
 
-def require_dependency(feature_flag: str):
+def require_dependency(feature_flag: str) -> Any:
     """
     Decorator to require dependencies for a function/class.
 
@@ -207,8 +210,8 @@ def require_dependency(feature_flag: str):
             return Minio(...)
     """
 
-    def decorator(func):
-        def wrapper(*args, **kwargs):
+    def decorator(func: Any) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Check if feature is enabled
             if not getattr(settings.features, feature_flag, False):
                 raise ValueError(f"Feature '{feature_flag}' is not enabled in settings")
@@ -245,7 +248,7 @@ def safe_import(
     feature_flag: str | None = None,
     *,
     error_if_missing: bool = True,
-):
+) -> Any:
     """
     Safely import a module with helpful error messages.
 
@@ -272,7 +275,7 @@ def safe_import(
 
 
 # Convenience functions for common dependencies
-def require_minio():
+def require_minio() -> Any:
     """Require minio for storage operations."""
     if settings.features.storage_enabled:
         DependencyChecker.require_feature_dependency("storage_enabled")
@@ -283,7 +286,7 @@ def require_minio():
         raise ValueError("Storage is not enabled. Set FEATURES__STORAGE_ENABLED=true")
 
 
-def require_meilisearch():
+def require_meilisearch() -> Any:
     """Require meilisearch for search operations."""
     if settings.features.search_enabled:
         DependencyChecker.require_feature_dependency("search_enabled")
@@ -294,7 +297,7 @@ def require_meilisearch():
         raise ValueError("Search is not enabled. Set FEATURES__SEARCH_ENABLED=true")
 
 
-def require_cryptography():
+def require_cryptography() -> Any:
     """Require cryptography for Fernet encryption."""
     if settings.features.encryption_fernet:
         DependencyChecker.require_feature_dependency("encryption_fernet")

@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 class CreditNoteService:
     """Service for managing credit notes and refunds"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
 

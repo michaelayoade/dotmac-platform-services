@@ -151,27 +151,27 @@ def _cached_role_checker(
     )
 
 
-def require_permission(permission: str, error_message: str | None = None):
+def require_permission(permission: str, error_message: str | None = None) -> Any:
     """Require a single permission"""
     return _cached_permission_checker((permission,), PermissionMode.ALL, error_message)
 
 
-def require_permissions(*permissions: str, error_message: str | None = None):
+def require_permissions(*permissions: str, error_message: str | None = None) -> Any:
     """Require all specified permissions"""
     return _cached_permission_checker(tuple(permissions), PermissionMode.ALL, error_message)
 
 
-def require_any_permission(*permissions: str, error_message: str | None = None):
+def require_any_permission(*permissions: str, error_message: str | None = None) -> Any:
     """Require any of the specified permissions"""
     return _cached_permission_checker(tuple(permissions), PermissionMode.ANY, error_message)
 
 
-def require_role(role: str, error_message: str | None = None):
+def require_role(role: str, error_message: str | None = None) -> Any:
     """Require a single role"""
     return _cached_role_checker((role,), PermissionMode.ALL, error_message)
 
 
-def require_any_role(*roles: str, error_message: str | None = None):
+def require_any_role(*roles: str, error_message: str | None = None) -> Any:
     """Require any of the specified roles"""
     return _cached_role_checker(tuple(roles), PermissionMode.ANY, error_message)
 
@@ -285,12 +285,12 @@ require_admin_settings = require_permission("admin.settings.update")
 # ==================== Decorator Version for Non-FastAPI Functions ====================
 
 
-def check_permission(permission: str):
+def check_permission(permission: str) -> Any:
     """Decorator to check permission for regular functions"""
 
-    def decorator(func):
+    def decorator(func) -> Any:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs: Any) -> Any:
             # Extract user from kwargs or context
             user = kwargs.get("current_user")
             db = kwargs.get("db")
@@ -311,12 +311,12 @@ def check_permission(permission: str):
     return decorator
 
 
-def check_any_permission(*permissions: str):
+def check_any_permission(*permissions: str) -> Any:
     """Decorator to check if user has any of the permissions"""
 
-    def decorator(func):
+    def decorator(func) -> Any:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs: Any) -> Any:
             user = kwargs.get("current_user")
             db = kwargs.get("db")
 

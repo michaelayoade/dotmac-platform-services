@@ -75,7 +75,7 @@ class CounterMetric(Metric):
     type: MetricType = field(default=MetricType.COUNTER, init=False)
     delta: float = 1.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure positive delta for counter."""
         if self.delta < 0:
             raise ValueError("Counter delta must be non-negative")
@@ -97,7 +97,7 @@ class HistogramMetric(Metric):
         default_factory=lambda: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
     )
 
-    def record_value(self, value: float):
+    def record_value(self, value: float) -> None:
         """Record a value in the histogram."""
         self.value = value
 
@@ -125,7 +125,7 @@ class AnalyticsCollector(Protocol):
 class BaseAnalyticsCollector(ABC):
     """Abstract base class for analytics collectors."""
 
-    def __init__(self, tenant_id: str, service_name: str):
+    def __init__(self, tenant_id: str, service_name: str) -> None:
         """
         Initialize the collector.
 
@@ -226,7 +226,7 @@ class BaseAnalyticsCollector(ABC):
 class MetricRegistry:
     """Registry for metric definitions and metadata."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the registry."""
         self._metrics: dict[str, dict[str, Any]] = {}
 

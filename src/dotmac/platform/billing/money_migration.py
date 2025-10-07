@@ -210,7 +210,7 @@ class InvoiceMigrationAdapter:
 class BatchMigrationService:
     """Service for batch migrating existing invoices to Money format."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.adapter = InvoiceMigrationAdapter()
 
     async def migrate_invoices_batch(

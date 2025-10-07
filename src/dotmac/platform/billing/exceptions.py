@@ -63,7 +63,7 @@ class ProductError(BillingError):
 class ProductNotFoundError(ProductError):
     """Product not found error."""
 
-    def __init__(self, message: str, product_id: str | None = None, sku: str | None = None):
+    def __init__(self, message: str, product_id: str | None = None, sku: str | None = None) -> None:
         context = {}
         if product_id:
             context["product_id"] = product_id
@@ -103,7 +103,7 @@ class CategoryNotFoundError(ProductError):
 class DuplicateProductError(ProductError):
     """Product already exists error."""
 
-    def __init__(self, message: str, sku: str):
+    def __init__(self, message: str, sku: str) -> None:
         super().__init__(
             message,
             context={"sku": sku},
@@ -155,7 +155,7 @@ class SubscriptionNotFoundError(SubscriptionError):
 class SubscriptionStateError(SubscriptionError):
     """Invalid subscription state transition error."""
 
-    def __init__(self, message: str, current_state: str, requested_state: str):
+    def __init__(self, message: str, current_state: str, requested_state: str) -> None:
         super().__init__(
             message,
             context={"current_state": current_state, "requested_state": requested_state},
@@ -167,7 +167,7 @@ class SubscriptionStateError(SubscriptionError):
 class PlanNotFoundError(SubscriptionError):
     """Subscription plan not found error."""
 
-    def __init__(self, message: str, plan_id: str | None = None):
+    def __init__(self, message: str, plan_id: str | None = None) -> None:
         context = {}
         if plan_id:
             context["plan_id"] = plan_id
@@ -204,7 +204,7 @@ class InvalidPricingRuleError(PricingError):
         rule_id: str | None = None,
         validation_errors: dict[str, Any] | None = None,
     ):
-        context = {}
+        context: dict[str, Any] = {}
         if rule_id:
             context["rule_id"] = rule_id
         if validation_errors:
@@ -221,8 +221,10 @@ class InvalidPricingRuleError(PricingError):
 class PriceCalculationError(PricingError):
     """Error during price calculation."""
 
-    def __init__(self, message: str, product_id: str | None = None, quantity: int | None = None):
-        context = {}
+    def __init__(
+        self, message: str, product_id: str | None = None, quantity: int | None = None
+    ) -> None:
+        context: dict[str, Any] = {}
         if product_id:
             context["product_id"] = product_id
         if quantity:
@@ -257,7 +259,7 @@ class UsageTrackingError(BillingError):
 class UsageLimitExceededError(UsageTrackingError):
     """Usage limit exceeded error."""
 
-    def __init__(self, message: str, current_usage: int, limit: int, metric_name: str):
+    def __init__(self, message: str, current_usage: int, limit: int, metric_name: str) -> None:
         super().__init__(
             message,
             context={"current_usage": current_usage, "limit": limit, "metric_name": metric_name},
@@ -302,7 +304,7 @@ class PaymentError(BillingError):
 class PaymentMethodError(PaymentError):
     """Payment method errors."""
 
-    def __init__(self, message: str, payment_method_id: str | None = None):
+    def __init__(self, message: str, payment_method_id: str | None = None) -> None:
         context = {}
         if payment_method_id:
             context["payment_method_id"] = payment_method_id
@@ -332,7 +334,7 @@ class InvoiceError(BillingError):
 class InvoiceNotFoundError(InvoiceError):
     """Invoice not found error."""
 
-    def __init__(self, message: str, invoice_id: str | None = None):
+    def __init__(self, message: str, invoice_id: str | None = None) -> None:
         context = {}
         if invoice_id:
             context["invoice_id"] = invoice_id
@@ -347,7 +349,9 @@ class InvoiceNotFoundError(InvoiceError):
 class WebhookError(BillingError):
     """Webhook processing errors."""
 
-    def __init__(self, message: str, webhook_type: str | None = None, provider: str | None = None):
+    def __init__(
+        self, message: str, webhook_type: str | None = None, provider: str | None = None
+    ) -> None:
         context = {}
         if webhook_type:
             context["webhook_type"] = webhook_type

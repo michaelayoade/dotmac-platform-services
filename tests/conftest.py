@@ -288,8 +288,8 @@ if HAS_SQLALCHEMY:
             db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
 
             # For pytest-xdist: use worker ID to create separate databases per worker
-            worker_id = getattr(request.config, 'workerinput', {}).get('workerid', 'master')
-            if worker_id != 'master' and db_url.startswith("sqlite"):
+            worker_id = getattr(request.config, "workerinput", {}).get("workerid", "master")
+            if worker_id != "master" and db_url.startswith("sqlite"):
                 # Use separate file-based SQLite DB for each worker
                 db_url = f"sqlite+aiosqlite:///test_db_{worker_id}.db"
 
@@ -342,8 +342,8 @@ if HAS_SQLALCHEMY:
             db_url = os.environ.get("DOTMAC_DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
 
             # For pytest-xdist: use worker ID to create separate databases per worker
-            worker_id = getattr(request.config, 'workerinput', {}).get('workerid', 'master')
-            if worker_id != 'master' and db_url.startswith("sqlite"):
+            worker_id = getattr(request.config, "workerinput", {}).get("workerid", "master")
+            if worker_id != "master" and db_url.startswith("sqlite"):
                 # Use separate file-based SQLite DB for each worker
                 db_url = f"sqlite+aiosqlite:///test_db_{worker_id}.db"
 

@@ -27,7 +27,7 @@ logger = structlog.get_logger(__name__)
 class WebhookDeliveryService:
     """Service for delivering webhooks with retry logic."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.subscription_service = WebhookSubscriptionService(db)
 

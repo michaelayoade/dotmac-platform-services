@@ -21,7 +21,9 @@ pytestmark = pytest.mark.asyncio
 
 
 @asynccontextmanager
-async def create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service):
+async def create_test_client_with_mock_tenant_service(
+    test_app, async_db_session, mock_tenant_service
+):
     """Helper to create a test client with mocked tenant service."""
     from dotmac.platform.auth.core import get_current_user
     from dotmac.platform.db import get_async_db
@@ -47,7 +49,9 @@ async def create_test_client_with_mock_tenant_service(test_app, async_db_session
     test_app.dependency_overrides[get_tenant_service] = override_get_tenant_service
 
     transport = ASGITransport(app=test_app)
-    async with AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Tenant-ID": "test-tenant"}) as client:
+    async with AsyncClient(
+        transport=transport, base_url="http://testserver", headers={"X-Tenant-ID": "test-tenant"}
+    ) as client:
         yield client
 
     test_app.dependency_overrides.clear()
@@ -108,10 +112,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -144,15 +148,17 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
 
-            storage_recommendations = [r for r in data["recommendations"] if r["metric"] == "storage"]
+            storage_recommendations = [
+                r for r in data["recommendations"] if r["metric"] == "storage"
+            ]
             assert len(storage_recommendations) > 0
             assert storage_recommendations[0]["severity"] == "high"
             assert data["requires_action"] is True
@@ -178,10 +184,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -211,10 +217,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -248,10 +254,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -263,9 +269,7 @@ class TestBillingStatusRecommendations:
             assert storage_recommendations[0]["severity"] == "low"
             assert "90" in storage_recommendations[0]["message"]
 
-    async def test_multiple_limits_exceeded_requires_action(
-        self, test_app, async_db_session
-    ):
+    async def test_multiple_limits_exceeded_requires_action(self, test_app, async_db_session):
         """Test that multiple exceeded limits sets requires_action=True."""
         tenant = await create_tenant_with_usage(
             tenant_service=None,
@@ -286,10 +290,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -299,9 +303,7 @@ class TestBillingStatusRecommendations:
             assert len(high_severity) >= 2
             assert data["requires_action"] is True
 
-    async def test_no_recommendations_when_within_limits(
-        self, test_app, async_db_session
-    ):
+    async def test_no_recommendations_when_within_limits(self, test_app, async_db_session):
         """Test that no recommendations are generated when well within limits."""
         tenant = await create_tenant_with_usage(
             tenant_service=None,
@@ -324,10 +326,10 @@ class TestBillingStatusRecommendations:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -336,9 +338,7 @@ class TestBillingStatusRecommendations:
             assert len(data["recommendations"]) == 0
             assert data["requires_action"] is False
 
-    async def test_tenant_not_found_returns_404(
-        self, test_app, async_db_session
-    ):
+    async def test_tenant_not_found_returns_404(self, test_app, async_db_session):
         """Test that non-existent tenant returns 404."""
         from dotmac.platform.tenant.service import TenantNotFoundError
 
@@ -347,10 +347,10 @@ class TestBillingStatusRecommendations:
             side_effect=TenantNotFoundError("Tenant not found")
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                "/api/v1/tenants/nonexistent-123/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get("/api/v1/tenants/nonexistent-123/usage/billing-status")
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in response.json()["detail"].lower()
@@ -359,9 +359,7 @@ class TestBillingStatusRecommendations:
 class TestBillingStatusResponseStructure:
     """Test the response structure of billing status endpoint."""
 
-    async def test_response_includes_all_required_fields(
-        self, test_app, async_db_session
-    ):
+    async def test_response_includes_all_required_fields(self, test_app, async_db_session):
         """Test that response includes all required fields."""
         tenant = await create_tenant_with_usage(
             tenant_service=None,
@@ -381,10 +379,10 @@ class TestBillingStatusResponseStructure:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -409,9 +407,7 @@ class TestBillingStatusResponseStructure:
                 assert "percentage" in data["usage"][metric]
                 assert "exceeded" in data["usage"][metric]
 
-    async def test_usage_percentages_calculated_correctly(
-        self, test_app, async_db_session
-    ):
+    async def test_usage_percentages_calculated_correctly(self, test_app, async_db_session):
         """Test that usage percentages are calculated correctly."""
         tenant = await create_tenant_with_usage(
             tenant_service=None,
@@ -434,10 +430,10 @@ class TestBillingStatusResponseStructure:
             )
         )
 
-        async with create_test_client_with_mock_tenant_service(test_app, async_db_session, mock_tenant_service) as client:
-            response = await client.get(
-                f"/api/v1/tenants/{tenant.id}/usage/billing-status"
-            )
+        async with create_test_client_with_mock_tenant_service(
+            test_app, async_db_session, mock_tenant_service
+        ) as client:
+            response = await client.get(f"/api/v1/tenants/{tenant.id}/usage/billing-status")
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()

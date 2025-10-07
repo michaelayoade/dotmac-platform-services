@@ -15,7 +15,7 @@ logger = structlog.get_logger(__name__)
 class RBACAuditLogger:
     """Helper class for RBAC-related audit logging."""
 
-    def __init__(self, audit_service: AuditService | None = None):
+    def __init__(self, audit_service: AuditService | None = None) -> None:
         """Initialize RBAC audit logger."""
         self._audit_service = audit_service or AuditService()
 
@@ -26,8 +26,8 @@ class RBACAuditLogger:
         created_by: str,
         tenant_id: str,
         permissions: list[str],
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log role creation."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.ROLE_CREATED,
@@ -49,8 +49,8 @@ class RBACAuditLogger:
         updated_by: str,
         tenant_id: str,
         changes: dict[str, Any],
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log role update."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.ROLE_UPDATED,
@@ -66,8 +66,8 @@ class RBACAuditLogger:
         logger.info("Audit: Role updated", role_name=role_name, updated_by=updated_by)
 
     async def log_role_deleted(
-        self, role_name: str, role_id: str, deleted_by: str, tenant_id: str, **kwargs
-    ):
+        self, role_name: str, role_id: str, deleted_by: str, tenant_id: str, **kwargs: Any
+    ) -> None:
         """Log role deletion."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.ROLE_DELETED,
@@ -83,8 +83,14 @@ class RBACAuditLogger:
         logger.info("Audit: Role deleted", role_name=role_name, deleted_by=deleted_by)
 
     async def log_role_assigned(
-        self, user_id: str, role_name: str, role_id: str, assigned_by: str, tenant_id: str, **kwargs
-    ):
+        self,
+        user_id: str,
+        role_name: str,
+        role_id: str,
+        assigned_by: str,
+        tenant_id: str,
+        **kwargs: Any,
+    ) -> None:
         """Log role assignment to user."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.ROLE_ASSIGNED,
@@ -107,8 +113,14 @@ class RBACAuditLogger:
         )
 
     async def log_role_revoked(
-        self, user_id: str, role_name: str, role_id: str, revoked_by: str, tenant_id: str, **kwargs
-    ):
+        self,
+        user_id: str,
+        role_name: str,
+        role_id: str,
+        revoked_by: str,
+        tenant_id: str,
+        **kwargs: Any,
+    ) -> None:
         """Log role revocation from user."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.ROLE_REVOKED,
@@ -138,8 +150,8 @@ class RBACAuditLogger:
         granted_by: str,
         tenant_id: str,
         expires_at: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log direct permission grant to user."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.PERMISSION_GRANTED,
@@ -172,8 +184,8 @@ class RBACAuditLogger:
         permission_id: str,
         revoked_by: str,
         tenant_id: str,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log direct permission revocation from user."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.PERMISSION_REVOKED,
@@ -205,8 +217,8 @@ class RBACAuditLogger:
         created_by: str,
         tenant_id: str,
         category: str,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log permission creation."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.PERMISSION_CREATED,
@@ -230,8 +242,8 @@ class RBACAuditLogger:
         updated_by: str,
         tenant_id: str,
         changes: dict[str, Any],
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Log permission update."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.PERMISSION_UPDATED,
@@ -249,8 +261,13 @@ class RBACAuditLogger:
         )
 
     async def log_permission_deleted(
-        self, permission_name: str, permission_id: str, deleted_by: str, tenant_id: str, **kwargs
-    ):
+        self,
+        permission_name: str,
+        permission_id: str,
+        deleted_by: str,
+        tenant_id: str,
+        **kwargs: Any,
+    ) -> None:
         """Log permission deletion."""
         await self._audit_service.log_activity(
             activity_type=ActivityType.PERMISSION_DELETED,

@@ -178,7 +178,7 @@ async def require_platform_admin(
     return current_user
 
 
-def require_platform_permission(permission: str):
+def require_platform_permission(permission: str) -> Any:
     """Dependency factory to require specific platform permission.
 
     Args:

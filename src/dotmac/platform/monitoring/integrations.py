@@ -22,7 +22,7 @@ class MetricData:
     labels: dict[str, str] | None = None
     timestamp: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
         if self.labels is None:
@@ -32,7 +32,7 @@ class MetricData:
 class PrometheusIntegration:
     """Simple Prometheus metrics integration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.metrics: list[MetricData] = []
         self.logger = logger.bind(integration="prometheus")
 

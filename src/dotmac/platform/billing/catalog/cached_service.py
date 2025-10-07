@@ -39,7 +39,7 @@ class CachedProductService(ProductService):
     - Bulk operations optimization
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.cache: BillingCache = get_billing_cache()
         self.config = BillingCacheConfig()
@@ -318,7 +318,7 @@ class CachedProductService(ProductService):
 
         return products
 
-    async def warm_product_cache(self, tenant_id: str, limit: int = 100):
+    async def warm_product_cache(self, tenant_id: str, limit: int = 100) -> Any:
         """
         Pre-load frequently accessed products into cache.
 

@@ -140,7 +140,7 @@ def cache_clear() -> None:
     lru_cache.clear()
 
 
-def redis_cache(ttl: int = 300):
+def redis_cache(ttl: int = 300) -> Any:
     """
     Decorator for caching function results in Redis.
 
@@ -153,9 +153,9 @@ def redis_cache(ttl: int = 300):
             return compute_something(arg)
     """
 
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Create stable cache key from function name and arguments
             import hashlib
 

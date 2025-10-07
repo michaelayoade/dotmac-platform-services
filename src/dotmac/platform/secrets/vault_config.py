@@ -107,13 +107,13 @@ def get_vault_config() -> VaultConnectionConfig:
 class VaultConnectionManager:
     """Manages Vault client connections with connection pooling and retry logic."""
 
-    def __init__(self, config: VaultConnectionConfig | None = None):
+    def __init__(self, config: VaultConnectionConfig | None = None) -> None:
         """Initialize connection manager."""
         self.config = config or get_vault_config()
         self._client = None
         self._async_client = None
 
-    def get_sync_client(self):
+    def get_sync_client(self) -> Any:
         """Get or create synchronous Vault client."""
         if self._client is None:
             from .vault_client import VaultClient
@@ -137,7 +137,7 @@ class VaultConnectionManager:
 
         return self._client
 
-    def get_async_client(self):
+    def get_async_client(self) -> Any:
         """Get or create asynchronous Vault client."""
         if self._async_client is None:
             from .vault_client import AsyncVaultClient
@@ -153,7 +153,7 @@ class VaultConnectionManager:
 
         return self._async_client
 
-    def _authenticate_approle(self):
+    def _authenticate_approle(self) -> None:
         """Authenticate using AppRole."""
         if not self._client:
             return
@@ -183,7 +183,7 @@ class VaultConnectionManager:
             logger.error("Failed to authenticate with AppRole", error=str(e))
             raise
 
-    def _authenticate_kubernetes(self):
+    def _authenticate_kubernetes(self) -> None:
         """Authenticate using Kubernetes service account."""
         if not self._client:
             return
@@ -220,7 +220,7 @@ class VaultConnectionManager:
             logger.error("Failed to authenticate with Kubernetes", error=str(e))
             raise
 
-    def close(self):
+    def close(self) -> None:
         """Close client connections."""
         if self._client:
             self._client.close()
@@ -245,13 +245,13 @@ def get_vault_connection_manager() -> VaultConnectionManager:
     return _connection_manager
 
 
-def get_vault_client():
+def get_vault_client() -> Any:
     """Get configured Vault client (synchronous)."""
     manager = get_vault_connection_manager()
     return manager.get_sync_client()
 
 
-def get_async_vault_client():
+def get_async_vault_client() -> Any:
     """Get configured Vault client (asynchronous)."""
     manager = get_vault_connection_manager()
     return manager.get_async_client()

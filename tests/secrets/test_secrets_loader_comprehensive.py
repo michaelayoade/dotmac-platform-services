@@ -524,20 +524,21 @@ class TestEdgeCasesCoverage:
     def test_update_settings_with_secrets_exception_handling(self):
         """Test exception handling when setting attributes fails."""
         from dotmac.platform.secrets.secrets_loader import _update_settings_with_secrets
-        
+
         class FailingSetting:
             """A setting that raises exception when set."""
+
             @property
             def value(self):
                 return "old"
-            
+
             @value.setter
             def value(self, val):
                 raise RuntimeError("Cannot set value")
-        
+
         settings_obj = FailingSetting()
         secrets = {"setting.value": "new_value"}
-        
+
         # Should handle exception gracefully
         count = _update_settings_with_secrets(settings_obj, secrets)
         assert count == 0  # No settings updated due to exception
@@ -546,41 +547,43 @@ class TestEdgeCasesCoverage:
     async def test_cleanup_vault_client_async_with_close_method(self):
         """Test async cleanup of vault client with close method."""
         from dotmac.platform.secrets.secrets_loader import _cleanup_vault_client_async
-        
+
         mock_client = AsyncMock()
         mock_client.close = AsyncMock()
-        
+
         await _cleanup_vault_client_async(mock_client)
-        
+
         mock_client.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_cleanup_vault_client_async_sync_close(self):
         """Test async cleanup with synchronous close method."""
         from dotmac.platform.secrets.secrets_loader import _cleanup_vault_client_async
-        
+
         mock_client = Mock()
         mock_client.close = Mock()
-        
+
         await _cleanup_vault_client_async(mock_client)
-        
+
         mock_client.close.assert_called_once()
 
     def test_cleanup_vault_client_sync_with_close_method(self):
         """Test sync cleanup of vault client with close method."""
         from dotmac.platform.secrets.secrets_loader import _cleanup_vault_client_sync
-        
+
         mock_client = Mock()
         mock_client.close = Mock()
-        
+
         _cleanup_vault_client_sync(mock_client)
-        
+
         mock_client.close.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("dotmac.platform.secrets.secrets_loader.settings")
     @patch("dotmac.platform.secrets.secrets_loader.AsyncVaultClient")
-    async def test_load_secrets_with_default_settings_obj(self, mock_client_class, mock_global_settings):
+    async def test_load_secrets_with_default_settings_obj(
+        self, mock_client_class, mock_global_settings
+    ):
         """Test load_secrets_from_vault with default settings object."""
         mock_global_settings.vault.enabled = True
         mock_global_settings.vault.url = "http://localhost:8200"
@@ -599,14 +602,16 @@ class TestEdgeCasesCoverage:
 
         # Call without settings_obj parameter (uses default)
         await load_secrets_from_vault(settings_obj=None, vault_client=mock_client)
-        
+
         mock_client.health_check.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("dotmac.platform.secrets.secrets_loader.HAS_VAULT_CONFIG", True)
     @patch("dotmac.platform.secrets.secrets_loader.get_async_vault_client")
     @patch("dotmac.platform.secrets.secrets_loader.settings")
-    async def test_load_secrets_uses_vault_config_client(self, mock_global_settings, mock_get_client):
+    async def test_load_secrets_uses_vault_config_client(
+        self, mock_global_settings, mock_get_client
+    ):
         """Test that load_secrets uses get_async_vault_client when available."""
         mock_global_settings.vault.enabled = True
         mock_global_settings.environment = "development"
@@ -621,7 +626,7 @@ class TestEdgeCasesCoverage:
 
         # Call without vault_client parameter
         await load_secrets_from_vault(mock_global_settings, vault_client=None)
-        
+
         # Should use get_async_vault_client
         mock_get_client.assert_called_once()
 
@@ -649,14 +654,16 @@ class TestEdgeCasesCoverage:
 
         # Call without vault_client parameter
         await load_secrets_from_vault(mock_settings, vault_client=None)
-        
+
         # Should create client directly
         mock_client_class.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("dotmac.platform.secrets.secrets_loader.validate_production_secrets")
     @patch("dotmac.platform.secrets.secrets_loader.AsyncVaultClient")
-    async def test_load_secrets_validates_production_secrets(self, mock_client_class, mock_validate):
+    async def test_load_secrets_validates_production_secrets(
+        self, mock_client_class, mock_validate
+    ):
         """Test that production secrets are validated."""
         mock_settings = Mock()
         mock_settings.vault.enabled = True
@@ -676,13 +683,15 @@ class TestEdgeCasesCoverage:
         mock_client_class.return_value = mock_client
 
         await load_secrets_from_vault(mock_settings, vault_client=None)
-        
+
         # Should call validate_production_secrets
         mock_validate.assert_called_once_with(mock_settings)
 
     @patch("dotmac.platform.secrets.secrets_loader.settings")
     @patch("dotmac.platform.secrets.secrets_loader.VaultClient")
-    def test_load_secrets_sync_with_default_settings_obj(self, mock_client_class, mock_global_settings):
+    def test_load_secrets_sync_with_default_settings_obj(
+        self, mock_client_class, mock_global_settings
+    ):
         """Test sync load_secrets with default settings object."""
         mock_global_settings.vault.enabled = True
         mock_global_settings.vault.url = "http://localhost:8200"
@@ -700,7 +709,7 @@ class TestEdgeCasesCoverage:
 
         # Call without settings_obj parameter (uses default)
         load_secrets_from_vault_sync(settings_obj=None, vault_client=mock_client)
-        
+
         mock_client.health_check.assert_called_once()
 
     @patch("dotmac.platform.secrets.secrets_loader.VaultClient")
@@ -723,7 +732,7 @@ class TestEdgeCasesCoverage:
 
         # Call without vault_client parameter
         load_secrets_from_vault_sync(mock_settings, vault_client=None)
-        
+
         # Should create VaultClient
         mock_client_class.assert_called_once_with(
             url="http://localhost:8200",
@@ -753,7 +762,7 @@ class TestEdgeCasesCoverage:
         mock_client_class.return_value = mock_client
 
         load_secrets_from_vault_sync(mock_settings, vault_client=None)
-        
+
         # Should call validate_production_secrets
         mock_validate.assert_called_once_with(mock_settings)
 

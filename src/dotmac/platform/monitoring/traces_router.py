@@ -169,7 +169,7 @@ class ObservabilityService:
     - OpenTelemetry Collector
     """
 
-    def __init__(self, jaeger_url: str = "http://localhost:16686"):
+    def __init__(self, jaeger_url: str = "http://localhost:16686") -> None:
         self.logger = structlog.get_logger(__name__)
         self.jaeger_url = jaeger_url
 

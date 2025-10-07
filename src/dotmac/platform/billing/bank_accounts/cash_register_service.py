@@ -31,7 +31,7 @@ logger = structlog.get_logger(__name__)
 class CashRegisterService:
     """Service for managing cash registers and cash transactions."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """Initialize cash register service."""
         self.db = db
 

@@ -129,7 +129,7 @@ class AuditActivityCreate(BaseModel):
 
     @field_validator("tenant_id", mode="before")
     @classmethod
-    def validate_tenant_id(cls, v):
+    def validate_tenant_id(cls, v: Any) -> Any:
         """Auto-populate tenant_id from context if not provided."""
         if v is None or v == "":
             from ..tenant import get_current_tenant_id

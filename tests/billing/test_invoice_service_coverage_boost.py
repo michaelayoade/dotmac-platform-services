@@ -112,7 +112,7 @@ class TestInvoiceCreation:
         """Test that due_date is calculated from due_days when not provided."""
         tenant_id = str(uuid4())
 
-        with patch.object(invoice_service, '_generate_invoice_number', return_value="INV-2025-001"):
+        with patch.object(invoice_service, "_generate_invoice_number", return_value="INV-2025-001"):
             result = await invoice_service.create_invoice(
                 tenant_id=tenant_id,
                 customer_id="cust-123",
@@ -133,7 +133,7 @@ class TestInvoiceCreation:
         """Test default 30 days due date when neither due_date nor due_days provided."""
         tenant_id = str(uuid4())
 
-        with patch.object(invoice_service, '_generate_invoice_number', return_value="INV-2025-001"):
+        with patch.object(invoice_service, "_generate_invoice_number", return_value="INV-2025-001"):
             result = await invoice_service.create_invoice(
                 tenant_id=tenant_id,
                 customer_id="cust-123",
@@ -194,7 +194,7 @@ class TestInvoicePaymentStatus:
         await async_db_session.commit()
 
         # Mock event bus to raise exception
-        with patch('dotmac.platform.billing.invoicing.service.get_event_bus') as mock_bus:
+        with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_bus:
             mock_bus.return_value.publish = AsyncMock(side_effect=Exception("Event bus error"))
 
             # Should not raise, should handle error gracefully
@@ -208,9 +208,7 @@ class TestInvoicePaymentStatus:
         assert result.status == InvoiceStatus.PAID
 
     @pytest.mark.asyncio
-    async def test_update_invoice_payment_status_raises_error_when_not_found(
-        self, invoice_service
-    ):
+    async def test_update_invoice_payment_status_raises_error_when_not_found(self, invoice_service):
         """Test error when updating payment status of non-existent invoice."""
         tenant_id = str(uuid4())
         invoice_id = str(uuid4())
@@ -407,9 +405,7 @@ class TestCreditApplication:
         assert "credit-123" in result.credit_applications
 
     @pytest.mark.asyncio
-    async def test_apply_credit_creates_transaction(
-        self, invoice_service, async_db_session
-    ):
+    async def test_apply_credit_creates_transaction(self, invoice_service, async_db_session):
         """Test that applying credit creates a transaction record."""
         from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
         from sqlalchemy import select
@@ -446,9 +442,7 @@ class TestCreditApplication:
         )
 
         # Check transaction was created
-        query = select(TransactionEntity).where(
-            TransactionEntity.invoice_id == invoice.invoice_id
-        )
+        query = select(TransactionEntity).where(TransactionEntity.invoice_id == invoice.invoice_id)
         result = await async_db_session.execute(query)
         transaction = result.scalar_one_or_none()
 
@@ -462,9 +456,7 @@ class TestOverdueInvoices:
     """Test overdue invoice detection and status updates."""
 
     @pytest.mark.asyncio
-    async def test_check_overdue_invoices_updates_status(
-        self, invoice_service, async_db_session
-    ):
+    async def test_check_overdue_invoices_updates_status(self, invoice_service, async_db_session):
         """Test that overdue invoices are marked as OVERDUE."""
         from dotmac.platform.billing.core.entities import InvoiceEntity
 
@@ -558,9 +550,7 @@ class TestPrivateHelperMethods:
     """Test private helper methods."""
 
     @pytest.mark.asyncio
-    async def test_get_invoice_entity_returns_none_when_not_found(
-        self, invoice_service
-    ):
+    async def test_get_invoice_entity_returns_none_when_not_found(self, invoice_service):
         """Test that _get_invoice_entity returns None when invoice doesn't exist."""
         tenant_id = str(uuid4())
         invoice_id = str(uuid4())
@@ -577,9 +567,7 @@ class TestPrivateHelperMethods:
         tenant_id = str(uuid4())
         idempotency_key = "non-existent-key"
 
-        result = await invoice_service._get_invoice_by_idempotency_key(
-            tenant_id, idempotency_key
-        )
+        result = await invoice_service._get_invoice_by_idempotency_key(tenant_id, idempotency_key)
 
         assert result is None
 

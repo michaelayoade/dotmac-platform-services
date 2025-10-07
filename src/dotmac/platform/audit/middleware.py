@@ -5,6 +5,8 @@ This middleware extracts authenticated user information and sets it on the reque
 for audit logging throughout the request lifecycle.
 """
 
+from typing import Any
+
 import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -20,7 +22,7 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
     making it available via request.state for audit logging.
     """
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         """Process request and set audit context."""
 
         # Try to extract user information from the request
@@ -80,7 +82,7 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def create_audit_aware_dependency(user_info_dependency):
+def create_audit_aware_dependency(user_info_dependency: Any) -> Any:
     """
     Creates a dependency that sets user context on the request state.
 
@@ -88,7 +90,7 @@ def create_audit_aware_dependency(user_info_dependency):
     for audit logging throughout the request lifecycle.
     """
 
-    async def audit_aware_wrapper(request: Request, user_info=user_info_dependency):
+    async def audit_aware_wrapper(request: Request, user_info: Any = user_info_dependency) -> Any:
         """Extract user info and set on request state."""
         if user_info:
             request.state.user_id = user_info.user_id

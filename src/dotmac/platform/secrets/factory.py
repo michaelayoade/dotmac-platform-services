@@ -5,7 +5,7 @@ This module provides a clean factory pattern for creating secrets managers
 based on feature flags, replacing the confusing alias pattern.
 """
 
-from typing import Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable, Any
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings
@@ -31,7 +31,7 @@ class SecretsManager(Protocol):
 class LocalSecretsManager:
     """Local file-based secrets manager for development."""
 
-    def __init__(self, secrets_file: str = ".env"):
+    def __init__(self, secrets_file: str = ".env") -> None:
         self.secrets_file = secrets_file
         self._secrets = {}
 
@@ -52,7 +52,7 @@ class SecretsManagerFactory:
     """Factory for creating secrets manager instances."""
 
     @staticmethod
-    def create_secrets_manager(backend: str | None = None, **kwargs) -> SecretsManager:
+    def create_secrets_manager(backend: str | None = None, **kwargs: Any) -> SecretsManager:
         """
         Create a secrets manager instance.
 
@@ -119,22 +119,22 @@ class SecretsManagerFactory:
 
 
 # Convenience functions
-def create_secrets_manager(backend: str | None = None, **kwargs) -> SecretsManager:
+def create_secrets_manager(backend: str | None = None, **kwargs: Any) -> SecretsManager:
     """Create a secrets manager instance. Convenience function."""
     return SecretsManagerFactory.create_secrets_manager(backend, **kwargs)
 
 
-def get_default_secrets_manager(**kwargs) -> SecretsManager:
+def get_default_secrets_manager(**kwargs: Any) -> SecretsManager:
     """Get the default secrets manager (auto-selected)."""
     return SecretsManagerFactory.create_secrets_manager(**kwargs)
 
 
 @require_dependency("secrets_vault")
-def create_vault_secrets_manager(**kwargs) -> SecretsManager:
+def create_vault_secrets_manager(**kwargs: Any) -> SecretsManager:
     """Create a Vault secrets manager (requires Vault to be enabled)."""
     return SecretsManagerFactory.create_secrets_manager("vault", **kwargs)
 
 
-def create_local_secrets_manager(**kwargs) -> SecretsManager:
+def create_local_secrets_manager(**kwargs: Any) -> SecretsManager:
     """Create a local secrets manager (always available)."""
     return SecretsManagerFactory.create_secrets_manager("local", **kwargs)

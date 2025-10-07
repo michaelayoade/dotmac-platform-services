@@ -88,7 +88,7 @@ class FieldSpec(BaseModel):
             raise ValueError("Field key must be alphanumeric with underscores/hyphens")
         return v
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         """Initialize field spec and auto-set is_secret for SECRET type."""
         # Auto-set is_secret for SECRET field type
         if data.get("type") == FieldType.SECRET and "is_secret" not in data:

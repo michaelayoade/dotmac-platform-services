@@ -28,7 +28,7 @@ def require_admin(user: UserInfo = Depends(get_current_user)) -> UserInfo:
     return user
 
 
-def require_scopes(*scopes: str):
+def require_scopes(*scopes: str) -> Any:
     """Require specific scopes/permissions."""
 
     def check_scopes(user: UserInfo = Depends(get_current_user)) -> UserInfo:
@@ -41,7 +41,7 @@ def require_scopes(*scopes: str):
     return check_scopes
 
 
-def require_roles(*roles: str):
+def require_roles(*roles: str) -> Any:
     """Require specific roles."""
 
     def check_roles(user: UserInfo = Depends(get_current_user)) -> UserInfo:

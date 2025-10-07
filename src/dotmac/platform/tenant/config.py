@@ -93,7 +93,7 @@ class TenantConfiguration:
         """Check if running in multi-tenant mode."""
         return self.mode == TenantMode.MULTI
 
-    def get_tenant_id_for_request(self, resolved_id: str | None = None) -> str:
+    def get_tenant_id_for_request(self, resolved_id: str | None = None) -> str | None:
         """
         Get the tenant ID to use for a request.
 
@@ -101,7 +101,8 @@ class TenantConfiguration:
             resolved_id: Tenant ID resolved from request (header/query/state)
 
         Returns:
-            The tenant ID to use
+            The tenant ID to use, or None when a tenant identifier is
+            required but not provided.
         """
         if self.is_single_tenant:
             # Always use default tenant in single-tenant mode

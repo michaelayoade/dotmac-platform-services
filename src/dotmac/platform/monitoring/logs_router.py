@@ -63,7 +63,9 @@ class LogEntry(BaseModel):
     level: LogLevel = Field(description="Log level")
     service: str = Field(description="Service name")
     message: str = Field(description="Log message")
-    metadata: LogMetadata = Field(default_factory=LogMetadata, description="Additional metadata")
+    metadata: LogMetadata = Field(
+        default_factory=lambda: LogMetadata(), description="Additional metadata"
+    )
 
 
 class LogsResponse(BaseModel):
@@ -102,7 +104,7 @@ logs_router = APIRouter()
 class LogsService:
     """Service for fetching and filtering logs from audit activities."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         self.logger = structlog.get_logger(__name__)
         self.session = session
 

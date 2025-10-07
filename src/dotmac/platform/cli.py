@@ -14,13 +14,13 @@ from dotmac.platform.db import get_session, init_db
 
 
 @click.group()
-def cli():
+def cli() -> None:
     """DotMac Platform Services CLI."""
     pass
 
 
 @cli.command()
-def init_database():
+def init_database() -> None:
     """Initialize the database with required schemas."""
     click.echo("Initializing database...")
     init_db()  # This is a sync function
@@ -30,10 +30,10 @@ def init_database():
 @cli.command()
 @click.option("--email", prompt=True, help="Admin user email")
 @click.option("--password", prompt=True, hide_input=True, help="Admin user password")
-def create_admin(email: str, password: str):
+def create_admin(email: str, password: str) -> None:
     """Create an admin user."""
 
-    async def _create_admin():
+    async def _create_admin() -> None:
         from dotmac.platform.auth.core import hash_password
 
         # Use same bcrypt hashing as regular users for consistency
@@ -68,7 +68,7 @@ def create_admin(email: str, password: str):
 
 
 @cli.command()
-def generate_jwt_keys():
+def generate_jwt_keys() -> None:
     """Generate JWT signing keys."""
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
@@ -104,7 +104,7 @@ def generate_jwt_keys():
 
 
 @cli.command()
-def run_migrations():
+def run_migrations() -> None:
     """Run database migrations."""
     import subprocess
     import sys
@@ -123,10 +123,10 @@ def run_migrations():
 
 @cli.command()
 @click.option("--test", is_flag=True, help="Run in test mode")
-def check_services(test: bool):
+def check_services(test: bool) -> None:
     """Check connectivity to all required services."""
 
-    async def _check_services():
+    async def _check_services() -> None:
         results = {}
 
         # Check database
@@ -172,10 +172,10 @@ def check_services(test: bool):
 
 @cli.command()
 @click.option("--days", default=30, help="Number of days to keep")
-def cleanup_sessions(days: int):
+def cleanup_sessions(days: int) -> None:
     """Clean up expired sessions."""
 
-    async def _cleanup():
+    async def _cleanup() -> None:
         async with get_session() as session:
             cutoff = datetime.now(UTC) - timedelta(days=days)
             # Use raw SQL for DELETE operation
@@ -190,12 +190,12 @@ def cleanup_sessions(days: int):
 
 @cli.command()
 @click.option("--format", default="json", help="Export format (json/csv)")
-def export_audit_logs(format: str):
+def export_audit_logs(format: str) -> None:
     """Export audit logs."""
     import csv
     import json
 
-    async def _export():
+    async def _export() -> None:
         async with get_session() as session:
             result = await session.execute(
                 text("SELECT * FROM audit.audit_log ORDER BY event_timestamp DESC")

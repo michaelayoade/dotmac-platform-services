@@ -57,7 +57,7 @@ class ProgressStore:
 class FileProgressStore(ProgressStore):
     """File-based progress storage using JSON."""
 
-    def __init__(self, base_path: Path | None = None):
+    def __init__(self, base_path: Path | None = None) -> None:
         self.base_path = base_path or Path.home() / ".dotmac" / "data_transfer" / "progress"
         self.base_path.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +113,7 @@ class FileProgressStore(ProgressStore):
 class CheckpointStore:
     """Store for operation checkpoints."""
 
-    def __init__(self, base_path: Path | None = None):
+    def __init__(self, base_path: Path | None = None) -> None:
         self.base_path = base_path or Path.home() / ".dotmac" / "data_transfer" / "checkpoints"
         self.base_path.mkdir(parents=True, exist_ok=True)
 

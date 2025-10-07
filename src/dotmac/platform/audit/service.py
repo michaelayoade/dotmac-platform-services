@@ -26,17 +26,17 @@ logger = structlog.get_logger(__name__)
 class AuditService:
     """Service for audit activity tracking and retrieval."""
 
-    def __init__(self, session: AsyncSession | None = None):
+    def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
 
-    def _get_session(self):
+    def _get_session(self) -> Any:
         """Get database session or session factory."""
         if self._session:
             # Return a context manager that yields the existing session
             from contextlib import asynccontextmanager
 
             @asynccontextmanager
-            async def session_context():
+            async def session_context() -> Any:
                 yield self._session
 
             return session_context()
@@ -96,7 +96,12 @@ class AuditService:
             return activity
 
     async def log_request_activity(
-        self, request: Request, activity_type: ActivityType, action: str, description: str, **kwargs
+        self,
+        request: Request,
+        activity_type: ActivityType,
+        action: str,
+        description: str,
+        **kwargs: Any,
     ) -> AuditActivity:
         """Log activity from a FastAPI request context."""
         # Extract request metadata
@@ -323,7 +328,7 @@ class AuditService:
 
 
 async def log_user_activity(
-    user_id: str, activity_type: ActivityType, action: str, description: str, **kwargs
+    user_id: str, activity_type: ActivityType, action: str, description: str, **kwargs: Any
 ) -> AuditActivity:
     """Helper to log user-specific activities."""
     service = AuditService()
@@ -337,7 +342,7 @@ async def log_user_activity(
 
 
 async def log_api_activity(
-    request: Request, action: str, description: str, **kwargs
+    request: Request, action: str, description: str, **kwargs: Any
 ) -> AuditActivity:
     """Helper to log API request activities."""
     service = AuditService()
@@ -351,7 +356,7 @@ async def log_api_activity(
 
 
 async def log_system_activity(
-    activity_type: ActivityType, action: str, description: str, **kwargs
+    activity_type: ActivityType, action: str, description: str, **kwargs: Any
 ) -> AuditActivity:
     """Helper to log system-level activities."""
     service = AuditService()

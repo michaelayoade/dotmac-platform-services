@@ -43,7 +43,7 @@ class MoneyField(BaseModel):
         """Convert back to Money object."""
         return create_money(self.amount, self.currency)
 
-    def format(self, locale: str = "en_US", **kwargs) -> str:
+    def format(self, locale: str = "en_US", **kwargs: Any) -> str:
         """Format money with locale."""
         return format_money(self.to_money(), locale, **kwargs)
 
@@ -82,7 +82,7 @@ class MoneyInvoiceLineItem(BaseModel):
 
     @field_validator("unit_price", "total_price", "tax_amount", "discount_amount")
     @classmethod
-    def validate_money_fields(cls, v):
+    def validate_money_fields(cls, v) -> Any:
         """Ensure Money fields are valid."""
         if isinstance(v, dict):
             return MoneyField(**v)
@@ -209,7 +209,7 @@ class MoneyInvoice(BaseModel):
 
     @field_validator("currency")
     @classmethod
-    def validate_currency(cls, v):
+    def validate_currency(cls, v) -> Any:
         """Validate currency code."""
         try:
             money_handler._validate_currency(v.upper())

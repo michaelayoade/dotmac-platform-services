@@ -124,7 +124,7 @@ class CacheKey:
 class BillingCacheMetrics:
     """Metrics collector for cache operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hits = 0
         self.misses = 0
         self.sets = 0
@@ -132,23 +132,23 @@ class BillingCacheMetrics:
         self.errors = 0
         self.last_reset = datetime.now(UTC)
 
-    def record_hit(self):
+    def record_hit(self) -> None:
         """Record cache hit."""
         self.hits += 1
 
-    def record_miss(self):
+    def record_miss(self) -> None:
         """Record cache miss."""
         self.misses += 1
 
-    def record_set(self):
+    def record_set(self) -> None:
         """Record cache set operation."""
         self.sets += 1
 
-    def record_delete(self):
+    def record_delete(self) -> None:
         """Record cache delete operation."""
         self.deletes += 1
 
-    def record_error(self):
+    def record_error(self) -> None:
         """Record cache error."""
         self.errors += 1
 
@@ -171,7 +171,7 @@ class BillingCacheMetrics:
             "period_start": self.last_reset.isoformat(),
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset metrics."""
         self.hits = 0
         self.misses = 0
@@ -193,7 +193,7 @@ class BillingCache:
     - Metrics collection
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = BillingCacheConfig()
         self.metrics = BillingCacheMetrics()
 
@@ -419,7 +419,7 @@ class BillingCache:
             return self.subscription_cache.get(key)
         return None
 
-    def _set_in_memory(self, key: str, value: Any):
+    def _set_in_memory(self, key: str, value: Any) -> None:
         """Set value in L1 memory cache."""
         # Store in appropriate cache based on key prefix
         if "product" in key:
@@ -429,7 +429,7 @@ class BillingCache:
         elif "subscription" in key or "plan" in key:
             self.subscription_cache[key] = value
 
-    def _delete_from_memory(self, key: str):
+    def _delete_from_memory(self, key: str) -> None:
         """Delete value from L1 memory cache."""
         # Delete from appropriate cache based on key prefix
         for cache in [self.product_cache, self.pricing_cache, self.subscription_cache]:
@@ -445,7 +445,7 @@ class BillingCache:
         regex_pattern = pattern.replace("*", ".*").replace("?", ".")
         return bool(re.match(regex_pattern, key))
 
-    async def warm_cache(self, tenant_id: str):
+    async def warm_cache(self, tenant_id: str) -> None:
         """
         Warm cache with frequently accessed data.
 
@@ -506,7 +506,7 @@ def cached_result(
     key_prefix: str = "",
     key_params: list[str] | None = None,
     tier: CacheTier = CacheTier.L2_REDIS,
-):
+) -> Any:
     """
     Decorator for caching function results.
 
@@ -525,7 +525,7 @@ def cached_result(
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_billing_cache()
 
             # Generate cache key
@@ -565,7 +565,7 @@ def cached_result(
     return decorator
 
 
-def invalidate_on_change(tags: list[str] | None = None, patterns: list[str] | None = None):
+def invalidate_on_change(tags: list[str] | None = None, patterns: list[str] | None = None) -> Any:
     """
     Decorator to invalidate cache on data changes.
 
@@ -582,7 +582,7 @@ def invalidate_on_change(tags: list[str] | None = None, patterns: list[str] | No
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Execute function
             result = await func(*args, **kwargs)
 

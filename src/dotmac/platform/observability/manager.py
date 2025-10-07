@@ -25,17 +25,17 @@ class ObservabilityMetricsRegistry:
         self._service_name = service_name or settings.observability.otel_service_name
         self._meter = get_meter(self._service_name)
 
-    def create_counter(self, name: str, *, description: str = "", unit: str = "1"):
+    def create_counter(self, name: str, *, description: str = "", unit: str = "1") -> Any:
         """Create a Counter instrument."""
 
         return self._meter.create_counter(name, description=description, unit=unit)
 
-    def create_histogram(self, name: str, *, description: str = "", unit: str = "1"):
+    def create_histogram(self, name: str, *, description: str = "", unit: str = "1") -> Any:
         """Create a Histogram instrument."""
 
         return self._meter.create_histogram(name, description=description, unit=unit)
 
-    def create_up_down_counter(self, name: str, *, description: str = "", unit: str = "1"):
+    def create_up_down_counter(self, name: str, *, description: str = "", unit: str = "1") -> Any:
         """Create an UpDownCounter instrument."""
 
         return self._meter.create_up_down_counter(name, description=description, unit=unit)
@@ -128,18 +128,18 @@ class ObservabilityManager:
     # Helpers
     # ---------------------------------------------------------------------
 
-    def get_logger(self, name: str | None = None):
+    def get_logger(self, name: str | None = None) -> Any:
         """Return a structlog logger with a sensible default name."""
 
         logger_name = name or self.service_name or settings.observability.otel_service_name
         return structlog.get_logger(logger_name)
 
-    def get_tracer(self, name: str, version: str | None = None):
+    def get_tracer(self, name: str, version: str | None = None) -> Any:
         """Shortcut to the telemetry helper."""
 
         return get_tracer(name, version)
 
-    def get_meter(self, name: str, version: str | None = None):
+    def get_meter(self, name: str, version: str | None = None) -> Any:
         """Shortcut to the telemetry helper."""
 
         return get_meter(name, version)
@@ -151,7 +151,7 @@ class ObservabilityManager:
             self._metrics_registry = ObservabilityMetricsRegistry(self.service_name)
         return self._metrics_registry
 
-    def get_tracing_manager(self):
+    def get_tracing_manager(self) -> Any:
         """Expose the global tracer provider for integration scenarios."""
 
         return trace.get_tracer_provider()

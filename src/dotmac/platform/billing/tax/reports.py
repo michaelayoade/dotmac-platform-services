@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class TaxReportGenerator:
     """Generate tax reports for compliance and filing"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.tax_service = TaxService(db_session)
 

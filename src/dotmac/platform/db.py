@@ -199,7 +199,7 @@ _sync_engine = None
 _async_engine = None
 
 
-def get_sync_engine():
+def get_sync_engine() -> Any:
     """Get or create the synchronous engine."""
     global _sync_engine
     if _sync_engine is None:
@@ -215,7 +215,7 @@ def get_sync_engine():
     return _sync_engine
 
 
-def get_async_engine():
+def get_async_engine() -> Any:
     """Get or create the asynchronous engine."""
     global _async_engine
     if _async_engine is None:
@@ -343,24 +343,24 @@ get_session = get_async_db
 # ==========================================
 
 
-def create_all_tables():
+def create_all_tables() -> None:
     """Create all tables in the database."""
     Base.metadata.create_all(bind=get_sync_engine())
 
 
-async def create_all_tables_async():
+async def create_all_tables_async() -> None:
     """Create all tables in the database asynchronously."""
     engine = get_async_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
-def drop_all_tables():
+def drop_all_tables() -> None:
     """Drop all tables from the database. Use with caution!"""
     Base.metadata.drop_all(bind=get_sync_engine())
 
 
-async def drop_all_tables_async():
+async def drop_all_tables_async() -> None:
     """Drop all tables from the database asynchronously. Use with caution!"""
     engine = get_async_engine()
     async with engine.begin() as conn:
@@ -384,7 +384,7 @@ async def check_database_health() -> bool:
         return False
 
 
-def init_db():
+def init_db() -> None:
     """Initialize the database (create tables if needed)."""
     create_all_tables()
 

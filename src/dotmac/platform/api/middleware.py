@@ -140,7 +140,7 @@ class CircuitBreakerMiddleware(BaseHTTPMiddleware):
     Integrates with gateway circuit breakers.
     """
 
-    def __init__(self, app: ASGIApp, gateway):
+    def __init__(self, app: ASGIApp, gateway: Any) -> None:
         """
         Initialize circuit breaker middleware.
 

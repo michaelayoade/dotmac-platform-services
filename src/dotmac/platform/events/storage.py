@@ -17,7 +17,7 @@ class EventStorage:
     Supports both Redis and in-memory storage backends.
     """
 
-    def __init__(self, use_redis: bool = True):
+    def __init__(self, use_redis: bool = True) -> None:
         """
         Initialize event storage.
 

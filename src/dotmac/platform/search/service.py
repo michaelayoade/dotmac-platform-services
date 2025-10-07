@@ -51,7 +51,7 @@ if settings.observability.otel_enabled:
 class InMemorySearchBackend(SearchBackend):
     """Simple in-memory search backend for development/testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.indices: dict[str, dict[str, dict[str, Any]]] = {}
 
     async def index(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
@@ -83,7 +83,8 @@ class InMemorySearchBackend(SearchBackend):
         # Apply sorting
         if query.sort_by:
             reverse = query.sort_order.value == "desc"
-            results.sort(key=lambda x: x.data.get(query.sort_by, ""), reverse=reverse)
+            sort_field = query.sort_by
+            results.sort(key=lambda x: x.data.get(sort_field, ""), reverse=reverse)
         elif query.include_score:
             results.sort(key=lambda x: x.score or 0, reverse=True)
 
@@ -160,23 +161,37 @@ class InMemorySearchBackend(SearchBackend):
     def _apply_filter(self, doc: dict[str, Any], filter: SearchFilter) -> bool:
         """Apply a filter to a document."""
         value = doc.get(filter.field)
+        operator = filter.operator.lower()
+        filter_value = filter.value
 
-        if filter.operator == "eq":
-            return value == filter.value
-        elif filter.operator == "ne":
-            return value != filter.value
-        elif filter.operator == "gt":
-            return value > filter.value
-        elif filter.operator == "lt":
-            return value < filter.value
-        elif filter.operator == "gte":
-            return value >= filter.value
-        elif filter.operator == "lte":
-            return value <= filter.value
-        elif filter.operator == "in":
-            return value in filter.value
-        elif filter.operator == "contains":
-            return filter.value in str(value)
+        if operator == "eq":
+            return bool(value == filter_value)
+        if operator == "ne":
+            return bool(value != filter_value)
+
+        if operator in {"gt", "lt", "gte", "lte"}:
+            if value is None or filter_value is None:
+                return False
+            try:
+                if operator == "gt":
+                    return bool(value > filter_value)
+                if operator == "lt":
+                    return bool(value < filter_value)
+                if operator == "gte":
+                    return bool(value >= filter_value)
+                return bool(value <= filter_value)
+            except TypeError:
+                return False
+
+        if operator == "in":
+            if isinstance(filter_value, (list, tuple, set, frozenset)):
+                return value in filter_value
+            return False
+
+        if operator == "contains":
+            if value is None:
+                return False
+            return str(filter_value) in str(value)
 
         return False
 
@@ -204,7 +219,7 @@ class InMemorySearchBackend(SearchBackend):
 class SearchService:
     """Business search service."""
 
-    def __init__(self, backend: SearchBackend | str | None = None):
+    def __init__(self, backend: SearchBackend | str | None = None) -> None:
         if isinstance(backend, str):
             from .factory import create_search_backend_from_env
 
@@ -300,11 +315,11 @@ class MeilisearchBackend(SearchBackend):
             except (AttributeError, TypeError):
                 pass  # Ignore if timeout setting is not available
 
-    async def _run(self, func):
+    async def _run(self, func: Any) -> Any:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, func)
 
-    def _get_index(self, index_name: str):
+    def _get_index(self, index_name: str) -> Any:
         try:
             return self.client.get_index(index_name)
         except Exception:  # MeilisearchError path may vary by version
@@ -332,7 +347,7 @@ class MeilisearchBackend(SearchBackend):
     async def index(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         payload = {self.primary_key: doc_id, **document}
 
-        def _op():
+        def _op() -> Any:
             index = self._get_index(index_name)
             return index.add_documents([payload], primary_key=self.primary_key)
 
@@ -341,7 +356,7 @@ class MeilisearchBackend(SearchBackend):
         return True
 
     async def search(self, index_name: str, query: SearchQuery) -> SearchResponse:
-        def _op():
+        def _op() -> Any:
             index = self._get_index(index_name)
             params: dict[str, Any] = {
                 "offset": query.offset,
@@ -386,7 +401,7 @@ class MeilisearchBackend(SearchBackend):
         return SearchResponse(results=results, total=total, query=query, took_ms=took_ms)
 
     async def delete(self, index_name: str, doc_id: str) -> bool:
-        def _op():
+        def _op() -> Any:
             index = self._get_index(index_name)
             return index.delete_document(doc_id)
 
@@ -397,7 +412,7 @@ class MeilisearchBackend(SearchBackend):
     async def update(self, index_name: str, doc_id: str, document: dict[str, Any]) -> bool:
         payload = {self.primary_key: doc_id, **document}
 
-        def _op():
+        def _op() -> Any:
             index = self._get_index(index_name)
             return index.update_documents([payload], primary_key=self.primary_key)
 
@@ -418,16 +433,16 @@ class MeilisearchBackend(SearchBackend):
         if not payloads:
             return 0
 
-        def _op():
+        def _op() -> None:
             index = self._get_index(index_name)
             index.add_documents(payloads, primary_key=self.primary_key)
-            return len(payloads)
 
         with _search_span("search.meilisearch.bulk_index", index=index_name, count=len(payloads)):
-            return await self._run(_op)
+            await self._run(_op)
+        return len(payloads)
 
     async def create_index(self, index_name: str, mappings: dict[str, Any] | None = None) -> bool:
-        def _op():
+        def _op() -> Any:
             try:
                 self.client.create_index(index_name, {"primaryKey": self.primary_key})
             except Exception as exc:  # MeilisearchError path may vary by version
@@ -445,7 +460,7 @@ class MeilisearchBackend(SearchBackend):
         return True
 
     async def delete_index(self, index_name: str) -> bool:
-        def _op():
+        def _op() -> Any:
             self.client.delete_index(index_name)
             return True
 
@@ -454,7 +469,7 @@ class MeilisearchBackend(SearchBackend):
         return True
 
 
-def _search_span(name: str, **attributes: Any):
+def _search_span(name: str, **attributes: Any) -> Any:
     """Create tracing span if OpenTelemetry is available."""
     if search_tracer:
         return search_tracer.start_as_current_span(name, attributes=attributes)

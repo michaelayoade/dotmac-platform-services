@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class WhatsAppProvider(NotificationProvider):
     """WhatsApp Business API notification provider."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_token: str | None = None
         self.phone_number: str | None = None
         self.base_url = "https://graph.facebook.com/v18.0"

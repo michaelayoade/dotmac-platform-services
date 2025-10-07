@@ -292,8 +292,13 @@ make test-cov  # Opens HTML report
 - **85% baseline coverage** requirement
 - **95% diff coverage** for new code
 - Bandit security scanning
-- Dependency vulnerability audits
+- Dependency vulnerability audits with pip-audit
 - Automated test runs on every PR
+
+**Security Note**: Some vulnerabilities are accepted with documented risk assessment:
+- See `.pip-audit-ignore.json` for accepted vulnerabilities
+- See `PIP_AUDIT_SECURITY_ASSESSMENT.md` for detailed risk analysis
+- See `DEPENDENCY_UPDATE_CHECKLIST.md` for monitoring plan
 
 ## 🔧 Development
 

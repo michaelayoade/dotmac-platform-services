@@ -49,7 +49,7 @@ class DomainEventDispatcher:
         await dispatcher.dispatch_all([event1, event2, event3])
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize dispatcher."""
         self._handlers: dict[str, list[DomainEventHandler]] = defaultdict(list)
         self._global_handlers: list[DomainEventHandler] = []

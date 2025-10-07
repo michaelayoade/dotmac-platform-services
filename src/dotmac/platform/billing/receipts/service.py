@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class ReceiptService:
     """Service for generating and managing receipts"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
         self.pdf_generator = PDFReceiptGenerator()

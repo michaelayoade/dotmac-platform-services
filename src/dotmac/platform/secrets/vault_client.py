@@ -248,7 +248,7 @@ class VaultClient:
             logger.error(f"Vault health check failed: {e}")
             return False
 
-    def close(self):
+    def close(self) -> None:
         """Close the HTTP client connection."""
         self.client.close()
 
@@ -530,7 +530,7 @@ class AsyncVaultClient:
             logger.error(f"Vault health check failed: {e}")
             return False
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the async HTTP client."""
         await self.client.aclose()
 

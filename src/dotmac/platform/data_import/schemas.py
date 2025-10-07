@@ -49,7 +49,7 @@ class ImportJobResponse(BaseModel):
     updated_at: datetime = Field(description="Last update time")
 
     @classmethod
-    def from_model(cls, job, result=None):
+    def from_model(cls, job, result=None) -> Any:
         """Create response from database model."""
         data = {
             "id": job.id,

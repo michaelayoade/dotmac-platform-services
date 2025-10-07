@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class TaxService:
     """Service for managing tax calculations and records"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.calculator = TaxCalculator()
         self._initialize_default_rates()

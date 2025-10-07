@@ -59,7 +59,7 @@ def generate_event_id() -> str:
 class SubscriptionService:
     """Complete subscription lifecycle management."""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
 
     # ========================================
@@ -176,7 +176,8 @@ class SubscriptionService:
             trial_end = subscription_data.trial_end_override
             status = SubscriptionStatus.TRIALING
         elif plan.has_trial():
-            trial_end = start_date + timedelta(days=plan.trial_days)
+            trial_days = plan.trial_days if plan.trial_days is not None else 0
+            trial_end = start_date + timedelta(days=trial_days)
             status = SubscriptionStatus.TRIALING
 
         # Create subscription record
@@ -359,7 +360,11 @@ class SubscriptionService:
         result = await self.db.execute(stmt)
         db_subscription = result.scalar_one_or_none()
 
-        db_subscription.plan_id = change_request.new_plan_id
+        if db_subscription is None:
+            raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
+
+        # Use setattr to avoid mypy Column assignment errors
+        setattr(db_subscription, "plan_id", change_request.new_plan_id)
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -420,16 +425,19 @@ class SubscriptionService:
         result = await self.db.execute(stmt)
         db_subscription = result.scalar_one_or_none()
 
+        if db_subscription is None:
+            raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
+
         if immediate:
-            # End subscription immediately
-            db_subscription.status = SubscriptionStatus.ENDED.value
-            db_subscription.ended_at = now
-            db_subscription.canceled_at = now
+            # End subscription immediately - use setattr to avoid mypy Column assignment errors
+            setattr(db_subscription, "status", SubscriptionStatus.ENDED.value)
+            setattr(db_subscription, "ended_at", now)
+            setattr(db_subscription, "canceled_at", now)
         else:
-            # Cancel at period end (default behavior)
-            db_subscription.cancel_at_period_end = True
-            db_subscription.canceled_at = now
-            db_subscription.status = SubscriptionStatus.CANCELED.value
+            # Cancel at period end (default behavior) - use setattr to avoid mypy Column assignment errors
+            setattr(db_subscription, "cancel_at_period_end", True)
+            setattr(db_subscription, "canceled_at", now)
+            setattr(db_subscription, "status", SubscriptionStatus.CANCELED.value)
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -481,9 +489,13 @@ class SubscriptionService:
         result = await self.db.execute(stmt)
         db_subscription = result.scalar_one_or_none()
 
-        db_subscription.status = SubscriptionStatus.ACTIVE.value
-        db_subscription.cancel_at_period_end = False
-        db_subscription.canceled_at = None
+        if db_subscription is None:
+            raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
+
+        # Use setattr to avoid mypy Column assignment errors
+        setattr(db_subscription, "status", SubscriptionStatus.ACTIVE.value)
+        setattr(db_subscription, "cancel_at_period_end", False)
+        setattr(db_subscription, "canceled_at", None)
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -538,13 +550,20 @@ class SubscriptionService:
         result = await self.db.execute(stmt)
         db_subscription = result.scalar_one_or_none()
 
+        if db_subscription is None:
+            raise SubscriptionNotFoundError(
+                f"Subscription {usage_request.subscription_id} not found"
+            )
+
         # Update usage records
-        current_usage = db_subscription.usage_records or {}
+        usage_records_raw = getattr(db_subscription, "usage_records", None)
+        current_usage: dict[str, int] = usage_records_raw if usage_records_raw else {}
         current_usage[usage_request.usage_type] = (
             current_usage.get(usage_request.usage_type, 0) + usage_request.quantity
         )
 
-        db_subscription.usage_records = current_usage
+        # Use setattr to avoid mypy Column assignment errors
+        setattr(db_subscription, "usage_records", current_usage)
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -680,7 +699,7 @@ class SubscriptionService:
         event_data: dict[str, Any],
         tenant_id: str,
         user_id: str | None = None,
-    ):
+    ) -> None:
         """Create a subscription event for audit trail."""
 
         db_event = BillingSubscriptionEventTable(
@@ -697,27 +716,52 @@ class SubscriptionService:
 
     def _db_to_pydantic_plan(self, db_plan: BillingSubscriptionPlanTable) -> SubscriptionPlan:
         """Convert database plan to Pydantic model."""
-        overage_rates = {}
-        if db_plan.overage_rates:
-            overage_rates = {k: Decimal(v) for k, v in db_plan.overage_rates.items()}
+        # Extract values from SQLAlchemy columns
+        plan_id: str = str(db_plan.plan_id)
+        tenant_id: str = str(db_plan.tenant_id)
+        product_id: str = str(db_plan.product_id)
+        name: str = str(db_plan.name)
+        description: str | None = str(db_plan.description) if db_plan.description else None
+        billing_cycle_value: str = str(db_plan.billing_cycle)
+        price: Decimal = Decimal(str(db_plan.price))
+        currency: str = str(db_plan.currency)
+        setup_fee: Decimal | None = Decimal(str(db_plan.setup_fee)) if db_plan.setup_fee else None
+        trial_days: int | None = int(db_plan.trial_days) if db_plan.trial_days is not None else None
+        is_active: bool = bool(db_plan.is_active)
+
+        # Handle JSON fields
+        included_usage_raw = getattr(db_plan, "included_usage", None)
+        included_usage: dict[str, int] = included_usage_raw if included_usage_raw else {}
+
+        overage_rates_raw = getattr(db_plan, "overage_rates", None)
+        overage_rates: dict[str, Decimal] = {}
+        if overage_rates_raw:
+            overage_rates = {k: Decimal(v) for k, v in overage_rates_raw.items()}
+
+        metadata_raw = getattr(db_plan, "metadata_json", None)
+        metadata: dict[str, Any] = metadata_raw if metadata_raw else {}
+
+        # Handle timestamps
+        created_at: datetime = getattr(db_plan, "created_at", datetime.now(UTC))
+        updated_at: datetime = getattr(db_plan, "updated_at", datetime.now(UTC))
 
         return SubscriptionPlan(
-            plan_id=db_plan.plan_id,
-            tenant_id=db_plan.tenant_id,
-            product_id=db_plan.product_id,
-            name=db_plan.name,
-            description=db_plan.description,
-            billing_cycle=BillingCycle(db_plan.billing_cycle),
-            price=db_plan.price,
-            currency=db_plan.currency,
-            setup_fee=db_plan.setup_fee,
-            trial_days=db_plan.trial_days,
-            included_usage=db_plan.included_usage or {},
+            plan_id=plan_id,
+            tenant_id=tenant_id,
+            product_id=product_id,
+            name=name,
+            description=description,
+            billing_cycle=BillingCycle(billing_cycle_value),
+            price=price,
+            currency=currency,
+            setup_fee=setup_fee,
+            trial_days=trial_days,
+            included_usage=included_usage,
             overage_rates=overage_rates,
-            is_active=db_plan.is_active,
-            metadata=db_plan.metadata_json or {},
-            created_at=db_plan.created_at,
-            updated_at=db_plan.updated_at,
+            is_active=is_active,
+            metadata=metadata,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
     def _db_to_pydantic_subscription(
@@ -731,23 +775,70 @@ class SubscriptionService:
                 return dt.replace(tzinfo=UTC)
             return dt
 
+        # Extract values from SQLAlchemy columns
+        subscription_id: str = str(db_subscription.subscription_id)
+        tenant_id: str = str(db_subscription.tenant_id)
+        customer_id: str = str(db_subscription.customer_id)
+        plan_id: str = str(db_subscription.plan_id)
+        status_value: str = str(db_subscription.status)
+        cancel_at_period_end: bool = bool(db_subscription.cancel_at_period_end)
+
+        # Handle datetime columns
+        current_period_start_raw: datetime | None = getattr(
+            db_subscription, "current_period_start", None
+        )
+        current_period_end_raw: datetime | None = getattr(
+            db_subscription, "current_period_end", None
+        )
+        trial_end_raw: datetime | None = getattr(db_subscription, "trial_end", None)
+        canceled_at_raw: datetime | None = getattr(db_subscription, "canceled_at", None)
+        ended_at_raw: datetime | None = getattr(db_subscription, "ended_at", None)
+        created_at_raw: datetime | None = getattr(db_subscription, "created_at", None)
+        updated_at_raw: datetime | None = getattr(db_subscription, "updated_at", None)
+
+        current_period_start = ensure_tz_aware(current_period_start_raw)
+        current_period_end = ensure_tz_aware(current_period_end_raw)
+
+        if current_period_start is None:
+            raise ValueError("current_period_start cannot be None")
+        if current_period_end is None:
+            raise ValueError("current_period_end cannot be None")
+
+        # Handle optional fields
+        custom_price: Decimal | None = getattr(db_subscription, "custom_price", None)
+        usage_records_raw: dict[str, Any] | None = getattr(db_subscription, "usage_records", None)
+        usage_records: dict[str, int] = {}
+        if usage_records_raw:
+            usage_records = {k: int(v) for k, v in usage_records_raw.items()}
+
+        metadata_raw: dict[str, Any] | None = getattr(db_subscription, "metadata_json", None)
+        metadata: dict[str, Any] = metadata_raw if metadata_raw else {}
+
+        created_at = ensure_tz_aware(created_at_raw)
+        updated_at = ensure_tz_aware(updated_at_raw)
+
+        if created_at is None:
+            created_at = datetime.now(UTC)
+        if updated_at is None:
+            updated_at = datetime.now(UTC)
+
         return Subscription(
-            subscription_id=db_subscription.subscription_id,
-            tenant_id=db_subscription.tenant_id,
-            customer_id=db_subscription.customer_id,
-            plan_id=db_subscription.plan_id,
-            current_period_start=ensure_tz_aware(db_subscription.current_period_start),
-            current_period_end=ensure_tz_aware(db_subscription.current_period_end),
-            status=SubscriptionStatus(db_subscription.status),
-            trial_end=ensure_tz_aware(db_subscription.trial_end),
-            cancel_at_period_end=db_subscription.cancel_at_period_end,
-            canceled_at=ensure_tz_aware(db_subscription.canceled_at),
-            ended_at=ensure_tz_aware(db_subscription.ended_at),
-            custom_price=db_subscription.custom_price,
-            usage_records=db_subscription.usage_records or {},
-            metadata=db_subscription.metadata_json or {},
-            created_at=ensure_tz_aware(db_subscription.created_at),
-            updated_at=ensure_tz_aware(db_subscription.updated_at),
+            subscription_id=subscription_id,
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            plan_id=plan_id,
+            current_period_start=current_period_start,
+            current_period_end=current_period_end,
+            status=SubscriptionStatus(status_value),
+            trial_end=ensure_tz_aware(trial_end_raw),
+            cancel_at_period_end=cancel_at_period_end,
+            canceled_at=ensure_tz_aware(canceled_at_raw),
+            ended_at=ensure_tz_aware(ended_at_raw),
+            custom_price=custom_price,
+            usage_records=usage_records,
+            metadata=metadata,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
     async def _update_subscription_status(
@@ -766,7 +857,8 @@ class SubscriptionService:
         if not db_subscription:
             return False
 
-        db_subscription.status = status.value
+        # Use setattr to avoid mypy Column assignment errors
+        setattr(db_subscription, "status", status.value)
         await self.db.commit()
         return True
 
@@ -784,7 +876,9 @@ class SubscriptionService:
         if not db_subscription:
             return False
 
-        db_subscription.usage_records = {}
+        # Use setattr to avoid mypy Column assignment errors
+        empty_usage: dict[str, Any] = {}
+        setattr(db_subscription, "usage_records", empty_usage)
         await self.db.commit()
         return True
 

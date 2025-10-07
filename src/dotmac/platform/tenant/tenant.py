@@ -24,7 +24,7 @@ class TenantIdentityResolver:
     In multi-tenant mode: Resolves from header, query param, or state
     """
 
-    def __init__(self, config: TenantConfiguration | None = None):
+    def __init__(self, config: TenantConfiguration | None = None) -> None:
         """Initialize resolver with configuration."""
         self.config = config or get_tenant_config()
         self.header_name = self.config.tenant_header_name

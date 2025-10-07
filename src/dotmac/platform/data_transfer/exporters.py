@@ -220,7 +220,7 @@ class XMLExporter(BaseExporter):
             self._progress.error_message = str(e)
             raise ExportError(f"Failed to export XML: {e}") from e
 
-    def _dict_to_xml(self, data: dict, parent: ET.Element):
+    def _dict_to_xml(self, data: dict, parent: ET.Element) -> None:
         """Convert dictionary to XML elements."""
         for key, value in data.items():
             if isinstance(value, dict):

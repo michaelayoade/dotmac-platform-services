@@ -5,6 +5,8 @@ This module provides a properly configured Celery instance that automatically
 enables tracing and metrics when the application starts.
 """
 
+from typing import Any
+
 from celery import Celery
 from kombu import Queue
 
@@ -58,7 +60,7 @@ celery_app.conf.update(
 
 # Auto-initialize OpenTelemetry instrumentation when worker starts
 @celery_app.on_after_configure.connect
-def setup_celery_instrumentation(sender, **kwargs):
+def setup_celery_instrumentation(sender: Any, **kwargs: Any) -> None:
     """Setup OpenTelemetry instrumentation for Celery workers."""
     try:
         init_celery_instrumentation()
@@ -76,7 +78,7 @@ def setup_celery_instrumentation(sender, **kwargs):
 
 # Log worker startup
 @celery_app.on_after_finalize.connect
-def setup_periodic_tasks(sender, **kwargs):
+def setup_periodic_tasks(sender: Any, **kwargs: Any) -> None:
     """Configure any periodic tasks here."""
     import structlog
 

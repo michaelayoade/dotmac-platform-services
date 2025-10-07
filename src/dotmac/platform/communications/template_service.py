@@ -56,7 +56,7 @@ class RenderedTemplate(BaseModel):
 class TemplateService:
     """Template service using Jinja2."""
 
-    def __init__(self, template_dir: str | None = None):
+    def __init__(self, template_dir: str | None = None) -> None:
         """
         Initialize template service.
 
@@ -92,7 +92,7 @@ class TemplateService:
 
         logger.info("Template service initialized")
 
-    def _add_template_globals(self):
+    def _add_template_globals(self) -> None:
         """Add common functions and variables to templates."""
         common_globals = {
             "len": len,

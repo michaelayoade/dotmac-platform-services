@@ -29,7 +29,7 @@ DEFAULT_LOCALE = "en_US"
 class MoneyHandler:
     """Central handler for money operations with proper error handling."""
 
-    def __init__(self, default_currency: str = "USD", default_locale: str = DEFAULT_LOCALE):
+    def __init__(self, default_currency: str = "USD", default_locale: str = DEFAULT_LOCALE) -> None:
         self.default_currency = self._validate_currency(default_currency)
         self.default_locale = self._validate_locale(default_locale)
 
@@ -63,7 +63,7 @@ class MoneyHandler:
 
         return Money(amount=decimal_amount, currency=validated_currency)
 
-    def format_money(self, money: Money, locale: str | None = None, **kwargs) -> str:
+    def format_money(self, money: Money, locale: str | None = None, **kwargs: Any) -> str:
         """Format Money object with locale-aware formatting."""
         locale = locale or self.default_locale
         validated_locale = self._validate_locale(locale)
@@ -146,7 +146,7 @@ def create_money(amount: int | float | Decimal | str, currency: str = "USD") -> 
     return money_handler.create_money(amount, currency)
 
 
-def format_money(money: Money, locale: str | None = None, **kwargs) -> str:
+def format_money(money: Money, locale: str | None = None, **kwargs: Any) -> str:
     """Format Money with default handler."""
     return money_handler.format_money(money, locale, **kwargs)
 
@@ -165,9 +165,9 @@ def multiply_money(money: Money, multiplier: int | float | Decimal) -> Money:
 class CurrencyConverter:
     """Placeholder for future currency conversion features."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Could integrate with exchangerate-api.com or similar
-        self._rates = {}
+        self._rates: dict[str, float] = {}
 
     def convert(self, money: Money, target_currency: str) -> Money:
         """Convert money to target currency (future implementation)."""

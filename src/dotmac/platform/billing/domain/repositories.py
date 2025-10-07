@@ -83,7 +83,7 @@ class CustomerRepository(Protocol):
 class SQLAlchemyInvoiceRepository:
     """SQLAlchemy-based repository for Invoice aggregates."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """
         Initialize repository.
 
@@ -187,7 +187,7 @@ class SQLAlchemyInvoiceRepository:
 class SQLAlchemyPaymentRepository:
     """SQLAlchemy-based repository for Payment aggregates."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """
         Initialize repository.
 
@@ -272,7 +272,7 @@ class SQLAlchemyPaymentRepository:
 class SQLAlchemyCustomerRepository:
     """SQLAlchemy-based repository for Customer aggregates."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """
         Initialize repository.
 

@@ -444,7 +444,11 @@ class TestTenantInvitations:
         assert invitation.status == TenantInvitationStatus.PENDING
         assert invitation.token is not None
         # Normalize datetime for comparison (SQLite returns naive datetimes)
-        expires_at = invitation.expires_at.replace(tzinfo=timezone.utc) if invitation.expires_at.tzinfo is None else invitation.expires_at
+        expires_at = (
+            invitation.expires_at.replace(tzinfo=timezone.utc)
+            if invitation.expires_at.tzinfo is None
+            else invitation.expires_at
+        )
         assert expires_at > datetime.now(timezone.utc)
 
     async def test_accept_invitation(self, tenant_service, sample_tenant):

@@ -96,7 +96,7 @@ class IntegrationHealth:
 class BaseIntegration(ABC):
     """Base class for all integrations."""
 
-    def __init__(self, config: IntegrationConfig):
+    def __init__(self, config: IntegrationConfig) -> None:
         self.config = config
         self.name = config.name
         self.provider = config.provider
@@ -190,7 +190,7 @@ class EmailIntegration(BaseIntegration):
 class SendGridIntegration(EmailIntegration):
     """SendGrid email integration."""
 
-    def __init__(self, config: IntegrationConfig):
+    def __init__(self, config: IntegrationConfig) -> None:
         super().__init__(config)
         self._client = None
 
@@ -318,7 +318,7 @@ class SMSIntegration(BaseIntegration):
 class TwilioIntegration(SMSIntegration):
     """Twilio SMS integration."""
 
-    def __init__(self, config: IntegrationConfig):
+    def __init__(self, config: IntegrationConfig) -> None:
         super().__init__(config)
         self._client = None
 
@@ -422,13 +422,13 @@ class TwilioIntegration(SMSIntegration):
 class IntegrationRegistry:
     """Registry for managing integrations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._integrations: dict[str, BaseIntegration] = {}
         self._configs: dict[str, IntegrationConfig] = {}
         self._providers: dict[str, type[BaseIntegration]] = {}
         self._register_default_providers()
 
-    def _register_default_providers(self):
+    def _register_default_providers(self) -> None:
         """Register default integration providers."""
         self._providers.update(
             {
@@ -581,7 +581,7 @@ async def get_integration_async(name: str) -> BaseIntegration | None:
 
 
 @asynccontextmanager
-async def integration_context():
+async def integration_context() -> Any:
     """Context manager for integration lifecycle."""
     registry = await get_integration_registry()
     try:

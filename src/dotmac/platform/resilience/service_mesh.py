@@ -40,7 +40,7 @@ class PerformanceOptimizationService:
 class ServiceMarketplace:
     """Stub for service marketplace - discovers available services."""
 
-    async def discover_service(self):
+    async def discover_service(self) -> Any:
         """Discover available services."""
         # Return empty list by default
         return []
@@ -171,14 +171,14 @@ class CircuitBreakerState:
         self.last_failure_time: float | None = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful call."""
         self.failure_count = 0
         if self.state == "HALF_OPEN":
             self.state = "CLOSED"
             logger.info("Circuit breaker closed after successful call")
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed call."""
         self.failure_count += 1
         self.last_failure_time = time.time()
@@ -208,14 +208,14 @@ class CircuitBreakerState:
 class ServiceRegistry:
     """Registry for service endpoints and configurations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.endpoints: dict[str, list[ServiceEndpoint]] = {}
         self.traffic_rules: dict[str, TrafficRule] = {}
         self.circuit_breakers: dict[str, CircuitBreakerState] = {}
         self.connection_counts: dict[str, int] = {}
         self.health_status: dict[str, dict[str, Any]] = {}
 
-    def register_endpoint(self, endpoint: ServiceEndpoint):
+    def register_endpoint(self, endpoint: ServiceEndpoint) -> None:
         """Register a service endpoint."""
         if endpoint.service_name not in self.endpoints:
             self.endpoints[endpoint.service_name] = []
@@ -230,7 +230,7 @@ class ServiceRegistry:
         self.endpoints[endpoint.service_name].append(endpoint)
         logger.info(f"Registered endpoint: {endpoint.service_name} at {endpoint.url}")
 
-    def unregister_endpoint(self, service_name: str, host: str, port: int):
+    def unregister_endpoint(self, service_name: str, host: str, port: int) -> None:
         """Unregister a service endpoint."""
         if service_name in self.endpoints:
             self.endpoints[service_name] = [
@@ -244,7 +244,7 @@ class ServiceRegistry:
         """Get all endpoints for a service."""
         return self.endpoints.get(service_name, [])
 
-    def add_traffic_rule(self, rule: TrafficRule):
+    def add_traffic_rule(self, rule: TrafficRule) -> None:
         """Add a traffic routing rule."""
         rule_key = f"{rule.source_service}->{rule.destination_service}"
         self.traffic_rules[rule_key] = rule
@@ -265,7 +265,7 @@ class ServiceRegistry:
 class LoadBalancer:
     """Load balancer for selecting service endpoints."""
 
-    def __init__(self, registry: ServiceRegistry):
+    def __init__(self, registry: ServiceRegistry) -> None:
         self.registry = registry
         self.round_robin_counters: dict[str, int] = {}
 
@@ -433,7 +433,7 @@ class ServiceMesh:
         # Health monitoring
         self.health_check_task: asyncio.Task | None = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the service mesh."""
         self.http_session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=30),
@@ -448,7 +448,7 @@ class ServiceMesh:
 
         logger.info(f"Service mesh initialized with health monitoring for tenant: {self.tenant_id}")
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the service mesh."""
         # Cancel health monitoring
         if self.health_check_task:
@@ -462,7 +462,7 @@ class ServiceMesh:
             await self.http_session.close()
         logger.info("Service mesh shutdown complete")
 
-    async def _discover_services(self):
+    async def _discover_services(self) -> None:
         """Discover services from marketplace and register endpoints."""
         try:
             services = await self.marketplace.discover_service()
@@ -637,7 +637,7 @@ class ServiceMesh:
                 "body": response_body,
             }
 
-    def _record_call_success(self, call: ServiceCall, duration: float):
+    def _record_call_success(self, call: ServiceCall, duration: float) -> None:
         """Record a successful service call."""
         self.call_metrics["total_calls"] += 1
         self.call_metrics["successful_calls"] += 1
@@ -661,7 +661,7 @@ class ServiceMesh:
         self.call_metrics["calls_by_service"][service_key]["total"] += 1
         self.call_metrics["calls_by_service"][service_key]["successful"] += 1
 
-    def _record_call_failure(self, call: ServiceCall, duration: float, error: str):
+    def _record_call_failure(self, call: ServiceCall, duration: float, error: str) -> None:
         """Record a failed service call."""
         self.call_metrics["total_calls"] += 1
         self.call_metrics["failed_calls"] += 1
@@ -680,11 +680,11 @@ class ServiceMesh:
 
         logger.warning(f"Service call failed: {call.call_id} - {error}")
 
-    def add_traffic_rule(self, rule: TrafficRule):
+    def add_traffic_rule(self, rule: TrafficRule) -> None:
         """Add a traffic routing rule."""
         self.registry.add_traffic_rule(rule)
 
-    def register_service_endpoint(self, endpoint: ServiceEndpoint):
+    def register_service_endpoint(self, endpoint: ServiceEndpoint) -> None:
         """Register a new service endpoint."""
         self.registry.register_endpoint(endpoint)
 
@@ -747,7 +747,7 @@ class ServiceMesh:
 
         return topology
 
-    async def _health_monitoring_loop(self):
+    async def _health_monitoring_loop(self) -> None:
         """Background task to monitor endpoint health."""
         logger.info("Starting health monitoring loop")
 
@@ -761,7 +761,7 @@ class ServiceMesh:
             except Exception as e:
                 logger.error(f"Health monitoring error: {e}")
 
-    async def _check_all_endpoints_health(self):
+    async def _check_all_endpoints_health(self) -> None:
         """Check health of all registered endpoints."""
         tasks = []
         for _service_name, endpoints in self.registry.endpoints.items():

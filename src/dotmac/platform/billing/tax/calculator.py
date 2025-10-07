@@ -37,7 +37,7 @@ class TaxCalculationResult(BaseModel):
 class TaxCalculator:
     """Tax calculation engine"""
 
-    def __init__(self, default_rates: list[TaxRate] | None = None):
+    def __init__(self, default_rates: list[TaxRate] | None = None) -> None:
         """Initialize tax calculator with default rates"""
         self.default_rates = default_rates or []
         self._rate_cache: dict[str, list[TaxRate]] = {}
@@ -245,7 +245,7 @@ class TaxCalculator:
         """Round decimal amount to nearest integer (minor currency unit)"""
         return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
-    def add_tax_rate(self, jurisdiction: str, name: str, rate: float, **kwargs) -> None:
+    def add_tax_rate(self, jurisdiction: str, name: str, rate: float, **kwargs: Any) -> None:
         """Add a new tax rate configuration"""
 
         tax_rate = TaxRate(name=name, rate=Decimal(str(rate)), jurisdiction=jurisdiction, **kwargs)

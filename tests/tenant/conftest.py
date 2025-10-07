@@ -96,8 +96,12 @@ def mock_tenant_service() -> AsyncMock:
                     tenant.current_users = state["current_users"]
 
                 # Recalculate exceeded flags
-                tenant.has_exceeded_api_limit = tenant.current_api_calls >= tenant.max_api_calls_per_month
-                tenant.has_exceeded_storage_limit = float(tenant.current_storage_gb) >= tenant.max_storage_gb
+                tenant.has_exceeded_api_limit = (
+                    tenant.current_api_calls >= tenant.max_api_calls_per_month
+                )
+                tenant.has_exceeded_storage_limit = (
+                    float(tenant.current_storage_gb) >= tenant.max_storage_gb
+                )
                 tenant.has_exceeded_user_limit = tenant.current_users >= tenant.max_users
 
             return tenant
@@ -197,7 +201,11 @@ def mock_tenant_service() -> AsyncMock:
         if plan_type:
             tenants = [t for t in tenants if t.plan_type == plan_type]
         if search:
-            tenants = [t for t in tenants if search.lower() in t.name.lower() or search.lower() in t.slug.lower()]
+            tenants = [
+                t
+                for t in tenants
+                if search.lower() in t.name.lower() or search.lower() in t.slug.lower()
+            ]
         if not include_deleted:
             tenants = [t for t in tenants if not t.deleted_at]
 
@@ -213,6 +221,7 @@ def mock_tenant_service() -> AsyncMock:
             if tenant.slug == slug:
                 return tenant
         from src.dotmac.platform.tenant.service import TenantNotFoundError
+
         raise TenantNotFoundError(f"Tenant with slug {slug} not found")
 
     async def mock_delete_tenant(tenant_id, permanent=False, deleted_by=None):
@@ -283,7 +292,9 @@ def mock_tenant_service() -> AsyncMock:
         # Check for duplicate slug
         for existing_tenant in created_tenants.values():
             if existing_tenant.slug == tenant_data.slug:
-                raise HTTPException(status_code=409, detail=f"Tenant with slug '{tenant_data.slug}' already exists")
+                raise HTTPException(
+                    status_code=409, detail=f"Tenant with slug '{tenant_data.slug}' already exists"
+                )
 
         tenant_id = f"{tenant_data.slug}-id"
 
@@ -366,7 +377,7 @@ def mock_tenant_service() -> AsyncMock:
             setting = tenant_settings[key]
             # Update existing
             setting.value = setting_data.value
-            setting.value_type = getattr(setting_data, 'value_type', 'string')
+            setting.value_type = getattr(setting_data, "value_type", "string")
             setting.updated_at = datetime.now(timezone.utc)
         else:
             # Create new
@@ -376,9 +387,9 @@ def mock_tenant_service() -> AsyncMock:
                 tenant_id=tenant_id,
                 key=setting_data.key,
                 value=setting_data.value,
-                value_type=getattr(setting_data, 'value_type', 'string'),
-                description=getattr(setting_data, 'description', None),
-                is_encrypted=getattr(setting_data, 'is_encrypted', False),
+                value_type=getattr(setting_data, "value_type", "string"),
+                description=getattr(setting_data, "description", None),
+                is_encrypted=getattr(setting_data, "is_encrypted", False),
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )
@@ -388,11 +399,7 @@ def mock_tenant_service() -> AsyncMock:
 
     async def mock_get_tenant_settings(tenant_id):
         """Mock get all tenant settings."""
-        return [
-            setting
-            for key, setting in tenant_settings.items()
-            if key[0] == tenant_id
-        ]
+        return [setting for key, setting in tenant_settings.items() if key[0] == tenant_id]
 
     async def mock_get_tenant_setting(tenant_id, key):
         """Mock get specific tenant setting."""
@@ -430,9 +437,9 @@ def mock_tenant_service() -> AsyncMock:
             period_end=usage_data.period_end,
             api_calls=usage_data.api_calls,
             storage_gb=usage_data.storage_gb,
-            active_users=usage_data.active_users if hasattr(usage_data, 'active_users') else 0,
-            bandwidth_gb=usage_data.bandwidth_gb if hasattr(usage_data, 'bandwidth_gb') else 0,
-            metrics=usage_data.metrics if hasattr(usage_data, 'metrics') else {},
+            active_users=usage_data.active_users if hasattr(usage_data, "active_users") else 0,
+            bandwidth_gb=usage_data.bandwidth_gb if hasattr(usage_data, "bandwidth_gb") else 0,
+            metrics=usage_data.metrics if hasattr(usage_data, "metrics") else {},
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -459,7 +466,7 @@ def mock_tenant_service() -> AsyncMock:
             id=invitation_id,
             tenant_id=tenant_id,
             email=invitation_data.email,
-            role=invitation_data.role if hasattr(invitation_data, 'role') else "member",
+            role=invitation_data.role if hasattr(invitation_data, "role") else "member",
             invited_by=invited_by,
             status=TenantInvitationStatus.PENDING,
             token=f"token-{invitation_id}",
@@ -490,6 +497,7 @@ def mock_tenant_service() -> AsyncMock:
                 inv.accepted_at = datetime.now(timezone.utc)
                 return inv
         from src.dotmac.platform.tenant.service import TenantNotFoundError
+
         raise TenantNotFoundError("Invitation not found")
 
     async def mock_revoke_invitation(invitation_id):
@@ -501,6 +509,7 @@ def mock_tenant_service() -> AsyncMock:
                 inv.status = TenantInvitationStatus.REVOKED
                 return inv
         from src.dotmac.platform.tenant.service import TenantNotFoundError
+
         raise TenantNotFoundError("Invitation not found")
 
     service.create_invitation = AsyncMock(side_effect=mock_create_invitation)
@@ -513,7 +522,15 @@ def mock_tenant_service() -> AsyncMock:
         """Mock update tenant."""
         tenant = await mock_get_tenant(tenant_id)
         # Update fields from tenant_data
-        for field in ['name', 'email', 'phone', 'billing_email', 'max_users', 'max_api_calls_per_month', 'max_storage_gb']:
+        for field in [
+            "name",
+            "email",
+            "phone",
+            "billing_email",
+            "max_users",
+            "max_api_calls_per_month",
+            "max_storage_gb",
+        ]:
             if hasattr(tenant_data, field):
                 value = getattr(tenant_data, field)
                 if value is not None:
@@ -547,9 +564,19 @@ def mock_tenant_service() -> AsyncMock:
             user_limit=tenant.max_users,
             api_limit=tenant.max_api_calls_per_month,
             storage_limit=tenant.max_storage_gb,
-            user_usage_percent=(tenant.current_users / tenant.max_users) * 100 if tenant.max_users > 0 else 0,
-            api_usage_percent=(tenant.current_api_calls / tenant.max_api_calls_per_month) * 100 if tenant.max_api_calls_per_month > 0 else 0,
-            storage_usage_percent=(float(tenant.current_storage_gb) / tenant.max_storage_gb) * 100 if tenant.max_storage_gb > 0 else 0,
+            user_usage_percent=(
+                (tenant.current_users / tenant.max_users) * 100 if tenant.max_users > 0 else 0
+            ),
+            api_usage_percent=(
+                (tenant.current_api_calls / tenant.max_api_calls_per_month) * 100
+                if tenant.max_api_calls_per_month > 0
+                else 0
+            ),
+            storage_usage_percent=(
+                (float(tenant.current_storage_gb) / tenant.max_storage_gb) * 100
+                if tenant.max_storage_gb > 0
+                else 0
+            ),
             plan_type=tenant.plan_type,
             status=tenant.status,
             days_until_expiry=30,  # Mock value

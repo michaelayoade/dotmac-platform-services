@@ -38,7 +38,7 @@ class _NoopInstrument:
 class BillingMetrics:
     """Billing metrics collector"""
 
-    def __init__(self, meter: Meter | None = None, tracer: Tracer | None = None):
+    def __init__(self, meter: Meter | None = None, tracer: Tracer | None = None) -> None:
         """Initialize billing metrics"""
 
         try:

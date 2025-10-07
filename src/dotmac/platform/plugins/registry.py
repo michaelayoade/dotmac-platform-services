@@ -57,7 +57,7 @@ class PluginRegistry:
     and health monitoring.
     """
 
-    def __init__(self, secrets_provider=None):
+    def __init__(self, secrets_provider: Any = None) -> None:
         self.secrets_provider = secrets_provider
         self.settings = get_settings()
 

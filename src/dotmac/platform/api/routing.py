@@ -53,7 +53,7 @@ class Route:
     rate_limit: str | None = None
     description: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Compile pattern after initialization."""
         self._compiled_pattern: Pattern = re.compile(self.pattern)
 
@@ -95,7 +95,7 @@ class RouteRegistry:
     Manages route registration and lookup.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize route registry."""
         self.routes: list[Route] = []
         self._route_cache: dict[str, Route] = {}
@@ -212,7 +212,7 @@ def register_route(
     method: RouteMethod,
     service: str,
     handler: Callable,
-    **kwargs,
+    **kwargs: Any,
 ) -> None:
     """
     Convenience function to register a route.

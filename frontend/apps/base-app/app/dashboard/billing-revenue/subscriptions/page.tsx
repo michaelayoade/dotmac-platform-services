@@ -234,7 +234,7 @@ export default function SubscriptionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, billingCycleFilter, toast]);
+  }, [statusFilter, billingCycleFilter, searchQuery, toast]);
 
   useEffect(() => {
     fetchSubscriptions();

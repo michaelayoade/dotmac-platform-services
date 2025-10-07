@@ -236,7 +236,7 @@ class BillingAuditMiddleware(BaseHTTPMiddleware):
             return "billing_operation"
 
 
-def setup_billing_middleware(app):
+def setup_billing_middleware(app) -> None:
     """
     Configure billing middleware for the FastAPI application.
 

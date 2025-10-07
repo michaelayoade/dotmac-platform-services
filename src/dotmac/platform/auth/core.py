@@ -14,7 +14,7 @@ import json
 import secrets
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, Callable, Optional, cast
 from uuid import UUID
 
 import structlog
@@ -30,15 +30,13 @@ from fastapi.security import (
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+redis_async: Any | None
 try:
-    import redis.asyncio as redis
+    import redis.asyncio as redis_async
+except ImportError:  # pragma: no cover - optional dependency
+    redis_async = None
 
-    _redis_available = True
-except ImportError:
-    _redis_available = False
-    redis = None
-
-REDIS_AVAILABLE = _redis_available
+REDIS_AVAILABLE = redis_async is not None
 
 logger = structlog.get_logger(__name__)
 
@@ -219,7 +217,7 @@ class JWTService:
         self.algorithm = algorithm or JWT_ALGORITHM
         self.header = {"alg": self.algorithm}
         self.redis_url = redis_url or REDIS_URL
-        self._redis = None
+        self._redis: Optional[Any] = None
 
     def create_access_token(
         self,
@@ -261,8 +259,9 @@ class JWTService:
     def verify_token(self, token: str) -> dict:
         """Verify and decode token with sync blacklist check."""
         try:
-            claims = jwt.decode(token, self.secret)
-            claims.validate()
+            claims_raw = jwt.decode(token, self.secret)
+            claims_raw.validate()
+            claims = cast(dict[str, Any], dict(claims_raw))
 
             # Check if token is revoked (sync version)
             jti = claims.get("jti")
@@ -277,12 +276,12 @@ class JWTService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    async def _get_redis(self):
+    async def _get_redis(self) -> Optional[Any]:
         """Get Redis connection."""
         if not REDIS_AVAILABLE:
             return None
-        if self._redis is None:
-            self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+        if self._redis is None and redis_async is not None:
+            self._redis = await redis_async.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
     async def revoke_token(self, token: str) -> bool:
@@ -338,8 +337,9 @@ class JWTService:
     async def verify_token_async(self, token: str) -> dict:
         """Verify and decode token with revocation check (async version)."""
         try:
-            claims = jwt.decode(token, self.secret)
-            claims.validate()
+            claims_raw = jwt.decode(token, self.secret)
+            claims_raw.validate()
+            claims = cast(dict[str, Any], dict(claims_raw))
 
             # Check if token is revoked
             jti = claims.get("jti")
@@ -388,23 +388,23 @@ class JWTService:
 class SessionManager:
     """Redis-based session manager with fallback support."""
 
-    def __init__(self, redis_url: str | None = None, fallback_enabled: bool = True):
+    def __init__(self, redis_url: str | None = None, fallback_enabled: bool = True) -> None:
         self.redis_url = redis_url or REDIS_URL
-        self._redis = None
-        self._fallback_store: dict = {}  # In-memory fallback
+        self._redis: Optional[Any] = None
+        self._fallback_store: dict[str, dict[str, Any]] = {}  # In-memory fallback
         self._fallback_enabled = fallback_enabled
         self._redis_healthy = True
 
-    async def _get_redis(self):
+    async def _get_redis(self) -> Optional[Any]:
         """Get Redis connection with health check."""
         if not REDIS_AVAILABLE:
             logger.warning("Redis library not available, using in-memory fallback")
             self._redis_healthy = False
             return None
 
-        if self._redis is None:
+        if self._redis is None and redis_async is not None:
             try:
-                self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+                self._redis = await redis_async.from_url(self.redis_url, decode_responses=True)
                 # Verify connection
                 await self._redis.ping()
                 self._redis_healthy = True
@@ -421,7 +421,7 @@ class SessionManager:
                     )
         return self._redis
 
-    async def create_session(self, user_id: str, data: dict, ttl: int = 3600) -> str:
+    async def create_session(self, user_id: str, data: dict[str, Any], ttl: int = 3600) -> str:
         """Create new session with Redis or fallback."""
         session_id = secrets.token_urlsafe(32)
         session_key = f"session:{session_id}"
@@ -458,14 +458,14 @@ class SessionManager:
 
         return session_id
 
-    async def get_session(self, session_id: str) -> dict | None:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Get session data from Redis or fallback."""
         client = await self._get_redis()
         if client:
             try:
                 data = await client.get(f"session:{session_id}")
                 if data:
-                    return json.loads(data)
+                    return cast(dict[str, Any], json.loads(data))
             except Exception as e:
                 logger.warning(
                     "Failed to get session from Redis", session_id=session_id, error=str(e)
@@ -482,22 +482,26 @@ class SessionManager:
         """Delete session."""
         try:
             client = await self._get_redis()
+            if client:
+                # Get session to find user_id
+                session = await self.get_session(session_id)
+                if session:
+                    user_id = session.get("user_id")
+                    if user_id:
+                        # Remove session from user's session set
+                        await client.srem(f"user_sessions:{user_id}", session_id)
 
-            # Get session to find user_id
-            session = await self.get_session(session_id)
-            if session:
-                user_id = session.get("user_id")
-                if user_id:
-                    # Remove session from user's session set
-                    await client.srem(f"user_sessions:{user_id}", session_id)
+                deleted_count = await client.delete(f"session:{session_id}")
+                return bool(deleted_count)
 
-            deleted_count = await client.delete(f"session:{session_id}")
-            return bool(deleted_count)
+            # Fallback cleanup
+            self._fallback_store.pop(session_id, None)
+            return True
         except Exception as e:
             logger.error("Failed to delete session", session_id=session_id, error=str(e))
             return False
 
-    async def get_user_sessions(self, user_id: str) -> dict:
+    async def get_user_sessions(self, user_id: str) -> dict[str, dict[str, Any]]:
         """Get all sessions for a user."""
         try:
             client = await self._get_redis()
@@ -510,12 +514,12 @@ class SessionManager:
             # Get all session IDs for this user
             session_ids = await client.smembers(user_sessions_key)
 
-            sessions = {}
+            sessions: dict[str, dict[str, Any]] = {}
             for session_id in session_ids:
                 session_key = f"session:{session_id}"
                 session_data = await client.get(session_key)
                 if session_data:
-                    sessions[session_key] = json.loads(session_data)
+                    sessions[session_key] = cast(dict[str, Any], json.loads(session_data))
 
             return sessions
         except Exception as e:
@@ -526,6 +530,13 @@ class SessionManager:
         """Delete all sessions for a user."""
         try:
             client = await self._get_redis()
+            if not client:
+                self._fallback_store = {
+                    sid: data
+                    for sid, data in self._fallback_store.items()
+                    if data.get("user_id") != user_id
+                }
+                return 0
             user_sessions_key = f"user_sessions:{user_id}"
 
             # Get all session IDs for this user
@@ -555,7 +566,7 @@ class SessionManager:
 class OAuthService:
     """OAuth service using Authlib."""
 
-    def __init__(self, client_id: str | None = None, client_secret: str | None = None):
+    def __init__(self, client_id: str | None = None, client_secret: str | None = None) -> None:
         self.client_id = client_id or ""
         self.client_secret = client_secret or ""
 
@@ -576,7 +587,9 @@ class OAuthService:
         url = client.create_authorization_url(config["authorize_url"], state=state)
         return url, state
 
-    async def exchange_code(self, provider: OAuthProvider, code: str, redirect_uri: str) -> dict:
+    async def exchange_code(
+        self, provider: OAuthProvider, code: str, redirect_uri: str
+    ) -> dict[str, Any]:
         """Exchange code for tokens."""
         config = OAUTH_CONFIGS[provider]
 
@@ -585,15 +598,15 @@ class OAuthService:
         )
 
         token = await client.fetch_token(config["token_url"], code=code)
-        return token
+        return cast(dict[str, Any], token)
 
-    async def get_user_info(self, provider: OAuthProvider, access_token: str) -> dict:
+    async def get_user_info(self, provider: OAuthProvider, access_token: str) -> dict[str, Any]:
         """Get user info from provider."""
         config = OAUTH_CONFIGS[provider]
 
         client = AsyncOAuth2Client(token={"access_token": access_token})
         resp = await client.get(config["userinfo_url"])
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
 
 # ============================================
@@ -604,21 +617,22 @@ class OAuthService:
 class APIKeyService:
     """API key management with Redis."""
 
-    def __init__(self, redis_url: str | None = None):
+    def __init__(self, redis_url: str | None = None) -> None:
         self.redis_url = redis_url or REDIS_URL
-        self._redis = None
-        self._memory_keys: dict = {}  # Initialize for type checker
+        self._redis: Optional[Any] = None
+        self._memory_keys: dict[str, dict[str, Any]] = {}
+        self._memory_meta: dict[str, dict[str, Any]] = {}
+        self._memory_lookup: dict[str, str] = {}
+        self._serialize: Callable[[dict[str, Any]], str] = json.dumps
+        self._deserialize: Callable[[str], dict[str, Any]] = json.loads
 
-    async def _get_redis(self):
+    async def _get_redis(self) -> Optional[Any]:
         """Get Redis connection."""
         if not REDIS_AVAILABLE:
-            # Fallback to in-memory storage
-            if not hasattr(self, "_memory_keys"):
-                self._memory_keys = {}
             return None
 
-        if self._redis is None:
-            self._redis = await redis.from_url(self.redis_url, decode_responses=True)
+        if self._redis is None and redis_async is not None:
+            self._redis = await redis_async.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
     async def create_api_key(self, user_id: str, name: str, scopes: list[str] | None = None) -> str:
@@ -670,9 +684,8 @@ class APIKeyService:
             if client:
                 data = await client.get(f"api_key:{api_key_hash}")
                 return json.loads(data) if data else None
-            else:
-                # Fallback to memory (also uses hash)
-                return getattr(self, "_memory_keys", {}).get(api_key_hash)
+            # Fallback to memory (also uses hash)
+            return self._memory_keys.get(api_key_hash)
         except Exception as e:
             logger.error("Failed to verify API key", error=str(e))
             return None
@@ -682,6 +695,12 @@ class APIKeyService:
         Revoke API key by hashing and deleting.
 
         SECURITY: The API key is hashed before deletion lookup.
+
+        Args:
+            api_key: The plaintext API key to revoke
+
+        Returns:
+            True if the key was revoked, False otherwise
         """
         try:
             import hashlib
@@ -693,11 +712,34 @@ class APIKeyService:
             if client:
                 deleted_count = await client.delete(f"api_key:{api_key_hash}")
                 return bool(deleted_count)
-            else:
-                # Fallback to memory (also uses hash)
-                return bool(getattr(self, "_memory_keys", {}).pop(api_key_hash, None))
+            # Fallback to memory (also uses hash)
+            return bool(self._memory_keys.pop(api_key_hash, None))
         except Exception as e:
             logger.error("Failed to revoke API key", error=str(e))
+            return False
+
+    async def revoke_api_key_by_hash(self, api_key_hash: str) -> bool:
+        """
+        Revoke API key using an already-computed hash.
+
+        SECURITY: This method is for internal use when the hash is already available.
+        Use revoke_api_key() when you have the plaintext key.
+
+        Args:
+            api_key_hash: The SHA-256 hash of the API key
+
+        Returns:
+            True if the key was revoked, False otherwise
+        """
+        try:
+            client = await self._get_redis()
+            if client:
+                deleted_count = await client.delete(f"api_key:{api_key_hash}")
+                return bool(deleted_count)
+            # Fallback to memory
+            return bool(self._memory_keys.pop(api_key_hash, None))
+        except Exception as e:
+            logger.error("Failed to revoke API key by hash", error=str(e))
             return False
 
 
@@ -716,7 +758,7 @@ api_key_service = APIKeyService()
 # ============================================
 
 
-async def _verify_token_with_fallback(token: str) -> dict:
+async def _verify_token_with_fallback(token: str) -> dict[str, Any]:
     """Verify tokens using async path when available, falling back to the sync method."""
 
     verify_async = getattr(jwt_service, "verify_token_async", None)
@@ -724,14 +766,15 @@ async def _verify_token_with_fallback(token: str) -> dict:
         try:
             result = verify_async(token)
             if inspect.isawaitable(result):
-                return await result
+                resolved = await result
+                return cast(dict[str, Any], resolved)
             if isinstance(result, dict):
-                return result
+                return cast(dict[str, Any], result)
         except TypeError:
             # Mocked objects (MagicMock) may not support awaiting
             pass
 
-    return jwt_service.verify_token(token)
+    return cast(dict[str, Any], jwt_service.verify_token(token))
 
 
 async def get_current_user(
@@ -819,20 +862,20 @@ def _claims_to_user_info(claims: dict) -> UserInfo:
 
 def hash_password(password: str) -> str:
     """Hash password."""
-    return pwd_context.hash(password)
+    return str(pwd_context.hash(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
-def create_access_token(user_id: str, **kwargs) -> str:
+def create_access_token(user_id: str, **kwargs: Any) -> str:
     """Create access token."""
     return jwt_service.create_access_token(user_id, kwargs)
 
 
-def create_refresh_token(user_id: str, **kwargs) -> str:
+def create_refresh_token(user_id: str, **kwargs: Any) -> str:
     """Create refresh token."""
     return jwt_service.create_refresh_token(user_id, kwargs)
 
@@ -848,22 +891,22 @@ def configure_auth(
     access_token_expire_minutes: int | None = None,
     refresh_token_expire_days: int | None = None,
     redis_url: str | None = None,
-):
+) -> None:
     """Configure auth services."""
     global JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, REDIS_URL
     global jwt_service, session_manager, oauth_service, api_key_service
 
     # Dynamic configuration requires "constant" reassignment
-    if jwt_secret:
-        JWT_SECRET = jwt_secret  # type: ignore[misc]
-    if jwt_algorithm:
-        JWT_ALGORITHM = jwt_algorithm  # type: ignore[misc]
-    if access_token_expire_minutes:
-        ACCESS_TOKEN_EXPIRE_MINUTES = access_token_expire_minutes  # type: ignore[misc]
-    if refresh_token_expire_days:
-        REFRESH_TOKEN_EXPIRE_DAYS = refresh_token_expire_days  # type: ignore[misc]
-    if redis_url:
-        REDIS_URL = redis_url  # type: ignore[misc]
+    if jwt_secret is not None:
+        JWT_SECRET = jwt_secret
+    if jwt_algorithm is not None:
+        JWT_ALGORITHM = jwt_algorithm
+    if access_token_expire_minutes is not None:
+        ACCESS_TOKEN_EXPIRE_MINUTES = access_token_expire_minutes
+    if refresh_token_expire_days is not None:
+        REFRESH_TOKEN_EXPIRE_DAYS = refresh_token_expire_days
+    if redis_url is not None:
+        REDIS_URL = redis_url
 
     # Recreate services with new config
     jwt_service = JWTService(JWT_SECRET, JWT_ALGORITHM)

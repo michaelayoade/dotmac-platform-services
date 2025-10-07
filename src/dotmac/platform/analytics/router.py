@@ -67,7 +67,7 @@ analytics_router = APIRouter()
 _analytics_service = None
 
 
-def get_analytics_service():
+def get_analytics_service() -> Any:
     """Get or create analytics service instance."""
     global _analytics_service
     if _analytics_service is None:

@@ -31,7 +31,9 @@ class ServiceStatus(str, Enum):
 class ServiceHealth:
     """Health check result for a service."""
 
-    def __init__(self, name: str, status: ServiceStatus, message: str = "", required: bool = True):
+    def __init__(
+        self, name: str, status: ServiceStatus, message: str = "", required: bool = True
+    ) -> None:
         self.name = name
         self.status = status
         self.message = message
@@ -53,12 +55,12 @@ class ServiceHealth:
 class HealthChecker:
     """Check health of external service dependencies."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.checks: list[ServiceHealth] = []
 
     @staticmethod
     @contextmanager
-    def _get_redis_client(url: str):
+    def _get_redis_client(url: str) -> Any:
         """Context manager for Redis client."""
         client = None
         try:
@@ -366,7 +368,7 @@ def check_startup_dependencies() -> bool:
     return True
 
 
-def ensure_infrastructure_running():
+def ensure_infrastructure_running() -> None:
     """
     Provide guidance on starting required infrastructure.
 

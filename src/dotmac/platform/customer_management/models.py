@@ -382,7 +382,7 @@ class CustomerNote(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         Boolean, default=True, nullable=False, comment="Internal note vs customer visible"
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize with defaults."""
         # Set is_internal default if not provided
         if "is_internal" not in kwargs:

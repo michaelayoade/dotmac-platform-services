@@ -39,7 +39,7 @@ class JSONBType(TypeDecorator):
     impl = JSON
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Any) -> Any:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(JSONB())
         else:

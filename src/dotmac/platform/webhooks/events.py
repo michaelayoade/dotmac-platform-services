@@ -42,7 +42,7 @@ class EventBus:
         )
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._registered_events: dict[str, EventSchema] = {}
         self._initialize_standard_events()
 

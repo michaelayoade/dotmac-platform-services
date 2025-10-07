@@ -287,5 +287,3 @@ class TestTenantRouterErrorHandlers:
                 assert "not found" in response.json()["detail"].lower()
         finally:
             app.dependency_overrides.clear()
-
-

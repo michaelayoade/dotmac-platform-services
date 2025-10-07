@@ -25,7 +25,7 @@ settings = Settings()
 class RBACTokenService:
     """Enhanced JWT service with RBAC permissions"""
 
-    def __init__(self, jwt_service: JWTService, rbac_service: RBACService):
+    def __init__(self, jwt_service: JWTService, rbac_service: RBACService) -> None:
         self.jwt_service = jwt_service
         self.rbac_service = rbac_service
 

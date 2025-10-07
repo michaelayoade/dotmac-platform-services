@@ -238,7 +238,7 @@ class DataPipeline:
             )
 
             # Process data
-            async def process_data():
+            async def process_data() -> Any:
                 async for batch in importer.import_from_file(self.source_path):
                     # Apply validation and transformation
                     if self.validator or self.transformer:

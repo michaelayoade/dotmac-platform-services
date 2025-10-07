@@ -33,7 +33,7 @@ from dotmac.platform.settings import settings
 class ResilientOTLPExporter(SpanExporter):
     """Wraps OTLP exporter to handle connection failures gracefully."""
 
-    def __init__(self, exporter: SpanExporter):
+    def __init__(self, exporter: SpanExporter) -> None:
         self.exporter = exporter
         self._connection_failed = False
         self._logger = structlog.get_logger(__name__)

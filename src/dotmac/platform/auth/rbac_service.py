@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class RBACService:
     """Service for managing roles and permissions"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self._permission_cache: dict[str, Permission] = {}
         self._role_cache: dict[str, Role] = {}

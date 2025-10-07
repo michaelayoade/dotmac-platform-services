@@ -14,7 +14,7 @@ from .base import Metric
 class MetricAggregator:
     """Base aggregator for metrics."""
 
-    def __init__(self, window_size: int = 60):
+    def __init__(self, window_size: int = 60) -> None:
         """
         Initialize aggregator.
 
@@ -153,7 +153,7 @@ class MetricAggregator:
 class TimeWindowAggregator:
     """Aggregator with fixed time windows."""
 
-    def __init__(self, window_minutes: int = 5):
+    def __init__(self, window_minutes: int = 5) -> None:
         """
         Initialize time window aggregator.
 
@@ -267,7 +267,7 @@ class TimeWindowAggregator:
 class StatisticalAggregator:
     """Advanced statistical aggregation for metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize statistical aggregator."""
         self.data_points: dict[str, list[tuple[datetime, float]]] = defaultdict(list)
 
@@ -307,7 +307,7 @@ class StatisticalAggregator:
         # Extract just the numeric values
         nums = [val for _, val in values]
 
-        stats = {
+        stats: dict[str, Any] = {
             "count": len(nums),
             "sum": sum(nums),
             "mean": statistics.mean(nums),
@@ -334,9 +334,11 @@ class StatisticalAggregator:
         # Time-based statistics
         timestamps = [ts for ts, _ in values]
         if timestamps:
-            stats["first_seen"] = min(timestamps).isoformat()  # type: ignore
-            stats["last_seen"] = max(timestamps).isoformat()  # type: ignore
-            stats["duration_seconds"] = (max(timestamps) - min(timestamps)).total_seconds()  # type: ignore
+            first_seen = min(timestamps)
+            last_seen = max(timestamps)
+            stats["first_seen"] = first_seen.isoformat()
+            stats["last_seen"] = last_seen.isoformat()
+            stats["duration_seconds"] = (last_seen - first_seen).total_seconds()
 
         return stats
 

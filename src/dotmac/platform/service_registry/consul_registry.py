@@ -42,7 +42,7 @@ class ConsulServiceRegistry:
     discovery, and health checking.
     """
 
-    def __init__(self, consul_host: str = "localhost", consul_port: int = 8500):
+    def __init__(self, consul_host: str = "localhost", consul_port: int = 8500) -> None:
         """Initialize Consul client."""
         self.consul = consul.aio.Consul(host=consul_host, port=consul_port)
         self._registered_services: set[str] = set()

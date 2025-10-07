@@ -466,7 +466,7 @@ class BusinessRulesValidator:
 class ValidationContext:
     """Context manager for batch validation with detailed error collection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.errors: list[dict[str, Any]] = []
         self.warnings: list[dict[str, Any]] = []
 
@@ -478,7 +478,7 @@ class ValidationContext:
             {"field": field, "message": message, "value": value, "recovery_hint": recovery_hint}
         )
 
-    def add_warning(self, field: str, message: str, value: Any | None = None):
+    def add_warning(self, field: str, message: str, value: Any | None = None) -> None:
         """Add validation warning."""
         self.warnings.append({"field": field, "message": message, "value": value})
 
@@ -486,7 +486,7 @@ class ValidationContext:
         """Check if validation has errors."""
         return len(self.errors) > 0
 
-    def raise_if_errors(self):
+    def raise_if_errors(self) -> None:
         """Raise exception if validation errors exist."""
         if self.has_errors():
             raise BillingConfigurationError(
