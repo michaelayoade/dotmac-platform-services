@@ -1,37 +1,17 @@
-"""baseline_complete_schema
+"""Initial schema from models
 
-This is the TRUE BASELINE migration for DotMac Platform Services.
-
-Generated from an empty database, this migration creates ALL 50 tables
-required for the platform to function. Use this for fresh installations.
-
-⚠️  IMPORTANT:
-- This migration creates the COMPLETE schema (50 tables)
-- For fresh database: Run `alembic upgrade head`
-- For existing database: Already stamped, no action needed
-- All prior migrations archived to alembic/versions_old_backup/
-
-Tables Created:
-- Auth/RBAC: users, roles, permissions, user_roles, role_permissions, etc. (7 tables)
-- Billing: invoices, payments, subscriptions, products, credit_notes, etc. (13 tables)
-- Communications: templates, logs, stats (3 tables)
-- Contacts: contacts, methods, labels, activities, etc. (6 tables)
-- Customers: customers, segments, notes, activities, tags (5 tables)
-- Webhooks: subscriptions, deliveries (2 tables)
-- Other: audit, data_import, banking, cash registers, etc. (14+ tables)
-
-Revision ID: b9f25627decc
-Revises:
-Create Date: 2025-09-30 08:54:45.424988
+Revision ID: 51aa0da58b97
+Revises: 
+Create Date: 2025-10-07 08:06:36.558765
 
 """
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+
 
 # revision identifiers, used by Alembic.
-revision = "b9f25627decc"
+revision = "51aa0da58b97"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -102,6 +82,21 @@ def upgrade() -> None:
         ["user_id", "timestamp"],
         unique=False,
     )
+    op.create_table(
+        "backup_codes",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("code_hash", sa.String(length=255), nullable=False),
+        sa.Column("used", sa.Boolean(), nullable=False),
+        sa.Column("used_at", sa.DateTime(), nullable=True),
+        sa.Column("used_ip", sa.String(length=45), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("tenant_id", sa.String(length=255), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_backup_codes_tenant_id"), "backup_codes", ["tenant_id"], unique=False)
+    op.create_index(op.f("ix_backup_codes_user_id"), "backup_codes", ["user_id"], unique=False)
     op.create_table(
         "billing_pricing_rules",
         sa.Column("rule_id", sa.String(length=50), nullable=False),
@@ -346,6 +341,7 @@ def upgrade() -> None:
         sa.Column("trial_end", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancel_at_period_end", sa.Boolean(), nullable=False),
         sa.Column("canceled_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("custom_price", sa.Numeric(precision=15, scale=2), nullable=True),
         sa.Column("usage_records", sa.JSON(), nullable=False),
         sa.Column("tenant_id", sa.String(length=50), nullable=False),
@@ -393,21 +389,16 @@ def upgrade() -> None:
         sa.Column("register_id", sa.String(length=50), nullable=False),
         sa.Column("register_name", sa.String(length=100), nullable=False),
         sa.Column("location", sa.String(length=200), nullable=True),
-        sa.Column("initial_float", sa.Numeric(precision=19, scale=4), nullable=False),
-        sa.Column("current_float", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("max_cash_limit", sa.Numeric(precision=10, scale=2), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
-        sa.Column("requires_daily_reconciliation", sa.Boolean(), nullable=False),
+        sa.Column("current_float", sa.Numeric(precision=10, scale=2), nullable=False),
         sa.Column("last_reconciled", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_by", sa.String(length=255), nullable=False),
-        sa.Column("updated_by", sa.String(length=255), nullable=True),
+        sa.Column("requires_daily_reconciliation", sa.Boolean(), nullable=False),
+        sa.Column("max_cash_limit", sa.Numeric(precision=10, scale=2), nullable=True),
         sa.Column("meta_data", sa.JSON(), nullable=False),
-        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("tenant_id", sa.String(length=255), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("register_id"),
         sa.UniqueConstraint("register_id"),
     )
     op.create_index("idx_cash_register_active", "cash_registers", ["is_active"], unique=False)
@@ -636,6 +627,7 @@ def upgrade() -> None:
                 "OVERPAYMENT_REFUND",
                 "PRICE_ADJUSTMENT",
                 "TAX_ADJUSTMENT",
+                "ORDER_CHANGE",
                 "OTHER",
                 name="creditreason",
             ),
@@ -725,6 +717,39 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_customer_segments_tenant_id"), "customer_segments", ["tenant_id"], unique=False
+    )
+    op.create_table(
+        "email_verification_tokens",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("token_hash", sa.String(length=255), nullable=False),
+        sa.Column("email", sa.String(length=255), nullable=False),
+        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.Column("used", sa.Boolean(), nullable=False),
+        sa.Column("used_at", sa.DateTime(), nullable=True),
+        sa.Column("used_ip", sa.String(length=45), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("tenant_id", sa.String(length=255), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_email_verification_tokens_tenant_id"),
+        "email_verification_tokens",
+        ["tenant_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_verification_tokens_token_hash"),
+        "email_verification_tokens",
+        ["token_hash"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_email_verification_tokens_user_id"),
+        "email_verification_tokens",
+        ["user_id"],
+        unique=False,
     )
     op.create_table(
         "invoices",
@@ -1036,6 +1061,40 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_permissions_name"), "permissions", ["name"], unique=True)
     op.create_table(
+        "profile_change_history",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("changed_by_user_id", sa.UUID(), nullable=False),
+        sa.Column("field_name", sa.String(length=100), nullable=False),
+        sa.Column("old_value", sa.Text(), nullable=True),
+        sa.Column("new_value", sa.Text(), nullable=True),
+        sa.Column("change_reason", sa.String(length=255), nullable=True),
+        sa.Column("ip_address", sa.String(length=45), nullable=True),
+        sa.Column("user_agent", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("tenant_id", sa.String(length=255), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_profile_change_history_field_name"),
+        "profile_change_history",
+        ["field_name"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_profile_change_history_tenant_id"),
+        "profile_change_history",
+        ["tenant_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_profile_change_history_user_id"),
+        "profile_change_history",
+        ["user_id"],
+        unique=False,
+    )
+    op.create_table(
         "roles",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(length=100), nullable=False),
@@ -1082,6 +1141,7 @@ def upgrade() -> None:
                 "ADJUSTMENT",
                 "FEE",
                 "WRITE_OFF",
+                "TAX",
                 name="transactiontype",
             ),
             nullable=False,
@@ -1135,9 +1195,20 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.Text(), nullable=False),
         sa.Column("full_name", sa.String(length=255), nullable=True),
         sa.Column("phone_number", sa.String(length=20), nullable=True),
+        sa.Column("first_name", sa.String(length=100), nullable=True),
+        sa.Column("last_name", sa.String(length=100), nullable=True),
+        sa.Column("phone", sa.String(length=20), nullable=True),
+        sa.Column("phone_verified", sa.Boolean(), nullable=False),
+        sa.Column("bio", sa.Text(), nullable=True),
+        sa.Column("website", sa.String(length=255), nullable=True),
+        sa.Column("location", sa.String(length=255), nullable=True),
+        sa.Column("timezone", sa.String(length=50), nullable=True),
+        sa.Column("language", sa.String(length=10), nullable=True),
+        sa.Column("avatar_url", sa.String(length=500), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("is_verified", sa.Boolean(), nullable=False),
         sa.Column("is_superuser", sa.Boolean(), nullable=False),
+        sa.Column("is_platform_admin", sa.Boolean(), nullable=False),
         sa.Column("roles", sa.JSON(), nullable=False),
         sa.Column("permissions", sa.JSON(), nullable=False),
         sa.Column("mfa_enabled", sa.Boolean(), nullable=False),
@@ -1151,10 +1222,12 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("tenant_id", sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
+        sa.UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
     )
-    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
+    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=False)
     op.create_index(op.f("ix_users_tenant_id"), "users", ["tenant_id"], unique=False)
-    op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
+    op.create_index(op.f("ix_users_username"), "users", ["username"], unique=False)
     op.create_table(
         "webhook_subscriptions",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -1839,7 +1912,12 @@ def upgrade() -> None:
         "contacts",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("tenant_id", sa.UUID(), nullable=False),
-        sa.Column("customer_id", sa.UUID(), nullable=True),
+        sa.Column(
+            "customer_id",
+            sa.UUID(),
+            nullable=True,
+            comment="Legacy FK - use customer_links join table for new relationships",
+        ),
         sa.Column("first_name", sa.String(length=100), nullable=True),
         sa.Column("middle_name", sa.String(length=100), nullable=True),
         sa.Column("last_name", sa.String(length=100), nullable=True),
@@ -1854,8 +1932,8 @@ def upgrade() -> None:
         sa.Column("owner_id", sa.UUID(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("tags", sa.JSON(), nullable=True),
-        sa.Column("custom_fields", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("custom_fields", sa.JSON(), nullable=True),
+        sa.Column("metadata", sa.JSON(), nullable=True),
         sa.Column("birthday", sa.DateTime(timezone=True), nullable=True),
         sa.Column("anniversary", sa.DateTime(timezone=True), nullable=True),
         sa.Column("is_primary", sa.Boolean(), nullable=False),
@@ -2168,11 +2246,66 @@ def upgrade() -> None:
         ["label_definition_id"],
         unique=False,
     )
+    op.create_table(
+        "customer_contacts",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("customer_id", sa.UUID(), nullable=False),
+        sa.Column("contact_id", sa.UUID(), nullable=False, comment="FK to contacts.id"),
+        sa.Column(
+            "role",
+            sa.Enum(
+                "PRIMARY",
+                "BILLING",
+                "TECHNICAL",
+                "ADMIN",
+                "SUPPORT",
+                "EMERGENCY",
+                "OTHER",
+                name="contactrole",
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "is_primary_for_role",
+            sa.Boolean(),
+            nullable=False,
+            comment="Primary contact for this specific role",
+        ),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("tenant_id", sa.String(length=255), nullable=True),
+        sa.ForeignKeyConstraint(["contact_id"], ["contacts.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["customer_id"], ["customers.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("customer_id", "contact_id", "role", name="uq_customer_contact_role"),
+    )
+    op.create_index(
+        "ix_customer_contact_contact", "customer_contacts", ["contact_id", "role"], unique=False
+    )
+    op.create_index(
+        "ix_customer_contact_customer", "customer_contacts", ["customer_id", "role"], unique=False
+    )
+    op.create_index(
+        op.f("ix_customer_contacts_contact_id"), "customer_contacts", ["contact_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_customer_contacts_customer_id"), "customer_contacts", ["customer_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_customer_contacts_tenant_id"), "customer_contacts", ["tenant_id"], unique=False
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f("ix_customer_contacts_tenant_id"), table_name="customer_contacts")
+    op.drop_index(op.f("ix_customer_contacts_customer_id"), table_name="customer_contacts")
+    op.drop_index(op.f("ix_customer_contacts_contact_id"), table_name="customer_contacts")
+    op.drop_index("ix_customer_contact_customer", table_name="customer_contacts")
+    op.drop_index("ix_customer_contact_contact", table_name="customer_contacts")
+    op.drop_table("customer_contacts")
     op.drop_index("ix_contact_labels_label_definition_id", table_name="contact_to_labels")
     op.drop_index("ix_contact_labels_contact_id", table_name="contact_to_labels")
     op.drop_table("contact_to_labels")
@@ -2296,6 +2429,10 @@ def downgrade() -> None:
     op.drop_table("transactions")
     op.drop_index(op.f("ix_roles_name"), table_name="roles")
     op.drop_table("roles")
+    op.drop_index(op.f("ix_profile_change_history_user_id"), table_name="profile_change_history")
+    op.drop_index(op.f("ix_profile_change_history_tenant_id"), table_name="profile_change_history")
+    op.drop_index(op.f("ix_profile_change_history_field_name"), table_name="profile_change_history")
+    op.drop_table("profile_change_history")
     op.drop_index(op.f("ix_permissions_name"), table_name="permissions")
     op.drop_table("permissions")
     op.drop_index(op.f("ix_payments_tenant_id"), table_name="payments")
@@ -2330,6 +2467,16 @@ def downgrade() -> None:
     op.drop_index("idx_invoice_tenant_due_date", table_name="invoices")
     op.drop_index("idx_invoice_tenant_customer", table_name="invoices")
     op.drop_table("invoices")
+    op.drop_index(
+        op.f("ix_email_verification_tokens_user_id"), table_name="email_verification_tokens"
+    )
+    op.drop_index(
+        op.f("ix_email_verification_tokens_token_hash"), table_name="email_verification_tokens"
+    )
+    op.drop_index(
+        op.f("ix_email_verification_tokens_tenant_id"), table_name="email_verification_tokens"
+    )
+    op.drop_table("email_verification_tokens")
     op.drop_index(op.f("ix_customer_segments_tenant_id"), table_name="customer_segments")
     op.drop_table("customer_segments")
     op.drop_index("idx_customer_credit_tenant", table_name="customer_credits")
@@ -2408,6 +2555,9 @@ def downgrade() -> None:
     op.drop_index("ix_billing_rules_starts_ends", table_name="billing_pricing_rules")
     op.drop_index(op.f("ix_billing_pricing_rules_tenant_id"), table_name="billing_pricing_rules")
     op.drop_table("billing_pricing_rules")
+    op.drop_index(op.f("ix_backup_codes_user_id"), table_name="backup_codes")
+    op.drop_index(op.f("ix_backup_codes_tenant_id"), table_name="backup_codes")
+    op.drop_table("backup_codes")
     op.drop_index("ix_audit_activities_user_timestamp", table_name="audit_activities")
     op.drop_index(op.f("ix_audit_activities_user_id"), table_name="audit_activities")
     op.drop_index("ix_audit_activities_type_timestamp", table_name="audit_activities")
