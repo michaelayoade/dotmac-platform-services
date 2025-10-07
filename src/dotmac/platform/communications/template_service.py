@@ -67,6 +67,7 @@ class TemplateService:
         self.templates: dict[str, TemplateData] = {}
 
         # Create Jinja2 environments
+        self.file_env: Environment | None
         if template_dir and os.path.exists(template_dir):
             # File-based loader for templates stored as files
             self.file_env = Environment(

@@ -5,6 +5,7 @@ Provides foundation for all billing system components.
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Numeric, String, Text

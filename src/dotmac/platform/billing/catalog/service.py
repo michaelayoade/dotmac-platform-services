@@ -74,17 +74,8 @@ class ProductService:
         await self.db.commit()
         await self.db.refresh(db_category)
 
-        # Convert to Pydantic model
-        category = ProductCategory(
-            category_id=db_category.category_id,
-            tenant_id=db_category.tenant_id,
-            name=db_category.name,
-            description=db_category.description,
-            default_tax_class=db_category.default_tax_class,
-            sort_order=db_category.sort_order,
-            created_at=db_category.created_at,
-            updated_at=db_category.updated_at,
-        )
+        # Convert to Pydantic model using helper method
+        category = self._db_to_pydantic_category(db_category)
 
         logger.info(
             "Product category created",
@@ -185,25 +176,8 @@ class ProductService:
                 recovery_hint="Check database connectivity and retry",
             )
 
-        # Convert to Pydantic model
-        product = Product(
-            product_id=db_product.product_id,
-            tenant_id=db_product.tenant_id,
-            sku=db_product.sku,
-            name=db_product.name,
-            description=db_product.description,
-            category=db_product.category,
-            product_type=ProductType(db_product.product_type),
-            base_price=db_product.base_price,
-            currency=db_product.currency,
-            tax_class=db_product.tax_class,
-            usage_type=UsageType(db_product.usage_type) if db_product.usage_type else None,
-            usage_unit_name=db_product.usage_unit_name,
-            is_active=db_product.is_active,
-            metadata=db_product.metadata_json,
-            created_at=db_product.created_at,
-            updated_at=db_product.updated_at,
-        )
+        # Convert to Pydantic model using helper method
+        product = self._db_to_pydantic_product(db_product)
 
         logger.info(
             "Product created",

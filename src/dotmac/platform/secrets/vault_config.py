@@ -51,6 +51,7 @@ def get_vault_config_from_env() -> VaultConnectionConfig:
         namespace=os.getenv("VAULT_NAMESPACE"),
         mount_path=os.getenv("VAULT_MOUNT_PATH", "secret"),
         kv_version=int(os.getenv("VAULT_KV_VERSION", "2")),
+        timeout=float(os.getenv("VAULT_TIMEOUT", "30.0")),
         verify_ssl=not os.getenv("VAULT_SKIP_VERIFY"),
         role_id=os.getenv("VAULT_ROLE_ID"),
         secret_id=os.getenv("VAULT_SECRET_ID"),
@@ -71,6 +72,11 @@ def get_vault_config_from_settings() -> VaultConnectionConfig:
         namespace=settings.vault.namespace,
         mount_path=settings.vault.mount_path,
         kv_version=settings.vault.kv_version,
+        timeout=30.0,
+        verify_ssl=True,
+        role_id=None,
+        secret_id=None,
+        kubernetes_role=None,
     )
 
 
@@ -99,8 +105,14 @@ def get_vault_config() -> VaultConnectionConfig:
     return VaultConnectionConfig(
         url="http://localhost:8200",
         token="root-token",
+        namespace=None,
         mount_path="secret",
         kv_version=2,
+        timeout=30.0,
+        verify_ssl=True,
+        role_id=None,
+        secret_id=None,
+        kubernetes_role=None,
     )
 
 
@@ -110,8 +122,8 @@ class VaultConnectionManager:
     def __init__(self, config: VaultConnectionConfig | None = None) -> None:
         """Initialize connection manager."""
         self.config = config or get_vault_config()
-        self._client = None
-        self._async_client = None
+        self._client: Any | None = None
+        self._async_client: Any | None = None
 
     def get_sync_client(self) -> Any:
         """Get or create synchronous Vault client."""

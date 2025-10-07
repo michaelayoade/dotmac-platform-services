@@ -4,20 +4,42 @@ Billing module metrics and monitoring
 
 import contextlib
 import logging
-from typing import Any
+from contextlib import AbstractContextManager
+from types import ModuleType
+from typing import Any, TYPE_CHECKING, TypeAlias
+
+metrics: ModuleType | None
+trace: ModuleType | None
 
 try:
-    from opentelemetry import metrics, trace
-    from opentelemetry.metrics import Counter, Histogram, Meter
-    from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
+    from opentelemetry import metrics as _otel_metrics, trace as _otel_trace
 
+    metrics = _otel_metrics
+    trace = _otel_trace
     OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
-    metrics = trace = None
-    Counter = Histogram = Meter = None  # type: ignore[assignment]
-    Tracer = None  # type: ignore[assignment]
-    SpanKind = Status = StatusCode = None  # type: ignore[assignment]
+    metrics = None
+    trace = None
     OTEL_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from opentelemetry.metrics import Counter as CounterT
+    from opentelemetry.metrics import Histogram as HistogramT
+    from opentelemetry.metrics import Meter as MeterT
+    from opentelemetry.trace import Span as SpanT
+    from opentelemetry.trace import SpanKind as SpanKindT
+    from opentelemetry.trace import Status as StatusT
+    from opentelemetry.trace import StatusCode as StatusCodeT
+    from opentelemetry.trace import Tracer as TracerT
+else:  # pragma: no cover - typing fallback
+    CounterT: TypeAlias = Any
+    HistogramT: TypeAlias = Any
+    MeterT: TypeAlias = Any
+    SpanT: TypeAlias = Any
+    SpanKindT: TypeAlias = Any
+    StatusT: TypeAlias = Any
+    StatusCodeT: TypeAlias = Any
+    TracerT: TypeAlias = Any
 
 from dotmac.platform.billing.core.enums import PaymentStatus
 from dotmac.platform.telemetry import get_meter, get_tracer

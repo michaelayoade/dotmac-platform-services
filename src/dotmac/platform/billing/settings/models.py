@@ -182,6 +182,50 @@ class NotificationSettings(BaseModel):
     webhook_secret: str | None = Field(None, description="Webhook signature secret")
 
 
+def _default_tax_settings() -> TaxSettings:
+    return TaxSettings(
+        calculate_tax=True, tax_inclusive_pricing=False, default_tax_rate=0.0, tax_provider=None
+    )
+
+
+def _default_payment_settings() -> PaymentSettings:
+    return PaymentSettings(
+        default_currency="USD",
+        default_payment_terms=30,
+        late_payment_fee=None,
+        retry_failed_payments=True,
+        max_retry_attempts=3,
+        retry_interval_hours=24,
+    )
+
+
+def _default_invoice_settings() -> InvoiceSettings:
+    return InvoiceSettings(
+        invoice_number_prefix="INV",
+        invoice_number_format="{prefix}-{year}-{sequence:06d}",
+        default_due_days=30,
+        include_payment_instructions=True,
+        payment_instructions=None,
+        footer_text=None,
+        terms_and_conditions=None,
+        send_invoice_emails=True,
+        send_payment_reminders=True,
+        logo_on_invoices=True,
+        color_scheme=None,
+    )
+
+
+def _default_notification_settings() -> NotificationSettings:
+    return NotificationSettings(
+        send_invoice_notifications=True,
+        send_payment_confirmations=True,
+        send_overdue_notices=True,
+        send_receipt_emails=True,
+        webhook_url=None,
+        webhook_secret=None,
+    )
+
+
 class BillingSettings(BillingBaseModel):
     """Complete billing settings for a tenant"""
 
@@ -189,12 +233,10 @@ class BillingSettings(BillingBaseModel):
 
     # Core settings
     company_info: CompanyInfo
-    tax_settings: TaxSettings = Field(default_factory=lambda: TaxSettings())
-    payment_settings: PaymentSettings = Field(default_factory=lambda: PaymentSettings())
-    invoice_settings: InvoiceSettings = Field(default_factory=lambda: InvoiceSettings())
-    notification_settings: NotificationSettings = Field(
-        default_factory=lambda: NotificationSettings()
-    )
+    tax_settings: TaxSettings = Field(default_factory=_default_tax_settings)
+    payment_settings: PaymentSettings = Field(default_factory=_default_payment_settings)
+    invoice_settings: InvoiceSettings = Field(default_factory=_default_invoice_settings)
+    notification_settings: NotificationSettings = Field(default_factory=_default_notification_settings)
 
     # Feature flags
     features_enabled: dict[str, bool] = Field(
@@ -221,7 +263,8 @@ class BillingSettings(BillingBaseModel):
     )
 
     @validator("company_info", pre=True)
-    def validate_company_info(cls, v) -> Any:
+    @classmethod
+    def validate_company_info(cls, v: Any) -> Any:
         if isinstance(v, dict):
             return CompanyInfo(**v)
         return v

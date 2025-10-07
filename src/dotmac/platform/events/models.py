@@ -44,6 +44,18 @@ class EventMetadata(BaseModel):
     trace_id: str | None = Field(None, description="Distributed tracing ID")
 
 
+def _default_event_metadata() -> EventMetadata:
+    """Create default EventMetadata instance with all fields set to None."""
+    return EventMetadata(
+        correlation_id=None,
+        causation_id=None,
+        user_id=None,
+        tenant_id=None,
+        source=None,
+        trace_id=None,
+    )
+
+
 class Event(BaseModel):
     """Base event model."""
 
@@ -58,7 +70,7 @@ class Event(BaseModel):
     event_type: str = Field(..., description="Event type (e.g., 'invoice.created')")
     payload: dict[str, Any] = Field(default_factory=dict, description="Event data")
     metadata: EventMetadata = Field(
-        default_factory=lambda: EventMetadata(), description="Event metadata"
+        default_factory=_default_event_metadata, description="Event metadata"
     )
 
     # Tracking fields

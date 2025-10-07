@@ -134,30 +134,33 @@ class BillingSettingsService:
         """Validate current settings and return validation report"""
 
         settings = await self.get_settings(tenant_id)
-        validation_report = {
+        validation_report: dict[str, Any] = {
             "valid": True,
             "warnings": [],
             "errors": [],
         }
 
+        errors: list[str] = validation_report["errors"]
+        warnings: list[str] = validation_report["warnings"]
+
         # Validate company info
         if not settings.company_info.name:
-            validation_report["errors"].append("Company name is required")
+            errors.append("Company name is required")
             validation_report["valid"] = False
 
         if not settings.company_info.address_line1:
-            validation_report["errors"].append("Company address is required")
+            errors.append("Company address is required")
             validation_report["valid"] = False
 
         # Validate tax settings
         if settings.tax_settings.calculate_tax and not settings.tax_settings.tax_registrations:
-            validation_report["warnings"].append(
+            warnings.append(
                 "Tax calculation enabled but no tax registrations configured"
             )
 
         # Validate payment settings
         if not settings.payment_settings.enabled_payment_methods:
-            validation_report["errors"].append("At least one payment method must be enabled")
+            errors.append("At least one payment method must be enabled")
             validation_report["valid"] = False
 
         # Validate invoice settings
@@ -165,7 +168,7 @@ class BillingSettingsService:
             settings.invoice_settings.send_payment_reminders
             and not settings.invoice_settings.reminder_schedule_days
         ):
-            validation_report["warnings"].append(
+            warnings.append(
                 "Payment reminders enabled but no reminder schedule configured"
             )
 
@@ -185,17 +188,56 @@ class BillingSettingsService:
             tenant_id=tenant_id,
             company_info=CompanyInfo(
                 name="Your Company",
+                legal_name=None,
+                tax_id=None,
+                registration_number=None,
                 address_line1="123 Business Street",
+                address_line2=None,
                 city="San Francisco",
                 state="CA",
                 postal_code="94105",
                 country="US",
+                phone=None,
                 email="billing@yourcompany.com",
+                website=None,
+                logo_url=None,
+                brand_color=None,
             ),
-            tax_settings=TaxSettings(),
-            payment_settings=PaymentSettings(),
-            invoice_settings=InvoiceSettings(),
-            notification_settings=NotificationSettings(),
+            tax_settings=TaxSettings(
+                calculate_tax=True,
+                tax_inclusive_pricing=False,
+                default_tax_rate=0.0,
+                tax_provider=None,
+            ),
+            payment_settings=PaymentSettings(
+                default_currency="USD",
+                default_payment_terms=30,
+                late_payment_fee=None,
+                retry_failed_payments=True,
+                max_retry_attempts=3,
+                retry_interval_hours=24,
+            ),
+            invoice_settings=InvoiceSettings(
+                invoice_number_prefix="INV",
+                invoice_number_format="{prefix}-{year}-{sequence:06d}",
+                default_due_days=30,
+                include_payment_instructions=True,
+                payment_instructions=None,
+                footer_text=None,
+                terms_and_conditions=None,
+                send_invoice_emails=True,
+                send_payment_reminders=True,
+                logo_on_invoices=True,
+                color_scheme=None,
+            ),
+            notification_settings=NotificationSettings(
+                send_invoice_notifications=True,
+                send_payment_confirmations=True,
+                send_overdue_notices=True,
+                send_receipt_emails=True,
+                webhook_url=None,
+                webhook_secret=None,
+            ),
         )
 
     async def _validate_settings(self, settings: BillingSettings) -> None:

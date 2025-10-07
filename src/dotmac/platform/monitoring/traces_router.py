@@ -188,7 +188,7 @@ class ObservabilityService:
 
         try:
             # Build Jaeger API query parameters
-            params = {
+            params: dict[str, str | int] = {
                 "limit": page_size,
                 "lookback": "1h",  # Default lookback
             }

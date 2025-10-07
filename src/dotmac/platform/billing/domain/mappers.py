@@ -85,8 +85,8 @@ class InvoiceMapper:
         """
         return Invoice(
             id=entity.invoice_id,
-            tenant_id=entity.tenant_id,
-            invoice_number=entity.invoice_number,
+            tenant_id=entity.tenant_id or "",
+            invoice_number=entity.invoice_number or "",
             customer_id=entity.customer_id,
             billing_email=entity.billing_email,
             issue_date=entity.issue_date,
@@ -105,6 +105,10 @@ class InvoiceMapper:
             ),
             total_amount=Money(
                 amount=entity.total_amount / 100,
+                currency=entity.currency,
+            ),
+            remaining_balance=Money(
+                amount=entity.remaining_balance / 100,
                 currency=entity.currency,
             ),
             line_items_data=[],  # Would be loaded from line_items relationship
@@ -132,6 +136,8 @@ class InvoiceMapper:
         Returns:
             InvoiceModel for API responses
         """
+        from datetime import datetime, UTC
+
         return InvoiceModel(
             tenant_id=invoice.tenant_id,
             invoice_id=invoice.id,
@@ -146,9 +152,16 @@ class InvoiceMapper:
             tax_amount=int(invoice.tax_amount.amount * 100),
             discount_amount=int(invoice.discount_amount.amount * 100),
             total_amount=int(invoice.total_amount.amount * 100),
-            remaining_balance=int(invoice.total_amount.amount * 100),
+            remaining_balance=int(invoice.remaining_balance.amount * 100),
             status=invoice.status,
             payment_status=invoice.payment_status,
+            created_by=None,
+            total_credits_applied=0,
+            credit_applications=[],
+            notes=invoice.notes,
+            internal_notes=None,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     @staticmethod
@@ -216,7 +229,7 @@ class PaymentMapper:
 
         return Payment(
             id=entity.payment_id,
-            tenant_id=entity.tenant_id,
+            tenant_id=entity.tenant_id or "",
             payment_id=entity.payment_id,
             customer_id=entity.customer_id,
             amount=Money(
@@ -238,16 +251,39 @@ class PaymentMapper:
     @staticmethod
     def to_model(payment: Payment) -> PaymentModel:
         """Convert Payment aggregate to PaymentModel."""
+        from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentStatus
+
+        # Map payment_method string to enum
+        payment_method_map = {
+            "card": PaymentMethodType.CARD,
+            "bank_transfer": PaymentMethodType.WIRE_TRANSFER,
+            "wire_transfer": PaymentMethodType.WIRE_TRANSFER,
+            "cash": PaymentMethodType.CASH,
+            "check": PaymentMethodType.CHECK,
+        }
+        payment_method_type = payment_method_map.get(payment.payment_method, PaymentMethodType.CARD)
+
+        # Map status string to enum
+        status = (
+            PaymentStatus(payment.status)
+            if isinstance(payment.status, str)
+            else payment.status
+        )
+
         return PaymentModel(
             tenant_id=payment.tenant_id,
             payment_id=payment.id,
             customer_id=payment.customer_id,
             amount=int(payment.amount.amount * 100),
             currency=payment.amount.currency,
-            payment_method=payment.payment_method,
-            status=payment.status,
-            invoice_id=payment.invoice_id,
-            subscription_id=payment.subscription_id,
+            payment_method_type=payment_method_type,
+            payment_method_details={},
+            status=status,
+            provider=payment.payment_method,
+            provider_fee=None,
+            invoice_ids=[payment.invoice_id] if payment.invoice_id else [],
+            failure_reason=payment.error_message,
+            retry_count=0,
         )
 
 
@@ -275,15 +311,29 @@ class SubscriptionMapper:
     @staticmethod
     def to_model(subscription: Subscription) -> SubscriptionModel:
         """Convert Subscription aggregate to SubscriptionModel."""
-        # Using the existing Subscription model structure
+        from datetime import datetime, UTC
+        from dotmac.platform.billing.subscriptions.models import SubscriptionStatus
+
+        # Map status string to enum
+        status = (
+            SubscriptionStatus(subscription.status)
+            if isinstance(subscription.status, str)
+            else subscription.status
+        )
+
         return SubscriptionModel(
             tenant_id=subscription.tenant_id,
             subscription_id=subscription.id,
             customer_id=subscription.customer_id,
             plan_id=subscription.plan_id,
-            status=subscription.status,
+            status=status,
             current_period_start=subscription.current_period_start,
             current_period_end=subscription.current_period_end,
+            updated_at=datetime.now(UTC),
+            trial_end=None,
+            canceled_at=None,
+            ended_at=None,
+            custom_price=None,
         )
 
 
@@ -314,17 +364,24 @@ class CustomerMapper:
     @staticmethod
     def to_aggregate(entity: CustomerEntity) -> Customer:
         """Convert CustomerEntity to Customer aggregate."""
+        # CustomerEntity uses first_name/last_name, not name
+        name = getattr(entity, "display_name", None)
+        if not name:
+            first_name = getattr(entity, "first_name", "")
+            last_name = getattr(entity, "last_name", "")
+            name = f"{first_name} {last_name}".strip()
+
         return Customer(
-            id=entity.customer_id,
-            tenant_id=entity.tenant_id,
-            customer_id=entity.customer_id,
-            email=entity.email,
-            name=entity.name,
-            company=entity.company,
-            phone=entity.phone,
-            status=entity.status if isinstance(entity.status, str) else entity.status.value,
-            is_deleted=entity.is_deleted,
-            metadata=entity.metadata_ or {},
-            deleted_at=entity.deleted_at,
+            id=str(entity.id),
+            tenant_id=entity.tenant_id or "",
+            customer_id=str(entity.id),
+            email=getattr(entity, "email", ""),
+            name=name,
+            company=getattr(entity, "company_name", None),
+            phone=getattr(entity, "phone", None),
+            status=getattr(entity, "status", "active"),
+            is_deleted=getattr(entity, "is_deleted", False),
+            metadata=getattr(entity, "metadata_", {}) or {},
+            deleted_at=getattr(entity, "deleted_at", None),
             version=1,
         )

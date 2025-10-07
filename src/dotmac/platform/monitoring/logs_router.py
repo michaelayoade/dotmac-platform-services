@@ -43,11 +43,11 @@ class LogMetadata(BaseModel):
         extra="allow",
     )
 
-    request_id: str | None = Field(None, description="Request correlation ID")
-    user_id: str | None = Field(None, description="User ID")
-    tenant_id: str | None = Field(None, description="Tenant ID")
-    duration: int | None = Field(None, description="Duration in milliseconds")
-    ip: str | None = Field(None, description="Client IP address")
+    request_id: str | None = Field(default=None, description="Request correlation ID")
+    user_id: str | None = Field(default=None, description="User ID")
+    tenant_id: str | None = Field(default=None, description="Tenant ID")
+    duration: int | None = Field(default=None, description="Duration in milliseconds")
+    ip: str | None = Field(default=None, description="Client IP address")
 
 
 class LogEntry(BaseModel):
@@ -174,10 +174,10 @@ class LogsService:
 
             # Execute query
             result = await self.session.execute(query)
-            activities = result.scalars().all()
+            activities = list(result.scalars().all())
 
             # Convert to LogEntry format
-            logs = []
+            logs: list[LogEntry] = []
             for activity in activities:
                 # Handle None values before validation
                 if not activity:
@@ -262,10 +262,10 @@ class LogsService:
                 severity_query = severity_query.where(AuditActivity.created_at <= end_time)
 
             result = await self.session.execute(severity_query)
-            severity_counts = dict(result.all())
+            severity_counts: dict[str, int] = {row[0]: row[1] for row in result.all()}
 
             # Map severities to log levels
-            by_level = {
+            by_level: dict[str, int] = {
                 "INFO": severity_counts.get(ActivitySeverity.LOW.value, 0),
                 "WARNING": severity_counts.get(ActivitySeverity.MEDIUM.value, 0),
                 "ERROR": severity_counts.get(ActivitySeverity.HIGH.value, 0),

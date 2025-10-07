@@ -90,6 +90,49 @@ class WebhookConfig(BaseModel):
     timeout_seconds: int = Field(30, description="Webhook request timeout")
 
 
+def _default_tax_config() -> TaxConfig:
+    """Create default TaxConfig instance"""
+    return TaxConfig(
+        provider=None,
+        avalara_api_key=None,
+        avalara_company_code=None,
+        taxjar_api_token=None,
+        default_tax_rate=0.0,
+    )
+
+
+def _default_currency_config() -> CurrencyConfig:
+    """Create default CurrencyConfig instance"""
+    return CurrencyConfig(
+        default_currency="USD",
+        currency_symbol="$",
+        currency_decimal_places=2,
+        currency_format="{symbol}{amount}",
+        use_minor_units=True,
+    )
+
+
+def _default_invoice_config() -> InvoiceConfig:
+    """Create default InvoiceConfig instance"""
+    return InvoiceConfig(
+        number_format="INV-{year}-{sequence:06d}",
+        due_days_default=30,
+        auto_finalize=False,
+        overdue_check_hours=24,
+        send_reminders=True,
+    )
+
+
+def _default_payment_config() -> PaymentConfig:
+    """Create default PaymentConfig instance"""
+    return PaymentConfig(
+        default_provider="stripe",
+        auto_retry_failed=True,
+        max_retry_attempts=3,
+        require_verification=True,
+    )
+
+
 class BillingConfig(BaseModel):
     """Main billing configuration"""
 
@@ -98,10 +141,10 @@ class BillingConfig(BaseModel):
     paypal: PayPalConfig | None = None
 
     # Module configurations
-    tax: TaxConfig = Field(default_factory=lambda: TaxConfig())
-    currency: CurrencyConfig = Field(default_factory=lambda: CurrencyConfig())
-    invoice: InvoiceConfig = Field(default_factory=lambda: InvoiceConfig())
-    payment: PaymentConfig = Field(default_factory=lambda: PaymentConfig())
+    tax: TaxConfig = Field(default_factory=_default_tax_config)
+    currency: CurrencyConfig = Field(default_factory=_default_currency_config)
+    invoice: InvoiceConfig = Field(default_factory=_default_invoice_config)
+    payment: PaymentConfig = Field(default_factory=_default_payment_config)
     webhook: WebhookConfig | None = None
 
     # Feature flags

@@ -11,15 +11,18 @@ import operator
 import secrets
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable, Iterable, Iterator, TypeVar
 from uuid import UUID
 
 import structlog
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.engine import Result
 
 logger = structlog.get_logger(__name__)
+
+_T = TypeVar("_T")
 
 from dotmac.platform.customer_management.models import (
     ActivityType,
@@ -43,7 +46,7 @@ from dotmac.platform.customer_management.schemas import (
 from dotmac.platform.tenant import get_current_tenant_id
 
 
-def validate_uuid(value: str, field_name: str = "id") -> UUID:
+def validate_uuid(value: UUID | str, field_name: str = "id") -> UUID:
     """Validate and convert string to UUID with standard library validation."""
     if value is None:
         raise ValueError(f"Invalid UUID for {field_name}: {value}")
@@ -62,7 +65,7 @@ class CustomerService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         # Initialize collections for efficient analytics
-        self._customer_stats_cache = collections.defaultdict(int)
+        self._customer_stats_cache: collections.defaultdict[str, int] = collections.defaultdict(int)
 
     def _get_customer_cache_key(
         self, customer_id: str, include_activities: bool = False, include_notes: bool = False
@@ -151,7 +154,7 @@ class CustomerService:
         tenant_id = self._resolve_tenant_id()
         return validated_id, tenant_id
 
-    def _get_base_customer_query(self, tenant_id: str) -> select:
+    def _get_base_customer_query(self, tenant_id: str) -> Select[tuple[Customer]]:
         """Get base customer query with tenant filtering (consolidated pattern)."""
         return select(Customer).where(
             and_(
@@ -239,7 +242,7 @@ class CustomerService:
         if include_notes:
             query = query.options(selectinload(Customer.notes))
 
-        result = await self.session.execute(query)
+        result: Result[tuple[Customer]] = await self.session.execute(query)
         return result.scalar_one_or_none()
 
     async def get_customer_by_number(
@@ -259,7 +262,7 @@ class CustomerService:
         if include_activities:
             query = query.options(selectinload(Customer.activities))
 
-        result = await self.session.execute(query)
+        result: Result[tuple[Customer]] = await self.session.execute(query)
         return result.scalar_one_or_none()
 
     async def get_customer_by_email(
@@ -279,7 +282,7 @@ class CustomerService:
         if include_activities:
             query = query.options(selectinload(Customer.activities))
 
-        result = await self.session.execute(query)
+        result: Result[tuple[Customer]] = await self.session.execute(query)
         return result.scalar_one_or_none()
 
     async def update_customer(
@@ -381,7 +384,7 @@ class CustomerService:
         else:
             # Soft delete using standard pattern
             customer.deleted_at = datetime.now(UTC).replace(tzinfo=None)
-            customer.deleted_by = deleted_by
+            customer.updated_by = deleted_by
             customer.status = CustomerStatus.ARCHIVED
 
             # Create activity
@@ -447,13 +450,13 @@ class CustomerService:
 
         # Count total results
         count_query = select(func.count(Customer.id)).select_from(query.subquery())
-        count_result = await self.session.execute(count_query)
-        total = count_result.scalar()
+        count_result: Result[tuple[int]] = await self.session.execute(count_query)
+        total = count_result.scalar_one()
 
         # Add pagination and ordering using operator
         query = query.order_by(Customer.created_at.desc()).limit(limit).offset(offset)
 
-        result = await self.session.execute(query)
+        result: Result[tuple[Customer]] = await self.session.execute(query)
         customers = list(result.scalars().all())
 
         return customers, total
@@ -646,8 +649,8 @@ class CustomerService:
         if status:
             query = query.where(Customer.status == status)
 
-        result = await self.session.execute(query)
-        return result.scalar()
+        result: Result[tuple[int]] = await self.session.execute(query)
+        return result.scalar_one()
 
     async def record_purchase(
         self,
@@ -719,7 +722,7 @@ class CustomerService:
         type_counts = collections.Counter(customer.customer_type for customer in customers)
 
         # Calculate additional stats using collections.defaultdict
-        monthly_registrations = collections.defaultdict(int)
+        monthly_registrations: collections.defaultdict[str, int] = collections.defaultdict(int)
         for customer in customers:
             if customer.created_at:
                 month_key = customer.created_at.strftime("%Y-%m")
@@ -739,20 +742,23 @@ class CustomerService:
         self, customer_ids: list[UUID | str], operation: str, batch_size: int = 100
     ) -> dict[str, list]:
         """Process customers in batches using itertools for efficiency."""
-        results = {"success": [], "failed": []}
+        results: dict[str, list[UUID | str]] = {"success": [], "failed": []}
 
         # Check if itertools.batched is available (Python 3.12+)
         try:
-            batched = itertools.batched
+            batched_fn: Callable[[Iterable[_T], int], Iterable[tuple[_T, ...]]] = itertools.batched
         except AttributeError:
             # Fallback for Python < 3.12
-            def batched(iterable, n) -> Any:
+            def batched_fn(iterable: Iterable[_T], n: int) -> Iterator[tuple[_T, ...]]:
                 iterator = iter(iterable)
-                while batch := list(itertools.islice(iterator, n)):
-                    yield batch
+                while True:
+                    batch_tuple = tuple(itertools.islice(iterator, n))
+                    if not batch_tuple:
+                        break
+                    yield batch_tuple
 
         # Use itertools for efficient batching
-        for batch in batched(customer_ids, batch_size):
+        for batch in batched_fn(customer_ids, batch_size):
             try:
                 batch_uuids = [validate_uuid(cid) for cid in batch]
 
@@ -811,7 +817,7 @@ class CustomerService:
         await self.session.execute(stmt)
         await self.session.commit()
 
-    def get_customers_by_criteria(self, customers: list[Customer], **criteria) -> list[Customer]:
+    def get_customers_by_criteria(self, customers: list[Customer], **criteria: Any) -> list[Customer]:
         """Filter customers using operator and standard library functions."""
         filtered = customers
 

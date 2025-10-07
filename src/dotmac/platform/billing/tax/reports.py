@@ -6,6 +6,7 @@ import csv
 import io
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +31,7 @@ class TaxReportGenerator:
         year: int,
         quarter: int,
         jurisdiction: str | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Generate quarterly tax report"""
 
         # Calculate date range
@@ -83,7 +84,7 @@ class TaxReportGenerator:
         self,
         tenant_id: str,
         year: int,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Generate annual tax report"""
 
         start_date = datetime(year, 1, 1)
@@ -133,7 +134,7 @@ class TaxReportGenerator:
         start_date: datetime,
         end_date: datetime,
         state: str,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Generate state sales tax report (US specific)"""
 
         jurisdiction = f"US-{state.upper()}"
@@ -185,7 +186,7 @@ class TaxReportGenerator:
         start_date: datetime,
         end_date: datetime,
         country: str,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Generate VAT report (EU specific)"""
 
         jurisdiction = f"EU-{country.upper()}"
@@ -238,7 +239,7 @@ class TaxReportGenerator:
 
     async def export_tax_report_csv(
         self,
-        report_data: dict[str, any],
+        report_data: dict[str, Any],
         report_type: str = "summary",
     ) -> str:
         """Export tax report to CSV format"""
@@ -293,7 +294,7 @@ class TaxReportGenerator:
         tenant_id: str,
         start_date: datetime,
         end_date: datetime,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Get invoice statistics for period"""
 
         stmt = select(
@@ -306,7 +307,7 @@ class TaxReportGenerator:
                 InvoiceEntity.tenant_id == tenant_id,
                 InvoiceEntity.issue_date >= start_date,
                 InvoiceEntity.issue_date <= end_date,
-                InvoiceEntity.status != InvoiceStatus.VOIDED,
+                InvoiceEntity.status != InvoiceStatus.VOID,
             )
         )
 
@@ -326,7 +327,7 @@ class TaxReportGenerator:
         start_date: datetime,
         end_date: datetime,
         jurisdiction: str,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Get taxable sales for period and jurisdiction"""
 
         # This would query invoices with tax > 0 for the jurisdiction
@@ -339,7 +340,7 @@ class TaxReportGenerator:
                 InvoiceEntity.issue_date >= start_date,
                 InvoiceEntity.issue_date <= end_date,
                 InvoiceEntity.tax_amount > 0,
-                InvoiceEntity.status != InvoiceStatus.VOIDED,
+                InvoiceEntity.status != InvoiceStatus.VOID,
             )
         )
 
@@ -357,7 +358,7 @@ class TaxReportGenerator:
         start_date: datetime,
         end_date: datetime,
         jurisdiction: str,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Get tax-exempt sales for period and jurisdiction"""
 
         # This would query invoices with tax = 0 for the jurisdiction
@@ -370,7 +371,7 @@ class TaxReportGenerator:
                 InvoiceEntity.issue_date >= start_date,
                 InvoiceEntity.issue_date <= end_date,
                 InvoiceEntity.tax_amount == 0,
-                InvoiceEntity.status != InvoiceStatus.VOIDED,
+                InvoiceEntity.status != InvoiceStatus.VOID,
             )
         )
 
@@ -388,7 +389,7 @@ class TaxReportGenerator:
         start_date: datetime,
         end_date: datetime,
         jurisdiction: str,
-    ) -> list[dict[str, any]]:
+    ) -> list[dict[str, Any]]:
         """Get VAT transactions for period"""
 
         # This would be more complex in production

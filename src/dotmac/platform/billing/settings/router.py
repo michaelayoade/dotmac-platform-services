@@ -28,7 +28,7 @@ router = APIRouter(prefix="/settings", tags=["Billing - Settings"])
 async def get_billing_settings(
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Get billing settings for the current tenant"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -49,7 +49,7 @@ async def update_billing_settings(
     settings: BillingSettings,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update complete billing settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -72,7 +72,7 @@ async def update_company_info(
     company_info: CompanyInfo,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update company information settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -93,7 +93,7 @@ async def update_tax_settings(
     tax_settings: TaxSettings,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update tax settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -114,7 +114,7 @@ async def update_payment_settings(
     payment_settings: PaymentSettings,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update payment settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -135,7 +135,7 @@ async def update_invoice_settings(
     invoice_settings: InvoiceSettings,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update invoice settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -156,7 +156,7 @@ async def update_notification_settings(
     notification_settings: NotificationSettings,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update notification settings"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -179,7 +179,7 @@ async def update_feature_flags(
     features: dict[str, bool],
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Update feature flags"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -199,7 +199,7 @@ async def update_feature_flags(
 async def reset_to_defaults(
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BillingSettings:
     """Reset billing settings to defaults"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
@@ -219,7 +219,7 @@ async def reset_to_defaults(
 async def validate_settings(
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict:
     """Validate current billing settings and return validation report"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"

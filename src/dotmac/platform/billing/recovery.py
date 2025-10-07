@@ -8,7 +8,7 @@ and recovering from billing errors gracefully.
 import asyncio
 import random
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, TypeVar
@@ -46,7 +46,7 @@ class ExponentialBackoff(RetryStrategy):
 
     def get_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay with optional jitter."""
-        delay = min(self.base_delay * (2**attempt), self.max_delay)
+        delay: float = min(self.base_delay * (2**attempt), self.max_delay)
         if self.jitter:
             delay = delay * (0.5 + random.random())
         return delay
@@ -85,7 +85,7 @@ class BillingRetry:
         self.retryable_exceptions = retryable_exceptions
         self.on_retry = on_retry
 
-    async def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    async def execute(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """
         Execute function with retry logic.
 
@@ -100,11 +100,11 @@ class BillingRetry:
         Raises:
             Last exception if all retry attempts fail
         """
-        last_exception = None
+        last_exception: Exception | None = None
 
         for attempt in range(self.max_attempts):
             try:
-                result = await func(*args, **kwargs)
+                result: T = await func(*args, **kwargs)
                 if attempt > 0:
                     logger.info(
                         "Operation succeeded after retry",
@@ -149,13 +149,14 @@ class BillingRetry:
 
         if last_exception:
             raise last_exception
+        raise BillingError("No result from execute", error_code="NO_RESULT")
 
 
 def with_retry(
     max_attempts: int = 3,
     strategy: RetryStrategy | None = None,
-    retryable_exceptions: tuple = (PaymentError, WebhookError),
-):
+    retryable_exceptions: tuple[type[Exception], ...] = (PaymentError, WebhookError),
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """
     Decorator for adding retry logic to async functions.
 
@@ -166,9 +167,9 @@ def with_retry(
             pass
     """
 
-    def decorator(func) -> Any:
+    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs: Any) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             retry = BillingRetry(
                 max_attempts=max_attempts,
                 strategy=strategy,
@@ -199,17 +200,17 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: float = 60.0,
-        expected_exception: type = BillingError,
+        expected_exception: type[Exception] = BillingError,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.expected_exception = expected_exception
 
         self.failure_count = 0
-        self.last_failure_time = None
+        self.last_failure_time: float | None = None
         self.state = self.CLOSED
 
-    async def call(self, func: Callable[..., T], *args, **kwargs: Any) -> T:
+    async def call(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """
         Execute function through circuit breaker.
 
@@ -237,12 +238,13 @@ class CircuitBreaker:
                 )
 
         try:
-            result = await func(*args, **kwargs)
+            result: T = await func(*args, **kwargs)
             self._on_success()
             return result
 
-        except self.expected_exception:
-            self._on_failure()
+        except Exception as e:
+            if isinstance(e, self.expected_exception):
+                self._on_failure()
             raise
 
     def _should_attempt_reset(self) -> bool:
@@ -294,13 +296,18 @@ class RecoveryContext:
         self.state: dict[str, Any] = {}
         self.attempts: list = []
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "RecoveryContext":
         """Enter recovery context."""
         if self.save_state:
             self.state["started_at"] = datetime.now(UTC)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         """Exit recovery context and log results."""
         if self.save_state:
             self.state["completed_at"] = datetime.now(UTC)
@@ -322,7 +329,11 @@ class RecoveryContext:
                 )
 
     async def execute_with_fallback(
-        self, primary: Callable[..., T], fallback: Callable[..., T], *args, **kwargs
+        self,
+        primary: Callable[..., Awaitable[T]],
+        fallback: Callable[..., Awaitable[T]],
+        *args: Any,
+        **kwargs: Any,
     ) -> T:
         """
         Execute primary function with fallback on failure.
@@ -336,10 +347,10 @@ class RecoveryContext:
         Returns:
             Result from primary or fallback function
         """
-        attempt = {"type": "primary", "function": primary.__name__}
+        attempt: dict[str, Any] = {"type": "primary", "function": primary.__name__}
 
         try:
-            result = await primary(*args, **kwargs)
+            result: T = await primary(*args, **kwargs)
             attempt["success"] = True
             self.attempts.append(attempt)
             return result
@@ -356,7 +367,7 @@ class RecoveryContext:
                 error=str(e),
             )
 
-            fallback_attempt = {"type": "fallback", "function": fallback.__name__}
+            fallback_attempt: dict[str, Any] = {"type": "fallback", "function": fallback.__name__}
 
             try:
                 result = await fallback(*args, **kwargs)
@@ -382,7 +393,9 @@ class IdempotencyManager:
         self.cache_ttl = cache_ttl
         self._cache: dict[str, Any] = {}
 
-    async def ensure_idempotent(self, key: str, func: Callable[..., T], *args, **kwargs: Any) -> T:
+    async def ensure_idempotent(
+        self, key: str, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Execute function only if not already processed.
 
@@ -399,10 +412,11 @@ class IdempotencyManager:
             logger.info(
                 "Returning cached result for idempotent operation", key=key, function=func.__name__
             )
-            return self._cache[key]["result"]
+            cached_result: T = self._cache[key]["result"]
+            return cached_result
 
         try:
-            result = await func(*args, **kwargs)
+            result: T = await func(*args, **kwargs)
             self._cache[key] = {"result": result, "timestamp": datetime.now(UTC)}
             return result
 
