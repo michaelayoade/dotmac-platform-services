@@ -133,9 +133,6 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}/src"
           DATABASE_URL: postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test
           DOTMAC_REDIS_URL: redis://localhost:6379/0
-          DOTMAC_MINIO_ENDPOINT: localhost:9000
-          DOTMAC_MINIO_ACCESS_KEY: minioadmin
-          DOTMAC_MINIO_SECRET_KEY: minioadmin
         run: |
           echo "Running migrations with DATABASE_URL=$DATABASE_URL"
           echo "PYTHONPATH=$PYTHONPATH"
@@ -155,9 +152,6 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}/src"
           DATABASE_URL: postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test
           DOTMAC_REDIS_URL: redis://localhost:6379/0
-          DOTMAC_MINIO_ENDPOINT: localhost:9000
-          DOTMAC_MINIO_ACCESS_KEY: minioadmin
-          DOTMAC_MINIO_SECRET_KEY: minioadmin
         run: |
           poetry run pytest tests/ \
             --ignore=tests/test_observability.py \
