@@ -507,8 +507,8 @@ class PricingEngine:
         db_rule = result.scalar_one_or_none()
 
         if db_rule:
-            current_uses = int(getattr(db_rule, 'current_uses', 0))
-            setattr(db_rule, 'current_uses', current_uses + 1)
+            current_uses = int(getattr(db_rule, "current_uses", 0))
+            setattr(db_rule, "current_uses", current_uses + 1)
 
         await self.db.commit()
 
@@ -518,41 +518,45 @@ class PricingEngine:
         rule_id: str = str(db_rule.rule_id)
         tenant_id: str = str(db_rule.tenant_id)
         name: str = str(db_rule.name)
-        description_raw = getattr(db_rule, 'description', None)
+        description_raw = getattr(db_rule, "description", None)
         description: str | None = str(description_raw) if description_raw else None
         applies_to_all: bool = bool(db_rule.applies_to_all)
         is_active: bool = bool(db_rule.is_active)
 
         # Handle list fields
-        applies_to_product_ids_raw = getattr(db_rule, 'applies_to_product_ids', None)
-        applies_to_product_ids: list[str] = applies_to_product_ids_raw if applies_to_product_ids_raw else []
+        applies_to_product_ids_raw = getattr(db_rule, "applies_to_product_ids", None)
+        applies_to_product_ids: list[str] = (
+            applies_to_product_ids_raw if applies_to_product_ids_raw else []
+        )
 
-        applies_to_categories_raw = getattr(db_rule, 'applies_to_categories', None)
-        applies_to_categories: list[str] = applies_to_categories_raw if applies_to_categories_raw else []
+        applies_to_categories_raw = getattr(db_rule, "applies_to_categories", None)
+        applies_to_categories: list[str] = (
+            applies_to_categories_raw if applies_to_categories_raw else []
+        )
 
-        customer_segments_raw = getattr(db_rule, 'customer_segments', None)
+        customer_segments_raw = getattr(db_rule, "customer_segments", None)
         customer_segments: list[str] = customer_segments_raw if customer_segments_raw else []
 
         # Handle numeric fields
-        min_quantity_raw = getattr(db_rule, 'min_quantity', None)
+        min_quantity_raw = getattr(db_rule, "min_quantity", None)
         min_quantity: int | None = int(min_quantity_raw) if min_quantity_raw is not None else None
 
         discount_value: Decimal = Decimal(str(db_rule.discount_value))
         discount_type_value: str = str(db_rule.discount_type)
 
-        max_uses_raw = getattr(db_rule, 'max_uses', None)
+        max_uses_raw = getattr(db_rule, "max_uses", None)
         max_uses: int | None = int(max_uses_raw) if max_uses_raw is not None else None
 
-        current_uses: int = int(getattr(db_rule, 'current_uses', 0))
+        current_uses: int = int(getattr(db_rule, "current_uses", 0))
 
         # Handle datetime fields
-        starts_at: datetime | None = getattr(db_rule, 'starts_at', None)
-        ends_at: datetime | None = getattr(db_rule, 'ends_at', None)
-        created_at: datetime = getattr(db_rule, 'created_at', datetime.now(UTC))
-        updated_at: datetime = getattr(db_rule, 'updated_at', datetime.now(UTC))
+        starts_at: datetime | None = getattr(db_rule, "starts_at", None)
+        ends_at: datetime | None = getattr(db_rule, "ends_at", None)
+        created_at: datetime = getattr(db_rule, "created_at", datetime.now(UTC))
+        updated_at: datetime = getattr(db_rule, "updated_at", datetime.now(UTC))
 
         # Handle metadata
-        metadata: dict[str, Any] = getattr(db_rule, 'metadata_json', None) or {}
+        metadata: dict[str, Any] = getattr(db_rule, "metadata_json", None) or {}
 
         return PricingRule(
             rule_id=rule_id,

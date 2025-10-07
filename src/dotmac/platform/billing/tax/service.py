@@ -4,6 +4,7 @@ Tax management service
 
 import logging
 from datetime import UTC, datetime
+from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 from sqlalchemy import and_, func, select
@@ -96,8 +97,8 @@ class TaxService:
         tenant_id: str,
         invoice_id: str,
         jurisdiction: str,
-        line_items: list[dict[str, any]],
-    ) -> dict[str, any]:
+        line_items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Calculate tax for an invoice"""
 
         # Calculate tax for line items
@@ -126,7 +127,7 @@ class TaxService:
         tenant_id: str,
         invoice_id: str,
         jurisdiction: str | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Recalculate tax for an existing invoice"""
 
         # Get invoice
@@ -138,7 +139,7 @@ class TaxService:
         tax_jurisdiction = jurisdiction or self._extract_jurisdiction(invoice.billing_address)
 
         # Convert line items to dict format
-        line_items = [
+        line_items: list[dict[str, Any]] = [
             {
                 "description": item.description,
                 "amount": item.total_price,
@@ -171,7 +172,7 @@ class TaxService:
         tenant_id: str,
         start_date: datetime,
         end_date: datetime,
-    ) -> list[dict[str, any]]:
+    ) -> list[dict[str, Any]]:
         """Get tax summary grouped by jurisdiction"""
 
         # Query transactions for tax amounts
@@ -185,8 +186,8 @@ class TaxService:
                 and_(
                     TransactionEntity.tenant_id == tenant_id,
                     TransactionEntity.transaction_type == TransactionType.TAX,
-                    TransactionEntity.created_at >= start_date,
-                    TransactionEntity.created_at <= end_date,
+                    TransactionEntity.transaction_date >= start_date,
+                    TransactionEntity.transaction_date <= end_date,
                 )
             )
             .group_by(TransactionEntity.extra_data["jurisdiction"])
@@ -195,7 +196,7 @@ class TaxService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        summary = []
+        summary: list[dict[str, Any]] = []
         for row in rows:
             summary.append(
                 {
@@ -215,15 +216,15 @@ class TaxService:
         start_date: datetime,
         end_date: datetime,
         jurisdiction: str | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Generate tax liability report"""
 
         # Build query
         conditions = [
             TransactionEntity.tenant_id == tenant_id,
             TransactionEntity.transaction_type == TransactionType.TAX,
-            TransactionEntity.created_at >= start_date,
-            TransactionEntity.created_at <= end_date,
+            TransactionEntity.transaction_date >= start_date,
+            TransactionEntity.transaction_date <= end_date,
         ]
 
         if jurisdiction:
@@ -267,11 +268,11 @@ class TaxService:
         self,
         tax_number: str,
         jurisdiction: str,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Validate a tax identification number"""
 
         # Basic validation rules by jurisdiction
-        validation_rules = {
+        validation_rules: dict[str, Callable[[str], tuple[bool, str]]] = {
             "EU": self._validate_eu_vat,
             "US": self._validate_us_ein,
             "CA": self._validate_ca_gst,
@@ -375,11 +376,13 @@ class TaxService:
         self.db.add(transaction)
         await self.db.commit()
 
-    def _extract_jurisdiction(self, billing_address: dict[str, str]) -> str:
+    def _extract_jurisdiction(self, billing_address: Mapping[str, Any]) -> str:
         """Extract tax jurisdiction from billing address"""
 
-        country = billing_address.get("country", "US")
-        state = billing_address.get("state", "")
+        country_value = billing_address.get("country")
+        country = country_value if isinstance(country_value, str) else "US"
+        state_value = billing_address.get("state")
+        state = state_value if isinstance(state_value, str) else ""
 
         # Format jurisdiction code
         if country == "US" and state:

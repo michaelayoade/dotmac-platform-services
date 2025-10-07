@@ -1,5 +1,4 @@
 """
-from typing import Any
 Data transfer factory with feature flag integration.
 
 This module provides factories for creating data importers and exporters
@@ -7,6 +6,7 @@ based on feature flags and file formats.
 """
 
 from pathlib import Path
+from typing import Any
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings

@@ -57,22 +57,44 @@ class _NoopInstrument:
         return None
 
 
+CounterInstrument: TypeAlias = CounterT | _NoopInstrument
+HistogramInstrument: TypeAlias = HistogramT | _NoopInstrument
+SpanContextManager: TypeAlias = AbstractContextManager[SpanT | None]
+
+
+def _get_span_kind(kind_name: str) -> SpanKindT | None:
+    """Resolve a SpanKind attribute when OpenTelemetry is available."""
+
+    if trace is None:
+        return None
+    span_kind = getattr(trace, "SpanKind", None)
+    if span_kind is None:
+        return None
+    return getattr(span_kind, kind_name, None)
+
+
 class BillingMetrics:
     """Billing metrics collector"""
 
-    def __init__(self, meter: Meter | None = None, tracer: Tracer | None = None) -> None:
+    def __init__(
+        self,
+        meter: MeterT | None = None,
+        tracer: TracerT | None = None,
+    ) -> None:
         """Initialize billing metrics"""
 
+        self.meter: MeterT | None
         try:
             self.meter = meter or get_meter("billing")
         except Exception as exc:  # pragma: no cover - optional dependency path
-            logger.debug("billing.metrics.meter_unavailable", error=str(exc))
+            logger.debug("billing.metrics.meter_unavailable: %s", exc)
             self.meter = None
 
+        self.tracer: TracerT | None
         try:
             self.tracer = tracer or get_tracer("billing")
         except Exception as exc:  # pragma: no cover - optional dependency path
-            logger.debug("billing.metrics.tracer_unavailable", error=str(exc))
+            logger.debug("billing.metrics.tracer_unavailable: %s", exc)
             self.tracer = None
 
         # Invoice metrics
@@ -358,22 +380,24 @@ class BillingMetrics:
 
     # Internal helpers -----------------------------------------------------
 
-    def _create_counter(self, name: str, description: str, unit: str = "1") -> Any:
+    def _create_counter(self, name: str, description: str, unit: str = "1") -> CounterInstrument:
         if not self.meter:
             return _NoopInstrument()
         try:
             return self.meter.create_counter(name=name, description=description, unit=unit)
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("billing.metrics.counter_unavailable", name=name, error=str(exc))
+            logger.debug("billing.metrics.counter_unavailable (%s): %s", name, exc)
             return _NoopInstrument()
 
-    def _create_histogram(self, name: str, description: str, unit: str = "1") -> Any:
+    def _create_histogram(
+        self, name: str, description: str, unit: str = "1"
+    ) -> HistogramInstrument:
         if not self.meter:
             return _NoopInstrument()
         try:
             return self.meter.create_histogram(name=name, description=description, unit=unit)
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("billing.metrics.histogram_unavailable", name=name, error=str(exc))
+            logger.debug("billing.metrics.histogram_unavailable (%s): %s", name, exc)
             return _NoopInstrument()
 
     # Tracing helpers
@@ -382,13 +406,14 @@ class BillingMetrics:
         operation: str,
         tenant_id: str,
         invoice_id: str,
-    ):
+    ) -> SpanContextManager:
         """Create a trace span for invoice operations"""
-        if not self.tracer:
-            return contextlib.nullcontext()
+        span_kind = _get_span_kind("INTERNAL")
+        if not self.tracer or span_kind is None:
+            return contextlib.nullcontext(None)
         return self.tracer.start_as_current_span(
             f"billing.invoice.{operation}",
-            kind=SpanKind.INTERNAL,
+            kind=span_kind,
             attributes={
                 "tenant_id": tenant_id,
                 "invoice_id": invoice_id,
@@ -402,13 +427,14 @@ class BillingMetrics:
         tenant_id: str,
         payment_id: str,
         provider: str,
-    ):
+    ) -> SpanContextManager:
         """Create a trace span for payment operations"""
-        if not self.tracer:
-            return contextlib.nullcontext()
+        span_kind = _get_span_kind("INTERNAL")
+        if not self.tracer or span_kind is None:
+            return contextlib.nullcontext(None)
         return self.tracer.start_as_current_span(
             f"billing.payment.{operation}",
-            kind=SpanKind.INTERNAL,
+            kind=span_kind,
             attributes={
                 "tenant_id": tenant_id,
                 "payment_id": payment_id,
@@ -421,13 +447,14 @@ class BillingMetrics:
         self,
         provider: str,
         event_type: str,
-    ):
+    ) -> SpanContextManager:
         """Create a trace span for webhook processing"""
-        if not self.tracer:
-            return contextlib.nullcontext()
+        span_kind = _get_span_kind("SERVER")
+        if not self.tracer or span_kind is None:
+            return contextlib.nullcontext(None)
         return self.tracer.start_as_current_span(
             "billing.webhook.process",
-            kind=SpanKind.SERVER,
+            kind=span_kind,
             attributes={
                 "provider": provider,
                 "event_type": event_type,

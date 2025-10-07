@@ -4,13 +4,14 @@ Contact Management API Router
 FastAPI endpoints for contact operations.
 """
 
+from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.core import UserInfo, ensure_uuid
 from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.contacts.schemas import (
     ContactActivityCreate,
@@ -51,11 +52,11 @@ async def create_contact(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.create")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactResponse:
     """Create a new contact."""
     service = ContactService(db)
     contact = await service.create_contact(
-        contact_data=contact_data, tenant_id=tenant_id, owner_id=current_user.user_id
+        contact_data=contact_data, tenant_id=tenant_id, owner_id=ensure_uuid(current_user.user_id)
     )
     return contact
 
@@ -68,7 +69,7 @@ async def get_contact(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.read")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactResponse:
     """Get a contact by ID."""
     service = ContactService(db)
     contact = await service.get_contact(
@@ -89,7 +90,7 @@ async def update_contact(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactResponse:
     """Update a contact."""
     service = ContactService(db)
     contact = await service.update_contact(
@@ -107,14 +108,14 @@ async def delete_contact(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.delete")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> None:
     """Delete a contact."""
     service = ContactService(db)
     success = await service.delete_contact(
         contact_id=contact_id,
         tenant_id=tenant_id,
         hard_delete=hard_delete,
-        deleted_by=current_user.user_id,
+        deleted_by=ensure_uuid(current_user.user_id),
     )
     if not success:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -126,7 +127,7 @@ async def search_contacts(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.read")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactListResponse:
     """Search contacts with filtering."""
     service = ContactService(db)
 
@@ -152,8 +153,11 @@ async def search_contacts(
     has_next = (search_request.page * search_request.page_size) < total
     has_prev = search_request.page > 1
 
+    # Convert Contact models to ContactResponse
+    contact_responses = [ContactResponse.model_validate(contact) for contact in contacts]
+
     return ContactListResponse(
-        contacts=contacts,
+        contacts=contact_responses,
         total=total,
         page=search_request.page,
         page_size=search_request.page_size,
@@ -174,7 +178,7 @@ async def add_contact_method(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactMethodResponse:
     """Add a contact method to a contact."""
     service = ContactService(db)
     method = await service.add_contact_method(
@@ -192,7 +196,7 @@ async def update_contact_method(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactMethodResponse:
     """Update a contact method."""
     service = ContactService(db)
     method = await service.update_contact_method(
@@ -209,7 +213,7 @@ async def delete_contact_method(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> None:
     """Delete a contact method."""
     service = ContactService(db)
     success = await service.delete_contact_method(method_id=method_id, tenant_id=tenant_id)
@@ -229,14 +233,14 @@ async def add_contact_activity(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactActivityResponse:
     """Add an activity to a contact."""
     service = ContactService(db)
     activity = await service.add_contact_activity(
         contact_id=contact_id,
         activity_data=activity_data,
         tenant_id=tenant_id,
-        performed_by=current_user.user_id,
+        performed_by=ensure_uuid(current_user.user_id),
     )
     if not activity:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -251,7 +255,7 @@ async def get_contact_activities(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.read")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> list[ContactActivityResponse]:
     """Get activities for a contact."""
     service = ContactService(db)
     activities = await service.get_contact_activities(
@@ -271,11 +275,11 @@ async def create_label_definition(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.manage")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactLabelDefinitionResponse:
     """Create a new label definition."""
     service = ContactLabelService(db)
     label = await service.create_label_definition(
-        label_data=label_data, tenant_id=tenant_id, created_by=current_user.user_id
+        label_data=label_data, tenant_id=tenant_id, created_by=ensure_uuid(current_user.user_id)
     )
     return label
 
@@ -287,7 +291,7 @@ async def get_label_definitions(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.read")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> list[ContactLabelDefinitionResponse]:
     """Get label definitions for the tenant."""
     service = ContactLabelService(db)
     labels = await service.get_label_definitions(
@@ -307,11 +311,11 @@ async def create_field_definition(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.manage")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> ContactFieldDefinitionResponse:
     """Create a new custom field definition."""
     service = ContactFieldService(db)
     field = await service.create_field_definition(
-        field_data=field_data, tenant_id=tenant_id, created_by=current_user.user_id
+        field_data=field_data, tenant_id=tenant_id, created_by=ensure_uuid(current_user.user_id)
     )
     return field
 
@@ -323,7 +327,7 @@ async def get_field_definitions(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.read")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> list[ContactFieldDefinitionResponse]:
     """Get field definitions for the tenant."""
     service = ContactFieldService(db)
     fields = await service.get_field_definitions(
@@ -339,11 +343,11 @@ async def bulk_update_contacts(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.update")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> dict[str, Any]:
     """Bulk update multiple contacts."""
     service = ContactService(db)
     updated_count = 0
-    errors = []
+    errors: list[dict[str, str]] = []
 
     for contact_id in bulk_update.contact_ids:
         try:
@@ -367,11 +371,11 @@ async def bulk_delete_contacts(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("contacts.delete")),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> dict[str, Any]:
     """Bulk delete multiple contacts."""
     service = ContactService(db)
     deleted_count = 0
-    errors = []
+    errors: list[dict[str, str]] = []
 
     for contact_id in bulk_delete.contact_ids:
         try:
@@ -379,7 +383,7 @@ async def bulk_delete_contacts(
                 contact_id=contact_id,
                 tenant_id=tenant_id,
                 hard_delete=bulk_delete.hard_delete,
-                deleted_by=current_user.user_id,
+                deleted_by=ensure_uuid(current_user.user_id),
             )
             if success:
                 deleted_count += 1

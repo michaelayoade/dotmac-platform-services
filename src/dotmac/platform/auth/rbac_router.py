@@ -3,6 +3,7 @@ API endpoints for RBAC management
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,6 +16,9 @@ from dotmac.platform.auth.models import PermissionCategory
 from dotmac.platform.auth.rbac_dependencies import require_admin, require_permission
 from dotmac.platform.auth.rbac_service import RBACService, get_rbac_service
 from dotmac.platform.db import get_async_session
+
+if TYPE_CHECKING:
+    from dotmac.platform.auth.models import Role
 
 router = APIRouter(tags=["RBAC"])
 
@@ -116,7 +120,7 @@ async def list_permissions(
     active_only: bool = True,
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("admin.role.manage")),
-):
+) -> list[PermissionResponse]:
     """List all available permissions"""
     from dotmac.platform.auth.models import Permission
 
@@ -151,7 +155,7 @@ async def get_permission(
     permission_name: str,
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("admin.role.manage")),
-):
+) -> PermissionResponse:
     """Get details of a specific permission"""
     from dotmac.platform.auth.models import Permission
 
@@ -185,7 +189,7 @@ async def list_roles(
     include_user_count: bool = False,
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("admin.role.manage")),
-):
+) -> list[RoleResponse]:
     """List all available roles"""
     from sqlalchemy.orm import selectinload
 
@@ -248,7 +252,7 @@ async def create_role(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> RoleResponse:
     """Create a new role"""
     try:
         role = await rbac_service.create_role(
@@ -275,7 +279,7 @@ async def create_role(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def _update_role_basic_fields(role, request: RoleUpdateRequest) -> None:
+async def _update_role_basic_fields(role: "Role", request: RoleUpdateRequest) -> None:
     """Update basic role fields."""
     if request.display_name is not None:
         role.display_name = request.display_name
@@ -285,7 +289,9 @@ async def _update_role_basic_fields(role, request: RoleUpdateRequest) -> None:
         role.is_active = request.is_active
 
 
-async def _update_role_default_status(role, request: RoleUpdateRequest, db: AsyncSession) -> None:
+async def _update_role_default_status(
+    role: "Role", request: RoleUpdateRequest, db: AsyncSession
+) -> None:
     """Update role default status."""
     from dotmac.platform.auth.models import Role
 
@@ -296,7 +302,9 @@ async def _update_role_default_status(role, request: RoleUpdateRequest, db: Asyn
         role.is_default = request.is_default
 
 
-async def _update_role_permissions(role, request: RoleUpdateRequest, db: AsyncSession) -> None:
+async def _update_role_permissions(
+    role: "Role", request: RoleUpdateRequest, db: AsyncSession
+) -> None:
     """Update role permissions."""
     from dotmac.platform.auth.models import Permission
 
@@ -316,7 +324,7 @@ async def update_role(
     request: RoleUpdateRequest,
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> RoleResponse:
     """Update an existing role"""
     from sqlalchemy.orm import selectinload as sel
 
@@ -358,7 +366,7 @@ async def delete_role(
     role_id: UUID,
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Delete a role"""
     from dotmac.platform.auth.models import Role
 
@@ -387,7 +395,7 @@ async def assign_role_to_user(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Assign a role to a user"""
     from dotmac.platform.auth.models import Role
 
@@ -411,7 +419,7 @@ async def revoke_role_from_user(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Revoke a role from a user"""
     from dotmac.platform.auth.models import Role
 
@@ -437,7 +445,7 @@ async def get_user_permissions(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_permission("admin.user.read")),
-):
+) -> UserPermissionsResponse:
     """Get all permissions for a user"""
     # Get effective permissions
     permissions = await rbac_service.get_user_permissions(user_id)
@@ -493,12 +501,12 @@ async def assign_role_to_user_legacy(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Assign a role to a user (legacy endpoint)"""
     await rbac_service.assign_role_to_user(
         user_id=request.user_id,
         role_name=request.role_name,
-        granted_by=current_user.id,
+        granted_by=UUID(current_user.user_id),
         expires_at=request.expires_at,
         metadata=request.metadata,
     )
@@ -510,12 +518,12 @@ async def revoke_role_from_user_legacy(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Revoke a role from a user (legacy endpoint)"""
     await rbac_service.revoke_role_from_user(
         user_id=request.user_id,
         role_name=request.role_name,
-        revoked_by=current_user.id,
+        revoked_by=UUID(current_user.user_id),
         reason=request.metadata.get("reason") if request.metadata else None,
     )
 
@@ -527,7 +535,7 @@ async def grant_permission_to_user(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Grant a permission directly to a user"""
     await rbac_service.grant_permission_to_user(
         user_id=user_id,
@@ -548,7 +556,7 @@ async def revoke_permission_from_user(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Revoke a permission from a user"""
     await rbac_service.revoke_permission_from_user(
         user_id=user_id, permission_name=permission_name, revoked_by=UUID(current_user.user_id)
@@ -562,13 +570,13 @@ async def grant_permission_to_user_legacy(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(require_admin),
-):
+) -> None:
     """Grant or revoke a specific permission directly to/from a user (legacy endpoint)"""
     if request.granted:
         await rbac_service.grant_permission_to_user(
             user_id=request.user_id,
             permission_name=request.permission_name,
-            granted_by=current_user.id,
+            granted_by=UUID(current_user.user_id),
             expires_at=request.expires_at,
             reason=request.reason,
         )
@@ -597,6 +605,6 @@ async def get_my_permissions(
     db: AsyncSession = Depends(get_async_session),
     rbac_service: RBACService = Depends(get_rbac_service),
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> UserPermissionsResponse:
     """Get current user's permissions"""
-    return await get_user_permissions(current_user.id, db, rbac_service, current_user)
+    return await get_user_permissions(UUID(current_user.user_id), db, rbac_service, current_user)

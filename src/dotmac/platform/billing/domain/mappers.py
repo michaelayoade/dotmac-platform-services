@@ -265,9 +265,7 @@ class PaymentMapper:
 
         # Map status string to enum
         status = (
-            PaymentStatus(payment.status)
-            if isinstance(payment.status, str)
-            else payment.status
+            PaymentStatus(payment.status) if isinstance(payment.status, str) else payment.status
         )
 
         return PaymentModel(

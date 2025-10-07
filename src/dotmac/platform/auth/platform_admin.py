@@ -8,6 +8,7 @@ Provides capabilities for SaaS platform administrators to:
 - Generate cross-tenant reports
 """
 
+from typing import Any
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 

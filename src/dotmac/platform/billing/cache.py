@@ -7,22 +7,23 @@ with intelligent invalidation and multi-tier caching strategies.
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, MutableMapping
 from datetime import UTC, datetime
 from enum import Enum
 from functools import wraps
 from typing import Any, TypeVar
 
 import structlog
-from cachetools import TTLCache
+from cachetools import TTLCache  # type: ignore[import-untyped]
 
-# Re-export from core to maintain backwards compatibility
-from dotmac.platform.core.cache_decorators import CacheTier, cached_result
+# Core cache primitives reused here for consistency
+from dotmac.platform.core.cache_decorators import CacheTier
 from dotmac.platform.core.caching import cache_get, cache_set, get_redis
 
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
+Loader = Callable[[], Awaitable[Any]]
 
 
 class CacheStrategy(str, Enum):
@@ -198,6 +199,9 @@ class BillingCache:
         self.metrics = BillingCacheMetrics()
 
         # L1 in-memory caches
+        self.product_cache: MutableMapping[str, Any]
+        self.pricing_cache: MutableMapping[str, Any]
+        self.subscription_cache: MutableMapping[str, Any]
         if self.config.ENABLE_L1_CACHE:
             self.product_cache = TTLCache(
                 maxsize=self.config.PRODUCT_CACHE_SIZE, ttl=self.config.PRODUCT_TTL
@@ -220,7 +224,7 @@ class BillingCache:
     async def get(
         self,
         key: str,
-        loader: Callable | None = None,
+        loader: Loader | None = None,
         ttl: int | None = None,
         tier: CacheTier = CacheTier.L2_REDIS,
     ) -> Any | None:
@@ -523,7 +527,7 @@ def cached_result(
             return product
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             cache = get_billing_cache()
@@ -580,7 +584,7 @@ def invalidate_on_change(tags: list[str] | None = None, patterns: list[str] | No
             return updated_product
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Execute function

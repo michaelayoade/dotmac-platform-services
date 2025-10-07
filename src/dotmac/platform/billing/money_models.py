@@ -82,7 +82,7 @@ class MoneyInvoiceLineItem(BaseModel):
 
     @field_validator("unit_price", "total_price", "tax_amount", "discount_amount")
     @classmethod
-    def validate_money_fields(cls, v) -> Any:
+    def validate_money_fields(cls, v: Any) -> Any:
         """Ensure Money fields are valid."""
         if isinstance(v, dict):
             return MoneyField(**v)
@@ -209,7 +209,7 @@ class MoneyInvoice(BaseModel):
 
     @field_validator("currency")
     @classmethod
-    def validate_currency(cls, v) -> Any:
+    def validate_currency(cls, v: Any) -> Any:
         """Validate currency code."""
         try:
             money_handler._validate_currency(v.upper())

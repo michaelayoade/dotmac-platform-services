@@ -103,7 +103,7 @@ class ImportRequest(BaseModel):
 
     @field_validator("source_path")
     @classmethod
-    def validate_source_path(cls, v: str, info) -> str:
+    def validate_source_path(cls, v: str, info: Any) -> str:
         """Validate source path based on source type."""
         source_type = info.data.get("source_type")
 
@@ -188,7 +188,7 @@ class ExportRequest(BaseModel):
 
     @field_validator("target_path")
     @classmethod
-    def validate_target_path(cls, v: str, info) -> str:
+    def validate_target_path(cls, v: str, info: Any) -> str:
         """Validate target path based on target type."""
         target_type = info.data.get("target_type")
 

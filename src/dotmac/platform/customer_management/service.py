@@ -817,7 +817,9 @@ class CustomerService:
         await self.session.execute(stmt)
         await self.session.commit()
 
-    def get_customers_by_criteria(self, customers: list[Customer], **criteria: Any) -> list[Customer]:
+    def get_customers_by_criteria(
+        self, customers: list[Customer], **criteria: Any
+    ) -> list[Customer]:
         """Filter customers using operator and standard library functions."""
         filtered = customers
 

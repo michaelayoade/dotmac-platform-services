@@ -4,6 +4,7 @@ Simple rate limiting using SlowAPI standard library.
 Replaces custom rate limiting implementations with industry standard.
 """
 
+from typing import Any
 from collections.abc import Callable
 
 import structlog

@@ -4,6 +4,7 @@ Authentication router for FastAPI.
 Provides login, register, token refresh endpoints.
 """
 
+from typing import Any
 from datetime import UTC, datetime
 
 import structlog

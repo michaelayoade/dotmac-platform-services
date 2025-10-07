@@ -231,13 +231,14 @@ class BillingMapper:
             Dictionary ready for invoice creation
         """
         # Initialize base data with required fields
-        data = {
+        metadata: dict[str, Any] = {}
+        data: dict[str, Any] = {
             "tenant_id": tenant_id,
             "customer_id": import_data.customer_id,
             "amount": Decimal(str(import_data.amount)),
             "currency": import_data.currency,
             "status": import_data.status,
-            "metadata_json": {},
+            "metadata_json": metadata,
         }
 
         # Generate or set invoice number
@@ -259,17 +260,17 @@ class BillingMapper:
         # Map external references
         external_data, external_metadata = BillingMapper._map_external_references(import_data)
         data.update(external_data)
-        data["metadata_json"].update(external_metadata)
+        metadata.update(external_metadata)
 
         # Add import metadata
-        BillingMapper._add_import_metadata(import_data, data["metadata_json"])
+        BillingMapper._add_import_metadata(import_data, metadata)
 
         return data
 
     @staticmethod
     def _map_subscription_dates(import_data: SubscriptionImportSchema) -> dict[str, Any]:
         """Map subscription date fields."""
-        data = {}
+        data: dict[str, Any] = {}
 
         if import_data.start_date:
             data["current_period_start"] = import_data.start_date
@@ -292,7 +293,7 @@ class BillingMapper:
     @staticmethod
     def _map_subscription_external_refs(import_data: SubscriptionImportSchema) -> dict[str, Any]:
         """Map subscription external references to metadata."""
-        metadata = {}
+        metadata: dict[str, Any] = {}
 
         if import_data.external_id:
             metadata["external_id"] = import_data.external_id
@@ -319,7 +320,8 @@ class BillingMapper:
         """
         from uuid import uuid4
 
-        data = {
+        metadata: dict[str, Any] = {}
+        data: dict[str, Any] = {
             "subscription_id": f"SUB-{uuid4().hex[:12].upper()}",
             "tenant_id": tenant_id,
             "customer_id": import_data.customer_id,
@@ -327,7 +329,7 @@ class BillingMapper:
             "status": import_data.status,
             "price": Decimal(str(import_data.price)),
             "currency": import_data.currency,
-            "metadata_json": {},
+            "metadata_json": metadata,
         }
 
         # Optional billing cycle
@@ -342,12 +344,12 @@ class BillingMapper:
         data.update(BillingMapper._map_subscription_dates(import_data))
 
         # Map external references
-        data["metadata_json"].update(BillingMapper._map_subscription_external_refs(import_data))
+        metadata.update(BillingMapper._map_subscription_external_refs(import_data))
 
         # Import metadata
         if import_data.import_batch_id:
-            data["metadata_json"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_json"]["imported_at"] = datetime.now(UTC).isoformat()
+            metadata["import_batch_id"] = import_data.import_batch_id
+            metadata["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 
@@ -365,7 +367,8 @@ class BillingMapper:
         """
         from uuid import uuid4
 
-        data = {
+        metadata: dict[str, Any] = {}
+        data: dict[str, Any] = {
             "payment_id": f"PAY-{uuid4().hex[:12].upper()}",
             "tenant_id": tenant_id,
             "customer_id": import_data.customer_id,
@@ -374,7 +377,7 @@ class BillingMapper:
             "payment_date": import_data.payment_date,
             "payment_method": import_data.payment_method,
             "status": import_data.status,
-            "metadata_json": {},
+            "metadata_json": metadata,
         }
 
         # References
@@ -389,14 +392,14 @@ class BillingMapper:
 
         # External references
         if import_data.external_id:
-            data["metadata_json"]["external_id"] = import_data.external_id
+            metadata["external_id"] = import_data.external_id
         if import_data.source_system:
-            data["metadata_json"]["source_system"] = import_data.source_system
+            metadata["source_system"] = import_data.source_system
 
         # Import metadata
         if import_data.import_batch_id:
-            data["metadata_json"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_json"]["imported_at"] = datetime.now(UTC).isoformat()
+            metadata["import_batch_id"] = import_data.import_batch_id
+            metadata["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 

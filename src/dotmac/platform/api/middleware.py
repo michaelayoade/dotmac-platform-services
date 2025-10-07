@@ -4,6 +4,7 @@ API Gateway middleware.
 Provides gateway-specific middleware for request processing.
 """
 
+from typing import Any
 import time
 from collections.abc import Callable
 

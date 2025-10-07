@@ -74,7 +74,7 @@ class PricingRule(BillingBaseModel):
 
     @field_validator("discount_value")
     @classmethod
-    def validate_discount_value(cls, v: Decimal, info) -> Decimal:
+    def validate_discount_value(cls, v: Decimal, info: Any) -> Decimal:
         """Validate discount value based on discount type."""
         if v < 0:
             raise ValueError("Discount value cannot be negative")
@@ -252,7 +252,7 @@ class PricingRuleCreateRequest(BaseModel):
 
     @field_validator("ends_at")
     @classmethod
-    def validate_end_date(cls, v: datetime | None, info) -> datetime | None:
+    def validate_end_date(cls, v: datetime | None, info: Any) -> datetime | None:
         """Ensure end date is after start date."""
         if v and info.data.get("starts_at") and v <= info.data["starts_at"]:
             raise ValueError("End date must be after start date")

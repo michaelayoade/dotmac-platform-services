@@ -5,6 +5,7 @@ Extends the base ProductService with intelligent caching strategies
 to minimize database queries and improve response times.
 """
 
+from typing import Any
 import structlog
 
 from dotmac.platform.billing.cache import (

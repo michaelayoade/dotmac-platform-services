@@ -37,7 +37,7 @@ async def create_webhook_subscription(
     subscription_data: WebhookSubscriptionCreate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> WebhookSubscriptionResponse:
     """
     Create a new webhook subscription.
 
@@ -59,6 +59,12 @@ async def create_webhook_subscription(
     - `X-Webhook-Event-Type`: Event type
     - `X-Webhook-Timestamp`: Request timestamp
     """
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         subscription = await service.create_subscription(
@@ -94,8 +100,14 @@ async def list_webhook_subscriptions(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> list[WebhookSubscriptionResponse]:
     """List all webhook subscriptions for the current tenant."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         subscriptions = await service.list_subscriptions(
@@ -121,8 +133,14 @@ async def get_webhook_subscription(
     subscription_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> WebhookSubscriptionResponse:
     """Get webhook subscription by ID."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         subscription = await service.get_subscription(
@@ -154,8 +172,14 @@ async def update_webhook_subscription(
     update_data: WebhookSubscriptionUpdate,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> WebhookSubscriptionResponse:
     """Update webhook subscription."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         subscription = await service.update_subscription(
@@ -187,8 +211,14 @@ async def delete_webhook_subscription(
     subscription_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> None:
     """Delete webhook subscription."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         deleted = await service.delete_subscription(
@@ -219,12 +249,18 @@ async def rotate_webhook_secret(
     subscription_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> dict[str, str]:
     """
     Rotate webhook signing secret.
 
     Returns the new secret. Store it securely - it won't be retrievable later.
     """
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         new_secret = await service.rotate_secret(
@@ -268,8 +304,14 @@ async def list_webhook_deliveries(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> list[WebhookDeliveryResponse]:
     """List webhook deliveries for a subscription."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         deliveries = await service.get_deliveries(
@@ -295,8 +337,14 @@ async def list_all_deliveries(
     limit: int = Query(50, ge=1, le=200, description="Maximum deliveries to return"),
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> list[WebhookDeliveryResponse]:
     """List recent webhook deliveries across all subscriptions."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         deliveries = await service.get_recent_deliveries(
@@ -319,8 +367,14 @@ async def get_webhook_delivery(
     delivery_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> WebhookDeliveryResponse:
     """Get webhook delivery details."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         service = WebhookSubscriptionService(db)
         delivery = await service.get_delivery(
@@ -351,8 +405,14 @@ async def retry_webhook_delivery(
     delivery_id: str,
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
-):
+) -> dict[str, str]:
     """Manually retry a failed webhook delivery."""
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for webhook subscriptions",
+        )
+
     try:
         delivery_service = WebhookDeliveryService(db)
         retried = await delivery_service.retry_delivery(
@@ -384,7 +444,7 @@ async def retry_webhook_delivery(
 @router.get("/events")
 async def list_available_events(
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> dict[str, int | list[dict[str, str | bool]]]:
     """
     List all available webhook event types.
 
@@ -394,7 +454,7 @@ async def list_available_events(
         event_bus = get_event_bus()
         registered_events = event_bus.get_registered_events()
 
-        events_list = [
+        events_list: list[dict[str, str | bool]] = [
             {
                 "event_type": schema.event_type,
                 "description": schema.description,
@@ -405,7 +465,7 @@ async def list_available_events(
         ]
 
         # Sort by event type
-        events_list.sort(key=lambda x: x["event_type"])
+        events_list.sort(key=lambda x: str(x["event_type"]))
 
         return {
             "total": len(events_list),
@@ -424,7 +484,7 @@ async def list_available_events(
 async def get_event_details(
     event_type: str,
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> dict[str, str | dict[str, object] | None]:
     """Get details about a specific event type."""
     try:
         event_bus = get_event_bus()

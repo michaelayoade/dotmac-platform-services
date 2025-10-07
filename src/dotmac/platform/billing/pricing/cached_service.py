@@ -5,6 +5,7 @@ Caches pricing rules and calculation results to minimize database queries
 and improve response times for frequent pricing operations.
 """
 
+from typing import Any
 from datetime import UTC, datetime
 from decimal import Decimal
 

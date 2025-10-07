@@ -2,6 +2,7 @@
 Product catalog service - simple CRUD operations with business logic.
 """
 
+from typing import Any
 from decimal import Decimal
 from uuid import uuid4
 
@@ -499,21 +500,27 @@ class ProductService:
         tenant_id: str = str(db_product.tenant_id)
         sku: str = str(db_product.sku)
         name: str = str(db_product.name)
-        description: str | None = str(db_product.description) if getattr(db_product, 'description', None) else None
+        description: str | None = (
+            str(db_product.description) if getattr(db_product, "description", None) else None
+        )
         category: str = str(db_product.category)
         product_type_value: str = str(db_product.product_type)
         base_price: Decimal = Decimal(str(db_product.base_price))
         currency: str = str(db_product.currency)
         tax_class: str = str(db_product.tax_class)
-        usage_unit_name: str | None = str(db_product.usage_unit_name) if getattr(db_product, 'usage_unit_name', None) else None
+        usage_unit_name: str | None = (
+            str(db_product.usage_unit_name)
+            if getattr(db_product, "usage_unit_name", None)
+            else None
+        )
         is_active: bool = bool(db_product.is_active)
 
-        usage_type_raw = getattr(db_product, 'usage_type', None)
+        usage_type_raw = getattr(db_product, "usage_type", None)
         usage_type = UsageType(usage_type_raw) if usage_type_raw else None
 
-        metadata: dict[str, Any] = getattr(db_product, 'metadata_json', None) or {}
-        created_at: datetime = getattr(db_product, 'created_at', datetime.now(UTC))
-        updated_at: datetime = getattr(db_product, 'updated_at', datetime.now(UTC))
+        metadata: dict[str, Any] = getattr(db_product, "metadata_json", None) or {}
+        created_at: datetime = getattr(db_product, "created_at", datetime.now(UTC))
+        updated_at: datetime = getattr(db_product, "updated_at", datetime.now(UTC))
 
         return Product(
             product_id=product_id,
@@ -542,11 +549,13 @@ class ProductService:
         category_id: str = str(db_category.category_id)
         tenant_id: str = str(db_category.tenant_id)
         name: str = str(db_category.name)
-        description: str | None = str(db_category.description) if getattr(db_category, 'description', None) else None
+        description: str | None = (
+            str(db_category.description) if getattr(db_category, "description", None) else None
+        )
         default_tax_class_value: str = str(db_category.default_tax_class)
-        sort_order: int = int(getattr(db_category, 'sort_order', 0))
-        created_at: datetime = getattr(db_category, 'created_at', datetime.now(UTC))
-        updated_at: datetime = getattr(db_category, 'updated_at', datetime.now(UTC))
+        sort_order: int = int(getattr(db_category, "sort_order", 0))
+        created_at: datetime = getattr(db_category, "created_at", datetime.now(UTC))
+        updated_at: datetime = getattr(db_category, "updated_at", datetime.now(UTC))
 
         return ProductCategory(
             category_id=category_id,

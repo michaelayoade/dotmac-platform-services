@@ -6,6 +6,7 @@ Provides REST endpoints for application log retrieval and filtering.
 
 from datetime import UTC, datetime
 from enum import Enum
+from typing import cast
 
 import structlog
 from fastapi import APIRouter, Depends, Query
@@ -174,11 +175,11 @@ class LogsService:
 
             # Execute query
             result = await self.session.execute(query)
-            activities = list(result.scalars().all())
+            activities_result = cast(list[AuditActivity], list(result.scalars().all()))
 
             # Convert to LogEntry format
             logs: list[LogEntry] = []
-            for activity in activities:
+            for activity in activities_result:
                 # Handle None values before validation
                 if not activity:
                     continue

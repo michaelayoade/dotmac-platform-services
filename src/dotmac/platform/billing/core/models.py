@@ -67,7 +67,7 @@ class InvoiceLineItem(BaseModel):
 
     @field_validator("tax_amount", "discount_amount", mode="before")
     @classmethod
-    def to_minor_units(cls, value) -> Any:
+    def to_minor_units(cls, value: Any) -> Any:
         """Convert Decimal/float monetary values to integer minor units (cents)."""
         from decimal import ROUND_HALF_UP, Decimal
 
@@ -79,7 +79,7 @@ class InvoiceLineItem(BaseModel):
 
     @field_validator("total_price")
     @classmethod
-    def validate_total_price(cls, v: int, info) -> int:
+    def validate_total_price(cls, v: int, info: Any) -> int:
         if "quantity" in info.data and "unit_price" in info.data:
             expected = info.data["quantity"] * info.data["unit_price"]
             if v != expected:
@@ -143,7 +143,8 @@ class Invoice(BillingBaseModel):
     @property
     def net_amount_due(self) -> int:
         """Calculate net amount due after payments and credits"""
-        return max(0, self.total_amount - self.total_credits_applied)
+        credits = self.total_credits_applied if self.total_credits_applied is not None else 0
+        return max(0, self.total_amount - credits)
 
 
 # ============================================================================

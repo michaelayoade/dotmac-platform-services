@@ -472,7 +472,7 @@ class ValidationContext:
 
     def add_error(
         self, field: str, message: str, value: Any | None = None, recovery_hint: str | None = None
-    ):
+    ) -> None:
         """Add validation error."""
         self.errors.append(
             {"field": field, "message": message, "value": value, "recovery_hint": recovery_hint}

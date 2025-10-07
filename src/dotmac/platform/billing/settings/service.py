@@ -154,9 +154,7 @@ class BillingSettingsService:
 
         # Validate tax settings
         if settings.tax_settings.calculate_tax and not settings.tax_settings.tax_registrations:
-            warnings.append(
-                "Tax calculation enabled but no tax registrations configured"
-            )
+            warnings.append("Tax calculation enabled but no tax registrations configured")
 
         # Validate payment settings
         if not settings.payment_settings.enabled_payment_methods:
@@ -168,9 +166,7 @@ class BillingSettingsService:
             settings.invoice_settings.send_payment_reminders
             and not settings.invoice_settings.reminder_schedule_days
         ):
-            warnings.append(
-                "Payment reminders enabled but no reminder schedule configured"
-            )
+            warnings.append("Payment reminders enabled but no reminder schedule configured")
 
         logger.info(
             f"Settings validation for tenant {tenant_id}: {'valid' if validation_report['valid'] else 'invalid'}"

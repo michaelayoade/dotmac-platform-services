@@ -236,7 +236,9 @@ class BillingSettings(BillingBaseModel):
     tax_settings: TaxSettings = Field(default_factory=_default_tax_settings)
     payment_settings: PaymentSettings = Field(default_factory=_default_payment_settings)
     invoice_settings: InvoiceSettings = Field(default_factory=_default_invoice_settings)
-    notification_settings: NotificationSettings = Field(default_factory=_default_notification_settings)
+    notification_settings: NotificationSettings = Field(
+        default_factory=_default_notification_settings
+    )
 
     # Feature flags
     features_enabled: dict[str, bool] = Field(
