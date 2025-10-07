@@ -1,0 +1,461 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run full test suite weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+# Cancel in-progress runs for same workflow and branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COV_FAIL_UNDER: 85
+  DIFF_COV_FAIL_UNDER: 95
+  NODE_VERSION: 20
+  PNPM_VERSION: 9
+  PYTHON_VERSION: 3.12
+
+jobs:
+  # ====================
+  # BACKEND JOBS
+  # ====================
+
+  backend-quality:
+    name: Backend Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache virtualenv
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Type check with mypy
+        run: poetry run mypy src
+
+      - name: Validate Pydantic models
+        run: poetry run python -c "from dotmac.platform.core import ensure_pydantic_v2; ensure_pydantic_v2()"
+        continue-on-error: true
+
+  backend-test:
+    name: Backend Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: dotmac_user
+          POSTGRES_PASSWORD: change-me-in-production
+          POSTGRES_DB: dotmac_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 9000:9000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache virtualenv
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U dotmac_user; do sleep 1; done'
+
+      - name: Run database migrations
+        env:
+          PYTHONPATH: "${{ github.workspace }}/src"
+          DATABASE_URL: postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test
+          DOTMAC_REDIS_URL: redis://localhost:6379/0
+          DOTMAC_MINIO_ENDPOINT: localhost:9000
+          DOTMAC_MINIO_ACCESS_KEY: minioadmin
+          DOTMAC_MINIO_SECRET_KEY: minioadmin
+        run: |
+          echo "Running migrations with DATABASE_URL=$DATABASE_URL"
+          echo "PYTHONPATH=$PYTHONPATH"
+          echo "Testing database connection..."
+          psql "$DATABASE_URL" -c "SELECT version();" || echo "Direct psql failed"
+          echo "Running alembic upgrade..."
+          poetry run alembic upgrade head || {
+            echo "Migration failed! Getting current state..."
+            poetry run alembic current
+            echo "Showing alembic history..."
+            poetry run alembic history --verbose
+            exit 1
+          }
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: "${{ github.workspace }}/src"
+          DATABASE_URL: postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac_test
+          DOTMAC_REDIS_URL: redis://localhost:6379/0
+          DOTMAC_MINIO_ENDPOINT: localhost:9000
+          DOTMAC_MINIO_ACCESS_KEY: minioadmin
+          DOTMAC_MINIO_SECRET_KEY: minioadmin
+        run: |
+          poetry run pytest tests/ \
+            --ignore=tests/test_observability.py \
+            --ignore=tests/test_real_services.py \
+            --ignore=tests/auth/test_mfa_service.py \
+            --cov=src/dotmac/platform \
+            --cov-report=term \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-fail-under=${{ env.COV_FAIL_UNDER }} \
+            --tb=short \
+            -q
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 30
+
+  # ====================
+  # FRONTEND JOBS
+  # ====================
+
+  frontend-quality:
+    name: Frontend Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint all packages
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Type check all packages
+        working-directory: frontend
+        run: pnpm type-check
+
+      - name: Security audit
+        working-directory: frontend
+        run: pnpm audit --audit-level=high || true
+
+  frontend-test:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        working-directory: frontend
+        run: pnpm test:ci
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/**/coverage/
+          retention-days: 30
+
+  # ====================
+  # E2E TESTS (Weekly or on-demand)
+  # ====================
+
+  e2e-tests:
+    name: E2E Tests (${{ matrix.browser }}, ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run E2E on schedule or manual trigger
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1, 2, 3, 4]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install Python dependencies
+        run: poetry install
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend packages
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        working-directory: frontend/apps/base-app
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Setup test database
+        run: |
+          poetry run alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///tmp/e2e_test.db
+
+      - name: Start backend server
+        run: |
+          poetry run uvicorn dotmac.platform.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > backend.pid
+        env:
+          DATABASE_URL: sqlite:///tmp/e2e_test.db
+          DOTMAC_REDIS_URL: redis://localhost:6379/1
+          DOTMAC_JWT_SECRET_KEY: test-secret-key-for-ci
+          DOTMAC_LOG_LEVEL: WARNING
+
+      - name: Start frontend server
+        working-directory: frontend/apps/base-app
+        run: |
+          pnpm dev &
+          echo $! > frontend.pid
+        env:
+          NODE_ENV: test
+          E2E_BASE_URL: http://localhost:3000
+
+      - name: Wait for services
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
+
+      - name: Run E2E tests
+        working-directory: frontend/apps/base-app
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/4
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.browser }}-${{ matrix.shard }}
+          path: frontend/apps/base-app/test-results/
+          retention-days: 30
+
+  # ====================
+  # SECURITY SCANS
+  # ====================
+
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Run Bandit security scan
+        run: poetry run bandit -r src/ -ll || true
+
+      - name: Dependency vulnerability scan
+        run: poetry run pip-audit || true
+
+  # ====================
+  # DEPLOYMENT
+  # ====================
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [backend-quality, backend-test, frontend-quality, frontend-test, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy placeholder
+        run: echo "Deploy step - configure your deployment here"
