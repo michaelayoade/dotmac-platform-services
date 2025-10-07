@@ -18,48 +18,68 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create partner status enum
+    # Create partner status enum (if not exists)
     op.execute(
         """
-        CREATE TYPE partnerstatus AS ENUM (
-            'pending', 'active', 'suspended', 'terminated', 'archived'
-        )
+        DO $$ BEGIN
+            CREATE TYPE partnerstatus AS ENUM (
+                'pending', 'active', 'suspended', 'terminated', 'archived'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
         """
     )
 
-    # Create partner tier enum
+    # Create partner tier enum (if not exists)
     op.execute(
         """
-        CREATE TYPE partnertier AS ENUM (
-            'bronze', 'silver', 'gold', 'platinum', 'direct'
-        )
+        DO $$ BEGIN
+            CREATE TYPE partnertier AS ENUM (
+                'bronze', 'silver', 'gold', 'platinum', 'direct'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
         """
     )
 
-    # Create commission model enum
+    # Create commission model enum (if not exists)
     op.execute(
         """
-        CREATE TYPE commissionmodel AS ENUM (
-            'revenue_share', 'flat_fee', 'tiered', 'hybrid'
-        )
+        DO $$ BEGIN
+            CREATE TYPE commissionmodel AS ENUM (
+                'revenue_share', 'flat_fee', 'tiered', 'hybrid'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
         """
     )
 
-    # Create commission status enum
+    # Create commission status enum (if not exists)
     op.execute(
         """
-        CREATE TYPE commissionstatus AS ENUM (
-            'pending', 'approved', 'paid', 'clawback', 'cancelled'
-        )
+        DO $$ BEGIN
+            CREATE TYPE commissionstatus AS ENUM (
+                'pending', 'approved', 'paid', 'clawback', 'cancelled'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
         """
     )
 
-    # Create referral status enum
+    # Create referral status enum (if not exists)
     op.execute(
         """
-        CREATE TYPE referralstatus AS ENUM (
-            'new', 'contacted', 'qualified', 'converted', 'lost', 'invalid'
-        )
+        DO $$ BEGIN
+            CREATE TYPE referralstatus AS ENUM (
+                'new', 'contacted', 'qualified', 'converted', 'lost', 'invalid'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
         """
     )
 
