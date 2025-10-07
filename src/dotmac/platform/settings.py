@@ -70,7 +70,13 @@ class Settings(BaseSettings):
     secret_key: str = Field(
         "change-me-in-production", description="Secret key for signing (use Vault in production)"
     )
-    trusted_hosts: list[str] = Field(default_factory=lambda: ["*"], description="Trusted hosts")
+    # SECURITY: Changed default from ["*"] to empty list
+    # Production MUST set TRUSTED_HOSTS explicitly or startup will fail
+    # Development: empty list means "trust all" for convenience
+    trusted_hosts: list[str] = Field(
+        default_factory=list,
+        description="Trusted hosts (required in production, empty=all in dev)"
+    )
 
     # ============================================================
     # Database Configuration
@@ -167,7 +173,36 @@ class Settings(BaseSettings):
         issuer: str = Field("dotmac-platform", description="JWT issuer")
         audience: str = Field("dotmac-api", description="JWT audience")
 
+        @property
+        def is_secure(self) -> bool:
+            """Check if JWT secret is secure (not the default)."""
+            return self.secret_key != "change-me" and len(self.secret_key) >= 32
+
     jwt: JWTSettings = JWTSettings()  # type: ignore[call-arg]
+
+    def validate_production_security(self) -> None:
+        """
+        Validate that production security requirements are met.
+
+        SECURITY: This ensures production deployments don't use insecure defaults.
+        Call this during application startup in production environments.
+        """
+        if self.environment == "production":
+            if not self.jwt.is_secure:
+                raise ValueError(
+                    "SECURITY ERROR: JWT_SECRET_KEY must be set to a secure value in production. "
+                    "The default 'change-me' is not allowed. "
+                    "Generate a secure secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+
+            if not self.fastapi.trusted_hosts or self.fastapi.trusted_hosts == ["*"]:
+                raise ValueError(
+                    "SECURITY ERROR: TRUSTED_HOSTS must be explicitly configured in production. "
+                    "Wildcard '*' or empty list is not allowed. "
+                    "Set specific hostnames (e.g., TRUSTED_HOSTS=api.example.com,www.example.com)"
+                )
+
+
 
     # ============================================================
     # CORS Configuration

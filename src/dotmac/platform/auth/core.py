@@ -622,7 +622,15 @@ class APIKeyService:
         return self._redis
 
     async def create_api_key(self, user_id: str, name: str, scopes: list[str] | None = None) -> str:
-        """Create API key."""
+        """
+        Create API key.
+
+        NOTE: This method stores minimal data for backwards compatibility.
+        For production use, prefer the enhanced API key creation in api_keys_router.py
+        which includes hashing, metadata, and expiration.
+        """
+        import hashlib
+
         api_key = f"sk_{secrets.token_urlsafe(32)}"
 
         data = {
@@ -632,39 +640,62 @@ class APIKeyService:
             "created_at": datetime.now(UTC).isoformat(),
         }
 
+        # SECURITY: Hash the API key before storing
+        api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
         client = await self._get_redis()
         if client:
-            await client.set(f"api_key:{api_key}", json.dumps(data))
+            # Store with hash as key instead of plaintext
+            await client.set(f"api_key:{api_key_hash}", json.dumps(data))
         else:
-            # Fallback to memory
-            self._memory_keys[api_key] = data
+            # Fallback to memory (also use hash)
+            self._memory_keys[api_key_hash] = data
 
         return api_key
 
     async def verify_api_key(self, api_key: str) -> dict | None:
-        """Verify API key."""
+        """
+        Verify API key by hashing and looking up.
+
+        SECURITY: The API key is hashed before lookup to prevent
+        plaintext credential exposure in Redis.
+        """
         try:
+            import hashlib
+
+            # Hash the provided API key for lookup
+            api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
             client = await self._get_redis()
             if client:
-                data = await client.get(f"api_key:{api_key}")
+                data = await client.get(f"api_key:{api_key_hash}")
                 return json.loads(data) if data else None
             else:
-                # Fallback to memory
-                return getattr(self, "_memory_keys", {}).get(api_key)
+                # Fallback to memory (also uses hash)
+                return getattr(self, "_memory_keys", {}).get(api_key_hash)
         except Exception as e:
             logger.error("Failed to verify API key", error=str(e))
             return None
 
     async def revoke_api_key(self, api_key: str) -> bool:
-        """Revoke API key."""
+        """
+        Revoke API key by hashing and deleting.
+
+        SECURITY: The API key is hashed before deletion lookup.
+        """
         try:
+            import hashlib
+
+            # Hash the API key for lookup
+            api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
             client = await self._get_redis()
             if client:
-                deleted_count = await client.delete(f"api_key:{api_key}")
+                deleted_count = await client.delete(f"api_key:{api_key_hash}")
                 return bool(deleted_count)
             else:
-                # Fallback to memory
-                return bool(getattr(self, "_memory_keys", {}).pop(api_key, None))
+                # Fallback to memory (also uses hash)
+                return bool(getattr(self, "_memory_keys", {}).pop(api_key_hash, None))
         except Exception as e:
             logger.error("Failed to revoke API key", error=str(e))
             return False

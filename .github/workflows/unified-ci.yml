@@ -60,12 +60,10 @@ jobs:
         run: poetry install --with dev
 
       - name: Type check with mypy
-        run: poetry run mypy src || echo "Type check has errors - needs fixing"
-        continue-on-error: true
+        run: poetry run mypy src
 
       - name: Validate Pydantic models
         run: poetry run python -c "from dotmac.platform.core import ensure_pydantic_v2; ensure_pydantic_v2()"
-        continue-on-error: true
 
   backend-test:
     name: Backend Tests (Python ${{ matrix.python-version }})
@@ -222,12 +220,11 @@ jobs:
 
       - name: Type check all packages
         working-directory: frontend
-        run: pnpm type-check || echo "Type check has errors - needs fixing"
-        continue-on-error: true
+        run: pnpm type-check
 
       - name: Security audit
         working-directory: frontend
-        run: pnpm audit --audit-level=high || true
+        run: pnpm audit --audit-level=high
 
   frontend-test:
     name: Frontend Unit Tests
@@ -424,10 +421,10 @@ jobs:
         run: poetry install --with dev
 
       - name: Run Bandit security scan
-        run: poetry run bandit -r src/ -ll || true
+        run: poetry run bandit -r src/ -ll
 
       - name: Dependency vulnerability scan
-        run: poetry run pip-audit || true
+        run: poetry run pip-audit
 
   # ====================
   # DEPLOYMENT

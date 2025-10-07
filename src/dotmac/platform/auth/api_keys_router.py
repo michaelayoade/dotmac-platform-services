@@ -1,5 +1,6 @@
 """API Key management endpoints."""
 
+import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -9,6 +10,29 @@ from pydantic import BaseModel, Field
 from .core import UserInfo, api_key_service, get_current_user
 
 router = APIRouter(tags=["API Keys"])
+
+
+# ============================================
+# Security Helpers
+# ============================================
+
+
+def _hash_api_key(api_key: str) -> str:
+    """
+    Hash API key using SHA-256 for secure storage.
+
+    We use SHA-256 instead of bcrypt because:
+    1. API keys are high-entropy random tokens (not user passwords)
+    2. SHA-256 is sufficient for preventing rainbow table attacks
+    3. Faster verification for high-throughput API requests
+
+    Args:
+        api_key: The plaintext API key
+
+    Returns:
+        Hex-encoded SHA-256 hash of the API key
+    """
+    return hashlib.sha256(api_key.encode()).hexdigest()
 
 
 # ============================================
@@ -99,16 +123,22 @@ async def _enhanced_create_api_key(
         "is_active": True,
     }
 
+    # SECURITY: Hash the API key before storing for lookup
+    # This prevents exposure of live credentials if Redis is compromised
+    api_key_hash = _hash_api_key(api_key)
+
     if client:
         await client.set(f"api_key_meta:{key_id}", api_key_service._serialize(enhanced_data))
-        await client.set(f"api_key_lookup:{api_key}", key_id)
+        # Store hash -> key_id mapping instead of plaintext -> key_id
+        await client.set(f"api_key_lookup:{api_key_hash}", key_id)
     else:
         # Fallback to memory
         if not hasattr(api_key_service, "_memory_meta"):
             api_key_service._memory_meta = {}
             api_key_service._memory_lookup = {}
         api_key_service._memory_meta[key_id] = enhanced_data
-        api_key_service._memory_lookup[api_key] = key_id
+        # Store hash -> key_id mapping instead of plaintext -> key_id
+        api_key_service._memory_lookup[api_key_hash] = key_id
 
     return api_key, key_id
 

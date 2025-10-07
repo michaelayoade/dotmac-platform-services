@@ -45,6 +45,14 @@ def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle events."""
+    # SECURITY: Validate production security settings before anything else
+    try:
+        settings.validate_production_security()
+    except ValueError as e:
+        # Log security error and fail fast
+        print(f"❌ {e}")
+        raise RuntimeError(str(e)) from e
+
     # Setup telemetry first to enable structured logging
     setup_telemetry(app)
 
