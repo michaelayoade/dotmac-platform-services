@@ -286,10 +286,13 @@ class TestLimiterIntegration:
     @patch("dotmac.platform.settings.settings")
     def test_limiter_with_different_storage_configs(self, mock_settings):
         """Test limiter creation with different storage configurations."""
-        # Test with no storage URL
+        # Test with no storage URL - provide real redis.cache_url to avoid urlparse issues
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = None
+        mock_redis = Mock()
+        mock_redis.cache_url = "redis://localhost:6379/0"  # Real URL string for urlparse
         mock_settings.rate_limit = mock_rate_limit
+        mock_settings.redis = mock_redis
         reset_limiter()
         limiter1 = get_limiter()
         assert isinstance(limiter1, Limiter)

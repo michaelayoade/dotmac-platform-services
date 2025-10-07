@@ -2,9 +2,15 @@
  * Auth utility tests aligned with cookie-based authentication flow.
  */
 
-global.fetch = jest.fn();
+// Capture original fetch to restore later
+const originalFetch = global.fetch;
 
 describe('auth utilities', () => {
+  beforeAll(() => {
+    // Mock fetch for all tests in this suite
+    global.fetch = jest.fn();
+  });
+
   beforeEach(() => {
     fetch.mockReset();
     // Mock environment for testing
@@ -14,6 +20,11 @@ describe('auth utilities', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
+  });
+
+  afterAll(() => {
+    // Restore original fetch to avoid polluting other test suites
+    global.fetch = originalFetch;
   });
 
   test('login sends credentials with cookie support', async () => {

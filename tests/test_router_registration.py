@@ -43,8 +43,16 @@ class TestRouterRegistration:
             [f"  - {f['module']}.{f['router']}: {f['error']}" for f in failed_imports]
         )
 
-    def test_register_routers_does_not_fail(self):
+    @patch("dotmac.platform.settings.settings")
+    def test_register_routers_does_not_fail(self, mock_settings):
         """Test that register_routers function executes without errors."""
+        # Mock storage settings to prevent MinIO connection attempts
+        mock_storage = Mock()
+        mock_storage.provider = "local"
+        mock_storage.enabled = False
+        mock_settings.storage = mock_storage
+        mock_settings.STORAGE__ENABLED = False
+
         app = FastAPI()
 
         # This should not raise any exceptions
