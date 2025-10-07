@@ -315,7 +315,7 @@ jobs:
           echo "Testing database connection..."
           psql "$DATABASE_URL" -c "SELECT version();" || echo "Direct psql failed"
           echo "Running alembic upgrade..."
-          poetry run alembic upgrade head -v || {
+          poetry run alembic upgrade head || {
             echo "Migration failed! Getting current state..."
             poetry run alembic current
             echo "Showing alembic history..."

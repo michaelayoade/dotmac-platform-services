@@ -4,7 +4,6 @@
   "private": true,
   "description": "Reusable DotMac frontend workspace containing shared packages only.",
   "scripts": {
-    "install": "pnpm install --frozen-lockfile=false",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd .. && poetry run uvicorn dotmac.platform.main:app --reload --host 0.0.0.0 --port 8000",
     "dev:frontend": "pnpm --filter @dotmac/base-app dev",
