@@ -5,7 +5,7 @@ Provides business logic for contact operations with caching and validation.
 """
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -154,7 +154,7 @@ class ContactService:
         if not include_methods and not include_labels:
             cached = cache_get(cache_key)
             if cached:
-                return cached
+                return cast(Contact, cached)
 
         # Build query
         query = select(Contact).where(
@@ -323,14 +323,15 @@ class ContactService:
 
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = await self.db.scalar(count_stmt)
+        raw_total = await self.db.scalar(count_stmt)
+        total = int(raw_total or 0)
 
         # Add ordering and pagination
         stmt = stmt.order_by(Contact.display_name).limit(limit).offset(offset)
 
         # Execute query
         result = await self.db.execute(stmt)
-        contacts = result.scalars().all()
+        contacts = list(result.scalars().all())
 
         return contacts, total
 
@@ -501,7 +502,7 @@ class ContactService:
         )
 
         result = await self.db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     def _clear_contact_cache(self, tenant_id: UUID, contact_id: UUID | None = None) -> None:
         """Clear contact-related cache entries."""
@@ -560,7 +561,7 @@ class ContactLabelService:
         conditions = [ContactLabelDefinition.tenant_id == tenant_id]
 
         if not include_hidden:
-            conditions.append(ContactLabelDefinition.is_visible)
+            conditions.append(ContactLabelDefinition.is_visible.is_(True))
 
         if category:
             conditions.append(ContactLabelDefinition.category == category)
@@ -572,7 +573,7 @@ class ContactLabelService:
         )
 
         result = await self.db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class ContactFieldService:
@@ -632,7 +633,7 @@ class ContactFieldService:
         conditions = [ContactFieldDefinition.tenant_id == tenant_id]
 
         if not include_hidden:
-            conditions.append(ContactFieldDefinition.is_visible)
+            conditions.append(ContactFieldDefinition.is_visible.is_(True))
 
         if field_group:
             conditions.append(ContactFieldDefinition.field_group == field_group)
@@ -644,7 +645,7 @@ class ContactFieldService:
         )
 
         result = await self.db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def validate_custom_fields(
         self, custom_fields: dict[str, Any], tenant_id: UUID

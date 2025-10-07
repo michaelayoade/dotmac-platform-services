@@ -10,7 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dotmac.platform.data_import.models import ImportJobStatus
+from dotmac.platform.data_import.models import ImportJob, ImportJobStatus
+from dotmac.platform.data_import.service import ImportResult
 
 
 class ImportJobResponse(BaseModel):
@@ -49,9 +50,13 @@ class ImportJobResponse(BaseModel):
     updated_at: datetime = Field(description="Last update time")
 
     @classmethod
-    def from_model(cls, job, result=None) -> Any:
+    def from_model(
+        cls,
+        job: ImportJob,
+        result: ImportResult | None = None,
+    ) -> "ImportJobResponse":
         """Create response from database model."""
-        data = {
+        data: dict[str, Any] = {
             "id": job.id,
             "job_type": job.job_type.value,
             "status": job.status.value,

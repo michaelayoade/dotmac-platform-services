@@ -52,7 +52,7 @@ class EmailRequest(BaseModel):
 async def send_email_endpoint(
     request: EmailRequest,
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> EmailResponse:
     """Send a single email immediately."""
     try:
         email_service = get_email_service()
@@ -61,8 +61,17 @@ async def send_email_endpoint(
         log_entry = None
         try:
             async with get_async_db() as db:
+                from uuid import UUID
                 metrics_service = get_metrics_service(db)
                 tenant_id = current_user.tenant_id if current_user else None
+
+                # Convert user_id to UUID if needed
+                user_id_uuid: UUID | None = None
+                if current_user and current_user.user_id:
+                    try:
+                        user_id_uuid = UUID(current_user.user_id) if isinstance(current_user.user_id, str) else current_user.user_id
+                    except (ValueError, AttributeError):
+                        user_id_uuid = None
 
                 # Log the communication attempt
                 log_entry = await metrics_service.log_communication(
@@ -72,7 +81,7 @@ async def send_email_endpoint(
                     sender=request.from_email,
                     text_body=request.text_body,
                     html_body=request.html_body,
-                    user_id=current_user.user_id if current_user else None,
+                    user_id=user_id_uuid,
                     tenant_id=tenant_id,
                 )
         except Exception as db_error:
@@ -85,6 +94,7 @@ async def send_email_endpoint(
             html_body=request.html_body,
             from_email=request.from_email,
             from_name=request.from_name,
+            reply_to=None,  # Can be added to EmailRequest if needed
         )
 
         response = await email_service.send_email(message)
@@ -309,6 +319,7 @@ async def queue_bulk_email_job(request: BulkEmailRequest) -> Any:
                 html_body=msg.html_body,
                 from_email=msg.from_email,
                 from_name=msg.from_name,
+                reply_to=None,  # Can be added to BulkEmailRequest if needed
             )
             for msg in request.messages
         ]
@@ -467,7 +478,7 @@ class CommunicationActivity(BaseModel):
 @router.get("/stats", response_model=CommunicationStats)
 async def get_communication_stats(
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> CommunicationStats:
     """Get communication statistics."""
     try:
         # Try to get real stats from database if available
@@ -516,7 +527,7 @@ async def get_recent_activity(
     offset: int = 0,
     type_filter: str | None = None,
     current_user: UserInfo | None = Depends(get_current_user_optional),
-):
+) -> list[CommunicationActivity]:
     """Get recent communication activity."""
     try:
         # Try to get real activity from database if available

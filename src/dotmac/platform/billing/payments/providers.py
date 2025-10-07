@@ -2,8 +2,9 @@
 Payment provider interfaces and implementations
 """
 
+import json
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -117,7 +118,7 @@ class StripePaymentProvider(PaymentProvider):
             import stripe
 
             stripe.api_key = api_key
-            self.stripe = stripe
+            self.stripe = cast(Any, stripe)
         except ImportError:
             raise ImportError("stripe package is required for StripePaymentProvider")
 
@@ -296,9 +297,11 @@ class StripePaymentProvider(PaymentProvider):
             raise ValueError("Webhook secret not configured")
 
         try:
+            payload = json.dumps(webhook_data)
+            signature_header = signature or ""
             event = self.stripe.Webhook.construct_event(
-                webhook_data,
-                signature,
+                payload,
+                signature_header,
                 self.webhook_secret,
             )
 

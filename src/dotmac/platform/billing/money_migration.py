@@ -6,11 +6,11 @@ for cents) and the new Money-based system with proper currency handling.
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from dotmac.platform.billing.core.models import Invoice as LegacyInvoice
 from dotmac.platform.billing.core.models import InvoiceLineItem as LegacyLineItem
-from dotmac.platform.billing.money_models import MoneyInvoice
+from dotmac.platform.billing.money_models import MoneyField, MoneyInvoice
 from dotmac.platform.billing.money_utils import money_handler
 
 
@@ -81,9 +81,8 @@ class InvoiceMigrationAdapter:
         # Handle credits if present
         if legacy_invoice.total_credits_applied:
             credit_amount = Decimal(legacy_invoice.total_credits_applied) / 100
-            money_invoice.total_credits_applied = money_handler.create_money(
-                str(credit_amount), legacy_invoice.currency
-            )
+            credit_money = money_handler.create_money(str(credit_amount), legacy_invoice.currency)
+            money_invoice.total_credits_applied = MoneyField.from_money(credit_money)
 
         return money_invoice
 
@@ -114,6 +113,7 @@ class InvoiceMigrationAdapter:
                 unit_price=unit_price_cents,
                 total_price=total_price_cents,
                 product_id=money_item.product_id,
+                subscription_id=money_item.subscription_id,
                 tax_rate=float(money_item.tax_rate * 100) if money_item.tax_rate else 0,
                 tax_amount=tax_amount_cents,
                 discount_percentage=(
@@ -137,6 +137,11 @@ class InvoiceMigrationAdapter:
         )
         total_amount_cents = int(Decimal(money_invoice.total_amount.amount) * 100)
 
+        net_amount_due_field = cast(MoneyField, money_invoice.net_amount_due)
+        net_due_money = net_amount_due_field.to_money()
+        remaining_balance_cents = int(Decimal(net_due_money.amount) * 100)
+        credits_applied_cents = 0
+
         # Create legacy invoice
         legacy_invoice = LegacyInvoice(
             tenant_id=money_invoice.tenant_id,
@@ -154,7 +159,7 @@ class InvoiceMigrationAdapter:
             tax_amount=tax_amount_cents,
             discount_amount=discount_amount_cents,
             total_amount=total_amount_cents,
-            remaining_balance=int(Decimal(money_invoice.net_amount_due.amount) * 100),
+            remaining_balance=remaining_balance_cents,
             status=money_invoice.status,
             payment_status=money_invoice.payment_status,
             line_items=legacy_items,
@@ -165,6 +170,8 @@ class InvoiceMigrationAdapter:
             updated_at=money_invoice.updated_at,
             paid_at=money_invoice.paid_at,
             voided_at=money_invoice.voided_at,
+            total_credits_applied=credits_applied_cents,
+            credit_applications=[],
         )
 
         # Handle credits

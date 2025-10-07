@@ -147,8 +147,8 @@ class Tenant(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
         return self.status == TenantStatus.TRIAL
 
     @property
-    def is_active(self) -> bool:
-        """Check if tenant is active."""
+    def status_is_active(self) -> bool:
+        """Check if tenant's status is ACTIVE without overriding the is_active column."""
         return self.status == TenantStatus.ACTIVE
 
     @property

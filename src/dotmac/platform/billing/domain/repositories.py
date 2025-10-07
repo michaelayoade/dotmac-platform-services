@@ -297,7 +297,7 @@ class SQLAlchemyCustomerRepository:
             Exception: If customer not found
         """
         stmt = select(CustomerEntity).where(
-            CustomerEntity.customer_id == customer_id,
+            CustomerEntity.customer_number == customer_id,
             CustomerEntity.tenant_id == tenant_id,
         )
         result = await self._db.execute(stmt)

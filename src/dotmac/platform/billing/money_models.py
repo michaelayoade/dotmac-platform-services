@@ -7,7 +7,7 @@ automatic currency validation, and locale-aware formatting.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
 from moneyed import Money
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -82,11 +82,13 @@ class MoneyInvoiceLineItem(BaseModel):
 
     @field_validator("unit_price", "total_price", "tax_amount", "discount_amount")
     @classmethod
-    def validate_money_fields(cls, v: Any) -> Any:
+    def validate_money_fields(cls, v: MoneyField | dict[str, Any]) -> MoneyField:
         """Ensure Money fields are valid."""
+        if isinstance(v, MoneyField):
+            return v
         if isinstance(v, dict):
             return MoneyField(**v)
-        return v
+        raise TypeError("Money fields must be MoneyField instances or dicts")
 
     # Note: total_price includes tax and discounts, so no validation against unit_price * quantity
 
@@ -99,7 +101,7 @@ class MoneyInvoiceLineItem(BaseModel):
         currency: str = "USD",
         tax_rate: str | Decimal | float = 0,
         discount_percentage: str | Decimal | float = 0,
-        **kwargs,
+        **kwargs: Any,
     ) -> "MoneyInvoiceLineItem":
         """Create line item with automatic Money calculations."""
 
@@ -217,8 +219,7 @@ class MoneyInvoice(BaseModel):
         except ValueError:
             raise ValueError(f"Invalid currency code: {v}")
 
-    @computed_field
-    @property
+    @computed_field(return_type=MoneyField)
     def net_amount_due(self) -> MoneyField:
         """Calculate net amount due after credits."""
         total = self.total_amount.to_money()
@@ -227,7 +228,6 @@ class MoneyInvoice(BaseModel):
             if self.total_credits_applied
             else create_money(0, self.currency)
         )
-
         net_money = Money(
             amount=max(Decimal("0"), total.amount - credits.amount), currency=total.currency
         )
@@ -284,12 +284,12 @@ class MoneyInvoice(BaseModel):
         billing_email: str,
         line_items: list[dict[str, Any]],
         currency: str = "USD",
-        **kwargs,
+        **kwargs: Any,
     ) -> "MoneyInvoice":
         """Create invoice with automatic Money calculations."""
 
         # Convert line items to MoneyInvoiceLineItem
-        money_line_items = []
+        money_line_items: list[MoneyInvoiceLineItem] = []
         for item_data in line_items:
             line_item = MoneyInvoiceLineItem.create_from_values(
                 description=item_data["description"],

@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import structlog
 from pydantic import BaseModel, Field
@@ -355,7 +355,7 @@ class MinIOFileStorage:
     def __init__(self, minio_client: MinIOStorage | None = None) -> None:
         """Initialize MinIO storage."""
         self.client = minio_client or get_storage()
-        self.metadata_store = {}  # In production, use database or MinIO metadata
+        self.metadata_store: dict[str, FileMetadata] = {}
         logger.info("MinIO storage initialized")
 
     async def store(
@@ -493,17 +493,18 @@ class FileStorageService:
     def __init__(self, backend: str = StorageBackend.LOCAL) -> None:
         """Initialize storage service with specified backend."""
         self.backend_type = backend
+        backend_instance: StorageBackendProtocol
 
         # Initialize appropriate backend
         if backend == StorageBackend.LOCAL:
-            self.backend = LocalFileStorage()
+            backend_instance = LocalFileStorage()
         elif backend == StorageBackend.MEMORY:
-            self.backend = MemoryFileStorage()
+            backend_instance = MemoryFileStorage()
         elif backend == StorageBackend.MINIO or backend == StorageBackend.S3:
             # Try to use MinIO backend
             try:
                 # Check if MinIO/S3 dependencies are available
-                self.backend = MinIOFileStorage()
+                backend_instance = MinIOFileStorage()
                 logger.info("Successfully initialized MinIO/S3 backend")
             except Exception as e:
                 logger.error(
@@ -514,12 +515,14 @@ class FileStorageService:
                     bucket=settings.storage.bucket,
                 )
                 logger.warning("Falling back to local storage due to MinIO initialization failure")
-                self.backend = LocalFileStorage()
+                backend_instance = LocalFileStorage()
                 self.backend_type = StorageBackend.LOCAL
         else:
             # Default to local storage
             logger.warning(f"Unknown backend {backend}, using local storage")
-            self.backend = LocalFileStorage()
+            backend_instance = LocalFileStorage()
+
+        self.backend = backend_instance
 
         logger.info(f"FileStorageService initialized with {self.backend_type} backend")
 
@@ -632,3 +635,36 @@ def get_storage_service() -> FileStorageService:
         logger.info(f"Initializing storage service with {backend} backend (provider: {provider})")
         _storage_service = FileStorageService(backend=backend)
     return _storage_service
+class StorageBackendProtocol(Protocol):
+    """Protocol describing the required storage backend interface."""
+
+    async def store(
+        self,
+        file_data: bytes,
+        file_name: str,
+        content_type: str,
+        path: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
+    ) -> str:
+        ...
+
+    async def retrieve(
+        self, file_id: str, tenant_id: str | None = None
+    ) -> tuple[bytes | None, dict | None]:
+        ...
+
+    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
+        ...
+
+    async def list_files(
+        self,
+        path: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        tenant_id: str | None = None,
+    ) -> list[FileMetadata]:
+        ...
+
+    async def get_metadata(self, file_id: str) -> dict | None:
+        ...

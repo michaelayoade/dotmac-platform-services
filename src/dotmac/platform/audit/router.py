@@ -54,9 +54,13 @@ async def list_activities(
 
         start_date = datetime.now(UTC) - timedelta(days=days) if days else None
 
+        tenant_id = get_current_tenant_id()
+        if tenant_id is None:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
         filters = AuditFilterParams(
             user_id=user_id,
-            tenant_id=get_current_tenant_id(),  # Always filter by current tenant
+            tenant_id=tenant_id,  # Always filter by current tenant
             activity_type=activity_type,
             severity=severity,
             resource_type=resource_type,
@@ -107,8 +111,12 @@ async def get_recent_activities(
         service = AuditService(session)
 
         # Get activities for current tenant
+        tenant_id = get_current_tenant_id()
+        if tenant_id is None:
+            raise HTTPException(status_code=400, detail="Tenant context required")
+
         activities = await service.get_recent_activities(
-            tenant_id=get_current_tenant_id(),
+            tenant_id=tenant_id,
             limit=limit,
             days=days,
         )

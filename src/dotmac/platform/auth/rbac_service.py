@@ -9,7 +9,6 @@ from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy import and_, or_, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,10 +52,10 @@ class RBACService:
 
         # Check cache first
         cached = cache_get(cache_key)
-        if cached and not include_expired:
-            return set(cached)
+        if isinstance(cached, list) and not include_expired:
+            return {str(permission) for permission in cached}
 
-        permissions = set()
+        permissions: set[str] = set()
         now = datetime.now(UTC)
 
         # Get permissions from roles
@@ -76,7 +75,7 @@ class RBACService:
             )
 
         role_perms = await self.db.execute(query)
-        permissions.update(p[0] for p in role_perms)
+        permissions.update(str(name) for name in role_perms.scalars().all())
 
         # Get direct user permissions (overrides)
         direct_query = (
@@ -93,7 +92,7 @@ class RBACService:
 
         direct_perms = await self.db.execute(direct_query)
 
-        for perm_name, granted in direct_perms:
+        for perm_name, granted in direct_perms.all():
             if granted:
                 permissions.add(perm_name)
             else:
@@ -184,7 +183,7 @@ class RBACService:
             )
 
         result = await self.db.execute(query.options(selectinload(Role.permissions)))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def assign_role_to_user(
         self,
@@ -477,7 +476,7 @@ class RBACService:
         # Check if role exists
         existing = await self._get_role_by_name(name)
         if existing:
-            raise IntegrityError(f"Role '{name}' already exists", None, None)
+            raise AuthorizationError(f"Role '{name}' already exists")
 
         # Get parent role if specified
         parent = None
@@ -523,7 +522,7 @@ class RBACService:
         # Check if permission exists
         existing = await self._get_permission_by_name(name)
         if existing:
-            raise IntegrityError(f"Permission '{name}' already exists", None, None)
+            raise AuthorizationError(f"Permission '{name}' already exists")
 
         # Get parent permission if specified
         parent = None
@@ -580,16 +579,16 @@ class RBACService:
 
         # Add parent permissions
         for perm_name in list(permissions):
-            perm = await self._get_permission_by_name(perm_name)
-            if perm and perm.parent_id:
-                parent = await self.db.get(Permission, perm.parent_id)
+            permission_record = await self._get_permission_by_name(perm_name)
+            if permission_record and permission_record.parent_id:
+                parent = await self.db.get(Permission, permission_record.parent_id)
                 if parent:
                     expanded.add(parent.name)
 
         # Add wildcard expansions
         # e.g., "ticket.read.all" implies "ticket.read.assigned" and "ticket.read.own"
-        for perm in list(expanded):
-            parts = perm.split(".")
+        for permission_name in list(expanded):
+            parts = permission_name.split(".")
             if len(parts) > 1:
                 # Add broader permissions
                 for i in range(1, len(parts)):

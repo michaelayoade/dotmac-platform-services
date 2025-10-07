@@ -5,7 +5,9 @@ This module provides a clean factory pattern for creating secrets managers
 based on feature flags, replacing the confusing alias pattern.
 """
 
-from typing import Protocol, runtime_checkable, Any
+from __future__ import annotations
+
+from typing import Any, Protocol, runtime_checkable
 
 from ..dependencies import DependencyChecker, require_dependency
 from ..settings import settings
@@ -15,11 +17,11 @@ from ..settings import settings
 class SecretsManager(Protocol):
     """Protocol defining the secrets manager interface."""
 
-    def get_secret(self, path: str) -> dict:
+    def get_secret(self, path: str) -> dict[str, Any]:
         """Retrieve a secret from the backend."""
         ...
 
-    def set_secret(self, path: str, data: dict) -> None:
+    def set_secret(self, path: str, data: dict[str, Any]) -> None:
         """Store a secret in the backend."""
         ...
 
@@ -33,15 +35,15 @@ class LocalSecretsManager:
 
     def __init__(self, secrets_file: str = ".env") -> None:
         self.secrets_file = secrets_file
-        self._secrets = {}
+        self._secrets: dict[str, dict[str, Any]] = {}
 
-    def get_secret(self, path: str) -> dict:
+    def get_secret(self, path: str) -> dict[str, Any]:
         """Get secret from local storage."""
-        return self._secrets.get(path, {})
+        return self._secrets.get(path, {}).copy()
 
-    def set_secret(self, path: str, data: dict) -> None:
+    def set_secret(self, path: str, data: dict[str, Any]) -> None:
         """Set secret in local storage."""
-        self._secrets[path] = data
+        self._secrets[path] = data.copy()
 
     def health_check(self) -> bool:
         """Local storage is always healthy."""

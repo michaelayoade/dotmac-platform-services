@@ -5,9 +5,9 @@ Provides reusable caching decorators that can be used across all modules.
 """
 
 import hashlib
-from typing import Any
 import json
 from collections.abc import Callable
+from typing import Any, Awaitable, Optional, ParamSpec, TypeVar, cast
 from enum import Enum
 from functools import wraps
 
@@ -26,12 +26,16 @@ class CacheTier(str, Enum):
     L3_DATABASE = "l3_database"  # Database layer
 
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
 def cached_result(
     ttl: int | None = None,
     key_prefix: str = "",
     key_params: list[str] | None = None,
     tier: CacheTier = CacheTier.L2_REDIS,
-):
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """
     Decorator for caching function results.
 
@@ -48,9 +52,9 @@ def cached_result(
             return user
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs: Any) -> Any:
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             # Generate cache key
             if key_params:
                 key_parts = [key_prefix]
@@ -76,11 +80,10 @@ def cached_result(
 
             # Only L2_REDIS is supported for now (L1 would need instance-specific cache)
             if tier == CacheTier.L2_REDIS:
-                # Try to get from cache (cache_get/cache_set are synchronous)
-                cached = cache_get(cache_key)
-                if cached is not None:
+                cached_value = cast(Optional[R], cache_get(cache_key))
+                if cached_value is not None:
                     logger.debug("Cache hit", key=cache_key, func=func.__name__)
-                    return cached
+                    return cached_value
 
                 # Cache miss - execute function
                 logger.debug("Cache miss", key=cache_key, func=func.__name__)

@@ -23,6 +23,7 @@ from .models import (
     SubscriptionPlanCreateRequest,
     SubscriptionPlanResponse,
     SubscriptionResponse,
+    SubscriptionStatus,
     SubscriptionUpdateRequest,
     UsageRecordRequest,
 )
@@ -93,22 +94,18 @@ async def get_subscription_plan(
 @router.patch("/plans/{plan_id}", response_model=SubscriptionPlanResponse)
 async def update_subscription_plan(
     plan_id: str,
-    plan_data: dict,  # Using dict for flexible updates
+    plan_data: dict[str, str],  # Using dict for flexible updates
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
 ) -> SubscriptionPlanResponse:
     """Update a subscription plan."""
-    service = SubscriptionService(db_session)
-    try:
-        plan = await service.update_plan(plan_id, plan_data, tenant_id)
-        if not plan:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
-            )
-        return SubscriptionPlanResponse.model_validate(plan.model_dump())
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # Note: This endpoint is a placeholder - update_plan method doesn't exist in service
+    # Would need to implement plan update logic in service layer
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Plan updates not yet implemented in service layer",
+    )
 
 
 @router.delete("/plans/{plan_id}")
@@ -119,15 +116,11 @@ async def deactivate_subscription_plan(
     tenant_id: str = Depends(get_current_tenant_id),
 ) -> JSONResponse:
     """Deactivate a subscription plan (soft delete)."""
-    service = SubscriptionService(db_session)
-    success = await service.deactivate_plan(plan_id, tenant_id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
-        )
-    return JSONResponse(
-        content={"message": "Subscription plan deactivated successfully"},
-        status_code=status.HTTP_200_OK,
+    # Note: This endpoint is a placeholder - deactivate_plan method doesn't exist in service
+    # Would need to implement plan deactivation logic in service layer
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Plan deactivation not yet implemented in service layer",
     )
 
 
@@ -165,15 +158,27 @@ async def list_subscriptions(
     tenant_id: str = Depends(get_current_tenant_id),
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     plan_id: str | None = Query(None, description="Filter by plan ID"),
-    status: str | None = Query(None, description="Filter by status"),
+    status_filter: str | None = Query(None, alias="status", description="Filter by status"),
 ) -> list[SubscriptionResponse]:
     """List customer subscriptions."""
     service = SubscriptionService(db_session)
+
+    # Convert string status to enum if provided
+    status_enum: SubscriptionStatus | None = None
+    if status_filter:
+        try:
+            status_enum = SubscriptionStatus(status_filter)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status value. Must be one of: {[s.value for s in SubscriptionStatus]}",
+            )
+
     subscriptions = await service.list_subscriptions(
         tenant_id,
         customer_id=customer_id,
         plan_id=plan_id,
-        status=status,
+        status=status_enum,
     )
 
     response_list = []
@@ -194,7 +199,7 @@ async def get_expiring_subscriptions(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> dict:
+) -> dict[str, int | str | None]:
     """
     Get subscriptions expiring within the specified number of days.
 
@@ -205,7 +210,7 @@ async def get_expiring_subscriptions(
 
         from sqlalchemy import and_, func, select
 
-        from dotmac.platform.billing.core.models import Subscription, SubscriptionStatus
+        from dotmac.platform.billing.models import BillingSubscriptionTable
 
         # Calculate expiration window
         now = datetime.now(UTC)
@@ -213,26 +218,35 @@ async def get_expiring_subscriptions(
 
         # Query subscriptions expiring in the next N days
         query = select(
-            func.count(Subscription.id).label("count"),
-            func.min(Subscription.current_period_end).label("soonest_expiration"),
+            func.count(BillingSubscriptionTable.subscription_id).label("count"),
+            func.min(BillingSubscriptionTable.current_period_end).label("soonest_expiration"),
         ).where(
             and_(
-                Subscription.tenant_id == tenant_id,
-                Subscription.status == SubscriptionStatus.ACTIVE,
-                Subscription.current_period_end <= expiration_date,
-                Subscription.current_period_end > now,
+                BillingSubscriptionTable.tenant_id == tenant_id,
+                BillingSubscriptionTable.status == SubscriptionStatus.ACTIVE.value,
+                BillingSubscriptionTable.current_period_end <= expiration_date,
+                BillingSubscriptionTable.current_period_end > now,
             )
         )
 
         result = await db_session.execute(query)
         row = result.one()
 
+        # Access labeled columns as tuple unpacking
+        count_value: int = 0
+        soonest_exp_value: str | None = None
+
+        # Get values from row tuple
+        if len(row) >= 2:
+            count_raw = row[0]
+            soonest_raw = row[1]
+            count_value = int(count_raw) if count_raw is not None else 0
+            soonest_exp_value = soonest_raw.isoformat() if soonest_raw else None
+
         return {
-            "count": row.count or 0,
+            "count": count_value,
             "days_ahead": days,
-            "soonest_expiration": (
-                row.soonest_expiration.isoformat() if row.soonest_expiration else None
-            ),
+            "soonest_expiration": soonest_exp_value,
             "timestamp": now.isoformat(),
         }
 
@@ -308,8 +322,11 @@ async def cancel_subscription(
     """Cancel a subscription."""
     service = SubscriptionService(db_session)
     try:
-        success = await service.cancel_subscription(subscription_id, tenant_id, at_period_end)
-        if not success:
+        # cancel_subscription returns Subscription, not bool
+        updated_subscription = await service.cancel_subscription(
+            subscription_id, tenant_id, at_period_end
+        )
+        if not updated_subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
@@ -334,8 +351,9 @@ async def reactivate_subscription(
     """Reactivate a canceled subscription."""
     service = SubscriptionService(db_session)
     try:
-        success = await service.reactivate_subscription(subscription_id, tenant_id)
-        if not success:
+        # reactivate_subscription returns Subscription, not bool
+        updated_subscription = await service.reactivate_subscription(subscription_id, tenant_id)
+        if not updated_subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Subscription not found or cannot be reactivated",
@@ -356,20 +374,27 @@ async def change_subscription_plan(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> dict:
+) -> dict[str, str | dict[str, str]]:
     """Change subscription plan with proration calculation."""
     service = SubscriptionService(db_session)
     try:
-        proration_result = await service.change_plan(subscription_id, change_data, tenant_id)
-        if not proration_result:
+        # change_plan returns tuple[Subscription, ProrationResult | None]
+        updated_subscription, proration_result = await service.change_plan(
+            subscription_id, change_data, tenant_id
+        )
+        if not updated_subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
-        return {
+        response: dict[str, str | dict[str, str]] = {
             "message": "Plan change completed successfully",
-            "proration": proration_result.model_dump(),
         }
+
+        if proration_result:
+            response["proration"] = proration_result.model_dump()
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -388,8 +413,9 @@ async def record_usage(
     """Record usage for usage-based or hybrid subscriptions."""
     service = SubscriptionService(db_session)
     try:
-        success = await service.record_usage(usage_data, tenant_id)
-        if not success:
+        # record_usage returns dict[str, int] (updated usage records)
+        updated_usage = await service.record_usage(usage_data, tenant_id)
+        if not updated_usage:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
@@ -407,7 +433,7 @@ async def get_subscription_usage(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> dict:
+) -> dict[str, str | dict[str, int]]:
     """Get current usage for a subscription."""
     service = SubscriptionService(db_session)
     usage = await service.get_usage(subscription_id, tenant_id)

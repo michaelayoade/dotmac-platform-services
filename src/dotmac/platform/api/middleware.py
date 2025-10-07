@@ -6,7 +6,7 @@ Provides gateway-specific middleware for request processing.
 
 from typing import Any
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import Request, Response
@@ -14,6 +14,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 logger = structlog.get_logger(__name__)
+
+CallNext = Callable[[Request], Awaitable[Response]]
 
 
 class GatewayMiddleware(BaseHTTPMiddleware):
@@ -27,7 +29,7 @@ class GatewayMiddleware(BaseHTTPMiddleware):
     - Request transformation
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
         """
         Process request through gateway.
 
@@ -102,7 +104,7 @@ class RequestTransformMiddleware(BaseHTTPMiddleware):
     Can modify headers, add context, validate requests.
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
         """
         Transform request before processing.
 
@@ -152,7 +154,7 @@ class CircuitBreakerMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.gateway = gateway
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
         """
         Check circuit breaker before processing.
 

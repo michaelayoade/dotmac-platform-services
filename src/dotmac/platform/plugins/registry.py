@@ -275,6 +275,9 @@ class PluginRegistry:
             config_schema=schema,
             status=PluginStatus.REGISTERED,
             has_configuration=bool(configuration),
+            last_health_check=None,
+            last_error=None,
+            configuration_version=None,
         )
 
         # Store configuration
@@ -436,7 +439,7 @@ class PluginRegistry:
 
         try:
             health_check = await provider.health_check()
-            health_check.plugin_instance_id = str(instance_id)
+            health_check.plugin_instance_id = instance_id
             health_check.timestamp = datetime.now(UTC).isoformat()
             health_check.response_time_ms = int((time.time() - start_time) * 1000)
 
@@ -452,7 +455,7 @@ class PluginRegistry:
 
         except Exception as e:
             health_check = PluginHealthCheck(
-                plugin_instance_id=str(instance_id),
+                plugin_instance_id=instance_id,
                 status="unhealthy",
                 message=f"Health check failed: {str(e)}",
                 details={"error": str(e)},

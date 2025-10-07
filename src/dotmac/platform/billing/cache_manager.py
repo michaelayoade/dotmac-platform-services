@@ -116,8 +116,8 @@ class BillingCacheManager:
         tenant_id: str,
         entity_id: str | None = None,
         strategy: InvalidationStrategy = InvalidationStrategy.IMMEDIATE,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Handle a cache-affecting event with appropriate invalidation.
 
@@ -145,8 +145,8 @@ class BillingCacheManager:
         # TTL_BASED doesn't require action - let TTL handle it
 
     async def _immediate_invalidation(
-        self, event: CacheEvent, tenant_id: str, entity_id: str | None, **kwargs
-    ):
+        self, event: CacheEvent, tenant_id: str, entity_id: str | None, **kwargs: Any
+    ) -> None:
         """Perform immediate cache invalidation based on event."""
         handler = self._pattern_handlers.get(event)
         if not handler:
@@ -185,7 +185,7 @@ class BillingCacheManager:
 
     async def _mark_for_lazy_invalidation(
         self, event: CacheEvent, tenant_id: str, entity_id: str | None
-    ):
+    ) -> None:
         """Mark cache entries for lazy invalidation."""
         # Add to invalidation queue for processing
         self.invalidation_queue.append(
@@ -203,7 +203,7 @@ class BillingCacheManager:
 
     async def _schedule_invalidation(
         self, event: CacheEvent, tenant_id: str, entity_id: str | None, delay_seconds: int = 60
-    ):
+    ) -> None:
         """Schedule cache invalidation for later execution."""
 
         async def delayed_invalidation() -> None:
@@ -229,7 +229,7 @@ class BillingCacheManager:
 
     async def cascade_invalidation(
         self, cache_type: str, tenant_id: str, entity_id: str | None = None
-    ):
+    ) -> None:
         """
         Cascade cache invalidation based on dependencies.
 

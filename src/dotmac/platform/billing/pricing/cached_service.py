@@ -6,10 +6,9 @@ and improve response times for frequent pricing operations.
 """
 
 from typing import Any
-from datetime import UTC, datetime
-from decimal import Decimal
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.cache import (
     BillingCache,
@@ -19,10 +18,12 @@ from dotmac.platform.billing.cache import (
     get_billing_cache,
 )
 from dotmac.platform.billing.pricing.models import (
+    PriceCalculationContext,
     PriceCalculationRequest,
     PriceCalculationResult,
     PricingRule,
     PricingRuleCreateRequest,
+    PricingRuleUpdateRequest,
 )
 from dotmac.platform.billing.pricing.service import PricingEngine
 
@@ -40,10 +41,15 @@ class CachedPricingEngine(PricingEngine):
     - Batch operations optimization
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.cache: BillingCache = get_billing_cache()
-        self.config = BillingCacheConfig()
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        cache: BillingCache | None = None,
+        config: BillingCacheConfig | None = None,
+    ) -> None:
+        super().__init__(db_session)
+        self.cache = cache or get_billing_cache()
+        self.config = config or BillingCacheConfig()
 
     async def get_pricing_rule(self, rule_id: str, tenant_id: str) -> PricingRule:
         """
@@ -132,12 +138,20 @@ class CachedPricingEngine(PricingEngine):
         - Very short TTL (5 minutes) as prices may change frequently
         - Can be disabled for real-time pricing needs
         """
-        # Generate cache key for this calculation
-        cache_key = CacheKey.price_calculation(
+        base_key = CacheKey.price_calculation(
             request.product_id, request.quantity, request.customer_id, tenant_id
         )
+        calculation_marker = (
+            request.calculation_date.isoformat() if request.calculation_date else "now"
+        )
+        cache_hash = CacheKey.generate_hash(
+            {
+                "segments": sorted(request.customer_segments),
+                "calculation": calculation_marker,
+            }
+        )
+        cache_key = f"{base_key}:{cache_hash}"
 
-        # Try cache if enabled
         if use_cache:
             cached_result = await self.cache.get(cache_key, tier=CacheTier.L1_MEMORY)
             if cached_result:
@@ -149,21 +163,14 @@ class CachedPricingEngine(PricingEngine):
                 )
                 return PriceCalculationResult.model_validate(cached_result)
 
-        # Get applicable pricing rules (these will be cached)
-        applicable_rules = await self._get_applicable_rules(
-            request.product_id, request.quantity, request.customer_segments, tenant_id
-        )
+        result = await super().calculate_price(request, tenant_id)
 
-        # Perform calculation
-        result = await self._calculate_with_rules(request, applicable_rules, tenant_id)
-
-        # Cache the result if enabled
-        if use_cache and result:
+        if use_cache:
             await self.cache.set(
                 cache_key,
                 result.model_dump(),
-                ttl=300,  # 5 minutes for price calculations
-                tier=CacheTier.L1_MEMORY,  # Keep in memory for fast access
+                ttl=300,
+                tier=CacheTier.L1_MEMORY,
                 tags=[
                     f"tenant:{tenant_id}",
                     f"product:{request.product_id}",
@@ -209,7 +216,9 @@ class CachedPricingEngine(PricingEngine):
 
         return rule
 
-    async def update_pricing_rule(self, rule_id: str, updates: dict, tenant_id: str) -> PricingRule:
+    async def update_pricing_rule(
+        self, rule_id: str, updates: PricingRuleUpdateRequest, tenant_id: str
+    ) -> PricingRule:
         """
         Update pricing rule and refresh caches.
         """
@@ -244,169 +253,38 @@ class CachedPricingEngine(PricingEngine):
 
         return rule
 
-    def _check_quantity_requirement(self, rule: PricingRule, quantity: int) -> bool:
-        """Check if rule's quantity requirement is met."""
-        if rule.min_quantity and quantity < rule.min_quantity:
-            return False
-        return True
-
-    def _check_customer_segments(self, rule: PricingRule, customer_segments: list[str]) -> bool:
-        """Check if rule's customer segment requirement is met."""
-        if rule.customer_segments:
-            if not any(seg in customer_segments for seg in rule.customer_segments):
-                return False
-        return True
-
-    def _check_time_constraints(self, rule: PricingRule) -> bool:
-        """Check if rule's time constraints are met."""
-        now = datetime.now(UTC)
-        if rule.starts_at and now < rule.starts_at:
-            return False
-        if rule.ends_at and now > rule.ends_at:
-            return False
-        return True
-
-    def _check_usage_limits(self, rule: PricingRule) -> bool:
-        """Check if rule's usage limit has been reached."""
-        if rule.max_uses and rule.current_uses >= rule.max_uses:
-            return False
-        return True
-
-    def _is_rule_applicable(
-        self, rule: PricingRule, product_id: str, quantity: int, customer_segments: list[str]
-    ) -> bool:
-        """Check if a rule is applicable given all conditions."""
-        if not self._rule_applies_to_product(rule, product_id):
-            return False
-        if not self._check_quantity_requirement(rule, quantity):
-            return False
-        if not self._check_customer_segments(rule, customer_segments):
-            return False
-        if not self._check_time_constraints(rule):
-            return False
-        if not self._check_usage_limits(rule):
-            return False
-        return True
-
     async def _get_applicable_rules(
-        self, product_id: str, quantity: int, customer_segments: list[str], tenant_id: str
+        self, context: PriceCalculationContext, tenant_id: str
     ) -> list[PricingRule]:
-        """
-        Get applicable rules with caching optimization.
+        """Return applicable rules using cached lookups when possible."""
 
-        This method is called frequently, so we cache the filtered
-        results for common product/customer combinations.
-        """
-        # Create a cache key for this specific combination
-        segments_hash = CacheKey.generate_hash({"segments": sorted(customer_segments)})
-        cache_key = (
-            f"billing:pricing:applicable:{tenant_id}:{product_id}:{quantity}:{segments_hash}"
+        context_hash = CacheKey.generate_hash(
+            {
+                "product": context.product_id,
+                "quantity": context.quantity,
+                "segments": sorted(context.customer_segments),
+                "category": context.product_category or "",
+                "date": context.calculation_date.isoformat(),
+            }
         )
+        cache_key = f"billing:pricing:applicable:{tenant_id}:{context_hash}"
 
-        # Try cache first
         cached_rules = await self.cache.get(cache_key, tier=CacheTier.L1_MEMORY)
         if cached_rules:
-            return [PricingRule.model_validate(r) for r in cached_rules]
+            return [PricingRule.model_validate(rule) for rule in cached_rules]
 
-        # Get all rules for this tenant (cached)
-        all_rules = await self.list_pricing_rules(tenant_id, active_only=True)
+        rules = await super()._get_applicable_rules(context, tenant_id)
 
-        # Filter applicable rules using helper
-        applicable = [
-            rule
-            for rule in all_rules
-            if self._is_rule_applicable(rule, product_id, quantity, customer_segments)
-        ]
-
-        # Cache the filtered results
-        if applicable:
+        if rules:
             await self.cache.set(
                 cache_key,
-                [r.model_dump() for r in applicable],
-                ttl=300,  # 5 minutes
+                [rule.model_dump() for rule in rules],
+                ttl=300,
                 tier=CacheTier.L1_MEMORY,
+                tags=[f"tenant:{tenant_id}", f"product:{context.product_id}"],
             )
 
-        return applicable
-
-    def _rule_applies_to_product(self, rule: PricingRule, product_id: str) -> bool:
-        """Check if a rule applies to a specific product."""
-        if rule.applies_to_all:
-            return True
-
-        if rule.applies_to_product_ids and product_id in rule.applies_to_product_ids:
-            return True
-
-        # Would need to check product category here if we had that data
-        # For now, just check direct product matches
-
-        return False
-
-    async def _calculate_with_rules(
-        self, request: PriceCalculationRequest, rules: list[PricingRule], tenant_id: str
-    ) -> PriceCalculationResult:
-        """
-        Perform the actual price calculation with rules.
-
-        This is the core calculation logic that applies discounts
-        based on the first matching rule (first-match-wins).
-        """
-        # Get product details (this would be cached in CachedProductService)
-        from dotmac.platform.billing.catalog.cached_service import CachedProductService
-
-        product_service = CachedProductService()
-        product = await product_service.get_product(request.product_id, tenant_id)
-
-        # Base calculation
-        base_price = product.base_price
-        quantity = Decimal(str(request.quantity))
-        subtotal = base_price * quantity
-
-        # Apply first matching rule
-        discount_amount = Decimal("0")
-        applied_rule = None
-
-        for rule in rules:
-            if rule.discount_type == "percentage":
-                discount_amount = subtotal * (rule.discount_value / 100)
-            elif rule.discount_type == "fixed_amount":
-                discount_amount = min(rule.discount_value, subtotal)
-            elif rule.discount_type == "fixed_price":
-                # Fixed price replaces the original price
-                new_total = rule.discount_value * quantity
-                discount_amount = max(Decimal("0"), subtotal - new_total)
-
-            applied_rule = rule
-            break  # First match wins
-
-        # Calculate final price
-        final_price = subtotal - discount_amount
-
-        return PriceCalculationResult(
-            product_id=request.product_id,
-            quantity=request.quantity,
-            currency=product.currency,
-            base_price=base_price,
-            subtotal=subtotal,
-            discounts=(
-                [
-                    {
-                        "rule_id": applied_rule.rule_id if applied_rule else None,
-                        "rule_name": applied_rule.name if applied_rule else None,
-                        "discount_amount": discount_amount,
-                    }
-                ]
-                if applied_rule
-                else []
-            ),
-            total_discount_amount=discount_amount,
-            final_price=final_price,
-            applied_rules=[applied_rule.rule_id] if applied_rule else [],
-            calculation_metadata={
-                "customer_segments": request.customer_segments,
-                "timestamp": datetime.now(UTC).isoformat(),
-            },
-        )
+        return rules
 
     async def warm_pricing_cache(self, tenant_id: str) -> Any:
         """

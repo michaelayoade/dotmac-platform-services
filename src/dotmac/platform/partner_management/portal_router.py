@@ -93,7 +93,7 @@ async def get_current_partner(
 async def get_dashboard_stats(
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> PartnerDashboardStats:
     """Get dashboard statistics for partner portal."""
 
     # Count active customers
@@ -144,7 +144,7 @@ async def get_dashboard_stats(
 @router.get("/profile", response_model=PartnerResponse)
 async def get_partner_profile(
     partner: Partner = Depends(get_current_partner),
-):
+) -> Partner:
     """Get current partner profile."""
     return partner
 
@@ -154,7 +154,7 @@ async def update_partner_profile(
     data: PartnerUpdate,
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> Partner:
     """Update partner profile (limited fields)."""
 
     # Only allow updating certain fields from portal
@@ -181,7 +181,7 @@ async def update_partner_profile(
 async def list_partner_referrals(
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> list[ReferralLeadResponse]:
     """List all referrals submitted by partner."""
 
     result = await db.execute(
@@ -190,7 +190,8 @@ async def list_partner_referrals(
         .order_by(ReferralLead.created_at.desc())
     )
 
-    return result.scalars().all()
+    referrals = list(result.scalars().all())
+    return [ReferralLeadResponse.model_validate(r, from_attributes=True) for r in referrals]
 
 
 @router.post("/referrals", response_model=ReferralLeadResponse, status_code=status.HTTP_201_CREATED)
@@ -198,7 +199,7 @@ async def submit_referral(
     data: ReferralLeadCreate,
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> ReferralLead:
     """Submit a new referral."""
 
     referral = ReferralLead(
@@ -222,7 +223,7 @@ async def submit_referral(
 async def list_partner_commissions(
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> list[PartnerCommissionEventResponse]:
     """List all commission events for partner."""
 
     result = await db.execute(
@@ -231,14 +232,15 @@ async def list_partner_commissions(
         .order_by(PartnerCommissionEvent.event_date.desc())
     )
 
-    return result.scalars().all()
+    events = list(result.scalars().all())
+    return [PartnerCommissionEventResponse.model_validate(e, from_attributes=True) for e in events]
 
 
 @router.get("/customers", response_model=list[PartnerCustomerResponse])
 async def list_partner_customers(
     partner: Partner = Depends(get_current_partner),
     db: AsyncSession = Depends(get_session_dependency),
-):
+) -> list[PartnerCustomerResponse]:
     """List all customers assigned to partner."""
 
     result = await db.execute(
@@ -247,10 +249,10 @@ async def list_partner_customers(
         .order_by(PartnerAccount.created_at.desc())
     )
 
-    accounts = result.scalars().all()
+    accounts = list(result.scalars().all())
 
     # Transform to response format with aggregated financials
-    customer_responses = []
+    customer_responses: list[PartnerCustomerResponse] = []
     for account in accounts:
         # Aggregate revenue and commissions from commission events
         commission_result = await db.execute(

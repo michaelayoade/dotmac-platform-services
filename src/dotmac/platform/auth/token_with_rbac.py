@@ -15,11 +15,10 @@ from dotmac.platform.auth.core import JWTService
 from dotmac.platform.auth.exceptions import InvalidToken
 from dotmac.platform.auth.rbac_service import RBACService
 from dotmac.platform.core.caching import cache_get, cache_set
-from dotmac.platform.settings import Settings
+from dotmac.platform.settings import settings
 from dotmac.platform.user_management.models import User
 
 logger = logging.getLogger(__name__)
-settings = Settings()
 
 
 class RBACTokenService:
@@ -47,7 +46,7 @@ class RBACTokenService:
         role_names = [role.name for role in roles]
 
         # Build token claims
-        claims = {
+        claims: dict[str, Any] = {
             "sub": str(user.id),
             "email": user.email,
             "username": user.username,
@@ -63,21 +62,16 @@ class RBACTokenService:
             claims.update(additional_claims)
 
         # Set expiration
-        if expires_delta:
-            expire = datetime.now(UTC) + expires_delta
-        else:
-            expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-
-        claims["exp"] = expire
-        claims["iat"] = datetime.now(UTC)
+        expire_delta = expires_delta or timedelta(minutes=settings.jwt.access_token_expire_minutes)
+        expire = datetime.now(UTC) + expire_delta
         claims["type"] = "access"
 
         # Create token
-        token = self.jwt_service.create_token(claims)
+        token = self.jwt_service._create_token(claims, expire_delta)
 
         # Cache the token metadata for quick validation
         cache_key = f"token:{user.id}:{token[:20]}"  # Use first 20 chars as identifier
-        await cache_set(
+        cache_set(
             cache_key,
             {
                 "user_id": str(user.id),
@@ -85,10 +79,10 @@ class RBACTokenService:
                 "roles": role_names,
                 "expires_at": expire.isoformat(),
             },
-            expire=int(
+            ttl=int(
                 expires_delta.total_seconds()
                 if expires_delta
-                else settings.access_token_expire_minutes * 60
+                else settings.jwt.access_token_expire_minutes * 60
             ),
         )
 
@@ -101,17 +95,11 @@ class RBACTokenService:
         """
         Create a refresh token (doesn't include permissions for security)
         """
-        claims = {"sub": str(user.id), "type": "refresh"}
+        claims: dict[str, Any] = {"sub": str(user.id), "type": "refresh"}
 
-        if expires_delta:
-            expire = datetime.now(UTC) + expires_delta
-        else:
-            expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+        expire_delta = expires_delta or timedelta(days=settings.jwt.refresh_token_expire_days)
 
-        claims["exp"] = expire
-        claims["iat"] = datetime.now(UTC)
-
-        return self.jwt_service.create_token(claims)
+        return self.jwt_service._create_token(claims, expire_delta)
 
     async def verify_token_with_permissions(
         self,
@@ -204,8 +192,8 @@ class RBACTokenService:
                 ttl = exp - datetime.now(UTC).timestamp()
                 if ttl > 0:
                     # Add to blacklist
-                    await cache_set(
-                        f"blacklist:{token[:50]}", True, expire=int(ttl)  # Use first 50 chars
+                    cache_set(
+                        f"blacklist:{token[:50]}", True, ttl=int(ttl)  # Use first 50 chars
                     )
                     logger.info(f"Token revoked for user {payload.get('sub')}")
         except JWTError:
@@ -215,7 +203,7 @@ class RBACTokenService:
         """
         Check if token is in the blacklist
         """
-        return await cache_get(f"blacklist:{token[:50]}") is not None
+        return cache_get(f"blacklist:{token[:50]}") is not None
 
     async def get_user_from_token(
         self, token: str, db_session: Session

@@ -8,7 +8,7 @@ locale-aware formatting, and support for multiple currencies.
 import io
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from reportlab.lib import colors
@@ -24,7 +24,7 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import HRFlowable
 
-from .money_models import MoneyInvoice
+from .money_models import MoneyField, MoneyInvoice
 
 logger = structlog.get_logger(__name__)
 
@@ -48,10 +48,10 @@ class ReportLabInvoiceGenerator:
 
     def __init__(
         self,
-        page_size=DEFAULT_PAGE_SIZE,
-        margins=DEFAULT_MARGINS,
+        page_size: tuple[float, float] = DEFAULT_PAGE_SIZE,
+        margins: tuple[float, float, float, float] = DEFAULT_MARGINS,
         logo_path: str | None = None,
-    ):
+    ) -> None:
         """
         Initialize PDF generator with layout configuration.
 
@@ -427,7 +427,8 @@ class ReportLabInvoiceGenerator:
         totals_data.append(["", ""])
 
         # Grand total
-        totals_data.append(["TOTAL DUE:", invoice.net_amount_due.format(locale)])
+        net_amount_due_field = cast(MoneyField, invoice.net_amount_due)
+        totals_data.append(["TOTAL DUE:", net_amount_due_field.format(locale)])
 
         # Create table aligned to right
         totals_table = Table(totals_data, colWidths=[100, 100])
@@ -534,7 +535,13 @@ class ReportLabInvoiceGenerator:
             "paid": SUCCESS_COLOR,
             "overdue": DANGER_COLOR,
         }
-        return status_colors.get(status.lower(), SECONDARY_COLOR)
+        color = status_colors.get(status.lower(), SECONDARY_COLOR)
+        hex_value = getattr(color, "hexval", None)
+        if hex_value:
+            hex_str = str(hex_value)
+            if hex_str.startswith("0x"):
+                return f"#{hex_str[2:]}"
+        return "#6b7280"
 
     @staticmethod
     def _default_company_info() -> dict[str, Any]:

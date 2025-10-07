@@ -215,7 +215,7 @@ class EventBus:
         Returns:
             Dictionary mapping event types to number of deliveries
         """
-        results = {}
+        results: dict[str, int] = {}
 
         for event in events:
             event_type = event.get("event_type")

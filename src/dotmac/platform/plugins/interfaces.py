@@ -1,14 +1,16 @@
-"""
-Plugin interfaces and base classes.
+"""Plugin interfaces and base classes."""
 
-This module defines the interfaces that plugins must implement
-to integrate with the DotMac platform.
-"""
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from .schema import PluginConfig, PluginHealthCheck, PluginTestResult
+
+
+ZERO_UUID = UUID(int=0)
 
 
 class PluginProvider(ABC):
@@ -45,11 +47,12 @@ class PluginProvider(ABC):
             PluginHealthCheck: Health status result
         """
         return PluginHealthCheck(
-            plugin_instance_id="",  # Will be set by registry
+            plugin_instance_id=ZERO_UUID,
             status="unknown",
             message="Health check not implemented",
             details={},
-            timestamp="",  # Will be set by registry
+            timestamp=datetime.now(UTC).isoformat(),
+            response_time_ms=None,
         )
 
     async def test_connection(self, config: dict[str, Any]) -> PluginTestResult:
@@ -66,7 +69,8 @@ class PluginProvider(ABC):
             success=False,
             message="Connection test not implemented",
             details={},
-            timestamp="",  # Will be set by registry
+            timestamp=datetime.now(UTC).isoformat(),
+            response_time_ms=None,
         )
 
 

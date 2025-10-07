@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.invoicing.money_service import (
     MoneyInvoiceService,
@@ -90,15 +91,16 @@ router = APIRouter(prefix="/money", tags=["Billing - Money Invoices"])
 def get_tenant_id_from_request(request: Request) -> str:
     """Extract tenant ID from request."""
     if hasattr(request.state, "tenant_id"):
-        return request.state.tenant_id
-
-    tenant_id = request.headers.get("X-Tenant-ID")
-    if tenant_id:
+        tenant_id: str = request.state.tenant_id
         return tenant_id
 
-    tenant_id = request.query_params.get("tenant_id")
-    if tenant_id:
-        return tenant_id
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    if tenant_id_header:
+        return tenant_id_header
+
+    tenant_id_query = request.query_params.get("tenant_id")
+    if tenant_id_query:
+        return tenant_id_query
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -116,7 +118,7 @@ async def create_money_invoice(
     invoice_data: CreateMoneyInvoiceRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> MoneyInvoice:
     """
     Create a new invoice using Money models for accurate currency handling.
@@ -170,7 +172,7 @@ async def get_money_invoice(
     invoice_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> MoneyInvoice:
     """Get invoice with Money model format."""
     tenant_id = get_tenant_id_from_request(request)
@@ -196,7 +198,7 @@ async def generate_invoice_pdf(
     pdf_options: PDFGenerationRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Response:
     """
     Generate PDF for an invoice.
@@ -218,6 +220,11 @@ async def generate_invoice_pdf(
 
         # Get invoice for filename
         invoice = await service.get_money_invoice(tenant_id, invoice_id)
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Invoice {invoice_id} not found",
+            )
         filename = f"invoice_{invoice.invoice_number}.pdf"
 
         return Response(
@@ -238,7 +245,7 @@ async def preview_invoice_pdf(
     request: Request,
     locale: str = Query("en_US"),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Response:
     """
     Preview invoice PDF in browser.
@@ -272,7 +279,7 @@ async def generate_batch_pdfs(
     batch_request: BatchPDFRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Generate PDFs for multiple invoices.
@@ -325,7 +332,7 @@ async def apply_discount(
     discount_request: InvoiceDiscountRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> MoneyInvoice:
     """
     Apply a percentage discount to an invoice.
@@ -358,7 +365,7 @@ async def recalculate_tax(
     tax_jurisdiction: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> MoneyInvoice:
     """
     Recalculate tax for an invoice based on jurisdiction.

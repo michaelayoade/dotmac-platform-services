@@ -7,12 +7,12 @@ Provides TOTP-based two-factor authentication using pyotp.
 import base64
 import io
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pyotp
 import qrcode
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import hash_password, verify_password
@@ -159,11 +159,7 @@ class MFAService:
             user_id = uuid.UUID(user_id)
 
         # Delete existing backup codes for user
-        await session.execute(select(BackupCode).where(BackupCode.user_id == user_id))
-        result = await session.execute(select(BackupCode).where(BackupCode.user_id == user_id))
-        existing_codes = result.scalars().all()
-        for code in existing_codes:
-            await session.delete(code)
+        await session.execute(delete(BackupCode).where(BackupCode.user_id == user_id))
 
         # Store new hashed backup codes
         for code in codes:
@@ -206,7 +202,10 @@ class MFAService:
 
         # Get all unused backup codes for user
         result = await session.execute(
-            select(BackupCode).where(BackupCode.user_id == user_id, not BackupCode.used)
+            select(BackupCode).where(
+                BackupCode.user_id == user_id,
+                BackupCode.used.is_(False),
+            )
         )
         backup_codes = result.scalars().all()
 
@@ -215,7 +214,7 @@ class MFAService:
             if verify_password(code, backup_code.code_hash):
                 # Mark as used
                 backup_code.used = True
-                backup_code.used_at = datetime.utcnow()
+                backup_code.used_at = datetime.now(UTC)
                 backup_code.used_ip = ip_address
                 await session.commit()
 
@@ -250,7 +249,10 @@ class MFAService:
             user_id = uuid.UUID(user_id)
 
         result = await session.execute(
-            select(BackupCode).where(BackupCode.user_id == user_id, not BackupCode.used)
+            select(BackupCode).where(
+                BackupCode.user_id == user_id,
+                BackupCode.used.is_(False),
+            )
         )
         return len(result.scalars().all())
 

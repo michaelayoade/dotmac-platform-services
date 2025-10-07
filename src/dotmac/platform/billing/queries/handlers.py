@@ -9,6 +9,7 @@ Handlers optimize for read performance using:
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import and_, case, func, select
@@ -104,7 +105,8 @@ class InvoiceQueryHandler:
 
         # Count total
         count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_count = await self.db.scalar(count_stmt)
+        total_count_raw = await self.db.scalar(count_stmt)
+        total_count = int(total_count_raw or 0)
 
         # Apply sorting and pagination
         if query.sort_order == "desc":
@@ -118,12 +120,16 @@ class InvoiceQueryHandler:
         result = await self.db.execute(stmt)
         invoices = result.scalars().all()
 
+        total_pages = (
+            (total_count + query.page_size - 1) // query.page_size if total_count else 0
+        )
+
         return {
             "items": [self._map_to_list_item(inv) for inv in invoices],
             "total": total_count,
             "page": query.page,
             "page_size": query.page_size,
-            "total_pages": (total_count + query.page_size - 1) // query.page_size,
+            "total_pages": total_pages,
         }
 
     async def handle_get_overdue_invoices(
@@ -189,20 +195,30 @@ class InvoiceQueryHandler:
         result = await self.db.execute(stmt)
         row = result.one()
 
+        total_amount = int(row.total_amount or 0)
+        outstanding_amount = int(row.outstanding_amount or 0)
+        paid_amount = total_amount - outstanding_amount
+
         return InvoiceStatistics(
-            total_count=row.total_count or 0,
-            draft_count=row.draft_count or 0,
-            open_count=row.open_count or 0,
-            paid_count=row.paid_count or 0,
-            total_amount=row.total_amount or 0,
-            outstanding_amount=row.outstanding_amount or 0,
-            paid_amount=(row.total_amount or 0) - (row.outstanding_amount or 0),
+            total_count=int(row.total_count or 0),
+            draft_count=int(row.draft_count or 0),
+            open_count=int(row.open_count or 0),
+            paid_count=int(row.paid_count or 0),
+            void_count=0,
+            overdue_count=0,
+            total_amount=total_amount,
+            paid_amount=max(paid_amount, 0),
+            outstanding_amount=outstanding_amount,
+            overdue_amount=0,
+            currency="USD",
             average_invoice_amount=int(row.average_amount or 0),
+            average_payment_time_days=None,
             period_start=query.start_date,
             period_end=query.end_date,
-            currency="USD",
-            formatted_total=f"${(row.total_amount or 0) / 100:.2f}",
-            formatted_outstanding=f"${(row.outstanding_amount or 0) / 100:.2f}",
+            previous_period_total=None,
+            growth_rate=None,
+            formatted_total=f"${total_amount / 100:.2f}",
+            formatted_outstanding=f"${outstanding_amount / 100:.2f}",
         )
 
     def _map_to_list_item(self, invoice: InvoiceEntity) -> InvoiceListItem:
@@ -210,62 +226,157 @@ class InvoiceQueryHandler:
         now = datetime.now(UTC)
         days_until_due = (invoice.due_date - now).days if invoice.due_date else None
 
+        invoice_number = invoice.invoice_number or invoice.invoice_id
+        tenant_id_value = invoice.tenant_id or ""
+        customer_email = invoice.billing_email or ""
+        raw_customer_name = (
+            invoice.billing_address.get("name")
+            if isinstance(invoice.billing_address, dict)
+            else None
+        )
+        customer_name_value = raw_customer_name or customer_email or invoice.customer_id
+        tenant_id_value = invoice.tenant_id or ""
+        customer_email = invoice.billing_email or ""
+        raw_customer_name = (
+            invoice.billing_address.get("name")
+            if isinstance(invoice.billing_address, dict)
+            else None
+        )
+        customer_name_value = raw_customer_name or customer_email or invoice.customer_id
+
+        status_value = invoice.status.value if isinstance(invoice.status, InvoiceStatus) else str(invoice.status)
+        customer_name = invoice.billing_address.get("name") if isinstance(invoice.billing_address, dict) else None
+        customer_email = invoice.billing_email or ""
+        resolved_customer_name = customer_name or customer_email or invoice.customer_id
+
+        line_items = list(invoice.line_items) if getattr(invoice, "line_items", None) else []
+        payments = list(invoice.payments) if getattr(invoice, "payments", None) else []
+        is_overdue = bool(
+            invoice.due_date
+            and invoice.due_date < now
+            and invoice.status == InvoiceStatus.OPEN
+        )
+        formatted_total = f"${invoice.total_amount / 100:.2f}"
+        formatted_balance = f"${invoice.remaining_balance / 100:.2f}"
+
         return InvoiceListItem(
             invoice_id=invoice.invoice_id,
-            invoice_number=invoice.invoice_number,
+            invoice_number=invoice_number,
             customer_id=invoice.customer_id,
-            customer_name=invoice.billing_address.get("name", "Unknown"),
-            customer_email=invoice.billing_email,
+            customer_name=resolved_customer_name,
+            customer_email=customer_email,
             total_amount=invoice.total_amount,
             remaining_balance=invoice.remaining_balance,
             currency=invoice.currency,
-            status=invoice.status,
-            is_overdue=invoice.due_date < now and invoice.status == InvoiceStatus.OPEN,
+            status=status_value,
+            is_overdue=is_overdue,
             created_at=invoice.created_at,
             due_date=invoice.due_date,
             paid_at=invoice.paid_at,
-            line_item_count=len(invoice.line_items) if hasattr(invoice, "line_items") else 0,
-            payment_count=len(invoice.payments) if hasattr(invoice, "payments") else 0,
-            formatted_total=f"${invoice.total_amount / 100:.2f}",
-            formatted_balance=f"${invoice.remaining_balance / 100:.2f}",
+            line_item_count=len(line_items),
+            payment_count=len(payments),
+            formatted_total=formatted_total,
+            formatted_balance=formatted_balance,
             days_until_due=days_until_due,
         )
 
     def _map_to_detail(self, invoice: InvoiceEntity) -> InvoiceDetail:
         """Map entity to detailed view"""
+        line_items_data: list[dict[str, Any]] = []
+        if getattr(invoice, "line_items", None):
+            for item in invoice.line_items:
+                line_items_data.append(
+                    {
+                        "description": item.description,
+                        "quantity": item.quantity,
+                        "unit_price": item.unit_price,
+                        "total_price": item.total_price,
+                        "product_id": item.product_id,
+                        "subscription_id": item.subscription_id,
+                        "tax_rate": item.tax_rate,
+                        "tax_amount": item.tax_amount,
+                        "discount_percentage": item.discount_percentage,
+                        "discount_amount": item.discount_amount,
+                        "metadata": item.extra_data or {},
+                    }
+                )
+
+        payment_summaries: list[dict[str, Any]] = []
+        if getattr(invoice, "payments", None):
+            for association in invoice.payments:
+                summary: dict[str, Any] = {
+                    "payment_id": association.payment_id,
+                    "amount_applied": association.amount_applied,
+                    "applied_at": association.applied_at,
+                }
+                payment_entity = getattr(association, "payment", None)
+                if payment_entity is not None:
+                    summary["status"] = getattr(payment_entity, "status", None)
+                payment_summaries.append(summary)
+
+        total_paid = sum(entry["amount_applied"] for entry in payment_summaries)
+        if not payment_summaries:
+            total_paid = max(invoice.total_amount - invoice.remaining_balance, 0)
+
+        tenant_id_value = invoice.tenant_id or ""
+        customer_email = invoice.billing_email or ""
+        raw_customer_name = (
+            invoice.billing_address.get("name")
+            if isinstance(invoice.billing_address, dict)
+            else None
+        )
+        customer_name_value = raw_customer_name or customer_email or invoice.customer_id
+
+        status_value = invoice.status.value if isinstance(invoice.status, InvoiceStatus) else str(invoice.status)
+        extra_data = invoice.extra_data or {}
+        if not isinstance(extra_data, dict):
+            extra_data = {}
+        payment_link = extra_data.get("payment_link")
+
+        now = datetime.now(UTC)
+        is_overdue = bool(
+            invoice.due_date and invoice.due_date < now and invoice.status == InvoiceStatus.OPEN
+        )
+        days_overdue = (
+            (now - invoice.due_date).days if invoice.due_date and invoice.due_date < now else None
+        )
+
+        invoice_number = invoice.invoice_number or invoice.invoice_id
+
         return InvoiceDetail(
             invoice_id=invoice.invoice_id,
-            invoice_number=invoice.invoice_number,
-            tenant_id=invoice.tenant_id,
+            invoice_number=invoice_number,
+            tenant_id=tenant_id_value,
             customer_id=invoice.customer_id,
-            customer_name=invoice.billing_address.get("name", "Unknown"),
-            customer_email=invoice.billing_email,
+            customer_name=customer_name_value,
+            customer_email=customer_email,
             billing_address=invoice.billing_address,
-            line_items=invoice.line_items if hasattr(invoice, "line_items") else [],
+            line_items=line_items_data,
             subtotal=invoice.subtotal,
             tax_amount=invoice.tax_amount,
             discount_amount=invoice.discount_amount,
             total_amount=invoice.total_amount,
             remaining_balance=invoice.remaining_balance,
             currency=invoice.currency,
-            status=invoice.status,
+            status=status_value,
             created_at=invoice.created_at,
             updated_at=invoice.updated_at,
             issue_date=invoice.issue_date,
             due_date=invoice.due_date,
-            finalized_at=invoice.finalized_at,
+            finalized_at=getattr(invoice, "finalized_at", None),
             paid_at=invoice.paid_at,
             voided_at=invoice.voided_at,
-            payments=[],
-            total_paid=invoice.total_amount - invoice.remaining_balance,
+            payments=payment_summaries,
+            total_paid=total_paid,
             notes=invoice.notes,
             internal_notes=invoice.internal_notes,
             subscription_id=invoice.subscription_id,
             idempotency_key=invoice.idempotency_key,
             created_by=invoice.created_by,
-            extra_data=invoice.extra_data or {},
-            is_overdue=invoice.due_date < datetime.now(UTC)
-            and invoice.status == InvoiceStatus.OPEN,
+            extra_data=extra_data,
+            is_overdue=is_overdue,
+            days_overdue=days_overdue,
+            payment_link=payment_link,
         )
 
 

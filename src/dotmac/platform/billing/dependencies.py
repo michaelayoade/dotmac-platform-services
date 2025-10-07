@@ -37,8 +37,10 @@ async def get_tenant_id(request: Request) -> str:
         return tenant_id
 
     # Then check request state (fallback for direct state access)
-    if hasattr(request.state, "tenant_id") and request.state.tenant_id:
-        return request.state.tenant_id
+    if hasattr(request.state, "tenant_id"):
+        state_tenant = getattr(request.state, "tenant_id")
+        if isinstance(state_tenant, str) and state_tenant:
+            return state_tenant
 
     # If we get here, tenant middleware didn't set the context
     # This should not happen if middleware is configured correctly
@@ -121,8 +123,10 @@ def get_tenant_id_from_request(request: Request) -> str:
         return tenant_id
 
     # Check request state (set by middleware)
-    if hasattr(request.state, "tenant_id") and request.state.tenant_id:
-        return request.state.tenant_id
+    if hasattr(request.state, "tenant_id"):
+        state_tenant = getattr(request.state, "tenant_id")
+        if isinstance(state_tenant, str) and state_tenant:
+            return state_tenant
 
     # Fallback to header (should not be needed if middleware is working)
     tenant_id = request.headers.get("X-Tenant-ID")

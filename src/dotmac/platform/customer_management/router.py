@@ -4,7 +4,7 @@ Customer Management API Router.
 Provides RESTful endpoints for customer management operations.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
@@ -35,10 +35,10 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Customer Management"])
 
 
-def _convert_customer_to_response(customer) -> CustomerResponse:
+def _convert_customer_to_response(customer: Any) -> CustomerResponse:
     """Convert Customer model to CustomerResponse, handling metadata_ field."""
     # Create a dict from the customer model
-    customer_dict = {}
+    customer_dict: dict[str, Any] = {}
     for key in CustomerResponse.model_fields:
         if key == "metadata":
             # Map metadata_ to metadata
@@ -286,9 +286,9 @@ async def add_customer_activity(
         )
 
 
-def _convert_activity_to_response(activity) -> CustomerActivityResponse:
+def _convert_activity_to_response(activity: Any) -> CustomerActivityResponse:
     """Convert CustomerActivity model to CustomerActivityResponse, handling metadata_ field."""
-    activity_dict = {}
+    activity_dict: dict[str, Any] = {}
     for key in CustomerActivityResponse.model_fields:
         if key == "metadata":
             # Map metadata_ to metadata
@@ -356,9 +356,9 @@ async def add_customer_note(
         )
 
 
-def _convert_note_to_response(note) -> CustomerNoteResponse:
+def _convert_note_to_response(note: Any) -> CustomerNoteResponse:
     """Convert CustomerNote model to CustomerNoteResponse."""
-    note_dict = {}
+    note_dict: dict[str, Any] = {}
     for key in CustomerNoteResponse.model_fields:
         if hasattr(note, key):
             note_dict[key] = getattr(note, key)
@@ -470,11 +470,13 @@ async def get_customer_metrics(
 
     Requires authentication.
     """
+    from dotmac.platform.customer_management.schemas import CustomerSegmentSummary
+
     metrics = await service.get_customer_metrics()
 
     # Map top_segments from service format to schema format
     top_segments = [
-        {"name": segment["name"], "count": segment["member_count"]}
+        CustomerSegmentSummary(name=segment["name"], count=segment["member_count"])
         for segment in metrics.get("top_segments", [])
     ]
 

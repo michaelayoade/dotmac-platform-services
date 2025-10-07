@@ -203,9 +203,16 @@ class WebhookSubscriptionService:
 
         await self.db.commit()
 
-    async def disable_subscription(self, subscription_id: str, tenant_id: str, reason: str) -> None:
+    async def disable_subscription(
+        self, subscription_id: str, tenant_id: str | None, reason: str
+    ) -> None:
         """Disable a webhook subscription (e.g., after repeated failures)."""
-        subscription = await self.get_subscription(subscription_id, tenant_id)
+        if tenant_id:
+            subscription = await self.get_subscription(subscription_id, tenant_id)
+        else:
+            stmt = select(WebhookSubscription).where(WebhookSubscription.id == uuid.UUID(subscription_id))
+            result = await self.db.execute(stmt)
+            subscription = result.scalar_one_or_none()
         if not subscription:
             return
 

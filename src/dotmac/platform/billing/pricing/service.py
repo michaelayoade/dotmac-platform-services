@@ -329,7 +329,7 @@ class PricingEngine:
         # Import here to avoid circular dependency
         from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
-        subscription_service = SubscriptionService()
+        subscription_service = SubscriptionService(self.db)
         plan = await subscription_service.get_plan(plan_id, tenant_id)
 
         # Use custom price if set, otherwise plan price
@@ -584,10 +584,7 @@ class PricingEngine:
         self, request: PriceCalculationRequest, tenant_id: str
     ) -> list[PricingRule]:
         """Get rules that would apply for given request (for testing/preview)."""
-        from dotmac.platform.billing.catalog.service import ProductCatalogService
-
-        catalog_service = ProductCatalogService(self.db)
-        product = await catalog_service.get_product(request.product_id, tenant_id)
+        product = await self.product_service.get_product(request.product_id, tenant_id)
 
         context = PriceCalculationContext(
             product_id=request.product_id,
@@ -698,7 +695,7 @@ class PricingEngine:
 
     async def detect_rule_conflicts(self, tenant_id: str) -> list[dict[str, Any]]:
         """Detect potential conflicts between pricing rules."""
-        conflicts: list[tuple[str, str, str]] = []
+        conflicts: list[dict[str, Any]] = []
 
         stmt = (
             select(BillingPricingRuleTable)
@@ -717,7 +714,7 @@ class PricingEngine:
         rules = [self._db_to_pydantic_rule(rule) for rule in db_rules]
 
         # Check for overlapping rules with same priority
-        priority_groups = {}
+        priority_groups: dict[int, list[PricingRule]] = {}
         for rule in rules:
             if rule.priority not in priority_groups:
                 priority_groups[rule.priority] = []
@@ -766,36 +763,40 @@ class PricingEngine:
 
     async def bulk_activate_rules(self, rule_ids: list[str], tenant_id: str) -> dict[str, Any]:
         """Activate multiple rules at once."""
-        results = {"activated": 0, "failed": 0, "errors": []}
+        activated = 0
+        failed = 0
+        errors: list[str] = []
 
         for rule_id in rule_ids:
             try:
                 success = await self.activate_rule(rule_id, tenant_id)
                 if success:
-                    results["activated"] += 1
+                    activated += 1
                 else:
-                    results["failed"] += 1
-                    results["errors"].append(f"Rule {rule_id} not found")
+                    failed += 1
+                    errors.append(f"Rule {rule_id} not found")
             except Exception as e:
-                results["failed"] += 1
-                results["errors"].append(f"Rule {rule_id}: {str(e)}")
+                failed += 1
+                errors.append(f"Rule {rule_id}: {str(e)}")
 
-        return results
+        return {"activated": activated, "failed": failed, "errors": errors}
 
     async def bulk_deactivate_rules(self, rule_ids: list[str], tenant_id: str) -> dict[str, Any]:
         """Deactivate multiple rules at once."""
-        results = {"deactivated": 0, "failed": 0, "errors": []}
+        deactivated = 0
+        failed = 0
+        errors: list[str] = []
 
         for rule_id in rule_ids:
             try:
                 success = await self.deactivate_rule(rule_id, tenant_id)
                 if success:
-                    results["deactivated"] += 1
+                    deactivated += 1
                 else:
-                    results["failed"] += 1
-                    results["errors"].append(f"Rule {rule_id} not found")
+                    failed += 1
+                    errors.append(f"Rule {rule_id} not found")
             except Exception as e:
-                results["failed"] += 1
-                results["errors"].append(f"Rule {rule_id}: {str(e)}")
+                failed += 1
+                errors.append(f"Rule {rule_id}: {str(e)}")
 
-        return results
+        return {"deactivated": deactivated, "failed": failed, "errors": errors}

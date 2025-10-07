@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Numeric, String, Text
-from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dotmac.platform.db import BaseModel as SQLBaseModel
 
@@ -35,21 +35,16 @@ class BillingSQLModel(SQLBaseModel):
 
     __abstract__ = True
 
-    @declared_attr
-    def tenant_id(cls) -> Any:
-        return Column(String(50), nullable=False, index=True)
-
-    @declared_attr
-    def created_at(cls) -> Any:
-        return Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-
-    @declared_attr
-    def updated_at(cls) -> Any:
-        return Column(DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC))
-
-    @declared_attr
-    def metadata_json(cls) -> Any:
-        return Column("metadata", JSON, nullable=False, default=dict)
+    tenant_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC)
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, nullable=False, default=dict
+    )
 
 
 class BillingProductTable(BillingSQLModel):

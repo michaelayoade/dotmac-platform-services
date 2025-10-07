@@ -10,6 +10,9 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from dotmac.platform.communications.email_service import EmailMessage, EmailService
+from pydantic import EmailStr
+
 from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
     InvoiceLineItemEntity,
@@ -587,13 +590,21 @@ class InvoiceService:
             from dotmac.platform.billing.settings.service import BillingSettingsService
 
             settings_service = BillingSettingsService(self.db)
-            billing_settings = await settings_service.get_settings(invoice.tenant_id)
+            tenant_id = invoice.tenant_id
+            if tenant_id is None:
+                logger.warning(
+                    "Skipping invoice email; invoice missing tenant_id",
+                    invoice_id=str(invoice.invoice_id),
+                )
+                return
+
+            billing_settings = await settings_service.get_settings(tenant_id)
 
             # Check both invoice and notification settings
             if not billing_settings.invoice_settings.send_invoice_emails:
                 logger.info(
                     "Invoice emails disabled for tenant",
-                    tenant_id=invoice.tenant_id,
+                    tenant_id=tenant_id,
                     invoice_id=str(invoice.invoice_id),
                 )
                 return
@@ -601,23 +612,38 @@ class InvoiceService:
             if not billing_settings.notification_settings.send_invoice_notifications:
                 logger.info(
                     "Invoice notifications disabled for tenant",
-                    tenant_id=invoice.tenant_id,
+                    tenant_id=tenant_id,
+                    invoice_id=str(invoice.invoice_id),
+                )
+                return
+            # Initialize email service with default settings
+            email_service = EmailService()
+
+            invoice_url = f"https://platform.dotmac.com/invoices/{invoice.invoice_id}"
+            amount_display = f"{invoice.currency} {invoice.total_amount / 100:.2f}"
+
+            company_info = billing_settings.company_info
+            if not invoice.billing_email:
+                logger.warning(
+                    "Invoice billing email missing",
+                    tenant_id=tenant_id,
                     invoice_id=str(invoice.invoice_id),
                 )
                 return
 
-            from dotmac.platform.communications.email_service import EmailMessage, EmailService
+            sender_email_value = company_info.email or email_service.default_from
+            sender_email = EmailStr(sender_email_value)
+            sender_name = company_info.name or "DotMac Billing"
+            reply_to_email = sender_email
 
-            # Initialize email service with default settings
-            email_service = EmailService()
+            recipient_email = EmailStr(invoice.billing_email)
 
-            # Format invoice details for email
-            invoice_url = f"https://platform.dotmac.com/invoices/{invoice.invoice_id}"
-
-            # Create email message
             email_message = EmailMessage(
-                to=[invoice.billing_email],
-                subject=f"Invoice #{invoice.invoice_number} - {invoice.currency} {invoice.total_amount:.2f}",
+                from_email=sender_email,
+                from_name=sender_name,
+                reply_to=reply_to_email,
+                to=[recipient_email],
+                subject=f"Invoice #{invoice.invoice_number} - {amount_display}",
                 html_body=f"""
                 <html>
                 <body style="font-family: Arial, sans-serif; color: #333;">
@@ -632,7 +658,7 @@ class InvoiceService:
                         <p><strong>Invoice Number:</strong> {invoice.invoice_number}</p>
                         <p><strong>Issue Date:</strong> {invoice.issue_date.strftime('%B %d, %Y')}</p>
                         <p><strong>Due Date:</strong> {invoice.due_date.strftime('%B %d, %Y')}</p>
-                        <p><strong>Amount Due:</strong> {invoice.currency} {invoice.total_amount:.2f}</p>
+                        <p><strong>Amount Due:</strong> {amount_display}</p>
                     </div>
 
                     <p>You can view and download your invoice at:</p>
@@ -663,7 +689,7 @@ Invoice Details:
 - Invoice Number: {invoice.invoice_number}
 - Issue Date: {invoice.issue_date.strftime('%B %d, %Y')}
 - Due Date: {invoice.due_date.strftime('%B %d, %Y')}
-- Amount Due: {invoice.currency} {invoice.total_amount:.2f}
+- Amount Due: {amount_display}
 
 You can view and download your invoice at:
 {invoice_url}
@@ -681,19 +707,20 @@ Please do not reply to this email.
             )
 
             # Send the email
-            await email_service.send_email(email_message)
+            await email_service.send_email(email_message, tenant_id=tenant_id)
 
             # Log successful notification
-            from dotmac.platform.audit import ActivityType, log_api_activity
+            from dotmac.platform.audit import ActivityType, log_system_activity
 
-            await log_api_activity(
-                tenant_id=invoice.tenant_id,
-                user_id=invoice.created_by,
-                activity_type=ActivityType.BILLING_UPDATED,
+            await log_system_activity(
+                activity_type=ActivityType.API_REQUEST,
                 action="invoice_notification_sent",
+                description="Invoice notification email dispatched",
+                tenant_id=tenant_id,
+                user_id=invoice.created_by,
                 resource_type="invoice",
                 resource_id=str(invoice.invoice_id),
-                request_data={
+                details={
                     "email": invoice.billing_email,
                     "invoice_number": invoice.invoice_number,
                 },
@@ -701,9 +728,6 @@ Please do not reply to this email.
 
         except Exception as e:
             # Log the error but don't fail the invoice finalization
-            import structlog
-
-            logger = structlog.get_logger(__name__)
             logger.error(
                 "Failed to send invoice notification",
                 invoice_id=str(invoice.invoice_id),

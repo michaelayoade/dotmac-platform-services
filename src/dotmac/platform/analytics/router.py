@@ -115,6 +115,7 @@ async def track_event(
             event_name=request.event_name,
             timestamp=event_timestamp,
             status="tracked",
+            message="Event tracked successfully",
         )
     except Exception as e:
         logger.error(f"Error tracking event {request.event_name}: {e}")
@@ -261,6 +262,7 @@ def _create_metric_series(grouped_metrics: dict, aggregation: str) -> list[Metri
                     MetricDataPoint(
                         timestamp=dp.get("timestamp", datetime.now(UTC)),
                         value=dp["value"],
+                        tags=None,  # Optional field
                     )
                     for dp in data_points
                 ],
@@ -421,10 +423,12 @@ async def generate_report(
                 ReportSection(
                     title="Overview",
                     data=report_data or {},
+                    charts=None,  # Optional field
                 )
             ],
             generated_at=datetime.now(UTC),
             period={"start": start_date, "end": end_date},
+            metadata=None,  # Optional field
         )
     except ValueError:
         raise HTTPException(

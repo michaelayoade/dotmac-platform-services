@@ -4,8 +4,8 @@ Simple rate limiting using SlowAPI standard library.
 Replaces custom rate limiting implementations with industry standard.
 """
 
-from typing import Any
 from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar, cast
 
 import structlog
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -55,17 +55,21 @@ def reset_limiter() -> None:
     _limiter = None
 
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
 class _LimiterProxy:
     """Lazy proxy so existing imports continue to work."""
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> Any:
         return getattr(get_limiter(), item)
 
 
 limiter = _LimiterProxy()
 
 
-def rate_limit(limit: str) -> Any:
+def rate_limit(limit: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Rate limiting decorator using SlowAPI.
 
@@ -78,8 +82,9 @@ def rate_limit(limit: str) -> Any:
             return {"message": "success"}
     """
 
-    def decorator(func: Callable) -> Any:
-        return get_limiter().limit(limit)(func)
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        limited_callable = get_limiter().limit(limit)(func)
+        return cast(Callable[P, R], limited_callable)
 
     return decorator
 

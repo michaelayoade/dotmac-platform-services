@@ -186,7 +186,18 @@ class CommunicationMetricsService:
         base_query = base_query.group_by(CommunicationLog.status)
 
         result = await self.db.execute(base_query)
-        status_counts = {row.status.value: row.count for row in result}
+        status_counts: dict[str, int] = {}
+        for row in result:
+            mapping = row._mapping
+            status_value = mapping["status"]
+            count_value = mapping["count"]
+
+            if isinstance(status_value, CommunicationStatus):
+                key = status_value.value
+            else:
+                key = str(status_value)
+
+            status_counts[key] = int(count_value or 0)
 
         # Return stats in expected format
         return {
@@ -264,6 +275,8 @@ class CommunicationMetricsService:
         start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=1)
 
+        last_entry: CommunicationStats | None = None
+
         # Aggregate stats for each communication type
         for comm_type in CommunicationType:
             conditions = [
@@ -283,7 +296,14 @@ class CommunicationMetricsService:
             )
 
             result = await self.db.execute(status_query)
-            status_counts = {row.status: row.count for row in result}
+            status_counts: dict[CommunicationStatus, int] = {}
+            for row in result:
+                mapping = row._mapping
+                status_value = mapping["status"]
+                count_value = mapping["count"]
+
+                if isinstance(status_value, CommunicationStatus):
+                    status_counts[status_value] = int(count_value or 0)
 
             # Calculate average delivery time
             delivery_time_query = select(
@@ -300,7 +320,12 @@ class CommunicationMetricsService:
             )
 
             avg_result = await self.db.execute(delivery_time_query)
-            avg_delivery_time = avg_result.scalar()
+            avg_delivery_time_raw = avg_result.scalar()
+            avg_delivery_time: float | None
+            if avg_delivery_time_raw is None:
+                avg_delivery_time = None
+            else:
+                avg_delivery_time = float(avg_delivery_time_raw)
 
             # Check if stats already exist for this date/type/tenant
             existing_query = select(CommunicationStats).where(
@@ -334,6 +359,8 @@ class CommunicationMetricsService:
             stats_entry.total_pending = status_counts.get(CommunicationStatus.PENDING, 0)
             stats_entry.avg_delivery_time_seconds = avg_delivery_time
 
+            last_entry = stats_entry
+
         await self.db.commit()
 
         logger.info(
@@ -342,7 +369,10 @@ class CommunicationMetricsService:
             tenant_id=tenant_id,
         )
 
-        return stats_entry
+        if last_entry is None:
+            raise ValueError("No communication statistics were aggregated for the given date")
+
+        return last_entry
 
 
 # Singleton instance management

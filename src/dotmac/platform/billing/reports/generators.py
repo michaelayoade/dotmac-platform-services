@@ -4,7 +4,8 @@ Specialized report generators for billing
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from enum import Enum
+from typing import Any, cast
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,21 +164,26 @@ class RevenueReportGenerator:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        distribution = {}
-        total_amount = 0
+        distribution: dict[str, dict[str, float | int]] = {}
+        total_amount = 0.0
 
         for row in rows:
-            method = row.payment_method_type or "unknown"
-            amount = row.total_amount or 0
+            row_mapping = row._mapping
+            method = cast(str | None, row_mapping.get("payment_method_type")) or "unknown"
+            amount_value = row_mapping.get("total_amount") or 0
+            amount = float(amount_value)
+            count_value = int(row_mapping.get("count") or 0)
+
             distribution[method] = {
-                "count": row.count or 0,
+                "count": count_value,
                 "amount": amount,
             }
             total_amount += amount
 
         # Calculate percentages
         for method, data in distribution.items():
-            data["percentage"] = self._calculate_rate(data["amount"], total_amount)
+            amount_val = float(data.get("amount", 0))
+            data["percentage"] = self._calculate_rate(amount_val, total_amount)
 
         return distribution
 
@@ -275,11 +281,21 @@ class RevenueReportGenerator:
 
         reasons = []
         for row in rows:
+            row_mapping = row._mapping
+            reason_enum = row_mapping.get("reason")
+            if isinstance(reason_enum, Enum):
+                reason_value = cast(str, reason_enum.value)
+            else:
+                reason_value = cast(str | None, reason_enum) or "unknown"
+            count_value = int(row_mapping.get("count") or 0)
+            amount_raw = row_mapping.get("amount") or 0
+            amount_value = float(amount_raw)
+
             reasons.append(
                 {
-                    "reason": row.reason.value if row.reason else "unknown",
-                    "count": row.count or 0,
-                    "amount": row.amount or 0,
+                    "reason": reason_value,
+                    "count": count_value,
+                    "amount": amount_value,
                 }
             )
 

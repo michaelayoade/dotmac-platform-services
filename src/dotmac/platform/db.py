@@ -159,28 +159,23 @@ class AuditMixin:
 
 
 class BaseModel(Base):
-    """
-    Legacy compatibility model for existing code.
-    New models should inherit directly from Base and use mixins as needed.
-    """
+    """Legacy compatibility model for existing code."""
 
     __abstract__ = True
 
-    # Primary key for all ORM entities
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Tenant isolation - critical for multi-tenant SaaS
-    tenant_id = Column(String(255), nullable=True, index=True)
-
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
-    updated_at = Column(
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert model to dictionary."""
@@ -299,14 +294,17 @@ async def get_async_session() -> AsyncIterator[AsyncSession]:
 async def get_session_dependency() -> AsyncIterator[AsyncSession]:
     """Compatibility wrapper that yields a session and remains easy to patch in tests."""
 
-    session_source = get_async_session()
+    session_source: Any = get_async_session()
 
     if isinstance(session_source, AsyncMock):
         try:
-            session = await session_source
+            mocked_session = session_source()
         except TypeError:
-            session = session_source
-        yield session
+            mocked_session = session_source
+        if inspect.isawaitable(mocked_session):
+            yield await mocked_session
+        else:
+            yield mocked_session
         return
 
     if inspect.isasyncgen(session_source):
@@ -319,8 +317,8 @@ async def get_session_dependency() -> AsyncIterator[AsyncSession]:
             yield session
         return
 
-    if hasattr(session_source, "__await__"):
-        session = await session_source  # type: ignore[func-returns-value]
+    if inspect.isawaitable(session_source):
+        session = await session_source
     else:
         session = session_source
 

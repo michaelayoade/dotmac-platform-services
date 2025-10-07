@@ -1,11 +1,10 @@
-"""
-Vault/OpenBao client for secure secrets management.
+"""Vault/OpenBao client for secure secrets management."""
 
-Provides a simple interface to fetch secrets from HashiCorp Vault or OpenBao.
-"""
+from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
 import httpx
 
@@ -22,6 +21,32 @@ class VaultAuthenticationError(VaultError):
     """Raised when Vault authentication fails."""
 
     pass
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    """Return value as a plain dict[str, Any] when possible."""
+
+    if isinstance(value, Mapping):
+        return {str(key): val for key, val in value.items()}
+    return {}
+
+
+def _as_str_list(value: Any) -> list[str]:
+    """Return value as a list of strings when possible."""
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [str(item) for item in value]
+    return []
+
+
+def _extract_secret_data(kv_version: int, payload: Any) -> dict[str, Any]:
+    """Extract the secret data section from a Vault response payload."""
+
+    root = _as_dict(payload)
+    data_section = _as_dict(root.get("data"))
+    if kv_version == 2:
+        return _as_dict(data_section.get("data"))
+    return data_section
 
 
 class VaultClient:
@@ -109,11 +134,7 @@ class VaultClient:
             response.raise_for_status()
             data = response.json()
 
-            # Extract data based on KV version
-            if self.kv_version == 2:
-                return data.get("data", {}).get("data", {})
-            else:
-                return data.get("data", {})
+            return _extract_secret_data(self.kv_version, data)
 
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to retrieve secret from {path}: {e}")
@@ -128,7 +149,7 @@ class VaultClient:
         Returns:
             Dictionary mapping paths to their secret data
         """
-        secrets = {}
+        secrets: dict[str, dict[str, Any]] = {}
         for path in paths:
             try:
                 secrets[path] = self.get_secret(path)
@@ -197,8 +218,9 @@ class VaultClient:
             response.raise_for_status()
             data = response.json()
 
-            # Extract keys from response
-            keys = data.get("data", {}).get("keys", [])
+            data_dict = _as_dict(data)
+            data_section = _as_dict(data_dict.get("data"))
+            keys = _as_str_list(data_section.get("keys"))
             return keys
 
         except httpx.HTTPError as e:
@@ -252,11 +274,11 @@ class VaultClient:
         """Close the HTTP client connection."""
         self.client.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "VaultClient":
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         self.close()
 
@@ -320,10 +342,7 @@ class AsyncVaultClient:
             response.raise_for_status()
             data = response.json()
 
-            if self.kv_version == 2:
-                return data.get("data", {}).get("data", {})
-            else:
-                return data.get("data", {})
+            return _extract_secret_data(self.kv_version, data)
 
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to retrieve secret from {path}: {e}")
@@ -335,13 +354,13 @@ class AsyncVaultClient:
         tasks = [self.get_secret(path) for path in paths]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        secrets = {}
+        secrets: dict[str, dict[str, Any]] = {}
         for path, result in zip(paths, results, strict=False):
             if isinstance(result, Exception):
                 logger.error(f"Failed to fetch secret at {path}: {result}")
                 secrets[path] = {}
             else:
-                secrets[path] = result
+                secrets[path] = cast(dict[str, Any], result)
 
         return secrets
 
@@ -395,8 +414,9 @@ class AsyncVaultClient:
             response.raise_for_status()
             data = response.json()
 
-            # Extract keys from response
-            keys = data.get("data", {}).get("keys", [])
+            data_dict = _as_dict(data)
+            data_section = _as_dict(data_dict.get("data"))
+            keys = _as_str_list(data_section.get("keys"))
             return keys
 
         except httpx.HTTPError as e:
@@ -428,7 +448,7 @@ class AsyncVaultClient:
 
             response.raise_for_status()
             data = response.json()
-            return data.get("data", {})
+            return _as_dict(_as_dict(data).get("data"))
 
         except httpx.HTTPError as e:
             raise VaultError(f"Failed to get metadata for {path}: {e}")
@@ -448,17 +468,18 @@ class AsyncVaultClient:
         """
         try:
             secrets = await self.list_secrets(path)
-            secrets_with_metadata = []
+            secrets_with_metadata: list[dict[str, Any]] = []
 
             for secret_key in secrets:
                 full_path = f"{path.rstrip('/')}/{secret_key}".lstrip("/")
 
-                secret_info = {
+                metadata_info: dict[str, Any] = {"source": "vault"}
+                secret_info: dict[str, Any] = {
                     "path": full_path,
                     "created_time": None,
                     "updated_time": None,
                     "version": None,
-                    "metadata": {"source": "vault"},
+                    "metadata": metadata_info,
                 }
 
                 # Try to get metadata for each secret
@@ -466,23 +487,25 @@ class AsyncVaultClient:
                     if self.kv_version == 2:
                         metadata = await self.get_secret_metadata(full_path)
                         if "error" not in metadata:
+                            metadata_info.update(
+                                {
+                                    "source": "vault",
+                                    "versions": metadata.get("versions", {}),
+                                    "cas_required": metadata.get("cas_required", False),
+                                    "delete_version_after": metadata.get(
+                                        "delete_version_after"
+                                    ),
+                                }
+                            )
                             secret_info.update(
                                 {
                                     "created_time": metadata.get("created_time"),
                                     "updated_time": metadata.get("updated_time"),
                                     "version": metadata.get("current_version"),
-                                    "metadata": {
-                                        "source": "vault",
-                                        "versions": metadata.get("versions", {}),
-                                        "cas_required": metadata.get("cas_required", False),
-                                        "delete_version_after": metadata.get(
-                                            "delete_version_after", None
-                                        ),
-                                    },
                                 }
                             )
                 except Exception as e:
-                    secret_info["metadata"]["metadata_error"] = str(e)
+                    metadata_info["metadata_error"] = str(e)
 
                 secrets_with_metadata.append(secret_info)
 
@@ -534,10 +557,10 @@ class AsyncVaultClient:
         """Close the async HTTP client."""
         await self.client.aclose()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncVaultClient":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()

@@ -2,11 +2,13 @@
 Utility functions for data transfer operations.
 """
 
-from typing import Any
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from .core import (
@@ -40,11 +42,12 @@ def create_operation_id() -> str:
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable form."""
+    size = float(size_bytes)
     for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size_bytes < 1024.0:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024.0
-    return f"{size_bytes:.2f} PB"
+        if size < 1024.0:
+            return f"{size:.2f} {unit}"
+        size /= 1024.0
+    return f"{size:.2f} PB"
 
 
 def calculate_throughput(
@@ -74,7 +77,7 @@ def estimate_completion_time(
 
 
 async def create_batches(
-    data: list[dict],
+    data: list[dict[str, Any]],
     batch_size: int = 1000,
 ) -> AsyncGenerator[DataBatch, None]:
     """Create batches from a list of data."""
@@ -98,7 +101,7 @@ def create_transfer_config(
     validate_data: bool = True,
     skip_invalid: bool = False,
     resume_on_failure: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> TransferConfig:
     """Create a transfer configuration with sensible defaults."""
     return TransferConfig(
@@ -115,10 +118,10 @@ def create_transfer_config(
 
 def create_import_options(
     data_format: DataFormat,
-    **kwargs,
+    **kwargs: Any,
 ) -> ImportOptions:
     """Create import options optimized for specific format."""
-    format_defaults = {
+    format_defaults: dict[DataFormat, dict[str, Any]] = {
         DataFormat.CSV: {
             "delimiter": ",",
             "header_row": 0,
@@ -141,7 +144,7 @@ def create_import_options(
         },
     }
 
-    options = format_defaults.get(data_format, {})
+    options: dict[str, Any] = dict(format_defaults.get(data_format, {}))
     options.update(kwargs)
 
     return ImportOptions(**options)
@@ -149,10 +152,10 @@ def create_import_options(
 
 def create_export_options(
     data_format: DataFormat,
-    **kwargs,
+    **kwargs: Any,
 ) -> ExportOptions:
     """Create export options optimized for specific format."""
-    format_defaults = {
+    format_defaults: dict[DataFormat, dict[str, Any]] = {
         DataFormat.CSV: {
             "delimiter": ",",
             "include_headers": True,
@@ -182,7 +185,7 @@ def create_export_options(
         },
     }
 
-    options = format_defaults.get(data_format, {})
+    options: dict[str, Any] = dict(format_defaults.get(data_format, {}))
     options.update(kwargs)
 
     return ExportOptions(**options)
@@ -239,11 +242,11 @@ class DataPipeline:
             )
 
             # Process data
-            async def process_data() -> Any:
+            async def process_data() -> AsyncGenerator[DataBatch, None]:
                 async for batch in importer.import_from_file(self.source_path):
                     # Apply validation and transformation
                     if self.validator or self.transformer:
-                        processed_records = []
+                        processed_records: list[DataRecord] = []
                         for record in batch.records:
                             if self.validator and not self.validator(record):
                                 if not self.config.skip_invalid:

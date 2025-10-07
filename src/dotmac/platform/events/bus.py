@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import structlog
@@ -110,11 +111,20 @@ class EventBus:
             # Create event
             from dotmac.platform.events.models import EventMetadata
 
+            now = datetime.now(UTC)
             event = Event(
                 event_type=event_type,
                 payload=payload or {},
                 metadata=EventMetadata(**(metadata or {})),
                 priority=priority,
+                status=EventStatus.PENDING,
+                created_at=now,
+                published_at=None,
+                processed_at=None,
+                retry_count=0,
+                max_retries=3,
+                error_message=None,
+                last_error_at=None,
             )
 
             logger.info(

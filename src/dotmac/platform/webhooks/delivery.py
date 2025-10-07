@@ -188,8 +188,9 @@ class WebhookDeliveryService:
 
                     # Update subscription statistics
                     await self.subscription_service.update_statistics(
-                        subscription_id=subscription.id,
+                        subscription_id=str(subscription.id),
                         success=True,
+                        tenant_id=subscription.tenant_id,
                     )
 
                     logger.info(
@@ -234,8 +235,9 @@ class WebhookDeliveryService:
         """Handle failed delivery and schedule retry if applicable."""
         # Update subscription failure statistics
         await self.subscription_service.update_statistics(
-            subscription_id=subscription.id,
+            subscription_id=str(subscription.id),
             success=False,
+            tenant_id=subscription.tenant_id,
         )
 
         # Check if retry is enabled and within retry limit

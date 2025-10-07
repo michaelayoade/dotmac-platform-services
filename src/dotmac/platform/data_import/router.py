@@ -117,7 +117,6 @@ async def upload_import_file(
                     user_id=str(current_user.user_id),
                     batch_size=batch_size,
                     dry_run=dry_run,
-                    use_celery=use_async,
                 )
             else:
                 raise HTTPException(
@@ -139,7 +138,8 @@ async def upload_import_file(
                 detail="Failed to retrieve import job",
             )
 
-        return ImportJobResponse.from_model(job, result)
+        response: ImportJobResponse = ImportJobResponse.from_model(job, result)
+        return response
 
     except Exception as e:
         raise HTTPException(
@@ -214,7 +214,8 @@ async def get_import_job(
             detail="Import job not found",
         )
 
-    return ImportJobResponse.from_model(job)
+    response: ImportJobResponse = ImportJobResponse.from_model(job)
+    return response
 
 
 @router.get("/jobs/{job_id}/status")
@@ -318,7 +319,7 @@ async def export_import_failures(
     db: AsyncSession = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
-):
+) -> StreamingResponse:
     """
     Export failed records for reprocessing.
 
@@ -366,10 +367,10 @@ async def export_import_failures(
 
         if failures:
             # Get all unique field names
-            fieldnames = set()
+            fieldnames_set: set[str] = set()
             for f in failures:
-                fieldnames.update(f.row_data.keys())
-            fieldnames = ["row_number", "error"] + sorted(fieldnames)
+                fieldnames_set.update(f.row_data.keys())
+            fieldnames: list[str] = ["row_number", "error"] + sorted(fieldnames_set)
 
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()

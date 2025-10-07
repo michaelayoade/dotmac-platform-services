@@ -186,7 +186,7 @@ class Settings(BaseSettings):
         SECURITY: This ensures production deployments don't use insecure defaults.
         Call this during application startup in production environments.
         """
-        if self.environment == "production":
+        if self.environment == Environment.PRODUCTION:
             if not self.jwt.is_secure:
                 raise ValueError(
                     "SECURITY ERROR: JWT_SECRET_KEY must be set to a secure value in production. "
@@ -194,7 +194,7 @@ class Settings(BaseSettings):
                     "Generate a secure secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
 
-            if not self.fastapi.trusted_hosts or self.fastapi.trusted_hosts == ["*"]:
+            if not self.trusted_hosts or self.trusted_hosts == ["*"]:
                 raise ValueError(
                     "SECURITY ERROR: TRUSTED_HOSTS must be explicitly configured in production. "
                     "Wildcard '*' or empty list is not allowed. "

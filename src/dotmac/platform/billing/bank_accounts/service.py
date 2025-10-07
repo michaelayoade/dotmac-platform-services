@@ -18,6 +18,8 @@ from dotmac.platform.billing.bank_accounts.entities import (
     PaymentReconciliation,
 )
 from dotmac.platform.billing.bank_accounts.models import (
+    AccountType as AccountTypeModel,
+    BankAccountStatus as BankAccountStatusModel,
     BankAccountSummary,
     BankTransferCreate,
     CashPaymentCreate,
@@ -28,6 +30,7 @@ from dotmac.platform.billing.bank_accounts.models import (
     ManualPaymentResponse,
     MobileMoneyCreate,
     PaymentSearchFilters,
+    PaymentMethodType as PaymentMethodTypeModel,
 )
 from dotmac.platform.billing.core.exceptions import (
     BillingError,
@@ -305,21 +308,43 @@ class BankAccountService:
 
     def _to_response(self, account: CompanyBankAccount) -> CompanyBankAccountResponse:
         """Convert entity to response model"""
+        tenant_id_value = account.tenant_id or ""
+
+        try:
+            account_type_model = AccountTypeModel(account.account_type.value)
+        except ValueError:
+            logger.warning(
+                "Unknown account type value %s; defaulting for account %s",
+                account.account_type,
+                account.id,
+            )
+            account_type_model = AccountTypeModel.CHECKING
+
+        try:
+            status_model = BankAccountStatusModel(account.status.value)
+        except ValueError:
+            logger.warning(
+                "Unknown bank account status %s; defaulting for account %s",
+                account.status,
+                account.id,
+            )
+            status_model = BankAccountStatusModel.PENDING
+
         return CompanyBankAccountResponse(
             id=account.id,
-            tenant_id=account.tenant_id,
+            tenant_id=tenant_id_value,
             account_name=account.account_name,
             account_nickname=account.account_nickname,
             bank_name=account.bank_name,
             bank_address=account.bank_address,
             bank_country=account.bank_country,
             account_number_last_four=account.account_number_last_four,
-            account_type=account.account_type,
+            account_type=account_type_model,
             currency=account.currency,
             routing_number=account.routing_number,
             swift_code=account.swift_code,
             iban=account.iban,
-            status=account.status,
+            status=status_model,
             is_primary=account.is_primary,
             is_active=account.is_active,
             accepts_deposits=account.accepts_deposits,
@@ -624,15 +649,18 @@ class ManualPaymentService:
 
     def _to_payment_response(self, payment: ManualPayment) -> ManualPaymentResponse:
         """Convert entity to response model"""
+        tenant_id_value = payment.tenant_id or ""
+        payment_method_model = PaymentMethodTypeModel(payment.payment_method.value)
+
         return ManualPaymentResponse(
             id=payment.id,
-            tenant_id=payment.tenant_id,
+            tenant_id=tenant_id_value,
             payment_reference=payment.payment_reference,
             external_reference=payment.external_reference,
-            customer_id=payment.customer_id,
+            customer_id=str(payment.customer_id),
             invoice_id=payment.invoice_id,
             bank_account_id=payment.bank_account_id,
-            payment_method=payment.payment_method,
+            payment_method=payment_method_model,
             amount=float(payment.amount),
             currency=payment.currency,
             payment_date=payment.payment_date,

@@ -6,7 +6,8 @@ All routes except /health, /ready, and /metrics require authentication.
 
 import importlib
 from dataclasses import dataclass
-from typing import Any
+from enum import Enum
+from typing import Any, Sequence, cast
 
 import structlog
 from fastapi import Depends, FastAPI
@@ -27,7 +28,7 @@ class RouterConfig:
     module_path: str
     router_name: str
     prefix: str
-    tags: list[str]
+    tags: Sequence[str | Enum] | None
     requires_auth: bool = True
     description: str = ""
 
@@ -365,20 +366,23 @@ def _register_router(app: FastAPI, config: RouterConfig) -> bool:
         module = importlib.import_module(config.module_path)
         router = getattr(module, config.router_name)
 
-        # Build kwargs for include_router
-        kwargs = {
-            "prefix": config.prefix,
-            "tags": config.tags,
-        }
-
         # Add auth dependency if required
-        if config.requires_auth:
-            kwargs["dependencies"] = [Depends(security)]
+        dependencies = [Depends(security)] if config.requires_auth else None
 
-        # Register the router
-        app.include_router(router, **kwargs)
+        # Register the router with proper typing
+        router_tags = list(config.tags) if config.tags is not None else None
 
-        logger.info(f"✅ {config.description or config.tags[0]} registered at {config.prefix}")
+        app.include_router(
+            router,
+            prefix=config.prefix,
+            tags=router_tags,
+            dependencies=dependencies,
+        )
+
+        tag_label = config.description or (
+            config.tags[0] if config.tags else config.module_path
+        )
+        logger.info(f"✅ {tag_label} registered at {config.prefix}")
         return True
 
     except ImportError as e:
@@ -422,9 +426,13 @@ def register_routers(app: FastAPI) -> None:
         from dotmac.platform.graphql.context import Context
         from dotmac.platform.graphql.schema import schema
 
+        # Type-safe context getter
+        async def get_context(request: Any) -> Context:
+            return await Context.get_context(request)
+
         graphql_app = GraphQLRouter(
             schema,
-            context_getter=Context.get_context,
+            context_getter=cast(Any, get_context),
         )
 
         app.include_router(
@@ -459,18 +467,35 @@ def get_api_info() -> dict[str, Any]:
         Dictionary containing API version, endpoints, and configuration.
     """
     # Build endpoints dict from router configs
-    endpoints = {}
+    endpoints: dict[str, str | dict[str, str]] = {}
     for config in ROUTER_CONFIGS:
         # Extract endpoint name from prefix
-        parts = config.prefix.replace("/api/v1/", "").split("/")
+        prefix = config.prefix
+        if not prefix.startswith("/api/v1"):
+            continue
+
+        trimmed = prefix.replace("/api/v1/", "", 1).lstrip("/")
+        if not trimmed:
+            continue
+
+        parts = trimmed.split("/")
+
         if len(parts) == 1:
-            endpoints[parts[0]] = config.prefix
-        elif len(parts) == 2:
-            # Nested endpoints like files/process
-            if parts[0] not in endpoints:
-                endpoints[parts[0]] = {}
-            if isinstance(endpoints[parts[0]], dict):
-                endpoints[parts[0]][parts[1]] = config.prefix
+            endpoints[parts[0]] = prefix
+        elif len(parts) >= 2:
+            top_key = parts[0]
+            nested = endpoints.get(top_key)
+
+            nested_dict: dict[str, str]
+            if isinstance(nested, dict):
+                nested_dict = nested
+            else:
+                nested_dict = {}
+                if isinstance(nested, str):
+                    nested_dict["_self"] = nested
+
+            nested_dict[parts[1]] = prefix
+            endpoints[top_key] = nested_dict
 
     return {
         "version": "v1",

@@ -36,7 +36,6 @@ from dotmac.platform.billing.core.models import (
     InvoiceLineItem,
     Payment,
     Price,
-    Product,
     Subscription,
 )
 from dotmac.platform.billing.exceptions import (

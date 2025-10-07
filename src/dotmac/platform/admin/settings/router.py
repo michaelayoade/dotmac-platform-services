@@ -5,6 +5,8 @@ Provides endpoints for managing platform configuration settings
 with proper admin authentication and audit logging.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
@@ -78,7 +80,7 @@ async def update_category_settings(
     update_request: SettingsUpdateRequest,
     request: Request,
     current_admin: UserInfo = Depends(require_permission("settings.update")),
-) -> SettingsResponse:
+) -> SettingsResponse | JSONResponse:
     """
     Update settings for a specific category.
 
@@ -116,12 +118,19 @@ async def update_category_settings(
                 },
             )
 
+        # Get email, fallback to username, then user id to ensure we have an identifier
+        user_email: str = (
+            current_admin.email
+            or current_admin.username
+            or current_admin.user_id
+        )
+
         # Apply the updates
         return settings_service.update_category_settings(
             category=category,
             update_request=update_request,
             user_id=current_admin.user_id,
-            user_email=current_admin.email or current_admin.username,
+            user_email=user_email,
             ip_address=client_ip,
             user_agent=user_agent,
         )
@@ -183,8 +192,15 @@ async def bulk_update_settings(
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
 
-    results = {}
-    errors = {}
+    results: dict[str, str] = {}
+    errors: dict[str, Any] = {}
+
+    # Get email, fallback to username
+    user_email: str = (
+        current_admin.email
+        or current_admin.username
+        or current_admin.user_id
+    )
 
     for category, updates in bulk_update.updates.items():
         try:
@@ -199,13 +215,14 @@ async def bulk_update_settings(
                 updates=updates,
                 validate_only=bulk_update.validate_only,
                 reason=bulk_update.reason,
+                restart_required=False,  # Can be updated based on actual needs
             )
 
             settings_service.update_category_settings(
                 category=category,
                 update_request=update_request,
                 user_id=current_admin.user_id,
-                user_email=current_admin.email or current_admin.username,
+                user_email=user_email,
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
@@ -277,10 +294,17 @@ async def restore_settings_backup(
 
         backup_uuid = uuid.UUID(backup_id)
 
+        # Get email, fallback to username
+        user_email: str = (
+            current_admin.email
+            or current_admin.username
+            or current_admin.user_id
+        )
+
         restored = settings_service.restore_backup(
             backup_id=backup_uuid,
             user_id=current_admin.user_id,
-            user_email=current_admin.email or current_admin.username,
+            user_email=user_email,
         )
 
         return {
@@ -376,8 +400,15 @@ async def import_settings(
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
 
-    imported_categories = []
-    errors = {}
+    imported_categories: list[str] = []
+    errors: dict[str, Any] = {}
+
+    # Get email, fallback to username
+    user_email: str = (
+        current_admin.email
+        or current_admin.username
+        or current_admin.user_id
+    )
 
     for category_str, settings_data in import_request.data.items():
         try:
@@ -403,13 +434,14 @@ async def import_settings(
                     updates=settings_data,
                     validate_only=False,
                     reason=import_request.reason or "Imported settings",
+                    restart_required=False,  # Can be updated based on actual needs
                 )
 
                 settings_service.update_category_settings(
                     category=category,
                     update_request=update_request,
                     user_id=current_admin.user_id,
-                    user_email=current_admin.email or current_admin.username,
+                    user_email=user_email,
                     ip_address=client_ip,
                     user_agent=user_agent,
                 )

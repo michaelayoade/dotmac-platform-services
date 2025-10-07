@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.core.enums import CreditNoteStatus, CreditReason
 from dotmac.platform.billing.core.exceptions import (
@@ -79,7 +80,7 @@ async def create_credit_note(
     credit_data: CreateCreditNoteRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNote:
     """Create a new credit note"""
 
@@ -115,7 +116,7 @@ async def get_credit_note(
     credit_note_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNote:
     """Get credit note by ID"""
 
@@ -141,7 +142,7 @@ async def list_credit_notes(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNoteListResponse:
     """List credit notes with filtering"""
 
@@ -182,7 +183,7 @@ async def issue_credit_note(
     issue_data: IssueCreditNoteRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNote:
     """Issue a draft credit note"""
 
@@ -210,7 +211,7 @@ async def void_credit_note(
     void_data: VoidCreditNoteRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNote:
     """Void a credit note"""
 
@@ -243,7 +244,7 @@ async def apply_credit_note(
     apply_data: ApplyCreditRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> CreditNote:
     """Apply credit note to an invoice"""
 
@@ -275,7 +276,7 @@ async def get_available_credits(
     customer_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> list[CreditNote]:
     """Get available credit notes for a customer"""
 

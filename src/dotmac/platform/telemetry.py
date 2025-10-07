@@ -8,6 +8,7 @@ import os
 from collections.abc import Sequence
 
 import structlog
+from structlog.typing import Processor
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
@@ -81,7 +82,7 @@ def create_resource() -> Resource:
 
 def configure_structlog() -> None:
     """Configure structlog for structured logging."""
-    processors = [
+    processors: list[Processor] = [
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,

@@ -369,6 +369,8 @@ class SettingsManagementService:
                         action="restore",
                         changes=changes,
                         reason=f"Restored from backup: {backup.name}",
+                        ip_address=None,
+                        user_agent=None,
                     )
                     self._audit_logs.append(audit_entry)
 
@@ -486,6 +488,7 @@ class SettingsManagementService:
                     default=field_info.default,
                     required=field_info.is_required(),
                     sensitive=is_sensitive,
+                    validation_rules=None,
                 )
             )
 
@@ -539,7 +542,7 @@ class SettingsManagementService:
 
     def _mask_sensitive_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Mask sensitive values in data dictionary."""
-        masked = {}
+        masked: dict[str, Any] = {}
         for key, value in data.items():
             if self._is_sensitive_field(key):
                 # Always mask sensitive fields, even if empty

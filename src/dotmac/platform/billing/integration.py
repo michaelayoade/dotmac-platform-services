@@ -7,7 +7,7 @@ Handles automated billing workflows and subscription lifecycle integration.
 
 import logging
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -19,7 +19,9 @@ from .invoicing.service import InvoiceService
 from .pricing.models import PriceCalculationRequest
 from .pricing.service import PricingEngine
 from .subscriptions.models import (
+    Subscription,
     SubscriptionEventType,
+    SubscriptionPlan,
     SubscriptionStatus,
 )
 from .subscriptions.service import SubscriptionService
@@ -102,12 +104,13 @@ class BillingIntegrationService:
                 return None
 
             # Calculate pricing
-            invoice_items = []
+            invoice_items: list[InvoiceItem] = []
             total_amount = Decimal("0")
             total_discount = Decimal("0")
 
             # Base subscription fee
-            base_price = subscription.custom_price or plan.price
+            effective_price: Decimal = subscription.custom_price or plan.price
+            base_price = effective_price
 
             # Apply pricing rules for subscription
             pricing_request = PriceCalculationRequest(
@@ -115,6 +118,7 @@ class BillingIntegrationService:
                 quantity=1,
                 customer_id=subscription.customer_id,
                 customer_segments=[],  # Could be enhanced with customer segments
+                calculation_date=datetime.now(UTC),
             )
 
             pricing_result = await self.pricing_service.calculate_price(pricing_request, tenant_id)
@@ -140,18 +144,26 @@ class BillingIntegrationService:
 
             # Add setup fee if applicable and first billing
             if plan.has_setup_fee() and self._is_first_billing(subscription):
+                setup_fee = plan.setup_fee
+                if setup_fee is None:
+                    logger.warning(
+                        "Plan reports setup fee but value is missing",
+                        extra={"plan_id": plan.plan_id, "subscription_id": subscription_id},
+                    )
+                    setup_fee = Decimal("0")
+
                 setup_item = InvoiceItem(
                     description=f"Setup Fee: {plan.name}",
                     product_id=plan.product_id,
                     quantity=1,
-                    unit_price=plan.setup_fee,
-                    total_amount=plan.setup_fee,
+                    unit_price=setup_fee,
+                    total_amount=setup_fee,
                     discount_amount=Decimal("0"),
-                    final_amount=plan.setup_fee,
+                    final_amount=setup_fee,
                     metadata={"type": "setup_fee", "subscription_id": subscription_id},
                 )
                 invoice_items.append(setup_item)
-                total_amount += plan.setup_fee
+                total_amount += setup_fee
 
             # Process usage-based charges if applicable
             if plan.supports_usage_billing():
@@ -210,10 +222,13 @@ class BillingIntegrationService:
             raise
 
     async def _calculate_usage_charges(
-        self, subscription, plan, tenant_id: str
+        self,
+        subscription: Subscription,
+        plan: SubscriptionPlan,
+        tenant_id: str,
     ) -> list[InvoiceItem]:
         """Calculate usage-based charges for subscription."""
-        usage_items = []
+        usage_items: list[InvoiceItem] = []
 
         for usage_type, current_usage in subscription.usage_records.items():
             # Get included allowance
@@ -251,10 +266,14 @@ class BillingIntegrationService:
 
         return usage_items
 
-    def _is_first_billing(self, subscription) -> bool:
+    def _is_first_billing(self, subscription: Subscription) -> bool:
         """Check if this is the first billing for the subscription."""
-        # Simple check - could be enhanced with more sophisticated logic
-        return subscription.created_at >= (datetime.now(UTC) - timedelta(days=7))
+        created_at = getattr(subscription, "created_at", None)
+        if not isinstance(created_at, datetime):
+            return False
+
+        threshold = datetime.now(UTC) - timedelta(days=7)
+        return created_at >= threshold
 
     async def _create_invoice(
         self, invoice_request: BillingInvoiceRequest, tenant_id: str
@@ -290,13 +309,25 @@ class BillingIntegrationService:
                 line_items=line_items,
                 currency="USD",  # Would need actual currency from subscription
                 notes=f"Subscription billing for period {invoice_request.billing_period_start.date()} to {invoice_request.billing_period_end.date()}",
-                metadata=invoice_request.metadata,
+                extra_data=invoice_request.metadata,
             )
+
+            invoice_id_value = invoice.invoice_id
+            if invoice_id_value is None:
+                logger.error(
+                    "Invoice created without identifier",
+                    extra={
+                        "customer_id": invoice_request.customer_id,
+                        "subscription_id": invoice_request.subscription_id,
+                        "tenant_id": tenant_id,
+                    },
+                )
+                return None
 
             logger.info(
                 "Created invoice from billing system",
                 extra={
-                    "invoice_id": invoice.invoice_id,
+                    "invoice_id": invoice_id_value,
                     "customer_id": invoice_request.customer_id,
                     "subscription_id": invoice_request.subscription_id,
                     "amount": str(invoice_request.total_amount),
@@ -308,7 +339,8 @@ class BillingIntegrationService:
             # Auto-finalize the invoice if needed
             if invoice.status == InvoiceStatus.DRAFT:
                 finalized_invoice = await self.invoice_service.finalize_invoice(
-                    tenant_id=tenant_id, invoice_id=invoice.invoice_id
+                    tenant_id=tenant_id,
+                    invoice_id=invoice_id_value,
                 )
                 logger.info(
                     "Auto-finalized subscription invoice",
@@ -318,7 +350,7 @@ class BillingIntegrationService:
                     },
                 )
 
-            return invoice.invoice_id
+            return invoice_id_value
 
         except Exception as e:
             logger.error(
@@ -534,13 +566,28 @@ class BillingIntegrationService:
                 billing_period_start = billing_period_end - timedelta(days=30)
 
             # Calculate charges
-            invoice_items = []
+            invoice_items: list[InvoiceItem] = []
             total_amount = Decimal("0")
+
+            usage_rates: dict[str, Decimal] = {}
+            raw_usage_rates = product.metadata.get("usage_rates")
+            if isinstance(raw_usage_rates, dict):
+                for rate_type, raw_value in raw_usage_rates.items():
+                    try:
+                        usage_rates[rate_type] = Decimal(str(raw_value))
+                    except (InvalidOperation, TypeError, ValueError):
+                        logger.warning(
+                            "Invalid usage rate configuration",
+                            extra={
+                                "product_id": product_id,
+                                "usage_type": rate_type,
+                                "value": raw_value,
+                            },
+                        )
 
             for usage_type, usage_count in usage_data.items():
                 if usage_count > 0:
-                    # Get usage rate from product
-                    usage_rate = product.usage_rates.get(usage_type, Decimal("0"))
+                    usage_rate = usage_rates.get(usage_type, Decimal("0"))
 
                     if usage_rate > 0:
                         charge_amount = Decimal(str(usage_count)) * usage_rate
@@ -551,6 +598,7 @@ class BillingIntegrationService:
                             quantity=usage_count,
                             customer_id=customer_id,
                             customer_segments=[],
+                            calculation_date=billing_period_end,
                         )
 
                         pricing_result = await self.pricing_service.calculate_price(
@@ -584,8 +632,8 @@ class BillingIntegrationService:
                 billing_period_start=billing_period_start,
                 billing_period_end=billing_period_end,
                 items=invoice_items,
-                subtotal=sum(item.total_amount for item in invoice_items),
-                total_discount=sum(item.discount_amount for item in invoice_items),
+                subtotal=sum((item.total_amount for item in invoice_items), Decimal("0")),
+                total_discount=sum((item.discount_amount for item in invoice_items), Decimal("0")),
                 total_amount=total_amount,
                 metadata={
                     "billing_source": "usage",

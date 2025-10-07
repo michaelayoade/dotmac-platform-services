@@ -192,7 +192,8 @@ class SendGridIntegration(EmailIntegration):
 
     def __init__(self, config: IntegrationConfig) -> None:
         super().__init__(config)
-        self._client = None
+        self._client: Any | None = None
+        self._mail_class: Any | None = None
 
     async def initialize(self) -> None:
         """Initialize SendGrid client."""
@@ -243,6 +244,9 @@ class SendGridIntegration(EmailIntegration):
 
             if isinstance(to, str):
                 to = [to]
+
+            if self._client is None or self._mail_class is None:
+                raise RuntimeError("SendGrid client not initialized")
 
             message = self._mail_class(
                 from_email=from_email,
@@ -320,7 +324,8 @@ class TwilioIntegration(SMSIntegration):
 
     def __init__(self, config: IntegrationConfig) -> None:
         super().__init__(config)
-        self._client = None
+        self._client: Any | None = None
+        self._twilio_client_class: Any | None = None
 
     async def initialize(self) -> None:
         """Initialize Twilio client."""
@@ -328,7 +333,7 @@ class TwilioIntegration(SMSIntegration):
             # Check if twilio package is available
             try:
                 # Import twilio conditionally
-                import twilio.rest  # type: ignore
+                import twilio.rest
 
                 self._twilio_client_class = twilio.rest.Client
             except ImportError:
@@ -344,6 +349,9 @@ class TwilioIntegration(SMSIntegration):
                 raise ValueError("Twilio credentials not found in secrets")
 
             # Initialize client
+            if self._twilio_client_class is None:
+                raise RuntimeError("Twilio client class not initialized")
+
             self._client = self._twilio_client_class(account_sid, auth_token)
             self._status = IntegrationStatus.READY
 
@@ -370,6 +378,9 @@ class TwilioIntegration(SMSIntegration):
                 raise ValueError("From number not configured")
 
             # Send SMS
+            if self._client is None:
+                raise RuntimeError("Twilio client not initialized")
+
             message_obj = self._client.messages.create(body=message, from_=from_number, to=to)
 
             logger.info(
@@ -440,7 +451,7 @@ class IntegrationRegistry:
 
     def register_provider(
         self, integration_type: str, provider: str, provider_class: type[BaseIntegration]
-    ):
+    ) -> None:
         """Register a new integration provider."""
         key = f"{integration_type}:{provider}"
         self._providers[key] = provider_class

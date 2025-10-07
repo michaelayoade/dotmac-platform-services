@@ -4,7 +4,7 @@ Partner Management API Router.
 Provides RESTful endpoints for partner management operations.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
@@ -43,9 +43,9 @@ router = APIRouter(tags=["Partner Management"])
 router.include_router(portal_router.router)
 
 
-def _convert_partner_to_response(partner) -> PartnerResponse:
+def _convert_partner_to_response(partner: Any) -> PartnerResponse:
     """Convert Partner model to PartnerResponse, handling metadata_ field."""
-    partner_dict = {}
+    partner_dict: dict[str, Any] = {}
     for key in PartnerResponse.model_fields:
         if key == "metadata":
             partner_dict["metadata"] = partner.metadata_ if hasattr(partner, "metadata_") else {}

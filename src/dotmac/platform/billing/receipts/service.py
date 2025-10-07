@@ -4,17 +4,14 @@ Receipt service for generating and managing payment receipts
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from dotmac.platform.billing.core.entities import (
-    InvoiceEntity,
-    PaymentEntity,
-)
+from dotmac.platform.billing.core.entities import InvoiceEntity, PaymentEntity
 from dotmac.platform.billing.core.enums import PaymentStatus
 from dotmac.platform.billing.metrics import get_billing_metrics
 from dotmac.platform.billing.receipts.generators import HTMLReceiptGenerator, PDFReceiptGenerator
@@ -50,10 +47,17 @@ class ReceiptService:
         if payment.status != PaymentStatus.SUCCEEDED:
             raise ValueError(f"Cannot generate receipt for payment with status {payment.status}")
 
-        # Get associated invoice if any
+        # Determine associated invoice (if any)
         invoice = None
-        if payment.invoice_id:
-            invoice = await self._get_invoice(tenant_id, payment.invoice_id)
+        associated_invoice_id: str | None = None
+        if payment.invoices:
+            associated_invoice_id = payment.invoices[0].invoice_id
+        else:
+            extra_invoice_id = cast(str | None, payment.extra_data.get("invoice_id"))
+            associated_invoice_id = extra_invoice_id
+
+        if associated_invoice_id:
+            invoice = await self._get_invoice(tenant_id, associated_invoice_id)
 
         # Generate receipt number
         receipt_number = await self._generate_receipt_number(tenant_id)
@@ -62,25 +66,63 @@ class ReceiptService:
         line_items = await self._build_receipt_line_items(payment, invoice)
 
         # Create receipt
+        extra = payment.extra_data or {}
+        total_amount = payment.amount
+        subtotal = invoice.subtotal if invoice else int(extra.get("subtotal", total_amount))
+        tax_amount = invoice.tax_amount if invoice else int(extra.get("tax_amount", 0))
+
+        payment_method_label = cast(str | None, extra.get("payment_method_label"))
+        if not payment_method_label:
+            details = payment.payment_method_details or {}
+            brand = details.get("brand")
+            last4 = details.get("last4")
+            if brand and last4:
+                payment_method_label = f"{brand} ****{last4}"
+            else:
+                payment_method_label = payment.payment_method_type.value
+
+        if invoice:
+            billing_address_raw = invoice.billing_address or {}
+            customer_email = invoice.billing_email
+            customer_name = cast(str | None, billing_address_raw.get("name")) or cast(
+                str, extra.get("customer_name", "Customer")
+            )
+        else:
+            billing_address_raw = cast(dict[str, Any], extra.get("billing_address", {}))
+            customer_email = cast(str, extra.get("customer_email", ""))
+            customer_name = cast(str, extra.get("customer_name", "Customer"))
+
+        billing_address = {
+            str(key): str(value)
+            for key, value in billing_address_raw.items()
+            if isinstance(key, str) and isinstance(value, str)
+        }
+
+        notes = invoice.notes if invoice else cast(str | None, extra.get("notes"))
+
         receipt = Receipt(
             receipt_id=str(uuid4()),
             receipt_number=receipt_number,
             tenant_id=tenant_id,
             payment_id=payment_id,
-            invoice_id=payment.invoice_id,
+            invoice_id=associated_invoice_id,
             customer_id=payment.customer_id,
             issue_date=datetime.now(UTC),
             currency=payment.currency,
-            subtotal=payment.subtotal or payment.amount,
-            tax_amount=payment.tax_amount or 0,
-            total_amount=payment.amount,
-            payment_method=payment.payment_method,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            total_amount=total_amount,
+            payment_method=payment_method_label,
             payment_status=payment.status.value,
             line_items=line_items,
-            customer_name=payment.customer_name or "Customer",
-            customer_email=payment.customer_email or "",
-            billing_address=payment.billing_address or {},
-            notes=payment.notes,
+            customer_name=customer_name,
+            customer_email=customer_email,
+            billing_address=billing_address,
+            notes=notes,
+            pdf_url=None,
+            html_content=None,
+            sent_at=None,
+            delivery_method=None,
         )
 
         # Generate PDF if requested
@@ -102,9 +144,9 @@ class ReceiptService:
         # Record metrics
         self.metrics.record_receipt_generated(
             tenant_id=tenant_id,
-            payment_id=payment_id,
             amount=receipt.total_amount,
             currency=receipt.currency,
+            payment_id=payment_id,
         )
 
         logger.info(f"Receipt {receipt.receipt_number} generated for payment {payment_id}")
@@ -129,8 +171,11 @@ class ReceiptService:
         receipt_number = await self._generate_receipt_number(tenant_id)
 
         # Build line items from invoice
-        line_items = []
+        line_items: list[ReceiptLineItem] = []
         for item in invoice.line_items:
+            sku_value = None
+            if item.extra_data:
+                sku_value = cast(str | None, item.extra_data.get("sku"))
             line_items.append(
                 ReceiptLineItem(
                     line_item_id=item.line_item_id,
@@ -141,15 +186,18 @@ class ReceiptService:
                     tax_rate=item.tax_rate,
                     tax_amount=item.tax_amount,
                     product_id=item.product_id,
-                    sku=item.sku,
+                    sku=sku_value,
                 )
             )
 
         # Create receipt
+        payment_method_label = cast(str, payment_details.get("method", "unknown"))
+
         receipt = Receipt(
             receipt_id=str(uuid4()),
             receipt_number=receipt_number,
             tenant_id=tenant_id,
+            payment_id=None,
             invoice_id=invoice_id,
             customer_id=invoice.customer_id,
             issue_date=datetime.now(UTC),
@@ -157,13 +205,21 @@ class ReceiptService:
             subtotal=invoice.subtotal,
             tax_amount=invoice.tax_amount,
             total_amount=invoice.total_amount,
-            payment_method=payment_details.get("method", "unknown"),
-            payment_status="completed",
+            payment_method=payment_method_label,
+            payment_status=invoice.payment_status.value,
             line_items=line_items,
-            customer_name=invoice.customer_name,
+            customer_name=cast(str, invoice.billing_address.get("name", "Customer")),
             customer_email=invoice.billing_email,
-            billing_address=invoice.billing_address,
+            billing_address={
+                str(key): str(value)
+                for key, value in invoice.billing_address.items()
+                if isinstance(key, str) and isinstance(value, str)
+            },
             notes=invoice.notes,
+            pdf_url=None,
+            html_content=None,
+            sent_at=None,
+            delivery_method=None,
         )
 
         # Generate content if requested
@@ -206,11 +262,15 @@ class ReceiptService:
 
     async def _get_payment(self, tenant_id: str, payment_id: str) -> PaymentEntity | None:
         """Get payment entity"""
-        stmt = select(PaymentEntity).where(
-            and_(
-                PaymentEntity.tenant_id == tenant_id,
-                PaymentEntity.payment_id == payment_id,
+        stmt = (
+            select(PaymentEntity)
+            .where(
+                and_(
+                    PaymentEntity.tenant_id == tenant_id,
+                    PaymentEntity.payment_id == payment_id,
+                )
             )
+            .options(selectinload(PaymentEntity.invoices))
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -245,11 +305,14 @@ class ReceiptService:
         self, payment: PaymentEntity, invoice: InvoiceEntity | None
     ) -> list[ReceiptLineItem]:
         """Build receipt line items from payment/invoice data"""
-        line_items = []
+        line_items: list[ReceiptLineItem] = []
 
         if invoice and invoice.line_items:
             # Use invoice line items
             for item in invoice.line_items:
+                sku_value = None
+                if item.extra_data:
+                    sku_value = cast(str | None, item.extra_data.get("sku"))
                 line_items.append(
                     ReceiptLineItem(
                         line_item_id=item.line_item_id,
@@ -260,16 +323,23 @@ class ReceiptService:
                         tax_rate=item.tax_rate,
                         tax_amount=item.tax_amount,
                         product_id=item.product_id,
+                        sku=sku_value,
                     )
                 )
         else:
             # Create simple line item from payment
+            payment_extra = payment.extra_data or {}
+            description = cast(str, payment_extra.get("description", f"Payment {payment.payment_id}"))
+            product_id = cast(str | None, payment_extra.get("product_id"))
             line_items.append(
                 ReceiptLineItem(
-                    description=f"Payment {payment.payment_id}",
+                    description=description,
                     quantity=1,
                     unit_price=payment.amount,
                     total_price=payment.amount,
+                    product_id=product_id,
+                    tax_rate=float(payment_extra.get("tax_rate", 0.0)),
+                    tax_amount=int(payment_extra.get("tax_amount", 0)),
                 )
             )
 

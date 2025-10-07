@@ -33,8 +33,10 @@ def rate_limit_handler(request: Request, exc: Exception) -> Response:
     return _rate_limit_exceeded_handler(request, exc)  # type: ignore
 
 
-def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle authentication/authorization errors with proper status codes."""
+    if not isinstance(exc, AuthError):  # Defensive - FastAPI should only call for AuthError
+        raise exc
     status_code = get_http_status(exc)
     return JSONResponse(
         status_code=status_code,

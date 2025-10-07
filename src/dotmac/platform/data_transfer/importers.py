@@ -1,15 +1,30 @@
-"""
-Data importers using pandas for various file formats.
-"""
+"""Data importers using pandas for various file formats."""
 
-from typing import Any
+from __future__ import annotations
+
 import asyncio
+import importlib
 import xml.etree.ElementTree as ET
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any, TYPE_CHECKING, Protocol, cast
 
 import pandas as pd
-import yaml
+
+class _YamlProtocol(Protocol):
+    """Minimal subset of yaml API used in this module."""
+
+    def safe_load(self, stream: Any) -> Any:  # pragma: no cover - protocol definition
+        ...
+
+
+if TYPE_CHECKING:
+    yaml: _YamlProtocol | None
+else:
+    try:
+        yaml = cast(_YamlProtocol, importlib.import_module("yaml"))
+    except ImportError:  # pragma: no cover - optional dependency
+        yaml = None
 
 from .core import (
     BaseImporter,
@@ -211,7 +226,8 @@ class XMLImporter(BaseImporter):
             for elem in records_elements:
                 # Convert XML element to dict
                 data = self._xml_to_dict(elem)
-                record = DataRecord(data=data)
+                record_data = data if isinstance(data, dict) else {"value": data}
+                record = DataRecord(data=record_data)
                 batch_records.append(record)
 
                 if len(batch_records) >= self.config.batch_size:
@@ -242,9 +258,9 @@ class XMLImporter(BaseImporter):
             self._progress.error_message = str(e)
             raise ImportError(f"Failed to import XML: {e}") from e
 
-    def _xml_to_dict(self, element) -> Any:
+    def _xml_to_dict(self, element: ET.Element) -> dict[str, Any] | str | None:
         """Convert XML element to dictionary."""
-        result = {}
+        result: dict[str, Any] = {}
 
         # Add attributes
         for key, value in element.attrib.items():
@@ -265,7 +281,11 @@ class XMLImporter(BaseImporter):
             else:
                 result[child.tag] = child_data
 
-        return result if result else element.text
+        if result:
+            return result
+        if element.text and element.text.strip():
+            return element.text.strip()
+        return None
 
 
 class YAMLImporter(BaseImporter):
@@ -275,6 +295,9 @@ class YAMLImporter(BaseImporter):
         """Import YAML file."""
         try:
             self._progress.status = TransferStatus.RUNNING
+
+            if yaml is None:
+                raise ImportError("PyYAML is required for YAML imports")
 
             with open(file_path, encoding=self.options.encoding) as f:
                 data = yaml.safe_load(f)
@@ -342,9 +365,9 @@ def create_importer(
     progress_callback: ProgressCallback | None = None,
 ) -> BaseImporter:
     """Create an importer for the specified format."""
-    options = options or ImportOptions()
+    resolved_options = options or ImportOptions()
 
-    importers = {
+    importers: dict[DataFormat, type[BaseImporter]] = {
         DataFormat.CSV: CSVImporter,
         DataFormat.JSON: JSONImporter,
         DataFormat.JSONL: JSONImporter,
@@ -354,13 +377,13 @@ def create_importer(
     }
 
     if format == DataFormat.JSONL:
-        options.json_lines = True
+        resolved_options.json_lines = True
 
     importer_class = importers.get(format)
-    if not importer_class:
+    if importer_class is None:
         raise FormatError(f"No importer available for format: {format}")
 
-    return importer_class(config, options, progress_callback)
+    return importer_class(config, resolved_options, progress_callback)
 
 
 async def import_file(

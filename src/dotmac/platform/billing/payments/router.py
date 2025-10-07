@@ -55,12 +55,18 @@ async def get_failed_payments(
 
         result = await session.execute(query)
         row = result.one()
+        row_mapping = row._mapping
+
+        count_value = int(row_mapping.get("count") or 0)
+        total_amount_value = float(row_mapping.get("total_amount") or 0)
+        oldest = row_mapping.get("oldest")
+        newest = row_mapping.get("newest")
 
         return FailedPaymentsSummary(
-            count=row.count or 0,
-            total_amount=float(row.total_amount or 0),
-            oldest_failure=row.oldest,
-            newest_failure=row.newest,
+            count=count_value,
+            total_amount=total_amount_value,
+            oldest_failure=oldest,
+            newest_failure=newest,
         )
 
     except Exception as e:

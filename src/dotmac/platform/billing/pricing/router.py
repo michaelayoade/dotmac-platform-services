@@ -4,6 +4,8 @@ Pricing engine API router.
 Provides REST endpoints for managing pricing rules and calculating prices.
 """
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -192,6 +194,7 @@ async def calculate_price_simple(
             customer_id=customer_id,
             quantity=quantity,
             customer_segments=customer_segments,
+            calculation_date=datetime.now(UTC),
         )
         result = await service.calculate_price(request, tenant_id)
         return result

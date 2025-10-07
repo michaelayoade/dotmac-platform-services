@@ -58,7 +58,7 @@ async def create_contact(
     contact = await service.create_contact(
         contact_data=contact_data, tenant_id=tenant_id, owner_id=ensure_uuid(current_user.user_id)
     )
-    return contact
+    return ContactResponse.model_validate(contact)
 
 
 @router.get("/{contact_id}", response_model=ContactResponse)
@@ -80,7 +80,7 @@ async def get_contact(
     )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    return contact
+    return ContactResponse.model_validate(contact)
 
 
 @router.patch("/{contact_id}", response_model=ContactResponse)
@@ -98,7 +98,7 @@ async def update_contact(
     )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    return contact
+    return ContactResponse.model_validate(contact)
 
 
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -186,7 +186,7 @@ async def add_contact_method(
     )
     if not method:
         raise HTTPException(status_code=404, detail="Contact not found")
-    return method
+    return ContactMethodResponse.model_validate(method)
 
 
 @router.patch("/methods/{method_id}", response_model=ContactMethodResponse)
@@ -204,7 +204,7 @@ async def update_contact_method(
     )
     if not method:
         raise HTTPException(status_code=404, detail="Contact method not found")
-    return method
+    return ContactMethodResponse.model_validate(method)
 
 
 @router.delete("/methods/{method_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -244,7 +244,7 @@ async def add_contact_activity(
     )
     if not activity:
         raise HTTPException(status_code=404, detail="Contact not found")
-    return activity
+    return ContactActivityResponse.model_validate(activity)
 
 
 @router.get("/{contact_id}/activities", response_model=list[ContactActivityResponse])
@@ -261,7 +261,7 @@ async def get_contact_activities(
     activities = await service.get_contact_activities(
         contact_id=contact_id, tenant_id=tenant_id, limit=limit, offset=offset
     )
-    return activities
+    return [ContactActivityResponse.model_validate(activity) for activity in activities]
 
 
 # Label definition endpoints
@@ -281,7 +281,7 @@ async def create_label_definition(
     label = await service.create_label_definition(
         label_data=label_data, tenant_id=tenant_id, created_by=ensure_uuid(current_user.user_id)
     )
-    return label
+    return ContactLabelDefinitionResponse.model_validate(label)
 
 
 @router.get("/labels/definitions", response_model=list[ContactLabelDefinitionResponse])
@@ -297,7 +297,7 @@ async def get_label_definitions(
     labels = await service.get_label_definitions(
         tenant_id=tenant_id, category=category, include_hidden=include_hidden
     )
-    return labels
+    return [ContactLabelDefinitionResponse.model_validate(label) for label in labels]
 
 
 # Field definition endpoints
@@ -317,7 +317,7 @@ async def create_field_definition(
     field = await service.create_field_definition(
         field_data=field_data, tenant_id=tenant_id, created_by=ensure_uuid(current_user.user_id)
     )
-    return field
+    return ContactFieldDefinitionResponse.model_validate(field)
 
 
 @router.get("/fields/definitions", response_model=list[ContactFieldDefinitionResponse])
@@ -333,7 +333,7 @@ async def get_field_definitions(
     fields = await service.get_field_definitions(
         tenant_id=tenant_id, field_group=field_group, include_hidden=include_hidden
     )
-    return fields
+    return [ContactFieldDefinitionResponse.model_validate(field) for field in fields]
 
 
 # Bulk operations

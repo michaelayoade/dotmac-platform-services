@@ -73,7 +73,7 @@ class DomainEventPublisher:
             aggregate: Aggregate root with domain events
             clear_events: Whether to clear events after publishing
         """
-        events = aggregate.get_domain_events()
+        events = list(aggregate.get_domain_events())
 
         if not events:
             return
@@ -86,7 +86,7 @@ class DomainEventPublisher:
         )
 
         # Dispatch to domain handlers first (in-process)
-        await self._dispatcher.dispatch_all(list(events))
+        await self._dispatcher.dispatch_all(events)
 
         # Publish to integration event bus (cross-process)
         if self._publish_to_integration:

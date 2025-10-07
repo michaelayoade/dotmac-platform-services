@@ -323,6 +323,7 @@ class WhatsAppProvider(NotificationProvider):
                     message="Provider not configured",
                     details={"configured": False},
                     timestamp=start_time.isoformat(),
+                    response_time_ms=0,
                 )
 
             # Test API connectivity
@@ -337,6 +338,8 @@ class WhatsAppProvider(NotificationProvider):
 
                 business_info = response.json()
 
+                duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
                 return PluginHealthCheck(
                     plugin_instance_id=uuid4(),  # Temporary ID for standalone use
                     status="healthy",
@@ -348,10 +351,12 @@ class WhatsAppProvider(NotificationProvider):
                         "api_accessible": True,
                         "business_name": business_info.get("name", "Unknown"),
                     },
-                    timestamp=start_time.isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
+                    response_time_ms=duration_ms,
                 )
 
         except httpx.HTTPError as e:
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             return PluginHealthCheck(
                 plugin_instance_id=uuid4(),
                 status="unhealthy",
@@ -361,9 +366,11 @@ class WhatsAppProvider(NotificationProvider):
                     "error": str(e),
                     "api_accessible": False,
                 },
-                timestamp=start_time.isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
+                response_time_ms=duration_ms,
             )
         except Exception as e:
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             return PluginHealthCheck(
                 plugin_instance_id=uuid4(),
                 status="unhealthy",
@@ -372,7 +379,8 @@ class WhatsAppProvider(NotificationProvider):
                     "configured": self.configured,
                     "error": str(e),
                 },
-                timestamp=start_time.isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
+                response_time_ms=duration_ms,
             )
 
     async def test_connection(self, config: dict[str, Any]) -> PluginTestResult:
@@ -391,6 +399,7 @@ class WhatsAppProvider(NotificationProvider):
                     message="API token is required",
                     details={"error": "missing_api_token"},
                     timestamp=start_time.isoformat(),
+                    response_time_ms=0,
                 )
 
             if not business_account_id:
@@ -399,6 +408,7 @@ class WhatsAppProvider(NotificationProvider):
                     message="Business Account ID is required",
                     details={"error": "missing_business_account_id"},
                     timestamp=start_time.isoformat(),
+                    response_time_ms=0,
                 )
 
             # Test API connectivity
@@ -414,6 +424,7 @@ class WhatsAppProvider(NotificationProvider):
 
                 business_info = response.json()
 
+                duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
                 return PluginTestResult(
                     success=True,
                     message="Connection successful",
@@ -423,11 +434,13 @@ class WhatsAppProvider(NotificationProvider):
                         "status": "verified",
                         "api_version": api_version,
                     },
-                    timestamp=start_time.isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
+                    response_time_ms=duration_ms,
                 )
 
         except httpx.HTTPStatusError as e:
-            error_details = {"status_code": e.response.status_code}
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+            error_details: dict[str, Any] = {"status_code": e.response.status_code}
             try:
                 error_response = e.response.json()
                 error_details.update(error_response)
@@ -438,23 +451,28 @@ class WhatsAppProvider(NotificationProvider):
                 success=False,
                 message=f"API error: {e.response.status_code}",
                 details=error_details,
-                timestamp=start_time.isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
+                response_time_ms=duration_ms,
             )
 
         except httpx.RequestError as e:
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             return PluginTestResult(
                 success=False,
                 message=f"Connection failed: {str(e)}",
                 details={"error": str(e), "type": "connection_error"},
-                timestamp=start_time.isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
+                response_time_ms=duration_ms,
             )
 
         except Exception as e:
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
             return PluginTestResult(
                 success=False,
                 message=f"Test failed: {str(e)}",
                 details={"error": str(e), "type": "unexpected_error"},
-                timestamp=start_time.isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
+                response_time_ms=duration_ms,
             )
 
 

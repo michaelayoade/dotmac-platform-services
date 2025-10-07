@@ -7,6 +7,7 @@ to minimize database queries and improve response times.
 
 from typing import Any
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.cache import (
     BillingCache,
@@ -40,8 +41,8 @@ class CachedProductService(ProductService):
     - Bulk operations optimization
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, db_session: AsyncSession) -> None:
+        super().__init__(db_session)
         self.cache: BillingCache = get_billing_cache()
         self.config = BillingCacheConfig()
 
@@ -329,7 +330,13 @@ class CachedProductService(ProductService):
         logger.info("Warming product cache", tenant_id=tenant_id, limit=limit)
 
         # Get most popular/recent products
-        filters = ProductFilters(is_active=True)
+        filters = ProductFilters(
+            category=None,
+            product_type=None,
+            is_active=True,
+            usage_type=None,
+            search=None,
+        )
         products = await super().list_products(tenant_id, filters=filters, page=1, limit=limit)
 
         # Cache each product

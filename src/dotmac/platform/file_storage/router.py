@@ -15,6 +15,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Response,
     UploadFile,
     status,
 )
@@ -135,12 +136,10 @@ async def upload_file(
 async def download_file(
     file_id: str,
     current_user: UserInfo = Depends(get_current_user),
-):
+) -> Response:
     """
     Download a file from storage.
     """
-    from fastapi.responses import Response
-
     try:
         # Get tenant ID from user context
         tenant_id = getattr(current_user, "tenant_id", None)

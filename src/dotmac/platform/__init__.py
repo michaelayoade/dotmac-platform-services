@@ -26,7 +26,7 @@ __email__ = "dev@dotmac.com"
 
 # Platform services registry
 _services_registry: dict[str, Any] = {}
-_initialized_services: set = set()
+_initialized_services: set[str] = set()
 
 
 def get_version() -> str:
@@ -59,7 +59,7 @@ class PlatformConfig:
     """Platform services configuration management."""
 
     def __init__(self) -> None:
-        self._config = {}
+        self._config: dict[str, Any] = {}
         self._load_from_environment()
 
     def _load_from_environment(self) -> None:
@@ -199,7 +199,7 @@ def create_jwt_service(**kwargs: Any) -> Any:
     JWTService/create_jwt_service_from_config schema.
     """
     try:
-        from .auth import JWTService  # type: ignore
+        from .auth import JWTService
 
         cfg = dict(config.get("auth", {}))
         cfg.update(kwargs)

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.core.exceptions import (
@@ -90,17 +91,18 @@ def get_tenant_id_from_request(request: Request) -> str:
     """Extract tenant ID from request"""
     # Check request state (set by middleware)
     if hasattr(request.state, "tenant_id"):
-        return request.state.tenant_id
+        tenant_id: str = request.state.tenant_id
+        return tenant_id
 
     # Check header
-    tenant_id = request.headers.get("X-Tenant-ID")
-    if tenant_id:
-        return tenant_id
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    if tenant_id_header:
+        return tenant_id_header
 
     # Check query parameter
-    tenant_id = request.query_params.get("tenant_id")
-    if tenant_id:
-        return tenant_id
+    tenant_id_query = request.query_params.get("tenant_id")
+    if tenant_id_query:
+        return tenant_id_query
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -118,7 +120,7 @@ async def create_invoice(
     invoice_data: CreateInvoiceRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Create a new invoice with tenant isolation"""
 
@@ -160,7 +162,7 @@ async def list_invoices(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of invoices to return"),
     offset: int = Query(0, ge=0, description="Number of invoices to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> InvoiceListResponse:
     """List invoices with filtering and tenant isolation"""
 
@@ -194,7 +196,7 @@ async def get_invoice(
     invoice_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Get invoice by ID with tenant isolation"""
 
@@ -214,7 +216,7 @@ async def finalize_invoice(
     finalize_data: FinalizeInvoiceRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Finalize a draft invoice to open status"""
 
@@ -236,7 +238,7 @@ async def void_invoice(
     void_data: VoidInvoiceRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Void an invoice"""
 
@@ -260,7 +262,7 @@ async def mark_invoice_paid(
     request: Request,
     payment_id: str | None = Query(None, description="Associated payment ID"),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Mark invoice as paid"""
 
@@ -282,7 +284,7 @@ async def apply_credit_to_invoice(
     credit_data: ApplyCreditRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Apply credit to invoice"""
 
@@ -302,7 +304,7 @@ async def apply_credit_to_invoice(
 async def check_overdue_invoices(
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> list[Invoice]:
     """Check for overdue invoices and update their status"""
 

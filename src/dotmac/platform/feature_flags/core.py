@@ -9,6 +9,7 @@ import json
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
+import inspect
 
 import redis.asyncio as redis
 import structlog
@@ -20,8 +21,8 @@ logger = structlog.get_logger(__name__)
 
 # In-memory cache for fast lookups
 _flag_cache = TTLCache(maxsize=1000, ttl=60)  # 1 minute TTL
-_redis_client: redis.Redis | None = None
-_redis_available = None  # Cache Redis availability check
+_redis_client: redis.Redis[Any] | None = None
+_redis_available: bool | None = None  # Cache Redis availability check
 
 
 class FeatureFlagError(Exception):
@@ -53,8 +54,21 @@ async def _check_redis_availability() -> bool:
 
         # Test connection
         test_client = redis.from_url(redis_url)
-        await test_client.ping()
-        await test_client.aclose()
+        try:
+            await test_client.ping()
+        finally:
+            close_result = getattr(test_client, "close", None)
+            if callable(close_result):
+                result = close_result()
+                if inspect.isawaitable(result):
+                    await result
+            drain_result = getattr(test_client, "connection_pool", None)
+            if drain_result is not None:
+                disconnect = getattr(drain_result, "disconnect", None)
+                if callable(disconnect):
+                    maybe_await = disconnect()
+                    if inspect.isawaitable(maybe_await):
+                        await maybe_await
 
         _redis_available = True
         logger.info("Redis available for feature flags", redis_url=redis_url)
@@ -103,7 +117,7 @@ async def set_flag(name: str, enabled: bool, context: dict[str, Any] | None = No
     client = await get_redis_client()
     if client:
         try:
-            await client.hset("feature_flags", name, json.dumps(flag_data))  # type: ignore[misc]
+            await client.hset("feature_flags", name, json.dumps(flag_data))
             logger.info("Feature flag updated in Redis and cache", flag=name, enabled=enabled)
         except Exception as e:
             logger.warning(
@@ -127,7 +141,7 @@ async def is_enabled(name: str, context: dict[str, Any] | None = None) -> bool:
 
         if client:
             try:
-                flag_json = await client.hget("feature_flags", name)  # type: ignore[misc]
+                flag_json = await client.hget("feature_flags", name)
                 if flag_json:
                     flag_data = json.loads(flag_json)
                     _flag_cache[name] = flag_data
@@ -181,7 +195,7 @@ async def list_flags() -> dict[str, dict[str, Any]]:
     client = await get_redis_client()
     if client:
         try:
-            flags = await client.hgetall("feature_flags")  # type: ignore[misc]
+            flags = await client.hgetall("feature_flags")
 
             for name, flag_json in flags.items():
                 if isinstance(name, bytes):
@@ -219,7 +233,7 @@ async def delete_flag(name: str) -> bool:
     client = await get_redis_client()
     if client:
         try:
-            deleted_count = await client.hdel("feature_flags", name)  # type: ignore[misc]
+            deleted_count = await client.hdel("feature_flags", name)
             deleted_from_redis = bool(deleted_count)
         except Exception as e:
             logger.warning("Failed to delete flag from Redis", flag=name, error=str(e))
@@ -256,7 +270,7 @@ async def get_flag_status() -> dict[str, Any]:
         client = await get_redis_client()
         if client:
             try:
-                redis_flags = await client.hlen("feature_flags")  # type: ignore[misc]
+                redis_flags = await client.hlen("feature_flags")
                 status["redis_flags"] = redis_flags
                 status["total_flags"] = max(cache_size, redis_flags)
             except Exception as e:
@@ -279,7 +293,7 @@ async def sync_from_redis() -> int:
         return 0
 
     try:
-        flags = await client.hgetall("feature_flags")  # type: ignore[misc]
+        flags = await client.hgetall("feature_flags")
         synced_count = 0
 
         for name, flag_json in flags.items():

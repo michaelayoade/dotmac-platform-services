@@ -2,8 +2,9 @@
 Product catalog service - simple CRUD operations with business logic.
 """
 
-from typing import Any
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import uuid4
 
 import structlog
@@ -18,6 +19,7 @@ from dotmac.platform.billing.catalog.models import (
     ProductFilters,
     ProductType,
     ProductUpdateRequest,
+    TaxClass,
     UsageType,
 )
 from dotmac.platform.billing.exceptions import (
@@ -258,7 +260,13 @@ class ProductService:
         """List products with filtering and pagination."""
 
         if filters is None:
-            filters = ProductFilters()
+            filters = ProductFilters(
+                category=None,
+                product_type=None,
+                is_active=True,
+                usage_type=None,
+                search=None,
+            )
 
         stmt = select(BillingProductTable).where(BillingProductTable.tenant_id == tenant_id)
 
@@ -507,7 +515,16 @@ class ProductService:
         product_type_value: str = str(db_product.product_type)
         base_price: Decimal = Decimal(str(db_product.base_price))
         currency: str = str(db_product.currency)
-        tax_class: str = str(db_product.tax_class)
+        tax_class_value = str(db_product.tax_class)
+        try:
+            tax_class_enum = TaxClass(tax_class_value)
+        except ValueError:
+            logger.warning(
+                "Unknown tax class value; defaulting",
+                tax_class=tax_class_value,
+                product_id=product_id,
+            )
+            tax_class_enum = TaxClass.STANDARD
         usage_unit_name: str | None = (
             str(db_product.usage_unit_name)
             if getattr(db_product, "usage_unit_name", None)
@@ -532,7 +549,7 @@ class ProductService:
             product_type=ProductType(product_type_value),
             base_price=base_price,
             currency=currency,
-            tax_class=tax_class,
+            tax_class=tax_class_enum,
             usage_type=usage_type,
             usage_unit_name=usage_unit_name,
             is_active=is_active,
@@ -553,6 +570,15 @@ class ProductService:
             str(db_category.description) if getattr(db_category, "description", None) else None
         )
         default_tax_class_value: str = str(db_category.default_tax_class)
+        try:
+            default_tax_class = TaxClass(default_tax_class_value)
+        except ValueError:
+            logger.warning(
+                "Unknown default tax class; defaulting",
+                tax_class=default_tax_class_value,
+                category_id=category_id,
+            )
+            default_tax_class = TaxClass.STANDARD
         sort_order: int = int(getattr(db_category, "sort_order", 0))
         created_at: datetime = getattr(db_category, "created_at", datetime.now(UTC))
         updated_at: datetime = getattr(db_category, "updated_at", datetime.now(UTC))
@@ -562,7 +588,7 @@ class ProductService:
             tenant_id=tenant_id,
             name=name,
             description=description,
-            default_tax_class=TaxClass(default_tax_class_value),
+            default_tax_class=default_tax_class,
             sort_order=sort_order,
             created_at=created_at,
             updated_at=updated_at,

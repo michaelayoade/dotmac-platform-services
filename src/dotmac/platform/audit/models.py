@@ -185,7 +185,7 @@ class AuditFilterParams(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     user_id: str | None = None
-    tenant_id: str  # Required for filtering
+    tenant_id: str | None = None
     activity_type: ActivityType | None = None
     severity: ActivitySeverity | None = None
     resource_type: str | None = None

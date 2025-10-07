@@ -48,13 +48,13 @@ async def distributed_lock(
     acquired = False
     try:
         # SET key value NX EX timeout
-        acquired = await client.set(lock_key, lock_value, nx=True, ex=timeout)
+        acquired = bool(await client.set(lock_key, lock_value, nx=True, ex=timeout))
 
         if not acquired:
             # Simple retry with backoff
             for _ in range(int(timeout / retry_delay)):
                 await asyncio.sleep(retry_delay)
-                acquired = await client.set(lock_key, lock_value, nx=True, ex=timeout)
+                acquired = bool(await client.set(lock_key, lock_value, nx=True, ex=timeout))
                 if acquired:
                     break
 
@@ -88,7 +88,7 @@ async def try_lock(key: str, timeout: int = 30) -> str | None:
     lock_key = f"lock:{key}"
     lock_value = str(uuid.uuid4())
 
-    acquired = await client.set(lock_key, lock_value, nx=True, ex=timeout)
+    acquired = bool(await client.set(lock_key, lock_value, nx=True, ex=timeout))
     return lock_value if acquired else None
 
 
@@ -129,13 +129,15 @@ class DistributedLock:
         self.lock_value = str(uuid.uuid4())
 
         # Try to acquire lock
-        acquired = await client.set(lock_key, self.lock_value, nx=True, ex=self.timeout)
+        acquired = bool(await client.set(lock_key, self.lock_value, nx=True, ex=self.timeout))
 
         if not acquired:
             # Simple retry with backoff
             for _ in range(int(self.timeout / retry_delay)):
                 await asyncio.sleep(retry_delay)
-                acquired = await client.set(lock_key, self.lock_value, nx=True, ex=self.timeout)
+                acquired = bool(
+                    await client.set(lock_key, self.lock_value, nx=True, ex=self.timeout)
+                )
                 if acquired:
                     break
 

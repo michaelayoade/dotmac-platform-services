@@ -198,6 +198,12 @@ class BillingMetrics:
             unit="cents",
         )
 
+        # Receipt metrics
+        self.receipt_generated_counter = self._create_counter(
+            name="billing.receipt.generated",
+            description="Number of receipts generated",
+        )
+
     # Invoice metrics
     def record_invoice_created(
         self,
@@ -377,6 +383,20 @@ class BillingMetrics:
         attributes = {"tenant_id": tenant_id, "credit_note_id": credit_note_id}
         self.credit_note_voided_counter.add(1, attributes)
         logger.info(f"Credit note voided - tenant: {tenant_id}, credit_note: {credit_note_id}")
+
+    def record_receipt_generated(
+        self,
+        tenant_id: str,
+        amount: int,
+        currency: str,
+        payment_id: str | None = None,
+    ) -> None:
+        """Record receipt generation"""
+        attributes = {"tenant_id": tenant_id, "currency": currency}
+        if payment_id is not None:
+            attributes["payment_id"] = payment_id
+        self.receipt_generated_counter.add(1, attributes)
+        self.payment_amount_histogram.record(amount, attributes)
 
     # Internal helpers -----------------------------------------------------
 

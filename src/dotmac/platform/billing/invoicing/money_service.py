@@ -5,6 +5,7 @@ This service extends the existing InvoiceService to use Money objects internally
 while maintaining backward compatibility with the legacy integer-based system.
 """
 
+from decimal import Decimal
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.billing.money_migration import InvoiceMigrationAdapter
-from dotmac.platform.billing.money_models import MoneyInvoice
+from dotmac.platform.billing.money_models import MoneyField, MoneyInvoice
 from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.pdf_generator_reportlab import ReportLabInvoiceGenerator
 
@@ -203,20 +204,24 @@ class MoneyInvoiceService(InvoiceService):
         if not money_invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
+        # Convert existing amounts to Money objects
+        subtotal_money = money_invoice.subtotal.to_money()
+        tax_money = money_invoice.tax_amount.to_money()
         # Calculate discount amount using Money
-        discount_amount = money_handler.multiply_money(
-            money_invoice.subtotal, discount_percentage / 100
+        discount_rate = Decimal(str(discount_percentage)) / Decimal("100")
+        discount_money = money_handler.round_money(
+            money_handler.multiply_money(subtotal_money, discount_rate)
         )
 
-        # Update invoice
-        money_invoice.discount_amount = discount_amount
+        # Update invoice discount amount
+        money_invoice.discount_amount = MoneyField.from_money(discount_money)
 
-        # Recalculate totals
-        money_invoice.total_amount = money_handler.add_money(
-            money_invoice.subtotal,
-            money_invoice.tax_amount or money_handler.create_money("0", money_invoice.currency),
-            money_handler.multiply_money(discount_amount, -1),  # Negative for subtraction
-        )
+        # Recalculate totals (subtotal already includes tax per line item)
+        negative_discount = money_handler.multiply_money(discount_money, Decimal("-1"))
+        total_money = money_handler.add_money(subtotal_money, tax_money, negative_discount)
+
+        money_invoice.total_amount = MoneyField.from_money(total_money)
+        money_invoice.remaining_balance = MoneyField.from_money(total_money)
 
         # Add reason to notes
         if reason:
@@ -273,24 +278,30 @@ class MoneyInvoiceService(InvoiceService):
         for line_item in money_invoice.line_items:
             # Determine tax rate for this item
             # (In real implementation, would look up based on product type)
-            tax_rate = tax_rates.get("default", 0)
+            tax_rate_value = Decimal(str(tax_rates.get("default", 0)))
 
             # Calculate tax using Money
-            line_item.tax_rate = tax_rate
-            line_item.tax_amount = money_handler.multiply_money(line_item.total_price, tax_rate)
+            line_item.tax_rate = tax_rate_value
+            line_total_money = line_item.total_price.to_money()
+            tax_money = money_handler.round_money(
+                money_handler.multiply_money(line_total_money, tax_rate_value)
+            )
+            line_item.tax_amount = MoneyField.from_money(tax_money)
 
             # Add to total tax
-            total_tax = money_handler.add_money(total_tax, line_item.tax_amount)
+            total_tax = money_handler.add_money(total_tax, tax_money)
 
         # Update invoice totals
-        money_invoice.tax_amount = total_tax
-        money_invoice.total_amount = money_handler.add_money(money_invoice.subtotal, total_tax)
+        subtotal_money = money_invoice.subtotal.to_money()
+        money_invoice.tax_amount = MoneyField.from_money(total_tax)
+        total_money = money_handler.add_money(subtotal_money, total_tax)
 
         if money_invoice.discount_amount:
-            money_invoice.total_amount = money_handler.add_money(
-                money_invoice.total_amount,
-                money_handler.multiply_money(money_invoice.discount_amount, -1),
-            )
+            discount_money = money_invoice.discount_amount.to_money()
+            total_money = money_handler.add_money(total_money, money_handler.multiply_money(discount_money, Decimal("-1")))
+
+        money_invoice.total_amount = MoneyField.from_money(total_money)
+        money_invoice.remaining_balance = MoneyField.from_money(total_money)
 
         return money_invoice
 

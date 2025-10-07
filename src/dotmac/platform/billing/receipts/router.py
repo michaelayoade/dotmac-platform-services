@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.billing.invoicing.router import get_tenant_id_from_request
 from dotmac.platform.billing.receipts.models import Receipt
@@ -61,7 +62,7 @@ async def generate_receipt_for_payment(
     receipt_data: GenerateReceiptForPaymentRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Receipt:
     """Generate receipt for a payment"""
 
@@ -94,7 +95,7 @@ async def generate_receipt_for_invoice(
     receipt_data: GenerateReceiptForInvoiceRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Receipt:
     """Generate receipt for an invoice payment"""
 
@@ -127,7 +128,7 @@ async def get_receipt(
     receipt_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Receipt:
     """Get receipt by ID"""
 
@@ -153,7 +154,7 @@ async def list_receipts(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> ReceiptListResponse:
     """List receipts with filtering"""
 
@@ -185,7 +186,7 @@ async def get_receipt_html(
     receipt_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> HTMLResponse:
     """Get receipt as HTML"""
 
@@ -211,7 +212,7 @@ async def get_receipt_pdf(
     receipt_id: str,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user=Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Response:
     """Get receipt as PDF"""
 

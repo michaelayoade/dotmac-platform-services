@@ -1,6 +1,6 @@
 """FastAPI dependencies for event bus."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends
 
@@ -9,7 +9,7 @@ from dotmac.platform.events.storage import EventStorage
 
 
 def get_event_bus_dependency(
-    redis_client=None,  # Will be injected from caching module if needed
+    redis_client: Any | None = None,  # Will be injected from caching module if needed
 ) -> EventBus:
     """
     Get event bus instance for dependency injection.

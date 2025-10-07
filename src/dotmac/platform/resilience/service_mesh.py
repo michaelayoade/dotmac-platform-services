@@ -363,7 +363,10 @@ class LoadBalancer:
         # Check if we have recent health data (within 30 seconds)
         last_check = health_status.get("last_check", 0)
         if time.time() - last_check < 30:
-            return health_status.get("healthy", True)
+            cached_healthy = health_status.get("healthy")
+            if isinstance(cached_healthy, bool):
+                return cached_healthy
+            return True
 
         # Perform health check
         return await self._perform_health_check(endpoint)
@@ -715,11 +718,12 @@ class ServiceMesh:
 
     def get_service_topology(self) -> dict[str, Any]:
         """Get service mesh topology information."""
-        topology = {"services": {}, "connections": []}
+        services: dict[str, dict[str, Any]] = {}
+        connections: list[dict[str, Any]] = []
 
         # Build service information
         for service_name, endpoints in self.registry.endpoints.items():
-            topology["services"][service_name] = {
+            services[service_name] = {
                 "endpoints": [
                     {
                         "host": ep.host,
@@ -735,7 +739,7 @@ class ServiceMesh:
 
         # Build connection information from traffic rules
         for rule in self.registry.traffic_rules.values():
-            topology["connections"].append(
+            connections.append(
                 {
                     "source": rule.source_service,
                     "destination": rule.destination_service,
@@ -745,7 +749,10 @@ class ServiceMesh:
                 }
             )
 
-        return topology
+        return {
+            "services": services,
+            "connections": connections,
+        }
 
     async def _health_monitoring_loop(self) -> None:
         """Background task to monitor endpoint health."""
@@ -858,7 +865,7 @@ class ServiceMeshFactory:
 
     @staticmethod
     def create_traffic_rule(
-        name: str, source_service: str, destination_service: str, **kwargs
+        name: str, source_service: str, destination_service: str, **kwargs: Any
     ) -> TrafficRule:
         """Create a traffic rule with default settings."""
         return TrafficRule(
@@ -870,7 +877,7 @@ class ServiceMeshFactory:
 
     @staticmethod
     def create_service_endpoint(
-        service_name: str, host: str, port: int, **kwargs
+        service_name: str, host: str, port: int, **kwargs: Any
     ) -> ServiceEndpoint:
         """Create a service endpoint configuration."""
         return ServiceEndpoint(service_name=service_name, host=host, port=port, **kwargs)

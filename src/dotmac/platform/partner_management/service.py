@@ -7,11 +7,13 @@ Provides CRUD operations for partner management following project patterns.
 import secrets
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from dotmac.platform.partner_management.models import (
     Partner,
@@ -66,7 +68,7 @@ class PartnerService:
         tenant_id = self._resolve_tenant_id()
         return validated_id, tenant_id
 
-    def _get_base_partner_query(self, tenant_id: str) -> select:
+    def _get_base_partner_query(self, tenant_id: str) -> Select[tuple[Partner]]:
         """Get base partner query with tenant filtering."""
         return select(Partner).where(
             and_(
@@ -150,7 +152,8 @@ class PartnerService:
         query = self._get_base_partner_query(tenant_id).where(Partner.id == partner_id)
 
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        partner: Partner | None = result.scalar_one_or_none()
+        return partner
 
     async def get_partner_by_number(self, partner_number: str) -> Partner | None:
         """Get partner by partner number."""
@@ -161,7 +164,8 @@ class PartnerService:
         )
 
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        partner: Partner | None = result.scalar_one_or_none()
+        return partner
 
     async def list_partners(
         self,
@@ -526,12 +530,12 @@ class PartnerService:
             referral.converted_at = datetime.now(UTC)
 
             # Update partner's converted referrals count
-            result = await self.session.execute(
+            partner_result = await self.session.execute(
                 select(Partner).where(Partner.id == referral.partner_id)
             )
-            partner = result.scalar_one_or_none()
-            if partner:
-                partner.converted_referrals += 1
+            partner_obj = partner_result.scalar_one_or_none()
+            if partner_obj:
+                partner_obj.converted_referrals += 1
 
         await self.session.commit()
         await self.session.refresh(referral)

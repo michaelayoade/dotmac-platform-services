@@ -147,7 +147,7 @@ class DataTransferFactory:
         format: DataFormat | str,
         config: TransferConfig | None = None,
         options: ImportOptions | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> BaseImporter:
         """
         Create a data importer instance.
@@ -186,18 +186,18 @@ class DataTransferFactory:
             DependencyChecker.require_feature_dependency("data_transfer_excel")
 
         # Get importer class and create instance
-        config = config or TransferConfig()
-        options = options or ImportOptions()
+        resolved_config = config or TransferConfig()
+        resolved_options = options or ImportOptions()
 
         importer_class = _registry.get_importer_class(format)
-        return importer_class(config, options, **kwargs)
+        return importer_class(resolved_config, resolved_options, **kwargs)
 
     @staticmethod
     def create_exporter(
         format: DataFormat | str,
         config: TransferConfig | None = None,
         options: ExportOptions | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> BaseExporter:
         """
         Create a data exporter instance.
@@ -236,11 +236,11 @@ class DataTransferFactory:
             DependencyChecker.require_feature_dependency("data_transfer_excel")
 
         # Get exporter class and create instance
-        config = config or TransferConfig()
-        options = options or ExportOptions()
+        resolved_config = config or TransferConfig()
+        resolved_options = options or ExportOptions()
 
         exporter_class = _registry.get_exporter_class(format)
-        return exporter_class(config, options, **kwargs)
+        return exporter_class(resolved_config, resolved_options, **kwargs)
 
     @staticmethod
     def detect_format(file_path: str | Path) -> DataFormat:

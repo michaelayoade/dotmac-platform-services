@@ -8,6 +8,8 @@ Provides endpoints for SaaS platform administrators to:
 - Manage platform-level configurations
 """
 
+from typing import Any
+
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
@@ -73,15 +75,74 @@ class CrossTenantSearchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=100)
 
 
+class HealthCheckResponse(BaseModel):
+    """Health check response for platform admin."""
+
+    status: str
+    user_id: str
+    is_platform_admin: bool
+    permissions: list[str]
+
+
+class PlatformPermissionsResponse(BaseModel):
+    """Response for listing platform permissions."""
+
+    permissions: dict[str, str]
+    total: int
+
+
+class CrossTenantSearchResponse(BaseModel):
+    """Response for cross-tenant search."""
+
+    results: list[dict[str, Any]]
+    total: int
+    query: str
+
+
+class PlatformAuditResponse(BaseModel):
+    """Response for platform audit log."""
+
+    actions: list[dict[str, Any]]
+    total: int
+    limit: int
+
+
+class ImpersonationTokenResponse(BaseModel):
+    """Response for impersonation token creation."""
+
+    access_token: str
+    token_type: str
+    expires_in: int
+    target_tenant: str
+    impersonating: bool
+
+
+class CacheClearResponse(BaseModel):
+    """Response for cache clearing operation."""
+
+    status: str
+    cache_type: str | None = None
+    message: str | None = None
+
+
+class SystemConfigResponse(BaseModel):
+    """Response for system configuration."""
+
+    environment: str
+    multi_tenant_mode: bool | None = None
+    features_enabled: dict[str, bool] | None = None
+    message: str | None = None
+
+
 # ============================================
 # Platform Admin Endpoints
 # ============================================
 
 
-@router.get("/health", response_model=dict)
+@router.get("/health", response_model=HealthCheckResponse)
 async def platform_admin_health(
     admin: UserInfo = Depends(require_platform_admin),
-):
+) -> HealthCheckResponse:
     """Health check for platform admin access.
 
     Verifies that the requesting user has platform admin permissions.
@@ -91,12 +152,12 @@ async def platform_admin_health(
         action="platform_health_check",
     )
 
-    return {
-        "status": "healthy",
-        "user_id": admin.user_id,
-        "is_platform_admin": admin.is_platform_admin,
-        "permissions": admin.permissions,
-    }
+    return HealthCheckResponse(
+        status="healthy",
+        user_id=admin.user_id,
+        is_platform_admin=admin.is_platform_admin,
+        permissions=admin.permissions,
+    )
 
 
 @router.get("/tenants", response_model=TenantListResponse)
@@ -106,7 +167,7 @@ async def list_all_tenants(
     db: AsyncSession = Depends(get_async_session),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-):
+) -> TenantListResponse:
     """List all tenants in the platform.
 
     Requires: platform:tenants:read permission
@@ -182,7 +243,7 @@ async def list_all_tenants(
 async def get_platform_stats(
     admin: UserInfo = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> PlatformStats:
     """Get platform-wide statistics.
 
     Requires: Platform admin access
@@ -234,10 +295,10 @@ async def get_platform_stats(
     return stats
 
 
-@router.get("/permissions", response_model=dict)
+@router.get("/permissions", response_model=PlatformPermissionsResponse)
 async def list_platform_permissions(
     admin: UserInfo = Depends(require_platform_admin),
-):
+) -> PlatformPermissionsResponse:
     """List all available platform permissions.
 
     Returns the complete list of platform-level permissions and their descriptions.
@@ -247,18 +308,18 @@ async def list_platform_permissions(
         action="list_platform_permissions",
     )
 
-    return {
-        "permissions": PLATFORM_PERMISSIONS,
-        "total": len(PLATFORM_PERMISSIONS),
-    }
+    return PlatformPermissionsResponse(
+        permissions=PLATFORM_PERMISSIONS,
+        total=len(PLATFORM_PERMISSIONS),
+    )
 
 
-@router.post("/search", response_model=dict)
+@router.post("/search", response_model=CrossTenantSearchResponse)
 async def cross_tenant_search(
     search_request: CrossTenantSearchRequest,
     admin: UserInfo = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_session),
-):
+) -> CrossTenantSearchResponse:
     """Perform cross-tenant search.
 
     Requires: Platform admin access
@@ -276,19 +337,19 @@ async def cross_tenant_search(
     )
 
     # Placeholder - implement actual cross-tenant search
-    return {
-        "results": [],
-        "total": 0,
-        "query": search_request.query,
-    }
+    return CrossTenantSearchResponse(
+        results=[],
+        total=0,
+        query=search_request.query,
+    )
 
 
-@router.get("/audit/recent", response_model=dict)
+@router.get("/audit/recent", response_model=PlatformAuditResponse)
 async def get_recent_platform_actions(
     admin: UserInfo = Depends(require_platform_permission("platform:audit")),
     db: AsyncSession = Depends(get_async_session),
     limit: int = Query(50, ge=1, le=200),
-):
+) -> PlatformAuditResponse:
     """Get recent platform admin actions across all tenants.
 
     Requires: platform:audit permission
@@ -302,19 +363,19 @@ async def get_recent_platform_actions(
     )
 
     # Placeholder - query audit log
-    return {
-        "actions": [],
-        "total": 0,
-        "limit": limit,
-    }
+    return PlatformAuditResponse(
+        actions=[],
+        total=0,
+        limit=limit,
+    )
 
 
-@router.post("/tenants/{tenant_id}/impersonate", response_model=dict)
+@router.post("/tenants/{tenant_id}/impersonate", response_model=ImpersonationTokenResponse)
 async def create_impersonation_token(
     tenant_id: str,
     admin: UserInfo = Depends(require_platform_permission("platform:impersonate")),
     duration_minutes: int = Query(60, ge=1, le=480),
-):
+) -> ImpersonationTokenResponse:
     """Create a temporary token for tenant impersonation.
 
     Requires: platform:impersonate permission
@@ -355,13 +416,13 @@ async def create_impersonation_token(
         duration=duration_minutes,
     )
 
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_in": duration_minutes * 60,
-        "target_tenant": tenant_id,
-        "impersonating": True,
-    }
+    return ImpersonationTokenResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_in=duration_minutes * 60,
+        target_tenant=tenant_id,
+        impersonating=True,
+    )
 
 
 # ============================================
@@ -369,13 +430,13 @@ async def create_impersonation_token(
 # ============================================
 
 
-@router.post("/system/cache/clear", response_model=dict)
+@router.post("/system/cache/clear", response_model=CacheClearResponse)
 async def clear_system_cache(
     admin: UserInfo = Depends(require_platform_admin),
     cache_type: str | None = Query(
         None, description="Specific cache to clear (e.g., 'permissions', 'all')"
     ),
-):
+) -> CacheClearResponse:
     """Clear system-wide caches.
 
     Requires: Platform admin access
@@ -399,22 +460,22 @@ async def clear_system_cache(
                 pattern = "user_perms:*"
                 for key in redis_client.scan_iter(match=pattern):
                     redis_client.delete(key)
-                return {"status": "success", "cache_type": "permissions"}
+                return CacheClearResponse(status="success", cache_type="permissions")
             else:
                 # Clear all caches
                 redis_client.flushdb()
-                return {"status": "success", "cache_type": "all"}
+                return CacheClearResponse(status="success", cache_type="all")
     except Exception as e:
         logger.error("Failed to clear cache", error=str(e))
-        return {"status": "error", "message": str(e)}
+        return CacheClearResponse(status="error", message=str(e))
 
-    return {"status": "no_cache", "message": "Redis not available"}
+    return CacheClearResponse(status="no_cache", message="Redis not available")
 
 
-@router.get("/system/config", response_model=dict)
+@router.get("/system/config", response_model=SystemConfigResponse)
 async def get_system_configuration(
     admin: UserInfo = Depends(require_platform_admin),
-):
+) -> SystemConfigResponse:
     """Get system configuration (non-sensitive values only).
 
     Requires: Platform admin access
@@ -430,20 +491,20 @@ async def get_system_configuration(
     try:
         from dotmac.platform.settings import settings
 
-        return {
-            "environment": getattr(settings, "environment", "unknown"),
-            "multi_tenant_mode": getattr(settings, "multi_tenant_mode", False),
-            "features_enabled": {
+        return SystemConfigResponse(
+            environment=getattr(settings, "environment", "unknown"),
+            multi_tenant_mode=getattr(settings, "multi_tenant_mode", False),
+            features_enabled={
                 "rbac": True,
                 "audit_logging": True,
                 "platform_admin": True,
             },
-        }
+        )
     except Exception:
-        return {
-            "environment": "unknown",
-            "message": "Settings not fully configured",
-        }
+        return SystemConfigResponse(
+            environment="unknown",
+            message="Settings not fully configured",
+        )
 
 
 __all__ = ["router"]

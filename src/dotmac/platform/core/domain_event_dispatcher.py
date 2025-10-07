@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import TypeVar, overload, cast
 
 import structlog
 
@@ -22,6 +22,7 @@ logger = structlog.get_logger(__name__)
 # Type aliases
 DomainEventHandler = Callable[[DomainEvent], Awaitable[None]]
 T = TypeVar("T", bound=DomainEvent)
+HandlerT = Callable[[T], Awaitable[None]]
 
 
 class DomainEventDispatcher:
@@ -54,6 +55,20 @@ class DomainEventDispatcher:
         self._handlers: dict[str, list[DomainEventHandler]] = defaultdict(list)
         self._global_handlers: list[DomainEventHandler] = []
 
+    @overload
+    def subscribe(
+        self,
+        event_type: type[T],
+    ) -> Callable[[HandlerT], HandlerT]:
+        ...
+
+    @overload
+    def subscribe(
+        self,
+        event_type: str,
+    ) -> Callable[[DomainEventHandler], DomainEventHandler]:
+        ...
+
     def subscribe(
         self,
         event_type: type[T] | str,
@@ -73,13 +88,26 @@ class DomainEventDispatcher:
                 pass
         """
 
-        def decorator(handler: DomainEventHandler) -> DomainEventHandler:
-            if isinstance(event_type, type):
-                type_name = event_type.__name__
-            else:
-                type_name = event_type
+        if isinstance(event_type, str):
 
-            self._handlers[type_name].append(handler)
+            def decorator_str(handler: DomainEventHandler) -> DomainEventHandler:
+                type_name = event_type
+                self._handlers[type_name].append(handler)
+
+                logger.info(
+                    "Domain event handler registered",
+                    event_type=type_name,
+                    handler=handler.__name__,
+                    total_handlers=len(self._handlers[type_name]),
+                )
+
+                return handler
+
+            return decorator_str
+
+        def decorator(handler: HandlerT) -> HandlerT:
+            type_name = event_type.__name__
+            self._handlers[type_name].append(cast(DomainEventHandler, handler))
 
             logger.info(
                 "Domain event handler registered",

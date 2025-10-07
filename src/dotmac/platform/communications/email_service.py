@@ -22,13 +22,13 @@ class EmailMessage(BaseModel):
 
     to: list[EmailStr] = Field(..., description="Recipient email addresses")
     subject: str = Field(..., min_length=1, description="Email subject")
-    text_body: str | None = Field(None, description="Plain text body")
-    html_body: str | None = Field(None, description="HTML body")
-    from_email: EmailStr | None = Field(None, description="Sender email")
-    from_name: str | None = Field(None, description="Sender name")
-    reply_to: EmailStr | None = Field(None, description="Reply-to address")
-    cc: list[EmailStr] | None = Field(default_factory=list, description="CC recipients")
-    bcc: list[EmailStr] | None = Field(default_factory=list, description="BCC recipients")
+    text_body: str | None = Field(default=None, description="Plain text body")
+    html_body: str | None = Field(default=None, description="HTML body")
+    from_email: EmailStr | None = Field(default=None, description="Sender email")
+    from_name: str | None = Field(default=None, description="Sender name")
+    reply_to: EmailStr | None = Field(default=None, description="Reply-to address")
+    cc: list[EmailStr] = Field(default_factory=list, description="CC recipients")
+    bcc: list[EmailStr] = Field(default_factory=list, description="BCC recipients")
 
     model_config = {"str_strip_whitespace": True, "validate_assignment": True, "extra": "forbid"}
 
@@ -84,11 +84,12 @@ class EmailService:
             # Send via SMTP
             await self._send_smtp(msg, message)
 
+            recipients_count = len(message.to) + len(message.cc) + len(message.bcc)
             response = EmailResponse(
                 id=message_id,
                 status="sent",
                 message="Email sent successfully",
-                recipients_count=len(message.to) + len(message.cc) + len(message.bcc),
+                recipients_count=recipients_count,
             )
 
             logger.info(
@@ -129,11 +130,12 @@ class EmailService:
                 "Failed to send email", message_id=message_id, error=str(e), subject=message.subject
             )
 
+            recipients_count = len(message.to) + len(message.cc) + len(message.bcc)
             response = EmailResponse(
                 id=message_id,
                 status="failed",
                 message=f"Failed to send email: {str(e)}",
-                recipients_count=len(message.to) + len(message.cc) + len(message.bcc),
+                recipients_count=recipients_count,
             )
 
             # Publish webhook event for failed email if DB session provided
@@ -205,7 +207,7 @@ class EmailService:
     async def _send_smtp(self, msg: MIMEMultipart, message: EmailMessage) -> None:
         """Send message via SMTP."""
         # Get all recipients
-        all_recipients = []
+        all_recipients: list[str] = []
         all_recipients.extend(str(email) for email in message.to)
         all_recipients.extend(str(email) for email in message.cc)
         all_recipients.extend(str(email) for email in message.bcc)
@@ -282,8 +284,15 @@ async def send_email(
     """Convenience function for sending simple emails."""
     service = get_email_service()
 
+    recipients = [EmailStr(recipient) for recipient in to]
+    sender_email = EmailStr(from_email) if from_email else None
+
     message = EmailMessage(
-        to=to, subject=subject, text_body=text_body, html_body=html_body, from_email=from_email
+        to=recipients,
+        subject=subject,
+        text_body=text_body,
+        html_body=html_body,
+        from_email=sender_email,
     )
 
     return await service.send_email(message)

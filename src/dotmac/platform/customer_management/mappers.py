@@ -180,7 +180,9 @@ class CustomerMapper:
         """
         from uuid import uuid4
 
-        data = {
+        metadata: dict[str, Any] = dict(import_data.metadata or {})
+
+        data: dict[str, Any] = {
             "tenant_id": tenant_id,
             "first_name": import_data.first_name,
             "last_name": import_data.last_name,
@@ -195,7 +197,7 @@ class CustomerMapper:
             "opt_in_updates": import_data.opt_in_updates,
             "tags": import_data.tags or [],
             "custom_fields": import_data.custom_fields or {},
-            "metadata_": import_data.metadata or {},
+            "metadata_": metadata,
         }
 
         # Generate customer number if needed
@@ -245,8 +247,8 @@ class CustomerMapper:
 
         # Add import metadata
         if import_data.import_batch_id:
-            data["metadata_"]["import_batch_id"] = import_data.import_batch_id
-            data["metadata_"]["imported_at"] = datetime.now(UTC).isoformat()
+            metadata["import_batch_id"] = import_data.import_batch_id
+            metadata["imported_at"] = datetime.now(UTC).isoformat()
 
         return data
 

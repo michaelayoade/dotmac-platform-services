@@ -5,7 +5,7 @@ Billing reports service - Main orchestrator for all billing reports
 import logging
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -226,7 +226,7 @@ class BillingReportService:
         filters = report_config.get("filters", {})
 
         # Build custom report
-        report_data = {
+        report_data: dict[str, Any] = {
             "report_type": "custom",
             "tenant_id": tenant_id,
             "configuration": report_config,
@@ -234,26 +234,28 @@ class BillingReportService:
             "generated_at": datetime.now(UTC).isoformat(),
         }
 
+        data_section = cast(dict[str, Any], report_data["data"])
+
         # Add requested metrics
         if "revenue" in metrics:
-            report_data["data"]["revenue"] = await self.revenue_generator.get_revenue_summary(
+            data_section["revenue"] = await self.revenue_generator.get_revenue_summary(
                 tenant_id,
                 filters.get("start_date"),
                 filters.get("end_date"),
             )
 
         if "customers" in metrics:
-            report_data["data"]["customers"] = await self.customer_generator.get_customer_metrics(
+            data_section["customers"] = await self.customer_generator.get_customer_metrics(
                 tenant_id,
                 filters.get("start_date"),
                 filters.get("end_date"),
             )
 
         if "aging" in metrics:
-            report_data["data"]["aging"] = await self.aging_generator.get_aging_summary(tenant_id)
+            data_section["aging"] = await self.aging_generator.get_aging_summary(tenant_id)
 
         if "tax" in metrics:
-            report_data["data"]["tax"] = (
+            data_section["tax"] = (
                 await self.tax_generator.tax_service.get_tax_summary_by_jurisdiction(
                     tenant_id,
                     filters.get("start_date"),

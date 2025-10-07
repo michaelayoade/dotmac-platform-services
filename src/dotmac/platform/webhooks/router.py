@@ -458,7 +458,7 @@ async def list_available_events(
             {
                 "event_type": schema.event_type,
                 "description": schema.description,
-                "has_schema": schema.schema is not None,
+                "has_schema": schema.json_schema is not None,
                 "has_example": schema.example is not None,
             }
             for schema in registered_events.values()
@@ -496,13 +496,13 @@ async def get_event_details(
                 detail=f"Event type not found: {event_type}",
             )
 
-        schema = registered_events[event_type]
+        event_schema = registered_events[event_type]
 
         return {
-            "event_type": schema.event_type,
-            "description": schema.description,
-            "schema": schema.schema,
-            "example": schema.example,
+            "event_type": event_schema.event_type,
+            "description": event_schema.description,
+            "schema": event_schema.json_schema,
+            "example": event_schema.example,
         }
 
     except HTTPException:

@@ -65,7 +65,9 @@ class CurrencyFormatter:
         """Convert minor currency units to major units"""
 
         if self.config.use_minor_units:
-            return Decimal(minor_amount) / (10**self.config.currency_decimal_places)
+            decimals = int(self.config.currency_decimal_places)
+            divisor = Decimal(10) ** decimals
+            return Decimal(minor_amount) / divisor
         else:
             return Decimal(minor_amount)
 

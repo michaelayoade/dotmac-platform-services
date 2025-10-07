@@ -21,7 +21,7 @@ class AnalyticsService:
         self.collector = collector or create_otel_collector(
             tenant_id="default", service_name="platform"
         )
-        self._events_store = []  # Simple in-memory store for demo
+        self._events_store: list[dict[str, Any]] = []
 
     async def track_api_request(self, **kwargs: Any) -> None:
         """Track API request metrics."""
@@ -112,7 +112,7 @@ def get_analytics_service(
     tenant_id: str = "default",
     service_name: str = "platform",
     signoz_endpoint: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> AnalyticsService:
     """
     Get or create an analytics service instance.

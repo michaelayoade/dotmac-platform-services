@@ -1,19 +1,30 @@
 """Background task service using Celery with testable async helpers."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
+from concurrent.futures import Future
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from dotmac.platform.celery_app import celery_app
 
 from .email_service import EmailMessage, EmailResponse, get_email_service
 
 logger = structlog.get_logger(__name__)
+
+
+class EmailServiceProtocol(Protocol):
+    """Protocol describing the subset of EmailService used by tasks."""
+
+    async def send_email(self, message: EmailMessage) -> EmailResponse:
+        """Send an email message."""
+
+
+T = TypeVar("T")
 
 
 class BulkEmailJob(BaseModel):
@@ -50,7 +61,7 @@ class BulkEmailResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _run_async(coro) -> Any:
+def _run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Execute an async coroutine from a synchronous Celery task."""
 
     try:
@@ -67,12 +78,14 @@ def _run_async(coro) -> Any:
                 loop.close()
 
         if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            future: Future[T] = asyncio.run_coroutine_threadsafe(coro, loop)
             return future.result()
         return loop.run_until_complete(coro)
 
 
-async def _send_email_async(email_service, message: EmailMessage) -> EmailResponse:
+async def _send_email_async(
+    email_service: EmailServiceProtocol, message: EmailMessage
+) -> EmailResponse:
     """Send a single email message using the provided service."""
 
     try:
@@ -95,7 +108,7 @@ ProgressCallback = Callable[[int, int, int, int], None] | None
 
 async def _process_bulk_email_job(
     job: BulkEmailJob,
-    email_service,
+    email_service: EmailServiceProtocol,
     progress_callback: ProgressCallback | None = None,
 ) -> BulkEmailResult:
     """Send all messages for the supplied bulk job."""
@@ -130,10 +143,11 @@ async def _process_bulk_email_job(
         failed_count=failed_count,
         responses=responses,
         completed_at=datetime.now(UTC),
+        error_message=None,
     )
 
 
-def _send_email_sync(email_service, message: EmailMessage) -> EmailResponse:
+def _send_email_sync(email_service: EmailServiceProtocol, message: EmailMessage) -> EmailResponse:
     """Legacy compatible synchronous shim that reuses the async helper."""
 
     return _run_async(_send_email_async(email_service, message))
@@ -145,7 +159,7 @@ def _send_email_sync(email_service, message: EmailMessage) -> EmailResponse:
 
 
 @celery_app.task(bind=True, name="send_bulk_email")
-def send_bulk_email_task(self, job_data: dict[str, Any]) -> dict[str, Any]:
+def send_bulk_email_task(self: Any, job_data: dict[str, Any]) -> dict[str, Any]:
     """Celery task that delegates to the async bulk email processor."""
 
     try:
@@ -261,7 +275,7 @@ class TaskService:
             task_id=task.id,
             subject=message.subject,
         )
-        return task.id
+        return str(task.id)
 
     def send_bulk_emails_async(self, job: BulkEmailJob) -> str:
         task = send_bulk_email_task.delay(job.model_dump())
@@ -271,7 +285,7 @@ class TaskService:
             job_id=job.id,
             email_count=len(job.messages),
         )
-        return task.id
+        return str(task.id)
 
     def get_task_status(self, task_id: str) -> dict[str, Any]:
         result = self.celery.AsyncResult(task_id)
@@ -310,8 +324,9 @@ def queue_email(
     html_body: str | None = None,
 ) -> str:
     service = get_task_service()
+    recipients = [EmailStr(address) for address in to]
     message = EmailMessage(
-        to=to,
+        to=recipients,
         subject=subject,
         text_body=text_body,
         html_body=html_body,

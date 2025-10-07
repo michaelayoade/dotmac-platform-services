@@ -8,14 +8,15 @@ import csv
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
-from celery import current_task
+from celery import Task, current_task
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from dotmac.platform.core.tasks import app, idempotent_task
+from dotmac.platform.customer_management.mappers import CustomerImportSchema, CustomerMapper
 from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
 from dotmac.platform.db import get_async_database_url
@@ -27,7 +28,7 @@ DEFAULT_CHUNK_SIZE = 500
 MAX_CHUNK_SIZE = 5000
 
 
-def get_async_session() -> Any:
+def get_async_session() -> AsyncSession:
     """Create async database session for Celery tasks."""
     engine = create_async_engine(get_async_database_url(), echo=False)
     async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -36,7 +37,7 @@ def get_async_session() -> Any:
 
 @app.task(bind=True, max_retries=3)
 def process_import_job(
-    self,
+    self: Task,
     job_id: str,
     file_path: str,
     job_type: str,
@@ -97,7 +98,7 @@ def process_import_job(
 
 @app.task(bind=True)
 def process_import_chunk(
-    self,
+    self: Task,
     job_id: str,
     chunk_data: list[dict[str, Any]],
     chunk_number: int,
@@ -385,11 +386,10 @@ async def _process_data_chunk(
     tenant_id: str,
 ) -> dict[str, Any]:
     """Process a chunk of data records."""
-    from dotmac.platform.customer_management.mappers import CustomerMapper
 
     successful = 0
     failed = 0
-    errors = []
+    errors: list[dict[str, Any]] = []
 
     # Create service based on job type
     if job_type == ImportJobType.CUSTOMERS:
@@ -407,26 +407,25 @@ async def _process_data_chunk(
             # Validate and transform data
             if job_type == ImportJobType.CUSTOMERS:
                 validated_data = mapper.validate_import_row(row_data, row_number)
-                if isinstance(validated_data, dict) and "error" in validated_data:
-                    # Validation error
-                    failed += 1
-                    errors.append(validated_data)
-                    await _record_failure(
-                        session,
-                        job,
-                        row_number,
-                        "validation",
-                        validated_data["error"],
-                        row_data,
-                        tenant_id,
-                    )
-                else:
-                    # Create entity
+                if isinstance(validated_data, CustomerImportSchema):
                     model_data = mapper.from_import_to_model(
                         validated_data, tenant_id, generate_customer_number=True
                     )
                     await service.create_customer(**model_data)
                     successful += 1
+                else:
+                    error_detail = validated_data
+                    failed += 1
+                    errors.append(error_detail)
+                    await _record_failure(
+                        session,
+                        job,
+                        row_number,
+                        "validation",
+                        error_detail.get("error", "Validation failed"),
+                        row_data,
+                        tenant_id,
+                    )
 
         except Exception as e:
             failed += 1
@@ -473,7 +472,7 @@ async def _process_invoice_import(
     """Process invoice import job."""
     # Similar structure to customer import
     # Implementation will follow the same pattern
-    pass
+    raise NotImplementedError("Invoice import processing is not implemented yet")
 
 
 async def _process_subscription_import(
@@ -485,7 +484,7 @@ async def _process_subscription_import(
 ) -> dict[str, Any]:
     """Process subscription import job."""
     # Similar structure to customer import
-    pass
+    raise NotImplementedError("Subscription import processing is not implemented yet")
 
 
 async def _process_payment_import(
@@ -497,7 +496,7 @@ async def _process_payment_import(
 ) -> dict[str, Any]:
     """Process payment import job."""
     # Similar structure to customer import
-    pass
+    raise NotImplementedError("Payment import processing is not implemented yet")
 
 
 async def _process_chunk_data(

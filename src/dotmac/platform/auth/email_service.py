@@ -4,6 +4,8 @@ import secrets
 
 import structlog
 
+from pydantic import EmailStr
+
 from dotmac.platform.core.caching import get_redis
 
 from ..settings import settings
@@ -48,7 +50,10 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
+            to=[EmailStr(email)],
+            subject=subject,
+            text_body=content,
+            html_body=content.replace("\n", "<br>"),
         )
 
         # Send using async communications service
@@ -79,9 +84,12 @@ async def send_password_reset_email(email: str, user_name: str) -> tuple[bool, s
         reset_token = secrets.token_urlsafe(32)
 
         # Store token in Redis with 1 hour expiry
-        redis = get_redis()
+        redis_client = get_redis()
         token_key = f"password_reset:{reset_token}"
-        redis.setex(token_key, 3600, email)  # 1 hour expiry
+        if redis_client is None:
+            logger.warning("Password reset email skipped: Redis unavailable", email=email)
+            return False, None
+        redis_client.setex(token_key, 3600, email)  # 1 hour expiry
 
         # Create reset link (placeholder - should be actual frontend URL)
         reset_link = f"https://localhost:3001/reset-password?token={reset_token}"
@@ -108,7 +116,10 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
+            to=[EmailStr(email)],
+            subject=subject,
+            text_body=content,
+            html_body=content.replace("\n", "<br>"),
         )
 
         # Send using async communications service
@@ -133,13 +144,17 @@ def verify_reset_token(token: str) -> str | None:
         Email address if token is valid, None otherwise
     """
     try:
-        redis = get_redis()
+        redis_client = get_redis()
+        if redis_client is None:
+            logger.warning("Password reset token verification skipped: Redis unavailable")
+            return None
+
         token_key = f"password_reset:{token}"
-        email = redis.get(token_key)
+        email = redis_client.get(token_key)
 
         if email:
             # Token is valid, delete it (one-time use)
-            redis.delete(token_key)
+            redis_client.delete(token_key)
             return email.decode("utf-8") if isinstance(email, bytes) else email
 
         return None
@@ -184,7 +199,10 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[email], subject=subject, text_body=content, html_body=content.replace("\n", "<br>")
+            to=[EmailStr(email)],
+            subject=subject,
+            text_body=content,
+            html_body=content.replace("\n", "<br>"),
         )
 
         # Send using async communications service

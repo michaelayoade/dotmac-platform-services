@@ -232,15 +232,14 @@ class CashRegisterService:
 
             # Update float
             old_float = float(register.current_float)
-            register.current_float = Decimal(str(new_float))
+            register.current_float = float(new_float)
             register.updated_at = datetime.now(UTC)
-            register.updated_by = updated_by
 
             # Add to metadata
             if not register.meta_data:
                 register.meta_data = {}
-            register.meta_data["float_history"] = register.meta_data.get("float_history", [])
-            register.meta_data["float_history"].append(
+            float_history = register.meta_data.setdefault("float_history", [])
+            float_history.append(
                 {
                     "old_float": old_float,
                     "new_float": new_float,
@@ -315,32 +314,34 @@ class CashRegisterService:
 
             # Calculate expected vs actual
             expected_cash = float(register.current_float)
-            actual_cash = data.actual_cash
+            actual_cash = float(data.actual_cash)
             discrepancy = actual_cash - expected_cash
+            opening_float_decimal = Decimal(str(expected_cash))
+            actual_cash_decimal = Decimal(str(actual_cash))
+            created_timestamp = datetime.now(UTC)
 
             # Create reconciliation record
             reconciliation = CashReconciliation(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
                 register_id=register_id,
-                reconciliation_date=data.reconciliation_date or datetime.now(UTC),
-                opening_float=float(register.initial_float),
-                closing_float=float(register.current_float),
-                expected_cash=Decimal(str(expected_cash)),
-                actual_cash=Decimal(str(actual_cash)),
+                reconciliation_date=data.reconciliation_date or created_timestamp,
+                opening_float=opening_float_decimal,
+                closing_float=actual_cash_decimal,
+                expected_cash=opening_float_decimal,
+                actual_cash=actual_cash_decimal,
                 discrepancy=Decimal(str(discrepancy)),
                 reconciled_by=reconciled_by,
                 notes=data.notes,
                 shift_id=data.shift_id,
-                created_at=datetime.now(UTC),
                 meta_data=data.metadata or {},
             )
 
             self.db.add(reconciliation)
 
             # Update register last reconciled
-            register.last_reconciled = datetime.now(UTC)
-            register.current_float = Decimal(str(actual_cash))  # Reset to actual
+            register.last_reconciled = created_timestamp
+            register.current_float = actual_cash  # Reset to actual
 
             await self.db.commit()
 
@@ -363,7 +364,7 @@ class CashRegisterService:
                 reconciled_by=reconciliation.reconciled_by,
                 notes=reconciliation.notes,
                 shift_id=reconciliation.shift_id,
-                created_at=reconciliation.created_at,
+                created_at=created_timestamp,
                 metadata=reconciliation.meta_data,
             )
 
@@ -425,9 +426,7 @@ class CashRegisterService:
             # Deactivate
             register.is_active = False
             register.updated_at = datetime.now(UTC)
-            register.updated_by = deactivated_by
 
-            # Add to metadata
             if not register.meta_data:
                 register.meta_data = {}
             register.meta_data["deactivated_at"] = datetime.now(UTC).isoformat()

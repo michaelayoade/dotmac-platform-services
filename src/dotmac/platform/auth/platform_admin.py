@@ -255,7 +255,7 @@ class PlatformAdminAuditLogger:
         resource_type: str | None = None,
         resource_id: str | None = None,
         details: dict | None = None,
-    ):
+    ) -> None:
         """Log platform admin action for compliance.
 
         Args:

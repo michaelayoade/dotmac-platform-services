@@ -12,12 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from dotmac.platform.billing.core.entities import (
+    CreditApplicationEntity,
     CreditNoteEntity,
     CreditNoteLineItemEntity,
     InvoiceEntity,
     TransactionEntity,
 )
 from dotmac.platform.billing.core.enums import (
+    CreditApplicationType,
     CreditNoteStatus,
     CreditReason,
     CreditType,
@@ -206,7 +208,6 @@ class CreditNoteService:
 
         # Update status
         credit_note.status = CreditNoteStatus.ISSUED
-        credit_note.issued_at = datetime.now(UTC)
         credit_note.updated_at = datetime.now(UTC)
 
         await self.db.commit()
@@ -242,8 +243,12 @@ class CreditNoteService:
         # Update status
         credit_note.status = CreditNoteStatus.VOIDED
         credit_note.voided_at = datetime.now(UTC)
-        credit_note.voided_by = voided_by
         credit_note.updated_at = datetime.now(UTC)
+
+        if not credit_note.extra_data:
+            credit_note.extra_data = {}
+        credit_note.extra_data["voided_by"] = voided_by
+        credit_note.extra_data["void_reason"] = reason
 
         # Add void reason to internal notes
         if credit_note.internal_notes:
@@ -297,16 +302,21 @@ class CreditNoteService:
 
         credit_note.updated_at = datetime.now(UTC)
 
-        # Add application record
-        if not hasattr(credit_note, "applications"):
-            credit_note.applications = []
-        credit_note.applications.append(
-            {
-                "invoice_id": invoice_id,
-                "amount": amount,
-                "applied_at": datetime.now(UTC).isoformat(),
-            }
+        application = CreditApplicationEntity(
+            tenant_id=tenant_id,
+            credit_note_id=credit_note.credit_note_id,
+            applied_to_type=CreditApplicationType.INVOICE,
+            applied_to_id=invoice_id,
+            applied_amount=amount,
+            application_date=datetime.now(UTC),
+            applied_by="system",
+            notes=None,
+            extra_data={},
         )
+
+        self.db.add(application)
+        if hasattr(credit_note, "applications"):
+            credit_note.applications.append(application)
 
         await self.db.commit()
         await self.db.refresh(credit_note)
@@ -424,7 +434,7 @@ class CreditNoteService:
         transaction = TransactionEntity(
             tenant_id=credit_note.tenant_id,
             transaction_id=str(uuid4()),
-            transaction_type=TransactionType.VOID,
+            transaction_type=TransactionType.ADJUSTMENT,
             amount=credit_note.total_amount,
             currency=credit_note.currency,
             customer_id=credit_note.customer_id,

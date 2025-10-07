@@ -8,7 +8,7 @@ from functools import wraps
 from typing import Any
 
 import redis
-from cachetools import LRUCache, TTLCache, cached
+from cachetools import LRUCache, TTLCache, cached  # type: ignore[import-untyped]
 
 from dotmac.platform.settings import settings
 
@@ -77,7 +77,7 @@ def cache_get(key: str, default: Any | None = None) -> Any:
     return memory_cache.get(key, default)
 
 
-def cache_set(key: str, value: Any, ttl: int = 300) -> bool:
+def cache_set(key: str, value: Any, ttl: int | None = 300) -> bool:
     """
     Set value in cache (Redis if available, memory otherwise).
 
@@ -92,7 +92,11 @@ def cache_set(key: str, value: Any, ttl: int = 300) -> bool:
     client = get_redis()
     if client:
         try:
-            client.setex(key, ttl, pickle.dumps(value))
+            payload = pickle.dumps(value)
+            if ttl is None:
+                client.set(key, payload)
+            else:
+                client.setex(key, ttl, payload)
             return True
         except Exception:
             pass  # Fall back to memory cache

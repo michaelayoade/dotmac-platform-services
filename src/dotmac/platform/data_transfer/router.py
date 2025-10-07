@@ -43,9 +43,12 @@ async def import_data(
             status=TransferStatus.PENDING,
             progress=0.0,
             created_at=datetime.now(UTC),
+            started_at=None,
+            completed_at=None,
             records_processed=0,
             records_failed=0,
             records_total=None,
+            error_message=None,
             metadata={
                 "source_type": request.source_type.value,
                 "format": request.format.value,
@@ -80,9 +83,12 @@ async def export_data(
             status=TransferStatus.PENDING,
             progress=0.0,
             created_at=datetime.now(UTC),
+            started_at=None,
+            completed_at=None,
             records_processed=0,
             records_failed=0,
             records_total=None,
+            error_message=None,
             metadata={
                 "target_type": request.target_type.value,
                 "format": request.format.value,
@@ -131,6 +137,8 @@ async def get_job_status(
             records_processed=1000,
             records_failed=0,
             records_total=1000,
+            error_message=None,
+            metadata=None,
         )
     except HTTPException:
         raise
@@ -145,7 +153,7 @@ async def get_job_status(
 @data_transfer_router.get("/jobs", response_model=TransferJobListResponse)
 async def list_jobs(
     type: TransferType | None = Query(None, description="Filter by job type"),
-    status: TransferStatus | None = Query(None, description="Filter by status"),
+    job_status: TransferStatus | None = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Page size"),
     current_user: UserInfo = Depends(get_current_user),

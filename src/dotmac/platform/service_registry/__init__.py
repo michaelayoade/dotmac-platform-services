@@ -3,6 +3,8 @@ Service Registry using HashiCorp Consul.
 Provides service registration, deregistration, discovery, and health checking.
 """
 
+from typing import Any
+
 from .consul_registry import (
     ConsulServiceInfo,
     deregister_service,
@@ -12,8 +14,10 @@ from .consul_registry import (
 )
 
 # Optional HTTP client with service discovery
+ServiceClient: type[Any] | None
 try:
-    from .client import ServiceClient
+    from .client import ServiceClient as _ImportedServiceClient
+    ServiceClient = _ImportedServiceClient
 except ImportError:
     ServiceClient = None
 

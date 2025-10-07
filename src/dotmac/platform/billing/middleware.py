@@ -6,10 +6,10 @@ Provides centralized error handling, request/response logging, and metrics colle
 
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import structlog
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -29,7 +29,9 @@ class BillingErrorMiddleware(BaseHTTPMiddleware):
     - Adds correlation IDs for request tracing
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process requests with error handling and logging."""
         # Generate correlation ID for request tracing
         correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
@@ -128,7 +130,9 @@ class BillingValidationMiddleware(BaseHTTPMiddleware):
     - Enforces rate limits for billing operations
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Validate and process billing requests."""
         # Skip validation for non-billing endpoints
         if not request.url.path.startswith("/api/v1/billing/"):
@@ -182,7 +186,9 @@ class BillingAuditMiddleware(BaseHTTPMiddleware):
         ("DELETE", "/api/v1/billing/pricing/rules"),
     }
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Audit log sensitive billing operations."""
         # Check if this operation needs audit logging
         operation = (request.method, request.url.path.rstrip("/"))
@@ -236,7 +242,7 @@ class BillingAuditMiddleware(BaseHTTPMiddleware):
             return "billing_operation"
 
 
-def setup_billing_middleware(app) -> None:
+def setup_billing_middleware(app: FastAPI) -> None:
     """
     Configure billing middleware for the FastAPI application.
 

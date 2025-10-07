@@ -7,9 +7,10 @@ Manages automatic cleanup and archiving of audit logs based on retention policie
 import asyncio
 import gzip
 import json
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import structlog
 from sqlalchemy import and_, delete, func, select
@@ -18,6 +19,73 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_async_db
 from ..settings import settings
 from .models import ActivitySeverity, AuditActivity
+
+
+@dataclass
+class AuditCleanupResult:
+    """Structured cleanup result with helpful accessors."""
+
+    total_deleted: int = 0
+    total_archived: int = 0
+    by_severity: dict[str, int] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total_deleted": self.total_deleted,
+            "total_archived": self.total_archived,
+            "by_severity": dict(self.by_severity),
+            "errors": list(self.errors),
+        }
+
+
+@dataclass
+class AuditRestoreResult:
+    """Structured archive restoration result."""
+
+    total_restored: int = 0
+    skipped: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total_restored": self.total_restored,
+            "skipped": self.skipped,
+            "errors": list(self.errors),
+        }
+
+
+@dataclass
+class AuditDeletionInfo:
+    """Summary describing pending deletions by severity."""
+
+    count: int
+    older_than: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"count": self.count, "older_than": self.older_than}
+
+
+@dataclass
+class AuditRetentionStats:
+    """Comprehensive statistics about current audit retention state."""
+
+    total_records: int = 0
+    by_severity: dict[str, int] = field(default_factory=dict)
+    oldest_record: str | None = None
+    newest_record: str | None = None
+    records_to_delete: dict[str, AuditDeletionInfo] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total_records": self.total_records,
+            "by_severity": dict(self.by_severity),
+            "oldest_record": self.oldest_record,
+            "newest_record": self.newest_record,
+            "records_to_delete": {
+                severity: info.as_dict() for severity, info in self.records_to_delete.items()
+            },
+        }
 
 logger = structlog.get_logger(__name__)
 
@@ -31,7 +99,7 @@ class AuditRetentionPolicy:
         archive_enabled: bool = True,
         archive_location: str = "/var/audit/archive",
         batch_size: int = 1000,
-        severity_retention: dict[str, int] | None = None,
+        severity_retention: Mapping[str, int] | None = None,
     ):
         """
         Initialize retention policy.
@@ -49,12 +117,13 @@ class AuditRetentionPolicy:
         self.batch_size = batch_size
 
         # Custom retention by severity (e.g., keep CRITICAL longer)
-        self.severity_retention = severity_retention or {
-            ActivitySeverity.LOW: 30,
-            ActivitySeverity.MEDIUM: 60,
-            ActivitySeverity.HIGH: 90,
-            ActivitySeverity.CRITICAL: 365,
+        default_retention: dict[str, int] = {
+            ActivitySeverity.LOW.value: 30,
+            ActivitySeverity.MEDIUM.value: 60,
+            ActivitySeverity.HIGH.value: 90,
+            ActivitySeverity.CRITICAL.value: 365,
         }
+        self.severity_retention = dict(severity_retention or default_retention)
 
 
 class AuditRetentionService:
@@ -84,16 +153,12 @@ class AuditRetentionService:
             Summary of cleanup operation
         """
         async with get_async_db() as session:
-            results = {
-                "total_deleted": 0,
-                "total_archived": 0,
-                "by_severity": {},
-                "errors": [],
-            }
+            results = AuditCleanupResult()
 
             # Process each severity level with its retention period
             for severity, retention_days in self.policy.severity_retention.items():
                 cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
+                severity_key = str(severity)
 
                 try:
                     # Build query for old records
@@ -110,7 +175,7 @@ class AuditRetentionService:
                     # Count records to be processed
                     count_query = select(func.count()).select_from(query.subquery())
                     count_result = await session.execute(count_query)
-                    total_count = count_result.scalar()
+                    total_count = int(count_result.scalar_one())
 
                     if total_count == 0:
                         continue
@@ -127,9 +192,9 @@ class AuditRetentionService:
                         # Archive if enabled
                         if self.policy.archive_enabled:
                             archived_count = await self._archive_logs(
-                                session, query, severity, cutoff_date
+                                session, query, severity_key, cutoff_date
                             )
-                            results["total_archived"] += archived_count
+                            results.total_archived += archived_count
 
                         # Delete old records
                         delete_query = delete(AuditActivity).where(
@@ -142,11 +207,11 @@ class AuditRetentionService:
                             delete_query = delete_query.where(AuditActivity.tenant_id == tenant_id)
 
                         result = await session.execute(delete_query)
-                        deleted_count = result.rowcount
+                        deleted_count = int(result.rowcount or 0)
                         await session.commit()
 
-                        results["total_deleted"] += deleted_count
-                        results["by_severity"][severity] = deleted_count
+                        results.total_deleted += deleted_count
+                        results.by_severity[severity_key] = deleted_count
 
                         logger.info(
                             "Cleaned up audit logs",
@@ -155,15 +220,15 @@ class AuditRetentionService:
                             archived=self.policy.archive_enabled,
                         )
                     else:
-                        results["by_severity"][severity] = total_count
-                        results["total_deleted"] += total_count
+                        results.by_severity[severity_key] = total_count
+                        results.total_deleted += total_count
 
                 except Exception as e:
                     error_msg = f"Error processing {severity} logs: {str(e)}"
                     logger.error(error_msg, exc_info=True)
-                    results["errors"].append(error_msg)
+                    results.errors.append(error_msg)
 
-            return results
+            return results.as_dict()
 
     async def _archive_logs(
         self,
@@ -267,11 +332,7 @@ class AuditRetentionService:
         if not file_path.exists():
             raise FileNotFoundError(f"Archive file not found: {archive_file}")
 
-        results = {
-            "total_restored": 0,
-            "skipped": 0,
-            "errors": [],
-        }
+        results = AuditRestoreResult()
 
         async with get_async_db() as session:
             try:
@@ -284,7 +345,7 @@ class AuditRetentionService:
 
                             # Filter by tenant if specified
                             if tenant_id and record_dict.get("tenant_id") != tenant_id:
-                                results["skipped"] += 1
+                                results.skipped += 1
                                 continue
 
                             # Convert back to model
@@ -317,33 +378,33 @@ class AuditRetentionService:
                             if len(batch) >= self.policy.batch_size:
                                 session.add_all(batch)
                                 await session.commit()
-                                results["total_restored"] += len(batch)
+                                results.total_restored += len(batch)
                                 batch = []
 
                         except Exception as e:
                             error_msg = f"Error restoring record: {str(e)}"
                             logger.error(error_msg, record=line[:100])
-                            results["errors"].append(error_msg)
+                            results.errors.append(error_msg)
 
                     # Insert remaining batch
                     if batch:
                         session.add_all(batch)
                         await session.commit()
-                        results["total_restored"] += len(batch)
+                        results.total_restored += len(batch)
 
                 logger.info(
                     "Restored audit logs from archive",
                     archive_file=archive_file,
-                    total_restored=results["total_restored"],
-                    skipped=results["skipped"],
+                    total_restored=results.total_restored,
+                    skipped=results.skipped,
                 )
 
             except Exception as e:
                 error_msg = f"Failed to restore from archive: {str(e)}"
                 logger.error(error_msg, exc_info=True)
-                results["errors"].append(error_msg)
+                results.errors.append(error_msg)
 
-        return results
+        return results.as_dict()
 
     async def get_retention_statistics(
         self,
@@ -359,13 +420,7 @@ class AuditRetentionService:
             Statistics about current audit logs
         """
         async with get_async_db() as session:
-            stats = {
-                "total_records": 0,
-                "by_severity": {},
-                "oldest_record": None,
-                "newest_record": None,
-                "records_to_delete": {},
-            }
+            stats = AuditRetentionStats()
 
             # Get total count
             count_query = select(func.count()).select_from(AuditActivity)
@@ -373,7 +428,7 @@ class AuditRetentionService:
                 count_query = count_query.where(AuditActivity.tenant_id == tenant_id)
 
             count_result = await session.execute(count_query)
-            stats["total_records"] = count_result.scalar()
+            stats.total_records = int(count_result.scalar_one())
 
             # Get count by severity
             severity_query = select(AuditActivity.severity, func.count()).group_by(
@@ -383,7 +438,9 @@ class AuditRetentionService:
                 severity_query = severity_query.where(AuditActivity.tenant_id == tenant_id)
 
             severity_result = await session.execute(severity_query)
-            stats["by_severity"] = dict(severity_result.all())
+            stats.by_severity = {
+                str(row[0]): int(row[1]) for row in severity_result.all()
+            }
 
             # Get date range
             date_query = select(
@@ -397,9 +454,9 @@ class AuditRetentionService:
             oldest, newest = date_result.one()
 
             if oldest:
-                stats["oldest_record"] = oldest.isoformat()
+                stats.oldest_record = oldest.isoformat()
             if newest:
-                stats["newest_record"] = newest.isoformat()
+                stats.newest_record = newest.isoformat()
 
             # Calculate records to be deleted
             for severity, retention_days in self.policy.severity_retention.items():
@@ -421,15 +478,15 @@ class AuditRetentionService:
                     )
 
                 delete_count_result = await session.execute(delete_count_query)
-                count_to_delete = delete_count_result.scalar()
+                count_to_delete = int(delete_count_result.scalar_one())
 
                 if count_to_delete > 0:
-                    stats["records_to_delete"][severity] = {
-                        "count": count_to_delete,
-                        "older_than": cutoff_date.isoformat(),
-                    }
+                    stats.records_to_delete[str(severity)] = AuditDeletionInfo(
+                        count=count_to_delete,
+                        older_than=cutoff_date.isoformat(),
+                    )
 
-            return stats
+            return stats.as_dict()
 
 
 # Scheduled task for automatic cleanup

@@ -331,6 +331,9 @@ async def list_secrets(
                 # Still include the secret even if parsing fails
                 secret_info = SecretInfo(
                     path=secret_data.get("path", "unknown"),
+                    created_time=None,
+                    updated_time=None,
+                    version=None,
                     metadata={"source": "vault", "parsing_error": str(e)},
                 )
                 secrets.append(secret_info)

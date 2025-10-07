@@ -13,7 +13,7 @@ import asyncio
 import time
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from fastapi import HTTPException
@@ -232,7 +232,7 @@ class APIGateway:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        aggregated = {}
+        aggregated: dict[str, Any] = {}
         for (service_name, _, _, _), result in zip(requests, results, strict=False):
             if isinstance(result, Exception):
                 aggregated[service_name] = {
@@ -240,8 +240,9 @@ class APIGateway:
                     "status": "failed",
                 }
             else:
+                response = cast(GatewayResponse, result)
                 aggregated[service_name] = {
-                    "data": result.data,
+                    "data": response.data,
                     "status": "success",
                 }
 

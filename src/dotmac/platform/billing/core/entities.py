@@ -52,7 +52,6 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     """Invoice database entity"""
 
     __tablename__ = "invoices"
-    __table_args__ = {"extend_existing": True}
 
     invoice_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -112,7 +111,7 @@ class InvoiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     payments: Mapped[list["PaymentInvoiceEntity"]] = relationship(back_populates="invoice")
 
     # Indexes and constraints
-    __table_args__ = (
+    __table_args__: tuple[Any, ...] = (
         Index("idx_invoice_tenant_customer", "tenant_id", "customer_id"),
         Index("idx_invoice_tenant_status", "tenant_id", "status"),
         Index("idx_invoice_tenant_due_date", "tenant_id", "due_date"),
@@ -166,7 +165,6 @@ class PaymentEntity(Base, TenantMixin, TimestampMixin):
     """Payment database entity"""
 
     __tablename__ = "payments"
-    __table_args__ = {"extend_existing": True}
 
     payment_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -211,7 +209,7 @@ class PaymentEntity(Base, TenantMixin, TimestampMixin):
     invoices: Mapped[list["PaymentInvoiceEntity"]] = relationship(back_populates="payment")
 
     # Indexes and constraints
-    __table_args__ = (
+    __table_args__: tuple[Any, ...] = (
         Index("idx_payment_tenant_customer", "tenant_id", "customer_id"),
         Index("idx_payment_tenant_status", "tenant_id", "status"),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_payment_idempotency"),
@@ -245,7 +243,6 @@ class PaymentMethodEntity(Base, TenantMixin, TimestampMixin, SoftDeleteMixin):
     """Payment method database entity"""
 
     __tablename__ = "payment_methods"
-    __table_args__ = {"extend_existing": True}
 
     payment_method_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -285,7 +282,10 @@ class PaymentMethodEntity(Base, TenantMixin, TimestampMixin, SoftDeleteMixin):
     extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Indexes
-    __table_args__ = (Index("idx_payment_method_tenant_customer", "tenant_id", "customer_id"),)
+    __table_args__: tuple[Any, ...] = (
+        Index("idx_payment_method_tenant_customer", "tenant_id", "customer_id"),
+        {"extend_existing": True},
+    )
 
 
 # ============================================================================
@@ -297,7 +297,6 @@ class TransactionEntity(Base, TenantMixin):
     """Transaction ledger database entity"""
 
     __tablename__ = "transactions"
-    __table_args__ = {"extend_existing": True}
 
     transaction_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -326,9 +325,10 @@ class TransactionEntity(Base, TenantMixin):
     extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Indexes
-    __table_args__ = (
+    __table_args__: tuple[Any, ...] = (
         Index("idx_transaction_tenant_customer", "tenant_id", "customer_id"),
         Index("idx_transaction_tenant_date", "tenant_id", "transaction_date"),
+        {"extend_existing": True},
     )
 
 
@@ -341,7 +341,6 @@ class CreditNoteEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     """Credit note database entity"""
 
     __tablename__ = "credit_notes"
-    __table_args__ = {"extend_existing": True}
 
     credit_note_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -395,10 +394,11 @@ class CreditNoteEntity(Base, TenantMixin, TimestampMixin, AuditMixin):
     )
 
     # Indexes and constraints
-    __table_args__ = (
+    __table_args__: tuple[Any, ...] = (
         Index("idx_credit_note_tenant_customer", "tenant_id", "customer_id"),
         Index("idx_credit_note_tenant_status", "tenant_id", "status"),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_credit_note_idempotency"),
+        {"extend_existing": True},
     )
 
 
@@ -406,7 +406,10 @@ class CreditNoteLineItemEntity(Base):
     """Credit note line item database entity"""
 
     __tablename__ = "credit_note_line_items"
-    __table_args__ = {"extend_existing": True}
+    __table_args__: tuple[Any, ...] = (
+        Index("idx_credit_note_line_item_credit_note", "credit_note_id"),
+        {"extend_existing": True},
+    )
 
     line_item_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -440,7 +443,6 @@ class CreditApplicationEntity(Base, TenantMixin):
     """Credit application database entity"""
 
     __tablename__ = "credit_applications"
-    __table_args__ = {"extend_existing": True}
 
     application_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
@@ -472,14 +474,17 @@ class CreditApplicationEntity(Base, TenantMixin):
     credit_note: Mapped[CreditNoteEntity] = relationship(back_populates="applications")
 
     # Indexes
-    __table_args__ = (Index("idx_credit_application_tenant_target", "tenant_id", "applied_to_id"),)
+    __table_args__ = (
+        Index("idx_credit_application_tenant_target", "tenant_id", "applied_to_id"),
+        {"extend_existing": True},
+    )
 
 
 class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
     """Customer credit balance database entity"""
 
     __tablename__ = "customer_credits"
-    __table_args__ = {"extend_existing": True}
+    __table_args__: tuple[Any, ...]
 
     customer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(255), primary_key=True)
@@ -498,4 +503,7 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
     extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Composite primary key
-    __table_args__ = (Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),)
+    __table_args__ = (
+        Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),
+        {"extend_existing": True},
+    )

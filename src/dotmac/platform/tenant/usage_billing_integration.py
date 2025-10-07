@@ -7,13 +7,72 @@ track and bill for resource consumption.
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict
 
 from ..billing.catalog.models import UsageType
-from ..billing.subscriptions.models import UsageRecordRequest
+from ..billing.subscriptions.models import SubscriptionStatus, UsageRecordRequest
 from ..billing.subscriptions.service import SubscriptionService
 from .schemas import TenantUsageCreate
 from .service import TenantService
+
+
+class BillingRecordEntry(TypedDict):
+    """Summary entry describing a single usage record attempt."""
+
+    type: str
+    quantity: int | float
+    recorded: bool
+
+
+class UsageOverageDetail(TypedDict):
+    """Details about a specific overage metric."""
+
+    metric: str
+    limit: int | float
+    usage: int | float
+    overage: int | float
+    rate: str
+    charge: str
+
+
+class OverageSummary(TypedDict):
+    """Structured overage calculation output."""
+
+    tenant_id: str
+    period_start: datetime | None
+    period_end: datetime | None
+    has_overages: bool
+    overages: list[UsageOverageDetail]
+    total_overage_charge: str
+    currency: str
+
+
+class UsageMetric(TypedDict):
+    """Single usage metric summary for previews."""
+
+    current: int | float
+    limit: int | float
+    percentage: float
+
+
+class UsageSummary(TypedDict):
+    """Collection of usage metrics."""
+
+    api_calls: UsageMetric
+    storage_gb: UsageMetric
+    users: UsageMetric
+
+
+class BillingPreview(TypedDict, total=False):
+    """Preview of upcoming billing charges."""
+
+    tenant_id: str
+    plan_type: str
+    billing_cycle: str
+    base_subscription_cost: str
+    usage_summary: UsageSummary
+    overages: OverageSummary
+    total_estimated_charge: str
 
 
 class TenantUsageBillingIntegration:
@@ -199,7 +258,7 @@ class TenantUsageBillingIntegration:
         tenant_id: str,
         period_start: datetime | None = None,
         period_end: datetime | None = None,
-    ) -> dict[str, Any]:
+    ) -> OverageSummary:
         """
         Calculate overage charges for tenant exceeding plan limits.
 
@@ -213,7 +272,7 @@ class TenantUsageBillingIntegration:
         """
         tenant = await self.tenant_service.get_tenant(tenant_id)
 
-        overages = []
+        overages: list[UsageOverageDetail] = []
         total_overage_amount = Decimal("0")
 
         # Check API calls overage
@@ -284,7 +343,7 @@ class TenantUsageBillingIntegration:
         self,
         tenant_id: str,
         include_overages: bool = True,
-    ) -> dict[str, Any]:
+    ) -> BillingPreview:
         """
         Get preview of upcoming billing charges for tenant.
 
@@ -298,26 +357,34 @@ class TenantUsageBillingIntegration:
         tenant = await self.tenant_service.get_tenant(tenant_id)
         stats = await self.tenant_service.get_tenant_stats(tenant_id)
 
-        preview = {
+        plan_type_value = tenant.plan_type.value if hasattr(tenant.plan_type, "value") else str(tenant.plan_type)
+        billing_cycle_value = (
+            tenant.billing_cycle.value
+            if hasattr(tenant.billing_cycle, "value")
+            else str(tenant.billing_cycle)
+        )
+        base_subscription_cost = self._get_plan_base_cost(plan_type_value)
+
+        preview: BillingPreview = {
             "tenant_id": tenant_id,
-            "plan_type": tenant.plan_type,
-            "billing_cycle": tenant.billing_cycle,
-            "base_subscription_cost": self._get_plan_base_cost(tenant.plan_type),
+            "plan_type": plan_type_value,
+            "billing_cycle": billing_cycle_value,
+            "base_subscription_cost": base_subscription_cost,
             "usage_summary": {
                 "api_calls": {
                     "current": tenant.current_api_calls,
                     "limit": tenant.max_api_calls_per_month,
-                    "percentage": stats.api_usage_percent,
+                    "percentage": float(stats.api_usage_percent),
                 },
                 "storage_gb": {
                     "current": float(tenant.current_storage_gb),
                     "limit": tenant.max_storage_gb,
-                    "percentage": stats.storage_usage_percent,
+                    "percentage": float(stats.storage_usage_percent),
                 },
                 "users": {
                     "current": tenant.current_users,
                     "limit": tenant.max_users,
-                    "percentage": stats.user_usage_percent,
+                    "percentage": float(stats.user_usage_percent),
                 },
             },
         }
@@ -326,11 +393,11 @@ class TenantUsageBillingIntegration:
             overage_data = await self.calculate_overage_charges(tenant_id)
             preview["overages"] = overage_data
 
-            base_cost = Decimal(preview["base_subscription_cost"])
+            base_cost = Decimal(base_subscription_cost)
             overage_cost = Decimal(overage_data["total_overage_charge"])
             preview["total_estimated_charge"] = str(base_cost + overage_cost)
         else:
-            preview["total_estimated_charge"] = preview["base_subscription_cost"]
+            preview["total_estimated_charge"] = base_subscription_cost
 
         return preview
 
@@ -340,7 +407,7 @@ class TenantUsageBillingIntegration:
         # For now, return None if not found
         subscriptions = await self.subscription_service.list_subscriptions(
             tenant_id=tenant_id,
-            status="active",
+            status=SubscriptionStatus.ACTIVE,
         )
 
         if subscriptions and len(subscriptions) > 0:

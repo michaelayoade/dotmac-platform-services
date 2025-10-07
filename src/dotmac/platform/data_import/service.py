@@ -416,7 +416,7 @@ class DataImportService:
         query = query.limit(limit).offset(offset)
 
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_import_failures(
         self, job_id: str, tenant_id: str, limit: int = 100
@@ -432,7 +432,7 @@ class DataImportService:
         )
 
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     # Helper methods
     async def _create_import_job(

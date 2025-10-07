@@ -167,8 +167,9 @@ async def _get_billing_metrics_cached(
     subscription_result = await session.execute(subscription_query)
     subscription_row = subscription_result.one()
 
-    active_subscriptions = subscription_row.count or 0
-    total_subscription_amount = float(subscription_row.total_amount or 0)
+    subscription_mapping = subscription_row._mapping
+    active_subscriptions = int(subscription_mapping.get("count") or 0)
+    total_subscription_amount = float(subscription_mapping.get("total_amount") or 0)
 
     # Calculate MRR and ARR
     mrr = total_subscription_amount / 100

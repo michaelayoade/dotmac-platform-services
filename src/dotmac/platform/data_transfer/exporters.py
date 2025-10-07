@@ -1,8 +1,9 @@
-"""
-Data exporters using pandas for various file formats.
-"""
+"""Data exporters using pandas for various file formats."""
+
+from __future__ import annotations
 
 import asyncio
+import importlib
 import bz2
 import gzip
 import json
@@ -10,10 +11,27 @@ import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol, cast
 from xml.dom import minidom
 
 import pandas as pd
-import yaml
+
+class _YamlProtocol(Protocol):
+    """Minimal subset of yaml API used in this module."""
+
+    def safe_dump(
+        self, data: object, stream: object | None = None, **kwargs: object
+    ) -> str:  # pragma: no cover
+        ...
+
+
+if TYPE_CHECKING:
+    yaml: _YamlProtocol | None
+else:
+    try:
+        yaml = cast(_YamlProtocol, importlib.import_module("yaml"))
+    except ImportError:  # pragma: no cover - optional dependency
+        yaml = None
 
 from .core import (
     BaseExporter,
@@ -259,8 +277,11 @@ class YAMLExporter(BaseExporter):
                 await asyncio.sleep(0)
 
             # Export to YAML
+            if yaml is None:
+                raise ExportError("PyYAML is required for YAML exports")
+
             with open(file_path, "w", encoding=self.options.encoding) as f:
-                yaml.dump(
+                yaml.safe_dump(
                     all_records,
                     f,
                     default_flow_style=False,
@@ -283,9 +304,9 @@ def create_exporter(
     progress_callback: ProgressCallback | None = None,
 ) -> BaseExporter:
     """Create an exporter for the specified format."""
-    options = options or ExportOptions()
+    resolved_options = options or ExportOptions()
 
-    exporters = {
+    exporters: dict[DataFormat, type[BaseExporter]] = {
         DataFormat.CSV: CSVExporter,
         DataFormat.JSON: JSONExporter,
         DataFormat.JSONL: JSONExporter,
@@ -295,13 +316,13 @@ def create_exporter(
     }
 
     if format == DataFormat.JSONL:
-        options.json_lines = True
+        resolved_options.json_lines = True
 
     exporter_class = exporters.get(format)
-    if not exporter_class:
+    if exporter_class is None:
         raise FormatError(f"No exporter available for format: {format}")
 
-    return exporter_class(config, options, progress_callback)
+    return exporter_class(config, resolved_options, progress_callback)
 
 
 async def export_data(

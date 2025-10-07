@@ -181,6 +181,7 @@ class Invoice(AggregateRoot):
                 customer_id=invoice.customer_id,
                 amount=invoice.total_amount.amount,
                 currency=invoice.total_amount.currency,
+                sequence=None,
             )
         )
 
@@ -266,6 +267,7 @@ class Invoice(AggregateRoot):
                 payment_id=payment_id,
                 amount=amount.amount,
                 payment_method=payment_method,
+                sequence=None,
             )
         )
 
@@ -294,6 +296,7 @@ class Invoice(AggregateRoot):
                 tenant_id=self.tenant_id,
                 invoice_number=self.invoice_number,
                 reason=reason,
+                sequence=None,
             )
         )
 
@@ -323,6 +326,7 @@ class Invoice(AggregateRoot):
                 invoice_number=self.invoice_number,
                 days_overdue=days_overdue,
                 amount_due=self.total_amount.amount,
+                sequence=None,
             )
         )
 
@@ -418,6 +422,7 @@ class Payment(AggregateRoot):
                 currency=self.amount.currency,
                 payment_method=self.payment_method,
                 customer_id=self.customer_id,
+                sequence=None,
             )
         )
 
@@ -450,6 +455,7 @@ class Payment(AggregateRoot):
                 error_code=error_code,
                 error_message=error_message,
                 customer_id=self.customer_id,
+                sequence=None,
             )
         )
 
@@ -481,6 +487,7 @@ class Payment(AggregateRoot):
                 refund_id=refund_id,
                 amount=self.amount.amount,
                 reason=reason,
+                sequence=None,
             )
         )
 
@@ -567,6 +574,7 @@ class Subscription(AggregateRoot):
                 customer_id=subscription.customer_id,
                 plan_id=subscription.plan_id,
                 start_date=now,
+                sequence=None,
             )
         )
 
@@ -590,6 +598,7 @@ class Subscription(AggregateRoot):
                 subscription_id=self.subscription_id,
                 renewal_date=now,
                 next_billing_date=self.current_period_end,
+                sequence=None,
             )
         )
 
@@ -621,6 +630,7 @@ class Subscription(AggregateRoot):
                 cancellation_reason=reason,
                 cancelled_at=now,
                 end_of_service_date=end_of_service,
+                sequence=None,
             )
         )
 
@@ -641,6 +651,7 @@ class Subscription(AggregateRoot):
                 old_plan_id=old_plan_id,
                 new_plan_id=new_plan_id,
                 effective_date=datetime.now(UTC),
+                sequence=None,
             )
         )
 
@@ -713,6 +724,7 @@ class Customer(AggregateRoot):
                 customer_id=customer.customer_id,
                 email=customer.email,
                 name=customer.name,
+                sequence=None,
             )
         )
 
@@ -756,6 +768,7 @@ class Customer(AggregateRoot):
                     tenant_id=self.tenant_id,
                     customer_id=self.customer_id,
                     updated_fields=updated_fields,
+                    sequence=None,
                 )
             )
 
@@ -774,5 +787,6 @@ class Customer(AggregateRoot):
                 tenant_id=self.tenant_id,
                 customer_id=self.customer_id,
                 deletion_reason=reason,
+                sequence=None,
             )
         )

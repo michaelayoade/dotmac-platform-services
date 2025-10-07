@@ -61,9 +61,8 @@ async def get_registry() -> PluginRegistry:
     """Get the plugin registry."""
     registry = get_plugin_registry()
     # Ensure it's initialized
-    if not hasattr(registry, "_initialized"):
+    if not hasattr(registry, "_plugins"):
         await registry.initialize()
-        registry._initialized = True
     return registry
 
 
@@ -117,7 +116,7 @@ async def get_plugin_schema(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found"
         )
 
-    return PluginSchemaResponse(config_schema=schema)
+    return PluginSchemaResponse(schema=schema, instance_id=None)
 
 
 @router.post("/instances", response_model=PluginInstance, status_code=status.HTTP_201_CREATED)
@@ -190,7 +189,7 @@ async def get_plugin_configuration(
         return PluginConfigurationResponse(
             plugin_instance_id=instance_id,
             configuration=configuration,
-            config_schema=instance.config_schema,
+            schema=instance.config_schema,
             status=instance.status,
             last_updated=instance.last_health_check,  # Proxy for last updated
         )
@@ -306,14 +305,16 @@ async def bulk_health_check(
             health_check = await registry.health_check_plugin(instance_id)
             results.append(health_check)
         except Exception as e:
+            from datetime import UTC, datetime
             # Create error health check result
             results.append(
                 PluginHealthCheck(
-                    plugin_instance_id=str(instance_id),
+                    plugin_instance_id=instance_id,
                     status="error",
                     message=f"Health check failed: {str(e)}",
                     details={"error": str(e)},
-                    timestamp="",  # Will be set by registry
+                    timestamp=datetime.now(UTC).isoformat(),
+                    response_time_ms=0,
                 )
             )
 

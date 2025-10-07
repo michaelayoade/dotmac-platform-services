@@ -15,7 +15,11 @@ from ..billing.subscriptions.service import SubscriptionService
 from ..database import get_async_session
 from .schemas import TenantUsageCreate
 from .service import TenantService
-from .usage_billing_integration import TenantUsageBillingIntegration
+from .usage_billing_integration import (
+    BillingPreview,
+    OverageSummary,
+    TenantUsageBillingIntegration,
+)
 
 router = APIRouter(prefix="/api/v1/tenants", tags=["Tenant Usage Billing"])
 
@@ -130,7 +134,7 @@ async def get_usage_overages(
         period_start=period_start,
         period_end=period_end,
     )
-    return result
+    return dict(result)
 
 
 @router.get("/{tenant_id}/billing/preview", response_model=dict[str, Any])
@@ -159,7 +163,7 @@ async def get_billing_preview(
         tenant_id=tenant_id,
         include_overages=include_overages,
     )
-    return result
+    return dict(result)
 
 
 @router.get("/{tenant_id}/usage/billing-status", response_model=dict[str, Any])

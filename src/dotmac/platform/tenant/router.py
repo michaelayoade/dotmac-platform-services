@@ -66,7 +66,7 @@ async def create_tenant(
         # Convert to response model
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -109,7 +109,7 @@ async def list_tenants(
     for tenant in tenants:
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -143,7 +143,7 @@ async def get_current_tenant(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -170,7 +170,7 @@ async def get_tenant(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -197,7 +197,7 @@ async def get_tenant_by_slug(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -227,7 +227,7 @@ async def update_tenant(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -272,7 +272,7 @@ async def restore_tenant(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -524,7 +524,7 @@ async def update_tenant_features(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
@@ -554,7 +554,7 @@ async def update_tenant_metadata(
 
         response = TenantResponse.model_validate(tenant)
         response.is_trial = tenant.is_trial
-        response.is_active = tenant.is_active
+        response.is_active = tenant.status_is_active
         response.trial_expired = tenant.trial_expired
         response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
         response.has_exceeded_api_limit = tenant.has_exceeded_api_limit

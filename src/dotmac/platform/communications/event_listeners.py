@@ -6,11 +6,22 @@ modules (e.g., billing) and trigger appropriate communications.
 """
 
 import structlog
+from pydantic import EmailStr
 
+from dotmac.platform.communications.email_service import EmailMessage, EmailService
 from dotmac.platform.events import subscribe
 from dotmac.platform.events.models import Event
 
 logger = structlog.get_logger(__name__)
+
+
+def _email_html_message(recipient: str, subject: str, html_body: str) -> EmailMessage:
+    """Create an EmailMessage with HTML content."""
+    return EmailMessage(
+        to=[EmailStr(recipient)],
+        subject=subject,
+        html_body=html_body,
+    )
 
 
 # ============================================================================
@@ -39,33 +50,26 @@ async def send_invoice_created_email(event: Event) -> None:
     )
 
     try:
-        # Import here to avoid circular dependencies
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         # Get customer email (in real implementation, fetch from customer service)
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        # Send invoice email
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject=f"New Invoice #{invoice_id}",
-            body=f"""
-            <h2>Invoice Created</h2>
-            <p>A new invoice has been created for your account.</p>
-            <p><strong>Invoice ID:</strong> {invoice_id}</p>
-            <p><strong>Amount:</strong> {currency} {amount}</p>
-            <p>Please review and process your payment.</p>
-            """,
-            template_name="invoice_created",
-            context={
-                "invoice_id": invoice_id,
-                "amount": amount,
-                "currency": currency,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Invoice Created</h2>
+                <p>A new invoice has been created for your account.</p>
+                <p><strong>Invoice ID:</strong> {invoice_id}</p>
+                <p><strong>Amount:</strong> {currency} {amount}</p>
+                <p>Please review and process your payment.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Invoice created email sent",
@@ -104,30 +108,25 @@ async def send_invoice_paid_email(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject=f"Payment Received for Invoice #{invoice_id}",
-            body=f"""
-            <h2>Payment Confirmation</h2>
-            <p>Thank you! We've received your payment.</p>
-            <p><strong>Invoice ID:</strong> {invoice_id}</p>
-            <p><strong>Payment ID:</strong> {payment_id}</p>
-            <p><strong>Amount Paid:</strong> ${amount}</p>
-            """,
-            template_name="invoice_paid",
-            context={
-                "invoice_id": invoice_id,
-                "payment_id": payment_id,
-                "amount": amount,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Payment Confirmation</h2>
+                <p>Thank you! We've received your payment.</p>
+                <p><strong>Invoice ID:</strong> {invoice_id}</p>
+                <p><strong>Payment ID:</strong> {payment_id}</p>
+                <p><strong>Amount Paid:</strong> {amount}</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Invoice paid email sent",
@@ -166,31 +165,26 @@ async def send_invoice_overdue_reminder(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject=f"Overdue Invoice Reminder - #{invoice_id}",
-            body=f"""
-            <h2>Payment Reminder</h2>
-            <p>This is a reminder that your invoice is now overdue.</p>
-            <p><strong>Invoice ID:</strong> {invoice_id}</p>
-            <p><strong>Amount Due:</strong> ${amount}</p>
-            <p><strong>Days Overdue:</strong> {days_overdue}</p>
-            <p>Please make your payment as soon as possible to avoid service interruption.</p>
-            """,
-            template_name="invoice_overdue",
-            context={
-                "invoice_id": invoice_id,
-                "amount": amount,
-                "days_overdue": days_overdue,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Payment Reminder</h2>
+                <p>This is a reminder that your invoice is now overdue.</p>
+                <p><strong>Invoice ID:</strong> {invoice_id}</p>
+                <p><strong>Amount Due:</strong> {amount}</p>
+                <p><strong>Days Overdue:</strong> {days_overdue}</p>
+                <p>Please make your payment as soon as possible to avoid service interruption.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Invoice overdue email sent",
@@ -234,30 +228,25 @@ async def send_payment_failed_notification(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject=f"Payment Failed - Invoice #{invoice_id}",
-            body=f"""
-            <h2>Payment Failed</h2>
-            <p>We were unable to process your payment.</p>
-            <p><strong>Invoice ID:</strong> {invoice_id}</p>
-            <p><strong>Error:</strong> {error_message}</p>
-            <p>Please update your payment method and try again.</p>
-            """,
-            template_name="payment_failed",
-            context={
-                "payment_id": payment_id,
-                "invoice_id": invoice_id,
-                "error_message": error_message,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Payment Failed</h2>
+                <p>We were unable to process your payment.</p>
+                <p><strong>Invoice ID:</strong> {invoice_id}</p>
+                <p><strong>Error:</strong> {error_message}</p>
+                <p>Please update your payment method and try again.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Payment failed email sent",
@@ -299,29 +288,25 @@ async def send_subscription_welcome_email(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject="Welcome to Your New Subscription!",
-            body=f"""
-            <h2>Subscription Activated</h2>
-            <p>Thank you for subscribing!</p>
-            <p><strong>Subscription ID:</strong> {subscription_id}</p>
-            <p><strong>Plan:</strong> {plan_id}</p>
-            <p>Your subscription is now active.</p>
-            """,
-            template_name="subscription_welcome",
-            context={
-                "subscription_id": subscription_id,
-                "plan_id": plan_id,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Subscription Activated</h2>
+                <p>Thank you for subscribing!</p>
+                <p><strong>Subscription ID:</strong> {subscription_id}</p>
+                <p><strong>Plan:</strong> {plan_id}</p>
+                <p>Your subscription is now active.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Subscription welcome email sent",
@@ -358,29 +343,26 @@ async def send_subscription_cancelled_email(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        reason_html = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
+        message = _email_html_message(
+            recipient=customer_email,
             subject="Subscription Cancelled",
-            body=f"""
-            <h2>Subscription Cancelled</h2>
-            <p>Your subscription has been cancelled as requested.</p>
-            <p><strong>Subscription ID:</strong> {subscription_id}</p>
-            {f'<p><strong>Reason:</strong> {reason}</p>' if reason else ''}
-            <p>We're sorry to see you go. You can resubscribe anytime.</p>
-            """,
-            template_name="subscription_cancelled",
-            context={
-                "subscription_id": subscription_id,
-                "reason": reason,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Subscription Cancelled</h2>
+                <p>Your subscription has been cancelled as requested.</p>
+                <p><strong>Subscription ID:</strong> {subscription_id}</p>
+                {reason_html}
+                <p>We're sorry to see you go. You can resubscribe anytime.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Subscription cancelled email sent",
@@ -418,28 +400,24 @@ async def send_trial_ending_reminder(event: Event) -> None:
     )
 
     try:
-        from dotmac.platform.communications.email_service import EmailService
-
         email_service = EmailService()
 
         customer_email = event.payload.get("customer_email", f"customer-{customer_id}@example.com")
 
-        await email_service.send_email(
-            to_email=customer_email,
+        message = _email_html_message(
+            recipient=customer_email,
             subject=f"Your Trial Ends in {days_remaining} Days",
-            body=f"""
-            <h2>Trial Ending Soon</h2>
-            <p>Your trial subscription will end in {days_remaining} days.</p>
-            <p><strong>Subscription ID:</strong> {subscription_id}</p>
-            <p>Please add a payment method to continue your subscription after the trial period.</p>
-            """,
-            template_name="trial_ending",
-            context={
-                "subscription_id": subscription_id,
-                "days_remaining": days_remaining,
-                "customer_id": customer_id,
-            },
+            html_body=(
+                f"""
+                <h2>Trial Ending Soon</h2>
+                <p>Your trial subscription will end in {days_remaining} days.</p>
+                <p><strong>Subscription ID:</strong> {subscription_id}</p>
+                <p>Please add a payment method to continue your subscription after the trial period.</p>
+                """
+            ),
         )
+
+        await email_service.send_email(message)
 
         logger.info(
             "Trial ending email sent",

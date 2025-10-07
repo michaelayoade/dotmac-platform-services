@@ -1,16 +1,15 @@
-"""
-GraphQL context with authentication and database session.
+"""GraphQL context with authentication and managed database session."""
 
-Provides request context including current user and database session.
-"""
+import asyncio
 
 import strawberry
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.background import BackgroundTasks
 from strawberry.fastapi import BaseContext
 
 from dotmac.platform.auth.core import UserInfo, jwt_service
-from dotmac.platform.db import get_db
+from dotmac.platform.db import AsyncSessionLocal
 
 
 @strawberry.type
@@ -28,6 +27,50 @@ class Context(BaseContext):
     db: AsyncSession
     current_user: UserInfo | None = None
 
+    def __init__(
+        self,
+        *,
+        request: Request,
+        db: AsyncSession,
+        current_user: UserInfo | None = None,
+    ) -> None:
+        super().__init__()
+        self.request = request
+        self.db = db
+        self.current_user = current_user
+        self._background_tasks: BackgroundTasks | None = None
+        self._close_registered = False
+        self._session_closed = False
+
+    @property
+    def background_tasks(self) -> BackgroundTasks | None:
+        return self._background_tasks
+
+    @background_tasks.setter
+    def background_tasks(self, tasks: BackgroundTasks | None) -> None:
+        self._background_tasks = tasks
+        if tasks is not None and not self._close_registered:
+            tasks.add_task(self._close_db_session)
+            self._close_registered = True
+
+    async def _close_db_session(self) -> None:
+        """Ensure the attached session is closed after the response is sent."""
+        if self._session_closed:
+            return
+        await self.db.close()
+        self._session_closed = True
+
+    def __del__(self) -> None:  # pragma: no cover - defensive
+        if self._session_closed:
+            return
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            return
+        if loop.is_running():
+            loop.create_task(self.db.close())
+            self._session_closed = True
+
     @staticmethod
     async def get_context(request: Request) -> "Context":
         """
@@ -42,9 +85,8 @@ class Context(BaseContext):
         Returns:
             Context instance with db session and optional user
         """
-        # Get database session
-        db = get_db()
-        db_session = await anext(db)
+        # Lazily create database session; closed via background tasks
+        db_session = AsyncSessionLocal()
 
         # Extract user from token if present
         current_user = None
@@ -61,17 +103,15 @@ class Context(BaseContext):
             if token:
                 payload = jwt_service.verify_token(token)
                 current_user = UserInfo(
-                    user_id=payload.get("sub", ""),
+                    user_id=str(payload.get("sub", "")),
                     tenant_id=payload.get("tenant_id"),
-                    scopes=payload.get("scopes", []),
-                    permissions=payload.get("permissions", []),
+                    roles=list(payload.get("roles", [])),
+                    permissions=list(payload.get("permissions", [])),
+                    email=payload.get("email"),
+                    username=payload.get("preferred_username"),
                 )
         except Exception:
             # Guest access - no user context
             pass
 
-        return Context(
-            request=request,
-            db=db_session,
-            current_user=current_user,
-        )
+        return Context(request=request, db=db_session, current_user=current_user)

@@ -148,7 +148,14 @@ class DependencyChecker:
 
         dep_info = cls.FEATURE_DEPENDENCIES[feature_flag]
         packages = dep_info["packages"]
-        install_cmd = dep_info.get("install_cmd")
+        install_cmd_raw = dep_info.get("install_cmd")
+        install_cmd: str | None
+        if isinstance(install_cmd_raw, (list, tuple)):
+            install_cmd = " ".join(str(part) for part in install_cmd_raw)
+        elif install_cmd_raw is None:
+            install_cmd = None
+        else:
+            install_cmd = str(install_cmd_raw)
 
         if isinstance(packages, str):
             packages = [packages]

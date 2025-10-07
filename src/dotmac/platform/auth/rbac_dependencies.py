@@ -2,8 +2,9 @@
 Enhanced FastAPI dependencies for RBAC authorization
 """
 
+import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from enum import Enum
 from functools import cache, wraps
 from typing import Any
@@ -188,8 +189,8 @@ class ResourcePermissionChecker:
     def __init__(
         self,
         permission: str,
-        resource_getter: Callable[[Any], Any],
-        ownership_checker: Callable[[UserInfo, Any], bool] | None = None,
+        resource_getter: Callable[[AsyncSession, str], Awaitable[Any]],
+        ownership_checker: Callable[[UserInfo, Any], Awaitable[bool] | bool] | None = None,
     ):
         self.permission = permission
         self.resource_getter = resource_getter
@@ -221,7 +222,11 @@ class ResourcePermissionChecker:
 
         # If no general permission, check ownership
         if not has_permission and self.ownership_checker:
-            is_owner = await self.ownership_checker(current_user, resource)
+            ownership_result = self.ownership_checker(current_user, resource)
+            if inspect.isawaitable(ownership_result):
+                is_owner = await ownership_result
+            else:
+                is_owner = bool(ownership_result)
             if is_owner:
                 # Check if user has the "own" version of the permission
                 own_permission = self.permission.replace(".all", ".own")
@@ -285,12 +290,12 @@ require_admin_settings = require_permission("admin.settings.update")
 # ==================== Decorator Version for Non-FastAPI Functions ====================
 
 
-def check_permission(permission: str) -> Any:
+def check_permission(permission: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to check permission for regular functions"""
 
-    def decorator(func) -> Any:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        async def wrapper(*args, **kwargs: Any) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Extract user from kwargs or context
             user = kwargs.get("current_user")
             db = kwargs.get("db")
@@ -311,12 +316,12 @@ def check_permission(permission: str) -> Any:
     return decorator
 
 
-def check_any_permission(*permissions: str) -> Any:
+def check_any_permission(*permissions: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to check if user has any of the permissions"""
 
-    def decorator(func) -> Any:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        async def wrapper(*args, **kwargs: Any) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             user = kwargs.get("current_user")
             db = kwargs.get("db")
 

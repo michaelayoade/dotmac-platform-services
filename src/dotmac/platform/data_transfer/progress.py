@@ -1,12 +1,14 @@
-"""
-Simplified progress tracking using standard Python libraries.
-"""
+"""Simplified progress tracking using standard Python libraries."""
+
+from __future__ import annotations
 
 import asyncio
 import json
 import pickle
+from asyncio import Task
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 from uuid import uuid4
 
@@ -138,7 +140,12 @@ class CheckpointStore:
                 return None
 
             with open(file_path, "rb") as f:
-                return pickle.load(f)  # nosec B301 - Internal progress files, trusted
+                data = pickle.load(f)  # nosec B301 - Internal progress files, trusted
+
+            if isinstance(data, CheckpointData):
+                return data
+
+            raise ProgressError("Invalid checkpoint data")
         except Exception as e:
             raise ProgressError(f"Failed to load checkpoint: {e}") from e
 
@@ -169,7 +176,7 @@ class ProgressTracker:
         self._callbacks: list[ProgressCallback] = []
         if callback:
             self._callbacks.append(callback)
-        self._update_task = None
+        self._update_task: Task[None] | None = None
 
     def add_callback(self, callback: ProgressCallback) -> None:
         """Add a progress callback."""
@@ -351,7 +358,12 @@ class ResumableOperation:
             await self.tracker.initialize()
         return self.tracker
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit context and handle errors."""
         if exc_type:
             await self.tracker.fail(str(exc_val))

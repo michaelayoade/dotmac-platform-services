@@ -92,13 +92,21 @@ def _extract_secret_value(secret_data: Any) -> str | None:
     Returns:
         Extracted secret value or None
     """
-    if isinstance(secret_data, dict) and "value" in secret_data:
-        return secret_data["value"]
-    elif isinstance(secret_data, str):
+    if isinstance(secret_data, dict):
+        if "value" in secret_data:
+            value = secret_data["value"]
+            return str(value) if value is not None else None
+
+        if secret_data:
+            first_value = next(iter(secret_data.values()))
+            return str(first_value) if first_value is not None else None
+
+    if isinstance(secret_data, str):
         return secret_data
-    elif secret_data and isinstance(secret_data, dict):
-        # If it's a dict without 'value', take the first value
-        return next(iter(secret_data.values()), None) if secret_data else None
+
+    if secret_data is not None:
+        return str(secret_data)
+
     return None
 
 

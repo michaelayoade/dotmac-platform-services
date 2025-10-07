@@ -11,20 +11,20 @@ from ..dependencies import safe_import
 from ..settings import settings
 
 # Only import OpenTelemetry if enabled and available
-metrics = None
-trace = None
-Tracer = None
-OTLPMetricExporter = None
-OTLPSpanExporter = None
-CallbackOptions = None
-Observation = None
-MeterProvider = None
-PeriodicExportingMetricReader = None
-Resource = None
-TracerProvider = None
-BatchSpanProcessor = None
-Status = None
-StatusCode = None
+metrics: Any = None
+trace: Any = None
+Tracer: Any = None
+OTLPMetricExporter: Any = None
+OTLPSpanExporter: Any = None
+CallbackOptions: Any = None
+Observation: Any = None
+MeterProvider: Any = None
+PeriodicExportingMetricReader: Any = None
+Resource: Any = None
+TracerProvider: Any = None
+BatchSpanProcessor: Any = None
+Status: Any = None
+StatusCode: Any = None
 
 if settings.observability.otel_enabled:
     metrics_module = safe_import(
@@ -174,7 +174,8 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         """
         super().__init__(tenant_id, service_name)
         self.config = config
-        self._tracer = None  # Will be set during initialization
+        self.meter: Any | None = None
+        self._tracer: Any = None  # Will be set during initialization
 
         # Initialize resource attributes
         if Resource:
@@ -223,37 +224,49 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         # Skip OTLP export in test environment to prevent connection warnings
         import os
 
+        if metrics is None or MeterProvider is None:
+            logger.warning("OpenTelemetry metrics unavailable; skipping meter initialization")
+            self.meter = None
+            return
+
         is_test_env = (
             os.environ.get("PYTEST_CURRENT_TEST")
             or os.environ.get("OTEL_ENABLED") == "false"
             or self.config.environment == "test"
         )
 
+        provider: Any
         if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
             # Use in-memory provider for tests
             logger.debug("Using in-memory metrics provider for test environment")
             provider = MeterProvider(resource=resource)
         else:
             # Create OTLP metric exporter for SigNoz
-            try:
-                metric_exporter = OTLPMetricExporter(
-                    endpoint=self.config.endpoint,
-                    insecure=self.config.insecure,
-                    headers=self.config.headers,
+            if OTLPMetricExporter is None or PeriodicExportingMetricReader is None:
+                logger.warning(
+                    "OTLP metric exporter not available; falling back to in-memory provider"
                 )
-
-                metric_reader = PeriodicExportingMetricReader(
-                    exporter=metric_exporter,
-                    export_interval_millis=self.config.export_interval_millis,
-                )
-
-                provider = MeterProvider(
-                    resource=resource,
-                    metric_readers=[metric_reader],
-                )
-            except Exception as exc:  # pragma: no cover - defensive guard for tests
-                logger.warning(f"Falling back to in-memory metrics provider: {exc}")
                 provider = MeterProvider(resource=resource)
+            else:
+                try:
+                    metric_exporter = OTLPMetricExporter(
+                        endpoint=self.config.endpoint,
+                        insecure=self.config.insecure,
+                        headers=self.config.headers,
+                    )
+
+                    metric_reader = PeriodicExportingMetricReader(
+                        exporter=metric_exporter,
+                        export_interval_millis=self.config.export_interval_millis,
+                    )
+
+                    provider = MeterProvider(
+                        resource=resource,
+                        metric_readers=[metric_reader],
+                    )
+                except Exception as exc:  # pragma: no cover - defensive guard for tests
+                    logger.warning(f"Falling back to in-memory metrics provider: {exc}")
+                    provider = MeterProvider(resource=resource)
 
         metrics.set_meter_provider(provider)
 
@@ -268,35 +281,47 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         # Skip OTLP export in test environment to prevent connection warnings
         import os
 
+        if trace is None or TracerProvider is None:
+            logger.warning("OpenTelemetry tracing unavailable; using dummy tracer")
+            self._tracer = DummyTracer()
+            return
+
         is_test_env = (
             os.environ.get("PYTEST_CURRENT_TEST")
             or os.environ.get("OTEL_ENABLED") == "false"
             or self.config.environment == "test"
         )
 
+        provider: Any
         if is_test_env or not self.config.endpoint or self.config.endpoint == "localhost:4317":
             # Use in-memory provider for tests
             logger.debug("Using in-memory tracing provider for test environment")
             provider = TracerProvider(resource=resource)
         else:
             # Create OTLP span exporter for SigNoz
-            try:
-                span_exporter = OTLPSpanExporter(
-                    endpoint=self.config.endpoint,
-                    insecure=self.config.insecure,
-                    headers=self.config.headers,
+            if OTLPSpanExporter is None or BatchSpanProcessor is None:
+                logger.warning(
+                    "OTLP span exporter not available; falling back to in-memory tracing provider"
                 )
+                provider = TracerProvider(resource=resource)
+            else:
+                try:
+                    span_exporter = OTLPSpanExporter(
+                        endpoint=self.config.endpoint,
+                        insecure=self.config.insecure,
+                        headers=self.config.headers,
+                    )
 
-                provider = TracerProvider(resource=resource)
-                span_processor = BatchSpanProcessor(
-                    span_exporter,
-                    max_queue_size=self.config.max_queue_size,
-                    max_export_batch_size=self.config.max_export_batch_size,
-                )
-                provider.add_span_processor(span_processor)
-            except Exception as exc:  # pragma: no cover - defensive guard for tests
-                logger.warning(f"Falling back to in-memory tracing provider: {exc}")
-                provider = TracerProvider(resource=resource)
+                    provider = TracerProvider(resource=resource)
+                    span_processor = BatchSpanProcessor(
+                        span_exporter,
+                        max_queue_size=self.config.max_queue_size,
+                        max_export_batch_size=self.config.max_export_batch_size,
+                    )
+                    provider.add_span_processor(span_processor)
+                except Exception as exc:  # pragma: no cover - defensive guard for tests
+                    logger.warning(f"Falling back to in-memory tracing provider: {exc}")
+                    provider = TracerProvider(resource=resource)
 
         # Set global tracer provider
         trace.set_tracer_provider(provider)
@@ -309,6 +334,8 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 
     def _get_or_create_counter(self, metric: CounterMetric) -> Any:
         """Get or create a counter instrument."""
+        if self.meter is None:
+            raise RuntimeError("Meter not initialized")
         if metric.name not in self._counters:
             self._counters[metric.name] = self.meter.create_counter(
                 name=metric.name,
@@ -319,6 +346,8 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 
     def _get_or_create_gauge(self, metric: GaugeMetric) -> Any:
         """Get or create a gauge instrument."""
+        if self.meter is None:
+            raise RuntimeError("Meter not initialized")
         if metric.name not in self._gauges:
             # Store gauge values for async callback
             self._gauge_values[metric.name] = {}
@@ -341,6 +370,8 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
 
     def _get_or_create_histogram(self, metric: HistogramMetric) -> Any:
         """Get or create a histogram instrument."""
+        if self.meter is None:
+            raise RuntimeError("Meter not initialized")
         if metric.name not in self._histograms:
             self._histograms[metric.name] = self.meter.create_histogram(
                 name=metric.name,
@@ -363,18 +394,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
         attributes = metric.to_otel_attributes()
 
         try:
-            if isinstance(metric, CounterMetric):
-                counter = self._get_or_create_counter(metric)
-                counter.add(metric.delta, attributes)
-
-            elif isinstance(metric, GaugeMetric):
-                # Store value for async callback
-                attrs_key = tuple(sorted(attributes.items()))
-                self._gauge_values.setdefault(metric.name, {})[attrs_key] = metric.value
-
-            elif isinstance(metric, HistogramMetric):
-                histogram = self._get_or_create_histogram(metric)
-                histogram.record(metric.value, attributes)
+            if isinstance(metric, HistogramMetric):
                 summary = self._metrics_summary["histograms"].setdefault(
                     metric.name,
                     {"count": 0, "sum": 0.0, "min": None, "max": None},
@@ -388,6 +408,22 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                 summary["max"] = (
                     metric.value if summary["max"] is None else max(summary["max"], metric.value)
                 )
+
+            if self.meter is None:
+                return
+
+            if isinstance(metric, CounterMetric):
+                counter = self._get_or_create_counter(metric)
+                counter.add(metric.delta, attributes)
+
+            elif isinstance(metric, GaugeMetric):
+                # Store value for async callback
+                attrs_key = tuple(sorted(attributes.items()))
+                self._gauge_values.setdefault(metric.name, {})[attrs_key] = metric.value
+
+            elif isinstance(metric, HistogramMetric):
+                histogram = self._get_or_create_histogram(metric)
+                histogram.record(metric.value, attributes)
 
             else:
                 logger.warning(f"Unsupported metric type: {metric.type}")
@@ -433,7 +469,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                 delta = float(value)
                 if delta < 0:
                     raise ValueError("Counter metrics require non-negative values")
-                metric = CounterMetric(
+                metric_obj: Metric = CounterMetric(
                     name=name,
                     delta=delta,
                     tenant_id=self.tenant_id,
@@ -445,7 +481,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                 summary[name] = summary.get(name, 0.0) + delta
 
             elif metric_type == "histogram":
-                metric = HistogramMetric(
+                metric_obj = HistogramMetric(
                     name=name,
                     value=float(value),
                     tenant_id=self.tenant_id,
@@ -455,7 +491,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                 )
 
             else:
-                metric = GaugeMetric(
+                metric_obj = GaugeMetric(
                     name=name,
                     value=float(value),
                     tenant_id=self.tenant_id,
@@ -468,7 +504,7 @@ class OpenTelemetryCollector(BaseAnalyticsCollector):
                     "labels": labels,
                 }
 
-            await self.collect(metric)
+            await self.collect(metric_obj)
 
         except Exception as exc:
             logger.error(f"Failed to record metric {name}: {exc}")
@@ -564,7 +600,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
     def __init__(self, tenant_id: str, service_name: str) -> None:
         super().__init__(tenant_id, service_name)
         self.metrics_store: list[Metric] = []
-        self._metrics_summary = {
+        self._metrics_summary: dict[str, dict[str, Any]] = {
             "counters": {},
             "gauges": {},
             "histograms": {},
@@ -599,13 +635,14 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
         description: str | None = None,
     ) -> None:
         """Record a metric."""
+        metric_obj: Metric
         if metric_type == "counter":
             self._metrics_summary["counters"][name] = (
                 self._metrics_summary["counters"].get(name, 0) + value
             )
-            metric = CounterMetric(
+            metric_obj = CounterMetric(
                 name=name,
-                value=value,
+                delta=value,
                 tenant_id=self.tenant_id,
                 unit=unit,
                 description=description,
@@ -616,7 +653,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
                 "value": float(value),
                 "labels": labels or {},
             }
-            metric = GaugeMetric(
+            metric_obj = GaugeMetric(
                 name=name,
                 value=value,
                 tenant_id=self.tenant_id,
@@ -625,7 +662,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
                 attributes=labels or {},
             )
 
-        await self.collect(metric)
+        await self.collect(metric_obj)
 
     @property
     def tracer(self) -> Any:
@@ -634,7 +671,7 @@ class SimpleAnalyticsCollector(BaseAnalyticsCollector):
 
     def create_span(
         self, name: str, attributes: dict[str, Any] | None = None, kind: Any | None = None
-    ):
+    ) -> "DummySpan":
         """Create a dummy span."""
         return DummySpan(name, attributes)
 
@@ -648,7 +685,7 @@ class DummyTracer:
 
     def start_span(
         self, name: str, attributes: dict[str, Any] | None = None, kind: Any | None = None
-    ):
+    ) -> "DummySpan":
         """Create a dummy span."""
         return DummySpan(name, attributes)
 
@@ -660,10 +697,15 @@ class DummySpan:
         self.name = name
         self.attributes = attributes or {}
 
-    def __enter__(self):
+    def __enter__(self) -> "DummySpan":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         pass
 
     def set_attribute(self, key: str, value: Any) -> None:

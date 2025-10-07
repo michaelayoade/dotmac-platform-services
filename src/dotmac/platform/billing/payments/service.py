@@ -298,8 +298,11 @@ class PaymentService:
         try:
             if original_payment.provider in self.providers:
                 provider_instance = self.providers[original_payment.provider]
+                provider_payment_id = original_payment.provider_payment_id
+                if provider_payment_id is None:
+                    raise PaymentError("Original payment lacks provider payment reference")
                 result = await provider_instance.refund_payment(
-                    original_payment.provider_payment_id,
+                    provider_payment_id,
                     refund_amount,
                     reason,
                 )
@@ -573,8 +576,11 @@ class PaymentService:
         try:
             if payment.provider in self.providers:
                 # Get payment method details
-                payment_method_id = payment.payment_method_details.get("payment_method_id")
-                payment_method = await self._get_payment_method(tenant_id, payment_method_id)
+                payment_method_reference = payment.payment_method_details.get("payment_method_id")
+                if not isinstance(payment_method_reference, str) or not payment_method_reference:
+                    raise PaymentError("Payment method identifier missing for retry")
+
+                payment_method = await self._get_payment_method(tenant_id, payment_method_reference)
 
                 if payment_method:
                     provider_instance = self.providers[payment.provider]
