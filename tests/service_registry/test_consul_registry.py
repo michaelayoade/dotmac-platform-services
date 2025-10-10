@@ -2,10 +2,7 @@
 Tests for Consul-based service registry.
 """
 
-import asyncio
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any, Dict
 
 import pytest
 

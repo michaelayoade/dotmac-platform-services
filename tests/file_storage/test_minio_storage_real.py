@@ -5,13 +5,14 @@ These tests use partial mocking - only mock the external MinIO client,
 but test all of our actual MinIOStorage code logic.
 """
 
-import pytest
-from io import BytesIO
-from unittest.mock import Mock, patch, MagicMock
-from minio.error import S3Error
 from datetime import datetime
+from io import BytesIO
+from unittest.mock import Mock, patch
 
-from dotmac.platform.file_storage.minio_storage import MinIOStorage, FileInfo
+import pytest
+from minio.error import S3Error
+
+from dotmac.platform.file_storage.minio_storage import MinIOStorage
 
 
 class FakeMinIOClient:

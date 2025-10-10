@@ -2,8 +2,10 @@
 Email service using standard libraries.
 
 Provides email functionality using standard smtplib.
+Supports Vault integration for secure credential management.
 """
 
+import os
 import smtplib
 from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
@@ -12,6 +14,7 @@ from uuid import uuid4
 
 import structlog
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger(__name__)
@@ -44,7 +47,11 @@ class EmailResponse(BaseModel):
 
 
 class EmailService:
-    """Email service using standard SMTP."""
+    """Email service using standard SMTP.
+
+    Supports Vault integration for secure credential management.
+    Set SMTP_USE_VAULT=true to load credentials from Vault instead of environment variables.
+    """
 
     def __init__(
         self,
@@ -56,17 +63,33 @@ class EmailService:
         default_from: str = "noreply@dotmac.com",
         tenant_id: str | None = None,
         db: AsyncSession | None = None,
+        use_vault: bool = False,
+        vault_path: str = "secret/smtp",
     ):
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
-        self.smtp_user = smtp_user
-        self.smtp_password = smtp_password
         self.use_tls = use_tls
         self.default_from = default_from
         self.tenant_id = tenant_id
         self.db = db
+        self.use_vault = use_vault or os.getenv("SMTP_USE_VAULT", "false").lower() == "true"
+        self.vault_path = vault_path
+        self._vault_credentials: dict[str, str] | None = None
 
-        logger.info("Email service initialized", host=smtp_host, port=smtp_port, use_tls=use_tls)
+        # Store credentials (will be overridden if using Vault)
+        self.smtp_user = smtp_user
+        self.smtp_password = smtp_password
+
+        # Log initialization without credentials (security: never log passwords)
+        logger.info(
+            "Email service initialized",
+            host=smtp_host,
+            port=smtp_port,
+            use_tls=use_tls,
+            use_vault=self.use_vault,
+            user=smtp_user[:4] + "***" if smtp_user and len(smtp_user) > 4 else "***",
+            has_password=bool(smtp_password),
+        )
 
     async def send_email(
         self,
@@ -120,12 +143,12 @@ class EmailService:
                         tenant_id=tenant_id or self.tenant_id or "system",
                         db=db or self.db,
                     )
-                except Exception as e:
-                    logger.warning("Failed to publish email.sent event", error=str(e))
+                except (SQLAlchemyError, RuntimeError) as exc:
+                    logger.warning("Failed to publish email.sent event", error=str(exc))
 
             return response
 
-        except Exception as e:
+        except (smtplib.SMTPException, OSError, RuntimeError, ValueError) as e:
             logger.error(
                 "Failed to send email", message_id=message_id, error=str(e), subject=message.subject
             )
@@ -159,7 +182,7 @@ class EmailService:
                         tenant_id=tenant_id or self.tenant_id or "system",
                         db=db or self.db,
                     )
-                except Exception as webhook_error:
+                except (SQLAlchemyError, RuntimeError) as webhook_error:
                     logger.warning("Failed to publish email.failed event", error=str(webhook_error))
 
             return response
@@ -204,6 +227,35 @@ class EmailService:
             return f'"{from_name}" <{email}>'
         return email
 
+    def _get_smtp_credentials(self) -> tuple[str | None, str | None]:
+        """Get SMTP credentials from Vault or environment.
+
+        Returns:
+            tuple: (smtp_user, smtp_password)
+        """
+        if not self.use_vault:
+            return (self.smtp_user, self.smtp_password)
+
+        # Fetch from Vault (cached for performance)
+        if self._vault_credentials is None:
+            try:
+                from dotmac.platform.secrets.vault_client import VaultClient, VaultError
+
+                vault = VaultClient()
+                self._vault_credentials = vault.read(self.vault_path)
+                logger.info("SMTP credentials loaded from Vault", path=self.vault_path)
+            except VaultError as exc:
+                logger.warning(
+                    "Failed to load SMTP credentials from Vault, falling back to environment",
+                    error=str(exc),
+                )
+                return (self.smtp_user, self.smtp_password)
+
+        return (
+            self._vault_credentials.get("user") or self.smtp_user,
+            self._vault_credentials.get("password") or self.smtp_password,
+        )
+
     async def _send_smtp(self, msg: MIMEMultipart, message: EmailMessage) -> None:
         """Send message via SMTP."""
         # Get all recipients
@@ -212,13 +264,16 @@ class EmailService:
         all_recipients.extend(str(email) for email in message.cc)
         all_recipients.extend(str(email) for email in message.bcc)
 
+        # Get credentials (from Vault or environment)
+        smtp_user, smtp_password = self._get_smtp_credentials()
+
         # Connect and send
         with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
             if self.use_tls:
                 server.starttls()
 
-            if self.smtp_user and self.smtp_password:
-                server.login(self.smtp_user, self.smtp_password)
+            if smtp_user and smtp_password:
+                server.login(smtp_user, smtp_password)
 
             server.send_message(msg, to_addrs=all_recipients)
 
@@ -237,15 +292,18 @@ class EmailService:
                 if (i + 1) % 10 == 0:
                     logger.info(f"Bulk email progress: {i + 1}/{len(messages)}")
 
-            except Exception as e:
+            except (smtplib.SMTPException, OSError, RuntimeError, ValueError) as exc:
                 logger.error(
-                    "Bulk email failed for message", index=i, error=str(e), subject=message.subject
+                    "Bulk email failed for message",
+                    index=i,
+                    error=str(exc),
+                    subject=message.subject,
                 )
                 responses.append(
                     EmailResponse(
                         id=f"bulk_{i}_{uuid4().hex[:4]}",
                         status="failed",
-                        message=f"Bulk send failed: {str(e)}",
+                        message=f"Bulk send failed: {str(exc)}",
                         recipients_count=len(message.to),
                     )
                 )
@@ -284,15 +342,13 @@ async def send_email(
     """Convenience function for sending simple emails."""
     service = get_email_service()
 
-    recipients = [EmailStr(recipient) for recipient in to]
-    sender_email = EmailStr(from_email) if from_email else None
-
+    # EmailStr is a type annotation, not a constructor - just pass strings
     message = EmailMessage(
-        to=recipients,
+        to=to,  # Pydantic will validate as EmailStr
         subject=subject,
         text_body=text_body,
         html_body=html_body,
-        from_email=sender_email,
+        from_email=from_email,  # Pydantic will validate as EmailStr
     )
 
     return await service.send_email(message)

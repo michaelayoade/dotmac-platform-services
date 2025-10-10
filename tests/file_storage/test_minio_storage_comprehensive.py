@@ -16,11 +16,12 @@ Tests cover:
 - Global storage instance management
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from io import BytesIO
 from datetime import datetime
-from pathlib import Path
+from io import BytesIO
+from unittest.mock import Mock, patch
+
+import pytest
+from minio.error import S3Error
 
 from dotmac.platform.file_storage.minio_storage import (
     FileInfo,
@@ -28,7 +29,6 @@ from dotmac.platform.file_storage.minio_storage import (
     get_storage,
     reset_storage,
 )
-from minio.error import S3Error
 
 
 class TestFileInfo:

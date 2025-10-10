@@ -1,15 +1,15 @@
 """Tests for domain events infrastructure."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 
 from dotmac.platform.core import (
-    DomainEvent,
+    AggregateRoot,
+    EmailAddress,
     InvoiceCreatedEvent,
     InvoicePaymentReceivedEvent,
-    AggregateRoot,
     Money,
-    EmailAddress,
 )
 
 
@@ -77,7 +77,7 @@ class TestDomainEvent:
             "customer_id": "cust-456",
             "amount": 299.99,
             "currency": "USD",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         event = InvoiceCreatedEvent.from_dict(event_dict)
@@ -372,8 +372,9 @@ class TestDomainEventTypes:
 
     def test_subscription_created_event(self):
         """Test SubscriptionCreatedEvent."""
+        from datetime import UTC, datetime
+
         from dotmac.platform.core.events import SubscriptionCreatedEvent
-        from datetime import datetime, UTC
 
         now = datetime.now(UTC)
         event = SubscriptionCreatedEvent(
@@ -391,8 +392,9 @@ class TestDomainEventTypes:
 
     def test_subscription_renewed_event(self):
         """Test SubscriptionRenewedEvent."""
+        from datetime import UTC, datetime
+
         from dotmac.platform.core.events import SubscriptionRenewedEvent
-        from datetime import datetime, UTC
 
         now = datetime.now(UTC)
         event = SubscriptionRenewedEvent(
@@ -407,8 +409,9 @@ class TestDomainEventTypes:
 
     def test_subscription_cancelled_event(self):
         """Test SubscriptionCancelledEvent."""
+        from datetime import UTC, datetime
+
         from dotmac.platform.core.events import SubscriptionCancelledEvent
-        from datetime import datetime, UTC
 
         now = datetime.now(UTC)
         event = SubscriptionCancelledEvent(
@@ -424,8 +427,9 @@ class TestDomainEventTypes:
 
     def test_subscription_upgraded_event(self):
         """Test SubscriptionUpgradedEvent."""
+        from datetime import UTC, datetime
+
         from dotmac.platform.core.events import SubscriptionUpgradedEvent
-        from datetime import datetime, UTC
 
         now = datetime.now(UTC)
         event = SubscriptionUpgradedEvent(

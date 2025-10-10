@@ -5,19 +5,19 @@ Provides reusable test execution patterns for common CRUD operations,
 reducing duplicate code across service tests.
 """
 
-from typing import Any, Callable, Optional, Type
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pydantic import BaseModel
 
 from tests.helpers.assertions import (
     assert_entity_created,
-    assert_entity_updated,
     assert_entity_deleted,
     assert_entity_retrieved,
+    assert_entity_updated,
 )
-from tests.helpers.mock_builders import build_success_result, build_not_found_result
+from tests.helpers.mock_builders import build_success_result
 
 
 async def create_entity_test_helper(
@@ -25,9 +25,9 @@ async def create_entity_test_helper(
     method_name: str,
     create_data: BaseModel,
     mock_db_session: AsyncMock,
-    expected_entity_type: Optional[Type] = None,
-    expected_attributes: Optional[dict[str, Any]] = None,
-    tenant_id: Optional[str] = None,
+    expected_entity_type: type | None = None,
+    expected_attributes: dict[str, Any] | None = None,
+    tenant_id: str | None = None,
     allow_multiple_adds: bool = False,
     **extra_kwargs,
 ) -> Any:
@@ -90,8 +90,8 @@ async def update_entity_test_helper(
     update_data: BaseModel,
     mock_db_session: AsyncMock,
     sample_entity: Any,
-    expected_attributes: Optional[dict[str, Any]] = None,
-    tenant_id: Optional[str] = None,
+    expected_attributes: dict[str, Any] | None = None,
+    tenant_id: str | None = None,
     **extra_kwargs,
 ) -> Any:
     """
@@ -157,7 +157,7 @@ async def delete_entity_test_helper(
     mock_db_session: AsyncMock,
     sample_entity: Any,
     soft_delete: bool = False,
-    tenant_id: Optional[str] = None,
+    tenant_id: str | None = None,
     **extra_kwargs,
 ) -> bool:
     """
@@ -219,9 +219,9 @@ async def retrieve_entity_test_helper(
     entity_id: UUID,
     mock_db_session: AsyncMock,
     sample_entity: Any,
-    expected_entity_type: Optional[Type] = None,
+    expected_entity_type: type | None = None,
     use_cache: bool = True,
-    tenant_id: Optional[str] = None,
+    tenant_id: str | None = None,
     **extra_kwargs,
 ) -> Any:
     """
@@ -290,8 +290,8 @@ async def list_entities_test_helper(
     mock_db_session: AsyncMock,
     sample_entities: list[Any],
     expected_total: int,
-    filters: Optional[dict[str, Any]] = None,
-    tenant_id: Optional[str] = None,
+    filters: dict[str, Any] | None = None,
+    tenant_id: str | None = None,
     **extra_kwargs,
 ) -> tuple[list[Any], int]:
     """

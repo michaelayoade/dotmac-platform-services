@@ -2,19 +2,20 @@
 Comprehensive tests for the secrets factory module.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from dotmac.platform.secrets.factory import (
-    SecretsManager,
-    LocalSecretsManager,
-    SecretsManagerFactory,
-    create_secrets_manager,
-    get_default_secrets_manager,
-    create_vault_secrets_manager,
-    create_local_secrets_manager,
-)
+import pytest
+
 from dotmac.platform.dependencies import DependencyError
+from dotmac.platform.secrets.factory import (
+    LocalSecretsManager,
+    SecretsManager,
+    SecretsManagerFactory,
+    create_local_secrets_manager,
+    create_secrets_manager,
+    create_vault_secrets_manager,
+    get_default_secrets_manager,
+)
 
 
 class TestSecretsManagerProtocol:

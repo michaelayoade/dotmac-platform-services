@@ -5,24 +5,24 @@ Focuses on testing the _get_communication_stats_cached function
 and error handling paths in the endpoint.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.communications.metrics_router import (
+    CommunicationStatsResponse,
     _get_communication_stats_cached,
     get_communication_stats,
-    CommunicationStatsResponse,
 )
 from dotmac.platform.communications.models import (
     CommunicationLog,
     CommunicationStatus,
     CommunicationType,
 )
-from dotmac.platform.auth.core import UserInfo
 
 
 class TestGetCommunicationStatsCached:
@@ -32,7 +32,7 @@ class TestGetCommunicationStatsCached:
     async def test_stats_with_data(self, async_db_session: AsyncSession):
         """Test stats calculation with actual data."""
         # Create test data
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         logs = [
             CommunicationLog(
                 id=uuid4(),
@@ -142,7 +142,7 @@ class TestGetCommunicationStatsCached:
     async def test_stats_without_tenant_filter(self, async_db_session: AsyncSession):
         """Test stats calculation without tenant isolation."""
         # Create data for multiple tenants
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         logs = [
             CommunicationLog(
                 id=uuid4(),
@@ -181,7 +181,7 @@ class TestGetCommunicationStatsCached:
     @pytest.mark.asyncio
     async def test_stats_different_periods(self, async_db_session: AsyncSession):
         """Test stats for different time periods."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Create logs at different times
         old_log = CommunicationLog(
@@ -242,7 +242,7 @@ class TestGetCommunicationStatsEndpoint:
         )
 
         # Create some test data
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         log = CommunicationLog(
             id=uuid4(),
             type=CommunicationType.EMAIL,

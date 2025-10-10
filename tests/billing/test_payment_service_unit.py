@@ -5,23 +5,23 @@ Strategy: Mock ALL dependencies (database, payment providers, event bus)
 Focus: Test business rules, validation, error handling in isolation
 """
 
-import pytest
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.payments.service import PaymentService
+from dotmac.platform.billing.core.entities import PaymentEntity, PaymentMethodEntity
 from dotmac.platform.billing.core.enums import (
-    PaymentStatus,
     PaymentMethodStatus,
     PaymentMethodType,
+    PaymentStatus,
 )
 from dotmac.platform.billing.core.exceptions import (
     PaymentError,
     PaymentMethodNotFoundError,
 )
-from dotmac.platform.billing.core.entities import PaymentEntity, PaymentMethodEntity
+from dotmac.platform.billing.payments.service import PaymentService
 
 
 class TestPaymentServiceHappyPath:
@@ -30,10 +30,25 @@ class TestPaymentServiceHappyPath:
     @pytest.fixture
     def mock_db(self):
         """Mock database session."""
+        import uuid
+        from datetime import UTC
+
         db = AsyncMock(spec=AsyncSession)
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
-        db.add = MagicMock()
+
+        # Mock db.add() to populate auto-generated fields
+        def mock_add(entity):
+            if not hasattr(entity, "payment_id") or entity.payment_id is None:
+                entity.payment_id = str(uuid.uuid4())
+            if not hasattr(entity, "retry_count") or entity.retry_count is None:
+                entity.retry_count = 0
+            if not hasattr(entity, "created_at") or entity.created_at is None:
+                entity.created_at = datetime.now(UTC)
+            if not hasattr(entity, "updated_at") or entity.updated_at is None:
+                entity.updated_at = datetime.now(UTC)
+
+        db.add = MagicMock(side_effect=mock_add)
         return db
 
     @pytest.fixture
@@ -224,6 +239,8 @@ class TestPaymentServiceIdempotency:
 
     async def test_idempotency_returns_existing_payment(self, payment_service):
         """Test that same idempotency key returns existing payment."""
+        from datetime import UTC
+
         existing_payment = PaymentEntity(
             payment_id="pay_123",
             tenant_id="tenant-1",
@@ -232,6 +249,11 @@ class TestPaymentServiceIdempotency:
             customer_id="cust_123",
             status=PaymentStatus.SUCCEEDED,
             payment_method_type=PaymentMethodType.CARD,
+            payment_method_details={},
+            provider="stripe",
+            retry_count=0,
+            created_at=datetime.now(UTC),
+            extra_data={},
         )
 
         mock_get_idempotency = AsyncMock(return_value=existing_payment)
@@ -256,10 +278,23 @@ class TestPaymentServiceProviderFailure:
     @pytest.fixture
     def payment_service(self):
         """Create payment service with mock provider."""
+        from datetime import UTC
+        from uuid import uuid4
+
         mock_db = AsyncMock(spec=AsyncSession)
         mock_db.commit = AsyncMock()
-        mock_db.refresh = AsyncMock()
         mock_db.add = MagicMock()
+
+        # Configure refresh to populate database-generated fields
+        def populate_fields(obj):
+            if not hasattr(obj, "payment_id") or obj.payment_id is None:
+                obj.payment_id = str(uuid4())
+            if not hasattr(obj, "retry_count") or obj.retry_count is None:
+                obj.retry_count = 0
+            if not hasattr(obj, "created_at") or obj.created_at is None:
+                obj.created_at = datetime.now(UTC)
+
+        mock_db.refresh = AsyncMock(side_effect=populate_fields)
 
         mock_provider = AsyncMock()
         return (
@@ -357,9 +392,24 @@ class TestPaymentServiceBusinessRules:
     @pytest.fixture
     def payment_service(self):
         """Create payment service."""
+        from datetime import UTC
+        from uuid import uuid4
+
         mock_db = AsyncMock(spec=AsyncSession)
         mock_db.commit = AsyncMock()
         mock_db.add = MagicMock()
+
+        # Configure refresh to populate database-generated fields
+        def populate_fields(obj):
+            if not hasattr(obj, "payment_id") or obj.payment_id is None:
+                obj.payment_id = str(uuid4())
+            if not hasattr(obj, "retry_count") or obj.retry_count is None:
+                obj.retry_count = 0
+            if not hasattr(obj, "created_at") or obj.created_at is None:
+                obj.created_at = datetime.now(UTC)
+
+        mock_db.refresh = AsyncMock(side_effect=populate_fields)
+
         return PaymentService(db_session=mock_db)
 
     async def test_webhook_published_only_on_success(self, payment_service):

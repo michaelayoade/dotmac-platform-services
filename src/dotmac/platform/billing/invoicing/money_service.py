@@ -5,8 +5,8 @@ This service extends the existing InvoiceService to use Money objects internally
 while maintaining backward compatibility with the legacy integer-based system.
 """
 
-from decimal import Decimal
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -168,7 +168,7 @@ class MoneyInvoiceService(InvoiceService):
             raise ValueError(f"Invoice {invoice_id} not found")
 
         # Generate PDF
-        pdf_bytes = self.pdf_generator.generate_invoice_pdf(
+        pdf_bytes: bytes = self.pdf_generator.generate_invoice_pdf(
             invoice=money_invoice,
             company_info=company_info,
             customer_info=customer_info,
@@ -298,7 +298,9 @@ class MoneyInvoiceService(InvoiceService):
 
         if money_invoice.discount_amount:
             discount_money = money_invoice.discount_amount.to_money()
-            total_money = money_handler.add_money(total_money, money_handler.multiply_money(discount_money, Decimal("-1")))
+            total_money = money_handler.add_money(
+                total_money, money_handler.multiply_money(discount_money, Decimal("-1"))
+            )
 
         money_invoice.total_amount = MoneyField.from_money(total_money)
         money_invoice.remaining_balance = MoneyField.from_money(total_money)
@@ -337,7 +339,7 @@ class MoneyInvoiceService(InvoiceService):
             return []
 
         # Generate PDFs
-        output_paths = self.pdf_generator.generate_batch_invoices(
+        output_paths: list[str] = self.pdf_generator.generate_batch_invoices(
             invoices=money_invoices,
             output_dir=output_dir,
             company_info=company_info,

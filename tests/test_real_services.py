@@ -3,12 +3,14 @@ Test real services connectivity.
 """
 
 import os
+
 import hvac
 import pytest
 import redis
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
+
 from dotmac.platform.observability.manager import ObservabilityManager
 
 pytestmark = pytest.mark.asyncio
@@ -62,7 +64,7 @@ async def test_redis_connection():
     client.delete("test:key")
     # client.close() may not be awaitable depending on the client type
     if hasattr(client, "close"):
-        close_method = getattr(client, "close")
+        close_method = client.close
         if hasattr(close_method, "__await__"):
             await close_method()
         else:

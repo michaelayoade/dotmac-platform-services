@@ -7,52 +7,45 @@ Covers:
 - monitoring_metrics_router.py
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock, patch
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.monitoring.logs_router import (
-    logs_router,
-    LogLevel,
     LogEntry,
+    LogLevel,
     LogMetadata,
     LogsResponse,
-    LogStats,
     LogsService,
+    LogStats,
     get_logs_service,
+    logs_router,
 )
-
 from dotmac.platform.monitoring.traces_router import (
-    traces_router,
-    TraceStatus,
+    MetricsResponse,
+    MetricType,
+    ObservabilityService,
+    PerformanceMetrics,
+    PerformanceResponse,
+    ServiceDependency,
+    ServiceMapResponse,
     SpanData,
     TraceData,
     TracesResponse,
-    MetricType,
-    MetricDataPoint,
-    MetricSeries,
-    MetricsResponse,
-    ServiceDependency,
-    ServiceMapResponse,
-    PerformanceMetrics,
-    PerformanceResponse,
-    ObservabilityService,
+    TraceStatus,
     get_observability_service,
+    traces_router,
 )
-
 from dotmac.platform.monitoring_metrics_router import (
-    logs_router as logs_metrics_router,
-    metrics_router,
     ErrorRateResponse,
     LatencyMetrics,
     ResourceMetrics,
+    metrics_router,
 )
-
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.monitoring_metrics_router import logs_router as logs_metrics_router
 
 
 @pytest.fixture
@@ -208,7 +201,7 @@ class TestLogsService:
     @pytest.mark.asyncio
     async def test_get_logs_with_time_range(self, logs_service):
         """Test log retrieval with time range."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         start_time = now - timedelta(hours=1)
         end_time = now
 
@@ -584,7 +577,7 @@ class TestLogModels:
 
     def test_log_entry_model(self):
         """Test LogEntry model."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         log_entry = LogEntry(
             id="log_123",
             timestamp=now,
@@ -611,7 +604,7 @@ class TestTraceModels:
 
     def test_span_data_model(self):
         """Test SpanData model."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         span = SpanData(
             span_id="span_123",
             parent_span_id="span_parent",
@@ -632,7 +625,7 @@ class TestTraceModels:
 
     def test_trace_data_model(self):
         """Test TraceData model."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         trace = TraceData(
             trace_id="trace_123",
             service="test-service",

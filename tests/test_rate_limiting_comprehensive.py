@@ -10,22 +10,21 @@ Tests cover:
 - Rate limit decorator
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-
-from dotmac.platform.core.rate_limiting import (
-    _create_limiter,
-    get_limiter,
-    reset_limiter,
-    _LimiterProxy,
-    limiter,
-    rate_limit,
-    RateLimitExceeded,
-    get_remote_address,
-    _rate_limit_exceeded_handler,
-)
+from unittest.mock import Mock, patch
 
 from slowapi import Limiter
+
+from dotmac.platform.core.rate_limiting import (
+    RateLimitExceeded,
+    _create_limiter,
+    _LimiterProxy,
+    _rate_limit_exceeded_handler,
+    get_limiter,
+    get_remote_address,
+    limiter,
+    rate_limit,
+    reset_limiter,
+)
 
 
 class TestCreateLimiter:

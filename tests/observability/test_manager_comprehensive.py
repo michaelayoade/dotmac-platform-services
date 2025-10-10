@@ -1,7 +1,8 @@
 """Comprehensive tests for ObservabilityManager."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 from fastapi import FastAPI
 
 from dotmac.platform.observability.manager import (

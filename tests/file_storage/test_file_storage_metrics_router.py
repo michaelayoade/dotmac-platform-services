@@ -5,10 +5,11 @@ Tests caching, rate limiting, tenant isolation, and error handling
 for the file storage statistics endpoint.
 """
 
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch, MagicMock
-from datetime import datetime, timezone
 
 
 class TestFileStorageStatsEndpoint:
@@ -17,7 +18,7 @@ class TestFileStorageStatsEndpoint:
     @pytest.fixture
     def mock_file_metadata(self):
         """Create mock file metadata."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return [
             MagicMock(
                 file_id="1",
@@ -64,11 +65,11 @@ class TestFileStorageStatsEndpoint:
                 "other_size_mb": 56.0,
                 "avg_file_size_mb": 10.24,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
             response = await client.get(
-                "/api/v1/files/stats?period_days=30",
+                "/api/v1/metrics/files/stats?period_days=30",
                 headers=auth_headers,
             )
 
@@ -103,11 +104,11 @@ class TestFileStorageStatsEndpoint:
                 "other_size_mb": 0.5,
                 "avg_file_size_mb": 1.0,
                 "period": "7d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
             response = await client.get(
-                "/api/v1/files/stats?period_days=7",
+                "/api/v1/metrics/files/stats?period_days=7",
                 headers=auth_headers,
             )
 
@@ -135,11 +136,11 @@ class TestFileStorageStatsEndpoint:
                 "other_size_mb": 0.0,
                 "avg_file_size_mb": 0.0,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
             response = await client.get(
-                "/api/v1/files/stats",
+                "/api/v1/metrics/files/stats",
                 headers=auth_headers,
             )
 
@@ -151,20 +152,20 @@ class TestFileStorageStatsEndpoint:
     async def test_get_file_storage_stats_invalid_period(self, client: AsyncClient, auth_headers):
         """Test validation of period_days parameter."""
         response = await client.get(
-            "/api/v1/files/stats?period_days=0",
+            "/api/v1/metrics/files/stats?period_days=0",
             headers=auth_headers,
         )
         assert response.status_code == 422
 
         response = await client.get(
-            "/api/v1/files/stats?period_days=400",
+            "/api/v1/metrics/files/stats?period_days=400",
             headers=auth_headers,
         )
         assert response.status_code == 422
 
     async def test_get_file_storage_stats_requires_auth(self, client: AsyncClient):
         """Test that endpoint requires authentication."""
-        response = await client.get("/api/v1/files/stats")
+        response = await client.get("/api/v1/metrics/files/stats")
         assert response.status_code == 401
 
     async def test_get_file_storage_stats_error_handling(self, client: AsyncClient, auth_headers):
@@ -175,7 +176,7 @@ class TestFileStorageStatsEndpoint:
             mock_cached.side_effect = Exception("Storage error")
 
             response = await client.get(
-                "/api/v1/files/stats",
+                "/api/v1/metrics/files/stats",
                 headers=auth_headers,
             )
 
@@ -203,18 +204,18 @@ class TestFileStorageStatsEndpoint:
                 "other_size_mb": 5.0,
                 "avg_file_size_mb": 1.0,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
             mock_cached.return_value = mock_data
 
             response1 = await client.get(
-                "/api/v1/files/stats",
+                "/api/v1/metrics/files/stats",
                 headers=auth_headers,
             )
             assert response1.status_code == 200
 
             response2 = await client.get(
-                "/api/v1/files/stats",
+                "/api/v1/metrics/files/stats",
                 headers=auth_headers,
             )
             assert response2.status_code == 200
@@ -244,11 +245,11 @@ class TestFileStorageStatsTenantIsolation:
                 "other_size_mb": 0.5,
                 "avg_file_size_mb": 1.0,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
             response = await client.get(
-                "/api/v1/files/stats",
+                "/api/v1/metrics/files/stats",
                 headers=auth_headers,
             )
 

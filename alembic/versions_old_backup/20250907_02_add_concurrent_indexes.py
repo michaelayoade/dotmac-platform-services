@@ -6,8 +6,9 @@ Create Date: 2025-09-07 00:15:00.000000
 
 """
 
+from collections.abc import Sequence
+
 from alembic import op
-from typing import Sequence
 
 # revision identifiers, used by Alembic.
 revision: str = "20250907_02"

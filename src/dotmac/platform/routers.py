@@ -5,9 +5,10 @@ All routes except /health, /ready, and /metrics require authentication.
 """
 
 import importlib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 import structlog
 from fastapi import Depends, FastAPI
@@ -18,7 +19,7 @@ from dotmac.platform.settings import settings
 logger = structlog.get_logger(__name__)
 
 # Security scheme for Swagger UI
-security = HTTPBearer(auto_error=False)
+security = HTTPBearer(auto_error=True)
 
 
 @dataclass
@@ -379,9 +380,7 @@ def _register_router(app: FastAPI, config: RouterConfig) -> bool:
             dependencies=dependencies,
         )
 
-        tag_label = config.description or (
-            config.tags[0] if config.tags else config.module_path
-        )
+        tag_label = config.description or (config.tags[0] if config.tags else config.module_path)
         logger.info(f"✅ {tag_label} registered at {config.prefix}")
         return True
 

@@ -8,14 +8,14 @@ Tests all customer management router endpoints following the Two-Tier Testing St
 Coverage Target: 85%+ for router endpoints
 """
 
-import pytest
-from datetime import datetime
 from unittest.mock import patch
 from uuid import uuid4
+
+import pytest
 from fastapi.testclient import TestClient
 
-from dotmac.platform.main import app
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.main import app
 
 
 @pytest.fixture

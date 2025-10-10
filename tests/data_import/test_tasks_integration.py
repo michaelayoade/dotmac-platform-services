@@ -2,23 +2,21 @@
 
 import csv
 import json
-import pytest
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
 from dotmac.platform.data_import.tasks import (
-    _update_job_task_id,
     _mark_job_failed,
-    _process_customer_import,
-    _process_csv_in_chunks,
-    _process_json_in_chunks,
-    _process_data_chunk,
     _process_chunk_data,
-    DEFAULT_CHUNK_SIZE,
+    _process_csv_in_chunks,
+    _process_customer_import,
+    _process_json_in_chunks,
+    _update_job_task_id,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -563,7 +561,6 @@ class TestCSVProcessing:
     @pytest.mark.asyncio
     async def test_process_csv_in_chunks_success(self):
         """Test processing CSV file in chunks."""
-        from dotmac.platform.data_import.tasks import _process_csv_in_chunks
 
         # Create temporary CSV with multiple records
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, newline="") as f:
@@ -616,7 +613,6 @@ class TestJSONProcessing:
     @pytest.mark.asyncio
     async def test_process_json_in_chunks_success(self):
         """Test processing JSON file in chunks."""
-        from dotmac.platform.data_import.tasks import _process_json_in_chunks
 
         # Create temporary JSON file
         data = [
@@ -667,7 +663,6 @@ class TestJSONProcessing:
     @pytest.mark.asyncio
     async def test_process_json_invalid_format(self):
         """Test JSON processing with invalid format (not an array)."""
-        from dotmac.platform.data_import.tasks import _process_json_in_chunks
 
         # Create JSON file with object instead of array
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:

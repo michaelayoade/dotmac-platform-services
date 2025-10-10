@@ -5,21 +5,15 @@ Tests all CLI functionality including database operations, admin creation,
 key generation, migrations, service checks, and data export.
 """
 
-import asyncio
-import csv
 import json
-import subprocess
 import tempfile
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from click.testing import CliRunner
-from sqlalchemy import text
 
 # Import the entire module to ensure coverage tracking
-import dotmac.platform.cli
 from dotmac.platform.cli import (
     check_services,
     cleanup_sessions,
@@ -375,7 +369,6 @@ class TestExportAuditLogs:
         mock_get_session.return_value = mock_session
 
         # Create simple mock log data
-        from unittest.mock import MagicMock
 
         mock_log_1 = MagicMock()
         mock_log_1.__getitem__ = lambda self, key: {
@@ -423,7 +416,6 @@ class TestExportAuditLogs:
         mock_get_session.return_value = mock_session
 
         # Create simple mock log data
-        from unittest.mock import MagicMock
 
         mock_log = MagicMock()
         mock_log.__getitem__ = lambda self, key: {"id": 1, "user_id": "user1", "action": "login"}[

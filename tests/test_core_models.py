@@ -2,7 +2,6 @@
 Unit tests for dotmac-platform-services core models and utilities
 """
 
-from typing import Any
 from uuid import uuid4
 
 import pytest

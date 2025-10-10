@@ -3,7 +3,6 @@
 Seed script for RBAC permissions and roles
 Run after migration: python scripts/seed_rbac.py
 """
-import asyncio
 import sys
 from pathlib import Path
 from uuid import uuid4
@@ -11,31 +10,14 @@ from uuid import uuid4
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy.orm import Session
-from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Table,
-    Text,
-    UniqueConstraint,
-    Index,
-    JSON,
-    Integer,
-)
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from uuid import uuid4
-from datetime import datetime
 
-# Import base and settings
-from dotmac.platform.db import Base, get_sync_engine, SyncSessionLocal
-from dotmac.platform.settings import settings
+from sqlalchemy.orm import Session
 
 # Import the models
-from dotmac.platform.auth.models import Permission, Role, PermissionCategory
-from dotmac.platform.user_management.models import User
+from dotmac.platform.auth.models import Permission, Role
+
+# Import base and settings
+from dotmac.platform.db import SyncSessionLocal, get_sync_engine
 
 
 class RBACSeeder:

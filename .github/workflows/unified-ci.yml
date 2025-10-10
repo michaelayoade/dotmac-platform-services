@@ -289,19 +289,18 @@ jobs:
         browser: [chromium, firefox, webkit]
         shard: [1, 2, 3, 4]
 
-    services:
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Start platform dependencies
+        run: |
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.test.yml \
+            --profile storage \
+            --profile observability \
+            up -d --wait
+          docker compose -f docker-compose.yml -f docker-compose.test.yml ps
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -394,6 +393,16 @@ jobs:
           name: e2e-results-${{ matrix.browser }}-${{ matrix.shard }}
           path: frontend/apps/base-app/test-results/
           retention-days: 30
+
+      - name: Stop platform dependencies
+        if: always()
+        run: |
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.test.yml \
+            --profile storage \
+            --profile observability \
+            down -v
 
   # ====================
   # SECURITY SCANS

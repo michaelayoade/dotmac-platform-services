@@ -2,14 +2,9 @@
 Tests for payment creation functionality.
 """
 
-import pytest
 from unittest.mock import patch
 
-from tests.billing.payments.conftest import (
-    setup_mock_db_result,
-    setup_mock_refresh,
-)
-from tests.fixtures.async_db import create_mock_async_result
+import pytest
 
 from dotmac.platform.billing.core.entities import PaymentInvoiceEntity
 from dotmac.platform.billing.core.enums import (
@@ -22,6 +17,11 @@ from dotmac.platform.billing.core.exceptions import (
 )
 from dotmac.platform.billing.core.models import Payment
 from dotmac.platform.billing.payments.providers import PaymentResult
+from tests.billing.payments.conftest import (
+    setup_mock_db_result,
+    setup_mock_refresh,
+)
+from tests.fixtures.async_db import create_mock_async_result
 
 pytestmark = pytest.mark.asyncio
 

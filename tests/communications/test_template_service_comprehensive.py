@@ -2,20 +2,18 @@
 Comprehensive tests for template service to improve coverage.
 """
 
-import pytest
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
-from jinja2 import TemplateSyntaxError
+
+import pytest
 
 from dotmac.platform.communications.template_service import (
-    TemplateService,
     TemplateData,
-    RenderedTemplate,
-    get_template_service,
+    TemplateService,
     create_template,
-    render_template,
+    get_template_service,
     quick_render,
+    render_template,
 )
 
 

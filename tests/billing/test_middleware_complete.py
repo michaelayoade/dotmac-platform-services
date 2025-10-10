@@ -8,20 +8,19 @@ Tests cover:
 - setup_billing_middleware: middleware configuration
 """
 
-import pytest
-import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from fastapi import FastAPI, Request, Response
-from fastapi.testclient import TestClient
-from starlette.responses import JSONResponse
+from unittest.mock import Mock, patch
 
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+
+from dotmac.platform.billing.exceptions import BillingError
 from dotmac.platform.billing.middleware import (
+    BillingAuditMiddleware,
     BillingErrorMiddleware,
     BillingValidationMiddleware,
-    BillingAuditMiddleware,
     setup_billing_middleware,
 )
-from dotmac.platform.billing.exceptions import BillingError
 
 
 @pytest.fixture

@@ -3,7 +3,9 @@ Specialized report generators for billing
 """
 
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from enum import Enum
 from typing import Any, cast
 
@@ -168,11 +170,39 @@ class RevenueReportGenerator:
         total_amount = 0.0
 
         for row in rows:
-            row_mapping = row._mapping
-            method = cast(str | None, row_mapping.get("payment_method_type")) or "unknown"
-            amount_value = row_mapping.get("total_amount") or 0
-            amount = float(amount_value)
-            count_value = int(row_mapping.get("count") or 0)
+            method_value = getattr(row, "payment_method_type", None)
+            total_amount_raw = getattr(row, "total_amount", None)
+            count_raw = getattr(row, "count", None)
+
+            if method_value is None:
+                mapping = getattr(row, "_mapping", None)
+                if isinstance(mapping, Mapping):
+                    method_value = mapping.get("payment_method_type")
+                    if total_amount_raw is None:
+                        total_amount_raw = mapping.get("total_amount")
+                    if count_raw is None:
+                        count_raw = mapping.get("count")
+
+            if isinstance(method_value, str) and method_value:
+                method = method_value
+            elif isinstance(method_value, Enum):
+                method = method_value.value
+            else:
+                method = str(method_value) if method_value else "unknown"
+
+            if isinstance(total_amount_raw, Decimal):
+                amount = float(total_amount_raw)
+            elif isinstance(total_amount_raw, (int, float)):
+                amount = float(total_amount_raw)
+            else:
+                amount = float(total_amount_raw or 0)
+
+            if count_raw is None:
+                count_raw = 0
+            try:
+                count_value = int(count_raw or 0)
+            except TypeError:
+                count_value = int(count_raw() or 0) if callable(count_raw) else 0
 
             distribution[method] = {
                 "count": count_value,
@@ -181,7 +211,7 @@ class RevenueReportGenerator:
             total_amount += amount
 
         # Calculate percentages
-        for method, data in distribution.items():
+        for _method, data in distribution.items():
             amount_val = float(data.get("amount", 0))
             data["percentage"] = self._calculate_rate(amount_val, total_amount)
 
@@ -281,15 +311,39 @@ class RevenueReportGenerator:
 
         reasons = []
         for row in rows:
-            row_mapping = row._mapping
-            reason_enum = row_mapping.get("reason")
-            if isinstance(reason_enum, Enum):
-                reason_value = cast(str, reason_enum.value)
+            reason_value_raw = getattr(row, "reason", None)
+            count_raw = getattr(row, "count", None)
+            amount_raw = getattr(row, "amount", None)
+
+            if reason_value_raw is None:
+                mapping = getattr(row, "_mapping", None)
+                if isinstance(mapping, Mapping):
+                    reason_value_raw = mapping.get("reason")
+                    if count_raw is None:
+                        count_raw = mapping.get("count")
+                    if amount_raw is None:
+                        amount_raw = mapping.get("amount")
+
+            if isinstance(reason_value_raw, Enum):
+                reason_value = cast(str, reason_value_raw.value)
+            elif isinstance(reason_value_raw, str) and reason_value_raw:
+                reason_value = reason_value_raw
             else:
-                reason_value = cast(str | None, reason_enum) or "unknown"
-            count_value = int(row_mapping.get("count") or 0)
-            amount_raw = row_mapping.get("amount") or 0
-            amount_value = float(amount_raw)
+                reason_value = str(reason_value_raw) if reason_value_raw else "unknown"
+
+            if count_raw is None:
+                count_raw = 0
+            try:
+                count_value = int(count_raw or 0)
+            except TypeError:
+                count_value = int(count_raw() or 0) if callable(count_raw) else 0
+
+            if isinstance(amount_raw, Decimal):
+                amount_value = float(amount_raw)
+            elif isinstance(amount_raw, (int, float)):
+                amount_value = float(amount_raw)
+            else:
+                amount_value = float(amount_raw or 0)
 
             reasons.append(
                 {

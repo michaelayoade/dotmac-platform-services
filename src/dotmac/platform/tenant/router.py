@@ -9,6 +9,7 @@ import math
 from datetime import datetime
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +39,8 @@ from .service import (
     TenantNotFoundError,
     TenantService,
 )
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["Tenant Management"])
 
@@ -140,18 +143,33 @@ async def get_current_tenant(
 
     try:
         tenant = await service.get_tenant(current_user.tenant_id)
+    except TenantNotFoundError:
+        logger.info(
+            "tenant.current_not_found",
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.user_id,
+        )
+        return None
+    except Exception as exc:  # pragma: no cover - defensive guard for unexpected errors
+        logger.exception(
+            "tenant.current_fetch_error",
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load current tenant",
+        ) from exc
 
-        response = TenantResponse.model_validate(tenant)
-        response.is_trial = tenant.is_trial
-        response.is_active = tenant.status_is_active
-        response.trial_expired = tenant.trial_expired
-        response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
-        response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
-        response.has_exceeded_storage_limit = tenant.has_exceeded_storage_limit
+    response = TenantResponse.model_validate(tenant)
+    response.is_trial = tenant.is_trial
+    response.is_active = tenant.status_is_active
+    response.trial_expired = tenant.trial_expired
+    response.has_exceeded_user_limit = tenant.has_exceeded_user_limit
+    response.has_exceeded_api_limit = tenant.has_exceeded_api_limit
+    response.has_exceeded_storage_limit = tenant.has_exceeded_storage_limit
 
-        return response
-    except TenantNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return response
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)

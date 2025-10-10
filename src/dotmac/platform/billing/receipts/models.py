@@ -6,12 +6,13 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
 from dotmac.platform.billing.core.models import BillingBaseModel
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
-class ReceiptLineItem(BaseModel):
+class ReceiptLineItem(AppBaseModel):
     """Receipt line item"""
 
     line_item_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -78,8 +79,8 @@ class Receipt(BillingBaseModel):
     # Metadata
     extra_data: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "receipt_id": "rec_1234567890",
                 "receipt_number": "REC-2024-000001",
@@ -106,3 +107,4 @@ class Receipt(BillingBaseModel):
                 ],
             }
         }
+    )

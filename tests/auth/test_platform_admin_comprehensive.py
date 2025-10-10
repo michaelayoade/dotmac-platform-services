@@ -4,21 +4,21 @@ Comprehensive unit tests for Platform Admin functionality.
 Tests platform admin permissions, cross-tenant access, and audit logging.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
 from fastapi import HTTPException
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.platform_admin import (
-    is_platform_admin,
-    has_platform_permission,
+    TARGET_TENANT_HEADER,
+    get_effective_tenant_id,
     get_target_tenant_id,
+    has_platform_permission,
+    is_platform_admin,
+    platform_audit,
     require_platform_admin,
     require_platform_permission,
-    get_effective_tenant_id,
-    platform_audit,
-    PLATFORM_ADMIN_PERMISSION,
-    TARGET_TENANT_HEADER,
 )
 
 

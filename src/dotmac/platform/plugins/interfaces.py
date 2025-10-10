@@ -9,7 +9,6 @@ from uuid import UUID
 
 from .schema import PluginConfig, PluginHealthCheck, PluginTestResult
 
-
 ZERO_UUID = UUID(int=0)
 
 

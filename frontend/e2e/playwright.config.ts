@@ -82,23 +82,43 @@ export default defineConfig({
   globalTeardown: require.resolve('./global-teardown'),
 
   /* Run your local dev server before starting the tests */
-  webServer: [
+  webServer: process.env.E2E_SKIP_SERVER ? undefined : [
     {
-      command: 'cd .. && poetry run uvicorn src.dotmac.platform.main:app --host 0.0.0.0 --port 8000',
+      command: 'poetry run uvicorn src.dotmac.platform.main:app --host 0.0.0.0 --port 8000',
       port: 8000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true, // Always reuse for local dev
+      cwd: '../..',
       env: {
         NODE_ENV: 'test',
-        DOTMAC_JWT_SECRET_KEY: 'test-secret-key-for-e2e-tests',
+        DOTMAC_JWT_SECRET_KEY: 'test-secret-key-for-e2e-tests-playwright-suite',
         DOTMAC_REDIS_URL: 'redis://localhost:6379/1',
-        DATABASE_URL: 'sqlite:///tmp/e2e_test.db',
+        // Use PostgreSQL for e2e tests (same as development)
+        DOTMAC_DATABASE_URL_ASYNC: 'postgresql+asyncpg://dotmac_user:change-me-in-production@localhost:5432/dotmac',
+        DATABASE_URL: 'postgresql://dotmac_user:change-me-in-production@localhost:5432/dotmac',
+        // Override individual database settings (Pydantic reads these with DATABASE__ prefix)
+        DATABASE__HOST: 'localhost',
+        DATABASE__PORT: '5432',
+        DATABASE__DATABASE: 'dotmac',
+        DATABASE__USERNAME: 'dotmac_user',
+        DATABASE__PASSWORD: 'change-me-in-production',
+        // Disable Vault for e2e tests
+        DOTMAC_VAULT_ENABLED: 'false',
+        // Disable MinIO for e2e tests - use local storage
+        DOTMAC_STORAGE_PROVIDER: 'local',
+        DOTMAC_STORAGE_LOCAL_PATH: '/tmp/e2e_test_storage',
       },
+      timeout: 120000,
     },
     {
       command: 'npm run dev',
       port: 3000,
-      reuseExistingServer: !process.env.CI,
-      cwd: '../frontend/apps/demo', // Assuming a demo app exists
+      reuseExistingServer: true, // Always reuse for local dev
+      cwd: '../apps/base-app',
+      env: {
+        NODE_ENV: 'test',
+        E2E_TEST: 'true',
+      },
+      timeout: 120000,
     },
   ],
 

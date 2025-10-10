@@ -4,31 +4,29 @@ Enhanced tests for partner management service to reach 90% coverage.
 Tests partner users, accounts, commissions, and referrals.
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.partner_management.service import PartnerService
 from dotmac.platform.partner_management.models import (
     Partner,
-    PartnerUser,
-    PartnerAccount,
     PartnerCommissionEvent,
+    PartnerUser,
     ReferralLead,
-    PartnerStatus,
     ReferralStatus,
 )
 from dotmac.platform.partner_management.schemas import (
-    PartnerUserCreate,
     PartnerAccountCreate,
     PartnerCommissionEventCreate,
+    PartnerUserCreate,
     ReferralLeadCreate,
     ReferralLeadUpdate,
 )
+from dotmac.platform.partner_management.service import PartnerService
 
 pytestmark = pytest.mark.asyncio
 
@@ -296,7 +294,7 @@ class TestCommissionEvents:
                 id=uuid4(),
                 partner_id=partner_id,
                 commission_amount=Decimal("100.00"),
-                event_date=datetime.now(timezone.utc),
+                event_date=datetime.now(UTC),
             )
 
             mock_result = MagicMock()
@@ -373,7 +371,7 @@ class TestReferralLeads:
                 id=uuid4(),
                 partner_id=partner_id,
                 contact_email="test@example.com",
-                submitted_date=datetime.now(timezone.utc),
+                submitted_date=datetime.now(UTC),
             )
 
             mock_result = MagicMock()
@@ -414,7 +412,7 @@ class TestReferralLeads:
             partner_id=partner_id,
             contact_email="test@example.com",
             status=ReferralStatus.QUALIFIED,
-            submitted_date=datetime.now(timezone.utc),
+            submitted_date=datetime.now(UTC),
         )
 
         # Mock partner
@@ -462,7 +460,7 @@ class TestReferralLeads:
             partner_id=uuid4(),
             contact_email="test@example.com",
             status=ReferralStatus.NEW,
-            submitted_date=datetime.now(timezone.utc),
+            submitted_date=datetime.now(UTC),
         )
 
         mock_result = MagicMock()
@@ -508,7 +506,7 @@ class TestReferralLeads:
             partner_id=uuid4(),
             contact_email="test@example.com",
             status=ReferralStatus.NEW,
-            submitted_date=datetime.now(timezone.utc),
+            submitted_date=datetime.now(UTC),
         )
 
         mock_result = MagicMock()

@@ -5,20 +5,9 @@ Tests complete workflows through API endpoints using the real FastAPI app
 with a test database, validating the full request-response cycle.
 """
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from unittest.mock import patch, MagicMock
-
-from dotmac.platform.customer_management.models import (
-    ActivityType,
-    CustomerStatus,
-    CustomerTier,
-    CustomerType,
-)
-
 
 pytestmark = pytest.mark.asyncio
 

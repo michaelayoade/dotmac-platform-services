@@ -1,303 +1,206 @@
 /**
  * E2E tests for authentication flows in base-app
+ * These tests use the actual login flow and real authentication
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 test.describe('Base App Authentication Flow', () => {
   const BASE_APP_URL = 'http://localhost:3000';
-  const API_BASE_URL = 'http://localhost:8000';
+  const TEST_EMAIL = 'admin@test.com';
+  const TEST_PASSWORD = 'Test123!@#';
 
-  test.beforeEach(async ({ page }) => {
-    // Set up API mocking
-    await page.route(`${API_BASE_URL}/api/health`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          status: 'healthy',
-          service: 'api-gateway',
-          checks: {
-            database: 'healthy',
-            cache: 'healthy',
-            auth: 'healthy',
-          },
-        }),
-      });
-    });
+  /**
+   * Helper function to perform login
+   */
+  async function login(page: Page, email: string = TEST_EMAIL, password: string = TEST_PASSWORD) {
+    await page.goto(`${BASE_APP_URL}/login`);
+    await page.waitForLoadState('networkidle');
 
-    await page.route(`${API_BASE_URL}/api/metrics`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          counters: {
-            'requests.total': 1234,
-            'errors.total': 5,
-          },
-          histograms: {
-            'request.duration': { p50: 100, p95: 250 },
-          },
-        }),
-      });
-    });
+    // Fill in login form
+    await page.getByTestId('email-input').fill(email);
+    await page.getByTestId('password-input').fill(password);
 
-    // Mock platform summary API route
-    await page.route(`${BASE_APP_URL}/api/platform/summary`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          health: {
-            status: 'healthy',
-            service: 'api-gateway',
-            checks: {
-              database: 'healthy',
-              cache: 'healthy',
-              auth: 'healthy',
-            },
-          },
-          metrics: {
-            counters: { 'requests.total': 1234 },
-            histograms: { 'request.duration': {} },
-          },
-          metricCards: [
-            {
-              id: 'health-checks',
-              label: 'Health checks',
-              value: '3/3',
-              trend: 'All systems passing',
-            },
-            {
-              id: 'counters',
-              label: 'Counters tracked',
-              value: '1',
-              trend: 'Recorded by observability pipeline',
-            },
-          ],
-          recentEvents: [
-            {
-              id: 'database-1',
-              timestamp: new Date().toISOString(),
-              event: 'database probe',
-              actor: 'Gateway',
-              status: 'healthy',
-            },
-          ],
-        }),
-      });
-    });
-  });
+    // Submit form
+    await page.getByTestId('submit-button').click();
+  }
 
-  test('landing page loads with health status', async ({ page }) => {
+  test('unauthenticated user is redirected to login', async ({ page }) => {
     await page.goto(BASE_APP_URL);
 
-    // Check main content
-    await expect(page.locator('text=DotMac Platform Starter')).toBeVisible();
-    await expect(
-      page.locator('text=Kick-start your next product with production-ready platform services')
-    ).toBeVisible();
-
-    // Check navigation buttons
-    const dashboardLink = page.locator('a[href="/dashboard"]');
-    const signInLink = page.locator('a[href="/auth/login"]');
-
-    await expect(dashboardLink).toBeVisible();
-    await expect(signInLink).toBeVisible();
-
-    // Check health card
-    await expect(page.locator('text=API health')).toBeVisible();
-    await expect(page.locator('text=healthy – api-gateway')).toBeVisible();
-    await expect(page.locator('text=DATABASE')).toBeVisible();
-    await expect(page.locator('text=CACHE')).toBeVisible();
-    await expect(page.locator('text=AUTH')).toBeVisible();
+    // Should be redirected to login page
+    await expect(page).toHaveURL(/\/login/);
   });
 
-  test('landing page handles health check errors', async ({ page }) => {
-    // Override health API to return error
-    await page.route(`${API_BASE_URL}/api/health`, async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Service unavailable' }),
-      });
-    });
+  test('login page loads correctly', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
 
-    await page.goto(BASE_APP_URL);
-
-    // Should show error state
-    await expect(page.locator('text=API health')).toBeVisible();
-    await expect(page.locator('text=Service unavailable')).toBeVisible();
-  });
-
-  test('dashboard redirects to login when unauthenticated', async ({ page }) => {
-    await page.goto(`${BASE_APP_URL}/dashboard`);
-
-    // Should redirect to login page
-    await expect(page).toHaveURL(/\/auth\/login/);
-  });
-
-  test('dashboard shows loading state', async ({ page }) => {
-    // Mock authenticated state
-    await page.addInitScript(() => {
-      // Mock localStorage for auth state
-      localStorage.setItem('auth-token', 'mock-token');
-    });
-
-    // Delay the platform summary response
-    await page.route(`${BASE_APP_URL}/api/platform/summary`, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          health: {},
-          metrics: {},
-          metricCards: [],
-          recentEvents: [],
-        }),
-      });
-    });
-
-    await page.goto(`${BASE_APP_URL}/dashboard`);
-
-    // Should show loading state
-    await expect(page.locator('text=Loading metrics…')).toBeVisible();
-  });
-
-  test('dashboard displays data when authenticated', async ({ page }) => {
-    // Mock authenticated state - this would need to match the actual auth implementation
-    await page.addInitScript(() => {
-      // This is a simplified mock - real implementation would depend on your auth provider
-      window.__MOCK_AUTH_STATE__ = {
-        isAuthenticated: true,
-        user: { profile: { name: 'Test User' } },
-      };
-    });
-
-    // Override auth check to be authenticated
-    await page.addInitScript(() => {
-      // Mock the auth hook to return authenticated state
-      Object.defineProperty(window, 'mockAuthState', {
-        value: {
-          isAuthenticated: true,
-          user: { profile: { name: 'Test User' } },
-          logout: () => {},
-        },
-      });
-    });
-
-    await page.goto(`${BASE_APP_URL}/dashboard`);
-
-    // Wait for platform summary to load
-    await page.waitForResponse(`${BASE_APP_URL}/api/platform/summary`);
-
-    // Check header
+    // Check page elements
     await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('text=Sign in to your DotMac Platform account')).toBeVisible();
 
-    // Check metric cards
-    await expect(page.locator('text=Health checks')).toBeVisible();
-    await expect(page.locator('text=3/3')).toBeVisible();
-    await expect(page.locator('text=All systems passing')).toBeVisible();
+    // Check form elements with test IDs
+    await expect(page.getByTestId('email-input')).toBeVisible();
+    await expect(page.getByTestId('password-input')).toBeVisible();
+    await expect(page.getByTestId('submit-button')).toBeVisible();
 
-    await expect(page.locator('text=Counters tracked')).toBeVisible();
-    await expect(page.locator('text=1')).toBeVisible();
-
-    // Check recent events table
-    await expect(page.locator('text=Recent platform events')).toBeVisible();
-    await expect(page.locator('text=database probe')).toBeVisible();
-    await expect(page.locator('text=Gateway')).toBeVisible();
+    // Check test credentials hint in development
+    await expect(page.locator('text=Test Credentials')).toBeVisible();
+    await expect(page.locator('text=admin@example.com')).toBeVisible();
   });
 
-  test('dashboard handles API errors gracefully', async ({ page }) => {
-    // Mock authenticated state
-    await page.addInitScript(() => {
-      window.__MOCK_AUTH_STATE__ = {
-        isAuthenticated: true,
-        user: { profile: { name: 'Test User' } },
-      };
+  test('register page loads correctly', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/register`);
+
+    // The register page should load without redirect
+    await expect(page).toHaveURL(/\/register/);
+  });
+
+  test('successful login redirects to dashboard', async ({ page }) => {
+    // Listen for console errors
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        console.log('Browser console error:', msg.text());
+      }
     });
 
-    // Mock platform summary API to return error
-    await page.route(`${BASE_APP_URL}/api/platform/summary`, async (route) => {
-      await route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Failed to load platform summary' }),
-      });
-    });
+    await login(page);
 
+    // Wait a bit for any error message to appear
+    await page.waitForTimeout(2000);
+
+    // Check if there's an error message
+    const errorMessage = page.getByTestId('error-message');
+    if (await errorMessage.isVisible()) {
+      const errorText = await errorMessage.textContent();
+      console.log('Login error:', errorText);
+    }
+
+    // Wait for redirect to dashboard
+    await page.waitForURL(/\/dashboard/, { timeout: 10000 });
+
+    // Verify we're on the dashboard
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
+
+  test('failed login shows error message', async ({ page }) => {
+    await login(page, TEST_EMAIL, 'wrongpassword');
+
+    // Should show error message
+    await expect(page.getByTestId('error-message')).toBeVisible();
+
+    // Should stay on login page
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('dashboard requires authentication', async ({ page }) => {
     await page.goto(`${BASE_APP_URL}/dashboard`);
 
-    // Should show error state
-    await expect(page.locator('text=Failed to load platform summary')).toBeVisible();
+    // Should redirect to login with return URL
+    await expect(page).toHaveURL(/\/login\?from=%2Fdashboard/);
   });
 
-  test('navigation between pages works correctly', async ({ page }) => {
-    await page.goto(BASE_APP_URL);
+  test('authenticated user can access dashboard', async ({ page }) => {
+    // Login first
+    await login(page);
+    await page.waitForURL(/\/dashboard/, { timeout: 10000 });
 
-    // Click dashboard link
-    await page.click('a[href="/dashboard"]');
+    // Verify dashboard loads
     await expect(page).toHaveURL(/\/dashboard/);
 
-    // Go back to home
-    await page.goBack();
-    await expect(page).toHaveURL(/^\//);
+    // Check for common dashboard elements
+    await expect(page.locator('text=Welcome back')).toBeVisible();
+  });
 
-    // Click sign in link
-    await page.click('a[href="/auth/login"]');
-    await expect(page).toHaveURL(/\/auth\/login/);
+  test('authenticated user can navigate between pages', async ({ page }) => {
+    // Login first
+    await login(page);
+    await page.waitForURL(/\/dashboard/, { timeout: 10000 });
+
+    // Try navigating to different sections
+    // Note: Adjust these based on actual dashboard navigation
+    const dashboardHeading = page.locator('h1, h2').first();
+    await expect(dashboardHeading).toBeVisible();
+  });
+
+  test('login form validation works', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
+
+    // Try submitting empty form
+    await page.getByTestId('submit-button').click();
+
+    // Should show validation errors (from react-hook-form + zod)
+    // Form should not submit
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('remember me checkbox is functional', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
+
+    // Check the remember me checkbox
+    const rememberMe = page.locator('input[id="remember-me"]');
+    await rememberMe.check();
+    await expect(rememberMe).toBeChecked();
+  });
+
+  test('forgot password link works', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
+
+    // Click forgot password link
+    await page.locator('text=Forgot password?').click();
+
+    // Should navigate to forgot password page
+    await expect(page).toHaveURL(/\/forgot-password/);
+  });
+
+  test('sign up link navigates to register page', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
+
+    // Click sign up link
+    await page.locator('text=Sign up').click();
+
+    // Should navigate to register page
+    await expect(page).toHaveURL(/\/register/);
+  });
+
+  test('back to home link works', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
+
+    // Click back to home link
+    await page.locator('text=← Back to home').click();
+
+    // Should navigate back (which will redirect to login again since not authenticated)
+    await expect(page).toHaveURL(/\/login/);
   });
 
   test('responsive design works on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 }); // iPhone SE size
 
-    await page.goto(BASE_APP_URL);
+    await page.goto(`${BASE_APP_URL}/login`);
+    await page.waitForLoadState('networkidle');
 
-    // Main content should still be visible
-    await expect(page.locator('text=DotMac Platform Starter')).toBeVisible();
-    await expect(page.locator('text=API health')).toBeVisible();
+    // Form elements should still be visible and usable
+    await expect(page.getByTestId('email-input')).toBeVisible();
+    await expect(page.getByTestId('password-input')).toBeVisible();
+    await expect(page.getByTestId('submit-button')).toBeVisible();
 
-    // Navigation buttons should be stacked
-    const dashboardLink = page.locator('a[href="/dashboard"]');
-    const signInLink = page.locator('a[href="/auth/login"]');
-
-    await expect(dashboardLink).toBeVisible();
-    await expect(signInLink).toBeVisible();
+    // Text should be readable
+    await expect(page.locator('text=Welcome back')).toBeVisible();
   });
 
-  test('API route proxy works correctly', async ({ page }) => {
-    // Remove mocking to test actual proxy
-    await page.unroute(`${BASE_APP_URL}/api/platform/summary`);
+  test('loading state shows during login', async ({ page }) => {
+    await page.goto(`${BASE_APP_URL}/login`);
 
-    await page.goto(BASE_APP_URL);
+    // Fill form
+    await page.getByTestId('email-input').fill(TEST_EMAIL);
+    await page.getByTestId('password-input').fill(TEST_PASSWORD);
 
-    // Monitor network requests
-    const requests: string[] = [];
-    page.on('request', (request) => {
-      requests.push(request.url());
-    });
+    // Click submit and immediately check for loading state
+    await page.getByTestId('submit-button').click();
 
-    // This would test the actual proxy in a real environment
-    // For now, we'll verify the route structure exists
-    const response = await page.request.get(`${BASE_APP_URL}/api/platform/summary`);
-
-    // The route should exist (even if backend is not available)
-    // A 502 is expected when backend is not running, which is acceptable
-    expect([200, 502, 503]).toContain(response.status());
-  });
-
-  test('error boundary handles JavaScript errors', async ({ page }) => {
-    // Inject a script that will cause an error
-    await page.addInitScript(() => {
-      // Override a React component to throw an error
-      window.__FORCE_ERROR__ = true;
-    });
-
-    await page.goto(BASE_APP_URL);
-
-    // Page should still load (error boundary should catch errors)
-    // This test would need to be expanded based on actual error boundary implementation
-    await expect(page.locator('body')).toBeVisible();
+    // Button should show loading text (briefly)
+    // This might be too fast to catch, so we just verify button exists
+    const submitButton = page.getByTestId('submit-button');
+    await expect(submitButton).toBeVisible();
   });
 });

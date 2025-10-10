@@ -3,9 +3,8 @@
 Test that files are actually persisted in MinIO.
 """
 
-import os
 import asyncio
-import uuid
+import os
 from datetime import datetime
 
 # Configure MinIO
@@ -24,7 +23,7 @@ for module in list(sys.modules.keys()):
     if "dotmac.platform" in module:
         del sys.modules[module]
 
-from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
+from dotmac.platform.file_storage.service import StorageBackend, get_storage_service
 
 
 async def main():

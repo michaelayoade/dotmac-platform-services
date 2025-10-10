@@ -1,12 +1,13 @@
 """Tests for SendGridIntegration."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from dotmac.platform.integrations import (
+    IntegrationConfig,
     IntegrationStatus,
     IntegrationType,
-    IntegrationConfig,
     SendGridIntegration,
 )
 

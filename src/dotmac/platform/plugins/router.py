@@ -25,7 +25,6 @@ from .schema import (
 )
 
 router = APIRouter(
-    prefix="/plugins",
     tags=["Plugin Management"],
     dependencies=[Depends(get_current_user)],  # Proper auth enabled
 )
@@ -306,6 +305,7 @@ async def bulk_health_check(
             results.append(health_check)
         except Exception as e:
             from datetime import UTC, datetime
+
             # Create error health check result
             results.append(
                 PluginHealthCheck(

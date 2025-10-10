@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """Initialize database with tables and test data."""
-import asyncio
 import os
-from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from dotmac.platform.db import Base
-from dotmac.platform.settings import settings
 
 # Import all models to ensure they're registered
-from dotmac.platform.auth.models import Role, Permission, PermissionCategory
+from dotmac.platform.auth.models import Permission, PermissionCategory, Role
+from dotmac.platform.db import Base
 from dotmac.platform.user_management.models import User
-from dotmac.platform.customer_management.models import Customer
-from dotmac.platform.contacts.models import Contact
 
 try:
     from dotmac.platform.audit.models import AuditActivity

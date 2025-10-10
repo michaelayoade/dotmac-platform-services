@@ -5,10 +5,10 @@ This demonstrates how domain events can enhance the existing billing
 infrastructure without replacing the integration event bus.
 """
 
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.core import (
     AggregateRoot,
@@ -16,18 +16,13 @@ from dotmac.platform.core import (
     InvoiceCreatedEvent,
     InvoicePaymentReceivedEvent,
     InvoiceVoidedEvent,
-    PaymentProcessedEvent,
-    PaymentFailedEvent,
-    SubscriptionCreatedEvent,
-    CustomerCreatedEvent,
     Money,
     get_domain_event_dispatcher,
     get_domain_event_publisher,
     reset_domain_event_dispatcher,
     reset_domain_event_publisher,
 )
-from dotmac.platform.events import get_event_bus, EventPriority
-
+from dotmac.platform.events import EventPriority
 
 # ============================================================================
 # Example Domain Aggregates (for demonstration)

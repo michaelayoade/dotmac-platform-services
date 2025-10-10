@@ -1,8 +1,8 @@
 """Tests for billing mappers module."""
 
-import pytest
 from datetime import datetime, timedelta
-from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
 from dotmac.platform.billing.mappers import (

@@ -19,9 +19,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

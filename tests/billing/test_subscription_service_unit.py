@@ -5,29 +5,31 @@ Strategy: Mock ALL dependencies (database, plan lookups, event creation)
 Focus: Test business rules, validation, lifecycle management in isolation
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.subscriptions.service import SubscriptionService
-from dotmac.platform.billing.subscriptions.models import (
-    SubscriptionPlan,
-    Subscription,
-    SubscriptionPlanCreateRequest,
-    SubscriptionCreateRequest,
-    SubscriptionPlanChangeRequest,
-    BillingCycle,
-    SubscriptionStatus,
-    ProrationBehavior,
-    ProrationResult,
-)
 from dotmac.platform.billing.exceptions import (
+    PlanNotFoundError,
     SubscriptionError,
     SubscriptionNotFoundError,
-    PlanNotFoundError,
 )
+from dotmac.platform.billing.subscriptions.models import (
+    BillingCycle,
+    ProrationBehavior,
+    ProrationResult,
+    Subscription,
+    SubscriptionCreateRequest,
+    SubscriptionPlan,
+    SubscriptionPlanChangeRequest,
+    SubscriptionPlanCreateRequest,
+    SubscriptionStatus,
+)
+from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
 
 class TestSubscriptionPlanManagement:
@@ -46,6 +48,29 @@ class TestSubscriptionPlanManagement:
     def subscription_service(self, mock_db):
         """Create subscription service with mocked DB."""
         return SubscriptionService(db_session=mock_db)
+
+
+def _make_db_subscription_stub(subscription: Subscription) -> SimpleNamespace:
+    """Create a lightweight stub representing a DB row for subscription."""
+
+    return SimpleNamespace(
+        subscription_id=subscription.subscription_id,
+        tenant_id=subscription.tenant_id,
+        customer_id=subscription.customer_id,
+        plan_id=subscription.plan_id,
+        status=subscription.status.value,
+        cancel_at_period_end=subscription.cancel_at_period_end,
+        current_period_start=subscription.current_period_start,
+        current_period_end=subscription.current_period_end,
+        trial_end=subscription.trial_end,
+        canceled_at=subscription.canceled_at,
+        ended_at=subscription.ended_at,
+        custom_price=subscription.custom_price,
+        usage_records=subscription.usage_records,
+        metadata_json=subscription.metadata,
+        created_at=subscription.created_at,
+        updated_at=subscription.updated_at,
+    )
 
     @pytest.fixture
     def basic_plan_request(self):
@@ -142,8 +167,8 @@ class TestSubscriptionLifecycle:
             overage_rates={},
             is_active=True,
             metadata={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -228,7 +253,7 @@ class TestSubscriptionPlanChange:
     @pytest.fixture
     def active_subscription(self):
         """Create active subscription."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Subscription(
             subscription_id="sub_123",
             tenant_id="tenant-1",
@@ -266,8 +291,8 @@ class TestSubscriptionPlanChange:
             overage_rates={},
             is_active=True,
             metadata={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -288,8 +313,8 @@ class TestSubscriptionPlanChange:
             overage_rates={},
             is_active=True,
             metadata={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     async def test_change_plan_with_proration(
@@ -304,29 +329,27 @@ class TestSubscriptionPlanChange:
             effective_date=None,
         )
 
+        db_stub = _make_db_subscription_stub(active_subscription)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalar_one_or_none=lambda: db_stub)
+        )
+
         with patch.object(service, "get_subscription", return_value=active_subscription):
             with patch.object(service, "get_plan") as mock_get_plan:
                 mock_get_plan.side_effect = [old_plan, new_plan]
                 with patch.object(service, "_create_event", return_value=None):
-                    with patch.object(
-                        service.db,
-                        "execute",
-                        return_value=MagicMock(
-                            scalar_one_or_none=MagicMock(return_value=MagicMock(plan_id="plan_old"))
-                        ),
-                    ):
-                        updated_sub, proration_result = await service.change_plan(
-                            subscription_id="sub_123",
-                            change_request=change_request,
-                            tenant_id="tenant-1",
-                        )
+                    updated_sub, proration_result = await service.change_plan(
+                        subscription_id="sub_123",
+                        change_request=change_request,
+                        tenant_id="tenant-1",
+                    )
 
-                        # Should have proration result
-                        assert proration_result is not None
-                        assert isinstance(proration_result, ProrationResult)
+                    # Should have proration result
+                    assert proration_result is not None
+                    assert isinstance(proration_result, ProrationResult)
 
-                        # DB should be updated
-                        assert mock_db.commit.called
+                    # DB should be updated
+                    assert mock_db.commit.called
 
     async def test_change_plan_to_same_plan_error(
         self, subscription_service, active_subscription, old_plan
@@ -392,7 +415,7 @@ class TestSubscriptionCancellation:
     @pytest.fixture
     def active_subscription(self):
         """Create active subscription."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Subscription(
             subscription_id="sub_123",
             tenant_id="tenant-1",
@@ -418,56 +441,46 @@ class TestSubscriptionCancellation:
         """Test cancel subscription at period end (default behavior)."""
         service, mock_db = subscription_service
 
-        db_subscription_mock = MagicMock()
-        db_subscription_mock.status = SubscriptionStatus.ACTIVE.value
+        db_subscription_row = _make_db_subscription_stub(active_subscription)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalar_one_or_none=lambda: db_subscription_row)
+        )
 
         with patch.object(service, "get_subscription", return_value=active_subscription):
-            with patch.object(
-                service.db,
-                "execute",
-                return_value=MagicMock(
-                    scalar_one_or_none=MagicMock(return_value=db_subscription_mock)
-                ),
-            ):
-                with patch.object(service, "_create_event", return_value=None):
-                    result = await service.cancel_subscription(
-                        subscription_id="sub_123",
-                        tenant_id="tenant-1",
-                        at_period_end=True,
-                    )
+            with patch.object(service, "_create_event", return_value=None):
+                await service.cancel_subscription(
+                    subscription_id="sub_123",
+                    tenant_id="tenant-1",
+                    at_period_end=True,
+                )
 
-                    # Should be marked for cancellation at period end
-                    assert db_subscription_mock.cancel_at_period_end == True
-                    assert db_subscription_mock.status == SubscriptionStatus.CANCELED.value
-                    assert db_subscription_mock.canceled_at is not None
-                    assert db_subscription_mock.ended_at is None  # Not ended yet
+                # Should be marked for cancellation at period end
+                assert db_subscription_row.cancel_at_period_end is True
+                assert db_subscription_row.status == SubscriptionStatus.CANCELED.value
+                assert db_subscription_row.canceled_at is not None
+                assert db_subscription_row.ended_at is None  # Not ended yet
 
     async def test_cancel_subscription_immediately(self, subscription_service, active_subscription):
         """Test immediate subscription cancellation."""
         service, mock_db = subscription_service
 
-        db_subscription_mock = MagicMock()
-        db_subscription_mock.status = SubscriptionStatus.ACTIVE.value
+        db_subscription_row = _make_db_subscription_stub(active_subscription)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalar_one_or_none=lambda: db_subscription_row)
+        )
 
         with patch.object(service, "get_subscription", return_value=active_subscription):
-            with patch.object(
-                service.db,
-                "execute",
-                return_value=MagicMock(
-                    scalar_one_or_none=MagicMock(return_value=db_subscription_mock)
-                ),
-            ):
-                with patch.object(service, "_create_event", return_value=None):
-                    result = await service.cancel_subscription(
-                        subscription_id="sub_123",
-                        tenant_id="tenant-1",
-                        at_period_end=False,  # Immediate
-                    )
+            with patch.object(service, "_create_event", return_value=None):
+                await service.cancel_subscription(
+                    subscription_id="sub_123",
+                    tenant_id="tenant-1",
+                    at_period_end=False,  # Immediate
+                )
 
-                    # Should be ended immediately
-                    assert db_subscription_mock.status == SubscriptionStatus.ENDED.value
-                    assert db_subscription_mock.ended_at is not None
-                    assert db_subscription_mock.canceled_at is not None
+                # Should be ended immediately
+                assert db_subscription_row.status == SubscriptionStatus.ENDED.value
+                assert db_subscription_row.ended_at is not None
+                assert db_subscription_row.canceled_at is not None
 
     async def test_cancel_inactive_subscription_error(
         self, subscription_service, active_subscription
@@ -502,7 +515,7 @@ class TestSubscriptionReactivation:
     @pytest.fixture
     def canceled_subscription(self):
         """Create canceled subscription."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Subscription(
             subscription_id="sub_123",
             tenant_id="tenant-1",
@@ -528,26 +541,21 @@ class TestSubscriptionReactivation:
         """Test successful reactivation of canceled subscription."""
         service, mock_db = subscription_service
 
-        db_subscription_mock = MagicMock()
-        db_subscription_mock.status = SubscriptionStatus.CANCELED.value
+        db_subscription_row = _make_db_subscription_stub(canceled_subscription)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalar_one_or_none=lambda: db_subscription_row)
+        )
 
         with patch.object(service, "get_subscription", return_value=canceled_subscription):
-            with patch.object(
-                service.db,
-                "execute",
-                return_value=MagicMock(
-                    scalar_one_or_none=MagicMock(return_value=db_subscription_mock)
-                ),
-            ):
-                with patch.object(service, "_create_event", return_value=None):
-                    result = await service.reactivate_subscription(
-                        subscription_id="sub_123", tenant_id="tenant-1"
-                    )
+            with patch.object(service, "_create_event", return_value=None):
+                await service.reactivate_subscription(
+                    subscription_id="sub_123", tenant_id="tenant-1"
+                )
 
-                    # Should be reactivated
-                    assert db_subscription_mock.status == SubscriptionStatus.ACTIVE.value
-                    assert db_subscription_mock.cancel_at_period_end == False
-                    assert db_subscription_mock.canceled_at is None
+                # Should be reactivated
+                assert db_subscription_row.status == SubscriptionStatus.ACTIVE.value
+                assert db_subscription_row.cancel_at_period_end is False
+                assert db_subscription_row.canceled_at is None
 
     async def test_reactivate_non_canceled_subscription_error(
         self, subscription_service, canceled_subscription
@@ -573,7 +581,7 @@ class TestSubscriptionReactivation:
         service, _ = subscription_service
 
         # Set period end in the past
-        canceled_subscription.current_period_end = datetime.now(timezone.utc) - timedelta(days=1)
+        canceled_subscription.current_period_end = datetime.now(UTC) - timedelta(days=1)
 
         with patch.object(service, "get_subscription", return_value=canceled_subscription):
             with pytest.raises(SubscriptionError) as exc:
@@ -596,7 +604,7 @@ class TestProrationCalculation:
     @pytest.fixture
     def subscription_mid_period(self):
         """Subscription at mid-period (15 days remaining out of 30)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Subscription(
             subscription_id="sub_123",
             tenant_id="tenant-1",
@@ -634,8 +642,8 @@ class TestProrationCalculation:
             overage_rates={},
             is_active=True,
             metadata={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -656,8 +664,8 @@ class TestProrationCalculation:
             overage_rates={},
             is_active=True,
             metadata={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     def test_proration_upgrade(

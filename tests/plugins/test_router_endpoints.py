@@ -2,25 +2,24 @@
 Comprehensive tests for plugin router endpoints to improve coverage.
 """
 
-import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.plugins.router import router
 from dotmac.platform.plugins.schema import (
     PluginConfig,
+    PluginHealthCheck,
     PluginInstance,
     PluginStatus,
-    PluginType,
-    PluginHealthCheck,
     PluginTestResult,
-    FieldSpec,
-    FieldType,
+    PluginType,
 )
-from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.auth.core import UserInfo
 
 
 def mock_current_user():
@@ -39,7 +38,7 @@ def app_with_router():
     """Create test app with plugin router."""
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_current_user
-    app.include_router(router)
+    app.include_router(router, prefix="/api/v1/plugins", tags=["Plugin Management"])
     return app
 
 
@@ -72,7 +71,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.get("/plugins/")
+            response = client.get("/api/v1/plugins/")
 
             assert response.status_code == 200
             data = response.json()
@@ -101,7 +100,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.get("/plugins/instances")
+            response = client.get("/api/v1/plugins/instances")
 
             assert response.status_code == 200
             data = response.json()
@@ -116,7 +115,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.get("/plugins/NonExistent/schema")
+            response = client.get("/api/v1/plugins/NonExistent/schema")
 
             assert response.status_code == 404
             assert "not found" in response.json()["detail"].lower()
@@ -143,7 +142,7 @@ class TestPluginRouterEndpoints:
                 mock_response.return_value = {"schema": schema.model_dump(), "instance_id": None}
 
                 client = TestClient(app_with_router)
-                response = client.get("/plugins/TestPlugin/schema")
+                response = client.get("/api/v1/plugins/TestPlugin/schema")
 
                 # The router should call PluginSchemaResponse with config_schema
                 # This will fail in real code but we're testing the line is executed
@@ -172,7 +171,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             response = client.post(
-                "/plugins/instances",
+                "/api/v1/plugins/instances",
                 json={
                     "plugin_name": "Test Plugin",
                     "instance_name": "My Instance",
@@ -192,7 +191,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             response = client.post(
-                "/plugins/instances",
+                "/api/v1/plugins/instances",
                 json={
                     "plugin_name": "NonExistent",
                     "instance_name": "Test",
@@ -212,7 +211,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.get(f"/plugins/instances/{instance_id}")
+            response = client.get(f"/api/v1/plugins/instances/{instance_id}")
 
             assert response.status_code == 404
             assert "not found" in response.json()["detail"].lower()
@@ -240,7 +239,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.get(f"/plugins/instances/{instance_id}")
+            response = client.get(f"/api/v1/plugins/instances/{instance_id}")
 
             assert response.status_code == 200
             assert response.json()["instance_name"] == "Test Instance"
@@ -274,7 +273,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.get(f"/plugins/instances/{instance_id}/configuration")
+            response = client.get(f"/api/v1/plugins/instances/{instance_id}/configuration")
 
             assert response.status_code == 400
             assert "error" in response.json()["detail"].lower()
@@ -287,7 +286,7 @@ class TestPluginRouterEndpoints:
             client = TestClient(app_with_router)
             instance_id = uuid4()
             response = client.put(
-                f"/plugins/instances/{instance_id}/configuration",
+                f"/api/v1/plugins/instances/{instance_id}/configuration",
                 json={"configuration": {"api_key": "new_key"}},
             )
 
@@ -304,7 +303,7 @@ class TestPluginRouterEndpoints:
             client = TestClient(app_with_router)
             instance_id = uuid4()
             response = client.put(
-                f"/plugins/instances/{instance_id}/configuration",
+                f"/api/v1/plugins/instances/{instance_id}/configuration",
                 json={"configuration": {"api_key": "new_key"}},
             )
 
@@ -318,7 +317,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.delete(f"/plugins/instances/{instance_id}")
+            response = client.delete(f"/api/v1/plugins/instances/{instance_id}")
 
             assert response.status_code == 204
 
@@ -331,7 +330,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.delete(f"/plugins/instances/{instance_id}")
+            response = client.delete(f"/api/v1/plugins/instances/{instance_id}")
 
             assert response.status_code == 400
             assert "Delete failed" in response.json()["detail"]
@@ -352,7 +351,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.get(f"/plugins/instances/{instance_id}/health")
+            response = client.get(f"/api/v1/plugins/instances/{instance_id}/health")
 
             assert response.status_code == 200
             assert response.json()["status"] == "healthy"
@@ -366,7 +365,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.get(f"/plugins/instances/{instance_id}/health")
+            response = client.get(f"/api/v1/plugins/instances/{instance_id}/health")
 
             assert response.status_code == 400
             assert "Health check failed" in response.json()["detail"]
@@ -387,7 +386,7 @@ class TestPluginRouterEndpoints:
             client = TestClient(app_with_router)
             instance_id = uuid4()
             response = client.post(
-                f"/plugins/instances/{instance_id}/test",
+                f"/api/v1/plugins/instances/{instance_id}/test",
                 json={"configuration": {"api_key": "test"}},
             )
 
@@ -403,7 +402,7 @@ class TestPluginRouterEndpoints:
         ):
             client = TestClient(app_with_router)
             instance_id = uuid4()
-            response = client.post(f"/plugins/instances/{instance_id}/test", json={})
+            response = client.post(f"/api/v1/plugins/instances/{instance_id}/test", json={})
 
             assert response.status_code == 400
             assert "Connection test failed" in response.json()["detail"]
@@ -424,7 +423,9 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.post("/plugins/instances/health-check", json=[str(instance_id)])
+            response = client.post(
+                "/api/v1/plugins/instances/health-check", json=[str(instance_id)]
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -461,7 +462,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.post("/plugins/instances/health-check")
+            response = client.post("/api/v1/plugins/instances/health-check")
 
             assert response.status_code == 200
             data = response.json()
@@ -476,7 +477,9 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.post("/plugins/instances/health-check", json=[str(instance_id)])
+            response = client.post(
+                "/api/v1/plugins/instances/health-check", json=[str(instance_id)]
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -499,7 +502,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.post("/plugins/refresh")
+            response = client.post("/api/v1/plugins/refresh")
 
             assert response.status_code == 200
             data = response.json()
@@ -514,7 +517,7 @@ class TestPluginRouterEndpoints:
             "dotmac.platform.plugins.router.get_plugin_registry", return_value=mock_registry
         ):
             client = TestClient(app_with_router)
-            response = client.post("/plugins/refresh")
+            response = client.post("/api/v1/plugins/refresh")
 
             assert response.status_code == 500
             assert "Failed to refresh" in response.json()["detail"]

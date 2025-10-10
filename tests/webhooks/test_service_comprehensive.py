@@ -2,15 +2,15 @@
 Comprehensive tests for webhook subscription service.
 """
 
-import pytest
-from uuid import uuid4, UUID
 from unittest.mock import AsyncMock, MagicMock
 
-from dotmac.platform.webhooks.service import WebhookSubscriptionService
+import pytest
+
 from dotmac.platform.webhooks.models import (
     WebhookSubscriptionCreate,
     generate_webhook_secret,
 )
+from dotmac.platform.webhooks.service import WebhookSubscriptionService
 
 
 @pytest.fixture

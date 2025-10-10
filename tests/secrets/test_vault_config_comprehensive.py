@@ -14,20 +14,20 @@ Tests cover:
 """
 
 import os
+from unittest.mock import Mock, mock_open, patch
+
 import pytest
-from unittest.mock import Mock, patch, mock_open
-from pydantic import ValidationError
 
 from dotmac.platform.secrets.vault_config import (
     VaultConnectionConfig,
+    VaultConnectionManager,
+    check_vault_health,
+    get_async_vault_client,
+    get_vault_client,
+    get_vault_config,
     get_vault_config_from_env,
     get_vault_config_from_settings,
-    get_vault_config,
-    VaultConnectionManager,
     get_vault_connection_manager,
-    get_vault_client,
-    get_async_vault_client,
-    check_vault_health,
 )
 
 

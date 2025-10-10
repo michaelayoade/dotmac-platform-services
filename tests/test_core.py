@@ -1,21 +1,20 @@
 """Tests for core module."""
 
-import pytest
 from uuid import UUID
 
-from dotmac.platform.core import (
-    # Exceptions
-    DotMacError,
-    ValidationError,
+import pytest
+
+from dotmac.platform.core import (  # Exceptions; Models
     AuthorizationError,
-    ConfigurationError,
-    BusinessRuleError,
-    RepositoryError,
-    EntityNotFoundError,
-    DuplicateEntityError,
-    # Models
     BaseModel,
+    BusinessRuleError,
+    ConfigurationError,
+    DotMacError,
+    DuplicateEntityError,
+    EntityNotFoundError,
+    RepositoryError,
     TenantContext,
+    ValidationError,
 )
 
 

@@ -5,19 +5,35 @@ Strategy: Use REAL database, mock ONLY external APIs (payment providers, event b
 Focus: Test API contracts, authentication, validation, database integration
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
-from httpx import AsyncClient
-from fastapi import status
+from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import status
+from httpx import AsyncClient
+
+from dotmac.platform.billing.core.enums import PaymentStatus
 from dotmac.platform.billing.subscriptions.models import (
     BillingCycle,
     SubscriptionStatus,
-    ProrationBehavior,
 )
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
+
+
+# Reset rate limiter before each test to prevent state leakage
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset rate limiter singleton before each test to ensure test isolation.
+
+    The rate limiter uses in-memory storage that persists across tests,
+    which can cause tests to fail if a previous test exhausted the rate limit.
+    """
+    from dotmac.platform.core.rate_limiting import reset_limiter
+
+    reset_limiter()
+    yield
+    # Optional: Reset again after test for extra safety
+    reset_limiter()
 
 
 @pytest.mark.asyncio
@@ -32,7 +48,7 @@ class TestPaymentsRouter:
         from dotmac.platform.billing.core.entities import PaymentEntity
 
         # Create test failed payments in database
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payment1 = PaymentEntity(
             tenant_id="test-tenant",  # Must match test_app tenant override
             amount=10000,  # $100
@@ -123,6 +139,10 @@ class TestSubscriptionsRouter:
             json=plan_data,
             headers=auth_headers,
         )
+
+        # Debug: Print response if not 201
+        if response.status_code != status.HTTP_201_CREATED:
+            print(f"ERROR: Status {response.status_code}, Body: {response.text}")
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -449,22 +469,30 @@ class TestRateLimiting:
     """Test rate limiting on billing endpoints (if implemented)."""
 
     async def test_rate_limit_enforcement(self, router_client: AsyncClient, auth_headers):
-        """Test that rate limits are enforced (if configured)."""
-        # This test assumes rate limiting is configured
-        # If not, it will be skipped
+        """Test that rate limits are enforced.
 
-        # Try to make many requests rapidly
+        SECURITY: Rate limiting is REQUIRED for billing endpoints to prevent:
+        - Denial of service attacks
+        - Resource exhaustion
+        - Abuse of billing operations
+
+        This test MUST NOT skip - rate limiting is a mandatory security control.
+        """
+        # Try to make many requests rapidly (exceeds 100/minute limit)
         responses = []
-        for _ in range(150):  # Exceed typical rate limit
+        for _ in range(150):  # Exceed the 100/minute limit on list_subscription_plans
             response = await router_client.get(
                 "/api/v1/billing/subscriptions/plans",
                 headers=auth_headers,
             )
             responses.append(response.status_code)
 
-        # Check if any requests were rate limited
-        # If rate limiting is implemented, should see 429 responses
-        if status.HTTP_429_TOO_MANY_REQUESTS in responses:
-            assert True  # Rate limiting is working
-        else:
-            pytest.skip("Rate limiting not configured")
+        # SECURITY: Rate limiting MUST be enforced - 429 responses are REQUIRED
+        rate_limited_count = responses.count(status.HTTP_429_TOO_MANY_REQUESTS)
+
+        assert rate_limited_count > 0, (
+            f"SECURITY FAILURE: Rate limiting not enforced on billing endpoints! "
+            f"Made 150 requests, expected HTTP 429 responses but got none. "
+            f"Response codes: {set(responses)}. "
+            f"This is a critical security vulnerability - billing endpoints MUST be rate limited."
+        )

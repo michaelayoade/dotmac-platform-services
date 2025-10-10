@@ -4,14 +4,14 @@ Currency utilities for billing
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from dotmac.platform.billing.config import get_billing_config
+from dotmac.platform.billing.config import CurrencyConfig, get_billing_config
 
 
 class CurrencyFormatter:
     """Currency formatting utilities"""
 
     def __init__(self) -> None:
-        self.config = get_billing_config().currency
+        self.config: CurrencyConfig = get_billing_config().currency
 
     def format_amount(self, amount: int, include_symbol: bool = True) -> str:
         """Format amount from minor units to display string"""
@@ -27,7 +27,8 @@ class CurrencyFormatter:
 
         if include_symbol:
             # Apply currency format
-            return self.config.currency_format.format(
+            currency_format: str = self.config.currency_format
+            return currency_format.format(
                 symbol=self.config.currency_symbol,
                 amount=formatted,
                 currency=self.config.default_currency,

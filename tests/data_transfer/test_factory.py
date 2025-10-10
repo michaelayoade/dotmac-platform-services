@@ -2,30 +2,27 @@
 Comprehensive tests for data_transfer factory module.
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import os
+from unittest.mock import Mock, patch
 
-from dotmac.platform.data_transfer.factory import (
-    DataTransferRegistry,
-    DataTransferFactory,
-    create_importer,
-    create_exporter,
-    detect_format,
-    create_csv_importer,
-    create_csv_exporter,
-    create_excel_importer,
-    create_excel_exporter,
-)
+import pytest
+
 from dotmac.platform.data_transfer.core import (
-    DataFormat,
-    TransferConfig,
-    ImportOptions,
-    ExportOptions,
-    FormatError,
-    BaseImporter,
     BaseExporter,
+    BaseImporter,
+    DataFormat,
+    FormatError,
+)
+from dotmac.platform.data_transfer.factory import (
+    DataTransferFactory,
+    DataTransferRegistry,
+    create_csv_exporter,
+    create_csv_importer,
+    create_excel_exporter,
+    create_excel_importer,
+    create_exporter,
+    create_importer,
+    detect_format,
 )
 
 

@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.exceptions import AuthorizationError
-from dotmac.platform.auth.models import Permission, PermissionCategory, Role
+from dotmac.platform.auth.models import Permission, PermissionCategory
 from dotmac.platform.auth.rbac_service import RBACService
 
 

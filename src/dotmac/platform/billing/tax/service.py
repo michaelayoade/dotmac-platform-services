@@ -3,8 +3,9 @@ Tax management service
 """
 
 import logging
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from typing import Any, Callable, Mapping
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import and_, func, select

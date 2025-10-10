@@ -4,8 +4,10 @@ Authentication router for FastAPI.
 Provides login, register, token refresh endpoints.
 """
 
-from typing import Any, Literal, AsyncGenerator
+import json
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
@@ -26,8 +28,8 @@ from dotmac.platform.auth.core import (
 from dotmac.platform.auth.email_service import get_auth_email_service
 from dotmac.platform.auth.mfa_service import mfa_service
 from dotmac.platform.db import get_session_dependency
-from dotmac.platform.user_management.models import User
 from dotmac.platform.settings import settings
+from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
 
 from ..audit import ActivitySeverity, ActivityType, log_api_activity, log_user_activity
@@ -253,16 +255,26 @@ async def _authenticate_and_issue_tokens(
     # Check if 2FA is enabled
     if user.mfa_enabled:
         # Create temporary session for 2FA verification
-        await session_manager.create_session(
-            user_id=f"2fa_pending:{user.id}",
-            data={
+        # Store with a predictable key so we can retrieve it later
+        pending_key = f"2fa_pending:{user.id}"
+        redis_client = await session_manager._get_redis()
+        if redis_client:
+            session_data = {
                 "username": user.username,
                 "email": user.email,
                 "pending_2fa": True,
                 "ip_address": request.client.host if request.client else None,
-            },
-            ttl=300,  # 5 minutes to complete 2FA
-        )
+            }
+            await redis_client.setex(f"session:{pending_key}", 300, json.dumps(session_data))
+        else:
+            # Fallback to in-memory if Redis not available
+            if session_manager._fallback_enabled:
+                session_manager._fallback_store[pending_key] = {
+                    "username": user.username,
+                    "email": user.email,
+                    "pending_2fa": True,
+                    "ip_address": request.client.host if request.client else None,
+                }
 
         # Log 2FA challenge issued
         await log_user_activity(
@@ -371,7 +383,7 @@ async def _verify_backup_code_and_log(
     """Verify backup code and log the usage."""
     client_ip = request.client.host if request.client else None
 
-    code_valid = await mfa_service.verify_backup_code(
+    code_valid: bool = await mfa_service.verify_backup_code(
         user_id=user.id, code=code, session=session, ip_address=client_ip
     )
 
@@ -417,7 +429,7 @@ async def _verify_totp_code_and_log(
             detail="2FA secret not found",
         )
 
-    code_valid = mfa_service.verify_token(user.mfa_secret, code)
+    code_valid: bool = mfa_service.verify_token(user.mfa_secret, code)
 
     if code_valid:
         client_ip = request.client.host if request.client else None
@@ -1943,7 +1955,7 @@ async def send_verification_email(
 
         # Send verification email
         try:
-            email_service = get_auth_email_service()
+            _email_service = get_auth_email_service()
             verification_url = f"{getattr(settings, 'frontend_url', 'http://localhost:3000')}/verify-email?token={token}"
 
             # TODO: Fix email service - AuthEmailServiceFacade doesn't have send_email method
@@ -2019,7 +2031,7 @@ async def confirm_email_verification(
             select(EmailVerificationToken)
             .where(EmailVerificationToken.token_hash == token_hash)
             .where(EmailVerificationToken.user_id == user_info.user_id)
-            .where(EmailVerificationToken.used == False)
+            .where(EmailVerificationToken.used.is_(False))
         )
         result = await session.execute(stmt)
         verification_token = result.scalar_one_or_none()
@@ -2114,7 +2126,7 @@ async def resend_verification_email(
             update(EmailVerificationToken)
             .where(EmailVerificationToken.user_id == user_info.user_id)
             .where(EmailVerificationToken.email == email_request.email)
-            .where(EmailVerificationToken.used == False)
+            .where(EmailVerificationToken.used.is_(False))
             .values(used=True, used_at=datetime.now(UTC))
         )
         await session.execute(stmt)

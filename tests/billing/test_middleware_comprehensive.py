@@ -4,19 +4,18 @@ Comprehensive tests for billing middleware.
 Tests error handling, validation, audit logging, and metrics collection.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi import FastAPI, Request
+
+from dotmac.platform.billing.exceptions import BillingError
 from dotmac.platform.billing.middleware import (
+    BillingAuditMiddleware,
     BillingErrorMiddleware,
     BillingValidationMiddleware,
-    BillingAuditMiddleware,
     setup_billing_middleware,
 )
-from dotmac.platform.billing.exceptions import BillingError
 
 
 @pytest.fixture

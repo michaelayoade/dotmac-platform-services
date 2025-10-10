@@ -7,14 +7,25 @@ Provides foundation for all billing system components.
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from dotmac.platform.billing.core.models import (
+    Customer,
+    Invoice,
+    InvoiceItem,
+    InvoiceLineItem,
+    Payment,
+    Price,
+    Product,
+    Subscription,
+)
+from dotmac.platform.core.pydantic import AppBaseModel
 from dotmac.platform.db import BaseModel as SQLBaseModel
 
 
-class BillingBaseModel(BaseModel):
+class BillingBaseModel(AppBaseModel):
     """Base model for all billing entities with common fields."""
 
     tenant_id: str = Field(description="Tenant identifier for multi-tenancy")
@@ -22,12 +33,6 @@ class BillingBaseModel(BaseModel):
         default_factory=lambda: datetime.now(UTC), description="Creation timestamp"
     )
     updated_at: datetime | None = Field(None, description="Last update timestamp")
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
 
 
 class BillingSQLModel(SQLBaseModel):
@@ -39,8 +44,11 @@ class BillingSQLModel(SQLBaseModel):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSON, nullable=False, default=dict
@@ -76,7 +84,7 @@ class BillingProductTable(BillingSQLModel):
     usage_unit_name = Column(String(50), nullable=True)
 
     # Status
-    is_active = Column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Indexes for performance
     __table_args__ = (
@@ -143,7 +151,7 @@ class BillingSubscriptionPlanTable(BillingSQLModel):
     overage_rates = Column(JSON, nullable=False, default=dict)
 
     # Status
-    is_active = Column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Indexes
     __table_args__ = (
@@ -256,7 +264,7 @@ class BillingPricingRuleTable(BillingSQLModel):
     current_uses = Column(Numeric(10, 0), nullable=False, default=0)
 
     # Status
-    is_active = Column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Indexes
     __table_args__ = (
@@ -290,19 +298,6 @@ class BillingRuleUsageTable(BillingSQLModel):
         {"extend_existing": True},
     )
 
-
-# Export all tables for Alembic migrations
-# Import core billing models for backward compatibility
-from dotmac.platform.billing.core.models import (
-    Customer,
-    Invoice,
-    InvoiceItem,
-    InvoiceLineItem,
-    Payment,
-    Price,
-    Product,
-    Subscription,
-)
 
 __all__ = [
     "BillingBaseModel",

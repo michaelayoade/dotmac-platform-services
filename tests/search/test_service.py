@@ -2,22 +2,21 @@
 Tests for search service implementation.
 """
 
-import asyncio
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
-from dotmac.platform.search.service import (
-    InMemorySearchBackend,
-    MeilisearchBackend,
-    SearchService,
-)
+import pytest
+
 from dotmac.platform.search.interfaces import (
     SearchFilter,
     SearchQuery,
     SearchResponse,
-    SearchResult,
     SearchType,
     SortOrder,
+)
+from dotmac.platform.search.service import (
+    InMemorySearchBackend,
+    MeilisearchBackend,
+    SearchService,
 )
 
 pytestmark = pytest.mark.asyncio

@@ -8,33 +8,31 @@ This test file focuses on:
 4. Avoiding over-mocking
 """
 
-import pytest
-from datetime import datetime, UTC, timedelta
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from fastapi import HTTPException
 
 # Import module for coverage
-import dotmac.platform.tenant.dependencies as deps_module
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.tenant.dependencies import (
-    get_current_tenant_id,
-    get_tenant_service,
-    get_current_tenant,
-    require_active_tenant,
-    require_trial_or_active_tenant,
-    check_tenant_feature,
-    check_user_limit,
     check_api_limit,
     check_storage_limit,
-    require_tenant_admin,
-    require_tenant_owner,
+    check_tenant_feature,
+    check_user_limit,
+    get_current_tenant,
+    get_current_tenant_id,
+    get_tenant_service,
+    require_active_tenant,
     require_feature,
     require_plan,
+    require_tenant_admin,
+    require_tenant_owner,
+    require_trial_or_active_tenant,
 )
-from dotmac.platform.tenant.models import Tenant, TenantStatus, TenantPlanType
+from dotmac.platform.tenant.models import Tenant, TenantPlanType, TenantStatus
 from dotmac.platform.tenant.service import TenantNotFoundError, TenantService
-from dotmac.platform.auth.core import UserInfo
 
 
 class FakeTenantService:
@@ -545,14 +543,14 @@ class TestAnnotatedDependencies:
     def test_typed_annotations_exist(self):
         """Test all typed annotations are available."""
         from dotmac.platform.tenant.dependencies import (
-            CurrentTenant,
             ActiveTenant,
-            TrialOrActiveTenant,
-            TenantWithinUserLimit,
-            TenantWithinAPILimit,
-            TenantWithinStorageLimit,
+            CurrentTenant,
             TenantAdminAccess,
             TenantOwnerAccess,
+            TenantWithinAPILimit,
+            TenantWithinStorageLimit,
+            TenantWithinUserLimit,
+            TrialOrActiveTenant,
         )
 
         # All annotations should be defined

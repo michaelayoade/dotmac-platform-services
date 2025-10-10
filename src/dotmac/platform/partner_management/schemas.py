@@ -312,6 +312,15 @@ class PartnerAccountResponse(PartnerAccountBase):
     updated_at: datetime
 
 
+class PartnerAccountListResponse(BaseModel):
+    """List response for partner customer accounts."""
+
+    accounts: list[PartnerAccountResponse]
+    total: int
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
 # ============================================================================
 # Commission Event Schemas
 # ============================================================================
@@ -520,3 +529,113 @@ class PartnerPayoutSummary(BaseModel):
 
     # Event breakdown
     events: list[PartnerCommissionEventResponse] = Field(default_factory=list)
+
+
+class PartnerPayoutResponse(BaseModel):
+    """Detailed partner payout record response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    partner_id: UUID
+    total_amount: Decimal
+    currency: str
+    commission_count: int
+    payment_reference: str | None = None
+    payment_method: str
+    status: PayoutStatus
+    payout_date: datetime
+    completed_at: datetime | None = None
+    period_start: datetime
+    period_end: datetime
+    notes: str | None = None
+    failure_reason: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PartnerPayoutListResponse(BaseModel):
+    """List response for partner payouts."""
+
+    payouts: list[PartnerPayoutResponse]
+    total: int
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
+class PayoutSummary(BaseModel):
+    """Lightweight payout summary for dashboards."""
+
+    payout_id: UUID
+    partner_id: UUID
+    total_amount: Decimal
+    currency: str
+    commission_count: int
+    payout_date: datetime
+    status: PayoutStatus
+    payment_reference: str | None = None
+
+
+class PartnerRevenueMetrics(BaseModel):
+    """Partner revenue metrics for a specific time period."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    partner_id: UUID
+    period_start: datetime
+    period_end: datetime
+    total_commissions: Decimal
+    total_commission_count: int
+    total_payouts: Decimal
+    pending_amount: Decimal
+    currency: str = "USD"
+
+
+class PartnerRevenueDashboard(BaseModel):
+    """Aggregated partner revenue dashboard metrics."""
+
+    partner_id: UUID
+    company_name: str
+    tier: PartnerTier
+
+    # Lifetime metrics
+    total_revenue_generated: Decimal = Field(default=Decimal("0.00"))
+    total_commissions_earned: Decimal = Field(default=Decimal("0.00"))
+    total_commissions_paid: Decimal = Field(default=Decimal("0.00"))
+    outstanding_balance: Decimal = Field(default=Decimal("0.00"))
+
+    # Current period
+    current_month_revenue: Decimal = Field(default=Decimal("0.00"))
+    current_month_commissions: Decimal = Field(default=Decimal("0.00"))
+    current_month_payouts: Decimal = Field(default=Decimal("0.00"))
+
+    # Referral metrics
+    total_referrals: int = 0
+    converted_referrals: int = 0
+    conversion_rate: float = 0.0
+    active_referrals: int = 0
+
+    # Customers
+    total_customers: int = 0
+    active_customers: int = 0
+
+    # Activity
+    recent_commissions: list[PartnerCommissionEventResponse] = Field(default_factory=list)
+    recent_payouts: list[PartnerPayoutResponse] = Field(default_factory=list)
+    pending_commission_events: int = 0
+    next_payout_date: datetime | None = None
+
+
+class PartnerStatementResponse(BaseModel):
+    """Monthly partner statement derived from payout data."""
+
+    id: UUID
+    payout_id: UUID | None = None
+    period_start: datetime
+    period_end: datetime
+    issued_at: datetime
+    revenue_total: Decimal = Field(default=Decimal("0.00"))
+    commission_total: Decimal = Field(default=Decimal("0.00"))
+    adjustments_total: Decimal = Field(default=Decimal("0.00"))
+    status: PayoutStatus
+    download_url: str | None = None

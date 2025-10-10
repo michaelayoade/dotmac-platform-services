@@ -4,10 +4,10 @@ Tests for GraphQL analytics queries.
 Tests dashboard and metrics queries using Strawberry test client.
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from httpx import AsyncClient
+
+import pytest
 
 from dotmac.platform.graphql.schema import schema
 
@@ -34,8 +34,9 @@ def mock_user():
 @pytest.fixture
 def mock_context(mock_user):
     """Create mock GraphQL context."""
-    from dotmac.platform.graphql.context import Context
     from unittest.mock import MagicMock
+
+    from dotmac.platform.graphql.context import Context
 
     context = MagicMock(spec=Context)
     context.current_user = mock_user
@@ -74,8 +75,9 @@ class TestAnalyticsQueries:
         """
 
         # Create context without user (guest)
-        from dotmac.platform.graphql.context import Context
         from unittest.mock import MagicMock
+
+        from dotmac.platform.graphql.context import Context
 
         guest_context = MagicMock(spec=Context)
         guest_context.current_user = None
@@ -119,7 +121,7 @@ class TestAnalyticsQueries:
             "failed_payments": 5,
             "total_payment_amount": 42500.0,
             "period": "30d",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
         with patch(
@@ -162,7 +164,7 @@ class TestAnalyticsQueries:
             "customer_growth_rate": 15.5,
             "churn_rate": 3.3,
             "period": "30d",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
         with patch(
@@ -216,7 +218,7 @@ class TestAnalyticsQueries:
             "failed_payments": 5,
             "total_payment_amount": 42500.0,
             "period": "30d",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
         mock_customer_data = {
@@ -227,7 +229,7 @@ class TestAnalyticsQueries:
             "customer_growth_rate": 15.5,
             "churn_rate": 3.3,
             "period": "30d",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
         # Mock database query for monitoring
@@ -339,7 +341,7 @@ class TestAnalyticsQueries:
             "failed_payments": 5,
             "total_payment_amount": 42500.0,
             "period": "7d",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
         with patch(

@@ -10,12 +10,16 @@ FROM python:${PYTHON_VERSION}-slim as dependencies
 
 WORKDIR /build
 
-# Install only essential build dependencies with --no-install-recommends
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install only essential build dependencies with pinned versions
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        gcc="$(apt-cache policy gcc | awk '/Candidate/ {print $2}')" \
+        g++="$(apt-cache policy g++ | awk '/Candidate/ {print $2}')" \
+        libpq-dev="$(apt-cache policy libpq-dev | awk '/Candidate/ {print $2}')"; \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
 COPY pyproject.toml poetry.lock ./
@@ -45,14 +49,18 @@ RUN python -m compileall -b src && \
 # Stage 3: Runtime Base
 FROM python:${PYTHON_VERSION}-slim as runtime-base
 
-# Install only runtime dependencies with --no-install-recommends
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    curl \
-    netcat-openbsd \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install only runtime dependencies with pinned versions
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        libpq5="$(apt-cache policy libpq5 | awk '/Candidate/ {print $2}')" \
+        curl="$(apt-cache policy curl | awk '/Candidate/ {print $2}')" \
+        netcat-openbsd="$(apt-cache policy netcat-openbsd | awk '/Candidate/ {print $2}')" \
+        ca-certificates="$(apt-cache policy ca-certificates | awk '/Candidate/ {print $2}')"; \
+    rm -rf /var/lib/apt/lists/*; \
+    apt-get clean
 
 # Create non-root user and necessary directories
 RUN groupadd -r -g 1001 dotmac && \

@@ -48,7 +48,7 @@ async def handle_stripe_webhook(
     handler = StripeWebhookHandler(db)
 
     try:
-        result = await handler.handle_webhook(
+        result: dict[str, Any] = await handler.handle_webhook(
             payload=payload,
             signature=stripe_signature,
             headers=dict(request.headers),
@@ -97,7 +97,7 @@ async def handle_paypal_webhook(
     handler = PayPalWebhookHandler(db)
 
     try:
-        result = await handler.handle_webhook(
+        result: dict[str, Any] = await handler.handle_webhook(
             payload=payload,
             signature=paypal_transmission_sig,
             headers=dict(request.headers),

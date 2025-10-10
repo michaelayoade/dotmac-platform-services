@@ -5,13 +5,13 @@ Tests caching, rate limiting, tenant isolation, and error handling
 for the communications statistics endpoint.
 """
 
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch, MagicMock
-from datetime import datetime, timezone
 
 from dotmac.platform.communications.models import (
-    CommunicationLog,
     CommunicationStatus,
     CommunicationType,
 )
@@ -23,7 +23,7 @@ class TestCommunicationsStatsEndpoint:
     @pytest.fixture
     def mock_communication_logs(self):
         """Create mock communication logs."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return [
             MagicMock(
                 id="1",
@@ -61,50 +61,53 @@ class TestCommunicationsStatsEndpoint:
         """Test successful retrieval of communications stats."""
         # Note: This endpoint returns simple CommunicationStats model with sent/delivered/failed/pending
         response = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        # Verify response has expected fields (from router.py CommunicationStats model)
-        assert "sent" in data
-        assert "delivered" in data
-        assert "failed" in data
-        assert "pending" in data
-        assert "last_updated" in data
+        # Verify response has expected fields (from CommunicationStatsResponse model)
+        assert "total_sent" in data
+        assert "total_delivered" in data
+        assert "total_failed" in data
+        assert "total_pending" in data
+        assert "delivery_rate" in data
+        assert "emails_sent" in data
+        assert "period" in data
+        assert "timestamp" in data
 
-        # Values should be non-negative integers
-        assert isinstance(data["sent"], int)
-        assert isinstance(data["delivered"], int)
-        assert isinstance(data["failed"], int)
-        assert isinstance(data["pending"], int)
-        assert data["sent"] >= 0
-        assert data["delivered"] >= 0
-        assert data["failed"] >= 0
-        assert data["pending"] >= 0
+        # Values should be non-negative
+        assert isinstance(data["total_sent"], int)
+        assert isinstance(data["total_delivered"], int)
+        assert isinstance(data["total_failed"], int)
+        assert isinstance(data["total_pending"], int)
+        assert data["total_sent"] >= 0
+        assert data["total_delivered"] >= 0
+        assert data["total_failed"] >= 0
+        assert data["total_pending"] >= 0
 
     async def test_get_communications_stats_different_periods(
         self, client: AsyncClient, auth_headers
     ):
         """Test stats endpoint (no period parameter in simple stats endpoint)."""
         response = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
         # Just verify it returns valid stats
-        assert "sent" in data
-        assert "delivered" in data
+        assert "total_sent" in data
+        assert "total_delivered" in data
 
     async def test_get_communications_stats_invalid_period(self, client: AsyncClient, auth_headers):
         """Test stats endpoint doesn't accept invalid parameters."""
         # Simple stats endpoint doesn't take period parameter, so invalid params are just ignored
         response = await client.get(
-            "/api/v1/communications/stats?invalid_param=value",
+            "/api/v1/metrics/communications/stats?invalid_param=value",
             headers=auth_headers,
         )
         # Should still return valid stats (ignoring unknown params)
@@ -112,7 +115,7 @@ class TestCommunicationsStatsEndpoint:
 
     async def test_get_communications_stats_requires_auth(self, client: AsyncClient):
         """Test that endpoint requires tenant header."""
-        response = await client.get("/api/v1/communications/stats")
+        response = await client.get("/api/v1/metrics/communications/stats")
         # Without tenant header, returns 400 (bad request)
         assert response.status_code == 400
 
@@ -120,7 +123,7 @@ class TestCommunicationsStatsEndpoint:
         """Test error handling returns safe defaults."""
         # The endpoint catches errors and returns safe defaults
         response = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
 
@@ -128,23 +131,23 @@ class TestCommunicationsStatsEndpoint:
         assert response.status_code == 200
         data = response.json()
         # Verify it returns valid stats structure
-        assert "sent" in data
-        assert "delivered" in data
-        assert "failed" in data
-        assert "pending" in data
+        assert "total_sent" in data
+        assert "total_delivered" in data
+        assert "total_failed" in data
+        assert "total_pending" in data
 
     async def test_communications_stats_caching(self, client: AsyncClient, auth_headers):
         """Test that stats endpoint returns consistent results."""
         # First request
         response1 = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
         assert response1.status_code == 200
 
         # Second request
         response2 = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
         assert response2.status_code == 200
@@ -178,13 +181,13 @@ class TestCommunicationsStatsRateLimiting:
                 "open_rate": 0.0,
                 "click_rate": 0.0,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
             # Note: Actual rate limit test would require 101 requests
             # This is a simplified version
             response = await client.get(
-                "/api/v1/communications/stats",
+                "/api/v1/metrics/communications/stats",
                 headers=auth_headers,
             )
             assert response.status_code == 200
@@ -196,7 +199,7 @@ class TestCommunicationsStatsTenantIsolation:
     async def test_tenant_isolation_in_cache_key(self, client: AsyncClient, auth_headers):
         """Test that stats are isolated by tenant."""
         response = await client.get(
-            "/api/v1/communications/stats",
+            "/api/v1/metrics/communications/stats",
             headers=auth_headers,
         )
 
@@ -204,6 +207,6 @@ class TestCommunicationsStatsTenantIsolation:
         data = response.json()
 
         # Verify response is valid (tenant isolation happens in the service layer)
-        assert "sent" in data
-        assert "delivered" in data
+        assert "total_sent" in data
+        assert "total_delivered" in data
         # The endpoint uses tenant_id from current_user.tenant_id for isolation

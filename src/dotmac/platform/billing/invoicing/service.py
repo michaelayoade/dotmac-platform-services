@@ -10,9 +10,6 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from dotmac.platform.communications.email_service import EmailMessage, EmailService
-from pydantic import EmailStr
-
 from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
     InvoiceLineItemEntity,
@@ -25,6 +22,7 @@ from dotmac.platform.billing.core.exceptions import (
 )
 from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
 from dotmac.platform.billing.metrics import get_billing_metrics
+from dotmac.platform.communications.email_service import EmailMessage, EmailService
 from dotmac.platform.webhooks.events import get_event_bus
 from dotmac.platform.webhooks.models import WebhookEvent
 
@@ -632,11 +630,13 @@ class InvoiceService:
                 return
 
             sender_email_value = company_info.email or email_service.default_from
-            sender_email = EmailStr(sender_email_value)
+            sender_email = sender_email_value  # EmailStr is a type annotation, not a constructor
             sender_name = company_info.name or "DotMac Billing"
             reply_to_email = sender_email
 
-            recipient_email = EmailStr(invoice.billing_email)
+            recipient_email = (
+                invoice.billing_email
+            )  # EmailStr is a type annotation, not a constructor
 
             email_message = EmailMessage(
                 from_email=sender_email,

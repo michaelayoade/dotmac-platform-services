@@ -2,15 +2,10 @@
 Tests for payment refund functionality.
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.billing.payments.conftest import (
-    setup_mock_db_result,
-    setup_mock_refresh,
-)
-from tests.fixtures.async_db import create_mock_async_result
+import pytest
 
 from dotmac.platform.billing.core.entities import PaymentEntity
 from dotmac.platform.billing.core.enums import (
@@ -23,6 +18,11 @@ from dotmac.platform.billing.core.exceptions import (
 )
 from dotmac.platform.billing.core.models import Payment
 from dotmac.platform.billing.payments.providers import RefundResult
+from tests.billing.payments.conftest import (
+    setup_mock_db_result,
+    setup_mock_refresh,
+)
+from tests.fixtures.async_db import create_mock_async_result
 
 pytestmark = pytest.mark.asyncio
 
@@ -129,7 +129,7 @@ class TestPaymentRefunds:
     ):
         """Test refund with idempotency key"""
         # Setup
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         existing_refund = MagicMock(spec=PaymentEntity)
         existing_refund.tenant_id = "test-tenant"
         existing_refund.payment_id = "refund_456"

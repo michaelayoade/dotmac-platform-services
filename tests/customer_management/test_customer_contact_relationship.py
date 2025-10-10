@@ -10,8 +10,9 @@ was missing a ForeignKey constraint.
 NOTE: These tests require actual database - should be moved to integration test suite.
 """
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 pytestmark = pytest.mark.asyncio
 
@@ -23,6 +24,7 @@ pytest.skip("Integration test - requires full database schema", allow_module_lev
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from dotmac.platform.contacts.models import Contact
 from dotmac.platform.customer_management.models import (
     ContactRole,
     Customer,
@@ -31,7 +33,6 @@ from dotmac.platform.customer_management.models import (
     CustomerTier,
     CustomerType,
 )
-from dotmac.platform.contacts.models import Contact
 
 
 @pytest.mark.asyncio

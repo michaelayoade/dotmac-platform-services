@@ -11,8 +11,8 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.dotmac.platform.settings import settings
 from src.dotmac.platform.secrets import load_secrets_from_vault_sync
+from src.dotmac.platform.settings import settings
 
 
 def main():

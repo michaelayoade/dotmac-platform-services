@@ -4,18 +4,17 @@ Additional service tests to reach 90% coverage for webhooks service.
 Focuses on filtering, statistics, and helper methods.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
-from dotmac.platform.webhooks.service import WebhookSubscriptionService
+import pytest
+
 from dotmac.platform.webhooks.models import (
+    DeliveryStatus,
     WebhookSubscription,
     WebhookSubscriptionUpdate,
-    WebhookDelivery,
-    DeliveryStatus,
 )
+from dotmac.platform.webhooks.service import WebhookSubscriptionService
 
 pytestmark = pytest.mark.asyncio
 

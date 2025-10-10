@@ -660,7 +660,12 @@ export default function FeatureFlagsPage() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Open actions for ${flag.name ?? 'feature flag'}`}
+                              title={`Open actions for ${flag.name ?? 'feature flag'}`}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>

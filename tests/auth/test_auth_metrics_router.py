@@ -1,29 +1,29 @@
 """Tests for auth metrics router."""
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.metrics_router import (
-    router as metrics_router,
     AuthMetricsResponse,
     _get_auth_metrics_cached,
 )
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.metrics_router import router as metrics_router
 from dotmac.platform.user_management.models import User
-from dotmac.platform.audit.models import AuditActivity, ActivitySeverity
 
 
 @pytest.fixture
 def app_with_metrics():
     """Create FastAPI app with metrics router."""
     app = FastAPI()
-    app.include_router(metrics_router)
+    app.include_router(metrics_router, prefix="/api/v1/metrics/auth", tags=["Auth Metrics"])
     return app
 
 
@@ -43,7 +43,7 @@ def mock_user_info():
 @pytest.fixture
 async def sample_users(async_db_session: AsyncSession):
     """Create sample users for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     users = [
         User(
             id=uuid4(),
@@ -69,7 +69,7 @@ async def sample_users(async_db_session: AsyncSession):
 @pytest.fixture
 async def sample_audit_activities(async_db_session: AsyncSession):
     """Create sample audit activities for login tracking."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     activities = []
 
     # Successful logins
@@ -289,10 +289,10 @@ class TestAuthMetricsEndpoint:
                 "account_lockouts": 2,
                 "unique_active_users": 80,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
-            response = client.get("/auth/metrics?period_days=30")
+            response = client.get("/api/v1/metrics/auth?period_days=30")
 
             assert response.status_code == 200
             data = response.json()
@@ -329,10 +329,10 @@ class TestAuthMetricsEndpoint:
                 "account_lockouts": 1,
                 "unique_active_users": 45,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
-            response = client.get("/auth/metrics")
+            response = client.get("/api/v1/metrics/auth")
 
             assert response.status_code == 200
             # Should use default period of 30 days
@@ -367,10 +367,10 @@ class TestAuthMetricsEndpoint:
                 "account_lockouts": 1,
                 "unique_active_users": 45,
                 "period": "7d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
-            response = client.get("/auth/metrics?period_days=7")
+            response = client.get("/api/v1/metrics/auth?period_days=7")
 
             assert response.status_code == 200
             args = mock_cached.call_args[1]
@@ -392,7 +392,7 @@ class TestAuthMetricsEndpoint:
             # Simulate database error
             mock_cached.side_effect = Exception("Database error")
 
-            response = client.get("/auth/metrics?period_days=30")
+            response = client.get("/api/v1/metrics/auth?period_days=30")
 
             # Should still return 200 with safe defaults
             assert response.status_code == 200
@@ -430,10 +430,10 @@ class TestAuthMetricsEndpoint:
                 "account_lockouts": 1,
                 "unique_active_users": 45,
                 "period": "30d",
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
 
-            response = client.get("/auth/metrics?period_days=30")
+            response = client.get("/api/v1/metrics/auth?period_days=30")
 
             assert response.status_code == 200
 
@@ -466,7 +466,7 @@ class TestAuthMetricsResponse:
             account_lockouts=2,
             unique_active_users=80,
             period="30d",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         assert response.total_users == 100
@@ -475,7 +475,7 @@ class TestAuthMetricsResponse:
 
     def test_response_model_dict(self):
         """Test response model can be converted to dict."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = AuthMetricsResponse(
             total_users=100,
             active_users=75,

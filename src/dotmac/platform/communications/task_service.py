@@ -4,11 +4,13 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from datetime import UTC, datetime
-from typing import Any, Protocol, TypeVar
+from smtplib import SMTPException
+from typing import Any, Protocol
 from uuid import uuid4
 
 import structlog
-from pydantic import BaseModel, EmailStr, Field
+from celery.exceptions import CeleryError
+from pydantic import BaseModel, Field, ValidationError
 
 from dotmac.platform.celery_app import celery_app
 
@@ -22,9 +24,6 @@ class EmailServiceProtocol(Protocol):
 
     async def send_email(self, message: EmailMessage) -> EmailResponse:
         """Send an email message."""
-
-
-T = TypeVar("T")
 
 
 class BulkEmailJob(BaseModel):
@@ -61,7 +60,7 @@ class BulkEmailResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _run_async(coro: Coroutine[Any, Any, T]) -> T:
+def _run_async[T](coro: Coroutine[Any, Any, T]) -> T:
     """Execute an async coroutine from a synchronous Celery task."""
 
     try:
@@ -93,7 +92,12 @@ async def _send_email_async(
         if response.status not in {"sent", "failed"}:
             response.status = "sent" if response.status == "success" else "failed"
         return response
-    except Exception as exc:  # pragma: no cover - defensive log
+    except (
+        SMTPException,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - defensive log
         logger.error("Email send failed", error=str(exc), subject=message.subject)
         return EmailResponse(
             id=f"error_{uuid4().hex[:8]}",
@@ -207,7 +211,16 @@ def send_bulk_email_task(self: Any, job_data: dict[str, Any]) -> dict[str, Any]:
 
         return result.model_dump()
 
-    except Exception as exc:  # pragma: no cover - defensive fallback
+    except ValidationError as exc:  # pragma: no cover - defensive fallback
+        logger.error("Bulk email task validation failed", error=str(exc))
+        return BulkEmailResult(
+            job_id=job_data.get("id", "unknown"),
+            status="failed",
+            total_emails=len(job_data.get("messages", [])),
+            error_message=str(exc),
+            completed_at=datetime.now(UTC),
+        ).model_dump()
+    except (SMTPException, OSError, RuntimeError) as exc:  # pragma: no cover - defensive fallback
         logger.error(
             "Bulk email task failed",
             job_id=job_data.get("id", "unknown"),
@@ -246,7 +259,15 @@ def send_single_email_task(message_data: dict[str, Any]) -> dict[str, Any]:
 
         return response.model_dump()
 
-    except Exception as exc:  # pragma: no cover - defensive fallback
+    except ValidationError as exc:  # pragma: no cover - defensive fallback
+        logger.error("Single email task validation failed", error=str(exc))
+        return EmailResponse(
+            id=f"error_{uuid4().hex[:8]}",
+            status="failed",
+            message=f"Task validation failed: {exc}",
+            recipients_count=1,
+        ).model_dump()
+    except (SMTPException, OSError, RuntimeError) as exc:  # pragma: no cover - defensive fallback
         logger.error("Single email task failed", error=str(exc))
         return EmailResponse(
             id=f"error_{uuid4().hex[:8]}",
@@ -301,7 +322,7 @@ class TaskService:
             self.celery.control.revoke(task_id, terminate=True)
             logger.info("Task cancelled", task_id=task_id)
             return True
-        except Exception as exc:  # pragma: no cover - defensive
+        except CeleryError as exc:  # pragma: no cover - defensive
             logger.error("Failed to cancel task", task_id=task_id, error=str(exc))
             return False
 
@@ -324,9 +345,9 @@ def queue_email(
     html_body: str | None = None,
 ) -> str:
     service = get_task_service()
-    recipients = [EmailStr(address) for address in to]
+    # EmailStr is a type annotation, not a constructor - just pass strings
     message = EmailMessage(
-        to=recipients,
+        to=to,  # Pydantic will validate as EmailStr
         subject=subject,
         text_body=text_body,
         html_body=html_body,

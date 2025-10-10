@@ -9,6 +9,7 @@ Provides a unified interface for file storage operations with support for:
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from io import BytesIO
@@ -66,25 +67,64 @@ class FileMetadata(BaseModel):
 class LocalFileStorage:
     """Local filesystem storage backend."""
 
+    _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
     def __init__(self, base_path: str | None = None) -> None:
         """Initialize local storage."""
-        self.base_path = Path(
+        base = Path(
             base_path or settings.storage.local_path or "/tmp/dotmac-storage"
         )  # nosec B108 - Configurable via settings
-        self.base_path.mkdir(parents=True, exist_ok=True)
+        base.mkdir(parents=True, exist_ok=True)
+        self.base_path = base.resolve()
         self.metadata_path = self.base_path / ".metadata"
         self.metadata_path.mkdir(exist_ok=True)
         logger.info(f"Local storage initialized at {self.base_path}")
 
+    def _sanitize_tenant_id(self, tenant_id: str | None) -> str | None:
+        """Ensure tenant identifier is safe for filesystem usage."""
+        if tenant_id is None:
+            return None
+        if not self._SAFE_SEGMENT_RE.match(tenant_id):
+            raise ValueError("Invalid tenant identifier.")
+        return tenant_id
+
+    @staticmethod
+    def _validate_file_id(file_id: str) -> str:
+        """Ensure file identifier is a valid UUID string."""
+        try:
+            uuid.UUID(file_id)
+        except ValueError as exc:
+            raise ValueError("Invalid file identifier.") from exc
+        return file_id
+
+    def _resolve_file_path(self, file_id: str, tenant_id: str | None = None) -> Path:
+        """Get full file path within the base directory."""
+        tenant_segment = self._sanitize_tenant_id(tenant_id)
+        safe_file_id = self._validate_file_id(file_id)
+        candidate = self.base_path / safe_file_id
+        if tenant_segment:
+            candidate = self.base_path / tenant_segment / safe_file_id
+        resolved = candidate.resolve(strict=False)
+        if resolved == self.base_path or self.base_path not in resolved.parents:
+            raise ValueError("Invalid file path.")
+        return resolved
+
+    def _resolve_metadata_file_path(self, file_id: str) -> Path:
+        """Get metadata file path within metadata directory."""
+        safe_file_id = self._validate_file_id(file_id)
+        candidate = self.metadata_path / f"{safe_file_id}.json"
+        resolved = candidate.resolve(strict=False)
+        if resolved == self.metadata_path or self.metadata_path not in resolved.parents:
+            raise ValueError("Invalid metadata path.")
+        return resolved
+
     def _get_file_path(self, file_id: str, tenant_id: str | None = None) -> Path:
         """Get full file path."""
-        if tenant_id:
-            return self.base_path / tenant_id / file_id
-        return self.base_path / file_id
+        return self._resolve_file_path(file_id, tenant_id)
 
     def _get_metadata_path(self, file_id: str) -> Path:
         """Get metadata file path."""
-        return self.metadata_path / f"{file_id}.json"
+        return self._resolve_metadata_file_path(file_id)
 
     def _save_metadata(self, file_id: str, metadata: FileMetadata) -> None:
         """Save file metadata."""
@@ -136,6 +176,8 @@ class LocalFileStorage:
         # Calculate checksum
         checksum = hashlib.sha256(file_data).hexdigest()
 
+        tenant_id = self._sanitize_tenant_id(tenant_id)
+
         # Save file
         file_path = self._get_file_path(file_id, tenant_id)
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,6 +207,7 @@ class LocalFileStorage:
         self, file_id: str, tenant_id: str | None = None
     ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file."""
+        tenant_id = self._sanitize_tenant_id(tenant_id)
         file_path = self._get_file_path(file_id, tenant_id)
 
         if not file_path.exists():
@@ -189,6 +232,7 @@ class LocalFileStorage:
 
     async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file."""
+        tenant_id = self._sanitize_tenant_id(tenant_id)
         file_path = self._get_file_path(file_id, tenant_id)
         metadata_path = self._get_metadata_path(file_id)
 
@@ -214,6 +258,7 @@ class LocalFileStorage:
         tenant_id: str | None = None,
     ) -> list[FileMetadata]:
         """List files."""
+        tenant_id = self._sanitize_tenant_id(tenant_id)
         files = []
 
         # Get all metadata files
@@ -228,18 +273,22 @@ class LocalFileStorage:
 
         for metadata_file in metadata_files[start:end]:
             file_id = metadata_file.stem
-            metadata = self._load_metadata(file_id)
+            try:
+                metadata = self._load_metadata(file_id)
+            except ValueError:
+                logger.warning("Skipping metadata with invalid identifier", file_id=file_id)
+                continue
 
-            if metadata:
-                # Filter by tenant if specified
-                if tenant_id and metadata.tenant_id != tenant_id:
-                    continue
+            if not metadata:
+                continue
 
-                # Filter by path if specified
-                if path and metadata.path and not metadata.path.startswith(path):
-                    continue
+            if tenant_id and metadata.tenant_id != tenant_id:
+                continue
 
-                files.append(metadata)
+            if path and metadata.path and not metadata.path.startswith(path):
+                continue
+
+            files.append(metadata)
 
         return files
 
@@ -302,12 +351,18 @@ class MemoryFileStorage:
         metadata = self.metadata.get(file_id)
 
         if file_data and metadata:
+            if tenant_id and metadata.tenant_id != tenant_id:
+                return None, None
             return file_data, metadata.to_dict()
 
         return None, None
 
     async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file from memory."""
+        metadata = self.metadata.get(file_id)
+        if tenant_id and metadata and metadata.tenant_id != tenant_id:
+            return False
+
         deleted = False
 
         if file_id in self.files:
@@ -413,7 +468,7 @@ class MinIOFileStorage:
 
         # Get metadata
         metadata = self.metadata_store.get(file_id)
-        if not metadata:
+        if not metadata or (tenant_id and metadata.tenant_id != tenant_id):
             return None, None
 
         # Construct path
@@ -436,7 +491,7 @@ class MinIOFileStorage:
 
         # Get metadata
         metadata = self.metadata_store.get(file_id)
-        if not metadata:
+        if not metadata or (tenant_id and metadata.tenant_id != tenant_id):
             return False
 
         # Construct path
@@ -526,6 +581,15 @@ class FileStorageService:
 
         logger.info(f"FileStorageService initialized with {self.backend_type} backend")
 
+    @staticmethod
+    def _ensure_valid_file_id(file_id: str) -> str:
+        """Validate the file identifier."""
+        try:
+            uuid.UUID(file_id)
+        except ValueError as exc:
+            raise ValueError("Invalid file identifier.") from exc
+        return file_id
+
     async def store_file(
         self,
         file_data: bytes,
@@ -549,11 +613,13 @@ class FileStorageService:
         self, file_id: str, tenant_id: str | None = None
     ) -> tuple[bytes | None, dict | None]:
         """Retrieve a file by ID."""
-        return await self.backend.retrieve(file_id, tenant_id)
+        safe_file_id = self._ensure_valid_file_id(file_id)
+        return await self.backend.retrieve(safe_file_id, tenant_id)
 
     async def delete_file(self, file_id: str, tenant_id: str | None = None) -> bool:
         """Delete a file by ID."""
-        return await self.backend.delete(file_id, tenant_id)
+        safe_file_id = self._ensure_valid_file_id(file_id)
+        return await self.backend.delete(safe_file_id, tenant_id)
 
     async def list_files(
         self,
@@ -572,7 +638,8 @@ class FileStorageService:
 
     async def get_file_metadata(self, file_id: str) -> dict | None:
         """Get file metadata."""
-        return await self.backend.get_metadata(file_id)
+        safe_file_id = self._ensure_valid_file_id(file_id)
+        return await self.backend.get_metadata(safe_file_id)
 
     async def update_file_metadata(
         self,
@@ -581,8 +648,9 @@ class FileStorageService:
         tenant_id: str | None = None,
     ) -> bool:
         """Update file metadata."""
+        safe_file_id = self._ensure_valid_file_id(file_id)
         # Get existing metadata
-        current_metadata = await self.backend.get_metadata(file_id)
+        current_metadata = await self.backend.get_metadata(safe_file_id)
         if not current_metadata:
             return False
 
@@ -597,12 +665,12 @@ class FileStorageService:
         # In production, save to database
         # For now, update in-memory if applicable
         if hasattr(self.backend, "metadata_store"):
-            file_meta = self.backend.metadata_store.get(file_id)
+            file_meta = self.backend.metadata_store.get(safe_file_id)
             if file_meta:
                 file_meta.metadata.update(metadata_updates)
                 file_meta.updated_at = datetime.now(UTC)
         elif hasattr(self.backend, "metadata"):
-            file_meta = self.backend.metadata.get(file_id)
+            file_meta = self.backend.metadata.get(safe_file_id)
             if file_meta:
                 file_meta.metadata.update(metadata_updates)
                 file_meta.updated_at = datetime.now(UTC)
@@ -635,6 +703,8 @@ def get_storage_service() -> FileStorageService:
         logger.info(f"Initializing storage service with {backend} backend (provider: {provider})")
         _storage_service = FileStorageService(backend=backend)
     return _storage_service
+
+
 class StorageBackendProtocol(Protocol):
     """Protocol describing the required storage backend interface."""
 
@@ -646,16 +716,13 @@ class StorageBackendProtocol(Protocol):
         path: str | None = None,
         metadata: dict[str, Any] | None = None,
         tenant_id: str | None = None,
-    ) -> str:
-        ...
+    ) -> str: ...
 
     async def retrieve(
         self, file_id: str, tenant_id: str | None = None
-    ) -> tuple[bytes | None, dict | None]:
-        ...
+    ) -> tuple[bytes | None, dict | None]: ...
 
-    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool:
-        ...
+    async def delete(self, file_id: str, tenant_id: str | None = None) -> bool: ...
 
     async def list_files(
         self,
@@ -663,8 +730,6 @@ class StorageBackendProtocol(Protocol):
         limit: int = 100,
         offset: int = 0,
         tenant_id: str | None = None,
-    ) -> list[FileMetadata]:
-        ...
+    ) -> list[FileMetadata]: ...
 
-    async def get_metadata(self, file_id: str) -> dict | None:
-        ...
+    async def get_metadata(self, file_id: str) -> dict | None: ...

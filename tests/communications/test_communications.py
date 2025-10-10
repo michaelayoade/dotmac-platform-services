@@ -4,10 +4,10 @@ Tests for the communications system.
 Tests the clean implementation with standard libraries.
 """
 
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch, AsyncMock
-from uuid import uuid4
 
 # Test the communications services
 try:
@@ -18,22 +18,22 @@ try:
         get_email_service,
         send_email,
     )
-    from dotmac.platform.communications.template_service import (
-        TemplateData,
-        RenderedTemplate,
-        TemplateService,
-        get_template_service,
-        create_template,
-        render_template,
-        quick_render,
-    )
     from dotmac.platform.communications.task_service import (
         BulkEmailJob,
         BulkEmailResult,
         TaskService,
         get_task_service,
-        queue_email,
         queue_bulk_emails,
+        queue_email,
+    )
+    from dotmac.platform.communications.template_service import (
+        RenderedTemplate,
+        TemplateData,
+        TemplateService,
+        create_template,
+        get_template_service,
+        quick_render,
+        render_template,
     )
 
     _COMMUNICATIONS_AVAILABLE = True

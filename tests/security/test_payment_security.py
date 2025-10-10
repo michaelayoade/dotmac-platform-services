@@ -3,16 +3,15 @@ Security tests for payment data handling.
 Ensures PCI compliance and secure payment processing.
 """
 
-import pytest
 import json
 import re
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 
-from dotmac.platform.main import app
-from dotmac.platform.billing.models import Customer, Invoice, PaymentMethod
+import pytest
+from fastapi.testclient import TestClient
 
+from dotmac.platform.billing.models import Customer, Invoice
+from dotmac.platform.main import app
 
 client = TestClient(app)
 
@@ -25,6 +24,7 @@ class TestPaymentDataSecurity:
         """Test that credit card data is never stored in database."""
         # Check database schema doesn't contain sensitive fields
         import sqlalchemy as sa
+
         from dotmac.platform.database import engine
 
         inspector = sa.inspect(engine)
@@ -139,8 +139,8 @@ class TestPaymentDataSecurity:
         tampered_payload = {"id": "evt_tampered", "type": "invoice.payment_succeeded", "data": {}}
 
         # Generate signature for original payload
-        import hmac
         import hashlib
+        import hmac
 
         secret = "whsec_test_secret"
         timestamp = str(int(datetime.now().timestamp()))
@@ -216,6 +216,7 @@ class TestPaymentDataSecurity:
     def test_tenant_isolation_in_billing(self, client, db):
         """Test users can only access their own billing data."""
         from dotmac.platform.auth.jwt_service import JWTService
+
         from dotmac.platform.tenant.models import Tenant
 
         jwt_service = JWTService()
@@ -278,8 +279,8 @@ class TestPaymentDataSecurity:
     @pytest.mark.security
     def test_webhook_replay_attack_prevention(self, client):
         """Test webhook replay attacks are prevented."""
-        import hmac
         import hashlib
+        import hmac
 
         webhook_payload = {
             "id": "evt_replay_test",
@@ -313,8 +314,8 @@ class TestPaymentDataSecurity:
     @pytest.mark.security
     def test_timestamp_validation_in_webhooks(self, client):
         """Test webhook timestamp validation prevents old replay attacks."""
-        import hmac
         import hashlib
+        import hmac
 
         webhook_payload = {
             "id": "evt_old_timestamp",

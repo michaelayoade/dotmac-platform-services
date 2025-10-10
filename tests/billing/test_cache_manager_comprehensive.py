@@ -5,14 +5,14 @@ Tests cache management, invalidation strategies, dependency tracking,
 and maintenance operations.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
 
 from dotmac.platform.billing.cache_manager import (
     BillingCacheManager,
-    InvalidationStrategy,
     CacheEvent,
+    InvalidationStrategy,
 )
 
 

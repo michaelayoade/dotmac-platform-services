@@ -4,19 +4,18 @@ Tests for CachedPricingEngine.
 Tests caching behavior for pricing rules and calculations.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from dotmac.platform.billing.pricing.cached_service import CachedPricingEngine
 from dotmac.platform.billing.pricing.models import (
-    PricingRule,
-    PricingRuleType,
-    PricingRuleStatus,
+    DiscountType,
     PriceCalculationRequest,
     PriceCalculationResult,
+    PricingRule,
 )
 
 
@@ -38,20 +37,21 @@ def sample_pricing_rule():
         rule_id="rule-123",
         tenant_id="tenant-1",
         name="Volume Discount",
-        rule_type=PricingRuleType.VOLUME_DISCOUNT,
-        product_id="product-1",
-        priority=100,
-        status=PricingRuleStatus.ACTIVE,
-        config={
+        discount_type=DiscountType.PERCENTAGE,
+        discount_value=Decimal("10.0"),
+        applies_to_product_ids=["product-1"],
+        min_quantity=10,
+        is_active=True,
+        metadata={
             "thresholds": [
                 {"min_quantity": 10, "discount_percentage": 10},
                 {"min_quantity": 50, "discount_percentage": 20},
             ]
         },
-        valid_from=datetime.now(timezone.utc),
+        valid_from=datetime.now(UTC),
         valid_until=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -180,7 +180,7 @@ class TestCreatePricingRule:
                 rule_type=PricingRuleType.VOLUME_DISCOUNT,
                 product_id="product-1",
                 config={},
-                valid_from=datetime.now(timezone.utc),
+                valid_from=datetime.now(UTC),
             )
 
             # Execute

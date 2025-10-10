@@ -5,32 +5,30 @@ These tests actually exercise the factory code without heavy mocking
 to improve coverage and test real functionality.
 """
 
-import pytest
-import tempfile
-import os
 from pathlib import Path
 from unittest.mock import patch
-import pandas as pd
 
-from dotmac.platform.data_transfer.factory import (
-    DataTransferRegistry,
-    DataTransferFactory,
-    create_importer,
-    create_exporter,
-    detect_format,
-    create_csv_importer,
-    create_csv_exporter,
-    _registry,
-    _register_optional_formats,
-)
+import pytest
+
 from dotmac.platform.data_transfer.core import (
+    BaseExporter,
+    BaseImporter,
     DataFormat,
-    TransferConfig,
-    ImportOptions,
     ExportOptions,
     FormatError,
-    BaseImporter,
-    BaseExporter,
+    ImportOptions,
+    TransferConfig,
+)
+from dotmac.platform.data_transfer.factory import (
+    DataTransferFactory,
+    DataTransferRegistry,
+    _register_optional_formats,
+    _registry,
+    create_csv_exporter,
+    create_csv_importer,
+    create_exporter,
+    create_importer,
+    detect_format,
 )
 
 

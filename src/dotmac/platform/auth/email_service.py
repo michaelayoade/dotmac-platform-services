@@ -3,7 +3,6 @@
 import secrets
 
 import structlog
-
 from pydantic import EmailStr
 
 from dotmac.platform.core.caching import get_redis

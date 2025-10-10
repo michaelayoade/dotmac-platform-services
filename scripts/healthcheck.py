@@ -3,12 +3,13 @@
 Health check script for Docker containers.
 Returns exit code 0 if healthy, 1 if unhealthy.
 """
-import sys
 import asyncio
-import aiohttp
 import json
-from pathlib import Path
 import os
+import sys
+from pathlib import Path
+
+import aiohttp
 
 # Add src to Python path
 sys.path.insert(0, "/app/src")

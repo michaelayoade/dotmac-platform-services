@@ -4,13 +4,12 @@ Billing system test fixtures and configuration.
 Provides reusable fixtures for testing billing components.
 """
 
-import pytest
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy.orm import clear_mappers
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 # Set test environment
 os.environ["TESTING"] = "1"
@@ -21,10 +20,10 @@ try:
     from dotmac.platform.billing.catalog.models import (
         Product,
         ProductCategory,
+        ProductCategoryCreateRequest,
+        ProductCreateRequest,
         ProductType,
         UsageType,
-        ProductCreateRequest,
-        ProductCategoryCreateRequest,
     )
 except ImportError:
     # Create mock classes if imports fail
@@ -37,12 +36,12 @@ except ImportError:
 
 try:
     from dotmac.platform.billing.subscriptions.models import (
-        SubscriptionPlan,
-        Subscription,
         BillingCycle,
-        SubscriptionStatus,
-        SubscriptionPlanCreateRequest,
+        Subscription,
         SubscriptionCreateRequest,
+        SubscriptionPlan,
+        SubscriptionPlanCreateRequest,
+        SubscriptionStatus,
     )
 except ImportError:
     SubscriptionPlan = MagicMock
@@ -54,10 +53,10 @@ except ImportError:
 
 try:
     from dotmac.platform.billing.pricing.models import (
-        PricingRule,
         DiscountType,
-        PricingRuleCreateRequest,
         PriceCalculationRequest,
+        PricingRule,
+        PricingRuleCreateRequest,
     )
 except ImportError:
     PricingRule = MagicMock
@@ -120,7 +119,7 @@ def sample_product_category():
         description="Development and productivity software",
         is_active=True,
         metadata={"department": "engineering"},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -141,7 +140,7 @@ def sample_product():
         is_active=True,
         usage_rates={"api_calls": Decimal("0.01"), "storage_gb": Decimal("0.50")},
         metadata={"tier": "professional"},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -162,7 +161,7 @@ def usage_based_product():
         is_active=True,
         usage_rates={"api_calls": Decimal("0.001"), "bandwidth_gb": Decimal("0.10")},
         metadata={"rate_limited": True},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -216,7 +215,7 @@ def sample_subscription_plan():
         overage_rates={"api_calls": Decimal("0.001"), "storage_gb": Decimal("0.50")},
         is_active=True,
         metadata={"tier": "professional"},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -224,7 +223,7 @@ def sample_subscription_plan():
 @pytest.fixture
 def sample_subscription(sample_subscription_plan):
     """Sample subscription for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Subscription(
         subscription_id="sub_123",
         tenant_id="test-tenant-123",
@@ -303,7 +302,7 @@ def sample_pricing_rule():
         priority=100,
         is_active=True,
         metadata={"campaign": "q4-2024"},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -422,7 +421,7 @@ def mock_db_product():
     db_product.is_active = True
     db_product.usage_rates = {"api_calls": "0.01"}
     db_product.metadata_json = {"test": True}
-    db_product.created_at = datetime.now(timezone.utc)
+    db_product.created_at = datetime.now(UTC)
     db_product.updated_at = None
     return db_product
 
@@ -433,7 +432,7 @@ def mock_db_subscription():
     # Use mock instead of importing to avoid conflicts
     BillingSubscriptionTable = MagicMock
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_subscription = MagicMock(spec=BillingSubscriptionTable)
     db_subscription.subscription_id = "sub_123"
     db_subscription.tenant_id = "test-tenant-123"
@@ -479,7 +478,7 @@ def mock_db_pricing_rule():
     db_rule.priority = 100
     db_rule.is_active = True
     db_rule.metadata_json = {"test": True}
-    db_rule.created_at = datetime.now(timezone.utc)
+    db_rule.created_at = datetime.now(UTC)
     db_rule.updated_at = None
     return db_rule
 
@@ -508,7 +507,7 @@ class TestDataBuilder:
             "is_active": True,
             "usage_rates": {},
             "metadata": {},
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "updated_at": None,
         }
         defaults.update(overrides)
@@ -532,7 +531,7 @@ class TestDataBuilder:
             "overage_rates": {},
             "is_active": True,
             "metadata": {},
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "updated_at": None,
         }
         defaults.update(overrides)
@@ -541,7 +540,7 @@ class TestDataBuilder:
     @staticmethod
     def build_subscription(**overrides) -> Subscription:
         """Build a subscription with optional field overrides."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         defaults = {
             "subscription_id": "sub_test",
             "tenant_id": "test-tenant",
@@ -585,7 +584,7 @@ class TestDataBuilder:
             "priority": 100,
             "is_active": True,
             "metadata": {},
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "updated_at": None,
         }
         defaults.update(overrides)
@@ -676,8 +675,9 @@ async def router_client(async_session, test_app):
     Overrides BOTH get_session_dependency AND get_async_session since different
     routers use different session dependencies.
     """
-    from httpx import AsyncClient, ASGITransport
-    from dotmac.platform.db import get_session_dependency, get_async_session
+    from httpx import ASGITransport, AsyncClient
+
+    from dotmac.platform.db import get_async_session, get_session_dependency
 
     # Override BOTH session dependencies to use test session
     async def override_get_session():
@@ -704,9 +704,10 @@ async def unauth_client(async_session):
 
     Still includes session override for database consistency.
     """
-    from httpx import AsyncClient, ASGITransport
     from fastapi import FastAPI
-    from dotmac.platform.db import get_session_dependency, get_async_session
+    from httpx import ASGITransport, AsyncClient
+
+    from dotmac.platform.db import get_async_session, get_session_dependency
     from dotmac.platform.tenant import get_current_tenant_id
 
     # Create minimal app without auth override
@@ -759,9 +760,481 @@ async def error_mock_client(test_app):
 
     Note: Cannot be used with tests that need real DB data.
     """
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     # Use test_app but don't override sessions - allows mocking
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
+
+
+"""
+Shared fixtures for billing tests.
+
+This module provides:
+- Mock payment providers (Stripe, PayPal)
+- Seeded invoice and payment data
+- Common test entities (customers, payment methods)
+"""
+
+from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.billing.core.entities import (
+    InvoiceEntity,
+    PaymentEntity,
+    PaymentMethodEntity,
+)
+from dotmac.platform.billing.core.enums import (
+    InvoiceStatus,
+    PaymentMethodStatus,
+    PaymentMethodType,
+    PaymentStatus,
+)
+from dotmac.platform.billing.core.models import Payment, PaymentMethod
+from dotmac.platform.billing.models import Invoice
+
+# =============================================================================
+# Payment Provider Mocks
+# =============================================================================
+
+
+@pytest.fixture
+def mock_stripe_provider():
+    """Mock Stripe payment provider that returns success."""
+    provider = AsyncMock()
+
+    # Default success response
+    provider.charge_payment_method = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_payment_id="pi_test_123",
+            provider_fee=30,  # $0.30 fee
+            error_message=None,
+        )
+    )
+
+    provider.create_payment_method = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_payment_method_id="pm_test_123",
+            last_four="4242",
+            brand="visa",
+            expiry_month=12,
+            expiry_year=2025,
+        )
+    )
+
+    provider.process_refund = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_refund_id="re_test_123",
+            amount_refunded=1000,
+        )
+    )
+
+    return provider
+
+
+@pytest.fixture
+def mock_stripe_provider_failure():
+    """Mock Stripe payment provider that returns failure."""
+    provider = AsyncMock()
+
+    provider.charge_payment_method = AsyncMock(
+        return_value=MagicMock(
+            success=False,
+            provider_payment_id=None,
+            provider_fee=0,
+            error_message="Your card was declined.",
+        )
+    )
+
+    return provider
+
+
+@pytest.fixture
+def mock_paypal_provider():
+    """Mock PayPal payment provider that returns success."""
+    provider = AsyncMock()
+
+    provider.charge_payment_method = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_payment_id="PAYID-TEST123",
+            provider_fee=50,  # $0.50 fee
+            error_message=None,
+        )
+    )
+
+    provider.create_payment_method = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_payment_method_id="BA-TEST123",
+            email="test@example.com",
+        )
+    )
+
+    provider.process_refund = AsyncMock(
+        return_value=MagicMock(
+            success=True,
+            provider_refund_id="REF-TEST123",
+            amount_refunded=1000,
+        )
+    )
+
+    return provider
+
+
+@pytest.fixture
+def mock_payment_providers(mock_stripe_provider, mock_paypal_provider):
+    """Dict of all mock payment providers."""
+    return {
+        "stripe": mock_stripe_provider,
+        "paypal": mock_paypal_provider,
+    }
+
+
+# =============================================================================
+# Test Tenant and Customer
+# =============================================================================
+
+
+@pytest.fixture
+def test_tenant_id():
+    """Test tenant ID."""
+    return f"test-tenant-{uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def test_customer_id():
+    """Test customer ID."""
+    return f"test-customer-{uuid4().hex[:8]}"
+
+
+# =============================================================================
+# Payment Method Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+async def active_card_payment_method(
+    async_db_session: AsyncSession, test_tenant_id, test_customer_id
+):
+    """Create an active card payment method in the database."""
+    payment_method = PaymentMethod(
+        payment_method_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        customer_id=test_customer_id,
+        type=PaymentMethodType.CARD,
+        status=PaymentMethodStatus.ACTIVE,
+        provider="stripe",
+        provider_payment_method_id=f"pm_test_{uuid4().hex[:8]}",
+        last_four="4242",
+        brand="visa",
+        expiry_month=12,
+        expiry_year=2025,
+        is_default=True,
+    )
+    async_db_session.add(payment_method)
+    await async_db_session.commit()
+    await async_db_session.refresh(payment_method)
+    return payment_method
+
+
+@pytest.fixture
+def payment_method_entity(test_tenant_id, test_customer_id):
+    """Payment method entity for testing (not in database)."""
+    return PaymentMethodEntity(
+        payment_method_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        customer_id=test_customer_id,
+        type=PaymentMethodType.CARD,
+        status=PaymentMethodStatus.ACTIVE,
+        provider_payment_method_id=f"pm_test_{uuid4().hex[:8]}",
+        last_four="4242",
+        brand="visa",
+        expiry_month=12,
+        expiry_year=2025,
+    )
+
+
+# =============================================================================
+# Invoice Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+async def sample_draft_invoice(async_db_session: AsyncSession, test_tenant_id, test_customer_id):
+    """Create a draft invoice in the database."""
+    invoice = Invoice(
+        invoice_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        invoice_number=f"INV-TEST-{uuid4().hex[:6].upper()}",
+        customer_id=test_customer_id,
+        billing_email=f"{test_customer_id}@example.com",
+        billing_address={"street": "123 Test St", "city": "Test City", "country": "US"},
+        issue_date=datetime.now(UTC),
+        due_date=datetime.now(UTC) + timedelta(days=30),
+        currency="USD",
+        subtotal=10000,  # $100.00 in cents
+        tax_amount=1000,  # $10.00
+        discount_amount=0,
+        total_amount=11000,  # $110.00
+        remaining_balance=11000,
+        total_credits_applied=0,
+        credit_applications=[],
+        status=InvoiceStatus.DRAFT,
+        payment_status=PaymentStatus.PENDING,
+        created_by="test-system",
+    )
+    async_db_session.add(invoice)
+    await async_db_session.commit()
+    await async_db_session.refresh(invoice)
+    return invoice
+
+
+@pytest.fixture
+async def sample_open_invoice(async_db_session: AsyncSession, test_tenant_id, test_customer_id):
+    """Create an open (finalized) invoice in the database."""
+    invoice = Invoice(
+        invoice_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        invoice_number=f"INV-TEST-{uuid4().hex[:6].upper()}",
+        customer_id=test_customer_id,
+        billing_email=f"{test_customer_id}@example.com",
+        billing_address={"street": "123 Test St", "city": "Test City", "country": "US"},
+        issue_date=datetime.now(UTC),
+        due_date=datetime.now(UTC) + timedelta(days=30),
+        currency="USD",
+        subtotal=25000,  # $250.00
+        tax_amount=2500,  # $25.00
+        discount_amount=0,
+        total_amount=27500,  # $275.00
+        remaining_balance=27500,
+        total_credits_applied=0,
+        credit_applications=[],
+        status=InvoiceStatus.OPEN,
+        payment_status=PaymentStatus.PENDING,
+        created_by="test-system",
+    )
+    async_db_session.add(invoice)
+    await async_db_session.commit()
+    await async_db_session.refresh(invoice)
+    return invoice
+
+
+@pytest.fixture
+async def sample_paid_invoice(async_db_session: AsyncSession, test_tenant_id, test_customer_id):
+    """Create a paid invoice in the database."""
+    invoice = Invoice(
+        invoice_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        invoice_number=f"INV-TEST-{uuid4().hex[:6].upper()}",
+        customer_id=test_customer_id,
+        billing_email=f"{test_customer_id}@example.com",
+        billing_address={"street": "123 Test St", "city": "Test City", "country": "US"},
+        issue_date=datetime.now(UTC) - timedelta(days=5),
+        due_date=datetime.now(UTC) + timedelta(days=25),
+        currency="USD",
+        subtotal=50000,  # $500.00
+        tax_amount=5000,  # $50.00
+        discount_amount=0,
+        total_amount=55000,  # $550.00
+        remaining_balance=0,  # Fully paid
+        total_credits_applied=0,
+        credit_applications=[],
+        status=InvoiceStatus.PAID,
+        payment_status=PaymentStatus.SUCCEEDED,
+        paid_at=datetime.now(UTC) - timedelta(days=3),
+        created_by="test-system",
+    )
+    async_db_session.add(invoice)
+    await async_db_session.commit()
+    await async_db_session.refresh(invoice)
+    return invoice
+
+
+@pytest.fixture
+def invoice_entity(test_tenant_id, test_customer_id):
+    """Invoice entity for testing (not in database)."""
+    return InvoiceEntity(
+        invoice_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        invoice_number=f"INV-TEST-{uuid4().hex[:6].upper()}",
+        customer_id=test_customer_id,
+        billing_email=f"{test_customer_id}@example.com",
+        billing_address={"street": "123 Test St"},
+        issue_date=datetime.now(UTC),
+        due_date=datetime.now(UTC) + timedelta(days=30),
+        currency="USD",
+        subtotal=10000,
+        tax_amount=1000,
+        discount_amount=0,
+        total_amount=11000,
+        remaining_balance=11000,
+        total_credits_applied=0,
+        credit_applications=[],
+        status=InvoiceStatus.DRAFT,
+        payment_status=PaymentStatus.PENDING,
+    )
+
+
+# =============================================================================
+# Payment Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+async def sample_successful_payment(
+    async_db_session: AsyncSession,
+    test_tenant_id,
+    test_customer_id,
+    active_card_payment_method,
+):
+    """Create a successful payment in the database."""
+    payment = Payment(
+        payment_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        customer_id=test_customer_id,
+        amount=10000,  # $100.00
+        currency="USD",
+        status=PaymentStatus.SUCCEEDED,
+        payment_method_type=PaymentMethodType.CARD,
+        payment_method_id=active_card_payment_method.payment_method_id,
+        payment_method_details={
+            "last_four": "4242",
+            "brand": "visa",
+        },
+        provider="stripe",
+        provider_payment_id="pi_test_123",
+        provider_fee=30,
+        retry_count=0,
+        created_at=datetime.now(UTC),
+    )
+    async_db_session.add(payment)
+    await async_db_session.commit()
+    await async_db_session.refresh(payment)
+    return payment
+
+
+@pytest.fixture
+async def sample_failed_payment(
+    async_db_session: AsyncSession,
+    test_tenant_id,
+    test_customer_id,
+    active_card_payment_method,
+):
+    """Create a failed payment in the database."""
+    payment = Payment(
+        payment_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        customer_id=test_customer_id,
+        amount=5000,  # $50.00
+        currency="USD",
+        status=PaymentStatus.FAILED,
+        payment_method_type=PaymentMethodType.CARD,
+        payment_method_id=active_card_payment_method.payment_method_id,
+        payment_method_details={
+            "last_four": "4242",
+            "brand": "visa",
+        },
+        provider="stripe",
+        provider_payment_id=None,
+        provider_fee=0,
+        failure_reason="Your card was declined.",
+        retry_count=1,
+        created_at=datetime.now(UTC),
+    )
+    async_db_session.add(payment)
+    await async_db_session.commit()
+    await async_db_session.refresh(payment)
+    return payment
+
+
+@pytest.fixture
+def payment_entity(test_tenant_id, test_customer_id):
+    """Payment entity for testing (not in database)."""
+    return PaymentEntity(
+        payment_id=str(uuid4()),
+        tenant_id=test_tenant_id,
+        customer_id=test_customer_id,
+        amount=10000,
+        currency="USD",
+        status=PaymentStatus.SUCCEEDED,
+        payment_method_type=PaymentMethodType.CARD,
+        payment_method_details={"last_four": "4242", "brand": "visa"},
+        provider="stripe",
+        provider_payment_id="pi_test_123",
+        retry_count=0,
+        created_at=datetime.now(UTC),
+        extra_data={},
+    )
+
+
+# =============================================================================
+# Multi-entity Fixtures (Complete Test Scenarios)
+# =============================================================================
+
+
+@pytest.fixture
+async def complete_billing_scenario(
+    async_db_session: AsyncSession,
+    test_tenant_id,
+    test_customer_id,
+    active_card_payment_method,
+    sample_open_invoice,
+    sample_successful_payment,
+):
+    """
+    Complete billing scenario with:
+    - Active payment method
+    - Open invoice
+    - Successful payment
+    """
+    return {
+        "tenant_id": test_tenant_id,
+        "customer_id": test_customer_id,
+        "payment_method": active_card_payment_method,
+        "invoice": sample_open_invoice,
+        "payment": sample_successful_payment,
+    }
+
+
+# =============================================================================
+# Service Mocks
+# =============================================================================
+
+
+@pytest.fixture
+def mock_event_bus():
+    """Mock event bus for publishing events."""
+    bus = AsyncMock()
+    bus.publish = AsyncMock()
+    return bus
+
+
+@pytest.fixture
+def mock_invoice_service():
+    """Mock invoice service."""
+    service = AsyncMock()
+    service.create_invoice = AsyncMock()
+    service.get_invoice = AsyncMock()
+    service.mark_invoice_paid = AsyncMock()
+    service.void_invoice = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def mock_payment_service():
+    """Mock payment service."""
+    service = AsyncMock()
+    service.create_payment = AsyncMock()
+    service.get_payment = AsyncMock()
+    service.update_payment_status = AsyncMock()
+    service.process_refund = AsyncMock()
+    service.process_refund_notification = AsyncMock()
+    return service

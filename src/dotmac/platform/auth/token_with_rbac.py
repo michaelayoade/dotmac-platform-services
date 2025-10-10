@@ -67,7 +67,7 @@ class RBACTokenService:
         claims["type"] = "access"
 
         # Create token
-        token = self.jwt_service._create_token(claims, expire_delta)
+        token: str = self.jwt_service._create_token(claims, expire_delta)
 
         # Cache the token metadata for quick validation
         cache_key = f"token:{user.id}:{token[:20]}"  # Use first 20 chars as identifier
@@ -99,7 +99,8 @@ class RBACTokenService:
 
         expire_delta = expires_delta or timedelta(days=settings.jwt.refresh_token_expire_days)
 
-        return self.jwt_service._create_token(claims, expire_delta)
+        refresh_token: str = self.jwt_service._create_token(claims, expire_delta)
+        return refresh_token
 
     async def verify_token_with_permissions(
         self,
@@ -113,7 +114,7 @@ class RBACTokenService:
         """
         # Verify the token signature and expiration
         try:
-            payload = self.jwt_service.verify_token(token)
+            payload: dict[str, Any] = self.jwt_service.verify_token(token)
         except JWTError as e:
             logger.error(f"Token verification failed: {e}")
             raise InvalidToken("Invalid or expired token")
@@ -192,9 +193,7 @@ class RBACTokenService:
                 ttl = exp - datetime.now(UTC).timestamp()
                 if ttl > 0:
                     # Add to blacklist
-                    cache_set(
-                        f"blacklist:{token[:50]}", True, ttl=int(ttl)  # Use first 50 chars
-                    )
+                    cache_set(f"blacklist:{token[:50]}", True, ttl=int(ttl))  # Use first 50 chars
                     logger.info(f"Token revoked for user {payload.get('sub')}")
         except JWTError:
             pass  # Token is already invalid

@@ -32,13 +32,13 @@ async def get_tenant_id(request: Request) -> str:
         HTTPException: If tenant ID cannot be determined
     """
     # First try to get from context variable (set by middleware)
-    tenant_id = get_current_tenant_id()
+    tenant_id: str | None = get_current_tenant_id()
     if tenant_id:
         return tenant_id
 
     # Then check request state (fallback for direct state access)
     if hasattr(request.state, "tenant_id"):
-        state_tenant = getattr(request.state, "tenant_id")
+        state_tenant = request.state.tenant_id
         if isinstance(state_tenant, str) and state_tenant:
             return state_tenant
 
@@ -84,11 +84,15 @@ class BillingServiceDeps:
         """Get tenant ID lazily when accessed."""
         if self._tenant_id is None:
             # Use async context in sync property by checking context var
-            self._tenant_id = get_current_tenant_id()
+            context_tenant: str | None = get_current_tenant_id()
+            if context_tenant:
+                self._tenant_id = context_tenant
 
             # Fallback to request state
-            if not self._tenant_id and hasattr(self.request.state, "tenant_id"):
-                self._tenant_id = self.request.state.tenant_id
+            if self._tenant_id is None and hasattr(self.request.state, "tenant_id"):
+                state_tenant = self.request.state.tenant_id
+                if isinstance(state_tenant, str) and state_tenant:
+                    self._tenant_id = state_tenant
 
             # Final validation
             if not self._tenant_id:
@@ -118,13 +122,13 @@ def get_tenant_id_from_request(request: Request) -> str:
         HTTPException: If tenant ID cannot be determined
     """
     # Use context variable first
-    tenant_id = get_current_tenant_id()
+    tenant_id: str | None = get_current_tenant_id()
     if tenant_id:
         return tenant_id
 
     # Check request state (set by middleware)
     if hasattr(request.state, "tenant_id"):
-        state_tenant = getattr(request.state, "tenant_id")
+        state_tenant = request.state.tenant_id
         if isinstance(state_tenant, str) and state_tenant:
             return state_tenant
 

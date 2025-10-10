@@ -8,7 +8,8 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo, ensure_uuid
@@ -358,9 +359,9 @@ async def bulk_update_contacts(
                 updated_count += 1
             else:
                 errors.append({"contact_id": str(contact_id), "error": "Not found"})
-        except Exception as e:
-            errors.append({"contact_id": str(contact_id), "error": str(e)})
-            logger.error(f"Error updating contact {contact_id}: {e}")
+        except (SQLAlchemyError, ValueError) as exc:
+            errors.append({"contact_id": str(contact_id), "error": str(exc)})
+            logger.error("Error updating contact", contact_id=str(contact_id), error=str(exc))
 
     return {"updated": updated_count, "errors": errors}
 
@@ -389,8 +390,8 @@ async def bulk_delete_contacts(
                 deleted_count += 1
             else:
                 errors.append({"contact_id": str(contact_id), "error": "Not found"})
-        except Exception as e:
-            errors.append({"contact_id": str(contact_id), "error": str(e)})
-            logger.error(f"Error deleting contact {contact_id}: {e}")
+        except (SQLAlchemyError, ValueError) as exc:
+            errors.append({"contact_id": str(contact_id), "error": str(exc)})
+            logger.error("Error deleting contact", contact_id=str(contact_id), error=str(exc))
 
     return {"deleted": deleted_count, "errors": errors}

@@ -6,9 +6,10 @@ Create Date: 2025-10-04 18:40:00.000000
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "add_email_verification"
@@ -20,6 +21,7 @@ depends_on = None
 def upgrade() -> None:
     """Add email verification and profile change history tables."""
     from sqlalchemy import inspect
+
     from alembic import context
 
     conn = context.get_bind()

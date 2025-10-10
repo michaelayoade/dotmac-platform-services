@@ -10,28 +10,27 @@ Tests cover:
 - Performance and scalability
 """
 
-import pytest
 import asyncio
-from unittest.mock import patch, Mock
+
+import pytest
 
 # Test imports from monitoring module
 from dotmac.platform.monitoring import (
     BenchmarkManager,
     BenchmarkResult,
     BenchmarkSuite,
-    PerformanceBenchmark,
     MetricData,
+    PerformanceBenchmark,
     PrometheusIntegration,
     settings,
 )
-
 from dotmac.platform.monitoring.benchmarks import (
     BenchmarkStatus,
+    BenchmarkSuiteConfig,
     BenchmarkType,
     CPUBenchmark,
     MemoryBenchmark,
     NetworkBenchmark,
-    BenchmarkSuiteConfig,
 )
 
 

@@ -1,14 +1,15 @@
 """Tests for communications event listeners."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from dotmac.platform.events import get_event_bus, reset_event_bus
+import pytest
+
 from dotmac.platform.billing.events import (
     emit_invoice_created,
     emit_invoice_paid,
     emit_payment_failed,
 )
+from dotmac.platform.events import get_event_bus, reset_event_bus
 
 
 class TestCommunicationsEventListeners:
@@ -30,7 +31,6 @@ class TestCommunicationsEventListeners:
         mock_email_service_class.return_value = mock_email_service
 
         # Import to register listeners
-        import dotmac.platform.communications.event_listeners
 
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 
@@ -63,8 +63,6 @@ class TestCommunicationsEventListeners:
         mock_email_service = AsyncMock()
         mock_email_service_class.return_value = mock_email_service
 
-        import dotmac.platform.communications.event_listeners
-
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 
         await emit_invoice_paid(
@@ -93,8 +91,6 @@ class TestCommunicationsEventListeners:
         """Test that payment failed event sends notification."""
         mock_email_service = AsyncMock()
         mock_email_service_class.return_value = mock_email_service
-
-        import dotmac.platform.communications.event_listeners
 
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 
@@ -125,8 +121,6 @@ class TestCommunicationsEventListeners:
         """Test handling multiple different event types."""
         mock_email_service = AsyncMock()
         mock_email_service_class.return_value = mock_email_service
-
-        import dotmac.platform.communications.event_listeners
 
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 
@@ -164,8 +158,6 @@ class TestCommunicationsEventListeners:
         mock_email_service = AsyncMock()
         mock_email_service.send_email.side_effect = Exception("SMTP error")
         mock_email_service_class.return_value = mock_email_service
-
-        import dotmac.platform.communications.event_listeners
 
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 
@@ -208,8 +200,6 @@ class TestEventListenerIntegration:
         """Test complete invoice flow with communications."""
         mock_email_service = AsyncMock()
         mock_email_service_class.return_value = mock_email_service
-
-        import dotmac.platform.communications.event_listeners
 
         event_bus = get_event_bus(redis_client=None, enable_persistence=False)
 

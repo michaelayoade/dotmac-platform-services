@@ -9,6 +9,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -82,9 +83,6 @@ async def create_customer(
         )
         return _convert_customer_to_response(customer)
     except HTTPException:
-        # Re-raise HTTPException as-is (for duplicate email check)
-        raise
-    except HTTPException:
         # Re-raise HTTP exceptions without wrapping
         raise
     except ValueError as e:
@@ -92,12 +90,12 @@ async def create_customer(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception:
-        logger.error("Failed to create customer", exc_info=True)
+    except SQLAlchemyError as exc:
+        logger.error("Failed to create customer", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create customer",
-        )
+        ) from exc
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
@@ -178,12 +176,12 @@ async def update_customer(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        logger.error("Failed to update customer", customer_id=str(customer_id), error=str(e))
+    except SQLAlchemyError as exc:
+        logger.error("Failed to update customer", customer_id=str(customer_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update customer",
-        )
+        ) from exc
 
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -239,12 +237,12 @@ async def search_customers(
     except HTTPException:
         # Re-raise HTTP exceptions without wrapping
         raise
-    except Exception as e:
-        logger.error("Failed to search customers", error=str(e))
+    except SQLAlchemyError as exc:
+        logger.error("Failed to search customers", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search customers",
-        )
+        ) from exc
 
 
 @router.post(
@@ -278,12 +276,12 @@ async def add_customer_activity(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
-        logger.error("Failed to add activity", customer_id=str(customer_id), error=str(e))
+    except SQLAlchemyError as exc:
+        logger.error("Failed to add activity", customer_id=str(customer_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add activity",
-        )
+        ) from exc
 
 
 def _convert_activity_to_response(activity: Any) -> CustomerActivityResponse:
@@ -348,12 +346,12 @@ async def add_customer_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
-        logger.error("Failed to add note", customer_id=str(customer_id), error=str(e))
+    except SQLAlchemyError as exc:
+        logger.error("Failed to add note", customer_id=str(customer_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add note",
-        )
+        ) from exc
 
 
 def _convert_note_to_response(note: Any) -> CustomerNoteResponse:
@@ -437,12 +435,17 @@ async def create_segment(
     except HTTPException:
         # Re-raise HTTP exceptions without wrapping
         raise
-    except Exception as e:
-        logger.error("Failed to create segment", error=str(e))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        logger.error("Failed to create segment", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create segment",
-        )
+        ) from exc
 
 
 @router.post("/segments/{segment_id}/recalculate", response_model=dict)

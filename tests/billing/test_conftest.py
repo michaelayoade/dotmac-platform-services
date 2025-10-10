@@ -4,13 +4,13 @@ Test database configuration for billing tests.
 Provides isolated database setup to prevent table conflicts.
 """
 
-import pytest
 import os
-from sqlalchemy import create_engine, MetaData, event
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.pool import StaticPool
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from sqlalchemy import MetaData, create_engine, event
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Set test environment to prevent accidental database operations
 os.environ["TESTING"] = "1"
@@ -20,7 +20,6 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 @pytest.fixture(scope="function")
 def test_db_engine():
     """Create an in-memory SQLite database for testing."""
-    from sqlalchemy import create_engine
 
     # Create in-memory database with StaticPool to ensure single connection
     engine = create_engine(
@@ -44,7 +43,6 @@ def test_db_engine():
 @pytest.fixture(scope="function")
 def test_db_metadata():
     """Create fresh metadata instance for each test."""
-    from sqlalchemy import MetaData
 
     # Create new metadata instance
     metadata = MetaData()
@@ -58,7 +56,6 @@ def test_db_metadata():
 @pytest.fixture(scope="function")
 def test_db_session(test_db_engine, test_db_metadata):
     """Create a test database session."""
-    from sqlalchemy.orm import sessionmaker
 
     # Create all tables in the test database
     test_db_metadata.create_all(test_db_engine)
@@ -108,7 +105,6 @@ def isolated_db_session():
 def reset_sqlalchemy_state():
     """Reset SQLAlchemy state between tests to prevent conflicts."""
     # Import here to avoid circular dependencies
-    from sqlalchemy import MetaData
     from sqlalchemy.orm import clear_mappers
 
     yield

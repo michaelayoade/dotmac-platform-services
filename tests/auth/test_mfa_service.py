@@ -2,8 +2,8 @@
 Tests for MFA Service.
 """
 
-import pytest
 import re
+
 from dotmac.platform.auth.mfa_service import MFAService, mfa_service
 
 
@@ -94,8 +94,9 @@ class TestMFAService:
 
     def test_token_verification_window(self):
         """Test that token verification has time window tolerance."""
-        import pyotp
         import time
+
+        import pyotp
 
         secret = mfa_service.generate_secret()
         totp = pyotp.TOTP(secret)

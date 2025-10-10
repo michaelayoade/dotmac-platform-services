@@ -9,8 +9,8 @@ import pytest
 from dotmac.platform.auth import (
     JWTService,
     create_access_token,
-    verify_password,
     hash_password,
+    verify_password,
 )
 
 

@@ -8,42 +8,39 @@ This test file focuses on:
 4. Avoiding over-mocking
 """
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
 # Import module for coverage
-import dotmac.platform.contacts.schemas as schemas_module
+from dotmac.platform.contacts.models import (
+    ContactFieldType,
+    ContactMethodType,
+    ContactStage,
+    ContactStatus,
+)
 from dotmac.platform.contacts.schemas import (
-    ContactMethodBase,
-    ContactMethodCreate,
-    ContactMethodUpdate,
-    ContactMethodResponse,
-    ContactBase,
-    ContactCreate,
-    ContactUpdate,
-    ContactResponse,
-    ContactListResponse,
-    ContactLabelDefinitionBase,
-    ContactLabelDefinitionCreate,
-    ContactLabelDefinitionUpdate,
-    ContactLabelDefinitionResponse,
-    ContactFieldDefinitionBase,
-    ContactFieldDefinitionCreate,
-    ContactFieldDefinitionUpdate,
-    ContactFieldDefinitionResponse,
     ContactActivityBase,
     ContactActivityCreate,
     ContactActivityResponse,
-    ContactSearchRequest,
-    ContactBulkUpdate,
+    ContactBase,
     ContactBulkDelete,
-)
-from dotmac.platform.contacts.models import (
-    ContactMethodType,
-    ContactStatus,
-    ContactStage,
-    ContactFieldType,
+    ContactBulkUpdate,
+    ContactCreate,
+    ContactFieldDefinitionBase,
+    ContactFieldDefinitionCreate,
+    ContactFieldDefinitionResponse,
+    ContactLabelDefinitionBase,
+    ContactLabelDefinitionCreate,
+    ContactLabelDefinitionResponse,
+    ContactListResponse,
+    ContactMethodBase,
+    ContactMethodCreate,
+    ContactMethodResponse,
+    ContactResponse,
+    ContactSearchRequest,
+    ContactUpdate,
 )
 
 

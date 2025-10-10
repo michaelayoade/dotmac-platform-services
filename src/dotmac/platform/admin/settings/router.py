@@ -31,7 +31,7 @@ router = APIRouter(
 )
 
 # Service instance (singleton)
-settings_service = SettingsManagementService()
+settings_service: SettingsManagementService = SettingsManagementService()
 
 
 @router.get("/categories", response_model=list[SettingsCategoryInfo])
@@ -44,7 +44,8 @@ async def get_all_categories(
     Returns a list of categories with metadata about each category
     including field counts, sensitivity, and restart requirements.
     """
-    return settings_service.get_all_categories()
+    categories: list[SettingsCategoryInfo] = settings_service.get_all_categories()
+    return categories
 
 
 @router.get("/category/{category}", response_model=SettingsResponse)
@@ -119,11 +120,7 @@ async def update_category_settings(
             )
 
         # Get email, fallback to username, then user id to ensure we have an identifier
-        user_email: str = (
-            current_admin.email
-            or current_admin.username
-            or current_admin.user_id
-        )
+        user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
         # Apply the updates
         return settings_service.update_category_settings(
@@ -196,11 +193,7 @@ async def bulk_update_settings(
     errors: dict[str, Any] = {}
 
     # Get email, fallback to username
-    user_email: str = (
-        current_admin.email
-        or current_admin.username
-        or current_admin.user_id
-    )
+    user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
     for category, updates in bulk_update.updates.items():
         try:
@@ -295,11 +288,7 @@ async def restore_settings_backup(
         backup_uuid = uuid.UUID(backup_id)
 
         # Get email, fallback to username
-        user_email: str = (
-            current_admin.email
-            or current_admin.username
-            or current_admin.user_id
-        )
+        user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
         restored = settings_service.restore_backup(
             backup_id=backup_uuid,
@@ -337,11 +326,12 @@ async def get_audit_logs(
     Returns:
         List of audit log entries
     """
-    return settings_service.get_audit_logs(
+    audit_logs: list[AuditLog] = settings_service.get_audit_logs(
         category=category,
         user_id=user_id,
         limit=limit,
     )
+    return audit_logs
 
 
 @router.post("/export")
@@ -404,11 +394,7 @@ async def import_settings(
     errors: dict[str, Any] = {}
 
     # Get email, fallback to username
-    user_email: str = (
-        current_admin.email
-        or current_admin.username
-        or current_admin.user_id
-    )
+    user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
     for category_str, settings_data in import_request.data.items():
         try:

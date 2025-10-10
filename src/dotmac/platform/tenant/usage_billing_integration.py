@@ -357,7 +357,9 @@ class TenantUsageBillingIntegration:
         tenant = await self.tenant_service.get_tenant(tenant_id)
         stats = await self.tenant_service.get_tenant_stats(tenant_id)
 
-        plan_type_value = tenant.plan_type.value if hasattr(tenant.plan_type, "value") else str(tenant.plan_type)
+        plan_type_value = (
+            tenant.plan_type.value if hasattr(tenant.plan_type, "value") else str(tenant.plan_type)
+        )
         billing_cycle_value = (
             tenant.billing_cycle.value
             if hasattr(tenant.billing_cycle, "value")
@@ -410,8 +412,11 @@ class TenantUsageBillingIntegration:
             status=SubscriptionStatus.ACTIVE,
         )
 
-        if subscriptions and len(subscriptions) > 0:
-            return subscriptions[0].subscription_id
+        if subscriptions:
+            first_subscription = subscriptions[0]
+            subscription_id = getattr(first_subscription, "subscription_id", None)
+            if subscription_id is not None:
+                return str(subscription_id)
 
         return None
 

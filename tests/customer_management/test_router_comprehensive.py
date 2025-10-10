@@ -2,58 +2,50 @@
 Comprehensive router tests for customer management to achieve 90% coverage.
 """
 
-import pytest
-from datetime import datetime, UTC
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.customer_management.models import (
-    Customer,
+    ActivityType,
     CustomerActivity,
     CustomerNote,
     CustomerSegment,
     CustomerStatus,
-    CustomerTier,
-    CustomerType,
-    CommunicationChannel,
-    ActivityType,
 )
 from dotmac.platform.customer_management.router import (
-    get_customer_service,
-    create_customer,
-    get_customer,
-    update_customer,
-    delete_customer,
-    search_customers,
-    get_customer_by_number,
     add_customer_activity,
-    get_customer_activities,
     add_customer_note,
-    get_customer_notes,
-    record_purchase,
-    get_customer_metrics,
+    create_customer,
     create_segment,
+    delete_customer,
+    get_customer,
+    get_customer_activities,
+    get_customer_by_number,
+    get_customer_metrics,
+    get_customer_notes,
+    get_customer_service,
     recalculate_segment,
+    record_purchase,
+    search_customers,
+    update_customer,
 )
 from dotmac.platform.customer_management.schemas import (
-    CustomerCreate,
-    CustomerUpdate,
-    CustomerResponse,
-    CustomerSearchParams,
     CustomerActivityCreate,
     CustomerActivityResponse,
+    CustomerCreate,
+    CustomerMetrics,
     CustomerNoteCreate,
     CustomerNoteResponse,
+    CustomerResponse,
+    CustomerSearchParams,
     CustomerSegmentCreate,
     CustomerSegmentResponse,
-    CustomerMetrics,
+    CustomerUpdate,
 )
 from dotmac.platform.customer_management.service import CustomerService
-from dotmac.platform.auth.core import UserInfo
 
 pytestmark = pytest.mark.asyncio
 

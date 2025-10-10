@@ -10,15 +10,14 @@ This file focuses on covering the gaps left by existing tests, particularly:
 - Overdue invoice checking
 """
 
-import pytest
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus, TransactionType
 from dotmac.platform.billing.core.exceptions import (
-    InvalidInvoiceStatusError,
     InvoiceNotFoundError,
 )
 from dotmac.platform.billing.invoicing.service import InvoiceService
@@ -32,23 +31,23 @@ def invoice_service(async_db_session):
 
 @pytest.fixture
 def sample_line_items():
-    """Sample line items for invoice creation."""
+    """Sample line items for invoice creation (prices in minor units/cents)."""
     return [
         {
             "description": "Monthly subscription",
             "quantity": 1,
-            "unit_price": 99.99,
-            "total_price": 99.99,
-            "tax_amount": 10.00,
+            "unit_price": 9999,  # $99.99 in cents
+            "total_price": 9999,
+            "tax_amount": 1000,  # $10.00 in cents
             "discount_amount": 0,
         },
         {
             "description": "Additional users",
             "quantity": 5,
-            "unit_price": 10.00,
-            "total_price": 50.00,
-            "tax_amount": 5.00,
-            "discount_amount": 5.00,
+            "unit_price": 1000,  # $10.00 in cents
+            "total_price": 5000,  # $50.00 in cents
+            "tax_amount": 500,  # $5.00 in cents
+            "discount_amount": 500,  # $5.00 in cents
         },
     ]
 
@@ -282,6 +281,9 @@ class TestInvoicePaymentStatus:
             tax_amount=10,
             discount_amount=0,
             total_amount=110,
+            total_credits_applied=0,
+            remaining_balance=110,  # Required NOT NULL field
+            credit_applications=[],
             status=InvoiceStatus.PAID,
             payment_status=PaymentStatus.SUCCEEDED,
         )
@@ -407,8 +409,9 @@ class TestCreditApplication:
     @pytest.mark.asyncio
     async def test_apply_credit_creates_transaction(self, invoice_service, async_db_session):
         """Test that applying credit creates a transaction record."""
-        from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
         from sqlalchemy import select
+
+        from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
 
         tenant_id = str(uuid4())
         invoice = InvoiceEntity(
@@ -477,6 +480,9 @@ class TestOverdueInvoices:
             tax_amount=10,
             discount_amount=0,
             total_amount=110,
+            total_credits_applied=0,
+            remaining_balance=110,
+            credit_applications=[],
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
         )
@@ -497,6 +503,9 @@ class TestOverdueInvoices:
             tax_amount=20,
             discount_amount=0,
             total_amount=220,
+            total_credits_applied=0,
+            remaining_balance=220,
+            credit_applications=[],
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
         )
@@ -534,6 +543,9 @@ class TestOverdueInvoices:
             tax_amount=10,
             discount_amount=0,
             total_amount=110,
+            total_credits_applied=0,
+            remaining_balance=0,  # Paid, so 0 remaining
+            credit_applications=[],
             status=InvoiceStatus.PAID,
             payment_status=PaymentStatus.SUCCEEDED,
         )
@@ -581,11 +593,11 @@ class TestPrivateHelperMethods:
         tenant_id = str(uuid4())
         year = datetime.now(UTC).year
 
-        # Create first invoice
+        # Create first invoice (use 6-digit padding to match service format)
         invoice1 = InvoiceEntity(
             tenant_id=tenant_id,
             invoice_id=str(uuid4()),
-            invoice_number=f"INV-{year}-0001",
+            invoice_number=f"INV-{year}-000001",
             customer_id="cust-123",
             billing_email="test@example.com",
             billing_address={"street": "123 Main St"},
@@ -596,6 +608,9 @@ class TestPrivateHelperMethods:
             tax_amount=10,
             discount_amount=0,
             total_amount=110,
+            total_credits_applied=0,
+            remaining_balance=110,
+            credit_applications=[],
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
         )
@@ -605,4 +620,4 @@ class TestPrivateHelperMethods:
         # Generate next invoice number
         next_number = await invoice_service._generate_invoice_number(tenant_id)
 
-        assert next_number == f"INV-{year}-0002"
+        assert next_number == f"INV-{year}-000002"

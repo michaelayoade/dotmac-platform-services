@@ -5,14 +5,14 @@ Validates that user service methods properly enforce tenant boundaries
 and prevent cross-tenant data access.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from dotmac.platform.user_management.service import UserService
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from dotmac.platform.user_management.models import User
+from dotmac.platform.user_management.service import UserService
 
 
 class TestUserServiceTenantRequirements:

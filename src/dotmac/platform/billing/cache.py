@@ -487,8 +487,8 @@ class BillingCache:
                 try:
                     info = client.info("memory")
                     metrics["l2_memory_used"] = info.get("used_memory_human", "N/A")
-                except:
-                    pass
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.warning("Failed to fetch Redis memory info", error=str(exc))
 
         return metrics
 

@@ -2,8 +2,9 @@
 Comprehensive tests for billing webhooks router.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -288,13 +289,13 @@ class TestGetWebhookConfig:
     @pytest.mark.asyncio
     async def test_get_webhook_config_all_enabled(self):
         """Test getting webhook config with all providers enabled."""
-        from dotmac.platform.billing.webhooks.router import get_webhook_config
         from dotmac.platform.billing.config import (
             BillingConfig,
-            StripeConfig,
             PayPalConfig,
+            StripeConfig,
             WebhookConfig,
         )
+        from dotmac.platform.billing.webhooks.router import get_webhook_config
 
         mock_config = BillingConfig(
             enable_webhooks=True,
@@ -329,8 +330,8 @@ class TestGetWebhookConfig:
     @pytest.mark.asyncio
     async def test_get_webhook_config_disabled(self):
         """Test getting webhook config with webhooks disabled."""
-        from dotmac.platform.billing.webhooks.router import get_webhook_config
         from dotmac.platform.billing.config import BillingConfig
+        from dotmac.platform.billing.webhooks.router import get_webhook_config
 
         mock_config = BillingConfig(
             enable_webhooks=False,
@@ -353,8 +354,8 @@ class TestGetWebhookConfig:
     @pytest.mark.asyncio
     async def test_get_webhook_config_partial(self):
         """Test getting webhook config with only Stripe configured."""
-        from dotmac.platform.billing.webhooks.router import get_webhook_config
         from dotmac.platform.billing.config import BillingConfig, StripeConfig
+        from dotmac.platform.billing.webhooks.router import get_webhook_config
 
         mock_config = BillingConfig(
             enable_webhooks=True,
@@ -381,8 +382,8 @@ class TestGetWebhookConfig:
     @pytest.mark.asyncio
     async def test_get_webhook_config_stripe_no_secret(self):
         """Test webhook config with Stripe but no webhook secret."""
-        from dotmac.platform.billing.webhooks.router import get_webhook_config
         from dotmac.platform.billing.config import BillingConfig, StripeConfig
+        from dotmac.platform.billing.webhooks.router import get_webhook_config
 
         mock_config = BillingConfig(
             enable_webhooks=True,
@@ -408,8 +409,8 @@ class TestGetWebhookConfig:
     @pytest.mark.asyncio
     async def test_get_webhook_config_paypal_no_id(self):
         """Test webhook config with PayPal but no webhook ID."""
-        from dotmac.platform.billing.webhooks.router import get_webhook_config
         from dotmac.platform.billing.config import BillingConfig, PayPalConfig
+        from dotmac.platform.billing.webhooks.router import get_webhook_config
 
         mock_config = BillingConfig(
             enable_webhooks=True,

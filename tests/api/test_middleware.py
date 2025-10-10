@@ -1,18 +1,18 @@
 """Tests for API Gateway middleware."""
 
 import asyncio
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-import time
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
 from fastapi import Request, Response
 from starlette.datastructures import Headers
 
+from dotmac.platform.api.gateway import APIGateway
 from dotmac.platform.api.middleware import (
+    CircuitBreakerMiddleware,
     GatewayMiddleware,
     RequestTransformMiddleware,
-    CircuitBreakerMiddleware,
 )
-from dotmac.platform.api.gateway import APIGateway, CircuitBreakerState
 
 
 class TestGatewayMiddleware:

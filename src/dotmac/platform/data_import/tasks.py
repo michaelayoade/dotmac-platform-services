@@ -8,11 +8,12 @@ import csv
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 import structlog
 from celery import Task, current_task
+from celery.schedules import crontab
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from dotmac.platform.core.tasks import app, idempotent_task
@@ -561,8 +562,6 @@ def check_import_health() -> dict[str, Any]:
 
 
 # Register periodic tasks
-from celery.schedules import crontab
-
 app.conf.beat_schedule = {
     "check-import-health": {
         "task": "dotmac.platform.data_import.tasks.check_import_health",

@@ -6,9 +6,9 @@ import argparse
 import json
 from pathlib import Path
 
+from dotmac.platform.api_gateway.gateway import APIGateway
 from fastapi import FastAPI
 
-from dotmac.platform.api_gateway.gateway import APIGateway
 from dotmac.platform.settings import settings
 
 DEFAULT_OUTPUT = Path("openapi.json")

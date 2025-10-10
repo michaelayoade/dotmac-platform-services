@@ -5,6 +5,8 @@
   "description": "End-to-end tests for DotMac Platform",
   "scripts": {
     "test": "playwright test",
+    "test:local": "playwright test --config=playwright.config.local.ts",
+    "test:local:ui": "playwright test --config=playwright.config.local.ts --ui",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",

@@ -1,17 +1,17 @@
 """Tests for Subscription Query Handlers (CQRS Pattern)"""
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from dotmac.platform.billing.queries.handlers import SubscriptionQueryHandler
 from dotmac.platform.billing.queries.subscription_queries import (
+    GetActiveSubscriptionsQuery,
     GetSubscriptionQuery,
     ListSubscriptionsQuery,
-    GetActiveSubscriptionsQuery,
 )
-from dotmac.platform.billing.queries.handlers import SubscriptionQueryHandler
 from dotmac.platform.billing.read_models.subscription_read_models import (
-    SubscriptionListItem,
     SubscriptionDetail,
 )
 
@@ -35,7 +35,7 @@ class TestSubscriptionQueryHandler:
         query = GetSubscriptionQuery(tenant_id="tenant-1", subscription_id="sub-123")
 
         # Mock database result
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         mock_subscription = MagicMock()
         mock_subscription.subscription_id = "sub-123"
         mock_subscription.tenant_id = "tenant-1"

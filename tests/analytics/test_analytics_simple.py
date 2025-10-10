@@ -4,20 +4,21 @@ Simple tests for Analytics module to improve coverage.
 Tests core analytics functionality with actual available classes.
 """
 
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch, AsyncMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
+
 from dotmac.platform.analytics.base import (
-    MetricType,
-    SpanContext,
-    Metric,
+    BaseAnalyticsCollector,
     CounterMetric,
     GaugeMetric,
     HistogramMetric,
-    BaseAnalyticsCollector,
+    Metric,
     MetricRegistry,
+    MetricType,
+    SpanContext,
 )
 from dotmac.platform.analytics.service import AnalyticsService
 
@@ -62,7 +63,7 @@ class TestAnalyticsBaseClasses:
 
     def test_metric_creation(self):
         """Test Metric dataclass."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         metric = Metric(
             tenant_id="tenant123",
             timestamp=now,
@@ -355,7 +356,7 @@ class TestAnalyticsService:
         event_data = {
             "event_type": "user_login",
             "user_id": "user123",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         event_id = await analytics_service.track_event(**event_data)

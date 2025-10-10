@@ -1,15 +1,15 @@
 """Tests for main module."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from dotmac.platform.main import (
+    app,
     create_application,
     lifespan,
-    app,
 )
 
 
@@ -289,8 +289,9 @@ class TestMissingCoverage:
 
     def test_rate_limit_handler(self):
         """Test rate limit handler function."""
-        from dotmac.platform.main import rate_limit_handler
         from fastapi import Request
+
+        from dotmac.platform.main import rate_limit_handler
 
         # Create mock request and mock exception
         request = MagicMock(spec=Request)

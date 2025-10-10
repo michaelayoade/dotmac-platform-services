@@ -3,6 +3,7 @@ Billing settings API router
 """
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -219,13 +220,13 @@ async def reset_to_defaults(
 async def validate_settings(
     current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """Validate current billing settings and return validation report"""
     service = BillingSettingsService(db)
     tenant_id = current_user.tenant_id or "default"
 
     try:
-        validation_report = await service.validate_settings_for_tenant(tenant_id)
+        validation_report: dict[str, Any] = await service.validate_settings_for_tenant(tenant_id)
         return validation_report
     except Exception as e:
         logger.error(f"Error validating billing settings: {str(e)}")

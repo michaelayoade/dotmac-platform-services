@@ -2,22 +2,23 @@
 Tests for audit service functionality.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
+from dotmac.platform.audit.models import (
+    ActivitySeverity,
+    ActivityType,
+    AuditActivity,
+    AuditFilterParams,
+)
 from dotmac.platform.audit.service import (
     AuditService,
-    log_user_activity,
     log_api_activity,
     log_system_activity,
-)
-from dotmac.platform.audit.models import (
-    ActivityType,
-    ActivitySeverity,
-    AuditFilterParams,
-    AuditActivity,
+    log_user_activity,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -125,9 +126,9 @@ class TestAuditService:
                 tenant_id="tenant456",
                 action="test_action",
                 description=f"Test activity {i}",
-                timestamp=datetime.now(timezone.utc) - timedelta(hours=i),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC) - timedelta(hours=i),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             async_db_session.add(activity)
         await async_db_session.commit()
@@ -160,9 +161,9 @@ class TestAuditService:
                 tenant_id="tenant456",
                 action="test_action",
                 description=f"Test activity {i}",
-                timestamp=datetime.now(timezone.utc) - timedelta(minutes=i),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC) - timedelta(minutes=i),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             async_db_session.add(activity)
         await async_db_session.commit()
@@ -192,7 +193,7 @@ class TestAuditService:
         audit_service._session = async_db_session
 
         # Create activities with different ages
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Recent activity
         recent = AuditActivity(
@@ -243,7 +244,7 @@ class TestAuditService:
         audit_service._session = async_db_session
 
         # Create activities with different types and severities
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         activities_data = [
             (ActivityType.USER_LOGIN, ActivitySeverity.LOW),

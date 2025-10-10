@@ -6,8 +6,8 @@ OTLP export warnings and create proper test isolation.
 """
 
 import os
+from collections.abc import Generator
 from unittest.mock import Mock, patch
-from typing import Generator
 
 import pytest
 
@@ -132,7 +132,7 @@ def clean_otel_environment():
     original_meter_provider = None
 
     try:
-        from opentelemetry import trace, metrics
+        from opentelemetry import metrics, trace
 
         original_tracer_provider = trace.get_tracer_provider()
         original_meter_provider = metrics.get_meter_provider()
@@ -141,9 +141,9 @@ def clean_otel_environment():
 
     # Reset to no-op providers for tests
     try:
-        from opentelemetry import trace, metrics
-        from opentelemetry.trace import NoOpTracerProvider
+        from opentelemetry import metrics, trace
         from opentelemetry.metrics import NoOpMeterProvider
+        from opentelemetry.trace import NoOpTracerProvider
 
         trace.set_tracer_provider(NoOpTracerProvider())
         metrics.set_meter_provider(NoOpMeterProvider())

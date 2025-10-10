@@ -7,13 +7,12 @@ modules through event publishing and subscription.
 
 import asyncio
 
-from dotmac.platform.events import get_event_bus, subscribe, Event, EventPriority
 from dotmac.platform.billing.events import (
     emit_invoice_created,
     emit_invoice_paid,
     emit_subscription_created,
 )
-
+from dotmac.platform.events import Event, EventPriority, get_event_bus, subscribe
 
 # ============================================================================
 # Define Custom Event Handlers
@@ -23,7 +22,7 @@ from dotmac.platform.billing.events import (
 @subscribe("invoice.created")
 async def log_invoice_created(event: Event):
     """Log when an invoice is created."""
-    print(f"\n[Logger] Invoice created:")
+    print("\n[Logger] Invoice created:")
     print(f"  - Invoice ID: {event.payload['invoice_id']}")
     print(f"  - Customer: {event.payload['customer_id']}")
     print(f"  - Amount: ${event.payload['amount']}")
@@ -33,7 +32,7 @@ async def log_invoice_created(event: Event):
 @subscribe("invoice.created")
 async def notify_accounting(event: Event):
     """Notify accounting system of new invoice."""
-    print(f"\n[Accounting] New invoice to record:")
+    print("\n[Accounting] New invoice to record:")
     print(f"  - Invoice: {event.payload['invoice_id']}")
     print(f"  - Amount: ${event.payload['amount']}")
 
@@ -41,7 +40,7 @@ async def notify_accounting(event: Event):
 @subscribe("invoice.paid")
 async def update_customer_balance(event: Event):
     """Update customer balance when invoice is paid."""
-    print(f"\n[Customer Service] Updating balance:")
+    print("\n[Customer Service] Updating balance:")
     print(f"  - Customer: {event.payload['customer_id']}")
     print(f"  - Payment: {event.payload['payment_id']}")
     print(f"  - Amount: ${event.payload['amount']}")
@@ -50,7 +49,7 @@ async def update_customer_balance(event: Event):
 @subscribe("invoice.paid")
 async def send_thank_you_email(event: Event):
     """Send thank you email after payment."""
-    print(f"\n[Communications] Sending thank you email:")
+    print("\n[Communications] Sending thank you email:")
     print(f"  - Customer: {event.payload['customer_id']}")
     print(f"  - Invoice: {event.payload['invoice_id']}")
 
@@ -58,7 +57,7 @@ async def send_thank_you_email(event: Event):
 @subscribe("subscription.created")
 async def provision_resources(event: Event):
     """Provision resources for new subscription."""
-    print(f"\n[Provisioning] Creating resources:")
+    print("\n[Provisioning] Creating resources:")
     print(f"  - Subscription: {event.payload['subscription_id']}")
     print(f"  - Plan: {event.payload['plan_id']}")
 
@@ -66,7 +65,7 @@ async def provision_resources(event: Event):
 @subscribe("subscription.created")
 async def send_welcome_package(event: Event):
     """Send welcome package to new subscriber."""
-    print(f"\n[Communications] Sending welcome package:")
+    print("\n[Communications] Sending welcome package:")
     print(f"  - Customer: {event.payload['customer_id']}")
 
 

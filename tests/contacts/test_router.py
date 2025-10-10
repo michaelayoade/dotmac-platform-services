@@ -1,21 +1,18 @@
 """Tests for contacts router."""
 
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from uuid import uuid4
-import uuid
 
-from dotmac.platform.contacts.schemas import (
-    ContactCreate,
-    ContactUpdate,
-    ContactResponse,
-    ContactStatus,
-    ContactStage,
-)
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.contacts.schemas import (
+    ContactStage,
+    ContactStatus,
+)
 
 
 @pytest.fixture

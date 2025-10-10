@@ -9,35 +9,33 @@ This test file focuses on:
 5. Avoiding over-mocking
 """
 
-import pytest
-from datetime import datetime, UTC, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
+import pytest
+
 # Import module for coverage
-import dotmac.platform.tenant.service as service_module
-from dotmac.platform.tenant.service import (
-    TenantService,
-    TenantNotFoundError,
-    TenantAlreadyExistsError,
-    TenantLimitExceededError,
-)
 from dotmac.platform.tenant.models import (
+    BillingCycle,
     Tenant,
-    TenantStatus,
+    TenantInvitation,
     TenantPlanType,
     TenantSetting,
+    TenantStatus,
     TenantUsage,
-    TenantInvitation,
-    TenantInvitationStatus,
-    BillingCycle,
 )
 from dotmac.platform.tenant.schemas import (
     TenantCreate,
-    TenantUpdate,
-    TenantSettingCreate,
-    TenantUsageCreate,
     TenantInvitationCreate,
+    TenantSettingCreate,
+    TenantUpdate,
+    TenantUsageCreate,
+)
+from dotmac.platform.tenant.service import (
+    TenantAlreadyExistsError,
+    TenantNotFoundError,
+    TenantService,
 )
 
 

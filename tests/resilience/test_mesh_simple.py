@@ -1,12 +1,9 @@
 """Simple focused tests to boost service mesh coverage."""
 
-import pytest
-from unittest.mock import patch, AsyncMock
 from dotmac.platform.resilience.service_mesh import (
+    LoadBalancer,
     ServiceEndpoint,
     ServiceRegistry,
-    LoadBalancer,
-    ServiceStatus,
 )
 
 

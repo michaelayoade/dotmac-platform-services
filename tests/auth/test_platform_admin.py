@@ -4,18 +4,19 @@ Tests for Platform Admin functionality.
 Tests cross-tenant access, tenant impersonation, and platform-level operations.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 from fastapi import HTTPException, Request
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.platform_admin import (
-    is_platform_admin,
-    has_platform_permission,
-    get_target_tenant_id,
-    require_platform_admin,
     PLATFORM_ADMIN_PERMISSION,
     create_platform_admin_token,
+    get_target_tenant_id,
+    has_platform_permission,
+    is_platform_admin,
+    require_platform_admin,
 )
 
 

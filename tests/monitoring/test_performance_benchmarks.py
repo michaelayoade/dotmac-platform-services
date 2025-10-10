@@ -11,16 +11,16 @@ Tests cover:
 """
 
 import asyncio
-import pytest
 import time
+
 import psutil
-from datetime import datetime, timezone
+import pytest
 
 from dotmac.platform.monitoring.benchmarks import (
     BenchmarkManager,
+    BenchmarkStatus,
     BenchmarkSuite,
     BenchmarkSuiteConfig,
-    BenchmarkStatus,
     BenchmarkType,
     CPUBenchmark,
     MemoryBenchmark,

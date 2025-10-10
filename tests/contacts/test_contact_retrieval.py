@@ -5,14 +5,13 @@ BEFORE: 111 lines with repetitive mock setup
 AFTER: ~75 lines using shared helpers (32% reduction)
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 
 from dotmac.platform.contacts.service import ContactService
-
-from tests.helpers import build_mock_db_session, build_success_result, build_not_found_result
+from tests.helpers import build_mock_db_session, build_not_found_result, build_success_result
 
 pytestmark = pytest.mark.asyncio
 

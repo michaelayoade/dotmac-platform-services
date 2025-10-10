@@ -15,17 +15,13 @@ import asyncio
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
-from dotmac.platform.tenant.models import Tenant
-from dotmac.platform.tenant.schemas import TenantCreate
 
 
 @pytest.fixture(scope="session")

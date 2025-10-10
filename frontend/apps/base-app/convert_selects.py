@@ -24,7 +24,7 @@ def convert_selects(content):
         disabled_match = re.search(r"disabled=\{([^}]+)\}", props)
 
         if not value_match or not onchange_match:
-            print(f"⚠️  Skipping Select - missing required props")
+            print("⚠️  Skipping Select - missing required props")
             return match.group(0)
 
         value_expr = value_match.group(1)
@@ -35,7 +35,7 @@ def convert_selects(content):
         items = re.findall(r'<SelectItem\s+value="([^"]*?)">([^<]*?)</SelectItem>', inner_content)
 
         if not items:
-            print(f"⚠️  Skipping Select - no SelectItems found")
+            print("⚠️  Skipping Select - no SelectItems found")
             return match.group(0)
 
         options_html = "\n".join(
@@ -58,7 +58,7 @@ def convert_selects(content):
         select_html += options_html + "\n"
         select_html += "                </select>"
 
-        print(f"✓ Converted Select component")
+        print("✓ Converted Select component")
         return select_html
 
     # Apply replacement
@@ -82,7 +82,7 @@ def main():
     file_path = sys.argv[1]
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         original_content = content
@@ -93,7 +93,7 @@ def main():
                 f.write(converted_content)
             print(f"\n✅ File updated: {file_path}")
         else:
-            print(f"\n⚠️  No changes made")
+            print("\n⚠️  No changes made")
 
     except Exception as e:
         print(f"❌ Error: {e}")

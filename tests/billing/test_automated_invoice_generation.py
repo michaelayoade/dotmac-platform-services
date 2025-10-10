@@ -1,32 +1,33 @@
-"""
-Automated invoice generation testing.
-Tests invoice creation, scheduling, formatting, and delivery.
-"""
+"""Automated invoice generation testing.
+
+Tests invoice creation, scheduling, formatting, and delivery."""
+
+import asyncio
+from datetime import datetime, timedelta
+from typing import Any
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch, MagicMock, call
-from datetime import datetime, timedelta
-from decimal import Decimal
-import asyncio
-from freezegun import freeze_time
-
-from dotmac.platform.billing.models import (
-
-pytestmark = pytest.mark.asyncio
-
-    Customer,
-    Subscription,
-    Invoice,
-    InvoiceItem,
-    Product,
-    Price,
-)
 from dotmac.platform.billing.services.invoice_generator import InvoiceGenerator
 from dotmac.platform.billing.services.pdf_generator import PDFGenerator
+from freezegun import freeze_time
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.billing.models import (
+    Customer,
+    Invoice,
+    InvoiceItem,
+    Price,
+    Product,
+    Subscription,
+)
+
+InvoiceTestData = dict[str, Any]
 
 
 @pytest.fixture
-async def invoice_test_data(db):
+async def invoice_test_data(db: AsyncSession) -> InvoiceTestData:
     """Create test data for invoice generation."""
     # Create product and price
     product = Product(
@@ -81,7 +82,9 @@ class TestInvoiceGeneration:
     """Test automatic invoice generation."""
 
     @pytest.mark.asyncio
-    async def test_monthly_invoice_generation(self, db, invoice_test_data):
+    async def test_monthly_invoice_generation(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test monthly recurring invoice generation."""
         data = invoice_test_data
         generator = InvoiceGenerator(db)
@@ -100,7 +103,9 @@ class TestInvoiceGeneration:
             assert invoice.status == "draft"
 
     @pytest.mark.asyncio
-    async def test_usage_based_invoice_calculation(self, db, invoice_test_data):
+    async def test_usage_based_invoice_calculation(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test usage-based billing in invoice generation."""
         from dotmac.platform.billing.models import UsageRecord
 
@@ -142,7 +147,8 @@ class TestInvoiceGeneration:
 
             # Check invoice items
             items = await db.execute(
-                "SELECT * FROM invoice_items WHERE invoice_id = ?", (invoice.id,)
+                text("SELECT * FROM invoice_items WHERE invoice_id = :invoice_id"),
+                {"invoice_id": invoice.id},
             )
             invoice_items = items.fetchall()
 
@@ -157,7 +163,9 @@ class TestInvoiceGeneration:
             assert api_overage_item.quantity == 5000  # 15k - 10k limit
 
     @pytest.mark.asyncio
-    async def test_proration_calculation(self, db, invoice_test_data):
+    async def test_proration_calculation(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test prorated billing for mid-cycle changes."""
         data = invoice_test_data
         subscription = data["subscription"]
@@ -187,7 +195,9 @@ class TestInvoiceGeneration:
         assert abs(proration - expected_proration) <= 100  # Allow small rounding difference
 
     @pytest.mark.asyncio
-    async def test_invoice_numbering_sequence(self, db, invoice_test_data):
+    async def test_invoice_numbering_sequence(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test invoice numbers are sequential and unique."""
         data = invoice_test_data
         generator = InvoiceGenerator(db)
@@ -218,7 +228,9 @@ class TestInvoiceGeneration:
             assert current_num > previous_num
 
     @pytest.mark.asyncio
-    async def test_tax_calculation_in_invoices(self, db, invoice_test_data):
+    async def test_tax_calculation_in_invoices(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test tax calculations are included in invoices."""
         from dotmac.platform.billing.services.tax_calculator import TaxCalculator
 
@@ -251,7 +263,9 @@ class TestInvoiceGeneration:
             mock_tax.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_invoice_scheduling(self, db, invoice_test_data):
+    async def test_invoice_scheduling(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test invoice scheduling for future billing dates."""
         from dotmac.platform.billing.scheduler import InvoiceScheduler
 
@@ -270,12 +284,16 @@ class TestInvoiceGeneration:
         assert scheduled_count == 3
 
         # Check scheduled invoices exist
-        scheduled_invoices = await db.execute("SELECT * FROM invoices WHERE status = 'scheduled'")
+        scheduled_invoices = await db.execute(
+            text("SELECT * FROM invoices WHERE status = 'scheduled'")
+        )
         invoices = scheduled_invoices.fetchall()
         assert len(invoices) >= 3
 
     @pytest.mark.asyncio
-    async def test_failed_payment_retry_invoices(self, db, invoice_test_data):
+    async def test_failed_payment_retry_invoices(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test retry invoices for failed payments."""
         data = invoice_test_data
         customer = data["customer"]
@@ -307,7 +325,9 @@ class TestInvoiceGeneration:
             assert failed_invoice.attempt_count == 2
 
     @pytest.mark.asyncio
-    async def test_invoice_finalization(self, db, invoice_test_data):
+    async def test_invoice_finalization(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test invoice finalization process."""
         data = invoice_test_data
         generator = InvoiceGenerator(db)
@@ -344,7 +364,7 @@ class TestInvoiceGeneration:
         assert finalized.finalized_at is not None
 
     @pytest.mark.asyncio
-    async def test_bulk_invoice_generation(self, db):
+    async def test_bulk_invoice_generation(self, db: AsyncSession) -> None:
         """Test generating invoices for multiple customers at once."""
         # Create multiple customers and subscriptions
         customers = []
@@ -395,7 +415,9 @@ class TestInvoicePDFGeneration:
     """Test PDF invoice generation."""
 
     @pytest.mark.asyncio
-    async def test_pdf_generation_basic(self, db, invoice_test_data):
+    async def test_pdf_generation_basic(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test basic PDF generation for invoice."""
         data = invoice_test_data
         customer = data["customer"]
@@ -432,13 +454,17 @@ class TestInvoicePDFGeneration:
         assert pdf_data.startswith(b"%PDF")  # PDF header
 
     @pytest.mark.asyncio
-    async def test_pdf_content_validation(self, db, invoice_test_data):
+    async def test_pdf_content_validation(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test PDF contains correct invoice information."""
         # This would require a PDF parsing library like PyPDF2
         pytest.skip("PDF content validation requires PyPDF2 - implement if needed")
 
     @pytest.mark.asyncio
-    async def test_pdf_generation_performance(self, db, invoice_test_data):
+    async def test_pdf_generation_performance(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test PDF generation performance."""
         import time
 
@@ -480,7 +506,9 @@ class TestInvoiceDelivery:
     """Test invoice delivery and notifications."""
 
     @pytest.mark.asyncio
-    async def test_email_invoice_delivery(self, db, invoice_test_data):
+    async def test_email_invoice_delivery(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test invoice delivery via email."""
         from dotmac.platform.billing.services.invoice_delivery import InvoiceDelivery
 
@@ -510,7 +538,9 @@ class TestInvoiceDelivery:
             assert "INV-2024-001" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_payment_reminder_scheduling(self, db, invoice_test_data):
+    async def test_payment_reminder_scheduling(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test payment reminder scheduling."""
         from dotmac.platform.billing.scheduler import PaymentReminderScheduler
 
@@ -536,7 +566,9 @@ class TestInvoiceDelivery:
         assert reminders_sent[0]["invoice_id"] == overdue_invoice.id
 
     @pytest.mark.asyncio
-    async def test_webhook_notification_on_invoice_events(self, db, invoice_test_data):
+    async def test_webhook_notification_on_invoice_events(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test webhook notifications for invoice events."""
         from dotmac.platform.billing.webhooks import InvoiceWebhookService
 

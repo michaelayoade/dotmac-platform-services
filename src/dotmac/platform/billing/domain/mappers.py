@@ -13,12 +13,8 @@ from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
     PaymentEntity,
 )
-from dotmac.platform.billing.core.models import (
-    Invoice as InvoiceModel,
-)
-from dotmac.platform.billing.core.models import (
-    Payment as PaymentModel,
-)
+from dotmac.platform.billing.core.models import Invoice as InvoiceModel
+from dotmac.platform.billing.core.models import Payment as PaymentModel
 from dotmac.platform.billing.subscriptions.models import Subscription as SubscriptionModel
 from dotmac.platform.core import Money
 from dotmac.platform.customer_management.models import Customer as CustomerEntity
@@ -136,7 +132,7 @@ class InvoiceMapper:
         Returns:
             InvoiceModel for API responses
         """
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         return InvoiceModel(
             tenant_id=invoice.tenant_id,
@@ -309,7 +305,8 @@ class SubscriptionMapper:
     @staticmethod
     def to_model(subscription: Subscription) -> SubscriptionModel:
         """Convert Subscription aggregate to SubscriptionModel."""
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
+
         from dotmac.platform.billing.subscriptions.models import SubscriptionStatus
 
         # Map status string to enum

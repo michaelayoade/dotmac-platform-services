@@ -9,14 +9,14 @@ Tests cover:
 - All receipt fields and optional fields
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock
+
+import pytest
 
 from dotmac.platform.billing.receipts.generators import (
-    ReceiptGenerator,
     HTMLReceiptGenerator,
     PDFReceiptGenerator,
+    ReceiptGenerator,
     TextReceiptGenerator,
 )
 from dotmac.platform.billing.receipts.models import Receipt, ReceiptLineItem

@@ -6,10 +6,10 @@ service discovery with industry-standard HashiCorp Consul.
 """
 
 from dotmac.platform.service_registry import (
-    register_service,
     deregister_service,
     discover_services,
     get_healthy_services,
+    register_service,
 )
 
 
@@ -155,11 +155,11 @@ def consul_benefits_summary():
         for item in items:
             print(f"  • {item}")
 
-    print(f"\nCode Comparison:")
-    print(f"  • Original custom registry: 439 lines of complex Redis-based code")
-    print(f"  • New Consul registry: 353 lines with industry-standard features")
-    print(f"  • Maintenance burden: Significantly reduced")
-    print(f"  • Feature richness: Dramatically increased")
+    print("\nCode Comparison:")
+    print("  • Original custom registry: 439 lines of complex Redis-based code")
+    print("  • New Consul registry: 353 lines with industry-standard features")
+    print("  • Maintenance burden: Significantly reduced")
+    print("  • Feature richness: Dramatically increased")
 
 
 async def main():

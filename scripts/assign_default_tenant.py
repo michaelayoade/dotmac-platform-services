@@ -11,11 +11,13 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select
-from src.dotmac.platform.db import AsyncSessionLocal
-from src.dotmac.platform.user_management.models import User
-from src.dotmac.platform.tenant.models import Tenant
 import logging
+
+from sqlalchemy import select
+
+from src.dotmac.platform.db import AsyncSessionLocal
+from src.dotmac.platform.tenant.models import Tenant
+from src.dotmac.platform.user_management.models import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

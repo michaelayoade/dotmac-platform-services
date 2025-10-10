@@ -1,12 +1,10 @@
 """Unit tests for the simplified communications package."""
 
-from typing import List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from dotmac.platform.communications import (
-    BulkEmailJob,
     EmailMessage,
     EmailResponse,
     EmailService,
@@ -29,8 +27,8 @@ def reset_singletons(monkeypatch):
     """Ensure module-level singletons do not leak between tests."""
 
     from dotmac.platform.communications import email_service as email_module
-    from dotmac.platform.communications import template_service as tpl_module
     from dotmac.platform.communications import task_service as task_module
+    from dotmac.platform.communications import template_service as tpl_module
 
     monkeypatch.setattr(email_module, "_email_service", None)
     monkeypatch.setattr(tpl_module, "_template_service", None)
@@ -100,7 +98,7 @@ class TestEmailService:
     @pytest.mark.asyncio
     async def test_send_bulk_emails(self):
         service = EmailService()
-        messages: List[EmailMessage] = [
+        messages: list[EmailMessage] = [
             EmailMessage(to=["one@example.com"], subject="One"),
             EmailMessage(to=["two@example.com"], subject="Two"),
         ]

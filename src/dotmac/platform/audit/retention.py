@@ -7,10 +7,11 @@ Manages automatic cleanup and archiving of audit logs based on retention policie
 import asyncio
 import gzip
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import structlog
 from sqlalchemy import and_, delete, func, select
@@ -86,6 +87,7 @@ class AuditRetentionStats:
                 severity: info.as_dict() for severity, info in self.records_to_delete.items()
             },
         }
+
 
 logger = structlog.get_logger(__name__)
 
@@ -438,9 +440,7 @@ class AuditRetentionService:
                 severity_query = severity_query.where(AuditActivity.tenant_id == tenant_id)
 
             severity_result = await session.execute(severity_query)
-            stats.by_severity = {
-                str(row[0]): int(row[1]) for row in severity_result.all()
-            }
+            stats.by_severity = {str(row[0]): int(row[1]) for row in severity_result.all()}
 
             # Get date range
             date_query = select(

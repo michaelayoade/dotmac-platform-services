@@ -4,17 +4,17 @@ Tests for analytics router branch coverage.
 Covers error handling, edge cases, and conditional branches.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import HTTPException
 
-from dotmac.platform.analytics.router import (
-    get_metrics,
-    custom_query,
-)
 from dotmac.platform.analytics.models import AnalyticsQueryRequest
+from dotmac.platform.analytics.router import (
+    custom_query,
+    get_metrics,
+)
 from dotmac.platform.auth.core import UserInfo
 
 pytestmark = pytest.mark.asyncio
@@ -71,8 +71,8 @@ class TestGetMetricsDateDefaults:
             result = await get_metrics(
                 current_user=mock_user,
                 metric_name="test_metric",
-                start_date=datetime.now(timezone.utc) - timedelta(hours=1),
-                end_date=datetime.now(timezone.utc),
+                start_date=datetime.now(UTC) - timedelta(hours=1),
+                end_date=datetime.now(UTC),
                 aggregation="sum",
                 interval="minute",
             )
@@ -87,7 +87,7 @@ class TestGetMetricsDateDefaults:
         mock_service.query_metrics = AsyncMock(
             return_value={
                 "counters": {"requests": 100, "errors": 5},
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
             }
         )
 
@@ -97,8 +97,8 @@ class TestGetMetricsDateDefaults:
             result = await get_metrics(
                 current_user=mock_user,
                 metric_name="requests",
-                start_date=datetime.now(timezone.utc) - timedelta(hours=1),
-                end_date=datetime.now(timezone.utc),
+                start_date=datetime.now(UTC) - timedelta(hours=1),
+                end_date=datetime.now(UTC),
                 aggregation="sum",
                 interval="hour",
             )

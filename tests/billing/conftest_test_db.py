@@ -5,35 +5,37 @@ Provides in-memory SQLite database for fast, isolated testing.
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import create_engine, event, JSON
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy import create_engine, event
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from dotmac.platform.db import Base
+from dotmac.platform.billing.bank_accounts.entities import (  # noqa: F401
+    CompanyBankAccount,
+    ManualPayment,
+)
 
 # Import billing entity classes to register them with SQLAlchemy Base.metadata
 # This ensures all billing tables are created in the test database
 from dotmac.platform.billing.core.entities import (  # noqa: F401
+    CreditApplicationEntity,
+    CreditNoteEntity,
+    CreditNoteLineItemEntity,
+    CustomerCreditEntity,
     InvoiceEntity,
     InvoiceLineItemEntity,
     PaymentEntity,
     PaymentInvoiceEntity,
     PaymentMethodEntity,
     TransactionEntity,
-    CreditNoteEntity,
-    CreditNoteLineItemEntity,
-    CreditApplicationEntity,
-    CustomerCreditEntity,
 )
+from dotmac.platform.db import Base
 
 
 @pytest.fixture(scope="function")
 def sync_test_engine():
     """Create synchronous in-memory SQLite engine for schema creation."""
     # Use a file-based SQLite DB for testing to share between sync and async
-    import tempfile
     import os
+    import tempfile
 
     # Create a temporary file for the test database
     fd, db_path = tempfile.mkstemp(suffix=".sqlite")

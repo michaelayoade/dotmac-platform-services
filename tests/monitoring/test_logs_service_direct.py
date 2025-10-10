@@ -4,14 +4,14 @@ This file tests the LogsService class directly (not through HTTP endpoints)
 to cover the missing 36% in logs_router.py
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.monitoring.logs_router import LogsService, LogLevel
-from dotmac.platform.audit.models import AuditActivity, ActivitySeverity
+from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
+from dotmac.platform.monitoring.logs_router import LogLevel, LogsService
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ async def sample_audit_activities(async_db_session: AsyncSession):
             tenant_id="test-tenant",
             action="login",
             ip_address="192.168.1.1",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            created_at=datetime.now(UTC) - timedelta(hours=1),
         ),
         AuditActivity(
             id=uuid4(),
@@ -44,7 +44,7 @@ async def sample_audit_activities(async_db_session: AsyncSession):
             tenant_id="test-tenant",
             action="api_request",
             ip_address="192.168.1.2",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            created_at=datetime.now(UTC) - timedelta(hours=2),
         ),
         AuditActivity(
             id=uuid4(),
@@ -54,7 +54,7 @@ async def sample_audit_activities(async_db_session: AsyncSession):
             user_id=str(uuid4()),
             tenant_id="test-tenant",
             action="process_payment",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=3),
+            created_at=datetime.now(UTC) - timedelta(hours=3),
         ),
     ]
 
@@ -110,8 +110,8 @@ class TestGetLogsMethod:
     @pytest.mark.asyncio
     async def test_get_logs_with_time_range(self, logs_service, sample_audit_activities):
         """Test getting logs with time range."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=4)
-        end_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC) - timedelta(hours=4)
+        end_time = datetime.now(UTC)
 
         logs = await logs_service.get_logs(start_time=start_time, end_time=end_time)
 
@@ -156,8 +156,8 @@ class TestGetLogStatsMethod:
     @pytest.mark.asyncio
     async def test_get_log_stats_with_time_range(self, logs_service, sample_audit_activities):
         """Test getting log stats with time range."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=4)
-        end_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC) - timedelta(hours=4)
+        end_time = datetime.now(UTC)
 
         stats = await logs_service.get_log_stats(start_time=start_time, end_time=end_time)
 
@@ -195,8 +195,8 @@ class TestGetAvailableServicesMethod:
         self, logs_service, sample_audit_activities
     ):
         """Test getting available services with time filter."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=4)
-        end_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC) - timedelta(hours=4)
+        end_time = datetime.now(UTC)
 
         services = await logs_service.get_available_services(
             start_time=start_time, end_time=end_time
@@ -222,8 +222,8 @@ class TestLogsServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_get_logs_with_invalid_time_range(self, logs_service):
         """Test handling of invalid time range."""
-        start_time = datetime.now(timezone.utc)
-        end_time = datetime.now(timezone.utc) - timedelta(hours=1)  # End before start
+        start_time = datetime.now(UTC)
+        end_time = datetime.now(UTC) - timedelta(hours=1)  # End before start
 
         # Should handle gracefully (return empty or raise)
         logs = await logs_service.get_logs(start_time=start_time, end_time=end_time)
@@ -261,8 +261,8 @@ class TestCombinedFilters:
     @pytest.mark.asyncio
     async def test_get_logs_all_filters(self, logs_service, sample_audit_activities):
         """Test using all filters together."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=4)
-        end_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC) - timedelta(hours=4)
+        end_time = datetime.now(UTC)
 
         logs = await logs_service.get_logs(
             level=LogLevel.ERROR,

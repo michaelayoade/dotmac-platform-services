@@ -1,37 +1,29 @@
-"""
-Comprehensive tests for pricing router endpoints.
+"""Comprehensive tests for pricing router endpoints.
 
 Tests all REST endpoints, authentication, error handling,
 query parameters, and response validation.
 """
-import pytest
-from datetime import datetime, timezone, timedelta
+
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI, status
+
+import pytest
+from fastapi import status
 from fastapi.testclient import TestClient
 
-from dotmac.platform.billing.pricing.router import router
 from dotmac.platform.billing.pricing.models import (
-
-pytestmark = pytest.mark.asyncio
-
-    PricingRuleCreateRequest,
-    PricingRuleUpdateRequest,
-    PricingRuleResponse,
-    PriceCalculationRequest,
-    PriceCalculationResult,
     DiscountType,
+    PriceCalculationResult,
     PricingRule,
 )
-from dotmac.platform.billing.exceptions import PricingError
 
 # Use authenticated_client from conftest.py instead of local fixtures
 # The test_app fixture already registers the pricing router
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> MagicMock:
     """Create mock authenticated user."""
     user = MagicMock()
     user.user_id = "user-123"
@@ -40,13 +32,7 @@ def mock_user():
 
 
 @pytest.fixture
-def mock_service():
-    """Create mock pricing service."""
-    return AsyncMock()
-
-
-@pytest.fixture
-def sample_rule():
+def sample_rule() -> PricingRule:
     """Create sample pricing rule."""
     return PricingRule(
         rule_id="rule-123",
@@ -66,7 +52,7 @@ def sample_rule():
         is_active=True,
         metadata={},
         priority=10,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
     )
 
@@ -75,7 +61,9 @@ class TestCreatePricingRule:
     """Test POST /rules endpoint."""
 
     @pytest.mark.asyncio
-    async def test_create_rule_success(self, client, mock_user, mock_service, sample_rule):
+    async def test_create_rule_success(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test successful rule creation."""
         rule_data = {
             "name": "10% Off Electronics",
@@ -105,7 +93,9 @@ class TestCreatePricingRule:
                     assert data["name"] == "10% Off Electronics"
 
     @pytest.mark.asyncio
-    async def test_create_rule_validation_error(self, client, mock_user):
+    async def test_create_rule_validation_error(
+        self, client: TestClient, mock_user: MagicMock
+    ) -> None:
         """Test rule creation with validation error."""
         rule_data = {
             "name": "Invalid Rule",
@@ -131,7 +121,9 @@ class TestListPricingRules:
     """Test GET /rules endpoint."""
 
     @pytest.mark.asyncio
-    async def test_list_all_rules(self, client, mock_user, sample_rule):
+    async def test_list_all_rules(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test listing all pricing rules."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -152,7 +144,9 @@ class TestListPricingRules:
                     assert data[0]["rule_id"] == "rule-123"
 
     @pytest.mark.asyncio
-    async def test_list_rules_with_filters(self, client, mock_user, sample_rule):
+    async def test_list_rules_with_filters(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test listing rules with query filters."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -182,7 +176,9 @@ class TestGetPricingRule:
     """Test GET /rules/{rule_id} endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_existing_rule(self, client, mock_user, sample_rule):
+    async def test_get_existing_rule(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test getting an existing rule."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -202,7 +198,7 @@ class TestGetPricingRule:
                     assert data["rule_id"] == "rule-123"
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_rule(self, client, mock_user):
+    async def test_get_nonexistent_rule(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test getting a non-existent rule."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -224,7 +220,9 @@ class TestUpdatePricingRule:
     """Test PATCH /rules/{rule_id} endpoint."""
 
     @pytest.mark.asyncio
-    async def test_update_rule_success(self, client, mock_user, sample_rule):
+    async def test_update_rule_success(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test successful rule update."""
         update_data = {"discount_value": "15"}
 
@@ -252,7 +250,7 @@ class TestDeletePricingRule:
     """Test DELETE /rules/{rule_id} endpoint."""
 
     @pytest.mark.asyncio
-    async def test_delete_rule_success(self, client, mock_user):
+    async def test_delete_rule_success(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test successful rule deletion."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -271,7 +269,7 @@ class TestDeletePricingRule:
                     assert "deleted successfully" in response.json()["message"]
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_rule(self, client, mock_user):
+    async def test_delete_nonexistent_rule(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test deleting non-existent rule."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -293,7 +291,7 @@ class TestActivateDeactivateRule:
     """Test rule activation/deactivation endpoints."""
 
     @pytest.mark.asyncio
-    async def test_activate_rule(self, client, mock_user):
+    async def test_activate_rule(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test activating a pricing rule."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -312,7 +310,7 @@ class TestActivateDeactivateRule:
                     assert "activated successfully" in response.json()["message"]
 
     @pytest.mark.asyncio
-    async def test_deactivate_rule(self, client, mock_user):
+    async def test_deactivate_rule(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test deactivating a pricing rule."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -335,7 +333,7 @@ class TestCalculatePrice:
     """Test price calculation endpoints."""
 
     @pytest.mark.asyncio
-    async def test_calculate_price_post(self, client, mock_user):
+    async def test_calculate_price_post(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test POST price calculation."""
         calc_request = {
             "product_id": "prod-123",
@@ -376,7 +374,7 @@ class TestCalculatePrice:
                     assert data["final_price"] == "180.00"
 
     @pytest.mark.asyncio
-    async def test_calculate_price_get(self, client, mock_user):
+    async def test_calculate_price_get(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test GET price calculation with query params."""
         calc_result = PriceCalculationResult(
             product_id="prod-123",
@@ -415,7 +413,7 @@ class TestRuleUsageEndpoints:
     """Test rule usage tracking endpoints."""
 
     @pytest.mark.asyncio
-    async def test_get_rule_usage(self, client, mock_user):
+    async def test_get_rule_usage(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test getting rule usage statistics."""
         usage_stats = {
             "rule_id": "rule-123",
@@ -445,7 +443,7 @@ class TestRuleUsageEndpoints:
                     assert data["current_uses"] == 50
 
     @pytest.mark.asyncio
-    async def test_reset_rule_usage(self, client, mock_user):
+    async def test_reset_rule_usage(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test resetting rule usage counter."""
         with patch(
             "dotmac.platform.billing.pricing.router.get_current_user", return_value=mock_user
@@ -468,7 +466,9 @@ class TestRuleTestingEndpoints:
     """Test rule testing and validation endpoints."""
 
     @pytest.mark.asyncio
-    async def test_test_pricing_rules(self, client, mock_user, sample_rule):
+    async def test_test_pricing_rules(
+        self, client: TestClient, mock_user: MagicMock, sample_rule: PricingRule
+    ) -> None:
         """Test rule testing endpoint."""
         test_request = {
             "product_id": "prod-123",
@@ -499,7 +499,7 @@ class TestRuleTestingEndpoints:
                     assert len(data["applicable_rules"]) == 1
 
     @pytest.mark.asyncio
-    async def test_detect_conflicts(self, client, mock_user):
+    async def test_detect_conflicts(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test conflict detection endpoint."""
         conflicts = [
             {
@@ -534,7 +534,7 @@ class TestBulkOperations:
     """Test bulk operation endpoints."""
 
     @pytest.mark.asyncio
-    async def test_bulk_activate_rules(self, client, mock_user):
+    async def test_bulk_activate_rules(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test bulk rule activation."""
         rule_ids = ["rule-1", "rule-2", "rule-3"]
 
@@ -565,7 +565,7 @@ class TestBulkOperations:
                     assert data["activated"] == 3
 
     @pytest.mark.asyncio
-    async def test_bulk_deactivate_rules(self, client, mock_user):
+    async def test_bulk_deactivate_rules(self, client: TestClient, mock_user: MagicMock) -> None:
         """Test bulk rule deactivation."""
         rule_ids = ["rule-1", "rule-2"]
 

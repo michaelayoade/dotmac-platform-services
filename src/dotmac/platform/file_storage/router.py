@@ -4,8 +4,9 @@ File storage API router.
 Provides REST endpoints for file storage operations.
 """
 
-import os
+import posixpath
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from fastapi import (
@@ -15,6 +16,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
@@ -22,10 +24,12 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
+from dotmac.platform.auth.platform_admin import is_platform_admin
 from dotmac.platform.file_storage.service import (
     FileMetadata,
     get_storage_service,
 )
+from dotmac.platform.tenant import get_current_tenant_id
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +39,37 @@ storage_router = file_storage_router  # Alias for backward compatibility
 
 # Get service instance
 storage_service = get_storage_service()
+
+
+def _resolve_tenant_id(request: Request, current_user: UserInfo) -> str:
+    """Resolve tenant context, allowing platform admin overrides."""
+    context_tenant = get_current_tenant_id()
+    if isinstance(context_tenant, str) and context_tenant:
+        return context_tenant
+    if context_tenant:
+        return str(context_tenant)
+
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if isinstance(tenant_id, str) and tenant_id:
+        return tenant_id
+    if tenant_id is not None:
+        return str(tenant_id)
+
+    if is_platform_admin(current_user):
+        override = request.headers.get("X-Target-Tenant-ID") or request.query_params.get(
+            "tenant_id"
+        )
+        if override:
+            return override
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Platform administrators must specify tenant_id via header or query parameter.",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Tenant context not found for file storage operation.",
+    )
 
 
 # Request/Response Models
@@ -69,6 +104,7 @@ class FileOperationRequest(BaseModel):
 # Endpoints
 @file_storage_router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     path: str | None = Form(None, description="Storage path"),
     description: str | None = Form(None, description="File description"),
@@ -94,11 +130,10 @@ async def upload_file(
         await file.seek(0)
 
         # Generate file path
-        if not path:
-            path = f"uploads/{current_user.user_id}/{datetime.now(UTC).strftime('%Y/%m/%d')}"
+        tenant_id = _resolve_tenant_id(request, current_user)
 
-        # Get tenant ID from user context
-        tenant_id = getattr(current_user, "tenant_id", None)
+        if not path:
+            path = f"uploads/{tenant_id}/{current_user.user_id}/{datetime.now(UTC).strftime('%Y/%m/%d')}"
 
         # Store file
         file_id = await storage_service.store_file(
@@ -124,6 +159,11 @@ async def upload_file(
         )
     except HTTPException:
         raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"File upload failed: {e}")
         raise HTTPException(
@@ -134,6 +174,7 @@ async def upload_file(
 
 @file_storage_router.get("/{file_id}/download")
 async def download_file(
+    request: Request,
     file_id: str,
     current_user: UserInfo = Depends(get_current_user),
 ) -> Response:
@@ -141,8 +182,7 @@ async def download_file(
     Download a file from storage.
     """
     try:
-        # Get tenant ID from user context
-        tenant_id = getattr(current_user, "tenant_id", None)
+        tenant_id = _resolve_tenant_id(request, current_user)
 
         file_data, metadata = await storage_service.retrieve_file(file_id, tenant_id)
 
@@ -170,6 +210,11 @@ async def download_file(
         )
     except HTTPException:
         raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"File download failed: {e}")
         raise HTTPException(
@@ -180,6 +225,7 @@ async def download_file(
 
 @file_storage_router.delete("/{file_id}")
 async def delete_file(
+    request: Request,
     file_id: str,
     current_user: UserInfo = Depends(get_current_user),
 ) -> dict:
@@ -187,7 +233,8 @@ async def delete_file(
     Delete a file from storage.
     """
     try:
-        success = await storage_service.delete_file(file_id)
+        tenant_id = _resolve_tenant_id(request, current_user)
+        success = await storage_service.delete_file(file_id, tenant_id)
 
         if not success:
             raise HTTPException(
@@ -201,6 +248,11 @@ async def delete_file(
         }
     except HTTPException:
         raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"File deletion failed: {e}")
         raise HTTPException(
@@ -211,6 +263,7 @@ async def delete_file(
 
 @file_storage_router.get("", response_model=FileListResponse)
 async def list_files(
+    request: Request,
     path: str | None = Query(None, description="Filter by path"),
     skip: int = Query(0, ge=0, description="Skip records"),
     limit: int = Query(100, ge=1, le=1000, description="Limit records"),
@@ -220,17 +273,25 @@ async def list_files(
     List files in storage.
     """
     try:
-        # Filter files by user
-        user_path = f"uploads/{current_user.user_id}"
+        tenant_id = _resolve_tenant_id(request, current_user)
+
+        base_prefix = f"uploads/{tenant_id}/{current_user.user_id}"
         if path:
-            full_path = os.path.join(user_path, path)
+            combined = posixpath.normpath(f"{base_prefix}/{path}")
+            if not combined.startswith(base_prefix):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid path filter.",
+                )
+            full_path = combined
         else:
-            full_path = user_path
+            full_path = base_prefix
 
         files = await storage_service.list_files(
             path=full_path,
             limit=limit,
             offset=skip,
+            tenant_id=tenant_id,
         )
 
         return FileListResponse(
@@ -239,6 +300,11 @@ async def list_files(
             page=skip // limit + 1,
             per_page=limit,
         )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"Failed to list files: {e}")
         raise HTTPException(
@@ -249,24 +315,32 @@ async def list_files(
 
 @file_storage_router.get("/{file_id}/metadata")
 async def get_file_metadata(
+    request: Request,
     file_id: str,
     current_user: UserInfo = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """
     Get metadata for a specific file.
     """
     try:
+        tenant_id = _resolve_tenant_id(request, current_user)
         metadata = await storage_service.get_file_metadata(file_id)
 
-        if not metadata:
+        if not metadata or metadata.get("tenant_id") != tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"File {file_id} not found",
             )
 
-        return metadata
+        metadata_dict: dict[str, Any] = dict(metadata)
+        return metadata_dict
     except HTTPException:
         raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"Failed to get file metadata: {e}")
         raise HTTPException(
@@ -277,33 +351,40 @@ async def get_file_metadata(
 
 @file_storage_router.post("/batch")
 async def batch_operation(
-    request: FileOperationRequest,
+    request: Request,
+    operations: FileOperationRequest,
     current_user: UserInfo = Depends(get_current_user),
 ) -> dict:
     """
     Perform batch operations on files.
     """
     try:
+        tenant_id = _resolve_tenant_id(request, current_user)
         results = []
 
-        for file_id in request.file_ids:
-            if request.operation == "delete":
-                success = await storage_service.delete_file(file_id)
+        for file_id in operations.file_ids:
+            if operations.operation == "delete":
+                success = await storage_service.delete_file(file_id, tenant_id)
                 results.append({"file_id": file_id, "status": "deleted" if success else "failed"})
-            elif request.operation == "move" and request.destination:
+            elif operations.operation == "move" and operations.destination:
                 # Implement move operation
                 results.append({"file_id": file_id, "status": "moved"})
-            elif request.operation == "copy" and request.destination:
+            elif operations.operation == "copy" and operations.destination:
                 # Implement copy operation
                 results.append({"file_id": file_id, "status": "copied"})
             else:
                 results.append({"file_id": file_id, "status": "unsupported_operation"})
 
         return {
-            "operation": request.operation,
+            "operation": operations.operation,
             "results": results,
             "timestamp": datetime.now(UTC).isoformat(),
         }
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except Exception as e:
         logger.error(f"Batch operation failed: {e}")
         raise HTTPException(

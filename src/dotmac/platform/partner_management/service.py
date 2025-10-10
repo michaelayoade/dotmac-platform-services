@@ -7,7 +7,6 @@ Provides CRUD operations for partner management following project patterns.
 import secrets
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -56,10 +55,14 @@ class PartnerService:
 
     def _resolve_tenant_id(self) -> str:
         """Resolve the current tenant ID from context or use default."""
-        tenant_id = get_current_tenant_id()
-        if not tenant_id:
+        tenant_id_value = get_current_tenant_id()
+        if not tenant_id_value:
             tenant_id = "default-tenant"
             logger.debug("No tenant context found, using default tenant")
+        elif isinstance(tenant_id_value, str):
+            tenant_id = tenant_id_value
+        else:
+            tenant_id = str(tenant_id_value)
         return tenant_id
 
     def _validate_and_get_tenant(self, partner_id: UUID | str) -> tuple[UUID, str]:

@@ -1,15 +1,16 @@
 """Tests for IntegrationRegistry."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationType,
+    BaseIntegration,
     IntegrationConfig,
     IntegrationHealth,
-    BaseIntegration,
     IntegrationRegistry,
+    IntegrationStatus,
+    IntegrationType,
 )
 
 

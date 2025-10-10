@@ -2,19 +2,20 @@
 Fixtures for subscription tests (router and service).
 """
 
-import pytest
 from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.main import app
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.billing.subscriptions.models import (
     BillingCycle,
     SubscriptionPlanCreateRequest,
 )
 from dotmac.platform.billing.subscriptions.service import SubscriptionService
+from dotmac.platform.main import app
 
 
 @pytest.fixture

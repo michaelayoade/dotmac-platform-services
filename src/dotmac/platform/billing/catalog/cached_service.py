@@ -6,6 +6,7 @@ to minimize database queries and improve response times.
 """
 
 from typing import Any
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -150,7 +151,7 @@ class CachedProductService(ProductService):
                 return [Product.model_validate(p) for p in cached_list]
 
         # Load from database
-        products = await super().list_products(tenant_id, filters, page, limit)
+        products: list[Product] = await super().list_products(tenant_id, filters, page, limit)
 
         # Cache the result if appropriate
         if cache_result and limit <= 100 and len(products) > 0:
@@ -337,7 +338,9 @@ class CachedProductService(ProductService):
             usage_type=None,
             search=None,
         )
-        products = await super().list_products(tenant_id, filters=filters, page=1, limit=limit)
+        products: list[Product] = await super().list_products(
+            tenant_id, filters=filters, page=1, limit=limit
+        )
 
         # Cache each product
         cached_count = 0
@@ -366,6 +369,7 @@ class CachedProductService(ProductService):
 
         return cached_count
 
-    async def get_cache_stats(self) -> dict:
+    async def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics for monitoring."""
-        return self.cache.get_metrics()
+        metrics: dict[str, Any] = self.cache.get_metrics()
+        return metrics

@@ -2,15 +2,12 @@
 Tests for Payment Providers with focus on StripePaymentProvider
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from typing import Any
 
 from dotmac.platform.billing.payments.providers import (
-    PaymentResult,
-    RefundResult,
     SetupIntent,
-    MockPaymentProvider,
     StripePaymentProvider,
 )
 
@@ -340,8 +337,11 @@ class TestStripePaymentProvider:
             assert result["event_type"] == "payment_succeeded"
             assert result["payment_id"] == "pi_test_123"
 
+            # Stripe API expects JSON string, not dict
+            import json
+
             mock_stripe_module.Webhook.construct_event.assert_called_once_with(
-                webhook_data, signature, "whsec_test_123"
+                json.dumps(webhook_data), signature, "whsec_test_123"
             )
 
     @pytest.mark.asyncio

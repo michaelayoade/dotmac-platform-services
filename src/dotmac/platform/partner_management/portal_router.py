@@ -4,28 +4,38 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.partner_management.dependencies import get_portal_partner
 from dotmac.platform.partner_management.models import (
     Partner,
     PartnerAccount,
     PartnerCommissionEvent,
+    PartnerPayout,
     ReferralLead,
     ReferralStatus,
 )
 from dotmac.platform.partner_management.schemas import (
     PartnerCommissionEventResponse,
+    PartnerPayoutResponse,
     PartnerResponse,
+    PartnerStatementResponse,
     PartnerUpdate,
     ReferralLeadCreate,
     ReferralLeadResponse,
 )
 
 router = APIRouter(prefix="/portal", tags=["Partner Portal"])
+
+
+# Helpers
+def _statement_download_url(statement_id: UUID) -> str:
+    """Return API path for downloading a partner statement asset."""
+    return f"/api/v1/partners/portal/statements/{statement_id}/download"
 
 
 # Portal-specific schemas
@@ -70,28 +80,9 @@ class PartnerCustomerResponse(BaseModel):
     is_active: bool
 
 
-# Dependency to get current partner from session/auth
-# TODO: Implement actual partner authentication
-async def get_current_partner(
-    db: AsyncSession = Depends(get_session_dependency),
-) -> Partner:
-    """Get currently authenticated partner.
-
-    This is a placeholder - should be replaced with actual partner auth.
-    For now, returns first partner for testing.
-    """
-    result = await db.execute(select(Partner).limit(1))
-    partner = result.scalar_one_or_none()
-
-    if not partner:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
-
-    return partner
-
-
 @router.get("/dashboard", response_model=PartnerDashboardStats)
 async def get_dashboard_stats(
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> PartnerDashboardStats:
     """Get dashboard statistics for partner portal."""
@@ -143,7 +134,7 @@ async def get_dashboard_stats(
 
 @router.get("/profile", response_model=PartnerResponse)
 async def get_partner_profile(
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
 ) -> Partner:
     """Get current partner profile."""
     return partner
@@ -152,7 +143,7 @@ async def get_partner_profile(
 @router.patch("/profile", response_model=PartnerResponse)
 async def update_partner_profile(
     data: PartnerUpdate,
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> Partner:
     """Update partner profile (limited fields)."""
@@ -179,8 +170,10 @@ async def update_partner_profile(
 
 @router.get("/referrals", response_model=list[ReferralLeadResponse])
 async def list_partner_referrals(
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[ReferralLeadResponse]:
     """List all referrals submitted by partner."""
 
@@ -188,6 +181,8 @@ async def list_partner_referrals(
         select(ReferralLead)
         .where(ReferralLead.partner_id == partner.id)
         .order_by(ReferralLead.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
 
     referrals = list(result.scalars().all())
@@ -197,7 +192,7 @@ async def list_partner_referrals(
 @router.post("/referrals", response_model=ReferralLeadResponse, status_code=status.HTTP_201_CREATED)
 async def submit_referral(
     data: ReferralLeadCreate,
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ReferralLead:
     """Submit a new referral."""
@@ -221,8 +216,10 @@ async def submit_referral(
 
 @router.get("/commissions", response_model=list[PartnerCommissionEventResponse])
 async def list_partner_commissions(
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[PartnerCommissionEventResponse]:
     """List all commission events for partner."""
 
@@ -230,6 +227,8 @@ async def list_partner_commissions(
         select(PartnerCommissionEvent)
         .where(PartnerCommissionEvent.partner_id == partner.id)
         .order_by(PartnerCommissionEvent.event_date.desc())
+        .limit(limit)
+        .offset(offset)
     )
 
     events = list(result.scalars().all())
@@ -238,8 +237,10 @@ async def list_partner_commissions(
 
 @router.get("/customers", response_model=list[PartnerCustomerResponse])
 async def list_partner_customers(
-    partner: Partner = Depends(get_current_partner),
+    partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[PartnerCustomerResponse]:
     """List all customers assigned to partner."""
 
@@ -247,6 +248,8 @@ async def list_partner_customers(
         select(PartnerAccount)
         .where(PartnerAccount.partner_id == partner.id)
         .order_by(PartnerAccount.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
 
     accounts = list(result.scalars().all())
@@ -281,3 +284,169 @@ async def list_partner_customers(
         )
 
     return customer_responses
+
+
+@router.get("/statements", response_model=list[PartnerStatementResponse])
+async def list_partner_statements(
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+    limit: int = 24,
+    offset: int = 0,
+) -> list[PartnerStatementResponse]:
+    """Return recent partner statements derived from payout records."""
+
+    result = await db.execute(
+        select(PartnerPayout)
+        .where(PartnerPayout.partner_id == partner.id)
+        .order_by(PartnerPayout.period_end.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    payouts = list(result.scalars().all())
+
+    statements: list[PartnerStatementResponse] = []
+    for payout in payouts:
+        aggregates_result = await db.execute(
+            select(
+                func.sum(PartnerCommissionEvent.base_amount).label("revenue_total"),
+                func.sum(PartnerCommissionEvent.commission_amount).label("commission_total"),
+            )
+            .where(PartnerCommissionEvent.partner_id == partner.id)
+            .where(PartnerCommissionEvent.payout_id == payout.id)
+        )
+        aggregates = aggregates_result.one()
+        revenue_total = aggregates.revenue_total or Decimal("0")
+        commission_total = aggregates.commission_total or Decimal("0")
+        adjustments_total = (payout.total_amount or Decimal("0")) - commission_total
+
+        statements.append(
+            PartnerStatementResponse(
+                id=payout.id,
+                payout_id=payout.id,
+                period_start=payout.period_start,
+                period_end=payout.period_end,
+                issued_at=payout.payout_date,
+                revenue_total=revenue_total,
+                commission_total=commission_total,
+                adjustments_total=adjustments_total,
+                status=payout.status,
+                download_url=_statement_download_url(payout.id),
+            )
+        )
+
+    return statements
+
+
+@router.get("/payouts", response_model=list[PartnerPayoutResponse])
+async def list_partner_payouts(
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+    limit: int = 50,
+    offset: int = 0,
+) -> list[PartnerPayoutResponse]:
+    """Return payout history for the authenticated partner."""
+
+    result = await db.execute(
+        select(PartnerPayout)
+        .where(PartnerPayout.partner_id == partner.id)
+        .order_by(PartnerPayout.payout_date.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    payouts = list(result.scalars().all())
+
+    return [
+        PartnerPayoutResponse.model_validate(payout, from_attributes=True) for payout in payouts
+    ]
+
+
+@router.get("/statements/{statement_id}/download")
+async def download_partner_statement(
+    statement_id: UUID,
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> Response:
+    """Generate a CSV asset summarizing the partner statement for download."""
+
+    payout_result = await db.execute(
+        select(PartnerPayout).where(
+            PartnerPayout.id == statement_id, PartnerPayout.partner_id == partner.id
+        )
+    )
+    payout = payout_result.scalar_one_or_none()
+    if not payout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Statement not found")
+
+    aggregates_result = await db.execute(
+        select(
+            func.sum(PartnerCommissionEvent.base_amount).label("revenue_total"),
+            func.sum(PartnerCommissionEvent.commission_amount).label("commission_total"),
+        )
+        .where(PartnerCommissionEvent.partner_id == partner.id)
+        .where(PartnerCommissionEvent.payout_id == payout.id)
+    )
+    aggregates = aggregates_result.one()
+
+    revenue_total = aggregates.revenue_total or Decimal("0")
+    commission_total = aggregates.commission_total or Decimal("0")
+    adjustments_total = (payout.total_amount or Decimal("0")) - commission_total
+
+    events_result = await db.execute(
+        select(PartnerCommissionEvent)
+        .where(
+            PartnerCommissionEvent.partner_id == partner.id,
+            PartnerCommissionEvent.payout_id == payout.id,
+        )
+        .order_by(PartnerCommissionEvent.event_date.asc())
+    )
+    events = list(events_result.scalars().all())
+
+    def decimal_str(value: Decimal | None) -> str:
+        quantized = (value or Decimal("0")).quantize(Decimal("0.01"))
+        return f"{quantized:.2f}"
+
+    csv_lines = [
+        "Field,Value",
+        f"Statement ID,{payout.id}",
+        f"Partner ID,{partner.id}",
+        f"Period Start,{payout.period_start.isoformat()}",
+        f"Period End,{payout.period_end.isoformat()}",
+        f"Payout Date,{payout.payout_date.isoformat()}",
+        f"Status,{payout.status.value}",
+        f"Total Revenue Share,{decimal_str(revenue_total)}",
+        f"Commission Due,{decimal_str(commission_total)}",
+        f"Adjustments,{decimal_str(adjustments_total)}",
+        f"Net Payable,{decimal_str(commission_total + adjustments_total)}",
+    ]
+
+    if payout.payment_reference:
+        csv_lines.append(f"Payment Reference,{payout.payment_reference}")
+
+    csv_lines.append("")  # Blank line before event details
+    csv_lines.append("Event ID,Customer ID,Base Amount,Commission Amount,Status,Event Date")
+
+    for event in events:
+        csv_lines.append(
+            ",".join(
+                [
+                    str(event.id),
+                    str(event.customer_id or ""),
+                    decimal_str(event.base_amount),
+                    decimal_str(event.commission_amount),
+                    event.status.value,
+                    event.event_date.isoformat(),
+                ]
+            )
+        )
+
+    csv_data = "\n".join(csv_lines)
+    filename = f"partner_statement_{payout.period_end.strftime('%Y_%m_%d')}.csv"
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(csv_data.encode("utf-8"))),
+        },
+    )

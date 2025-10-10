@@ -120,9 +120,7 @@ class InvoiceQueryHandler:
         result = await self.db.execute(stmt)
         invoices = result.scalars().all()
 
-        total_pages = (
-            (total_count + query.page_size - 1) // query.page_size if total_count else 0
-        )
+        total_pages = (total_count + query.page_size - 1) // query.page_size if total_count else 0
 
         return {
             "items": [self._map_to_list_item(inv) for inv in invoices],
@@ -227,34 +225,24 @@ class InvoiceQueryHandler:
         days_until_due = (invoice.due_date - now).days if invoice.due_date else None
 
         invoice_number = invoice.invoice_number or invoice.invoice_id
-        tenant_id_value = invoice.tenant_id or ""
-        customer_email = invoice.billing_email or ""
-        raw_customer_name = (
-            invoice.billing_address.get("name")
-            if isinstance(invoice.billing_address, dict)
-            else None
-        )
-        customer_name_value = raw_customer_name or customer_email or invoice.customer_id
-        tenant_id_value = invoice.tenant_id or ""
-        customer_email = invoice.billing_email or ""
-        raw_customer_name = (
-            invoice.billing_address.get("name")
-            if isinstance(invoice.billing_address, dict)
-            else None
-        )
-        customer_name_value = raw_customer_name or customer_email or invoice.customer_id
 
-        status_value = invoice.status.value if isinstance(invoice.status, InvoiceStatus) else str(invoice.status)
-        customer_name = invoice.billing_address.get("name") if isinstance(invoice.billing_address, dict) else None
+        status_value = (
+            invoice.status.value
+            if isinstance(invoice.status, InvoiceStatus)
+            else str(invoice.status)
+        )
+        customer_name = (
+            invoice.billing_address.get("name")
+            if isinstance(invoice.billing_address, dict)
+            else None
+        )
         customer_email = invoice.billing_email or ""
         resolved_customer_name = customer_name or customer_email or invoice.customer_id
 
         line_items = list(invoice.line_items) if getattr(invoice, "line_items", None) else []
         payments = list(invoice.payments) if getattr(invoice, "payments", None) else []
         is_overdue = bool(
-            invoice.due_date
-            and invoice.due_date < now
-            and invoice.status == InvoiceStatus.OPEN
+            invoice.due_date and invoice.due_date < now and invoice.status == InvoiceStatus.OPEN
         )
         formatted_total = f"${invoice.total_amount / 100:.2f}"
         formatted_balance = f"${invoice.remaining_balance / 100:.2f}"
@@ -327,7 +315,11 @@ class InvoiceQueryHandler:
         )
         customer_name_value = raw_customer_name or customer_email or invoice.customer_id
 
-        status_value = invoice.status.value if isinstance(invoice.status, InvoiceStatus) else str(invoice.status)
+        status_value = (
+            invoice.status.value
+            if isinstance(invoice.status, InvoiceStatus)
+            else str(invoice.status)
+        )
         extra_data = invoice.extra_data or {}
         if not isinstance(extra_data, dict):
             extra_data = {}

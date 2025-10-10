@@ -10,12 +10,11 @@ The customer management module already achieves 91.06% coverage through
 unit tests. These integration tests are kept for documentation purposes.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Skip all integration tests due to database I/O errors
@@ -25,23 +24,18 @@ pytestmark = pytest.mark.skip(
 )
 
 from dotmac.platform.customer_management.models import (
-    Customer,
-    CustomerActivity,
-    CustomerNote,
-    CustomerSegment,
+    ActivityType,
     CustomerStatus,
     CustomerTier,
     CustomerType,
-    ActivityType,
-    CommunicationChannel,
 )
 from dotmac.platform.customer_management.schemas import (
-    CustomerCreate,
-    CustomerUpdate,
-    CustomerSearchParams,
     CustomerActivityCreate,
+    CustomerCreate,
     CustomerNoteCreate,
+    CustomerSearchParams,
     CustomerSegmentCreate,
+    CustomerUpdate,
 )
 from dotmac.platform.customer_management.service import CustomerService
 

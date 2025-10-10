@@ -13,39 +13,31 @@ Tests critical payment service workflows:
 Target: Increase payment service coverage from 10.64% to 70%+
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, Mock, patch
 
-from sqlalchemy import select
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.core.entities import (
     PaymentEntity,
     PaymentMethodEntity,
-    TransactionEntity,
 )
 from dotmac.platform.billing.core.enums import (
     PaymentMethodStatus,
     PaymentMethodType,
     PaymentStatus,
-    TransactionType,
 )
 from dotmac.platform.billing.core.exceptions import (
     PaymentError,
     PaymentMethodNotFoundError,
     PaymentNotFoundError,
 )
-from dotmac.platform.billing.core.models import Payment, PaymentMethod
-from dotmac.platform.billing.payments.service import PaymentService
 from dotmac.platform.billing.payments.providers import (
     PaymentProvider,
     PaymentResult,
     RefundResult,
 )
-
+from dotmac.platform.billing.payments.service import PaymentService
 
 pytestmark = pytest.mark.asyncio
 

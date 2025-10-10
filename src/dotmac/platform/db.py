@@ -15,7 +15,6 @@ from uuid import uuid4
 
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     String,
     create_engine,
@@ -297,14 +296,12 @@ async def get_session_dependency() -> AsyncIterator[AsyncSession]:
     session_source: Any = get_async_session()
 
     if isinstance(session_source, AsyncMock):
-        try:
-            mocked_session = session_source()
-        except TypeError:
-            mocked_session = session_source
-        if inspect.isawaitable(mocked_session):
-            yield await mocked_session
+        # When get_async_session() returns an AsyncMock directly, use it
+        # Don't call it again as that creates a new mock instance
+        if inspect.isawaitable(session_source):
+            yield await session_source
         else:
-            yield mocked_session
+            yield session_source
         return
 
     if inspect.isasyncgen(session_source):

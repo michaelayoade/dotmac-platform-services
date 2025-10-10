@@ -4,14 +4,14 @@ Comprehensive tests for webhooks router.
 Covers all webhook subscription and delivery endpoints.
 """
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from dotmac.platform.webhooks.router import router
-from dotmac.platform.webhooks.models import DeliveryStatus
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,7 +41,7 @@ def mock_subscription_service():
     """Mock WebhookSubscriptionService."""
     service = MagicMock()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Create mock objects with attributes (not dicts)
     def make_subscription(**overrides):
@@ -83,7 +83,7 @@ def mock_subscription_service():
             "error_message": None,
             "attempt_number": 1,
             "duration_ms": 150,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "next_retry_at": None,
         }
         defaults.update(overrides)
@@ -120,7 +120,7 @@ def mock_delivery_service():
             "event_type": "invoice.created",
             "status": "success",
             "response_status": 200,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
         defaults.update(overrides)
         for key, value in defaults.items():
@@ -813,7 +813,7 @@ class TestGetEventSchema:
             mock_schema = MagicMock()
             mock_schema.event_type = "invoice.created"
             mock_schema.description = "Invoice created"
-            mock_schema.schema = {
+            mock_schema.json_schema = {
                 "type": "object",
                 "properties": {"invoice_id": {"type": "string"}},
             }

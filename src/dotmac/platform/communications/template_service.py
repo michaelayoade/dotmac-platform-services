@@ -130,8 +130,8 @@ class TemplateService:
 
             return template_data
 
-        except Exception as e:
-            logger.error("Failed to create template", name=template_data.name, error=str(e))
+        except (TemplateSyntaxError, UndefinedError, ValueError) as exc:
+            logger.error("Failed to create template", name=template_data.name, error=str(exc))
             raise
 
     def get_template(self, template_id: str) -> TemplateData | None:
@@ -204,9 +204,9 @@ class TemplateService:
             )
             raise ValueError(f"Template variable undefined: {str(e)}")
 
-        except Exception as e:
-            logger.error("Template rendering failed", template_id=template_id, error=str(e))
-            raise
+        except (TemplateSyntaxError, TypeError) as exc:
+            logger.error("Template rendering failed", template_id=template_id, error=str(exc))
+            raise ValueError(f"Template rendering error: {str(exc)}")
 
     def render_string_template(
         self,
@@ -238,9 +238,9 @@ class TemplateService:
 
             return result
 
-        except Exception as e:
-            logger.error("String template rendering failed", error=str(e))
-            raise ValueError(f"Template rendering error: {str(e)}")
+        except (TemplateSyntaxError, UndefinedError, TypeError) as exc:
+            logger.error("String template rendering failed", error=str(exc))
+            raise ValueError(f"Template rendering error: {str(exc)}")
 
     def load_file_template(self, filename: str) -> Template | None:
         """Load a template from file (if file loader is available)."""
@@ -249,8 +249,8 @@ class TemplateService:
 
         try:
             return self.file_env.get_template(filename)
-        except Exception as e:
-            logger.error("Failed to load file template", filename=filename, error=str(e))
+        except TemplateSyntaxError as exc:
+            logger.error("Failed to load file template", filename=filename, error=str(exc))
             return None
 
     def _validate_template_syntax(self, template_data: TemplateData) -> None:

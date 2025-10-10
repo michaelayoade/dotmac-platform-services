@@ -5,18 +5,18 @@ Tests caching layer for product catalog service including cache hits/misses,
 invalidation, and cache warming strategies.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from dotmac.platform.billing.catalog.cached_service import CachedProductService
 from dotmac.platform.billing.catalog.models import (
     Product,
     ProductCreateRequest,
-    ProductUpdateRequest,
     ProductFilters,
+    ProductUpdateRequest,
 )
-from dotmac.platform.billing.catalog.cached_service import CachedProductService
-from dotmac.platform.billing.exceptions import ProductNotFoundError
 
 
 @pytest.fixture
@@ -40,16 +40,12 @@ def mock_db_session():
 def cached_service(mock_cache, mock_db_session):
     """Create cached product service with mocked cache."""
     with patch("dotmac.platform.billing.catalog.cached_service.get_billing_cache") as mock_get:
-        with patch(
-            "dotmac.platform.billing.catalog.service.ProductService.__init__", return_value=None
-        ):
-            mock_get.return_value = mock_cache
+        mock_get.return_value = mock_cache
 
-            service = CachedProductService()
-            service.cache = mock_cache
-            service.db = mock_db_session
+        service = CachedProductService(db_session=mock_db_session)
+        service.cache = mock_cache
 
-            yield service
+        yield service
 
 
 @pytest.fixture
@@ -66,8 +62,8 @@ def sample_product_dict():
         "base_price": "99.99",
         "currency": "USD",
         "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -257,8 +253,8 @@ class TestCreateProductInvalidation:
             base_price="49.99",
             currency="USD",
             is_active=True,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
         with patch.object(

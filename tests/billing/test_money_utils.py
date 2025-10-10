@@ -1,20 +1,21 @@
 """Tests for billing money_utils module."""
 
-import pytest
 from decimal import Decimal
-from moneyed import Money, Currency
+
+import pytest
+from moneyed import Currency, Money
 
 from dotmac.platform.billing.money_utils import (
-    MoneyHandler,
-    money_handler,
-    create_money,
-    format_money,
-    add_money,
-    multiply_money,
-    USD,
     EUR,
     GBP,
     JPY,
+    USD,
+    MoneyHandler,
+    add_money,
+    create_money,
+    format_money,
+    money_handler,
+    multiply_money,
 )
 
 

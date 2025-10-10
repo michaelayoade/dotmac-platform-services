@@ -11,10 +11,12 @@ This module provides all auth functionality using standard libraries:
 
 import inspect
 import json
+import os
 import secrets
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Optional, cast
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -217,7 +219,7 @@ class JWTService:
         self.algorithm = algorithm or JWT_ALGORITHM
         self.header = {"alg": self.algorithm}
         self.redis_url = redis_url or REDIS_URL
-        self._redis: Optional[Any] = None
+        self._redis: Any | None = None
 
     def create_access_token(
         self,
@@ -256,7 +258,7 @@ class JWTService:
         token = jwt.encode(self.header, to_encode, self.secret)
         return token.decode("utf-8") if isinstance(token, bytes) else token
 
-    def verify_token(self, token: str) -> dict:
+    def verify_token(self, token: str) -> dict[str, Any]:
         """Verify and decode token with sync blacklist check."""
         try:
             claims_raw = jwt.decode(token, self.secret)
@@ -276,7 +278,7 @@ class JWTService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    async def _get_redis(self) -> Optional[Any]:
+    async def _get_redis(self) -> Any | None:
         """Get Redis connection."""
         if not REDIS_AVAILABLE:
             return None
@@ -390,12 +392,12 @@ class SessionManager:
 
     def __init__(self, redis_url: str | None = None, fallback_enabled: bool = True) -> None:
         self.redis_url = redis_url or REDIS_URL
-        self._redis: Optional[Any] = None
+        self._redis: Any | None = None
         self._fallback_store: dict[str, dict[str, Any]] = {}  # In-memory fallback
         self._fallback_enabled = fallback_enabled
         self._redis_healthy = True
 
-    async def _get_redis(self) -> Optional[Any]:
+    async def _get_redis(self) -> Any | None:
         """Get Redis connection with health check."""
         if not REDIS_AVAILABLE:
             logger.warning("Redis library not available, using in-memory fallback")
@@ -619,14 +621,14 @@ class APIKeyService:
 
     def __init__(self, redis_url: str | None = None) -> None:
         self.redis_url = redis_url or REDIS_URL
-        self._redis: Optional[Any] = None
+        self._redis: Any | None = None
         self._memory_keys: dict[str, dict[str, Any]] = {}
         self._memory_meta: dict[str, dict[str, Any]] = {}
         self._memory_lookup: dict[str, str] = {}
         self._serialize: Callable[[dict[str, Any]], str] = json.dumps
         self._deserialize: Callable[[str], dict[str, Any]] = json.loads
 
-    async def _get_redis(self) -> Optional[Any]:
+    async def _get_redis(self) -> Any | None:
         """Get Redis connection."""
         if not REDIS_AVAILABLE:
             return None
@@ -635,13 +637,27 @@ class APIKeyService:
             self._redis = await redis_async.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
-    async def create_api_key(self, user_id: str, name: str, scopes: list[str] | None = None) -> str:
+    async def create_api_key(
+        self, user_id: str, name: str, scopes: list[str] | None = None, tenant_id: str | None = None
+    ) -> str:
         """
-        Create API key.
+        Create API key with tenant binding.
+
+        SECURITY: API keys MUST be bound to a tenant to prevent cross-tenant access.
+        The tenant_id is stored with the key and populated in UserInfo during verification.
 
         NOTE: This method stores minimal data for backwards compatibility.
         For production use, prefer the enhanced API key creation in api_keys_router.py
         which includes hashing, metadata, and expiration.
+
+        Args:
+            user_id: User ID (UUID as string)
+            name: Human-readable key name
+            scopes: Optional permission scopes
+            tenant_id: Tenant ID for multi-tenant isolation (REQUIRED for production)
+
+        Returns:
+            The generated API key (plaintext - only shown once)
         """
         import hashlib
 
@@ -651,6 +667,7 @@ class APIKeyService:
             "user_id": user_id,
             "name": name,
             "scopes": scopes or [],
+            "tenant_id": tenant_id,  # SECURITY: Bind API key to tenant
             "created_at": datetime.now(UTC).isoformat(),
         }
 
@@ -749,7 +766,14 @@ class APIKeyService:
 
 # Global service instances
 jwt_service = JWTService()
-session_manager = SessionManager()
+
+# SECURITY: Disable session fallback in production to ensure revocation works across workers
+# In production, Redis is mandatory for proper session management
+_is_production = os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod")
+_require_redis_for_sessions = os.getenv("REQUIRE_REDIS_SESSIONS", str(_is_production)).lower() == "true"
+
+session_manager = SessionManager(fallback_enabled=not _require_redis_for_sessions)
+
 oauth_service = OAuthService()
 api_key_service = APIKeyService()
 
@@ -774,7 +798,7 @@ async def _verify_token_with_fallback(token: str) -> dict[str, Any]:
             # Mocked objects (MagicMock) may not support awaiting
             pass
 
-    return cast(dict[str, Any], jwt_service.verify_token(token))
+    return jwt_service.verify_token(token)
 
 
 async def get_current_user(
@@ -819,6 +843,7 @@ async def get_current_user(
                 username=key_data["name"],
                 roles=["api_user"],
                 permissions=key_data.get("scopes", []),
+                tenant_id=key_data.get("tenant_id"),  # SECURITY: Populate tenant_id for isolation
             )
 
     # No valid auth

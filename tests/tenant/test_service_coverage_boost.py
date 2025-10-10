@@ -4,32 +4,30 @@ Comprehensive tests for tenant/service.py to reach 90%+ coverage.
 This test suite specifically targets uncovered lines identified in the coverage report.
 """
 
-import pytest
 from datetime import UTC, datetime, timedelta
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from dotmac.platform.tenant.service import (
-    TenantService,
-    TenantNotFoundError,
-    TenantAlreadyExistsError,
-)
 from dotmac.platform.tenant.models import (
+    Base,
     Tenant,
-    TenantInvitation,
     TenantInvitationStatus,
     TenantPlanType,
-    TenantSetting,
     TenantStatus,
-    TenantUsage,
-    Base,
 )
 from dotmac.platform.tenant.schemas import (
     TenantCreate,
-    TenantUpdate,
-    TenantSettingCreate,
-    TenantUsageCreate,
     TenantInvitationCreate,
+    TenantSettingCreate,
+    TenantUpdate,
+    TenantUsageCreate,
+)
+from dotmac.platform.tenant.service import (
+    TenantAlreadyExistsError,
+    TenantNotFoundError,
+    TenantService,
 )
 
 
@@ -464,7 +462,7 @@ class TestInvitationManagement:
     ):
         """Test accepting already processed invitation fails."""
         # Lines 517-518: Already processed check
-        from datetime import UTC, datetime, timedelta
+        from datetime import UTC
 
         invitation_data = TenantInvitationCreate(
             email="processed@example.com",

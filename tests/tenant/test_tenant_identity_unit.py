@@ -1,9 +1,9 @@
 import types
+from urllib.parse import urlencode
 
 import pytest
 from fastapi import Request
 from starlette.datastructures import Headers
-from urllib.parse import urlencode
 
 from dotmac.platform.tenant.tenant import TenantIdentityResolver
 

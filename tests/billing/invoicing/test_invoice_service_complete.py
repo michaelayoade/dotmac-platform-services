@@ -9,21 +9,18 @@ Focuses on:
 - All edge cases and error paths
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta, UTC
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from dotmac.platform.billing.invoicing.service import InvoiceService
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from dotmac.platform.billing.core.entities import InvoiceEntity, TransactionEntity
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.core.exceptions import (
     InvoiceNotFoundError,
-    InvalidInvoiceStatusError,
 )
-from dotmac.platform.billing.core.models import Invoice
+from dotmac.platform.billing.invoicing.service import InvoiceService
 
 
 @pytest.fixture
@@ -228,23 +225,36 @@ class TestInvoiceNotification:
             mock_settings.invoice_settings.send_invoice_emails = True
             mock_settings.notification_settings.send_invoice_notifications = True
 
+            # Mock company_info for email sender details
+            mock_company_info = MagicMock()
+            mock_company_info.email = "billing@company.com"
+            mock_company_info.name = "Test Company"
+            mock_settings.company_info = mock_company_info
+
             mock_settings_service.return_value.get_settings = AsyncMock(return_value=mock_settings)
 
-            # Mock email service
+            # Mock email service at the import location used by invoice service
             with patch(
-                "dotmac.platform.communications.email_service.EmailService"
+                "dotmac.platform.billing.invoicing.service.EmailService"
             ) as mock_email_service:
-                mock_email_service.return_value.send_email = AsyncMock()
+                mock_email_instance = MagicMock()
+                mock_email_instance.send_email = AsyncMock()
+                mock_email_instance.default_from = "noreply@dotmac.com"
+                mock_email_service.return_value = mock_email_instance
 
-                # Mock audit log
-                with patch("dotmac.platform.audit.log_api_activity") as mock_audit:
-                    await invoice_service._send_invoice_notification(sample_invoice_entity)
+                # Mock audit log_system_activity (not log_api_activity)
+                with patch(
+                    "dotmac.platform.audit.log_system_activity", new_callable=AsyncMock
+                ) as mock_audit:
+                    # Also mock ActivityType import
+                    with patch("dotmac.platform.audit.ActivityType"):
+                        await invoice_service._send_invoice_notification(sample_invoice_entity)
 
-                    # Verify email was sent
-                    mock_email_service.return_value.send_email.assert_called_once()
+                        # Verify email was sent
+                        mock_email_instance.send_email.assert_called_once()
 
                     # Verify email contains invoice details
-                    call_args = mock_email_service.return_value.send_email.call_args[0][0]
+                    call_args = mock_email_instance.send_email.call_args[0][0]
                     assert sample_invoice_entity.billing_email in call_args.to
                     assert sample_invoice_entity.invoice_number in call_args.subject
 
@@ -319,19 +329,32 @@ class TestInvoiceNotification:
             mock_settings = MagicMock()
             mock_settings.invoice_settings.send_invoice_emails = True
             mock_settings.notification_settings.send_invoice_notifications = True
+
+            # Mock company_info for email sender details
+            mock_company_info = MagicMock()
+            mock_company_info.email = "billing@company.com"
+            mock_company_info.name = "Test Company"
+            mock_settings.company_info = mock_company_info
+
             mock_settings_service.return_value.get_settings = AsyncMock(return_value=mock_settings)
 
+            # Mock email service at the import location used by invoice service
             with patch(
-                "dotmac.platform.communications.email_service.EmailService"
+                "dotmac.platform.billing.invoicing.service.EmailService"
             ) as mock_email_service:
-                mock_email_service.return_value.send_email = AsyncMock()
+                mock_email_instance = MagicMock()
+                mock_email_instance.send_email = AsyncMock()
+                mock_email_instance.default_from = "noreply@dotmac.com"
+                mock_email_service.return_value = mock_email_instance
 
-                with patch("dotmac.platform.audit.log_api_activity"):
-                    await invoice_service._send_invoice_notification(invoice_with_notes)
+                # Mock audit log_system_activity
+                with patch("dotmac.platform.audit.log_system_activity", new_callable=AsyncMock):
+                    with patch("dotmac.platform.audit.ActivityType"):
+                        await invoice_service._send_invoice_notification(invoice_with_notes)
 
-                    # Verify notes are in email
-                    call_args = mock_email_service.return_value.send_email.call_args[0][0]
-                    assert "Payment due within 15 days" in call_args.html_body
+                        # Verify notes are in email
+                        call_args = mock_email_instance.send_email.call_args[0][0]
+                        assert "Payment due within 15 days" in call_args.html_body
 
     async def test_send_invoice_notification_error_handled(
         self, invoice_service, sample_invoice_entity

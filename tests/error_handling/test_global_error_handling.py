@@ -5,14 +5,10 @@ Tests error handling patterns, edge cases, and production hardening
 for Week 4 (Polish) improvements.
 """
 
+from datetime import UTC
+from unittest.mock import patch
+
 import pytest
-from fastapi import HTTPException, status
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from dotmac.platform.auth.core import UserInfo
-
 
 # ============================================================================
 # Error Handling Pattern Tests
@@ -235,9 +231,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_future_dates(self, test_client):
         """Test handling of future dates where past/present expected."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        future_date = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+        future_date = (datetime.now(UTC) + timedelta(days=365)).isoformat()
 
         response = test_client.post(
             "/api/v1/tenants",

@@ -1,8 +1,9 @@
 """Tests for analytics service to improve coverage."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 
 from dotmac.platform.analytics.service import AnalyticsService, get_analytics_service
 
@@ -56,8 +57,8 @@ class TestAnalyticsService:
         """Test querying metrics."""
         result = await analytics_service.query_metrics(
             metric_name="api.latency",
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
+            end_time=datetime.now(UTC),
         )
 
         assert result is not None

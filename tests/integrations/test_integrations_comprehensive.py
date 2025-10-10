@@ -1,24 +1,20 @@
 """Comprehensive tests for integrations module - boosting coverage to 90%+."""
 
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from typing import Dict, Any
 
 from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationType,
+    BaseIntegration,
     IntegrationConfig,
     IntegrationHealth,
-    BaseIntegration,
-    EmailIntegration,
-    SendGridIntegration,
-    SMSIntegration,
-    TwilioIntegration,
     IntegrationRegistry,
+    IntegrationStatus,
+    IntegrationType,
+    SendGridIntegration,
+    TwilioIntegration,
     get_integration_registry,
-    get_integration,
-    get_integration_async,
     integration_context,
 )
 from dotmac.platform.secrets import VaultError

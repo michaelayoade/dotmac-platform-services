@@ -4,19 +4,16 @@ Create Admin User Script
 Creates an admin user with proper roles and permissions for testing
 """
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
-from datetime import datetime, timezone
-import asyncio
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+
 from dotmac.platform.db import get_sync_engine
-from dotmac.platform.settings import settings
 
 
 def create_admin_user():
@@ -60,8 +57,8 @@ def create_admin_user():
                     "full_name": "System Administrator",
                     "is_active": True,
                     "is_verified": True,
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
+                    "updated_at": datetime.now(UTC),
                 },
             )
             print(f"✓ Created user: {email}")
@@ -96,7 +93,7 @@ def create_admin_user():
                 {
                     "user_id": user_id,
                     "role_id": admin_role_id,
-                    "granted_at": datetime.now(timezone.utc),
+                    "granted_at": datetime.now(UTC),
                     "granted_by": user_id,  # Self-granted for bootstrap
                 },
             )
@@ -126,16 +123,16 @@ def create_admin_user():
                     {
                         "user_id": user_id,
                         "role_id": superuser_role_id,
-                        "granted_at": datetime.now(timezone.utc),
+                        "granted_at": datetime.now(UTC),
                         "granted_by": user_id,
                     },
                 )
                 print(f"✓ Assigned superuser role to: {email}")
 
-        print(f"\n✅ Admin user ready!")
+        print("\n✅ Admin user ready!")
         print(f"Email: {email}")
-        print(f"Password: admin123")
-        print(f"Roles: admin, superuser")
+        print("Password: admin123")
+        print("Roles: admin, superuser")
 
 
 def main():

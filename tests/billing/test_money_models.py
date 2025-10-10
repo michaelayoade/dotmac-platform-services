@@ -1,15 +1,15 @@
 """Tests for billing money_models module."""
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+
+import pytest
 from moneyed import Money
 
 from dotmac.platform.billing.money_models import (
     MoneyField,
-    MoneyInvoiceLineItem,
     MoneyInvoice,
-    money_handler,
+    MoneyInvoiceLineItem,
 )
 from dotmac.platform.billing.money_utils import create_money
 
@@ -406,7 +406,7 @@ class TestMoneyInvoice:
 
     def test_invoice_with_dates(self):
         """Test invoice with issue and due dates."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         due = now + timedelta(days=30)
 
         invoice = MoneyInvoice.create_invoice(

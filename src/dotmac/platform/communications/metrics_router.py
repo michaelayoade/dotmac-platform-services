@@ -12,6 +12,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -29,7 +30,7 @@ logger = structlog.get_logger(__name__)
 # Cache TTL (in seconds)
 COMMS_STATS_CACHE_TTL = 300  # 5 minutes
 
-router = APIRouter(prefix="/communications", tags=["Communications Stats"])
+router = APIRouter(tags=["Communications Stats"])
 
 
 # ============================================================================
@@ -204,8 +205,8 @@ async def get_communication_stats(
 
         return CommunicationStatsResponse(**stats_data)
 
-    except Exception as e:
-        logger.error("Failed to fetch communication stats", error=str(e), exc_info=True)
+    except (SQLAlchemyError, RuntimeError) as exc:
+        logger.error("Failed to fetch communication stats", error=str(exc), exc_info=True)
         # Return safe defaults on error
         return CommunicationStatsResponse(
             total_sent=0,

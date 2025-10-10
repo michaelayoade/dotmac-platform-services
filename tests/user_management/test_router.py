@@ -1,21 +1,18 @@
 """Tests for user management API router."""
 
-import pytest
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import HTTPException, status
-from fastapi.testclient import TestClient
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.router import (
-    user_router,
+    PasswordChangeRequest,
     UserCreateRequest,
     UserUpdateRequest,
-    PasswordChangeRequest,
-    get_user_service,
 )
 from dotmac.platform.user_management.service import UserService
 
@@ -40,8 +37,8 @@ def sample_user():
         is_verified=True,
         is_superuser=False,
         mfa_enabled=False,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         tenant_id="tenant-123",
     )
 

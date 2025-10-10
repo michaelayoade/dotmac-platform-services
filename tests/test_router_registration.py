@@ -1,11 +1,11 @@
 """Integration tests for router registration system."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from fastapi import FastAPI, APIRouter
 from importlib import import_module
+from unittest.mock import Mock, patch
 
-from dotmac.platform.routers import RouterConfig, ROUTER_CONFIGS, register_routers
+from fastapi import APIRouter, FastAPI
+
+from dotmac.platform.routers import ROUTER_CONFIGS, register_routers
 
 
 class TestRouterRegistration:
@@ -81,19 +81,48 @@ class TestRouterRegistration:
             assert isinstance(config.tags, list), "tags should be a list"
 
     def test_no_duplicate_prefixes(self):
-        """Test that there are no duplicate router prefixes."""
+        """Test that there are no unexpected duplicate router prefixes.
+
+        Note: Some routers intentionally share the same prefix (e.g., tenant.router and
+        tenant.usage_billing_router both use /api/v1/tenants) because they have different
+        routes and don't conflict.
+        """
         prefixes = []
         for config in ROUTER_CONFIGS:
             # Skip commented out configs
             if config.module_path == "dotmac.platform.communications.webhooks_router":
                 continue
-            prefixes.append(config.prefix)
+            prefixes.append((config.prefix, config.module_path))
 
-        # Check for duplicates
-        duplicates = [p for p in prefixes if prefixes.count(p) > 1]
-        unique_duplicates = list(set(duplicates))
+        # Check for duplicates - group by prefix
+        from collections import defaultdict
 
-        assert len(unique_duplicates) == 0, f"Duplicate prefixes found: {unique_duplicates}"
+        prefix_to_modules = defaultdict(list)
+        for prefix, module in prefixes:
+            prefix_to_modules[prefix].append(module)
+
+        # Allow specific known duplicate prefixes (routers with different routes)
+        allowed_duplicates = {
+            "/api/v1/tenants": {
+                "dotmac.platform.tenant.router",
+                "dotmac.platform.tenant.usage_billing_router",
+            }
+        }
+
+        # Check for unexpected duplicates
+        unexpected_duplicates = []
+        for prefix, modules in prefix_to_modules.items():
+            if len(modules) > 1:
+                # Check if this is an allowed duplicate
+                if prefix in allowed_duplicates:
+                    if set(modules) != allowed_duplicates[prefix]:
+                        unexpected_duplicates.append(f"{prefix}: {modules}")
+                else:
+                    unexpected_duplicates.append(f"{prefix}: {modules}")
+
+        assert (
+            len(unexpected_duplicates) == 0
+        ), f"Unexpected duplicate prefixes found: {unexpected_duplicates}"
 
     def test_router_requires_auth_flag(self):
         """Test routers that require authentication have the flag set."""

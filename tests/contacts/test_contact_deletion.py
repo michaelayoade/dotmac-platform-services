@@ -11,12 +11,10 @@ from uuid import uuid4
 import pytest
 
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import (
     assert_entity_deleted,
     build_mock_db_session,
     build_success_result,
-    build_not_found_result,
 )
 
 pytestmark = pytest.mark.asyncio

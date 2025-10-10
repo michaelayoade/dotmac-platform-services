@@ -9,9 +9,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 
 from dotmac.platform.billing.models import BillingBaseModel
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
 class BillingCycle(str, Enum):
@@ -40,6 +41,7 @@ class SubscriptionEventType(str, Enum):
     CREATED = "subscription.created"
     ACTIVATED = "subscription.activated"
     TRIAL_STARTED = "subscription.trial_started"
+    TRIAL_ENDING = "subscription.trial_ending"
     TRIAL_ENDED = "subscription.trial_ended"
     RENEWED = "subscription.renewed"
     PLAN_CHANGED = "subscription.plan_changed"
@@ -90,13 +92,6 @@ class SubscriptionPlan(BillingBaseModel):
 
     # Flexible metadata
     metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
     @field_validator("price", "setup_fee")
     @classmethod
@@ -160,13 +155,6 @@ class Subscription(BillingBaseModel):
     # Flexible metadata
     metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
-
     def is_active(self) -> bool:
         """Check if subscription is currently active."""
         return self.status in [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING]
@@ -201,17 +189,11 @@ class SubscriptionEvent(BillingBaseModel):
     # User who triggered event (optional for system events)
     user_id: str | None = Field(None, description="User who triggered event")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
-
 
 # Request/Response Models
 
 
-class SubscriptionPlanCreateRequest(BaseModel):
+class SubscriptionPlanCreateRequest(AppBaseModel):
     """Request model for creating subscription plans."""
 
     product_id: str = Field(description="Associated product ID")
@@ -235,7 +217,7 @@ class SubscriptionPlanCreateRequest(BaseModel):
         return v
 
 
-class SubscriptionCreateRequest(BaseModel):
+class SubscriptionCreateRequest(AppBaseModel):
     """Request model for creating subscriptions."""
 
     customer_id: str = Field(description="Customer ID")
@@ -254,9 +236,10 @@ class SubscriptionCreateRequest(BaseModel):
         return v
 
 
-class SubscriptionUpdateRequest(BaseModel):
+class SubscriptionUpdateRequest(AppBaseModel):
     """Request model for updating subscriptions."""
 
+    status: SubscriptionStatus | None = Field(None, description="Update subscription status")
     custom_price: Decimal | None = Field(None, description="Update custom pricing")
     metadata: dict[str, Any] | None = Field(None, description="Update metadata")
 
@@ -269,7 +252,7 @@ class SubscriptionUpdateRequest(BaseModel):
         return v
 
 
-class SubscriptionPlanChangeRequest(BaseModel):
+class SubscriptionPlanChangeRequest(AppBaseModel):
     """Request model for changing subscription plans."""
 
     new_plan_id: str = Field(description="New plan to switch to")
@@ -281,7 +264,7 @@ class SubscriptionPlanChangeRequest(BaseModel):
     )
 
 
-class UsageRecordRequest(BaseModel):
+class UsageRecordRequest(AppBaseModel):
     """Request model for recording usage."""
 
     subscription_id: str = Field(description="Subscription ID")
@@ -290,7 +273,7 @@ class UsageRecordRequest(BaseModel):
     timestamp: datetime | None = Field(None, description="Usage timestamp (default: now)")
 
 
-class SubscriptionResponse(BaseModel):
+class SubscriptionResponse(AppBaseModel):
     """Response model for subscription data."""
 
     subscription_id: str
@@ -314,15 +297,8 @@ class SubscriptionResponse(BaseModel):
     is_in_trial: bool
     days_until_renewal: int
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
-
-class SubscriptionPlanResponse(BaseModel):
+class SubscriptionPlanResponse(AppBaseModel):
     """Response model for subscription plan data."""
 
     plan_id: str
@@ -342,15 +318,8 @@ class SubscriptionPlanResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
-
-class ProrationResult(BaseModel):
+class ProrationResult(AppBaseModel):
     """Result of proration calculation."""
 
     proration_amount: Decimal = Field(
@@ -360,9 +329,3 @@ class ProrationResult(BaseModel):
     old_plan_unused_amount: Decimal = Field(description="Unused amount from old plan")
     new_plan_prorated_amount: Decimal = Field(description="Prorated amount for new plan")
     days_remaining: int = Field(description="Days remaining in current period")
-
-    model_config = ConfigDict(
-        json_encoders={
-            Decimal: lambda v: str(v),
-        }
-    )

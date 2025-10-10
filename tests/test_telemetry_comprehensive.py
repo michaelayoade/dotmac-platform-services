@@ -15,21 +15,21 @@ Tests cover:
 """
 
 import os
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
 from fastapi import FastAPI
 
 from dotmac.platform.telemetry import (
-    create_resource,
     configure_structlog,
+    create_resource,
+    create_span_context,
+    get_meter,
+    get_tracer,
+    instrument_libraries,
+    record_error,
+    setup_metrics,
     setup_telemetry,
     setup_tracing,
-    setup_metrics,
-    instrument_libraries,
-    get_tracer,
-    get_meter,
-    record_error,
-    create_span_context,
 )
 
 

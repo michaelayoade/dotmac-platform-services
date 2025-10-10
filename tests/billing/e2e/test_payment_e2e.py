@@ -8,15 +8,16 @@ Tests complete payment lifecycle:
 - Event propagation
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, Mock
+from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from dotmac.platform.billing.commands.aggregate_handlers import (
+    AggregatePaymentCommandHandler,
+)
 from dotmac.platform.billing.commands.payment_commands import (
     CreatePaymentCommand,
     RefundPaymentCommand,
-)
-from dotmac.platform.billing.commands.aggregate_handlers import (
-    AggregatePaymentCommandHandler,
 )
 from dotmac.platform.core import Money
 
@@ -189,8 +190,8 @@ class TestPaymentRefundE2E:
         2. Refund attempt fails
         3. Business rule error raised
         """
-        from dotmac.platform.core.exceptions import BusinessRuleError
         from dotmac.platform.billing.domain import Payment
+        from dotmac.platform.core.exceptions import BusinessRuleError
 
         mock_db_session = AsyncMock()
         mock_event_bus = AsyncMock()
@@ -241,12 +242,12 @@ class TestPaymentInvoiceLinkingE2E:
 
         This test simulates the command flow.
         """
-        from dotmac.platform.billing.commands.invoice_commands import (
-            CreateInvoiceCommand,
-            ApplyPaymentToInvoiceCommand,
-        )
         from dotmac.platform.billing.commands.aggregate_handlers import (
             AggregateInvoiceCommandHandler,
+        )
+        from dotmac.platform.billing.commands.invoice_commands import (
+            ApplyPaymentToInvoiceCommand,
+            CreateInvoiceCommand,
         )
 
         mock_db_session = AsyncMock()

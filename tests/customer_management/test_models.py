@@ -4,15 +4,14 @@ Tests for customer management models.
 Covers all model classes, relationships, constraints, and validation logic.
 """
 
-import pytest
-from datetime import datetime, timezone
-from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.contacts.models import Contact
 from dotmac.platform.customer_management.models import (
     ActivityType,
     CommunicationChannel,
@@ -23,11 +22,10 @@ from dotmac.platform.customer_management.models import (
     CustomerNote,
     CustomerSegment,
     CustomerStatus,
+    CustomerTag,
     CustomerTier,
     CustomerType,
-    CustomerTag,
 )
-from dotmac.platform.contacts.models import Contact
 
 
 class TestCustomerModel:

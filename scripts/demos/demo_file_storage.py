@@ -5,7 +5,6 @@ Shows that files are actually stored and retrievable.
 """
 
 import asyncio
-import os
 from datetime import datetime
 
 from dotmac.platform.file_storage.service import FileStorageService, StorageBackend

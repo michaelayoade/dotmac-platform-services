@@ -2,12 +2,10 @@
 
 import asyncio
 import json
-import pickle
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -133,7 +131,7 @@ class TestFileProgressStore:
         file_path = store._get_file_path("test-op-123")
         assert file_path.exists()
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
 
         assert data["operation_id"] == "test-op-123"

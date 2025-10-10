@@ -1,7 +1,9 @@
 """Tests for platform __init__.py functions."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 import dotmac.platform as platform
 
 

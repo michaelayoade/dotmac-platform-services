@@ -57,7 +57,12 @@ class PluginRegistry:
     and health monitoring.
     """
 
-    def __init__(self, secrets_provider: Any = None) -> None:
+    def __init__(
+        self,
+        secrets_provider: Any = None,
+        *,
+        plugin_paths: list[str | Path] | tuple[str | Path, ...] | None = None,
+    ) -> None:
         self.secrets_provider = secrets_provider
         self.settings = get_settings()
 
@@ -67,14 +72,24 @@ class PluginRegistry:
         self._configurations: dict[UUID, dict[str, Any]] = {}  # instance_id -> config
 
         # Plugin loading paths
-        self._plugin_paths: list[Path] = [
-            Path("plugins"),  # Local plugins directory
-            Path(__file__).parent / "builtin",  # Built-in plugins
-        ]
+        if plugin_paths is not None:
+            base_paths = [Path(p) for p in plugin_paths]
+        else:
+            base_paths = [Path("plugins")]
 
-        # Add user-specified plugin paths
+        base_paths.append(Path(__file__).parent / "builtin")
+
+        self._plugin_paths: list[Path] = []
+        for path in base_paths:
+            if path not in self._plugin_paths:
+                self._plugin_paths.append(path)
+
+        # Add user-specified plugin paths from settings
         if hasattr(self.settings, "plugin_paths"):
-            self._plugin_paths.extend([Path(p) for p in self.settings.plugin_paths])
+            for configured_path in self.settings.plugin_paths:
+                path_obj = Path(configured_path)
+                if path_obj not in self._plugin_paths:
+                    self._plugin_paths.append(path_obj)
 
     async def initialize(self) -> None:
         """Initialize the plugin registry."""

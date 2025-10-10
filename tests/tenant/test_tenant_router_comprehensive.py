@@ -4,15 +4,14 @@ Comprehensive tests for tenant management API router.
 Tests all REST endpoints for tenant operations.
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, timedelta, timezone
 from fastapi import status
 from httpx import AsyncClient
 
 from src.dotmac.platform.tenant.models import (
     TenantPlanType,
-    TenantStatus,
-    TenantInvitationStatus,
 )
 
 
@@ -296,7 +295,7 @@ class TestTenantUsageEndpoints:
 
     async def test_record_usage(self, async_client: AsyncClient, auth_headers, sample_tenant_id):
         """Test POST /api/v1/tenants/{id}/usage - Record usage."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = await async_client.post(
             f"/api/v1/tenants/{sample_tenant_id}/usage",
             headers=auth_headers,

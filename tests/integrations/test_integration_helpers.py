@@ -1,12 +1,8 @@
 """Tests for global helper functions."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationHealth,
-)
+import pytest
 
 
 class TestGlobalHelpers:

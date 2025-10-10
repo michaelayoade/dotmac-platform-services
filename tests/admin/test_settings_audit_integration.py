@@ -3,21 +3,13 @@ Test audit trail integration for admin settings service.
 """
 
 import json
-from datetime import datetime, timezone
-from uuid import uuid4
+from datetime import UTC, datetime
 
 import pytest
-from pydantic import BaseModel
 
 from dotmac.platform.admin.settings.models import (
-    AuditLog,
-    SettingsBackup,
     SettingsCategory,
-    SettingsCategoryInfo,
-    SettingsResponse,
     SettingsUpdateRequest,
-    SettingsValidationResult,
-    SettingField,
 )
 from dotmac.platform.admin.settings.service import SettingsManagementService
 
@@ -255,7 +247,7 @@ class TestSettingsAuditIntegration:
             reason="Testing complete audit log",
         )
 
-        before_update = datetime.now(timezone.utc)
+        before_update = datetime.now(UTC)
 
         service.update_category_settings(
             category=SettingsCategory.DATABASE,
@@ -266,7 +258,7 @@ class TestSettingsAuditIntegration:
             user_agent="Mozilla/5.0 TestBrowser",
         )
 
-        after_update = datetime.now(timezone.utc)
+        after_update = datetime.now(UTC)
 
         # Get the audit log
         logs = service.get_audit_logs(category=SettingsCategory.DATABASE, limit=1)

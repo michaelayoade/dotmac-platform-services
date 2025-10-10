@@ -9,16 +9,13 @@ from dotmac.platform.search.interfaces import (
     SearchQuery,
     SearchType,
     SortOrder,
-    SearchResponse,
-    SearchResult,
 )
 from dotmac.platform.search.service import (
     InMemorySearchBackend,
-    SearchService,
     MeilisearchBackend,
+    SearchService,
     _search_span,
 )
-from dotmac.platform.search.factory import create_search_backend_from_env
 
 
 @pytest.mark.asyncio

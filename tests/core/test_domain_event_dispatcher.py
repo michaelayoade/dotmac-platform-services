@@ -3,12 +3,12 @@
 import pytest
 
 from dotmac.platform.core import (
+    AggregateRoot,
     DomainEventDispatcher,
-    get_domain_event_dispatcher,
-    reset_domain_event_dispatcher,
     InvoiceCreatedEvent,
     InvoicePaymentReceivedEvent,
-    AggregateRoot,
+    get_domain_event_dispatcher,
+    reset_domain_event_dispatcher,
 )
 
 

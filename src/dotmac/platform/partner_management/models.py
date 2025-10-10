@@ -21,14 +21,13 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -238,6 +237,7 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):
     commission_events: Mapped[list["PartnerCommissionEvent"]] = relationship(
         back_populates="partner", lazy="dynamic"
     )
+    payouts: Mapped[list["PartnerPayout"]] = relationship(back_populates="partner", lazy="dynamic")
     referrals: Mapped[list["ReferralLead"]] = relationship(back_populates="partner", lazy="dynamic")
 
     # Indexes and constraints
@@ -478,6 +478,7 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
     # Source reference
     invoice_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
+        ForeignKey("invoices.invoice_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         comment="Invoice that triggered this commission",
@@ -527,6 +528,7 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
     # Payout tracking
     payout_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
+        ForeignKey("partner_payouts.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         comment="Reference to payout batch",
@@ -541,11 +543,110 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):
 
     # Relationships
     partner: Mapped["Partner"] = relationship(back_populates="commission_events")
+    payout: Mapped["PartnerPayout"] = relationship(back_populates="commission_events")
 
     __table_args__ = (
         Index("ix_commission_event_partner_status", "partner_id", "status"),
         Index("ix_commission_event_dates", "event_date", "paid_at"),
         Index("ix_commission_event_payout", "payout_id", "status"),
+    )
+
+
+class PartnerPayout(Base, TimestampMixin, TenantMixin):
+    """
+    Payout batches aggregating multiple commission events.
+
+    Tracks partner disbursements to ensure reconciliation between earned and paid commissions.
+    """
+
+    __tablename__ = "partner_payouts"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    partner_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("partners.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Financial details
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(15, 2),
+        nullable=False,
+        comment="Total payout amount for the batch",
+    )
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        default="USD",
+        nullable=False,
+        comment="ISO 4217 currency code",
+    )
+    commission_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Number of commission events included in payout",
+    )
+
+    # Disbursement details
+    payment_reference: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="External payment reference (e.g., Stripe transfer ID)",
+    )
+    payment_method: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="manual",
+        comment="Method used to issue payout",
+    )
+    status: Mapped[PayoutStatus] = mapped_column(
+        SQLEnum(PayoutStatus),
+        default=PayoutStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
+    payout_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="Date payout was initiated",
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When payout completed successfully",
+    )
+
+    # Period coverage
+    period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="Start of earnings period covered by payout",
+    )
+    period_end: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="End of earnings period covered by payout",
+    )
+
+    # Metadata
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    partner: Mapped["Partner"] = relationship(back_populates="payouts")
+    commission_events: Mapped[list["PartnerCommissionEvent"]] = relationship(
+        back_populates="payout"
+    )
+
+    __table_args__ = (
+        Index("ix_partner_payouts_partner_status", "partner_id", "status"),
+        Index("ix_partner_payouts_dates", "payout_date", "period_start", "period_end"),
     )
 
 

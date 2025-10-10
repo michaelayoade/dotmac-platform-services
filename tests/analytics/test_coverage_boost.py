@@ -3,26 +3,26 @@ Targeted tests to boost analytics module coverage to 90%.
 Focuses on untested code paths in otel_collector.py, base.py, and service.py.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 
 from dotmac.platform.analytics.base import (
     CounterMetric,
     GaugeMetric,
     HistogramMetric,
+    Metric,
     MetricRegistry,
     MetricType,
     SpanContext,
-    Metric,
 )
-from dotmac.platform.analytics.service import AnalyticsService, get_analytics_service
 from dotmac.platform.analytics.otel_collector import (
-    OTelConfig,
-    SimpleAnalyticsCollector,
     DummySpan,
     DummyTracer,
-    create_otel_collector,
+    OTelConfig,
+    SimpleAnalyticsCollector,
 )
+from dotmac.platform.analytics.service import AnalyticsService, get_analytics_service
 
 
 class TestBaseModule:

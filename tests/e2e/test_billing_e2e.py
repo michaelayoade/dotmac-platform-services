@@ -10,12 +10,10 @@ Tests the complete integration of:
 These tests verify the entire flow from product creation to payment processing.
 """
 
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
-from uuid import uuid4
 
 pytestmark = pytest.mark.asyncio
 
@@ -584,7 +582,7 @@ class TestPricingAndCatalogIntegrationE2E:
 
         # List products by category (using category name, not category_id)
         list_response = await async_client.get(
-            f"/api/v1/billing/catalog/categories/Premium Services/products",
+            "/api/v1/billing/catalog/categories/Premium Services/products",
             headers=auth_headers,
         )
 

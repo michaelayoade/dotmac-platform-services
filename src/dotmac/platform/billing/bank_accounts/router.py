@@ -80,7 +80,7 @@ async def list_bank_accounts(
     tenant_id = current_user.tenant_id or "default"
 
     try:
-        accounts = await service.get_bank_accounts(
+        accounts: list[CompanyBankAccountResponse] = await service.get_bank_accounts(
             tenant_id=tenant_id, include_inactive=include_inactive
         )
         return accounts
@@ -319,7 +319,7 @@ async def search_manual_payments(
     tenant_id = current_user.tenant_id or "default"
 
     try:
-        payments = await service.search_payments(
+        payments: list[ManualPaymentResponse] = await service.search_payments(
             tenant_id=tenant_id, filters=filters, limit=limit, offset=offset
         )
         return payments
@@ -366,7 +366,7 @@ async def reconcile_payments(
     user_id = current_user.user_id
 
     try:
-        payments = await service.reconcile_payments(
+        payments: list[ManualPaymentResponse] = await service.reconcile_payments(
             tenant_id=tenant_id,
             payment_ids=request.payment_ids,
             reconciled_by=user_id,
@@ -505,7 +505,7 @@ async def list_cash_registers(
     tenant_id = current_user.tenant_id or "default"
 
     try:
-        registers = await service.get_cash_registers(
+        registers: list[CashRegisterResponse] = await service.get_cash_registers(
             tenant_id=tenant_id, include_inactive=include_inactive
         )
         return registers

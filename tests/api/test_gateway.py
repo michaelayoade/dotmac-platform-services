@@ -1,14 +1,14 @@
 """Tests for API Gateway core functionality."""
 
 import asyncio
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 from fastapi import HTTPException
 
 from dotmac.platform.api.gateway import (
+    APIGateway,
     CircuitBreaker,
     CircuitBreakerState,
-    APIGateway,
     GatewayResponse,
     ServiceStatus,
 )

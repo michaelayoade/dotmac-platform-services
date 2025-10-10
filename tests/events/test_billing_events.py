@@ -1,17 +1,16 @@
 """Tests for billing event integration."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
-from dotmac.platform.events import get_event_bus, reset_event_bus, Event
 from dotmac.platform.billing.events import (
     BillingEvents,
     emit_invoice_created,
     emit_invoice_paid,
     emit_payment_failed,
-    emit_subscription_created,
     emit_subscription_cancelled,
+    emit_subscription_created,
 )
+from dotmac.platform.events import Event, get_event_bus, reset_event_bus
 
 
 class TestBillingEventEmission:

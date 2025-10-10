@@ -4,27 +4,28 @@ Tests for billing subscription models.
 Covers Pydantic model validation, enums, and business logic.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
 from dotmac.platform.billing.subscriptions.models import (
     BillingCycle,
-    SubscriptionStatus,
-    SubscriptionEventType,
     ProrationBehavior,
-    SubscriptionPlan,
-    Subscription,
-    SubscriptionEvent,
-    SubscriptionPlanCreateRequest,
-    SubscriptionCreateRequest,
-    SubscriptionUpdateRequest,
-    SubscriptionPlanChangeRequest,
-    UsageRecordRequest,
-    SubscriptionResponse,
-    SubscriptionPlanResponse,
     ProrationResult,
+    Subscription,
+    SubscriptionCreateRequest,
+    SubscriptionEvent,
+    SubscriptionEventType,
+    SubscriptionPlan,
+    SubscriptionPlanChangeRequest,
+    SubscriptionPlanCreateRequest,
+    SubscriptionPlanResponse,
+    SubscriptionResponse,
+    SubscriptionStatus,
+    SubscriptionUpdateRequest,
+    UsageRecordRequest,
 )
 
 
@@ -142,7 +143,7 @@ class TestSubscriptionPlan:
                 price=Decimal("-10.00"),  # Negative price
                 currency="USD",
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -161,7 +162,7 @@ class TestSubscriptionPlan:
                 currency="USD",
                 setup_fee=Decimal("-5.00"),  # Negative setup fee
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -181,7 +182,7 @@ class TestSubscriptionPlan:
                 currency="USD",
                 trial_days=-1,  # Negative trial days
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         # Test excessive trial days
@@ -196,7 +197,7 @@ class TestSubscriptionPlan:
                 currency="USD",
                 trial_days=400,  # Too many trial days
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
     def test_subscription_plan_business_methods(self, sample_subscription_plan):
@@ -223,7 +224,7 @@ class TestSubscriptionPlan:
             currency="USD",
             trial_days=0,  # No trial
             is_active=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert plan_no_trial.has_trial() is False
 
@@ -236,7 +237,7 @@ class TestSubscriptionPlan:
             name="Test Plan",
             billing_cycle=BillingCycle.MONTHLY,
             price=Decimal("10.00"),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert plan.description is None
@@ -295,17 +296,17 @@ class TestSubscription:
             tenant_id="test-tenant",
             customer_id="customer-456",
             plan_id="plan_123",
-            current_period_start=datetime.now(timezone.utc),
-            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+            current_period_start=datetime.now(UTC),
+            current_period_end=datetime.now(UTC) + timedelta(days=30),
             status=SubscriptionStatus.PAST_DUE,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert past_due_subscription.is_past_due() is True
         assert past_due_subscription.is_active() is False
 
     def test_subscription_trial_logic(self):
         """Test subscription trial period logic."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Subscription in trial
         trial_subscription = Subscription(
@@ -337,7 +338,7 @@ class TestSubscription:
 
     def test_subscription_defaults(self):
         """Test subscription model defaults."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         subscription = Subscription(
             subscription_id="sub_123",
             tenant_id="test-tenant",
@@ -379,7 +380,7 @@ class TestSubscriptionEvent:
             event_type=SubscriptionEventType.CREATED,
             event_data={"plan_id": "plan_123"},
             user_id="user_123",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert event.event_id == "event_123"
@@ -395,7 +396,7 @@ class TestSubscriptionEvent:
             tenant_id="test-tenant",
             subscription_id="sub_123",
             event_type=SubscriptionEventType.CREATED,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert event.event_data == {}
@@ -408,8 +409,8 @@ class TestSubscriptionEvent:
             tenant_id="test-tenant",
             subscription_id="sub_123",
             event_type=SubscriptionEventType.CREATED,
-            event_data={"timestamp": datetime.now(timezone.utc)},
-            created_at=datetime.now(timezone.utc),
+            event_data={"timestamp": datetime.now(UTC)},
+            created_at=datetime.now(UTC),
         )
 
         event_dict = event.model_dump()
@@ -536,7 +537,7 @@ class TestSubscriptionPlanChangeRequest:
         request = SubscriptionPlanChangeRequest(
             new_plan_id="plan_new",
             proration_behavior=ProrationBehavior.CREATE_PRORATIONS,
-            effective_date=datetime.now(timezone.utc),
+            effective_date=datetime.now(UTC),
         )
 
         assert request.new_plan_id == "plan_new"
@@ -559,7 +560,7 @@ class TestUsageRecordRequest:
             subscription_id="sub_123",
             usage_type="api_calls",
             quantity=1000,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         assert request.subscription_id == "sub_123"
@@ -626,7 +627,7 @@ class TestSubscriptionResponse:
 
     def test_subscription_response_creation(self):
         """Test subscription response model creation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = SubscriptionResponse(
             subscription_id="sub_123",
             tenant_id="test-tenant",
@@ -655,7 +656,7 @@ class TestSubscriptionResponse:
 
     def test_subscription_response_json_encoders(self):
         """Test subscription response JSON serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = SubscriptionResponse(
             subscription_id="sub_123",
             tenant_id="test-tenant",
@@ -690,7 +691,7 @@ class TestSubscriptionPlanResponse:
 
     def test_subscription_plan_response_creation(self):
         """Test subscription plan response model creation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = SubscriptionPlanResponse(
             plan_id="plan_123",
             tenant_id="test-tenant",
@@ -716,7 +717,7 @@ class TestSubscriptionPlanResponse:
 
     def test_subscription_plan_response_json_encoders(self):
         """Test subscription plan response JSON serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = SubscriptionPlanResponse(
             plan_id="plan_123",
             tenant_id="test-tenant",

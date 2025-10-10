@@ -9,9 +9,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from dotmac.platform.billing.models import BillingBaseModel
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
 class DiscountType(str, Enum):
@@ -64,13 +65,6 @@ class PricingRule(BillingBaseModel):
 
     # Flexible metadata
     metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
     @field_validator("discount_value")
     @classmethod
@@ -135,7 +129,7 @@ class PricingRule(BillingBaseModel):
         return True
 
 
-class PriceCalculationContext(BaseModel):
+class PriceCalculationContext(AppBaseModel):
     """Context for price calculations."""
 
     product_id: str = Field(description="Product being priced")
@@ -156,15 +150,8 @@ class PriceCalculationContext(BaseModel):
     )
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional context data")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
-
-class PriceAdjustment(BaseModel):
+class PriceAdjustment(AppBaseModel):
     """Result of applying a pricing rule."""
 
     rule_id: str = Field(description="Rule that was applied")
@@ -177,14 +164,8 @@ class PriceAdjustment(BaseModel):
     discount_amount: Decimal = Field(description="Actual discount amount")
     adjusted_price: Decimal = Field(description="Price after this rule")
 
-    model_config = ConfigDict(
-        json_encoders={
-            Decimal: lambda v: str(v),
-        }
-    )
 
-
-class PriceCalculationResult(BaseModel):
+class PriceCalculationResult(AppBaseModel):
     """Complete result of price calculation."""
 
     # Input context
@@ -207,13 +188,6 @@ class PriceCalculationResult(BaseModel):
     calculation_timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         description="When calculation was performed",
-    )
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
     )
 
     def get_savings_percentage(self) -> Decimal:
@@ -273,7 +247,7 @@ class PricingRuleUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-class PriceCalculationRequest(BaseModel):
+class PriceCalculationRequest(AppBaseModel):
     """Request model for price calculations."""
 
     product_id: str = Field(description="Product to calculate price for")
@@ -290,7 +264,7 @@ class PriceCalculationRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class PricingRuleResponse(BaseModel):
+class PricingRuleResponse(AppBaseModel):
     """Response model for pricing rule data."""
 
     rule_id: str
@@ -313,10 +287,3 @@ class PricingRuleResponse(BaseModel):
     metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime | None
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )

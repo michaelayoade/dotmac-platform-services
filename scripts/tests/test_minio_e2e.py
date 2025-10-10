@@ -3,10 +3,8 @@
 Complete end-to-end test of file storage with MinIO.
 """
 
-import os
 import asyncio
-import tempfile
-from pathlib import Path
+import os
 
 # Set MinIO configuration
 os.environ["STORAGE__PROVIDER"] = "minio"
@@ -25,8 +23,8 @@ if "dotmac.platform.settings" in sys.modules:
 if "dotmac.platform.file_storage.service" in sys.modules:
     del sys.modules["dotmac.platform.file_storage.service"]
 
+from dotmac.platform.file_storage.service import StorageBackend, get_storage_service
 from dotmac.platform.settings import settings
-from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
 
 
 async def main():
@@ -194,7 +192,7 @@ async def main():
                 _, updated_metadata = await storage.retrieve_file(first_file["id"], "tenant-001")
                 print(f"    New metadata: {updated_metadata}")
             else:
-                print(f"  ❌ Failed to update metadata")
+                print("  ❌ Failed to update metadata")
         except Exception as e:
             print(f"  ❌ Error updating metadata: {e}")
 

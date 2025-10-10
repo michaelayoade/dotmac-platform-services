@@ -4,26 +4,25 @@ Advanced tests for customer management service to reach 90% coverage.
 Tests batch processing, segments, metrics, and filtering methods.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.customer_management.models import (
     Customer,
+    CustomerSegment,
     CustomerStatus,
     CustomerTier,
     CustomerType,
-    CustomerSegment,
 )
 from dotmac.platform.customer_management.schemas import (
-    CustomerCreate,
     CustomerSegmentCreate,
 )
+from dotmac.platform.customer_management.service import CustomerService
 
 
 @pytest.fixture
@@ -191,7 +190,7 @@ class TestCustomerFiltering:
 
     def test_sort_customers_by_created_at(self, service):
         """Test sorting customers by created_at."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         customers = [
             Customer(id=uuid4(), created_at=now - timedelta(days=1)),
             Customer(id=uuid4(), created_at=now - timedelta(days=5)),
@@ -231,7 +230,7 @@ class TestCustomerFiltering:
 
     def test_sort_customers_invalid_key(self, service):
         """Test sorting with invalid key falls back to created_at."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         customers = [
             Customer(id=uuid4(), created_at=now - timedelta(days=1)),
             Customer(id=uuid4(), created_at=now),

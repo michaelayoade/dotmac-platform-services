@@ -6,13 +6,17 @@ import contextlib
 import logging
 from contextlib import AbstractContextManager
 from types import ModuleType
-from typing import Any, TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, Any
+
+from dotmac.platform.billing.core.enums import PaymentStatus
+from dotmac.platform.telemetry import get_meter, get_tracer
 
 metrics: ModuleType | None
 trace: ModuleType | None
 
 try:
-    from opentelemetry import metrics as _otel_metrics, trace as _otel_trace
+    from opentelemetry import metrics as _otel_metrics
+    from opentelemetry import trace as _otel_trace
 
     metrics = _otel_metrics
     trace = _otel_trace
@@ -32,17 +36,14 @@ if TYPE_CHECKING:
     from opentelemetry.trace import StatusCode as StatusCodeT
     from opentelemetry.trace import Tracer as TracerT
 else:  # pragma: no cover - typing fallback
-    CounterT: TypeAlias = Any
-    HistogramT: TypeAlias = Any
-    MeterT: TypeAlias = Any
-    SpanT: TypeAlias = Any
-    SpanKindT: TypeAlias = Any
-    StatusT: TypeAlias = Any
-    StatusCodeT: TypeAlias = Any
-    TracerT: TypeAlias = Any
-
-from dotmac.platform.billing.core.enums import PaymentStatus
-from dotmac.platform.telemetry import get_meter, get_tracer
+    type CounterT = Any
+    type HistogramT = Any
+    type MeterT = Any
+    type SpanT = Any
+    type SpanKindT = Any
+    type StatusT = Any
+    type StatusCodeT = Any
+    type TracerT = Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,9 @@ class _NoopInstrument:
         return None
 
 
-CounterInstrument: TypeAlias = CounterT | _NoopInstrument
-HistogramInstrument: TypeAlias = HistogramT | _NoopInstrument
-SpanContextManager: TypeAlias = AbstractContextManager[SpanT | None]
+type CounterInstrument = CounterT | _NoopInstrument
+type HistogramInstrument = HistogramT | _NoopInstrument
+type SpanContextManager = AbstractContextManager[SpanT | None]
 
 
 def _get_span_kind(kind_name: str) -> SpanKindT | None:

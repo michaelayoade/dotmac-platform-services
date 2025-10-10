@@ -4,21 +4,20 @@ Comprehensive tests for monitoring_metrics_router module.
 Tests all endpoints for logs and metrics routers.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, Mock, patch
-from fastapi.testclient import TestClient
+
+import pytest
 from fastapi import FastAPI
 
 from dotmac.platform.monitoring_metrics_router import (
-    logs_router,
-    metrics_router,
-    get_error_rate,
-    get_latency_metrics,
-    get_resource_metrics,
     ErrorRateResponse,
     LatencyMetrics,
     ResourceMetrics,
+    get_error_rate,
+    get_latency_metrics,
+    get_resource_metrics,
+    logs_router,
+    metrics_router,
 )
 
 

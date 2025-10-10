@@ -10,10 +10,8 @@ from uuid import uuid4
 
 import pytest
 
-from dotmac.platform.contacts.models import ContactActivity
 from dotmac.platform.contacts.schemas import ContactActivityCreate
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import build_mock_db_session
 
 pytestmark = pytest.mark.asyncio

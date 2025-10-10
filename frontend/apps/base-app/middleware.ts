@@ -24,6 +24,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Skip middleware for E2E tests
+  if (process.env.NODE_ENV === 'test' || process.env.E2E_TEST === 'true') {
+    return NextResponse.next();
+  }
+
   // Skip middleware for static files, health checks, and API routes
   if (
     pathname.startsWith('/_next') ||

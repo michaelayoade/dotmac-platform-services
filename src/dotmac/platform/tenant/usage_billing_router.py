@@ -16,12 +16,10 @@ from ..database import get_async_session
 from .schemas import TenantUsageCreate
 from .service import TenantService
 from .usage_billing_integration import (
-    BillingPreview,
-    OverageSummary,
     TenantUsageBillingIntegration,
 )
 
-router = APIRouter(prefix="/api/v1/tenants", tags=["Tenant Usage Billing"])
+router = APIRouter(tags=["Tenant Usage Billing"])
 
 
 # Dependencies

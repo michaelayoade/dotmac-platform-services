@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Create default tenant and assign to admin user."""
+
 import requests
-import json
 
 # Login
 login_response = requests.post(

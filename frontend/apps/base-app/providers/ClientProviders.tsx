@@ -18,7 +18,9 @@ export function ClientProviders({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [queryClient] = useState(() => new QueryClient());
 
-  const shouldWrapWithRBAC = pathname?.startsWith('/dashboard');
+  const shouldWrapWithRBAC = pathname?.startsWith('/dashboard')
+    || pathname?.startsWith('/tenant')
+    || pathname?.startsWith('/partner');
 
   const appProviders = (
     <AppConfigProvider value={platformConfig}>

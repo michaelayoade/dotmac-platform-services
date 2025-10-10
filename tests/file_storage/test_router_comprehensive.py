@@ -12,20 +12,18 @@ Tests cover:
 - Authentication and authorization
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone
-from fastapi import HTTPException, status
-from fastapi.testclient import TestClient
-from io import BytesIO
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+from fastapi import HTTPException, status
+
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.file_storage.router import (
-    file_storage_router,
-    FileUploadResponse,
     FileListResponse,
     FileOperationRequest,
+    FileUploadResponse,
 )
-from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.file_storage.service import FileMetadata
 
 
@@ -66,8 +64,9 @@ class TestFileUploadEndpoint:
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
         ):
 
-            from dotmac.platform.file_storage.router import upload_file
             from fastapi import UploadFile
+
+            from dotmac.platform.file_storage.router import upload_file
 
             # Create mock uploaded file
             file_content = b"test file content"
@@ -101,8 +100,9 @@ class TestFileUploadEndpoint:
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
         ):
 
-            from dotmac.platform.file_storage.router import upload_file
             from fastapi import UploadFile
+
+            from dotmac.platform.file_storage.router import upload_file
 
             mock_file = Mock(spec=UploadFile)
             mock_file.filename = "test.txt"
@@ -130,8 +130,9 @@ class TestFileUploadEndpoint:
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
         ):
 
-            from dotmac.platform.file_storage.router import upload_file
             from fastapi import UploadFile
+
+            from dotmac.platform.file_storage.router import upload_file
 
             # Create file larger than 100MB
             large_content = b"x" * (101 * 1024 * 1024)
@@ -159,8 +160,9 @@ class TestFileUploadEndpoint:
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
         ):
 
-            from dotmac.platform.file_storage.router import upload_file
             from fastapi import UploadFile
+
+            from dotmac.platform.file_storage.router import upload_file
 
             mock_file = Mock(spec=UploadFile)
             mock_file.filename = None  # No filename
@@ -188,8 +190,9 @@ class TestFileUploadEndpoint:
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
         ):
 
-            from dotmac.platform.file_storage.router import upload_file
             from fastapi import UploadFile
+
+            from dotmac.platform.file_storage.router import upload_file
 
             mock_file = Mock(spec=UploadFile)
             mock_file.filename = "test.txt"
@@ -352,14 +355,14 @@ class TestListFilesEndpoint:
                 file_name="test1.txt",
                 file_size=100,
                 content_type="text/plain",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             FileMetadata(
                 file_id="file-2",
                 file_name="test2.txt",
                 file_size=200,
                 content_type="text/plain",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
         ]
         mock_storage_service.list_files = AsyncMock(return_value=mock_files)

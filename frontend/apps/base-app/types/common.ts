@@ -78,6 +78,8 @@ export interface ContactInfo {
 export interface Money {
   amount: number;
   currency: string; // ISO 4217 currency code
+  minor_unit?: number;
+  minorUnit?: number;
 }
 
 // Generic result type for operations

@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """Centralized configuration using pydantic-settings.
 
 All configuration is loaded from environment variables and .env files.
 This is the single source of truth for all platform configuration.
 """
+
+from __future__ import annotations
 
 from enum import Enum
 from typing import Any
@@ -496,7 +496,7 @@ class Settings(BaseSettings):
         endpoint: str = Field("localhost:9000", description="MinIO endpoint")
         region: str = Field("us-east-1", description="MinIO region")
         access_key: str = Field("minioadmin", description="MinIO access key")
-        secret_key: str = Field("minioadmin", description="MinIO secret key")
+        secret_key: str = Field("minioadmin123", description="MinIO secret key")
         bucket: str = Field("dotmac", description="Default bucket")
         use_ssl: bool = Field(False, description="Use SSL")
 

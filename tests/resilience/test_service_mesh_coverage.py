@@ -2,25 +2,25 @@
 
 import asyncio
 import time
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 from fastapi import HTTPException
 
 from dotmac.platform.resilience.service_mesh import (
-    ServiceEndpoint,
-    ServiceRegistry,
+    CircuitBreakerState,
     LoadBalancer,
+    PerformanceOptimizationService,
+    RetryPolicy,
+    ServiceCall,
+    ServiceEndpoint,
+    ServiceMarketplace,
     ServiceMesh,
+    ServiceRegistry,
     ServiceStatus,
     TrafficPolicy,
     TrafficRule,
-    RetryPolicy,
-    EncryptionLevel,
-    CircuitBreakerState,
-    ServiceCall,
-    ServiceMarketplace,
-    PerformanceOptimizationService,
 )
 
 
@@ -697,7 +697,7 @@ class TestServiceMeshMetrics:
             path="/test",
             headers={},
             body=None,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             trace_id="trace-123",
             span_id="span-456",
         )
@@ -739,7 +739,7 @@ class TestServiceMeshMetrics:
             path="/test",
             headers={},
             body=None,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             trace_id="trace-123",
             span_id="span-456",
         )
@@ -811,7 +811,7 @@ class TestServiceMeshHelperMethods:
             path="/test",
             headers={},
             body=None,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             trace_id="trace-123",
             span_id="span-456",
         )
@@ -1169,7 +1169,7 @@ class TestServiceCallModel:
             path="/test",
             headers={"X-Custom": "value"},
             body=b"test",
-            timestamp=datetime(2025, 10, 3, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2025, 10, 3, 12, 0, 0, tzinfo=UTC),
             trace_id="trace-123",
             span_id="span-456",
         )

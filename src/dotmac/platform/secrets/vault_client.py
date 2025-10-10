@@ -274,7 +274,7 @@ class VaultClient:
         """Close the HTTP client connection."""
         self.client.close()
 
-    def __enter__(self) -> "VaultClient":
+    def __enter__(self) -> VaultClient:
         """Context manager entry."""
         return self
 
@@ -492,9 +492,7 @@ class AsyncVaultClient:
                                     "source": "vault",
                                     "versions": metadata.get("versions", {}),
                                     "cas_required": metadata.get("cas_required", False),
-                                    "delete_version_after": metadata.get(
-                                        "delete_version_after"
-                                    ),
+                                    "delete_version_after": metadata.get("delete_version_after"),
                                 }
                             )
                             secret_info.update(
@@ -557,7 +555,7 @@ class AsyncVaultClient:
         """Close the async HTTP client."""
         await self.client.aclose()
 
-    async def __aenter__(self) -> "AsyncVaultClient":
+    async def __aenter__(self) -> AsyncVaultClient:
         """Async context manager entry."""
         return self
 

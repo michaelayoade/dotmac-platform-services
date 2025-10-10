@@ -11,46 +11,26 @@ Tests cover:
 Following the successful service-layer integration pattern from auth/billing modules.
 """
 
-import pytest
-import tempfile
-import pandas as pd
-from pathlib import Path
-from datetime import datetime, timezone
-from unittest.mock import patch, AsyncMock
 import json
-import io
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import patch
 
-from dotmac.platform.data_transfer.factory import (
-    DataTransferFactory,
-    create_importer,
-    create_exporter,
-    detect_format,
-)
+import pandas as pd
+import pytest
+
 from dotmac.platform.data_transfer.core import (
     DataFormat,
-    TransferConfig,
-    ImportOptions,
     ExportOptions,
-    TransferStatus,
+    ImportOptions,
     ProgressInfo,
-    DataRecord,
-    DataBatch,
-    ImportError,
-    ExportError,
-    FormatError,
+    TransferConfig,
 )
-from dotmac.platform.data_transfer.importers import (
-    CSVImporter,
-    JSONImporter,
-    ExcelImporter,
+from dotmac.platform.data_transfer.factory import (
+    create_exporter,
+    create_importer,
 )
-from dotmac.platform.data_transfer.exporters import (
-    CSVExporter,
-    JSONExporter,
-    ExcelExporter,
-)
-from dotmac.platform.data_transfer.progress import ProgressTracker
-
 
 # ============================================================================
 # Test Data Fixtures
@@ -637,7 +617,7 @@ class TestEndToEndWorkflows:
             df = importer.import_from_file(source_file)
 
             # Transform to new schema (add fields, rename, etc.)
-            df["migrated_at"] = datetime.now(timezone.utc).isoformat()
+            df["migrated_at"] = datetime.now(UTC).isoformat()
             df["status"] = "active"
             df = df.rename(columns={"id": "customer_id"})
 

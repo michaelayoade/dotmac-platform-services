@@ -2,36 +2,36 @@
 Direct router function tests for better coverage.
 """
 
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone
 from fastapi import HTTPException
 
+from dotmac.platform.communications.email_service import EmailResponse
 from dotmac.platform.communications.router import (
-    send_email_endpoint,
-    queue_email_endpoint,
-    queue_bulk_email_job,
-    get_bulk_email_status,
+    BulkEmailRequest,
+    EmailRequest,
+    QuickRenderRequest,
+    RenderRequest,
+    TemplateRequest,
     cancel_bulk_email_job,
     create_template_endpoint,
-    list_templates_endpoint,
-    get_template_endpoint,
     delete_template_endpoint,
-    render_template_endpoint,
-    quick_render_endpoint,
-    get_task_status,
-    health_check,
+    get_bulk_email_status,
     get_communication_stats,
     get_recent_activity,
-    EmailRequest,
-    BulkEmailRequest,
-    TemplateRequest,
-    RenderRequest,
-    QuickRenderRequest,
+    get_task_status,
+    get_template_endpoint,
+    health_check,
+    list_templates_endpoint,
+    queue_bulk_email_job,
+    queue_email_endpoint,
+    quick_render_endpoint,
+    render_template_endpoint,
+    send_email_endpoint,
 )
-from dotmac.platform.communications.email_service import EmailResponse
-from dotmac.platform.communications.template_service import TemplateData, RenderedTemplate
-
+from dotmac.platform.communications.template_service import RenderedTemplate, TemplateData
 
 pytestmark = pytest.mark.asyncio
 
@@ -310,7 +310,7 @@ class TestTemplateEndpointsDirect:
                 variables=["name"],
             )
             template.id = "tpl_123"
-            template.created_at = datetime.now(timezone.utc)
+            template.created_at = datetime.now(UTC)
             mock_create.return_value = template
 
             result = await create_template_endpoint(request)
@@ -341,7 +341,7 @@ class TestTemplateEndpointsDirect:
                 name="test", subject_template="Subject", text_template="Body", variables=[]
             )
             template.id = "tpl_1"
-            template.created_at = datetime.now(timezone.utc)
+            template.created_at = datetime.now(UTC)
             mock_service.list_templates.return_value = [template]
             mock_get_service.return_value = mock_service
 
@@ -372,7 +372,7 @@ class TestTemplateEndpointsDirect:
                 name="test", subject_template="Subject", text_template="Body", variables=[]
             )
             template.id = "tpl_abc"
-            template.created_at = datetime.now(timezone.utc)
+            template.created_at = datetime.now(UTC)
             mock_service.get_template.return_value = template
             mock_get_service.return_value = mock_service
 
@@ -743,7 +743,7 @@ class TestStatsActivityEndpointsDirect:
                 mock_log.recipient = "user@example.com"
                 mock_log.subject = "Test"
                 mock_log.status = Mock(value="sent")
-                mock_log.created_at = datetime.now(timezone.utc)
+                mock_log.created_at = datetime.now(UTC)
                 mock_log.metadata_ = {}
 
                 mock_metrics = AsyncMock()

@@ -1,23 +1,23 @@
 """Tests for RBAC read-only router."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.rbac_read_router import router
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.auth.models import Role
+from dotmac.platform.auth.rbac_read_router import router
 from dotmac.platform.db import get_session_dependency
 
 
 @pytest.fixture
 def app():
     """Create FastAPI app."""
-    from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+    from dotmac.platform.tenant import TenantConfiguration, TenantMiddleware, TenantMode
 
     app = FastAPI()
 
@@ -103,8 +103,8 @@ class TestGetMyPermissions:
     ):
         """Test getting user permissions with roles in database."""
         # Create a user in the database
-        from dotmac.platform.user_management.models import User
         from dotmac.platform.auth.core import hash_password
+        from dotmac.platform.user_management.models import User
 
         user = User(
             username="testuser",
@@ -162,8 +162,8 @@ class TestGetMyPermissions:
     ):
         """Test permissions when role not found in database."""
         # Create a user but no roles in DB
-        from dotmac.platform.user_management.models import User
         from dotmac.platform.auth.core import hash_password
+        from dotmac.platform.user_management.models import User
 
         user = User(
             username="testuser",
@@ -214,8 +214,8 @@ class TestGetMyPermissions:
     @pytest.mark.asyncio
     async def test_get_my_permissions_empty_roles(self, client, tenant_headers, async_db_session):
         """Test permissions with no roles."""
-        from dotmac.platform.user_management.models import User
         from dotmac.platform.auth.core import hash_password
+        from dotmac.platform.user_management.models import User
 
         user = User(
             username="testuser",
@@ -251,8 +251,8 @@ class TestGetMyPermissions:
         self, client, tenant_headers, async_db_session
     ):
         """Test permission name parsing with various formats."""
-        from dotmac.platform.user_management.models import User
         from dotmac.platform.auth.core import hash_password
+        from dotmac.platform.user_management.models import User
 
         user = User(
             username="testuser",

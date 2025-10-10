@@ -2,17 +2,15 @@
 Fixtures for tenant management tests.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dotmac.platform.billing.subscriptions.models import Subscription
 from src.dotmac.platform.billing.subscriptions.service import SubscriptionService
-from src.dotmac.platform.tenant.models import Tenant, TenantPlanType, TenantStatus
+from src.dotmac.platform.tenant.models import TenantPlanType, TenantStatus
 from src.dotmac.platform.tenant.service import TenantService
 from src.dotmac.platform.tenant.usage_billing_integration import (
     TenantUsageBillingIntegration,
@@ -72,6 +70,7 @@ def mock_tenant_service() -> AsyncMock:
     # Mock get_tenant method
     async def mock_get_tenant(tenant_id, include_deleted=False):
         from decimal import Decimal
+
         from src.dotmac.platform.tenant.service import TenantNotFoundError
 
         # Raise error for invalid tenant IDs
@@ -131,7 +130,7 @@ def mock_tenant_service() -> AsyncMock:
             max_users = 1
 
         # Determine plan type based on tenant_id
-        from src.dotmac.platform.tenant.models import TenantPlanType, TenantStatus
+        from src.dotmac.platform.tenant.models import TenantStatus
 
         plan_type = TenantPlanType.PROFESSIONAL
         if "free" in str(tenant_id).lower():
@@ -175,8 +174,8 @@ def mock_tenant_service() -> AsyncMock:
             timezone="UTC",
             logo_url=None,
             primary_color=None,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             deleted_at=None,
             # Properties
             is_trial=False,
@@ -230,7 +229,7 @@ def mock_tenant_service() -> AsyncMock:
             if permanent:
                 del created_tenants[tenant_id]
             else:
-                created_tenants[tenant_id].deleted_at = datetime.now(timezone.utc)
+                created_tenants[tenant_id].deleted_at = datetime.now(UTC)
                 created_tenants[tenant_id].is_deleted = True
         else:
             # Try to get from mock_get_tenant
@@ -238,7 +237,7 @@ def mock_tenant_service() -> AsyncMock:
             if permanent:
                 pass  # Can't really delete from mock_get_tenant
             else:
-                tenant.deleted_at = datetime.now(timezone.utc)
+                tenant.deleted_at = datetime.now(UTC)
                 tenant.is_deleted = True
 
     async def mock_restore_tenant(tenant_id, restored_by=None):
@@ -287,6 +286,7 @@ def mock_tenant_service() -> AsyncMock:
     # Mock create_tenant method
     async def mock_create_tenant(tenant_data, created_by=None):
         from decimal import Decimal
+
         from fastapi import HTTPException
 
         # Check for duplicate slug
@@ -348,8 +348,8 @@ def mock_tenant_service() -> AsyncMock:
             timezone="UTC",
             logo_url=None,
             primary_color=None,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             deleted_at=None,
             # Properties
             is_trial=True,
@@ -369,7 +369,6 @@ def mock_tenant_service() -> AsyncMock:
 
     async def mock_set_tenant_setting(tenant_id, setting_data):
         """Mock set tenant setting."""
-        from src.dotmac.platform.tenant.models import TenantSetting
 
         key = (tenant_id, setting_data.key)
         # Get existing setting or create new one
@@ -378,7 +377,7 @@ def mock_tenant_service() -> AsyncMock:
             # Update existing
             setting.value = setting_data.value
             setting.value_type = getattr(setting_data, "value_type", "string")
-            setting.updated_at = datetime.now(timezone.utc)
+            setting.updated_at = datetime.now(UTC)
         else:
             # Create new
             setting_id = len(tenant_settings) + 1
@@ -390,8 +389,8 @@ def mock_tenant_service() -> AsyncMock:
                 value_type=getattr(setting_data, "value_type", "string"),
                 description=getattr(setting_data, "description", None),
                 is_encrypted=getattr(setting_data, "is_encrypted", False),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             tenant_settings[key] = setting
 
@@ -424,7 +423,6 @@ def mock_tenant_service() -> AsyncMock:
 
     async def mock_record_usage(tenant_id, usage_data):
         """Mock record usage."""
-        from src.dotmac.platform.tenant.models import TenantUsage
 
         # Validate tenant exists (call get_tenant which will raise TenantNotFoundError if not found)
         await mock_get_tenant(tenant_id)
@@ -440,8 +438,8 @@ def mock_tenant_service() -> AsyncMock:
             active_users=usage_data.active_users if hasattr(usage_data, "active_users") else 0,
             bandwidth_gb=usage_data.bandwidth_gb if hasattr(usage_data, "bandwidth_gb") else 0,
             metrics=usage_data.metrics if hasattr(usage_data, "metrics") else {},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         usage_records.append(usage_record)
         return usage_record
@@ -458,8 +456,9 @@ def mock_tenant_service() -> AsyncMock:
 
     async def mock_create_invitation(tenant_id, invitation_data, invited_by):
         """Mock create invitation."""
-        from src.dotmac.platform.tenant.models import TenantInvitation, TenantInvitationStatus
         from uuid import uuid4
+
+        from src.dotmac.platform.tenant.models import TenantInvitationStatus
 
         invitation_id = str(uuid4())
         invitation = SimpleNamespace(
@@ -470,10 +469,10 @@ def mock_tenant_service() -> AsyncMock:
             invited_by=invited_by,
             status=TenantInvitationStatus.PENDING,
             token=f"token-{invitation_id}",
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            expires_at=datetime.now(UTC) + timedelta(days=7),
             accepted_at=None,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             is_pending=True,
             is_expired=False,
         )
@@ -494,7 +493,7 @@ def mock_tenant_service() -> AsyncMock:
         for inv in invitations:
             if inv.token == token:
                 inv.status = TenantInvitationStatus.ACCEPTED
-                inv.accepted_at = datetime.now(timezone.utc)
+                inv.accepted_at = datetime.now(UTC)
                 return inv
         from src.dotmac.platform.tenant.service import TenantNotFoundError
 
@@ -535,7 +534,7 @@ def mock_tenant_service() -> AsyncMock:
                 value = getattr(tenant_data, field)
                 if value is not None:
                     setattr(tenant, field, value)
-        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.updated_at = datetime.now(UTC)
         return tenant
 
     async def mock_bulk_update_status(tenant_ids, status, updated_by=None):
@@ -596,7 +595,7 @@ def mock_tenant_service() -> AsyncMock:
 
         # Update features dict (features is already a dict)
         tenant.features.update(features)
-        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.updated_at = datetime.now(UTC)
         return tenant
 
     async def mock_update_metadata(tenant_id, custom_metadata, updated_by=None):
@@ -610,7 +609,7 @@ def mock_tenant_service() -> AsyncMock:
 
         # Update custom_metadata dict (custom_metadata is already a dict)
         tenant.custom_metadata.update(custom_metadata)
-        tenant.updated_at = datetime.now(timezone.utc)
+        tenant.updated_at = datetime.now(UTC)
         return tenant
 
     service.update_tenant_features = AsyncMock(side_effect=mock_update_features)
@@ -668,7 +667,8 @@ def usage_billing_integration(
 def sample_tenant() -> Mock:
     """Create a sample mock tenant for testing."""
     from decimal import Decimal
-    from src.dotmac.platform.tenant.models import TenantPlanType, TenantStatus
+
+    from src.dotmac.platform.tenant.models import TenantStatus
 
     return SimpleNamespace(
         id="tenant-123",
@@ -704,7 +704,7 @@ async def client(
 ):
     """Create unauthenticated async HTTP client for testing auth requirements."""
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     # Create test app
     app = FastAPI()
@@ -745,7 +745,7 @@ async def authenticated_client(
 ):
     """Create authenticated async HTTP client with dependency overrides."""
     from fastapi import FastAPI
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     # Create test app
     app = FastAPI()
@@ -757,10 +757,12 @@ async def authenticated_client(
     from src.dotmac.platform.tenant.router import get_tenant_service as get_tenant_service_main
     from src.dotmac.platform.tenant.usage_billing_router import (
         get_subscription_service,
-        get_tenant_service as get_tenant_service_usage,
         get_usage_billing_integration,
-        router as usage_billing_router,
     )
+    from src.dotmac.platform.tenant.usage_billing_router import (
+        get_tenant_service as get_tenant_service_usage,
+    )
+    from src.dotmac.platform.tenant.usage_billing_router import router as usage_billing_router
 
     # Override dependencies with mocks
     async def mock_get_current_user():
@@ -789,7 +791,9 @@ async def authenticated_client(
 
     # Include the routers
     app.include_router(tenant_router.router, prefix="/api/v1/tenants")
-    app.include_router(usage_billing_router)
+    app.include_router(
+        usage_billing_router, prefix="/api/v1/tenants", tags=["Tenant Usage Billing"]
+    )
 
     # Create async client
     transport = ASGITransport(app=app)

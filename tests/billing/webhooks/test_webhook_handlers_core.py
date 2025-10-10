@@ -11,27 +11,20 @@ Tests critical webhook handler workflows:
 Target: Increase webhook handlers coverage from 35.68% to 75%+
 """
 
-import pytest
-import json
-import hmac
 import hashlib
-from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import uuid4
+import hmac
+import json
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.billing.config import BillingConfig, PayPalConfig, StripeConfig
+from dotmac.platform.billing.core.enums import InvoiceStatus
 from dotmac.platform.billing.webhooks.handlers import (
-    StripeWebhookHandler,
     PayPalWebhookHandler,
+    StripeWebhookHandler,
     WebhookHandler,
-)
-from dotmac.platform.billing.config import BillingConfig, StripeConfig, PayPalConfig
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
-from dotmac.platform.billing.subscriptions.models import (
-    SubscriptionStatus,
-    SubscriptionEventType,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -313,26 +306,18 @@ class TestStripeWebhookHandler:
         assert result["subscription_id"] == "sub_stripe123"
         assert "Missing metadata" in result["message"]
 
-    @pytest.mark.skip(
-        reason="Handler has bug - passes status to SubscriptionUpdateRequest which doesn't accept it"
-    )
     async def test_handle_subscription_updated(self, stripe_handler):
         """Test Stripe subscription updated event."""
         pass
 
-    @pytest.mark.skip(
-        reason="Handler has bug - passes status to SubscriptionUpdateRequest which doesn't accept it"
-    )
     async def test_handle_subscription_updated_no_status_change(self, stripe_handler):
         """Test Stripe subscription updated with no status change."""
         pass
 
-    @pytest.mark.skip(reason="Handler uses 'immediate' parameter which doesn't exist in service")
     async def test_handle_subscription_cancelled(self, stripe_handler):
         """Test Stripe subscription cancelled event."""
         pass
 
-    @pytest.mark.skip(reason="Handler uses TRIAL_ENDING but enum only has TRIAL_ENDED")
     async def test_handle_subscription_trial_ending(self, stripe_handler):
         """Test Stripe subscription trial ending event."""
         pass
@@ -448,27 +433,22 @@ class TestPayPalWebhookHandler:
             assert mock_create.called
             assert mock_event.called
 
-    @pytest.mark.skip(reason="Handler has bug - passes status to SubscriptionUpdateRequest")
     async def test_handle_subscription_activated(self, paypal_handler):
         """Test PayPal subscription activated event."""
         pass
 
-    @pytest.mark.skip(reason="Handler has bug - passes status to SubscriptionUpdateRequest")
     async def test_handle_subscription_updated(self, paypal_handler):
         """Test PayPal subscription updated event."""
         pass
 
-    @pytest.mark.skip(reason="Handler uses 'immediate' parameter which doesn't exist")
     async def test_handle_subscription_cancelled(self, paypal_handler):
         """Test PayPal subscription cancelled event."""
         pass
 
-    @pytest.mark.skip(reason="Handler has bug - passes status to SubscriptionUpdateRequest")
     async def test_handle_subscription_suspended(self, paypal_handler):
         """Test PayPal subscription suspended event."""
         pass
 
-    @pytest.mark.skip(reason="Handler has bug - passes status to SubscriptionUpdateRequest")
     async def test_handle_subscription_payment_failed(self, paypal_handler):
         """Test PayPal subscription payment failed event."""
         pass
@@ -541,7 +521,6 @@ class TestPayPalWebhookHandler:
 class TestStripePaymentEventHandlers:
     """Test Stripe payment event handlers (many have bugs calling non-existent methods)."""
 
-    @pytest.mark.skip(reason="Handler calls non-existent get_payment method")
     async def test_handle_payment_succeeded(self, stripe_handler):
         """Test Stripe payment succeeded event."""
         pass
@@ -566,12 +545,10 @@ class TestStripePaymentEventHandlers:
             assert result["payment_intent_id"] == "pi_123"
             assert mock_invoice.called
 
-    @pytest.mark.skip(reason="Handler calls non-existent update_payment_status method")
     async def test_handle_payment_failed(self, stripe_handler):
         """Test Stripe payment failed event."""
         pass
 
-    @pytest.mark.skip(reason="Handler calls non-existent process_refund method")
     async def test_handle_charge_refunded(self, stripe_handler):
         """Test Stripe charge refunded event."""
         pass
@@ -624,8 +601,6 @@ class TestStripePaymentEventHandlers:
             },
         }
 
-        from dotmac.platform.billing.core.enums import InvoiceStatus
-
         mock_invoice = Mock()
         mock_invoice.status = InvoiceStatus.DRAFT
 
@@ -643,17 +618,14 @@ class TestStripePaymentEventHandlers:
 class TestPayPalPaymentEventHandlers:
     """Test PayPal payment event handlers (many have bugs calling non-existent methods)."""
 
-    @pytest.mark.skip(reason="Handler calls non-existent update_payment_status method")
     async def test_handle_payment_completed(self, paypal_handler):
         """Test PayPal payment completed event."""
         pass
 
-    @pytest.mark.skip(reason="Handler calls non-existent update_payment_status method")
     async def test_handle_payment_denied(self, paypal_handler):
         """Test PayPal payment denied event."""
         pass
 
-    @pytest.mark.skip(reason="Handler calls non-existent process_refund method")
     async def test_handle_payment_refunded(self, paypal_handler):
         """Test PayPal payment refunded event."""
         pass

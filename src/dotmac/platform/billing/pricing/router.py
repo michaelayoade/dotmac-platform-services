@@ -45,7 +45,8 @@ async def create_pricing_rule(
     service = PricingService(db_session)
     try:
         rule = await service.create_pricing_rule(rule_data, tenant_id)
-        return PricingRuleResponse.model_validate(rule.model_dump())
+        rule_response: PricingRuleResponse = PricingRuleResponse.model_validate(rule.model_dump())
+        return rule_response
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -82,7 +83,8 @@ async def get_pricing_rule(
     rule = await service.get_pricing_rule(rule_id, tenant_id)
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
-    return PricingRuleResponse.model_validate(rule.model_dump())
+    rule_response: PricingRuleResponse = PricingRuleResponse.model_validate(rule.model_dump())
+    return rule_response
 
 
 @router.patch("/rules/{rule_id}", response_model=PricingRuleResponse)
@@ -101,7 +103,8 @@ async def update_pricing_rule(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found"
             )
-        return PricingRuleResponse.model_validate(rule.model_dump())
+        rule_response: PricingRuleResponse = PricingRuleResponse.model_validate(rule.model_dump())
+        return rule_response
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -170,7 +173,9 @@ async def calculate_price(
     """Calculate price for a product with applicable discounts."""
     service = PricingService(db_session)
     try:
-        result = await service.calculate_price(calculation_request, tenant_id)
+        result: PriceCalculationResult = await service.calculate_price(
+            calculation_request, tenant_id
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -196,7 +201,7 @@ async def calculate_price_simple(
             customer_segments=customer_segments,
             calculation_date=datetime.now(UTC),
         )
-        result = await service.calculate_price(request, tenant_id)
+        result: PriceCalculationResult = await service.calculate_price(request, tenant_id)
         return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

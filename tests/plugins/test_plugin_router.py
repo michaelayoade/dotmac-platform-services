@@ -2,23 +2,20 @@
 Tests for plugin router functions.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-from fastapi import HTTPException
+
+import pytest
 
 from dotmac.platform.plugins.router import get_registry
 from dotmac.platform.plugins.schema import (
+    FieldSpec,
+    FieldType,
     PluginConfig,
     PluginInstance,
     PluginStatus,
     PluginType,
-    PluginHealthCheck,
-    PluginTestResult,
-    FieldSpec,
-    FieldType,
 )
-from dotmac.platform.plugins.registry import PluginRegistry, PluginRegistryError
 
 
 class TestPluginRouterFunctions:
@@ -70,7 +67,7 @@ class TestRouterImports:
 
     def test_router_imports(self):
         """Test that router module imports correctly."""
-        from dotmac.platform.plugins.router import router, get_registry
+        from dotmac.platform.plugins.router import get_registry, router
 
         assert router is not None
         assert get_registry is not None
@@ -79,7 +76,8 @@ class TestRouterImports:
         """Test router configuration."""
         from dotmac.platform.plugins.router import router
 
-        assert router.prefix == "/plugins"
+        # Router object has no prefix - it's added during registration in routers.py
+        assert router.prefix == ""
         assert "Plugin Management" in router.tags
 
     def test_request_models_exist(self):

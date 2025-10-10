@@ -5,19 +5,18 @@ Strategy: Use REAL database, mock ONLY external APIs
 Focus: Test subscription lifecycle with actual DB operations
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
 
-from dotmac.platform.billing.subscriptions.service import SubscriptionService
+import pytest
+
 from dotmac.platform.billing.subscriptions.models import (
     BillingCycle,
-    SubscriptionStatus,
-    SubscriptionPlanCreateRequest,
     SubscriptionCreateRequest,
+    SubscriptionPlanCreateRequest,
+    SubscriptionStatus,
     SubscriptionUpdateRequest,
 )
+from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
 
 @pytest.mark.asyncio

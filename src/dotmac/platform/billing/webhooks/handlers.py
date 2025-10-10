@@ -218,11 +218,21 @@ class StripeWebhookHandler(WebhookHandler):
         invoice_id = metadata.get("invoice_id")
         payment_id = metadata.get("payment_id")
 
-        # Note: Payment status updates should be handled via direct DB access
-        # as PaymentService doesn't expose update_payment_status method
+        # Update payment status
+        if payment_id and tenant_id:
+            await self.payment_service.update_payment_status(
+                tenant_id=tenant_id,
+                payment_id=payment_id,
+                new_status=PaymentStatus.SUCCEEDED,
+                provider_data={
+                    "stripe_payment_intent_id": payment_intent_id,
+                    "stripe_amount": amount,
+                    "stripe_currency": currency,
+                },
+            )
 
+        # Mark invoice as paid if linked
         if invoice_id and tenant_id:
-            # Mark invoice as paid
             await self.invoice_service.mark_invoice_paid(
                 tenant_id, invoice_id, payment_id=payment_id
             )
@@ -243,8 +253,18 @@ class StripeWebhookHandler(WebhookHandler):
         tenant_id = metadata.get("tenant_id")
         payment_id = metadata.get("payment_id")
 
-        # Note: Payment status updates should be handled via direct DB access
-        # as PaymentService doesn't expose update_payment_status method
+        # Update payment status
+        if payment_id and tenant_id:
+            await self.payment_service.update_payment_status(
+                tenant_id=tenant_id,
+                payment_id=payment_id,
+                new_status=PaymentStatus.FAILED,
+                provider_data={
+                    "stripe_payment_intent_id": payment_intent_id,
+                    "stripe_error": error_message,
+                },
+                error_message=error_message,
+            )
 
         return {
             "status": "processed",
@@ -254,15 +274,36 @@ class StripeWebhookHandler(WebhookHandler):
 
     async def _handle_charge_refunded(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle charge refund"""
+        from decimal import Decimal
+
         charge_id = event_data.get("id")
-        amount_refunded = event_data.get("amount_refunded")
+        amount_refunded = event_data.get("amount_refunded")  # in cents
+        refunds = event_data.get("refunds", {}).get("data", [])
         metadata = event_data.get("metadata", {})
 
         tenant_id = metadata.get("tenant_id")
         payment_id = metadata.get("payment_id")
 
-        # Note: Refund processing should use refund_payment method with proper parameters
-        # Process refund would require proper refund request model
+        # Process refund notification
+        if payment_id and tenant_id and amount_refunded:
+            # Convert cents to dollars
+            refund_amount = Decimal(str(amount_refunded)) / Decimal("100")
+
+            # Get the most recent refund for details
+            refund_reason = None
+            provider_refund_id = None
+            if refunds:
+                latest_refund = refunds[0]
+                refund_reason = latest_refund.get("reason")
+                provider_refund_id = latest_refund.get("id")
+
+            await self.payment_service.process_refund_notification(
+                tenant_id=tenant_id,
+                payment_id=payment_id,
+                refund_amount=refund_amount,
+                provider_refund_id=provider_refund_id,
+                reason=refund_reason or "Refunded via Stripe",
+            )
 
         return {
             "status": "processed",
@@ -433,7 +474,7 @@ class StripeWebhookHandler(WebhookHandler):
                         updated_metadata["stripe_status"] = status_str
 
                         update_request = SubscriptionUpdateRequest(
-                            custom_price=None, metadata=updated_metadata
+                            status=new_status, metadata=updated_metadata
                         )
 
                         await self.subscription_service.update_subscription(
@@ -541,15 +582,15 @@ class StripeWebhookHandler(WebhookHandler):
         logger.info(f"Subscription trial ending: {stripe_subscription_id}")
 
         if tenant_id and subscription_id:
-            # Record trial ending event - use TRIAL_ENDED as closest match
+            # Record trial ending event
             await self.subscription_service.record_event(
                 subscription_id=subscription_id,
                 tenant_id=tenant_id,
-                event_type=SubscriptionEventType.TRIAL_ENDED,
+                event_type=SubscriptionEventType.TRIAL_ENDING,
                 event_data={
                     "trial_end": trial_end,
                     "source": "stripe_webhook",
-                    "note": "trial_will_end event from Stripe",
+                    "stripe_event": "customer.subscription.trial_will_end",
                 },
             )
 
@@ -778,8 +819,24 @@ class PayPalWebhookHandler(WebhookHandler):
         currency = event_data.get("amount", {}).get("currency_code")
         custom_id = event_data.get("custom_id")
 
-        # Note: Payment status updates should be handled via direct DB access
-        # as PaymentService doesn't expose update_payment_status method
+        # Parse custom_id for tenant_id and payment_id
+        if custom_id:
+            parts = custom_id.split(":")
+            if len(parts) >= 2:
+                tenant_id = parts[0]
+                payment_id = parts[1]
+
+                # Update payment status
+                await self.payment_service.update_payment_status(
+                    tenant_id=tenant_id,
+                    payment_id=payment_id,
+                    new_status=PaymentStatus.SUCCEEDED,
+                    provider_data={
+                        "paypal_capture_id": capture_id,
+                        "paypal_amount": amount,
+                        "paypal_currency": currency,
+                    },
+                )
 
         return {
             "status": "processed",
@@ -792,20 +849,53 @@ class PayPalWebhookHandler(WebhookHandler):
         """Handle payment denied"""
         capture_id = event_data.get("id")
         custom_id = event_data.get("custom_id")
+        status_details = event_data.get("status_details", {})
 
-        # Note: Payment status updates should be handled via direct DB access
-        # as PaymentService doesn't expose update_payment_status method
+        # Parse custom_id for tenant_id and payment_id
+        if custom_id:
+            parts = custom_id.split(":")
+            if len(parts) >= 2:
+                tenant_id = parts[0]
+                payment_id = parts[1]
+
+                # Update payment status
+                await self.payment_service.update_payment_status(
+                    tenant_id=tenant_id,
+                    payment_id=payment_id,
+                    new_status=PaymentStatus.FAILED,
+                    provider_data={
+                        "paypal_capture_id": capture_id,
+                        "paypal_status_details": status_details,
+                    },
+                    error_message="Payment denied by PayPal",
+                )
 
         return {"status": "processed", "capture_id": capture_id}
 
     async def _handle_payment_refunded(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Handle payment refunded"""
+        from decimal import Decimal
+
         refund_id = event_data.get("id")
         amount = event_data.get("amount", {}).get("value")
         custom_id = event_data.get("custom_id")
 
-        # Note: Refund processing should use refund_payment method with proper parameters
-        # Process refund would require proper refund request model
+        # Parse custom_id for tenant_id and payment_id
+        if custom_id and amount:
+            parts = custom_id.split(":")
+            if len(parts) >= 2:
+                tenant_id = parts[0]
+                payment_id = parts[1]
+
+                # Process refund notification
+                refund_amount = Decimal(str(amount))
+                await self.payment_service.process_refund_notification(
+                    tenant_id=tenant_id,
+                    payment_id=payment_id,
+                    refund_amount=refund_amount,
+                    provider_refund_id=refund_id,
+                    reason="Refunded via PayPal",
+                )
 
         return {"status": "processed", "refund_id": refund_id, "amount": amount}
 
@@ -889,9 +979,9 @@ class PayPalWebhookHandler(WebhookHandler):
                 subscription_id = parts[2]  # Our internal subscription ID
 
                 try:
-                    # Update subscription status to active - update metadata
+                    # Update subscription status to active
                     update_request = SubscriptionUpdateRequest(
-                        custom_price=None,
+                        status=SubscriptionStatus.ACTIVE,
                         metadata={"paypal_activated": datetime.now(UTC).isoformat()},
                     )
 
@@ -951,7 +1041,7 @@ class PayPalWebhookHandler(WebhookHandler):
 
                     if new_status:
                         update_request = SubscriptionUpdateRequest(
-                            custom_price=None,
+                            status=new_status,
                             metadata={
                                 "last_paypal_update": datetime.now(UTC).isoformat(),
                                 "paypal_status": status_str,
@@ -1049,7 +1139,7 @@ class PayPalWebhookHandler(WebhookHandler):
                 try:
                     # Update subscription status to paused (suspended)
                     update_request = SubscriptionUpdateRequest(
-                        custom_price=None,
+                        status=SubscriptionStatus.PAUSED,
                         metadata={"paypal_suspended": datetime.now(UTC).isoformat()},
                     )
 
@@ -1095,9 +1185,9 @@ class PayPalWebhookHandler(WebhookHandler):
                 subscription_id = parts[2]
 
                 try:
-                    # Update subscription metadata to track payment failure
+                    # Update subscription status to past_due due to payment failure
                     update_request = SubscriptionUpdateRequest(
-                        custom_price=None,
+                        status=SubscriptionStatus.PAST_DUE,
                         metadata={"last_payment_failed": datetime.now(UTC).isoformat()},
                     )
 

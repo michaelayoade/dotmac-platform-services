@@ -1,21 +1,16 @@
 """Simple integration test for Partner Management without complex DB setup."""
 
-import pytest
 from decimal import Decimal
 
 
 def test_partner_models_import():
     """Test that partner models can be imported."""
     from dotmac.platform.partner_management.models import (
-        Partner,
+        CommissionModel,
+        CommissionStatus,
         PartnerStatus,
         PartnerTier,
-        CommissionModel,
-        PartnerAccount,
-        PartnerCommissionEvent,
-        ReferralLead,
         ReferralStatus,
-        CommissionStatus,
     )
 
     # Verify enums
@@ -30,11 +25,6 @@ def test_partner_schemas_import():
     """Test that partner schemas can be imported."""
     from dotmac.platform.partner_management.schemas import (
         PartnerCreate,
-        PartnerResponse,
-        PartnerUpdate,
-        PartnerAccountCreate,
-        PartnerCommissionEventCreate,
-        ReferralLeadCreate,
     )
 
     # Create schema instance
@@ -184,9 +174,10 @@ def test_dashboard_stats_schema():
 
 def test_partner_customer_response_schema():
     """Test partner customer response schema."""
-    from dotmac.platform.partner_management.portal_router import PartnerCustomerResponse
-    from uuid import uuid4
     from datetime import datetime
+    from uuid import uuid4
+
+    from dotmac.platform.partner_management.portal_router import PartnerCustomerResponse
 
     response = PartnerCustomerResponse(
         id=uuid4(),

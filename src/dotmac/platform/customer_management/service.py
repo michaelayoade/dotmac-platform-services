@@ -9,20 +9,17 @@ import collections
 import itertools
 import operator
 import secrets
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Callable, Iterable, Iterator, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 import structlog
 from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.engine import Result
-
-logger = structlog.get_logger(__name__)
-
-_T = TypeVar("_T")
 
 from dotmac.platform.customer_management.models import (
     ActivityType,
@@ -41,9 +38,11 @@ from dotmac.platform.customer_management.schemas import (
     CustomerSegmentCreate,
     CustomerUpdate,
 )
-
-# Import proper tenant resolution from platform tenant module
 from dotmac.platform.tenant import get_current_tenant_id
+
+_T = TypeVar("_T")
+
+logger = structlog.get_logger(__name__)
 
 
 def validate_uuid(value: UUID | str, field_name: str = "id") -> UUID:
@@ -141,11 +140,15 @@ class CustomerService:
         Returns:
             str: The resolved tenant ID, never None
         """
-        tenant_id = get_current_tenant_id()
-        if not tenant_id:
+        tenant_id_value = get_current_tenant_id()
+        if not tenant_id_value:
             # Fall back to default tenant for backwards compatibility
             tenant_id = "default-tenant"
             logger.debug("No tenant context found, using default tenant")
+        elif isinstance(tenant_id_value, str):
+            tenant_id = tenant_id_value
+        else:
+            tenant_id = str(tenant_id_value)
         return tenant_id
 
     def _validate_and_get_tenant(self, customer_id: UUID | str) -> tuple[UUID, str]:
@@ -948,7 +951,7 @@ class CustomerService:
                 segment_id=str(segment_id),
                 segment_name=segment.name,
             )
-            return segment.member_count
+            return int(segment.member_count)
 
         # Calculate new member count based on criteria
         member_count = await self._calculate_segment_members(segment.criteria, tenant_id)

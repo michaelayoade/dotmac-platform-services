@@ -2,22 +2,20 @@
 Shared fixtures for invoice service tests.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
     InvoiceLineItemEntity,
-    TransactionEntity,
 )
 from dotmac.platform.billing.core.enums import (
     InvoiceStatus,
     PaymentStatus,
-    TransactionType,
 )
 from dotmac.platform.billing.invoicing.service import InvoiceService
 
@@ -121,8 +119,8 @@ def mock_invoice_entity(sample_tenant_id, sample_customer_id):
         "postal_code": "94105",
         "country": "US",
     }
-    entity.issue_date = datetime.now(timezone.utc)
-    entity.due_date = datetime.now(timezone.utc) + timedelta(days=30)
+    entity.issue_date = datetime.now(UTC)
+    entity.due_date = datetime.now(UTC) + timedelta(days=30)
     entity.currency = "USD"
     entity.subtotal = 17500
     entity.tax_amount = 1750
@@ -138,8 +136,8 @@ def mock_invoice_entity(sample_tenant_id, sample_customer_id):
     entity.notes = None
     entity.internal_notes = None
     entity.extra_data = {}
-    entity.created_at = datetime.now(timezone.utc)
-    entity.updated_at = datetime.now(timezone.utc)
+    entity.created_at = datetime.now(UTC)
+    entity.updated_at = datetime.now(UTC)
     entity.updated_by = "system"
     entity.paid_at = None
     entity.voided_at = None

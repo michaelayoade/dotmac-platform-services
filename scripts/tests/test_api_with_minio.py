@@ -3,11 +3,11 @@
 Test the platform API with MinIO backend.
 """
 
-import os
 import asyncio
-import httpx
 import json
-from datetime import datetime
+import os
+
+import httpx
 
 # Set environment for MinIO
 os.environ["STORAGE__PROVIDER"] = "minio"
@@ -47,7 +47,7 @@ async def test_api_with_minio():
         if response.status_code == 200:
             upload_response = response.json()
             file_id = upload_response.get("file_id")
-            print(f"  ✅ File uploaded successfully!")
+            print("  ✅ File uploaded successfully!")
             print(f"     File ID: {file_id}")
             print(f"     Response: {json.dumps(upload_response, indent=2)}")
         else:
@@ -84,7 +84,7 @@ async def test_api_with_minio():
 
         if response.status_code == 200:
             metadata = response.json()
-            print(f"  ✅ File metadata retrieved:")
+            print("  ✅ File metadata retrieved:")
             print(f"     Name: {metadata.get('file_name')}")
             print(f"     Size: {metadata.get('file_size')} bytes")
             print(f"     Type: {metadata.get('content_type')}")
@@ -108,10 +108,10 @@ async def test_api_with_minio():
             content = response.content
             expected = b"PDF content for MinIO test via API"
             if content == expected:
-                print(f"  ✅ File downloaded successfully!")
+                print("  ✅ File downloaded successfully!")
                 print(f"     Content matches: {len(content)} bytes")
             else:
-                print(f"  ⚠️  File downloaded but content differs")
+                print("  ⚠️  File downloaded but content differs")
                 print(f"     Expected: {expected[:50]}")
                 print(f"     Got: {content[:50]}")
         else:
@@ -129,7 +129,7 @@ async def test_api_with_minio():
         )
 
         if response.status_code == 200:
-            print(f"  ✅ File deleted successfully!")
+            print("  ✅ File deleted successfully!")
         else:
             print(f"  ❌ Delete failed: {response.status_code}")
             print(f"     Error: {response.text}")

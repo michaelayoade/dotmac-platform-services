@@ -4,15 +4,14 @@ Comprehensive tests for receipt generators.
 Achieves 90%+ coverage for receipt generation functionality.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any
 
 from dotmac.platform.billing.receipts.generators import (
-    ReceiptGenerator,
     HTMLReceiptGenerator,
     PDFReceiptGenerator,
+    ReceiptGenerator,
     TextReceiptGenerator,
 )
 from dotmac.platform.billing.receipts.models import Receipt, ReceiptLineItem
@@ -694,7 +693,7 @@ class TestTextReceiptGenerator:
     @pytest.mark.asyncio
     async def test_generate_text_date_format(self):
         """Test text receipt date formatting."""
-        specific_date = datetime(2024, 3, 15, 10, 30, 45, tzinfo=timezone.utc)
+        specific_date = datetime(2024, 3, 15, 10, 30, 45, tzinfo=UTC)
         receipt = Receipt(
             tenant_id="tenant_123",
             receipt_number="REC-2024-000003",

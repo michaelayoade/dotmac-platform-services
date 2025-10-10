@@ -1,7 +1,7 @@
 import os
 import sys
-from pathlib import Path
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
 
@@ -32,52 +32,54 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Auth and user management
+from dotmac.platform.auth.models import *
+
+# Core and base models
+from dotmac.platform.core.models import *
 from dotmac.platform.db import Base
 
 # Import all models to ensure they're registered with Base.metadata
 # This ensures alembic autogenerate can detect all tables
 
-# Core and base models
-from dotmac.platform.core.models import *
-
-# Auth and user management
-from dotmac.platform.auth.models import *
 
 try:
     from dotmac.platform.user_management.models import *
 except ImportError:
     pass  # Skip if circular import issues
 
-# Customer and contacts
-from dotmac.platform.customer_management.models import *
-from dotmac.platform.contacts.models import *
+from dotmac.platform.billing.bank_accounts.entities import *
+from dotmac.platform.billing.bank_accounts.models import *
+from dotmac.platform.billing.catalog.models import *
+from dotmac.platform.billing.core.entities import *
 
 # Billing (comprehensive)
 from dotmac.platform.billing.core.models import *
-from dotmac.platform.billing.core.entities import *
-from dotmac.platform.billing.bank_accounts.models import *
-from dotmac.platform.billing.bank_accounts.entities import *
-from dotmac.platform.billing.catalog.models import *
 from dotmac.platform.billing.pricing.models import *
-from dotmac.platform.billing.subscriptions.models import *
-from dotmac.platform.billing.settings.models import *
 from dotmac.platform.billing.receipts.models import *
+from dotmac.platform.billing.settings.models import *
+from dotmac.platform.billing.subscriptions.models import *
+from dotmac.platform.contacts.models import *
+
+# Customer and contacts
+from dotmac.platform.customer_management.models import *
+from dotmac.platform.partner_management.models import *
 
 try:
     from dotmac.platform.billing.money_models import *
 except ImportError:
     pass
 
-# Communications and webhooks
-from dotmac.platform.communications.models import *
-from dotmac.platform.webhooks.models import *
-
 # Analytics and audit
 from dotmac.platform.analytics.models import *
 from dotmac.platform.audit.models import *
 
+# Communications and webhooks
+from dotmac.platform.communications.models import *
+
 # Data operations
 from dotmac.platform.data_transfer.models import *
+from dotmac.platform.webhooks.models import *
 
 try:
     from dotmac.platform.data_import.models import *

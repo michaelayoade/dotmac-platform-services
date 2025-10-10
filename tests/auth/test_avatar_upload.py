@@ -3,14 +3,15 @@ Tests for avatar upload endpoint.
 """
 
 import io
-from uuid import uuid4
-from unittest.mock import AsyncMock, patch
+import uuid
 
 import pytest
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI
 from httpx import AsyncClient
 
+from dotmac.platform.auth.core import create_access_token, hash_password
 from dotmac.platform.auth.router import auth_router
+from dotmac.platform.user_management.models import User
 
 
 @pytest.fixture
@@ -22,18 +23,77 @@ def app():
 
 
 @pytest.fixture
+async def test_user(async_db_session):
+    """Create a test user in the database."""
+    user = User(
+        id=uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+        username="testuser",
+        email="test@example.com",
+        password_hash=hash_password("test_password"),
+        tenant_id="test-tenant",
+        is_active=True,
+        is_verified=True,
+        phone_verified=False,
+        is_superuser=False,
+        is_platform_admin=False,
+        mfa_enabled=False,
+        failed_login_attempts=0,
+        roles=[],
+        permissions=[],
+        metadata_={},
+    )
+    async_db_session.add(user)
+    await async_db_session.commit()
+    await async_db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def test_user_id(test_user):
+    """Get test user ID as string."""
+    return str(test_user.id)
+
+
+@pytest.fixture
+def auth_headers(test_user):
+    """Create authentication headers with JWT token."""
+    # Create JWT token for the test user
+    access_token = create_access_token(
+        user_id=str(test_user.id),
+        email=test_user.email,
+        username=test_user.username,
+        tenant_id=test_user.tenant_id,
+        roles=test_user.roles,
+        permissions=test_user.permissions,
+    )
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture
 async def client(app, async_db_session):
     """Create async test client."""
+    from unittest.mock import AsyncMock, patch
+
+    from httpx import ASGITransport
+
+    from dotmac.platform.auth.router import get_auth_session
     from dotmac.platform.db import get_session_dependency
 
-    def get_auth_session():
-        return async_db_session
+    # Override session dependency - must be async generator
+    async def override_get_session():
+        yield async_db_session
 
-    # Override session dependencies
-    app.dependency_overrides[get_session_dependency] = lambda: async_db_session
+    # CRITICAL: Must override BOTH get_session_dependency AND get_auth_session
+    # FastAPI resolves dependencies by function reference
+    app.dependency_overrides[get_session_dependency] = override_get_session
+    app.dependency_overrides[get_auth_session] = override_get_session
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
+    # Mock audit logging to prevent database transaction conflicts
+    with patch("dotmac.platform.audit.log_user_activity", new=AsyncMock()):
+        # Use ASGITransport instead of app parameter (httpx API change)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
 
 @pytest.mark.asyncio
@@ -48,7 +108,7 @@ async def test_upload_avatar_success(
     file = io.BytesIO(file_content)
 
     # Upload avatar
-    response = await async_client.post(
+    response = await client.post(
         "/api/v1/auth/upload-avatar",
         headers=auth_headers,
         files={"avatar": ("test_avatar.jpg", file, "image/jpeg")},

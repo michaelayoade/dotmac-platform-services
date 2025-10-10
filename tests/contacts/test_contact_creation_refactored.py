@@ -8,10 +8,6 @@ BEFORE: 177 lines with duplicate mock setup and assertions
 AFTER: ~80 lines using shared helpers (55% reduction)
 """
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
-from uuid import uuid4
-
 import pytest
 
 from dotmac.platform.contacts.models import Contact, ContactMethodType
@@ -20,11 +16,9 @@ from dotmac.platform.contacts.schemas import (
     ContactMethodCreate,
 )
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import (
-    create_entity_test_helper,
-    assert_entity_created,
     build_mock_db_session,
+    create_entity_test_helper,
 )
 
 pytestmark = pytest.mark.asyncio

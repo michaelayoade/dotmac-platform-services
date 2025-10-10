@@ -4,9 +4,10 @@ Fixtures for E2E tests.
 Provides database, HTTP client, and authentication fixtures for end-to-end testing.
 """
 
+import os
+
 import pytest
 import pytest_asyncio
-import os
 
 # Set test environment variables
 os.environ["TESTING"] = "1"
@@ -14,10 +15,11 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-e2e-tests"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"  # Test database
 
+from httpx import ASGITransport, AsyncClient
+
 # Import after environment is set
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-from httpx import AsyncClient, ASGITransport
 
 from dotmac.platform.db import Base
 from dotmac.platform.main import app
@@ -82,10 +84,10 @@ async def async_client(db_engine, tenant_id, user_id):
     This allows tests to make real HTTP requests to the FastAPI app
     while using a test database and controlled dependencies.
     """
+    from dotmac.platform.auth.core import UserInfo
+    from dotmac.platform.auth.dependencies import get_current_user
     from dotmac.platform.db import get_async_session
     from dotmac.platform.tenant import get_current_tenant_id
-    from dotmac.platform.auth.dependencies import get_current_user
-    from dotmac.platform.auth.core import UserInfo
 
     # Create a session maker for the test engine
     test_session_maker = async_sessionmaker(

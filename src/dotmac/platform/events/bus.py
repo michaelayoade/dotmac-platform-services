@@ -296,12 +296,15 @@ class EventBus:
         """
         if not self._enable_persistence:
             return []
-        return await self._storage.query_events(
+        events = await self._storage.query_events(
             event_type=event_type,
             status=status,
             tenant_id=tenant_id,
             limit=limit,
         )
+        if not events:
+            return []
+        return list(events)
 
     async def replay_event(self, event_id: str) -> None:
         """

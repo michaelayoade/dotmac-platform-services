@@ -13,12 +13,11 @@ This E2E test suite covers the following modules:
 - Integration with audit logging
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Pytest marker for E2E tests
 pytestmark = pytest.mark.e2e

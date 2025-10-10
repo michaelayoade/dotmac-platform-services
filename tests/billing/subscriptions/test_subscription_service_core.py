@@ -13,34 +13,29 @@ Tests critical subscription service workflows:
 Target: Increase subscription service coverage from 11.40% to 70%+
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import uuid4
+from unittest.mock import patch
 
-from sqlalchemy import select
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.billing.exceptions import (
+    PlanNotFoundError,
+    SubscriptionNotFoundError,
+)
 from dotmac.platform.billing.subscriptions.models import (
     BillingCycle,
-    SubscriptionStatus,
-    SubscriptionPlan,
-    Subscription,
-    SubscriptionPlanCreateRequest,
-    SubscriptionCreateRequest,
-    SubscriptionUpdateRequest,
-    SubscriptionPlanChangeRequest,
-    UsageRecordRequest,
     ProrationBehavior,
+    SubscriptionCreateRequest,
     SubscriptionEventType,
+    SubscriptionPlanChangeRequest,
+    SubscriptionPlanCreateRequest,
+    SubscriptionStatus,
+    SubscriptionUpdateRequest,
+    UsageRecordRequest,
 )
 from dotmac.platform.billing.subscriptions.service import SubscriptionService
-from dotmac.platform.billing.exceptions import (
-    SubscriptionNotFoundError,
-    PlanNotFoundError,
-)
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -666,10 +661,8 @@ class TestSubscriptionRenewal:
         )
 
         # Mock to create subscription with past period
-        from unittest.mock import patch
-        from datetime import datetime, timezone, timedelta
 
-        past_time = datetime.now(timezone.utc) - timedelta(days=5)
+        past_time = datetime.now(UTC) - timedelta(days=5)
         with patch("dotmac.platform.billing.subscriptions.service.datetime") as mock_dt:
             mock_dt.now.return_value = past_time
             mock_dt.side_effect = lambda *args, **kw: datetime(*args, **kw)

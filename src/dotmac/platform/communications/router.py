@@ -5,11 +5,15 @@ FastAPI router for communications services.
 """
 
 from datetime import UTC, datetime
+from smtplib import SMTPException
 from typing import Any
 
 import structlog
+from celery.exceptions import CeleryError
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr, Field
+from jinja2 import TemplateSyntaxError, UndefinedError
+from pydantic import BaseModel, EmailStr, Field, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user_optional
 from dotmac.platform.db import get_async_db
@@ -62,6 +66,7 @@ async def send_email_endpoint(
         try:
             async with get_async_db() as db:
                 from uuid import UUID
+
                 metrics_service = get_metrics_service(db)
                 tenant_id = current_user.tenant_id if current_user else None
 
@@ -69,7 +74,11 @@ async def send_email_endpoint(
                 user_id_uuid: UUID | None = None
                 if current_user and current_user.user_id:
                     try:
-                        user_id_uuid = UUID(current_user.user_id) if isinstance(current_user.user_id, str) else current_user.user_id
+                        user_id_uuid = (
+                            UUID(current_user.user_id)
+                            if isinstance(current_user.user_id, str)
+                            else current_user.user_id
+                        )
                     except (ValueError, AttributeError):
                         user_id_uuid = None
 
@@ -84,7 +93,7 @@ async def send_email_endpoint(
                     user_id=user_id_uuid,
                     tenant_id=tenant_id,
                 )
-        except Exception as db_error:
+        except (SQLAlchemyError, RuntimeError) as db_error:
             logger.warning("Could not log communication to database", error=str(db_error))
 
         message = EmailMessage(
@@ -114,7 +123,7 @@ async def send_email_endpoint(
                         status=status,
                         provider_message_id=response.id,
                     )
-            except Exception as db_error:
+            except (SQLAlchemyError, RuntimeError) as db_error:
                 logger.warning("Could not update communication status", error=str(db_error))
 
         logger.info(
@@ -126,9 +135,15 @@ async def send_email_endpoint(
 
         return response
 
-    except Exception as e:
-        logger.error("Email send failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Email send failed: {str(e)}")
+    except ValidationError as exc:
+        logger.error("Email send validation failed", errors=exc.errors())
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except (SMTPException, OSError) as exc:
+        logger.error("Email send failed due to SMTP error", error=str(exc))
+        raise HTTPException(status_code=502, detail="Email provider unavailable") from exc
+    except RuntimeError as exc:
+        logger.error("Email send runtime failure", error=str(exc))
+        raise HTTPException(status_code=500, detail="Email send failed") from exc
 
 
 @router.post("/email/queue")
@@ -150,9 +165,15 @@ async def queue_email_endpoint(request: EmailRequest) -> Any:
             "message": "Email queued for background sending",
         }
 
-    except Exception as e:
-        logger.error("Email queue failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Email queue failed: {str(e)}")
+    except ValidationError as exc:
+        logger.error("Email queue validation failed", errors=exc.errors())
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except CeleryError as exc:
+        logger.error("Email queue failed (celery error)", error=str(exc))
+        raise HTTPException(status_code=502, detail="Task queue unavailable") from exc
+    except RuntimeError as exc:
+        logger.error("Email queue runtime failure", error=str(exc))
+        raise HTTPException(status_code=500, detail="Email queue failed") from exc
 
 
 # === Template Endpoints ===
@@ -200,47 +221,22 @@ async def create_template_endpoint(request: TemplateRequest) -> Any:
             created_at=template.created_at,
         )
 
-    except Exception as e:
-        logger.error("Template creation failed", error=str(e))
-        raise HTTPException(status_code=400, detail=f"Template creation failed: {str(e)}")
+    except ValidationError as exc:
+        logger.error("Template creation validation failed", errors=exc.errors())
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except (TemplateSyntaxError, ValueError) as exc:
+        logger.error("Template creation failed", error=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates_endpoint() -> Any:
     """List all templates."""
-    try:
-        service = get_template_service()
-        templates = service.list_templates()
+    service = get_template_service()
+    templates = service.list_templates()
 
-        return [
-            TemplateResponse(
-                id=template.id,
-                name=template.name,
-                subject_template=template.subject_template,
-                text_template=template.text_template,
-                html_template=template.html_template,
-                variables=template.variables,
-                created_at=template.created_at,
-            )
-            for template in templates
-        ]
-
-    except Exception as e:
-        logger.error("Template listing failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Template listing failed")
-
-
-@router.get("/templates/{template_id}", response_model=TemplateResponse)
-async def get_template_endpoint(template_id: str) -> Any:
-    """Get a specific template."""
-    try:
-        service = get_template_service()
-        template = service.get_template(template_id)
-
-        if not template:
-            raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
-
-        return TemplateResponse(
+    return [
+        TemplateResponse(
             id=template.id,
             name=template.name,
             subject_template=template.subject_template,
@@ -249,12 +245,28 @@ async def get_template_endpoint(template_id: str) -> Any:
             variables=template.variables,
             created_at=template.created_at,
         )
+        for template in templates
+    ]
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Template get failed", template_id=template_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Template retrieval failed")
+
+@router.get("/templates/{template_id}", response_model=TemplateResponse)
+async def get_template_endpoint(template_id: str) -> Any:
+    """Get a specific template."""
+    service = get_template_service()
+    template = service.get_template(template_id)
+
+    if not template:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
+
+    return TemplateResponse(
+        id=template.id,
+        name=template.name,
+        subject_template=template.subject_template,
+        text_template=template.text_template,
+        html_template=template.html_template,
+        variables=template.variables,
+        created_at=template.created_at,
+    )
 
 
 class RenderRequest(BaseModel):
@@ -271,30 +283,23 @@ async def render_template_endpoint(request: RenderRequest) -> Any:
         result = render_template(request.template_id, request.data)
         return result
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error("Template render failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Template render failed: {str(e)}")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (TemplateSyntaxError, UndefinedError) as exc:
+        logger.error("Template render failed", error=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/templates/{template_id}")
 async def delete_template_endpoint(template_id: str) -> Any:
     """Delete a template."""
-    try:
-        service = get_template_service()
-        deleted = service.delete_template(template_id)
+    service = get_template_service()
+    deleted = service.delete_template(template_id)
 
-        if not deleted:
-            raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
 
-        return {"message": "Template deleted successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Template deletion failed", template_id=template_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Template deletion failed")
+    return {"message": "Template deleted successfully"}
 
 
 # === Bulk Email Endpoints ===
@@ -332,9 +337,15 @@ async def queue_bulk_email_job(request: BulkEmailRequest) -> Any:
             "message": f"Bulk email job queued with {len(messages)} messages",
         }
 
-    except Exception as e:
-        logger.error("Bulk email queue failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Bulk email queue failed: {str(e)}")
+    except ValidationError as exc:
+        logger.error("Bulk email validation failed", errors=exc.errors())
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except CeleryError as exc:
+        logger.error("Bulk email queue failed (celery error)", error=str(exc))
+        raise HTTPException(status_code=502, detail="Task queue unavailable") from exc
+    except RuntimeError as exc:
+        logger.error("Bulk email queue runtime failure", error=str(exc))
+        raise HTTPException(status_code=500, detail="Bulk email queue failed") from exc
 
 
 @router.get("/bulk-email/status/{job_id}")
@@ -349,11 +360,9 @@ async def get_bulk_email_status(job_id: str) -> Any:
 
         return status
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Bulk email status check failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+    except CeleryError as exc:
+        logger.error("Bulk email status check failed", job_id=job_id, error=str(exc))
+        raise HTTPException(status_code=502, detail="Status check failed") from exc
 
 
 @router.post("/bulk-email/cancel/{job_id}")
@@ -368,23 +377,16 @@ async def cancel_bulk_email_job(job_id: str) -> Any:
 
         return {"success": True, "message": "Job cancelled successfully"}
 
-    except Exception as e:
-        logger.error("Bulk email cancel failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Cancel failed: {str(e)}")
+    except CeleryError as exc:
+        logger.error("Bulk email cancel failed", job_id=job_id, error=str(exc))
+        raise HTTPException(status_code=502, detail="Cancel failed") from exc
 
 
 @router.get("/tasks/{task_id}")
 async def get_task_status(task_id: str) -> Any:
     """Get the status of a background task."""
-    try:
-        task_service = get_task_service()
-        status_info = task_service.get_task_status(task_id)
-
-        return status_info
-
-    except Exception as e:
-        logger.error("Task status check failed", task_id=task_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Task status check failed")
+    task_service = get_task_service()
+    return task_service.get_task_status(task_id)
 
 
 # === Clean API - No Legacy Endpoints ===
@@ -396,28 +398,18 @@ async def get_task_status(task_id: str) -> Any:
 @router.get("/health")
 async def health_check() -> Any:
     """Health check endpoint."""
-    try:
-        # Test basic functionality
-        service_status = {
-            "email_service": "available",
-            "task_service": "available",
-            "template_service": "available",
-        }
+    service_status = {
+        "email_service": "available",
+        "task_service": "available",
+        "template_service": "available",
+    }
 
-        return {
-            "status": "healthy",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "services": service_status,
-            "version": "simplified",
-        }
-
-    except Exception as e:
-        logger.error("Health check failed", error=str(e))
-        return {
-            "status": "unhealthy",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "error": str(e),
-        }
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "services": service_status,
+        "version": "simplified",
+    }
 
 
 # === Quick Utilities ===
@@ -445,9 +437,9 @@ async def quick_render_endpoint(request: QuickRenderRequest) -> Any:
 
         return result
 
-    except Exception as e:
-        logger.error("Quick render failed", error=str(e))
-        raise HTTPException(status_code=400, detail=f"Quick render failed: {str(e)}")
+    except (TemplateSyntaxError, UndefinedError, ValueError) as exc:
+        logger.error("Quick render failed", error=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # === Stats and Activity Endpoints ===
@@ -480,45 +472,36 @@ async def get_communication_stats(
     current_user: UserInfo | None = Depends(get_current_user_optional),
 ) -> CommunicationStats:
     """Get communication statistics."""
+    # Try to get real stats from database if available
     try:
-        # Try to get real stats from database if available
-        try:
-            async with get_async_db() as db:
-                # Get metrics service
-                metrics_service = get_metrics_service(db)
+        async with get_async_db() as db:
+            metrics_service = get_metrics_service(db)
 
-                # Get tenant ID from current user if authenticated
-                tenant_id = current_user.tenant_id if current_user else None
+            tenant_id = current_user.tenant_id if current_user else None
 
-                # Fetch real stats from database
-                stats_data = await metrics_service.get_stats(tenant_id=tenant_id)
+            stats_data = await metrics_service.get_stats(tenant_id=tenant_id)
 
-                # Convert to response model
-                stats = CommunicationStats(
-                    sent=stats_data.get("sent", 0),
-                    delivered=stats_data.get("delivered", 0),
-                    failed=stats_data.get("failed", 0),
-                    pending=stats_data.get("pending", 0),
-                )
+            stats = CommunicationStats(
+                sent=stats_data.get("sent", 0),
+                delivered=stats_data.get("delivered", 0),
+                failed=stats_data.get("failed", 0),
+                pending=stats_data.get("pending", 0),
+            )
 
-                logger.info(
-                    "Communication stats retrieved from database",
-                    tenant_id=tenant_id,
-                    stats=stats_data,
-                )
-                return stats
-        except Exception as db_error:
-            logger.warning("Database not available, returning mock stats", error=str(db_error))
+            logger.info(
+                "Communication stats retrieved from database",
+                tenant_id=tenant_id,
+                stats=stats_data,
+            )
+            return stats
+    except (SQLAlchemyError, RuntimeError) as db_error:
+        logger.warning("Database not available, returning mock stats", error=str(db_error))
 
-        # Return mock data when database is not available
-        stats = CommunicationStats(sent=1234, delivered=1156, failed=23, pending=55)
+    # Return mock data when database is not available
+    stats = CommunicationStats(sent=1234, delivered=1156, failed=23, pending=55)
 
-        logger.info("Communication stats retrieved (mock data)")
-        return stats
-
-    except Exception as e:
-        logger.error("Failed to get communication stats", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve communication statistics")
+    logger.info("Communication stats retrieved (mock data)")
+    return stats
 
 
 @router.get("/activity", response_model=list[CommunicationActivity])
@@ -529,98 +512,87 @@ async def get_recent_activity(
     current_user: UserInfo | None = Depends(get_current_user_optional),
 ) -> list[CommunicationActivity]:
     """Get recent communication activity."""
+    # Try to get real activity from database if available
     try:
-        # Try to get real activity from database if available
-        try:
-            async with get_async_db() as db:
-                # Get metrics service
-                metrics_service = get_metrics_service(db)
+        async with get_async_db() as db:
+            metrics_service = get_metrics_service(db)
 
-                # Get tenant ID from current user if authenticated
-                tenant_id = current_user.tenant_id if current_user else None
+            tenant_id = current_user.tenant_id if current_user else None
 
-                # Parse type filter if provided
-                comm_type = None
-                if type_filter:
-                    try:
-                        comm_type = CommunicationType(type_filter)
-                    except ValueError:
-                        logger.warning(f"Invalid communication type filter: {type_filter}")
+            # Parse type filter if provided
+            comm_type = None
+            if type_filter:
+                try:
+                    comm_type = CommunicationType(type_filter)
+                except ValueError:
+                    logger.warning("Invalid communication type filter", type_filter=type_filter)
 
-                # Fetch real activity from database
-                logs = await metrics_service.get_recent_activity(
-                    limit=limit, offset=offset, type_filter=comm_type, tenant_id=tenant_id
+            logs = await metrics_service.get_recent_activity(
+                limit=limit, offset=offset, type_filter=comm_type, tenant_id=tenant_id
+            )
+
+            activities = [
+                CommunicationActivity(
+                    id=str(log.id),
+                    type=log.type.value,
+                    recipient=log.recipient,
+                    subject=log.subject,
+                    status=log.status.value,
+                    timestamp=log.created_at or datetime.now(UTC),
+                    metadata=log.metadata_ or {},
                 )
+                for log in logs
+            ]
 
-                # Convert to response models
-                activities = [
-                    CommunicationActivity(
-                        id=str(log.id),
-                        type=log.type.value,
-                        recipient=log.recipient,
-                        subject=log.subject,
-                        status=log.status.value,
-                        timestamp=log.created_at or datetime.now(UTC),
-                        metadata=log.metadata_ or {},
-                    )
-                    for log in logs
-                ]
+            logger.info(
+                "Communication activity retrieved from database",
+                count=len(activities),
+                tenant_id=tenant_id,
+            )
+            return activities
+    except (SQLAlchemyError, RuntimeError) as db_error:
+        logger.warning("Database not available, returning mock activity", error=str(db_error))
 
-                logger.info(
-                    "Communication activity retrieved from database",
-                    count=len(activities),
-                    tenant_id=tenant_id,
-                )
-                return activities
-        except Exception as db_error:
-            logger.warning("Database not available, returning mock activity", error=str(db_error))
+    # Return mock data when database is not available
+    activities = [
+        CommunicationActivity(
+            id="act_1",
+            type="email",
+            recipient="user@example.com",
+            subject="Welcome to DotMac Platform",
+            status="delivered",
+            timestamp=datetime.now(UTC),
+        ),
+        CommunicationActivity(
+            id="act_2",
+            type="webhook",
+            recipient="https://api.example.com/webhook",
+            subject="User Registration Event",
+            status="sent",
+            timestamp=datetime.now(UTC),
+        ),
+        CommunicationActivity(
+            id="act_3",
+            type="email",
+            recipient="admin@example.com",
+            subject="Password Reset Request",
+            status="delivered",
+            timestamp=datetime.now(UTC),
+        ),
+        CommunicationActivity(
+            id="act_4",
+            type="sms",
+            recipient="+1234567890",
+            subject="Verification Code: 123456",
+            status="pending",
+            timestamp=datetime.now(UTC),
+        ),
+    ]
 
-        # Return mock data when database is not available
-        activities = [
-            CommunicationActivity(
-                id="act_1",
-                type="email",
-                recipient="user@example.com",
-                subject="Welcome to DotMac Platform",
-                status="delivered",
-                timestamp=datetime.now(UTC),
-            ),
-            CommunicationActivity(
-                id="act_2",
-                type="webhook",
-                recipient="https://api.example.com/webhook",
-                subject="User Registration Event",
-                status="sent",
-                timestamp=datetime.now(UTC),
-            ),
-            CommunicationActivity(
-                id="act_3",
-                type="email",
-                recipient="admin@example.com",
-                subject="Password Reset Request",
-                status="delivered",
-                timestamp=datetime.now(UTC),
-            ),
-            CommunicationActivity(
-                id="act_4",
-                type="sms",
-                recipient="+1234567890",
-                subject="Verification Code: 123456",
-                status="pending",
-                timestamp=datetime.now(UTC),
-            ),
-        ]
+    if type_filter:
+        activities = [a for a in activities if a.type == type_filter]
 
-        # Apply type filter if provided
-        if type_filter:
-            activities = [a for a in activities if a.type == type_filter]
+    activities = activities[offset : offset + limit]
 
-        # Apply pagination
-        activities = activities[offset : offset + limit]
-
-        logger.info("Communication activity retrieved (mock data)", count=len(activities))
-        return activities
-
-    except Exception as e:
-        logger.error("Failed to get communication activity", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve communication activity")
+    logger.info("Communication activity retrieved (mock data)", count=len(activities))
+    return activities

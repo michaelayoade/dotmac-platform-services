@@ -1,17 +1,17 @@
 """Test logs endpoint to reproduce and fix 500 error."""
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.monitoring.logs_router import logs_router
+from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
 from dotmac.platform.auth.core import UserInfo, get_current_user
-from dotmac.platform.audit.models import AuditActivity, ActivitySeverity
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.monitoring.logs_router import logs_router
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ async def sample_audit_logs(async_db_session: AsyncSession):
             tenant_id=str(uuid4()),  # Convert to string for SQLite compatibility
             action="login",  # Required field
             ip_address="192.168.1.1",  # Use the correct ip_address field
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         AuditActivity(
             id=uuid4(),
@@ -63,7 +63,7 @@ async def sample_audit_logs(async_db_session: AsyncSession):
             tenant_id=str(uuid4()),
             action="payment_process",
             ip_address="10.0.0.1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         AuditActivity(
             id=uuid4(),
@@ -74,7 +74,7 @@ async def sample_audit_logs(async_db_session: AsyncSession):
             tenant_id=str(uuid4()),
             action="api_request",
             ip_address="172.16.0.1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
     ]
 

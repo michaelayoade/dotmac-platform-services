@@ -2,23 +2,20 @@
 Additional tests to achieve 90%+ coverage for task_service.py
 """
 
-import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
+from dotmac.platform.communications.email_service import EmailMessage, EmailResponse
 from dotmac.platform.communications.task_service import (
+    BulkEmailJob,
+    TaskService,
+    _process_bulk_email_job,
     _run_async,
     _send_email_async,
     _send_email_sync,
-    _process_bulk_email_job,
-    BulkEmailJob,
-    TaskService,
     get_task_service,
-    send_bulk_email_task,
-    send_single_email_task,
 )
-from dotmac.platform.communications.email_service import EmailMessage, EmailResponse
 
 
 class TestSendEmailAsync:

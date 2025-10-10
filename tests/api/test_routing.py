@@ -1,17 +1,17 @@
 """Tests for API Gateway routing functionality."""
 
-import pytest
 import re
-from unittest.mock import Mock, AsyncMock
+
+import pytest
 from fastapi import HTTPException
 
 from dotmac.platform.api.routing import (
-    RouteMethod,
-    RouteType,
     Route,
+    RouteMethod,
     RouteRegistry,
-    register_route,
+    RouteType,
     get_route,
+    register_route,
     route_registry,
 )
 

@@ -2,7 +2,10 @@
 Credit note API router
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +20,7 @@ from dotmac.platform.billing.core.exceptions import (
 from dotmac.platform.billing.core.models import CreditNote
 from dotmac.platform.billing.credit_notes.service import CreditNoteService
 from dotmac.platform.billing.invoicing.router import get_tenant_id_from_request
+from dotmac.platform.billing.money_utils import format_money, money_handler
 from dotmac.platform.database import get_async_session
 
 # ============================================================================
@@ -61,6 +65,12 @@ class CreditNoteListResponse(BaseModel):
     total_count: int
     has_more: bool
     total_available_credit: int = Field(0, description="Total available credit in minor units")
+
+
+def _format_minor_units(amount: int | None, currency: str) -> str:
+    """Format minor currency units to human-readable string."""
+    money = money_handler.money_from_minor_units(amount or 0, currency)
+    return str(format_money(money))
 
 
 # ============================================================================
@@ -177,6 +187,94 @@ async def list_credit_notes(
     )
 
 
+@router.get("/{credit_note_id}/download")
+async def download_credit_note(
+    credit_note_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> Response:
+    """Download a credit note summary as CSV."""
+
+    tenant_id = get_tenant_id_from_request(request)
+    service = CreditNoteService(db)
+
+    credit_note = await service.get_credit_note(tenant_id, credit_note_id)
+    if not credit_note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Credit note not found",
+        )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+
+    writer.writerow(["Field", "Value"])
+    writer.writerow(["Credit Note ID", credit_note.credit_note_id])
+    writer.writerow(["Credit Note Number", credit_note.credit_note_number or "-"])
+    writer.writerow(["Invoice ID", credit_note.invoice_id or "-"])
+    writer.writerow(["Customer ID", credit_note.customer_id])
+    writer.writerow(["Issue Date", credit_note.issue_date.isoformat()])
+    status_value = (
+        credit_note.status.value
+        if hasattr(credit_note.status, "value")
+        else str(credit_note.status)
+    )
+    reason_value = (
+        credit_note.reason.value
+        if hasattr(credit_note.reason, "value")
+        else str(credit_note.reason)
+    )
+    writer.writerow(["Status", status_value])
+    writer.writerow(["Reason", reason_value])
+    writer.writerow(["Subtotal", _format_minor_units(credit_note.subtotal, credit_note.currency)])
+    writer.writerow(
+        ["Tax Amount", _format_minor_units(credit_note.tax_amount, credit_note.currency)]
+    )
+    writer.writerow(
+        ["Total Amount", _format_minor_units(credit_note.total_amount, credit_note.currency)]
+    )
+    writer.writerow(
+        [
+            "Remaining Credit",
+            _format_minor_units(credit_note.remaining_credit_amount, credit_note.currency),
+        ]
+    )
+    writer.writerow(["Auto Apply", "Yes" if credit_note.auto_apply_to_invoice else "No"])
+    writer.writerow(["Notes", credit_note.notes or ""])
+    writer.writerow(["Internal Notes", credit_note.internal_notes or ""])
+    writer.writerow(["Created By", credit_note.created_by])
+    writer.writerow([])
+    writer.writerow(
+        ["Line Item Description", "Quantity", "Unit Price", "Total Price", "Tax Rate", "Tax Amount"]
+    )
+
+    for item in credit_note.line_items:
+        writer.writerow(
+            [
+                item.description,
+                item.quantity,
+                _format_minor_units(item.unit_price, credit_note.currency),
+                _format_minor_units(item.total_price, credit_note.currency),
+                f"{item.tax_rate:.2f}%",
+                _format_minor_units(item.tax_amount, credit_note.currency),
+            ]
+        )
+
+    csv_data = buffer.getvalue()
+    filename_base = credit_note.credit_note_number or credit_note.credit_note_id
+    filename = f"credit_note_{filename_base}.csv"
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(csv_data.encode("utf-8"))),
+        },
+    )
+
+
 @router.post("/{credit_note_id}/issue", response_model=CreditNote)
 async def issue_credit_note(
     credit_note_id: str,
@@ -283,5 +381,5 @@ async def get_available_credits(
     tenant_id = get_tenant_id_from_request(request)
     service = CreditNoteService(db)
 
-    credit_notes = await service.get_available_credits(tenant_id, customer_id)
+    credit_notes: list[CreditNote] = await service.get_available_credits(tenant_id, customer_id)
     return credit_notes

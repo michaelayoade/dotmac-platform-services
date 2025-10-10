@@ -5,14 +5,15 @@ This test file achieves 90%+ coverage of vault_client.py by testing all methods,
 error paths, and edge cases using a FakeVaultServer that mimics real Vault behavior.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
 import httpx
+import pytest
 
 from dotmac.platform.secrets.vault_client import (
+    VaultAuthenticationError,
     VaultClient,
     VaultError,
-    VaultAuthenticationError,
 )
 
 

@@ -7,13 +7,13 @@ Uses the fake implementation pattern:
 - Tests endpoint with fake FileStorageService
 """
 
-import pytest
+import sys
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
+import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
-import importlib
-import sys
 
 
 # Patch cached_result BEFORE importing the router
@@ -33,15 +33,14 @@ with patch("dotmac.platform.billing.cache.cached_result", mock_cached_result):
         del sys.modules["dotmac.platform.file_storage.metrics_router"]
 
     from dotmac.platform.file_storage.metrics_router import (
-        router,
         FileStatsResponse,
         _categorize_content_type,
+        router,
     )
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.file_storage.service import (
-    FileStorageService,
     FileMetadata,
     get_storage_service,
 )
@@ -269,7 +268,7 @@ class TestFileStorageStatsEndpoint:
 
     def test_get_stats_with_no_files(self, client, fake_storage_service):
         """Test stats endpoint with no files."""
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -292,7 +291,7 @@ class TestFileStorageStatsEndpoint:
                 created_at=now - timedelta(days=i),
             )
 
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -320,7 +319,7 @@ class TestFileStorageStatsEndpoint:
             "other1", "data.json", 524288, "application/json", now - timedelta(days=4)
         )
 
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -344,7 +343,7 @@ class TestFileStorageStatsEndpoint:
         )
 
         # Request 7-day period - should only get recent file
-        response = client.get("/api/v1/files/stats?period_days=7")
+        response = client.get("/api/v1/metrics/files/stats?period_days=7")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -352,7 +351,7 @@ class TestFileStorageStatsEndpoint:
         assert data["period"] == "7d"
 
         # Request 60-day period - should get both files
-        response = client.get("/api/v1/files/stats?period_days=60")
+        response = client.get("/api/v1/metrics/files/stats?period_days=60")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -374,7 +373,7 @@ class TestFileStorageStatsEndpoint:
                 now - timedelta(days=i),
             )
 
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -386,7 +385,7 @@ class TestFileStorageStatsEndpoint:
         """Test stats with different time periods."""
         # Test period validation
         for days in [7, 30, 90, 365]:
-            response = client.get(f"/api/v1/files/stats?period_days={days}")
+            response = client.get(f"/api/v1/metrics/files/stats?period_days={days}")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["period"] == f"{days}d"
 
@@ -403,7 +402,7 @@ class TestFileStorageStatsEndpoint:
         )
 
         # Should only see test-tenant files (mocked user has tenant_id="test-tenant")
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -416,7 +415,7 @@ class TestFileStorageStatsEndpoint:
         # 1 MB = 1048576 bytes
         fake_storage_service.add_file("file1", "1mb.bin", 1048576, "application/octet-stream", now)
 
-        response = client.get("/api/v1/files/stats?period_days=30")
+        response = client.get("/api/v1/metrics/files/stats?period_days=30")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -426,6 +425,6 @@ class TestFileStorageStatsEndpoint:
 
     def test_get_stats_endpoint_exists(self, client):
         """Test that stats endpoint is registered."""
-        response = client.get("/api/v1/files/stats")
+        response = client.get("/api/v1/metrics/files/stats")
         # Should return 200 (or possibly error, but not 404)
         assert response.status_code != status.HTTP_404_NOT_FOUND

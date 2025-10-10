@@ -13,22 +13,17 @@ Usage:
 import asyncio
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import typer
-from rich import print as rprint
 from rich.console import Console
-from rich.progress import track
 from rich.table import Table
-from tabulate import tabulate
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.dotmac.platform.database import get_db_session, init_db
 from src.dotmac.platform.data_import import DataImportService, ImportJobStatus, ImportJobType
+from src.dotmac.platform.database import get_db_session, init_db
 
 app = typer.Typer(help="Data import CLI for DotMac Platform Services")
 console = Console()
@@ -42,7 +37,7 @@ def import_customers(
         100, "--batch-size", "-b", help="Number of records to process at once"
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Validate data without persisting"),
-    user_id: Optional[str] = typer.Option(
+    user_id: str | None = typer.Option(
         None, "--user-id", "-u", help="User ID initiating the import"
     ),
     async_mode: bool = typer.Option(
@@ -71,7 +66,7 @@ async def _import_customers(
     tenant_id: str,
     batch_size: int,
     dry_run: bool,
-    user_id: Optional[str],
+    user_id: str | None,
     async_mode: bool = False,
 ):
     """Async function to import customers."""
@@ -92,7 +87,7 @@ async def _import_customers(
                         use_celery=async_mode,
                     )
             else:  # JSON
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     data = json.load(f)
                     if not isinstance(data, list):
                         console.print(
@@ -125,7 +120,7 @@ def import_invoices(
         100, "--batch-size", "-b", help="Number of records to process at once"
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Validate data without persisting"),
-    user_id: Optional[str] = typer.Option(
+    user_id: str | None = typer.Option(
         None, "--user-id", "-u", help="User ID initiating the import"
     ),
     async_mode: bool = typer.Option(
@@ -149,7 +144,7 @@ async def _import_invoices(
     tenant_id: str,
     batch_size: int,
     dry_run: bool,
-    user_id: Optional[str],
+    user_id: str | None,
     async_mode: bool = False,
 ):
     """Async function to import invoices."""
@@ -262,6 +257,7 @@ async def _check_import_status(job_id: str, show_failures: bool):
         try:
             # Get job details
             from sqlalchemy import select
+
             from src.dotmac.platform.data_import.models import ImportJob
 
             result = await session.execute(select(ImportJob).where(ImportJob.id == job_id))
@@ -288,11 +284,11 @@ async def _check_import_status(job_id: str, show_failures: bool):
 
 @app.command()
 def list_jobs(
-    tenant_id: Optional[str] = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
-    status: Optional[str] = typer.Option(
+    tenant_id: str | None = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
+    status: str | None = typer.Option(
         None, "--status", "-s", help="Filter by status (pending, in_progress, completed, failed)"
     ),
-    job_type: Optional[str] = typer.Option(
+    job_type: str | None = typer.Option(
         None, "--type", help="Filter by job type (customers, invoices, subscriptions, payments)"
     ),
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum number of jobs to display"),
@@ -302,13 +298,14 @@ def list_jobs(
 
 
 async def _list_import_jobs(
-    tenant_id: Optional[str], status: Optional[str], job_type: Optional[str], limit: int
+    tenant_id: str | None, status: str | None, job_type: str | None, limit: int
 ):
     """Async function to list import jobs."""
     await init_db()
 
     async with get_db_session() as session:
         from sqlalchemy import select
+
         from src.dotmac.platform.data_import.models import ImportJob
 
         query = select(ImportJob)

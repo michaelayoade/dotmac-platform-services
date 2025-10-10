@@ -5,8 +5,9 @@ Provides utilities to quickly build common mock objects and database
 results, reducing boilerplate in test fixtures.
 """
 
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -36,7 +37,7 @@ def build_mock_db_session() -> AsyncMock:
 
 def build_mock_result(
     scalar_result: Any = None,
-    scalars_all_result: Optional[list] = None,
+    scalars_all_result: list | None = None,
     scalar_one_or_none_result: Any = None,
 ) -> Mock:
     """

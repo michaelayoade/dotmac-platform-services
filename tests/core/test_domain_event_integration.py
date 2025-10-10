@@ -1,15 +1,16 @@
 """Tests for domain event integration with event bus."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from dotmac.platform.core import (
-    DomainEventPublisher,
-    get_domain_event_publisher,
-    reset_domain_event_publisher,
     AggregateRoot,
+    DomainEventPublisher,
     InvoiceCreatedEvent,
     InvoicePaymentReceivedEvent,
+    get_domain_event_publisher,
+    reset_domain_event_publisher,
 )
 from dotmac.platform.events import EventBus, EventPriority
 

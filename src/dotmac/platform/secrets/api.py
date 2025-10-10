@@ -2,6 +2,8 @@
 Secrets API endpoints using Vault/OpenBao.
 
 Provides REST endpoints for secrets management operations.
+
+SECURITY: All endpoints require platform admin authentication.
 """
 
 import logging
@@ -10,6 +12,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.platform_admin import require_platform_admin
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultError
 from dotmac.platform.settings import settings
 
@@ -117,12 +121,17 @@ async def get_secret(
     path: str,
     request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> SecretResponse:
     """
     Get a secret from Vault.
 
+    SECURITY: Requires platform admin permission. Secrets contain sensitive
+    credentials and should only be accessed by platform administrators.
+
     Args:
         path: Secret path (e.g., "app/database/credentials")
+        current_user: Platform admin user (automatically injected)
     """
     try:
         async with vault:
@@ -186,13 +195,17 @@ async def create_or_update_secret(
     secret_data: SecretData,
     request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> SecretResponse:
     """
     Create or update a secret in Vault.
 
+    SECURITY: Requires platform admin permission.
+
     Args:
         path: Secret path
         secret_data: Secret data to store
+        current_user: Platform admin user (automatically injected)
     """
     try:
         async with vault:
@@ -245,15 +258,19 @@ async def delete_secret(
     path: str,
     request: Request,
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> None:
     """
     Delete a secret from Vault.
+
+    SECURITY: Requires platform admin permission.
 
     Note: This marks the secret as deleted in Vault KV v2.
     The secret can be undeleted or permanently destroyed using Vault CLI.
 
     Args:
         path: Secret path to delete
+        current_user: Platform admin user (automatically injected)
     """
     try:
         async with vault:
@@ -296,13 +313,17 @@ async def delete_secret(
 @router.get("/secrets", response_model=SecretListResponse, tags=["Secrets Management"])
 async def list_secrets(
     vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    current_user: Annotated[UserInfo, Depends(require_platform_admin)],
     prefix: str = Query("", description="Optional path prefix to filter secrets"),
 ) -> SecretListResponse:
     """
     List secrets in Vault.
 
+    SECURITY: Requires platform admin permission.
+
     Args:
         prefix: Optional prefix to filter secret paths
+        current_user: Platform admin user (automatically injected)
     """
     try:
         if not vault:

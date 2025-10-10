@@ -4,20 +4,20 @@ Comprehensive tests for File Storage Service.
 Tests all storage backends: Local, Memory, and MinIO/S3.
 """
 
-import pytest
-import pytest_asyncio
-from datetime import datetime, UTC
-from pathlib import Path
-import tempfile
 import shutil
-from unittest.mock import Mock, patch, AsyncMock
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 from dotmac.platform.file_storage.service import (
+    FileMetadata,
     FileStorageService,
     LocalFileStorage,
     MemoryFileStorage,
     MinIOFileStorage,
-    FileMetadata,
     StorageBackend,
 )
 
@@ -964,10 +964,9 @@ class TestGetStorageService:
 
     def test_get_storage_service_minio(self):
         """Test getting storage service defaults to MinIO."""
-        from dotmac.platform.file_storage.service import get_storage_service, _storage_service
-
         # Reset global instance
         import dotmac.platform.file_storage.service as service_module
+        from dotmac.platform.file_storage.service import get_storage_service
 
         service_module._storage_service = None
 
@@ -982,8 +981,8 @@ class TestGetStorageService:
 
     def test_get_storage_service_cached(self):
         """Test storage service is cached."""
-        from dotmac.platform.file_storage.service import get_storage_service
         import dotmac.platform.file_storage.service as service_module
+        from dotmac.platform.file_storage.service import get_storage_service
 
         # Reset global instance
         service_module._storage_service = None

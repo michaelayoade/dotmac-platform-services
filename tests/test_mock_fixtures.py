@@ -3,7 +3,7 @@ Comprehensive mock fixtures for external dependencies.
 These fixtures avoid needing real Docker services for unit tests.
 """
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 

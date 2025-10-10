@@ -4,27 +4,24 @@ Comprehensive tests for receipt service.
 Achieves 90%+ coverage for receipt service functionality.
 """
 
-import pytest
-from datetime import datetime
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
-from sqlalchemy import select
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.core.entities import (
-    PaymentEntity,
     InvoiceEntity,
     InvoiceLineItemEntity,
+    PaymentEntity,
 )
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
+from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
+from dotmac.platform.billing.receipts.generators import (
+    HTMLReceiptGenerator,
+    PDFReceiptGenerator,
+)
 from dotmac.platform.billing.receipts.models import Receipt, ReceiptLineItem
 from dotmac.platform.billing.receipts.service import ReceiptService
-from dotmac.platform.billing.receipts.generators import (
-    PDFReceiptGenerator,
-    HTMLReceiptGenerator,
-)
 
 pytestmark = pytest.mark.asyncio
 

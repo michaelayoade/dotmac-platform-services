@@ -5,20 +5,20 @@ Following Dev B's successful approach with dependency overrides and mocks.
 Targets uncovered error handlers and edge cases.
 """
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from httpx import AsyncClient, ASGITransport
 
-from dotmac.platform.main import app
+from httpx import ASGITransport, AsyncClient
+
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.db import get_async_session
+from dotmac.platform.main import app
+from dotmac.platform.tenant.models import TenantPlanType, TenantStatus
 from dotmac.platform.tenant.service import (
-    TenantService,
-    TenantNotFoundError,
     TenantAlreadyExistsError,
+    TenantNotFoundError,
+    TenantService,
 )
-from dotmac.platform.tenant.models import TenantStatus, TenantPlanType
 
 
 class TestTenantRouterPropertyAssignments:

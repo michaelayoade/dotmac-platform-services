@@ -4,19 +4,36 @@ Comprehensive tests for Phase 2 operational monitoring endpoints.
 Tests expiring subscriptions and auth metrics endpoints with proper mocking.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from dotmac.platform.auth.core import UserInfo
-from dotmac.platform.billing.metrics_router import (
-    get_expiring_subscriptions,
-    ExpiringSubscriptionsResponse,
-)
 from dotmac.platform.auth.metrics_router import (
-    get_auth_metrics,
     AuthMetricsResponse,
+    get_auth_metrics,
 )
+from dotmac.platform.billing.metrics_router import (
+    ExpiringSubscriptionsResponse,
+    get_expiring_subscriptions,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_billing_cache(monkeypatch):
+    """Provide a fresh billing cache instance for each test to avoid cross-test leaks."""
+
+    from dotmac.platform.billing.cache import BillingCache
+    from dotmac.platform.core.caching import cache_clear
+
+    cache = BillingCache()
+    monkeypatch.setattr(
+        "dotmac.platform.billing.cache.get_billing_cache",
+        lambda: cache,
+    )
+    cache_clear()
+    yield
 
 
 @pytest.fixture
@@ -48,7 +65,7 @@ class TestExpiringSubscriptionsEndpoint:
     @pytest.mark.asyncio
     async def test_get_expiring_subscriptions_with_data(self, mock_session, mock_user):
         """Test expiring subscriptions with data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Mock subscriptions expiring in next 30 days
         mock_subscriptions = [
@@ -100,7 +117,7 @@ class TestExpiringSubscriptionsEndpoint:
     @pytest.mark.asyncio
     async def test_get_expiring_subscriptions_custom_threshold(self, mock_session, mock_user):
         """Test expiring subscriptions with custom days threshold."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         mock_subscriptions = [
             Mock(

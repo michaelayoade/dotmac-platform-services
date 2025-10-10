@@ -1,40 +1,42 @@
-"""
-Billing error recovery and resilience tests.
-Tests system behavior under various failure scenarios.
-"""
+"""Billing error recovery and resilience tests.
+
+Tests system behavior under various failure scenarios."""
+
+import asyncio
+from datetime import datetime, timedelta
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock, side_effect
-from datetime import datetime, timedelta
-import asyncio
-from requests.exceptions import RequestException, Timeout, ConnectionError
+from dotmac.platform.billing.services.payment_processor import PaymentProcessor
+from dotmac.platform.billing.services.stripe_service import StripeService
+from requests.exceptions import (  # type: ignore[import-untyped]
+    ConnectionError,
+)
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from stripe.error import (
-
-pytestmark = pytest.mark.asyncio
-
-    CardError,
-    RateLimitError,
-    InvalidRequestError,
-    AuthenticationError,
     APIConnectionError,
+    AuthenticationError,
+    CardError,
+    InvalidRequestError,
+    RateLimitError,
     StripeError,
 )
 
-from dotmac.platform.billing.models import Customer, Subscription, Invoice, PaymentMethod
-from dotmac.platform.billing.services.stripe_service import StripeService
-from dotmac.platform.billing.services.payment_processor import PaymentProcessor
 from dotmac.platform.billing.exceptions import (
-    BillingServiceError,
     PaymentFailedError,
-    RetryableError,
 )
+from dotmac.platform.billing.models import Customer, Invoice, PaymentMethod
+
+InvoiceTestData = dict[str, Any]
 
 
 class TestStripeAPIFailures:
     """Test handling of Stripe API failures."""
 
     @pytest.mark.asyncio
-    async def test_stripe_rate_limit_handling(self, db):
+    async def test_stripe_rate_limit_handling(self, db: AsyncSession) -> None:
         """Test handling of Stripe rate limit errors."""
         stripe_service = StripeService()
 
@@ -54,7 +56,7 @@ class TestStripeAPIFailures:
             assert mock_create.call_count == 2  # Initial call + 1 retry
 
     @pytest.mark.asyncio
-    async def test_stripe_connection_timeout_recovery(self, db):
+    async def test_stripe_connection_timeout_recovery(self, db: AsyncSession) -> None:
         """Test recovery from Stripe connection timeouts."""
         stripe_service = StripeService()
 
@@ -71,7 +73,7 @@ class TestStripeAPIFailures:
             assert mock_retrieve.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_stripe_authentication_error_no_retry(self, db):
+    async def test_stripe_authentication_error_no_retry(self, db: AsyncSession) -> None:
         """Test that authentication errors are not retried."""
         stripe_service = StripeService()
 
@@ -85,7 +87,9 @@ class TestStripeAPIFailures:
             assert mock_create.call_count == 1  # No retries
 
     @pytest.mark.asyncio
-    async def test_stripe_card_declined_handling(self, db, invoice_test_data):
+    async def test_stripe_card_declined_handling(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test handling of declined card payments."""
         payment_processor = PaymentProcessor()
         data = invoice_test_data
@@ -112,7 +116,9 @@ class TestStripeAPIFailures:
             assert invoice.status == "open"
 
     @pytest.mark.asyncio
-    async def test_multiple_payment_method_fallback(self, db, invoice_test_data):
+    async def test_multiple_payment_method_fallback(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test fallback to alternative payment methods."""
         data = invoice_test_data
         customer = data["customer"]
@@ -138,7 +144,7 @@ class TestStripeAPIFailures:
 
         payment_processor = PaymentProcessor()
 
-        def mock_payment_side_effect(payment_method_id, **kwargs):
+        def mock_payment_side_effect(payment_method_id: str, **kwargs: Any) -> dict[str, str]:
             if payment_method_id == "pm_test_0":
                 raise CardError("Declined", param="card", code="card_declined")
             elif payment_method_id == "pm_test_1":
@@ -160,7 +166,7 @@ class TestDatabaseFailures:
     """Test handling of database failures."""
 
     @pytest.mark.asyncio
-    async def test_database_connection_retry(self, db):
+    async def test_database_connection_retry(self, db: AsyncSession) -> None:
         """Test database connection retry logic."""
         from dotmac.platform.billing.services.billing_service import BillingService
 
@@ -179,7 +185,7 @@ class TestDatabaseFailures:
             assert mock_db.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_transaction_rollback_on_failure(self, db):
+    async def test_transaction_rollback_on_failure(self, db: AsyncSession) -> None:
         """Test transaction rollback when operations fail."""
         from dotmac.platform.billing.services.subscription_service import SubscriptionService
 
@@ -197,8 +203,8 @@ class TestDatabaseFailures:
             db.add(customer)
             await db.commit()
 
-            initial_count = await db.execute("SELECT COUNT(*) FROM subscriptions")
-            initial_count = initial_count.scalar()
+            initial_count_result = await db.execute(text("SELECT COUNT(*) FROM subscriptions"))
+            initial_count = initial_count_result.scalar()
 
             # Attempt to create subscription (should fail and rollback)
             with pytest.raises(StripeError):
@@ -207,13 +213,13 @@ class TestDatabaseFailures:
                 )
 
             # Database should be rolled back
-            final_count = await db.execute("SELECT COUNT(*) FROM subscriptions")
-            final_count = final_count.scalar()
+            final_count_result = await db.execute(text("SELECT COUNT(*) FROM subscriptions"))
+            final_count = final_count_result.scalar()
 
             assert final_count == initial_count  # No new subscriptions
 
     @pytest.mark.asyncio
-    async def test_concurrent_invoice_generation_handling(self, db):
+    async def test_concurrent_invoice_generation_handling(self, db: AsyncSession) -> None:
         """Test handling of concurrent invoice generation attempts."""
         from dotmac.platform.billing.services.invoice_generator import InvoiceGenerator
 
@@ -228,7 +234,7 @@ class TestDatabaseFailures:
         await db.commit()
 
         # Simulate two concurrent invoice generation attempts
-        async def generate_invoice():
+        async def generate_invoice() -> Invoice:
             return await generator.generate_monthly_invoice(customer.id)
 
         # Run concurrently
@@ -241,17 +247,18 @@ class TestDatabaseFailures:
         assert success_count == 1  # Only one invoice should be created
 
         # Check database has only one invoice
-        count = await db.execute(
-            "SELECT COUNT(*) FROM invoices WHERE customer_id = ?", (customer.id,)
+        count_result = await db.execute(
+            text("SELECT COUNT(*) FROM invoices WHERE customer_id = :customer_id"),
+            {"customer_id": customer.id},
         )
-        assert count.scalar() == 1
+        assert count_result.scalar() == 1
 
 
 class TestWebhookResilience:
     """Test webhook processing resilience."""
 
     @pytest.mark.asyncio
-    async def test_webhook_processing_with_database_errors(self, db):
+    async def test_webhook_processing_with_database_errors(self, db: AsyncSession) -> None:
         """Test webhook processing continues despite database errors."""
         from dotmac.platform.billing.webhook_handlers import WebhookProcessor
 
@@ -266,7 +273,7 @@ class TestWebhookResilience:
         processed_events = []
         failed_events = []
 
-        def mock_process_event(event):
+        def mock_process_event(event: dict[str, Any]) -> None:
             if event["id"] == "evt_2":  # Simulate failure on second event
                 raise Exception("Database error")
             processed_events.append(event["id"])
@@ -284,10 +291,11 @@ class TestWebhookResilience:
         assert "evt_2" in failed_events
 
     @pytest.mark.asyncio
-    async def test_webhook_retry_mechanism(self, db):
+    async def test_webhook_retry_mechanism(self, db: AsyncSession) -> None:
         """Test webhook retry mechanism for failed events."""
-        from dotmac.platform.billing.models import WebhookEvent
         from dotmac.platform.billing.webhook_handlers import WebhookRetryService
+
+        from dotmac.platform.billing.models import WebhookEvent
 
         # Create failed webhook event
         failed_event = WebhookEvent(
@@ -316,10 +324,11 @@ class TestWebhookResilience:
             # Note: In real implementation, status would be updated to 'completed'
 
     @pytest.mark.asyncio
-    async def test_webhook_dead_letter_queue(self, db):
+    async def test_webhook_dead_letter_queue(self, db: AsyncSession) -> None:
         """Test webhook events go to dead letter queue after max retries."""
-        from dotmac.platform.billing.models import WebhookEvent
         from dotmac.platform.billing.webhook_handlers import WebhookRetryService
+
+        from dotmac.platform.billing.models import WebhookEvent
 
         # Create event that has reached max retries
         max_retry_event = WebhookEvent(
@@ -352,7 +361,9 @@ class TestPaymentRecovery:
     """Test payment failure recovery mechanisms."""
 
     @pytest.mark.asyncio
-    async def test_dunning_management(self, db, invoice_test_data):
+    async def test_dunning_management(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test dunning management for failed payments."""
         from dotmac.platform.billing.services.dunning_service import DunningService
 
@@ -382,7 +393,9 @@ class TestPaymentRecovery:
         assert failed_invoice.next_payment_attempt is not None
 
     @pytest.mark.asyncio
-    async def test_subscription_pause_on_payment_failure(self, db, invoice_test_data):
+    async def test_subscription_pause_on_payment_failure(
+        self, db: AsyncSession, invoice_test_data: InvoiceTestData
+    ) -> None:
         """Test subscription pausing after repeated payment failures."""
         from dotmac.platform.billing.services.subscription_manager import SubscriptionManager
 
@@ -411,7 +424,7 @@ class TestPaymentRecovery:
         assert subscription.status == "past_due"
 
     @pytest.mark.asyncio
-    async def test_smart_retry_with_backoff(self, db):
+    async def test_smart_retry_with_backoff(self, db: AsyncSession) -> None:
         """Test smart retry mechanism with exponential backoff."""
         from dotmac.platform.billing.services.retry_service import SmartRetryService
 
@@ -419,7 +432,7 @@ class TestPaymentRecovery:
 
         attempt_times = []
 
-        def mock_payment_attempt():
+        def mock_payment_attempt() -> dict[str, str]:
             attempt_times.append(datetime.now())
             if len(attempt_times) < 3:
                 raise PaymentFailedError("Card declined")
@@ -438,7 +451,7 @@ class TestPaymentRecovery:
             assert sleep_calls == [1, 2]  # 1s, 2s delays
 
     @pytest.mark.asyncio
-    async def test_payment_method_health_check(self, db):
+    async def test_payment_method_health_check(self, db: AsyncSession) -> None:
         """Test payment method health checking and replacement."""
         from dotmac.platform.billing.services.payment_health_service import PaymentHealthService
 
@@ -476,7 +489,7 @@ class TestSystemRecovery:
     """Test overall system recovery mechanisms."""
 
     @pytest.mark.asyncio
-    async def test_service_degradation_mode(self, db):
+    async def test_service_degradation_mode(self, db: AsyncSession) -> None:
         """Test system operates in degraded mode when external services fail."""
         from dotmac.platform.billing.services.billing_facade import BillingFacade
 
@@ -493,7 +506,7 @@ class TestSystemRecovery:
             assert "limited_functionality" in status["warnings"]
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_pattern(self, db):
+    async def test_circuit_breaker_pattern(self, db: AsyncSession) -> None:
         """Test circuit breaker prevents cascading failures."""
         from dotmac.platform.billing.utils.circuit_breaker import CircuitBreaker
 
@@ -504,7 +517,7 @@ class TestSystemRecovery:
         failure_count = 0
 
         @circuit_breaker
-        async def failing_stripe_call():
+        async def failing_stripe_call() -> None:
             nonlocal failure_count
             failure_count += 1
             raise StripeError("Service unavailable")
@@ -520,7 +533,7 @@ class TestSystemRecovery:
         assert failure_count == 3  # Should stop calling after 3 failures
 
     @pytest.mark.asyncio
-    async def test_data_consistency_recovery(self, db):
+    async def test_data_consistency_recovery(self, db: AsyncSession) -> None:
         """Test recovery of data consistency after partial failures."""
         from dotmac.platform.billing.services.consistency_checker import ConsistencyChecker
 

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getCurrentUser, logout as logoutUser } from '@/lib/auth';
 import { platformConfig } from '@/lib/config';
 import { logger } from '@/lib/utils/logger';
+import { useRBAC } from '@/contexts/RBACContext';
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [health, setHealth] = useState<HealthCheck | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { hasPermission, loading: rbacLoading } = useRBAC();
 
   useEffect(() => {
     let isMounted = true;
@@ -72,6 +74,23 @@ export default function DashboardPage() {
       isMounted = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    if (rbacLoading) {
+      return;
+    }
+
+    const hasPartnerPortalAccess = hasPermission('partners.read') && !hasPermission('platform:partners:read');
+    if (hasPartnerPortalAccess) {
+      router.replace('/partner');
+      return;
+    }
+
+    const hasTenantPortalAccess = hasPermission('tenants:read') && !hasPermission('platform:tenants:read');
+    if (hasTenantPortalAccess) {
+      router.replace('/tenant');
+    }
+  }, [hasPermission, rbacLoading, router]);
 
   const handleLogout = async () => {
     try {

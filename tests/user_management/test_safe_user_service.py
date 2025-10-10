@@ -2,12 +2,13 @@
 Tests for safe user service defaults with tenant isolation.
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.user_management.service import UserService
 from dotmac.platform.user_management.models import User
+from dotmac.platform.user_management.service import UserService
 
 
 class TestUserServiceTenantSafety:

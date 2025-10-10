@@ -8,16 +8,17 @@ Tests the RBAC-enhanced JWT token service including:
 - Token revocation and blacklisting
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
-from dotmac.platform.auth.token_with_rbac import RBACTokenService, get_rbac_token_service
+import pytest
+
 from dotmac.platform.auth.core import JWTService
-from dotmac.platform.auth.rbac_service import RBACService
-from dotmac.platform.auth.models import Role
 from dotmac.platform.auth.exceptions import InvalidToken
+from dotmac.platform.auth.models import Role
+from dotmac.platform.auth.rbac_service import RBACService
+from dotmac.platform.auth.token_with_rbac import RBACTokenService, get_rbac_token_service
 from dotmac.platform.user_management.models import User
 
 
@@ -32,7 +33,7 @@ def jwt_service():
             "type": "access",
             "permissions": ["user.read", "user.write"],
             "roles": ["admin"],
-            "exp": (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp(),
+            "exp": (datetime.now(UTC) + timedelta(hours=1)).timestamp(),
         }
     )
     return service
@@ -552,7 +553,7 @@ class TestTokenRevocation:
     async def test_revoke_token_success(self, rbac_token_service, jwt_service, mock_cache):
         """Test successful token revocation."""
         token = "valid_token"
-        future_exp = (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
+        future_exp = (datetime.now(UTC) + timedelta(hours=1)).timestamp()
 
         jwt_service.verify_token.return_value = {
             "sub": str(uuid4()),
@@ -571,7 +572,7 @@ class TestTokenRevocation:
     async def test_revoke_token_already_expired(self, rbac_token_service, jwt_service, mock_cache):
         """Test revoking already expired token does nothing."""
         token = "expired_token"
-        past_exp = (datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()
+        past_exp = (datetime.now(UTC) - timedelta(hours=1)).timestamp()
 
         jwt_service.verify_token.return_value = {
             "sub": str(uuid4()),

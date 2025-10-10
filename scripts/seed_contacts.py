@@ -5,35 +5,30 @@ Seed script for Contacts system
 Seeds sample contacts, labels, and custom fields for testing.
 Run after migration: python scripts/seed_contacts.py
 """
-import asyncio
 import sys
 from pathlib import Path
 from uuid import uuid4
-from datetime import datetime, timedelta
-import random
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-
-# Import base and settings
-from dotmac.platform.db import Base, get_sync_engine, SyncSessionLocal
-from dotmac.platform.settings import settings
 
 # Import models
 from dotmac.platform.contacts.models import (
     Contact,
-    ContactMethod,
-    ContactMethodType,
-    ContactLabelDefinition,
     ContactFieldDefinition,
     ContactFieldType,
-    ContactStatus,
+    ContactLabelDefinition,
+    ContactMethod,
+    ContactMethodType,
     ContactStage,
+    ContactStatus,
 )
 from dotmac.platform.customer_management.models import Customer
+
+# Import base and settings
+from dotmac.platform.db import SyncSessionLocal, get_sync_engine
 from dotmac.platform.tenant.models import Tenant
 from dotmac.platform.user_management.models import User
 

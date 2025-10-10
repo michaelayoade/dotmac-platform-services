@@ -1,20 +1,18 @@
 """Tests for caching module."""
 
 import pickle
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # Import the entire module to ensure coverage tracking
-import dotmac.platform.core.caching
 from dotmac.platform.core.caching import (
-    get_redis,
+    cache_clear,
+    cache_delete,
     cache_get,
     cache_set,
-    cache_delete,
-    cache_clear,
-    redis_cache,
-    memory_cache,
+    get_redis,
     lru_cache,
+    memory_cache,
+    redis_cache,
     redis_client,
 )
 
@@ -283,7 +281,7 @@ class TestCaching:
 
     def test_memory_caches_exist(self):
         """Test that memory caches are properly initialized."""
-        from cachetools import TTLCache, LRUCache
+        from cachetools import LRUCache, TTLCache
 
         assert isinstance(memory_cache, TTLCache)
         assert isinstance(lru_cache, LRUCache)

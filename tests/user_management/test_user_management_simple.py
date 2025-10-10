@@ -4,10 +4,10 @@ Simple tests for User Management module to increase coverage.
 Tests actual methods that exist in the service.
 """
 
-import pytest
 import uuid
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService

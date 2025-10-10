@@ -1,14 +1,14 @@
 """Tests for billing receipts router."""
 
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from dotmac.platform.billing.receipts.router import router
 from dotmac.platform.billing.receipts.models import Receipt
+from dotmac.platform.billing.receipts.router import router
 
 
 @pytest.fixture
@@ -21,7 +21,21 @@ def app():
 
 @pytest.fixture
 def client(app):
-    """Create test client."""
+    """Create test client with auth bypass."""
+    from dotmac.platform.auth.core import UserInfo
+    from dotmac.platform.auth.dependencies import get_current_user
+
+    # Override auth dependency to bypass authentication
+    async def mock_get_current_user():
+        return UserInfo(
+            user_id="test-user",
+            tenant_id="test-tenant",
+            email="test@example.com",
+            roles=["admin"],
+            permissions=["*"],
+        )
+
+    app.dependency_overrides[get_current_user] = mock_get_current_user
     return TestClient(app)
 
 
@@ -130,19 +144,29 @@ class TestGenerateReceiptForPayment:
 class TestGenerateReceiptForInvoice:
     """Test POST /generate/invoice endpoint."""
 
-    @patch("dotmac.platform.billing.receipts.router.get_current_user")
-    @patch("dotmac.platform.billing.receipts.router.get_tenant_id_from_request")
     @patch("dotmac.platform.billing.receipts.router.ReceiptService")
-    def test_generate_receipt_for_invoice_success(
-        self, mock_service_class, mock_get_tenant, mock_auth, client, mock_receipt
-    ):
+    def test_generate_receipt_for_invoice_success(self, mock_service_class, app, mock_receipt):
         """Test successful receipt generation for invoice."""
+        from dotmac.platform.billing.receipts.router import (
+            get_current_user,
+            get_tenant_id_from_request,
+        )
+
+        # Override dependencies
+        def mock_auth():
+            return MagicMock(user_id="test-user", tenant_id="test-tenant")
+
+        def mock_tenant():
+            return "test-tenant"
+
+        app.dependency_overrides[get_current_user] = mock_auth
+        app.dependency_overrides[get_tenant_id_from_request] = mock_tenant
+
         mock_service = AsyncMock()
         mock_service.generate_receipt_for_invoice = AsyncMock(return_value=mock_receipt)
         mock_service_class.return_value = mock_service
-        mock_get_tenant.return_value = "test-tenant"
-        mock_auth.return_value = MagicMock()
 
+        client = TestClient(app)
         response = client.post(
             "/billing/receipts/generate/invoice",
             json={
@@ -151,27 +175,37 @@ class TestGenerateReceiptForInvoice:
                 "include_pdf": True,
                 "include_html": True,
             },
+            headers={"X-Tenant-ID": "test-tenant"},
         )
+
+        # Clean up overrides
+        app.dependency_overrides.clear()
 
         assert response.status_code == 201
         data = response.json()
         assert data["receipt_number"] == "RCT-001"
 
-    @patch("dotmac.platform.billing.receipts.router.get_current_user")
-    @patch("dotmac.platform.billing.receipts.router.get_tenant_id_from_request")
     @patch("dotmac.platform.billing.receipts.router.ReceiptService")
-    def test_generate_receipt_for_invoice_value_error(
-        self, mock_service_class, mock_get_tenant, mock_auth, client
-    ):
+    def test_generate_receipt_for_invoice_value_error(self, mock_service_class, app):
         """Test receipt generation for invoice with value error."""
+        from dotmac.platform.billing.receipts.router import (
+            get_current_user,
+            get_tenant_id_from_request,
+        )
+
+        # Override dependencies
+        app.dependency_overrides[get_current_user] = lambda: MagicMock(
+            user_id="test-user", tenant_id="test-tenant"
+        )
+        app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant"
+
         mock_service = AsyncMock()
         mock_service.generate_receipt_for_invoice = AsyncMock(
             side_effect=ValueError("Invalid invoice ID")
         )
         mock_service_class.return_value = mock_service
-        mock_get_tenant.return_value = "test-tenant"
-        mock_auth.return_value = MagicMock()
 
+        client = TestClient(app)
         response = client.post(
             "/billing/receipts/generate/invoice",
             json={
@@ -180,25 +214,33 @@ class TestGenerateReceiptForInvoice:
                 "include_pdf": True,
                 "include_html": True,
             },
+            headers={"X-Tenant-ID": "test-tenant"},
         )
 
+        app.dependency_overrides.clear()
         assert response.status_code == 400
 
-    @patch("dotmac.platform.billing.receipts.router.get_current_user")
-    @patch("dotmac.platform.billing.receipts.router.get_tenant_id_from_request")
     @patch("dotmac.platform.billing.receipts.router.ReceiptService")
-    def test_generate_receipt_for_invoice_exception(
-        self, mock_service_class, mock_get_tenant, mock_auth, client
-    ):
+    def test_generate_receipt_for_invoice_exception(self, mock_service_class, app):
         """Test receipt generation for invoice with exception."""
+        from dotmac.platform.billing.receipts.router import (
+            get_current_user,
+            get_tenant_id_from_request,
+        )
+
+        # Override dependencies
+        app.dependency_overrides[get_current_user] = lambda: MagicMock(
+            user_id="test-user", tenant_id="test-tenant"
+        )
+        app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant"
+
         mock_service = AsyncMock()
         mock_service.generate_receipt_for_invoice = AsyncMock(
             side_effect=Exception("Service error")
         )
         mock_service_class.return_value = mock_service
-        mock_get_tenant.return_value = "test-tenant"
-        mock_auth.return_value = MagicMock()
 
+        client = TestClient(app)
         response = client.post(
             "/billing/receipts/generate/invoice",
             json={
@@ -207,8 +249,10 @@ class TestGenerateReceiptForInvoice:
                 "include_pdf": True,
                 "include_html": True,
             },
+            headers={"X-Tenant-ID": "test-tenant"},
         )
 
+        app.dependency_overrides.clear()
         assert response.status_code == 500
 
 

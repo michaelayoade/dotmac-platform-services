@@ -1,11 +1,15 @@
 """Tests for billing recovery mechanisms."""
 
 import asyncio
-import uuid
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
+import pytest
+
+from dotmac.platform.billing.exceptions import (
+    BillingError,
+    PaymentError,
+)
 from dotmac.platform.billing.recovery import (
     BillingRetry,
     CircuitBreaker,
@@ -14,11 +18,6 @@ from dotmac.platform.billing.recovery import (
     LinearBackoff,
     RecoveryContext,
     with_retry,
-)
-from dotmac.platform.billing.exceptions import (
-    BillingError,
-    PaymentError,
-    WebhookError,
 )
 
 
@@ -203,7 +202,7 @@ class TestCircuitBreaker:
         # Open the circuit
         breaker.state = CircuitBreaker.OPEN
         breaker.failure_count = 1
-        breaker.last_failure_time = datetime.now(timezone.utc).timestamp()
+        breaker.last_failure_time = datetime.now(UTC).timestamp()
 
         with pytest.raises(BillingError) as exc_info:
             await breaker.call(mock_func)
@@ -221,7 +220,7 @@ class TestCircuitBreaker:
         # Set to open state
         breaker.state = CircuitBreaker.OPEN
         breaker.failure_count = 3
-        breaker.last_failure_time = datetime.now(timezone.utc).timestamp() - 1
+        breaker.last_failure_time = datetime.now(UTC).timestamp() - 1
 
         # Wait for recovery timeout
         await asyncio.sleep(0.02)
@@ -242,7 +241,7 @@ class TestCircuitBreaker:
         # Set to open state
         breaker.state = CircuitBreaker.OPEN
         breaker.failure_count = 3
-        breaker.last_failure_time = datetime.now(timezone.utc).timestamp() - 1
+        breaker.last_failure_time = datetime.now(UTC).timestamp() - 1
 
         # Wait for recovery timeout
         await asyncio.sleep(0.02)
@@ -388,7 +387,7 @@ class TestIdempotencyManager:
         """Test cleanup of expired cache entries."""
         manager = IdempotencyManager(cache_ttl=1)  # 1 second TTL
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Add old entry (expired - 2 seconds ago)
         old_time = now - timedelta(seconds=2)

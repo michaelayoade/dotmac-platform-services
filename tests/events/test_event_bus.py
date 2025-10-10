@@ -1,18 +1,16 @@
 """Tests for event bus functionality."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from dotmac.platform.events import (
-    EventBus,
-    get_event_bus,
-    reset_event_bus,
     Event,
+    EventBus,
     EventPriority,
     EventStatus,
+    get_event_bus,
+    reset_event_bus,
 )
 from dotmac.platform.events.storage import EventStorage
-from dotmac.platform.events.exceptions import EventPublishError
 
 
 class TestEventBus:

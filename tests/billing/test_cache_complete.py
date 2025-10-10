@@ -11,22 +11,23 @@ Tests cover:
 - invalidate_on_change decorator
 """
 
+from datetime import datetime
+from unittest.mock import Mock, patch
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-import json
 
 from dotmac.platform.billing.cache import (
+    BillingCache,
+    BillingCacheConfig,
+    BillingCacheMetrics,
+    CacheKey,
     CacheStrategy,
     CacheTier,
-    BillingCacheConfig,
-    CacheKey,
-    BillingCacheMetrics,
-    BillingCache,
-    get_billing_cache,
     cached_result,
+    get_billing_cache,
     invalidate_on_change,
 )
+from dotmac.platform.core.caching import cache_clear
 
 
 class TestCacheEnums:
@@ -545,6 +546,13 @@ class TestCachedResultDecorator:
     @pytest.mark.asyncio
     async def test_cached_result_caches_value(self):
         """Test that decorator caches function results."""
+        cache_clear()
+        cache = get_billing_cache()
+        if hasattr(cache, "product_cache"):
+            cache.product_cache.clear()
+            cache.pricing_cache.clear()
+            cache.subscription_cache.clear()
+
         call_count = 0
 
         @cached_result(ttl=3600, key_prefix="test", key_params=["param1"])

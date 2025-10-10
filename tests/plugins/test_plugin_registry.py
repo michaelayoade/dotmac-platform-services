@@ -2,11 +2,8 @@
 Tests for plugin registry and management.
 """
 
-import asyncio
-import json
 import uuid
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -14,21 +11,17 @@ from dotmac.platform.plugins.interfaces import NotificationProvider, PluginProvi
 from dotmac.platform.plugins.registry import (
     PluginRegistry,
     PluginRegistryError,
-    PluginConfigurationError,
     get_plugin_registry,
 )
-
 from dotmac.platform.plugins.schema import (
     FieldSpec,
     FieldType,
     PluginConfig,
-    PluginInstance,
-    PluginStatus,
-    PluginType,
     PluginHealthCheck,
+    PluginStatus,
     PluginTestResult,
+    PluginType,
 )
-from uuid import uuid4
 
 
 class MockPlugin(NotificationProvider):

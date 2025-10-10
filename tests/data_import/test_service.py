@@ -1,14 +1,15 @@
 """Tests for data import service."""
 
-import pytest
-import io
 import csv
+import io
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-from dotmac.platform.data_import.service import ImportResult, DataImportService
-from dotmac.platform.data_import.models import ImportJob, ImportJobType, ImportJobStatus
+import pytest
+
+from dotmac.platform.data_import.models import ImportJobStatus
+from dotmac.platform.data_import.service import DataImportService, ImportResult
 
 
 class TestImportResult:

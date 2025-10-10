@@ -16,14 +16,14 @@ Tests cover:
 - Item-specific tax classes
 """
 
-import pytest
 from decimal import Decimal
-from unittest.mock import Mock, patch
+
+import pytest
 
 from dotmac.platform.billing.tax.calculator import (
-    TaxRate,
     TaxCalculationResult,
     TaxCalculator,
+    TaxRate,
 )
 
 

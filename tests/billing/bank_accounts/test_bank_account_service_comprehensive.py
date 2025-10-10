@@ -4,29 +4,30 @@ Comprehensive tests for BankAccountService and ManualPaymentService.
 Tests bank account management and manual payment processing with real DB.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
-from dotmac.platform.billing.bank_accounts.service import (
-    BankAccountService,
-    ManualPaymentService,
-)
-from dotmac.platform.billing.bank_accounts.models import (
-    CompanyBankAccountCreate,
-    CompanyBankAccountUpdate,
-    CashPaymentCreate,
-    CheckPaymentCreate,
-    BankTransferCreate,
-    MobileMoneyCreate,
-    PaymentSearchFilters,
-)
+import pytest
+
 from dotmac.platform.billing.bank_accounts.entities import (
     BankAccountStatus,
     PaymentMethodType,
 )
+from dotmac.platform.billing.bank_accounts.models import (
+    BankTransferCreate,
+    CashPaymentCreate,
+    CheckPaymentCreate,
+    CompanyBankAccountCreate,
+    CompanyBankAccountUpdate,
+    MobileMoneyCreate,
+    PaymentSearchFilters,
+)
+from dotmac.platform.billing.bank_accounts.service import (
+    BankAccountService,
+    ManualPaymentService,
+)
 from dotmac.platform.billing.core.exceptions import BillingError, PaymentError
-
 
 # Use the async_session fixture from tests/conftest.py
 # This provides a real SQLite database session
@@ -348,12 +349,12 @@ class TestManualPaymentServiceCash:
         service = ManualPaymentService(db=async_session)
 
         payment_data = CashPaymentCreate(
-            customer_id="cust-456",
+            customer_id=str(uuid4()),
             invoice_id="inv-789",
             bank_account_id=1,
             amount=Decimal("100.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-001",
             cashier_name="John Doe",
         )
@@ -376,13 +377,13 @@ class TestManualPaymentServiceCheck:
         service = ManualPaymentService(db=async_session)
 
         payment_data = CheckPaymentCreate(
-            customer_id="cust-456",
+            customer_id=str(uuid4()),
             invoice_id="inv-789",
             bank_account_id=1,
             amount=Decimal("500.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
-            received_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
+            received_date=datetime.now(UTC),
             check_number="CHK-001",
             check_bank_name="Customer Bank",
         )
@@ -403,14 +404,14 @@ class TestManualPaymentServiceBankTransfer:
         service = ManualPaymentService(db=async_session)
 
         payment_data = BankTransferCreate(
-            customer_id="cust-456",
+            customer_id=str(uuid4()),
             invoice_id="inv-789",
             bank_account_id=1,
             payment_method=PaymentMethodType.WIRE_TRANSFER,
             amount=Decimal("1000.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
-            received_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
+            received_date=datetime.now(UTC),
             sender_name="Customer Company",
             sender_bank="Customer Bank",
             sender_account_last_four="9876",
@@ -432,13 +433,13 @@ class TestManualPaymentServiceMobileMoney:
         service = ManualPaymentService(db=async_session)
 
         payment_data = MobileMoneyCreate(
-            customer_id="cust-456",
+            customer_id=str(uuid4()),
             invoice_id="inv-789",
             bank_account_id=1,
             amount=Decimal("50.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
-            received_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
+            received_date=datetime.now(UTC),
             mobile_number="+1234567890",
             mobile_provider="M-Pesa",
         )
@@ -458,24 +459,27 @@ class TestManualPaymentServiceSearch:
         """Test searching payments by customer."""
         service = ManualPaymentService(db=async_session)
 
+        # Create customer UUID for testing
+        test_customer_id = str(uuid4())
+
         # Create payment
         payment_data = CashPaymentCreate(
-            customer_id="cust-search-123",
+            customer_id=test_customer_id,
             invoice_id="inv-search-456",
             bank_account_id=1,
             amount=Decimal("75.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-001",
         )
         await service.record_cash_payment("tenant-123", payment_data, "user-123")
 
         # Search by customer
-        filters = PaymentSearchFilters(customer_id="cust-search-123")
+        filters = PaymentSearchFilters(customer_id=test_customer_id)
         results = await service.search_payments("tenant-123", filters)
 
         assert len(results) >= 1
-        assert all(p.customer_id == "cust-search-123" for p in results)
+        assert all(p.customer_id == test_customer_id for p in results)
 
     @pytest.mark.asyncio
     async def test_search_payments_by_status(self, async_session):
@@ -484,12 +488,12 @@ class TestManualPaymentServiceSearch:
 
         # Create payment
         payment_data = CashPaymentCreate(
-            customer_id="cust-status-123",
+            customer_id=str(uuid4()),
             invoice_id="inv-status-456",
             bank_account_id=1,
             amount=Decimal("85.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-002",
         )
         created = await service.record_cash_payment("tenant-123", payment_data, "user-123")
@@ -512,12 +516,12 @@ class TestManualPaymentServiceVerification:
 
         # Create payment
         payment_data = CashPaymentCreate(
-            customer_id="cust-verify-123",
+            customer_id=str(uuid4()),
             invoice_id="inv-verify-456",
             bank_account_id=1,
             amount=Decimal("95.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-003",
         )
         created = await service.record_cash_payment("tenant-123", payment_data, "user-123")
@@ -550,23 +554,23 @@ class TestManualPaymentServiceReconciliation:
 
         # Create two payments
         payment1_data = CashPaymentCreate(
-            customer_id="cust-recon-123",
+            customer_id=str(uuid4()),
             invoice_id="inv-recon-1",
             bank_account_id=1,
             amount=Decimal("100.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-004",
         )
         payment1 = await service.record_cash_payment("tenant-123", payment1_data, "user-123")
 
         payment2_data = CashPaymentCreate(
-            customer_id="cust-recon-456",
+            customer_id=str(uuid4()),
             invoice_id="inv-recon-2",
             bank_account_id=1,
             amount=Decimal("200.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-004",
         )
         payment2 = await service.record_cash_payment("tenant-123", payment2_data, "user-123")
@@ -587,12 +591,12 @@ class TestManualPaymentServiceReconciliation:
 
         # Create one payment
         payment_data = CashPaymentCreate(
-            customer_id="cust-recon-partial",
+            customer_id=str(uuid4()),
             invoice_id="inv-recon-partial",
             bank_account_id=1,
             amount=Decimal("50.00"),
             currency="USD",
-            payment_date=datetime.now(timezone.utc),
+            payment_date=datetime.now(UTC),
             cash_register_id="REG-005",
         )
         created = await service.record_cash_payment("tenant-123", payment_data, "user-123")

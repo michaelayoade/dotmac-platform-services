@@ -121,19 +121,39 @@ class HealthChecker:
             )
 
     def check_redis(self) -> ServiceHealth:
-        """Check Redis connectivity with fallback awareness."""
+        """Check Redis connectivity with production-aware fallback handling.
+
+        SECURITY: In production, Redis is mandatory for session revocation to work
+        across multiple workers. Session fallback is disabled in production.
+        """
+        import os
+
         is_healthy, message = self._check_redis_url(settings.redis.redis_url, "Redis")
 
-        # Redis is critical but has fallback capabilities
+        # Check if we're in production mode
+        is_production = os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod")
+        require_redis = os.getenv("REQUIRE_REDIS_SESSIONS", str(is_production)).lower() == "true"
+
+        # Redis is critical but has fallback capabilities in non-production
         if not is_healthy:
-            fallback_enabled = getattr(settings, "redis_fallback_enabled", True)
-            if fallback_enabled:
+            if require_redis:
+                # PRODUCTION: Redis failure is UNHEALTHY (no fallback)
                 return ServiceHealth(
                     name="redis",
-                    status=ServiceStatus.DEGRADED,
-                    message=f"{message}. Running with in-memory fallback (single-server only)",
+                    status=ServiceStatus.UNHEALTHY,
+                    message=f"{message}. Redis is REQUIRED in production for session management.",
                     required=True,
                 )
+            else:
+                # DEVELOPMENT: Redis failure is DEGRADED (fallback available)
+                fallback_enabled = getattr(settings, "redis_fallback_enabled", True)
+                if fallback_enabled:
+                    return ServiceHealth(
+                        name="redis",
+                        status=ServiceStatus.DEGRADED,
+                        message=f"{message}. Running with in-memory fallback (single-server only)",
+                        required=True,
+                    )
 
         return ServiceHealth(
             name="redis",

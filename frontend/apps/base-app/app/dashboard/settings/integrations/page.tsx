@@ -350,7 +350,12 @@ export default function IntegrationsPage() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            aria-label={`Open actions for ${instance.instance_name}`}
+                            title={`Open actions for ${instance.instance_name}`}
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -548,7 +553,12 @@ export default function IntegrationsPage() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
+                              <Button
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                aria-label={`Open actions for webhook ${webhook.description ?? webhook.url}`}
+                                title={`Open actions for webhook ${webhook.description ?? webhook.url}`}
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>

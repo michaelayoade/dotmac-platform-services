@@ -1,15 +1,12 @@
 """Additional tests to boost admin module coverage to 95%+."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
-from uuid import uuid4
-from pydantic import ValidationError
 
 from dotmac.platform.admin.settings.models import (
     SettingsCategory,
     SettingsUpdateRequest,
-    SettingsValidationResult,
 )
 from dotmac.platform.admin.settings.service import SettingsManagementService
 

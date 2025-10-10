@@ -14,35 +14,34 @@ Tests all utility functions including:
 - Validation and cleaning utilities
 """
 
-import asyncio
-import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import pytest
+
 from dotmac.platform.data_transfer.core import (
     DataFormat,
     DataRecord,
-    DataBatch,
-    TransferConfig,
     ProgressInfo,
+    TransferConfig,
     TransferStatus,
 )
-from dotmac.platform.data_transfer.importers import ImportOptions
 from dotmac.platform.data_transfer.exporters import ExportOptions
+from dotmac.platform.data_transfer.importers import ImportOptions
 from dotmac.platform.data_transfer.utils import (
-    create_operation_id,
-    format_file_size,
-    calculate_throughput,
-    estimate_completion_time,
-    create_batches,
-    create_transfer_config,
-    create_import_options,
-    create_export_options,
     DataPipeline,
-    create_data_pipeline,
+    calculate_throughput,
     convert_file,
+    create_batches,
+    create_data_pipeline,
+    create_export_options,
+    create_import_options,
+    create_operation_id,
+    create_transfer_config,
+    estimate_completion_time,
+    format_file_size,
     validate_and_clean_file,
 )
 
@@ -632,7 +631,6 @@ class TestDataPipelineExecute:
     @pytest.mark.asyncio
     async def test_pipeline_execute_with_validator_transformer(self, tmp_path):
         """Test pipeline execute with validator and transformer."""
-        import tempfile
         import csv
 
         # Create source CSV file
@@ -681,7 +679,7 @@ class TestDataPipelineExecute:
         assert target_file.exists()
 
         # Verify transformed data
-        with open(target_file, "r") as f:
+        with open(target_file) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             # Should have 2 rows (invalid row skipped)

@@ -312,7 +312,7 @@ class BillingIntegrationService:
                 extra_data=invoice_request.metadata,
             )
 
-            invoice_id_value = invoice.invoice_id
+            invoice_id_value: str | None = invoice.invoice_id
             if invoice_id_value is None:
                 logger.error(
                     "Invoice created without identifier",

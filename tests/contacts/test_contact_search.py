@@ -9,9 +9,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from dotmac.platform.contacts.models import ContactStatus, ContactStage
+from dotmac.platform.contacts.models import ContactStage, ContactStatus
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import build_mock_db_session
 
 pytestmark = pytest.mark.asyncio

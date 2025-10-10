@@ -6,9 +6,9 @@ Tests high-volume billing operations under load.
 import json
 import random
 from datetime import datetime, timedelta
-from locust import HttpUser, task, between
+
 import pytest
-from unittest.mock import patch
+from locust import HttpUser, between, task
 
 pytestmark = pytest.mark.asyncio
 
@@ -184,13 +184,13 @@ class WebhookLoadTestUser(HttpUser):
         }
 
         # Generate mock signature
-        import hmac
         import hashlib
+        import hmac
 
         payload_json = json.dumps(webhook_payload)
         timestamp = int(datetime.now().timestamp())
         signature = hmac.new(
-            "test_webhook_secret".encode(), f"{timestamp}.{payload_json}".encode(), hashlib.sha256
+            b"test_webhook_secret", f"{timestamp}.{payload_json}".encode(), hashlib.sha256
         ).hexdigest()
 
         self.client.post(
@@ -239,7 +239,7 @@ class TestBillingPerformance:
         import asyncio
 
         # Create test invoices
-        from dotmac.platform.billing.models import Invoice, Customer
+        from dotmac.platform.billing.models import Customer, Invoice
 
         customer = Customer(
             user_id="perf_test_user", stripe_customer_id="cus_perftest", email="perf@test.com"
@@ -346,8 +346,9 @@ class TestBillingPerformance:
     @pytest.mark.performance
     def test_memory_usage_under_load(self, client):
         """Test memory usage doesn't grow excessively."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

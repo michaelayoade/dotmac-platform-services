@@ -5,17 +5,17 @@ These tests target specific error scenarios and edge cases that weren't covered
 in the main test suite to achieve 90%+ coverage.
 """
 
-import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import redis.asyncio as redis
 
 from dotmac.platform.feature_flags.core import (
+    _flag_cache,
+    feature_flag,
     get_flag_status,
     list_flags,
     sync_from_redis,
-    _flag_cache,
-    feature_flag,
 )
 
 

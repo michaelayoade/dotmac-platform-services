@@ -4,21 +4,20 @@ Final comprehensive tests for secrets/metrics_router.py to achieve 90%+ coverage
 Approach: Patch the cached function directly to bypass cache and test calculation logic.
 """
 
-import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.secrets.metrics_router import (
     SecretsMetricsResponse,
-    router,
     _get_secrets_metrics_cached,
+    router,
 )
 
 
@@ -38,7 +37,7 @@ def app_with_router():
     """Create test app with secrets metrics router."""
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_current_user
-    app.include_router(router, prefix="/api/v1")
+    app.include_router(router, prefix="/api/v1/metrics/secrets", tags=["Secrets Metrics"])
     # Clear dependency overrides after each test
     yield app
     app.dependency_overrides.clear()
@@ -99,7 +98,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -148,7 +147,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -188,7 +187,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -222,7 +221,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -266,7 +265,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -311,7 +310,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -368,7 +367,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=30")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=30")
 
         assert response.status_code == 200
         data = response.json()
@@ -391,7 +390,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=45")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=45")
 
         assert response.status_code == 200
         data = response.json()
@@ -412,7 +411,7 @@ class TestSecretsMetricsEndpointWithMocks:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/secrets/metrics?period_days=60")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=60")
 
         assert response.status_code == 200
         data = response.json()
@@ -437,12 +436,12 @@ class TestSecretsMetricsEndpointWithMocks:
             transport=ASGITransport(app=app_with_router), base_url="http://test"
         ) as client:
             # Test 7 days
-            response = await client.get("/api/v1/secrets/metrics?period_days=7")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=7")
             assert response.status_code == 200
             assert response.json()["period"] == "7d"
 
             # Test 90 days
-            response = await client.get("/api/v1/secrets/metrics?period_days=90")
+            response = await client.get("/api/v1/metrics/secrets/metrics?period_days=90")
             assert response.status_code == 200
             assert response.json()["period"] == "90d"
 

@@ -25,6 +25,7 @@ Run with different feature flags to see different behaviors:
 """
 
 import os
+
 from dotmac.platform.dependencies import DependencyChecker
 from dotmac.platform.settings import settings
 
@@ -55,7 +56,7 @@ def demonstrate_dependency_checking():
         "graphql_enabled",
     ]
 
-    print(f"\n🔧 Optional Features:")
+    print("\n🔧 Optional Features:")
     print("-" * 40)
 
     for feature in optional_features:
@@ -86,20 +87,20 @@ def demonstrate_storage_backends():
         print(f"✅ Enabled providers: {enabled}")
 
         # Always try local (should work)
-        print(f"\n🔄 Creating local storage backend...")
+        print("\n🔄 Creating local storage backend...")
         local_backend = StorageBackendFactory.create_backend("local")
         print(f"✅ Success: {type(local_backend).__name__}")
 
         # Try MinIO if enabled
         if settings.features.storage_enabled:
-            print(f"\n🔄 Creating MinIO storage backend...")
+            print("\n🔄 Creating MinIO storage backend...")
             try:
                 minio_backend = StorageBackendFactory.create_backend("minio")
                 print(f"✅ Success: {type(minio_backend).__name__}")
             except Exception as e:
                 print(f"❌ Failed: {e}")
         else:
-            print(f"\n⭕ MinIO storage disabled (set FEATURES__STORAGE_ENABLED=true to enable)")
+            print("\n⭕ MinIO storage disabled (set FEATURES__STORAGE_ENABLED=true to enable)")
 
     except Exception as e:
         print(f"❌ Storage factory error: {e}")
@@ -121,13 +122,13 @@ def demonstrate_search_backends():
         print(f"✅ Enabled backends: {enabled}")
 
         # Always try memory (should work)
-        print(f"\n🔄 Creating in-memory search backend...")
+        print("\n🔄 Creating in-memory search backend...")
         memory_backend = SearchBackendFactory.create_backend("memory")
         print(f"✅ Success: {type(memory_backend).__name__}")
 
         # Try MeiliSearch if enabled
         if settings.features.search_meilisearch_enabled:
-            print(f"\n🔄 Creating MeiliSearch backend...")
+            print("\n🔄 Creating MeiliSearch backend...")
             try:
                 meilisearch_backend = SearchBackendFactory.create_backend("meilisearch")
                 print(f"✅ Success: {type(meilisearch_backend).__name__}")
@@ -135,7 +136,7 @@ def demonstrate_search_backends():
                 print(f"❌ Failed: {e}")
         else:
             print(
-                f"\n⭕ MeiliSearch disabled (set FEATURES__SEARCH_MEILISEARCH_ENABLED=true to enable)"
+                "\n⭕ MeiliSearch disabled (set FEATURES__SEARCH_MEILISEARCH_ENABLED=true to enable)"
             )
 
     except Exception as e:
@@ -149,11 +150,11 @@ def demonstrate_error_messages():
     print("=" * 60)
 
     # Try to require disabled features to show error messages
-    print(f"\n🧪 Testing error messages for disabled features...")
+    print("\n🧪 Testing error messages for disabled features...")
 
     # Test MeiliSearch (unless enabled)
     if not settings.features.search_meilisearch_enabled:
-        print(f"\n🔄 Trying to require MeiliSearch when disabled...")
+        print("\n🔄 Trying to require MeiliSearch when disabled...")
         try:
             from dotmac.platform.dependencies import require_meilisearch
 
@@ -163,7 +164,7 @@ def demonstrate_error_messages():
 
     # Test MinIO (unless enabled)
     if not settings.features.storage_enabled:
-        print(f"\n🔄 Trying to require MinIO when disabled...")
+        print("\n🔄 Trying to require MinIO when disabled...")
         try:
             from dotmac.platform.dependencies import require_minio
 
@@ -180,18 +181,18 @@ def main():
     # Show environment variables being used
     relevant_env_vars = [k for k in os.environ.keys() if k.startswith("FEATURES__")]
     if relevant_env_vars:
-        print(f"\n🌍 Environment variables:")
+        print("\n🌍 Environment variables:")
         for var in relevant_env_vars:
             print(f"   {var}={os.environ[var]}")
     else:
-        print(f"\n🌍 No FEATURES__ environment variables set (using defaults)")
+        print("\n🌍 No FEATURES__ environment variables set (using defaults)")
 
     demonstrate_dependency_checking()
     demonstrate_storage_backends()
     demonstrate_search_backends()
     demonstrate_error_messages()
 
-    print(f"\n" + "=" * 60)
+    print("\n" + "=" * 60)
     print("✨ Demo completed!")
     print("💡 Try setting different FEATURES__* environment variables to see different behaviors")
     print("📚 See dotmac/platform/dependencies.py for available feature flags")

@@ -28,8 +28,8 @@ from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/billing", tags=["Billing Metrics"])
-customer_metrics_router = APIRouter(prefix="/customers/metrics", tags=["Customer Metrics"])
+router = APIRouter(tags=["Billing Metrics"])
+customer_metrics_router = APIRouter(tags=["Customer Metrics"])
 
 
 # ============================================================================
@@ -343,8 +343,8 @@ async def _get_customer_metrics_cached(
     return {
         "total_customers": total_customers,
         "active_customers": active_customers,
-        "new_customers_this_period": new_customers_this_period,
-        "churned_customers_this_period": churned_customers_this_period,
+        "new_customers_this_month": new_customers_this_period,
+        "churned_customers_this_month": churned_customers_this_period,
         "customer_growth_rate": round(growth_rate, 2),
         "churn_rate": round(churn_rate, 2),
         "customers_by_status": customers_by_status,

@@ -8,7 +8,6 @@ import os
 from collections.abc import Sequence
 
 import structlog
-from structlog.typing import Processor
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
@@ -27,6 +26,7 @@ from opentelemetry.sdk.resources import (
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+from structlog.typing import Processor
 
 from dotmac.platform.settings import settings
 
@@ -144,11 +144,11 @@ def setup_telemetry(app: FastAPI | None = None) -> None:
     # Check if OpenTelemetry packages are available
     try:
         from opentelemetry import metrics, trace  # noqa: F401
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-            OTLPMetricExporter,  # noqa: F401
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (  # noqa: F401
+            OTLPMetricExporter,
         )
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,  # noqa: F401
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # noqa: F401
+            OTLPSpanExporter,
         )
     except ImportError as e:
         logger.warning(

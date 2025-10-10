@@ -16,13 +16,13 @@ This E2E test suite covers the following modules:
 """
 
 import io
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
-from datetime import datetime, timezone
 
+import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Pytest marker for E2E tests
 pytestmark = pytest.mark.e2e
@@ -31,9 +31,9 @@ pytestmark = pytest.mark.e2e
 @pytest.fixture
 async def file_storage_app():
     """Create FastAPI app with file storage router for E2E testing."""
-    from dotmac.platform.file_storage.router import file_storage_router
     from dotmac.platform.auth.core import UserInfo
     from dotmac.platform.auth.dependencies import get_current_user
+    from dotmac.platform.file_storage.router import file_storage_router
 
     app = FastAPI(title="File Storage E2E Test App")
     app.include_router(file_storage_router, prefix="/api/v1/files/storage", tags=["File Storage"])
@@ -148,7 +148,7 @@ class TestFileUploadE2E:
         call_args = mock_storage_service.store_file.call_args
         path = call_args.kwargs["path"]
         assert "uploads/test-user-123" in path
-        assert datetime.now(timezone.utc).strftime("%Y/%m/%d") in path
+        assert datetime.now(UTC).strftime("%Y/%m/%d") in path
 
     @pytest.mark.asyncio
     async def test_upload_file_too_large(self, client, mock_storage_service):
@@ -360,7 +360,7 @@ class TestFileListE2E:
                 file_name="file1.txt",
                 file_size=100,
                 content_type="text/plain",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 path="uploads/test-user-123/documents",
             ),
             FileMetadata(
@@ -368,7 +368,7 @@ class TestFileListE2E:
                 file_name="file2.pdf",
                 file_size=200,
                 content_type="application/pdf",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 path="uploads/test-user-123/documents",
             ),
         ]
@@ -461,7 +461,7 @@ class TestFileMetadataE2E:
             "file_name": "document.pdf",
             "file_size": 1024,
             "content_type": "application/pdf",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "checksum": "abc123def456",
             "custom_field": "custom_value",
         }
@@ -685,7 +685,7 @@ class TestCompleteWorkflowE2E:
                 file_name=f"file{i}.txt",
                 file_size=10,
                 content_type="text/plain",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             for i, fid in enumerate(file_ids)
         ]

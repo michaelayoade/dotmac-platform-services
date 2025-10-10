@@ -7,7 +7,7 @@ and update the application settings with secure values at runtime.
 
 import inspect
 import logging
-from typing import Any
+from typing import Any, cast
 
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultClient, VaultError
 from dotmac.platform.settings import Settings, settings
@@ -337,7 +337,8 @@ def get_vault_secret(path: str) -> dict[str, Any] | None:
         )
 
         with client:
-            return client.get_secret(path)
+            secret: dict[str, Any] = client.get_secret(path)
+            return secret
     except VaultError as e:
         logger.error(f"Failed to fetch secret from {path}: {e}")
         return None
@@ -366,7 +367,8 @@ async def get_vault_secret_async(path: str) -> dict[str, Any] | None:
         )
 
         async with client:
-            return await client.get_secret(path)
+            secret = await client.get_secret(path)
+            return cast(dict[str, Any], secret)
     except VaultError as e:
         logger.error(f"Failed to fetch secret from {path}: {e}")
         return None

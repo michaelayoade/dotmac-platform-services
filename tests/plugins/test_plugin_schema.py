@@ -2,6 +2,8 @@
 Tests for plugin schema and configuration models.
 """
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -9,11 +11,11 @@ from dotmac.platform.plugins.schema import (
     FieldSpec,
     FieldType,
     PluginConfig,
+    PluginHealthCheck,
     PluginInstance,
     PluginStatus,
-    PluginType,
-    PluginHealthCheck,
     PluginTestResult,
+    PluginType,
     SelectOption,
     ValidationRule,
 )
@@ -265,7 +267,7 @@ class TestPluginHealthCheck:
     def test_health_check_creation(self):
         """Test creating a health check result."""
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         health_check = PluginHealthCheck(
             plugin_instance_id=uuid.uuid4(),
@@ -275,7 +277,7 @@ class TestPluginHealthCheck:
                 "api_accessible": True,
                 "response_time": 150,
             },
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             response_time_ms=150,
         )
 
@@ -287,7 +289,7 @@ class TestPluginHealthCheck:
     def test_unhealthy_status(self):
         """Test unhealthy health check."""
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         health_check = PluginHealthCheck(
             plugin_instance_id=uuid.uuid4(),
@@ -297,7 +299,7 @@ class TestPluginHealthCheck:
                 "error": "Connection timeout",
                 "last_successful": "2024-01-01T00:00:00Z",
             },
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert health_check.status == "unhealthy"
@@ -309,7 +311,7 @@ class TestPluginTestResult:
 
     def test_successful_test_result(self):
         """Test successful connection test result."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = PluginTestResult(
             success=True,
@@ -318,7 +320,7 @@ class TestPluginTestResult:
                 "endpoint": "https://api.example.com",
                 "latency_ms": 250,
             },
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             response_time_ms=250,
         )
 
@@ -328,7 +330,7 @@ class TestPluginTestResult:
 
     def test_failed_test_result(self):
         """Test failed connection test result."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = PluginTestResult(
             success=False,
@@ -337,7 +339,7 @@ class TestPluginTestResult:
                 "error": "Invalid API key",
                 "status_code": 401,
             },
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result.success is False

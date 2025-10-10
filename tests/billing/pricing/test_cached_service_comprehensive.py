@@ -5,17 +5,18 @@ Tests caching layer for pricing service including price calculations,
 rule caching, and cache invalidation strategies.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from dotmac.platform.billing.pricing.cached_service import CachedPricingEngine
 from dotmac.platform.billing.pricing.models import (
-    PricingRule,
     PriceCalculationRequest,
     PriceCalculationResult,
+    PricingRule,
 )
-from dotmac.platform.billing.pricing.cached_service import CachedPricingEngine
 
 
 @pytest.fixture
@@ -73,8 +74,8 @@ def sample_pricing_rule_dict():
         "priority": 0,
         "is_active": True,
         "metadata": {},
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -229,7 +230,7 @@ class TestCalculatePriceCaching:
             "total_discount_amount": "150.0",
             "final_price": "1350.0",
             "applied_adjustments": [],
-            "calculation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "calculation_timestamp": datetime.now(UTC).isoformat(),
         }
         mock_cache.get.return_value = cached_result
 

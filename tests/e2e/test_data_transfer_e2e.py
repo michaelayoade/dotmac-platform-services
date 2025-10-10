@@ -15,12 +15,11 @@ This E2E test suite covers the following modules:
 - src/dotmac/platform/data_transfer/core.py (enums)
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Pytest marker for E2E tests
 pytestmark = pytest.mark.e2e
@@ -29,9 +28,9 @@ pytestmark = pytest.mark.e2e
 @pytest.fixture
 async def data_transfer_app():
     """Create FastAPI app with data transfer router for E2E testing."""
-    from dotmac.platform.data_transfer.router import data_transfer_router
     from dotmac.platform.auth.core import UserInfo
     from dotmac.platform.auth.dependencies import get_current_user
+    from dotmac.platform.data_transfer.router import data_transfer_router
 
     app = FastAPI(title="Data Transfer E2E Test App")
     app.include_router(data_transfer_router, prefix="/api/v1/data-transfer", tags=["Data Transfer"])

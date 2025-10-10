@@ -1,13 +1,14 @@
 """Tests for JWT token revocation and session management fixes."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from datetime import datetime, timezone, timedelta
 import json
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from dotmac.platform.auth.core import JWTService, SessionManager, get_current_user
+import pytest
 from fastapi import HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
+
+from dotmac.platform.auth.core import JWTService, SessionManager, get_current_user
 
 
 class TestJWTRevocation:
@@ -215,8 +216,8 @@ class TestAuthenticationDependencyFix:
         jwt_service_mock.verify_token_async.return_value = {
             "sub": "user123",
             "type": "access",
-            "exp": (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp(),
-            "iat": datetime.now(timezone.utc).timestamp(),
+            "exp": (datetime.now(UTC) + timedelta(hours=1)).timestamp(),
+            "iat": datetime.now(UTC).timestamp(),
         }
 
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
@@ -240,8 +241,8 @@ class TestAuthenticationDependencyFix:
         jwt_service_mock.verify_token_async.return_value = {
             "sub": "test_user",
             "type": "access",
-            "exp": (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp(),
-            "iat": datetime.now(timezone.utc).timestamp(),
+            "exp": (datetime.now(UTC) + timedelta(hours=1)).timestamp(),
+            "iat": datetime.now(UTC).timestamp(),
         }
 
         mock_request = Mock(spec=Request)
@@ -314,7 +315,7 @@ class TestSessionManagerEnhancements:
         """Test session deletion with user session set cleanup."""
         session_data = {
             "user_id": "user123",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "data": {"test": "data"},
         }
 
@@ -338,6 +339,7 @@ class TestAuthRouterFixes:
         """Create test client for the auth router."""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+
         from dotmac.platform.auth.router import auth_router
 
         app = FastAPI()
@@ -396,8 +398,9 @@ class TestAuthRouterFixes:
 
     def test_refresh_token_revokes_old_token(self, mock_jwt_service, mock_session, test_client):
         """Test refresh token flow revokes old refresh token."""
-        from dotmac.platform.db import get_session_dependency
         from fastapi import FastAPI
+
+        from dotmac.platform.db import get_session_dependency
 
         app: FastAPI = test_client.app
 

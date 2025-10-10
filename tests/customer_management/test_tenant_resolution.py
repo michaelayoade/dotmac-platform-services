@@ -2,13 +2,14 @@
 Test tenant resolution in customer management service.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from dotmac.platform.customer_management.service import CustomerService
+import pytest
+
 from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.customer_management.schemas import CustomerCreate
+from dotmac.platform.customer_management.service import CustomerService
 
 
 @pytest.fixture

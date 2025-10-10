@@ -6,10 +6,10 @@ Provides reusable caching decorators that can be used across all modules.
 
 import hashlib
 import json
-from collections.abc import Callable
-from typing import Any, Awaitable, Optional, ParamSpec, TypeVar, cast
+from collections.abc import Awaitable, Callable
 from enum import Enum
 from functools import wraps
+from typing import ParamSpec, TypeVar, cast
 
 import structlog
 
@@ -80,7 +80,7 @@ def cached_result(
 
             # Only L2_REDIS is supported for now (L1 would need instance-specific cache)
             if tier == CacheTier.L2_REDIS:
-                cached_value = cast(Optional[R], cache_get(cache_key))
+                cached_value = cast(R | None, cache_get(cache_key))
                 if cached_value is not None:
                     logger.debug("Cache hit", key=cache_key, func=func.__name__)
                     return cached_value

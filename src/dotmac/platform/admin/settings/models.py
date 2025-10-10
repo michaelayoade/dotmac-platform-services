@@ -7,7 +7,9 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
+
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
 class SettingsCategory(str, Enum):
@@ -48,7 +50,7 @@ class SettingsCategory(str, Enum):
         return display_names.get(category, category.value)
 
 
-class SettingField(BaseModel):
+class SettingField(AppBaseModel):
     """Individual setting field metadata."""
 
     name: str = Field(description="Field name")
@@ -60,14 +62,8 @@ class SettingField(BaseModel):
     sensitive: bool = Field(False, description="Is this a sensitive field (password, key, etc.)")
     validation_rules: dict[str, Any] | None = Field(None, description="Validation rules")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
 
-
-class SettingsResponse(BaseModel):
+class SettingsResponse(AppBaseModel):
     """Response model for settings retrieval."""
 
     category: SettingsCategory = Field(description="Settings category")
@@ -76,14 +72,8 @@ class SettingsResponse(BaseModel):
     last_updated: datetime | None = Field(None, description="Last update timestamp")
     updated_by: str | None = Field(None, description="Last updated by user")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
 
-
-class SettingsUpdateRequest(BaseModel):
+class SettingsUpdateRequest(AppBaseModel):
     """Request model for updating settings."""
 
     updates: dict[str, Any] = Field(description="Field updates as key-value pairs")
@@ -102,7 +92,7 @@ class SettingsUpdateRequest(BaseModel):
         return v
 
 
-class SettingsValidationResult(BaseModel):
+class SettingsValidationResult(AppBaseModel):
     """Result of settings validation."""
 
     valid: bool = Field(description="Whether all settings are valid")
@@ -113,7 +103,7 @@ class SettingsValidationResult(BaseModel):
     restart_required: bool = Field(False, description="Whether changes require restart")
 
 
-class AuditLog(BaseModel):
+class AuditLog(AppBaseModel):
     """Audit log entry for settings changes."""
 
     id: UUID = Field(description="Audit log ID")
@@ -127,15 +117,8 @@ class AuditLog(BaseModel):
     ip_address: str | None = Field(None, description="Client IP address")
     user_agent: str | None = Field(None, description="Client user agent")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            UUID: lambda v: str(v),
-        }
-    )
 
-
-class SettingsBackup(BaseModel):
+class SettingsBackup(AppBaseModel):
     """Settings backup model."""
 
     id: UUID = Field(description="Backup ID")
@@ -146,15 +129,8 @@ class SettingsBackup(BaseModel):
     categories: list[SettingsCategory] = Field(description="Categories included in backup")
     settings_data: dict[str, Any] = Field(description="Backup data")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            UUID: lambda v: str(v),
-        }
-    )
 
-
-class SettingsCategoryInfo(BaseModel):
+class SettingsCategoryInfo(AppBaseModel):
     """Information about a settings category."""
 
     category: SettingsCategory = Field(description="Category identifier")
@@ -166,7 +142,7 @@ class SettingsCategoryInfo(BaseModel):
     last_updated: datetime | None = Field(None, description="Last update time")
 
 
-class BulkSettingsUpdate(BaseModel):
+class BulkSettingsUpdate(AppBaseModel):
     """Request for updating multiple categories at once."""
 
     updates: dict[SettingsCategory, dict[str, Any]] = Field(description="Updates by category")
@@ -174,7 +150,7 @@ class BulkSettingsUpdate(BaseModel):
     reason: str | None = Field(None, description="Reason for bulk update")
 
 
-class SettingsExportRequest(BaseModel):
+class SettingsExportRequest(AppBaseModel):
     """Request for exporting settings."""
 
     categories: list[SettingsCategory] | None = Field(
@@ -184,7 +160,7 @@ class SettingsExportRequest(BaseModel):
     format: str = Field("json", description="Export format (json, yaml, env)")
 
 
-class SettingsImportRequest(BaseModel):
+class SettingsImportRequest(AppBaseModel):
     """Request for importing settings."""
 
     data: dict[str, Any] = Field(description="Settings data to import")

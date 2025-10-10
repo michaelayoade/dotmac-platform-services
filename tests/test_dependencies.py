@@ -4,19 +4,18 @@ Comprehensive tests for the main dependencies module.
 Tests dependency checking, error handling, feature flags, and decorators.
 """
 
-import importlib
-import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from dotmac.platform.dependencies import (
-    DependencyError,
     DependencyChecker,
-    require_dependency,
-    safe_import,
-    require_minio,
-    require_meilisearch,
+    DependencyError,
     require_cryptography,
+    require_dependency,
+    require_meilisearch,
+    require_minio,
+    safe_import,
 )
 
 

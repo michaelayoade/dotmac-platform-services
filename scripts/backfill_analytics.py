@@ -14,31 +14,28 @@ Usage:
 
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID
-
-import typer
-from rich import print as rprint
-from rich.console import Console
-from rich.table import Table
-from rich.progress import track
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add src to path
 import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+import typer
+from rich.console import Console
+from rich.progress import track
+from rich.table import Table
+from sqlalchemy import func, select
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.dotmac.platform.database import get_db_session, init_db
 from src.dotmac.platform.data_import.models import (
-    ImportJob,
     ImportFailure,
+    ImportJob,
     ImportJobStatus,
-    ImportJobType,
 )
+from src.dotmac.platform.database import get_db_session, init_db
 
 app = typer.Typer(help="Data import analytics and backfill tools")
 console = Console()
@@ -47,7 +44,7 @@ console = Console()
 @app.command()
 def analyze_performance(
     days: int = typer.Option(30, "--days", "-d", help="Number of days to analyze"),
-    tenant_id: Optional[str] = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
+    tenant_id: str | None = typer.Option(None, "--tenant-id", "-t", help="Filter by tenant ID"),
     export_csv: bool = typer.Option(False, "--export-csv", help="Export results to CSV"),
 ):
     """
@@ -59,12 +56,12 @@ def analyze_performance(
     asyncio.run(_analyze_performance(days, tenant_id, export_csv))
 
 
-async def _analyze_performance(days: int, tenant_id: Optional[str], export_csv: bool):
+async def _analyze_performance(days: int, tenant_id: str | None, export_csv: bool):
     """Async implementation of performance analysis."""
     await init_db()
 
     async with get_db_session() as session:
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        start_date = datetime.now(UTC) - timedelta(days=days)
 
         # Build base query
         query = select(ImportJob).where(ImportJob.created_at >= start_date)
@@ -91,7 +88,7 @@ async def _analyze_performance(days: int, tenant_id: Optional[str], export_csv: 
             )
 
 
-def calculate_performance_metrics(jobs: List[ImportJob]) -> Dict[str, Any]:
+def calculate_performance_metrics(jobs: list[ImportJob]) -> dict[str, Any]:
     """Calculate comprehensive performance metrics."""
     total_jobs = len(jobs)
 
@@ -182,7 +179,7 @@ def calculate_performance_metrics(jobs: List[ImportJob]) -> Dict[str, Any]:
     }
 
 
-def display_performance_metrics(metrics: Dict[str, Any]):
+def display_performance_metrics(metrics: dict[str, Any]):
     """Display performance metrics in a formatted table."""
     console.print("\n[bold cyan]Import Performance Analytics[/bold cyan]\n")
 
@@ -267,7 +264,7 @@ def display_performance_metrics(metrics: Dict[str, Any]):
     console.print(daily_table)
 
 
-def export_performance_csv(metrics: Dict[str, Any], filename: str):
+def export_performance_csv(metrics: dict[str, Any], filename: str):
     """Export performance metrics to CSV."""
     import csv
 
@@ -353,7 +350,7 @@ async def _generate_report(job_id: str, include_failures: bool, output_format: s
             display_job_report(report)
 
 
-def generate_job_report(job: ImportJob, failures: List[ImportFailure]) -> Dict[str, Any]:
+def generate_job_report(job: ImportJob, failures: list[ImportFailure]) -> dict[str, Any]:
     """Generate comprehensive job report."""
     report = {
         "job_id": str(job.id),
@@ -430,9 +427,9 @@ def generate_job_report(job: ImportJob, failures: List[ImportFailure]) -> Dict[s
     return report
 
 
-def display_job_report(report: Dict[str, Any]):
+def display_job_report(report: dict[str, Any]):
     """Display job report in console."""
-    console.print(f"\n[bold cyan]Import Job Report[/bold cyan]")
+    console.print("\n[bold cyan]Import Job Report[/bold cyan]")
     console.print(f"Job ID: {report['job_id'][:8]}")
     console.print(f"Type: {report['job_type']}")
     console.print(f"Status: {report['status']}\n")
@@ -477,7 +474,7 @@ def display_job_report(report: Dict[str, Any]):
 
     # Failure analysis
     if "failure_analysis" in report:
-        console.print(f"\n[bold red]Failure Analysis[/bold red]")
+        console.print("\n[bold red]Failure Analysis[/bold red]")
         console.print(f"Total Failures: {report['failure_analysis']['total_failures']}")
 
         for error_type, data in report["failure_analysis"]["error_patterns"].items():
@@ -487,12 +484,12 @@ def display_job_report(report: Dict[str, Any]):
 
     # Recommendations
     if report["recommendations"]:
-        console.print(f"\n[bold yellow]Recommendations[/bold yellow]")
+        console.print("\n[bold yellow]Recommendations[/bold yellow]")
         for i, rec in enumerate(report["recommendations"], 1):
             console.print(f"{i}. {rec}")
 
 
-def generate_html_report(report: Dict[str, Any]) -> str:
+def generate_html_report(report: dict[str, Any]) -> str:
     """Generate HTML report."""
     html = f"""
 <!DOCTYPE html>
@@ -554,7 +551,7 @@ def generate_html_report(report: Dict[str, Any]) -> str:
 @app.command()
 def backfill_metrics(
     start_date: str = typer.Option(..., "--start-date", "-s", help="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
+    end_date: str | None = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
     recalculate: bool = typer.Option(False, "--recalculate", help="Recalculate existing metrics"),
 ):
     """
@@ -565,15 +562,15 @@ def backfill_metrics(
     asyncio.run(_backfill_metrics(start_date, end_date, recalculate))
 
 
-async def _backfill_metrics(start_date: str, end_date: Optional[str], recalculate: bool):
+async def _backfill_metrics(start_date: str, end_date: str | None, recalculate: bool):
     """Async implementation of metrics backfill."""
     await init_db()
 
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=UTC)
     end_dt = (
-        datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=UTC)
         if end_date
-        else datetime.now(timezone.utc)
+        else datetime.now(UTC)
     )
 
     async with get_db_session() as session:
@@ -622,7 +619,7 @@ async def _backfill_metrics(start_date: str, end_date: Optional[str], recalculat
                         "success_rate": job.success_rate,
                         "duration_seconds": job.duration_seconds,
                         "backfilled": True,
-                        "backfilled_at": datetime.now(timezone.utc).isoformat(),
+                        "backfilled_at": datetime.now(UTC).isoformat(),
                     }
 
                 await session.commit()
@@ -638,10 +635,10 @@ async def _backfill_metrics(start_date: str, end_date: Optional[str], recalculat
 @app.command()
 def export_metrics(
     format: str = typer.Option("json", "--format", "-f", help="Export format (json, csv)"),
-    start_date: Optional[str] = typer.Option(
+    start_date: str | None = typer.Option(
         None, "--start-date", "-s", help="Start date (YYYY-MM-DD)"
     ),
-    end_date: Optional[str] = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
+    end_date: str | None = typer.Option(None, "--end-date", "-e", help="End date (YYYY-MM-DD)"),
 ):
     """
     Export import metrics for external analysis.
@@ -651,7 +648,7 @@ def export_metrics(
     asyncio.run(_export_metrics(format, start_date, end_date))
 
 
-async def _export_metrics(format: str, start_date: Optional[str], end_date: Optional[str]):
+async def _export_metrics(format: str, start_date: str | None, end_date: str | None):
     """Async implementation of metrics export."""
     await init_db()
 
@@ -659,11 +656,11 @@ async def _export_metrics(format: str, start_date: Optional[str], end_date: Opti
         query = select(ImportJob)
 
         if start_date:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=UTC)
             query = query.where(ImportJob.created_at >= start_dt)
 
         if end_date:
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=UTC)
             query = query.where(ImportJob.created_at <= end_dt)
 
         result = await session.execute(query)

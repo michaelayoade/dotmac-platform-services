@@ -17,24 +17,14 @@ async def test_imports():
 
     try:
         # Test basic communications import
-        from dotmac.platform.communications import (
-            NotificationService,
-            NotificationType,
-            NotificationRequest,
-            get_notification_service,
-        )
 
         print("✅ Basic communications module imported successfully")
 
         # Test enhanced features import
         from dotmac.platform.communications import (
-            EmailTemplate,
-            BulkEmailJob,
-            TemplateService,
-            BulkEmailService,
             enhanced_router,
-            get_template_service,
             get_bulk_service,
+            get_template_service,
         )
 
         print("✅ Enhanced communications modules imported successfully")
@@ -99,9 +89,9 @@ async def test_basic_notification():
 
     try:
         from dotmac.platform.communications import (
-            get_notification_service,
             NotificationRequest,
             NotificationType,
+            get_notification_service,
         )
 
         service = get_notification_service()
@@ -141,7 +131,6 @@ async def test_celery_integration():
 
         # Try to import the bulk email task
         try:
-            from dotmac.platform.communications.bulk_service import process_bulk_email_job
 
             print("✅ Bulk email task imported successfully")
         except Exception as e:

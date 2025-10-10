@@ -2,9 +2,10 @@
 Tests for WhatsApp Business API plugin.
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
 
 from dotmac.platform.plugins.builtin.whatsapp_plugin import WhatsAppProvider, register
 from dotmac.platform.plugins.schema import FieldType, PluginType

@@ -5,10 +5,10 @@ These tests verify that modules expose the correct interfaces and that
 their public APIs are compatible with expected usage patterns.
 """
 
-import pytest
 import inspect
-from typing import Dict, List, Any, Optional
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 pytestmark = pytest.mark.asyncio
 
@@ -98,7 +98,7 @@ class TestDataTransferModuleInterface:
             assert hasattr(BaseImporter, "import_from_file")
 
             # Verify it has abstract methods (even if not formally ABC)
-            import_method = getattr(BaseImporter, "import_from_file")
+            import_method = BaseImporter.import_from_file
             assert (
                 hasattr(import_method, "__isabstractmethod__")
                 and import_method.__isabstractmethod__

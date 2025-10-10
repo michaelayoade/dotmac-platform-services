@@ -4,12 +4,11 @@ Tests for customer management Pydantic schemas.
 Tests schema validation, serialization, and all Pydantic features.
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict
 from uuid import uuid4
 
+import pytest
 from pydantic import ValidationError
 
 from dotmac.platform.customer_management.models import (
@@ -286,7 +285,7 @@ class TestCustomerResponseSchema:
     def test_customer_response_from_model(self):
         """Test CustomerResponse creation from model data."""
         # Simulate model data with all required fields
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         model_data = {
             "id": uuid4(),
             "customer_number": "CUST001",
@@ -421,7 +420,7 @@ class TestCustomerActivitySchemas:
             "description": "Customer made a purchase",
             "metadata": {"amount": 100.50},
             "performed_by": uuid4(),
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
 
         schema = CustomerActivityResponse.model_validate(model_data)
@@ -470,8 +469,8 @@ class TestCustomerNoteSchemas:
             "content": "This is an important note about the customer",
             "is_internal": False,
             "created_by_id": uuid4(),
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         }
 
         schema = CustomerNoteResponse.model_validate(model_data)
@@ -524,8 +523,8 @@ class TestCustomerSegmentSchemas:
             "is_dynamic": True,
             "member_count": 25,
             "priority": 1,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         }
 
         schema = CustomerSegmentResponse.model_validate(model_data)
@@ -541,7 +540,7 @@ class TestCustomerListResponseSchema:
 
     def test_customer_list_response(self):
         """Test CustomerListResponse schema."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         customers_data = [
             {
                 "id": uuid4(),

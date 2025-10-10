@@ -2,14 +2,12 @@
 Fixtures for payment service and router tests.
 """
 
-import pytest
-from datetime import datetime, timezone
-from fastapi.testclient import TestClient
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.fixtures.async_db import create_mock_async_result, create_mock_async_session
+import pytest
+from fastapi.testclient import TestClient
 
-from dotmac.platform.main import app
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.billing.core.entities import (
     PaymentEntity,
@@ -26,6 +24,8 @@ from dotmac.platform.billing.payments.providers import (
     RefundResult,
 )
 from dotmac.platform.billing.payments.service import PaymentService
+from dotmac.platform.main import app
+from tests.fixtures.async_db import create_mock_async_result, create_mock_async_session
 
 
 # Helper functions
@@ -48,7 +48,7 @@ def setup_mock_refresh(mock_db_session):
     """Helper to setup mock refresh that populates required entity fields"""
 
     async def mock_refresh(entity):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Set required fields for PaymentEntity
         if hasattr(entity, "payment_id"):
             if not getattr(entity, "payment_id", None):
@@ -119,7 +119,7 @@ def payment_service(mock_payment_db_session, mock_payment_provider):
 @pytest.fixture
 def sample_payment_entity():
     """Create a sample payment entity"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payment = MagicMock(spec=PaymentEntity)
     payment.tenant_id = "test-tenant"
     payment.payment_id = "payment_123"
@@ -150,7 +150,7 @@ def sample_payment_entity():
 @pytest.fixture
 def sample_payment_method_entity():
     """Create a sample payment method entity"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payment_method = MagicMock(spec=PaymentMethodEntity)
     payment_method.tenant_id = "test-tenant"
     payment_method.payment_method_id = "pm_789"

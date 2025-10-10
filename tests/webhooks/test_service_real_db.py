@@ -2,8 +2,6 @@
 Real database tests for webhook subscription service to achieve 90%+ coverage.
 """
 
-import os
-from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest

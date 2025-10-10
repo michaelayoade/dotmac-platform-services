@@ -327,7 +327,7 @@ class ProductService:
 
         for field, value in update_data.items():
             if field == "metadata":
-                setattr(db_product, "metadata_json", value)
+                db_product.metadata_json = value
             elif field == "tax_class" and value:
                 setattr(db_product, field, value.value)
             else:
@@ -362,7 +362,7 @@ class ProductService:
             raise ProductNotFoundError(f"Product {product_id} not found")
 
         old_price = db_product.base_price
-        setattr(db_product, "base_price", new_price)
+        db_product.base_price = new_price
 
         await self.db.commit()
         await self.db.refresh(db_product)
@@ -393,7 +393,7 @@ class ProductService:
         if not db_product:
             raise ProductNotFoundError(f"Product {product_id} not found")
 
-        setattr(db_product, "is_active", False)
+        db_product.is_active = False
 
         await self.db.commit()
         await self.db.refresh(db_product)
@@ -501,7 +501,6 @@ class ProductService:
     def _db_to_pydantic_product(self, db_product: BillingProductTable) -> Product:
         """Convert database product to Pydantic model."""
         from decimal import Decimal
-        from datetime import datetime, UTC
 
         # Extract values from SQLAlchemy columns
         product_id: str = str(db_product.product_id)
@@ -560,7 +559,6 @@ class ProductService:
 
     def _db_to_pydantic_category(self, db_category: BillingProductCategoryTable) -> ProductCategory:
         """Convert database category to Pydantic model."""
-        from datetime import datetime, UTC
 
         # Extract values from SQLAlchemy columns
         category_id: str = str(db_category.category_id)

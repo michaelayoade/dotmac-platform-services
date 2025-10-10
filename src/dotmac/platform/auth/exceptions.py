@@ -7,6 +7,9 @@ Comprehensive exception classes for the DotMac authentication system.
 from collections.abc import Mapping
 from typing import Any
 
+from jwt import ExpiredSignatureError
+from pydantic import ValidationError as PydanticValidationError
+
 
 class AuthError(Exception):
     """Base authentication error"""
@@ -37,9 +40,6 @@ class TokenError(AuthError):
         details: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(message, error_code, details)
-
-
-from jwt import ExpiredSignatureError
 
 
 class TokenExpired(TokenError, ExpiredSignatureError):
@@ -259,9 +259,6 @@ class AuthorizationError(AuthError):
     ) -> None:
         super().__init__(message, error_code, details)
 
-
-# Use ValidationError from pydantic for request validation errors
-from pydantic import ValidationError as PydanticValidationError
 
 # For backwards compatibility, alias it
 ValidationError = PydanticValidationError

@@ -46,12 +46,19 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
       setLoading(true);
       setError(null);
 
-      const params: Record<string, string> = {};
+      const queryParams = new URLSearchParams();
+      if (tenantId) {
+        queryParams.set('tenant_id', tenantId);
+      }
       if (statusFilter !== 'all') {
-        params.status = statusFilter;
+        queryParams.set('status', statusFilter);
+      }
+      if (searchQuery) {
+        queryParams.set('search', searchQuery);
       }
 
-      const response = await apiClient.get('/api/v1/billing/invoices');
+      const endpoint = `/api/v1/billing/invoices${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await apiClient.get(endpoint);
       if (response.success && response.data) {
         const data = response.data as { invoices?: Invoice[] };
         setInvoices(data.invoices || []);
@@ -65,7 +72,7 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [searchQuery, statusFilter, tenantId]);
 
   useEffect(() => {
     fetchInvoices();
@@ -116,7 +123,7 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="invoice-table">
       {/* Filters and Search */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2">
@@ -124,6 +131,7 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-sky-500 focus:outline-none"
+            data-testid="invoice-status-filter"
           >
             <option value="all">All Statuses</option>
             <option value="draft">Draft</option>
@@ -140,6 +148,7 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-sky-500 focus:outline-none"
+          data-testid="invoice-search"
         />
       </div>
 
@@ -165,12 +174,13 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
               <div
                 key={invoice.invoice_id}
                 className="grid grid-cols-7 gap-4 px-6 py-4 hover:bg-muted cursor-pointer transition-colors"
+                data-testid="invoice-row"
                 onClick={() => onInvoiceSelect?.(invoice)}
               >
                 <div>
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-sm font-medium text-foreground" data-testid="invoice-number">
                       {invoice.invoice_number}
                     </span>
                   </div>
@@ -182,7 +192,7 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
                 </div>
 
                 <div>
-                  <div className="text-sm font-medium text-foreground">
+                  <div className="text-sm font-medium text-foreground" data-testid="invoice-amount">
                     {formatCurrency(invoice.total_amount, invoice.currency)}
                   </div>
                   {invoice.amount_due > 0 && (
@@ -200,13 +210,19 @@ export default function InvoiceList({ tenantId, onInvoiceSelect }: InvoiceListPr
                 </div>
 
                 <div>
-                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusColors[invoice.status]}`}>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusColors[invoice.status]}`}
+                    data-testid="invoice-status"
+                  >
                     {invoice.status}
                   </span>
                 </div>
 
                 <div>
-                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${invoice.payment_status ? paymentStatusColors[invoice.payment_status] ?? '' : ''}`}>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${invoice.payment_status ? paymentStatusColors[invoice.payment_status] ?? '' : ''}`}
+                    data-testid="invoice-payment-status"
+                  >
                     {invoice.payment_status || 'pending'}
                   </span>
                 </div>

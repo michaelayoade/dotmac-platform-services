@@ -5,19 +5,17 @@ Validates that the auth API enforces tenant boundaries and prevents
 cross-tenant data access at the router/API level.
 """
 
-import pytest
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.router import auth_router
 from dotmac.platform.auth.core import hash_password
+from dotmac.platform.auth.router import auth_router
 from dotmac.platform.user_management.models import User
-
 
 # ============================================================================
 # Fixtures
@@ -27,7 +25,7 @@ from dotmac.platform.user_management.models import User
 @pytest.fixture
 def app():
     """Create FastAPI app with auth router and tenant middleware."""
-    from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+    from dotmac.platform.tenant import TenantConfiguration, TenantMiddleware, TenantMode
 
     app = FastAPI()
 
@@ -48,8 +46,9 @@ def app():
 @pytest.fixture
 async def async_client(app, async_db_session):
     """Create async HTTP client with session dependency override."""
-    from dotmac.platform.auth.router import get_auth_session
     from httpx import ASGITransport
+
+    from dotmac.platform.auth.router import get_auth_session
 
     async def override_get_auth_session():
         yield async_db_session

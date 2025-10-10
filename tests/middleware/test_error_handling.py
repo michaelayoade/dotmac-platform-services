@@ -12,7 +12,6 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from fastapi import Request
 
 pytestmark = pytest.mark.asyncio
 

@@ -1,15 +1,16 @@
 """Tests for BaseIntegration base class."""
 
-import pytest
 import json
 from unittest.mock import patch
 
+import pytest
+
 from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationType,
+    BaseIntegration,
     IntegrationConfig,
     IntegrationHealth,
-    BaseIntegration,
+    IntegrationStatus,
+    IntegrationType,
 )
 
 

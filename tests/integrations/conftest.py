@@ -1,13 +1,12 @@
 """Shared fixtures for integration tests."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationType,
     IntegrationConfig,
-    IntegrationHealth,
+    IntegrationType,
 )
 
 

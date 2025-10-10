@@ -1,28 +1,25 @@
 """Comprehensive tests for Partner Management Service."""
 
-import pytest
 from decimal import Decimal
 from uuid import uuid4
 
-from dotmac.platform.partner_management.service import PartnerService
+import pytest
+
 from dotmac.platform.partner_management.models import (
-    Partner,
+    CommissionModel,
+    CommissionStatus,
     PartnerStatus,
     PartnerTier,
-    CommissionModel,
-    PartnerAccount,
-    PartnerCommissionEvent,
-    ReferralLead,
     ReferralStatus,
-    CommissionStatus,
 )
 from dotmac.platform.partner_management.schemas import (
-    PartnerCreate,
-    PartnerUpdate,
     PartnerAccountCreate,
     PartnerCommissionEventCreate,
+    PartnerCreate,
+    PartnerUpdate,
     ReferralLeadCreate,
 )
+from dotmac.platform.partner_management.service import PartnerService
 
 pytestmark = pytest.mark.asyncio
 

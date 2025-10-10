@@ -5,14 +5,14 @@ Provides reusable assertion helpers for common test scenarios,
 reducing boilerplate and improving test readability.
 """
 
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 
 def assert_entity_created(
     mock_db_session: AsyncMock,
-    entity_type: Optional[type] = None,
-    expected_attributes: Optional[dict[str, Any]] = None,
+    entity_type: type | None = None,
+    expected_attributes: dict[str, Any] | None = None,
     allow_multiple_adds: bool = False,
 ) -> None:
     """
@@ -67,7 +67,7 @@ def assert_entity_created(
 def assert_entity_updated(
     mock_db_session: AsyncMock,
     entity: Any,
-    updated_attributes: Optional[dict[str, Any]] = None,
+    updated_attributes: dict[str, Any] | None = None,
 ) -> None:
     """
     Assert that an entity was updated successfully.
@@ -123,7 +123,7 @@ def assert_entity_deleted(
 def assert_entity_retrieved(
     result: Any,
     expected_entity: Any,
-    expected_type: Optional[type] = None,
+    expected_type: type | None = None,
 ) -> None:
     """
     Assert that an entity was retrieved successfully.
@@ -166,7 +166,7 @@ def assert_db_committed(
 
 def assert_cache_invalidated(
     mock_cache_delete: MagicMock,
-    expected_key: Optional[str] = None,
+    expected_key: str | None = None,
 ) -> None:
     """
     Assert that cache was invalidated.
@@ -205,8 +205,8 @@ def assert_not_found(result: Any) -> None:
 def assert_service_called_with(
     mock_service: AsyncMock,
     method_name: str,
-    expected_args: Optional[tuple] = None,
-    expected_kwargs: Optional[dict] = None,
+    expected_args: tuple | None = None,
+    expected_kwargs: dict | None = None,
 ) -> None:
     """
     Assert that a service method was called with expected arguments.

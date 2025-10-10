@@ -5,11 +5,11 @@ Provides a lightweight feature flag system with Redis backend and in-memory cach
 Supports simple on/off flags, context-based evaluation, and A/B testing.
 """
 
+import inspect
 import json
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
-import inspect
 
 import redis.asyncio as redis
 import structlog
@@ -21,7 +21,7 @@ logger = structlog.get_logger(__name__)
 
 # In-memory cache for fast lookups
 _flag_cache = TTLCache(maxsize=1000, ttl=60)  # 1 minute TTL
-_redis_client: redis.Redis[Any] | None = None
+_redis_client: redis.Redis | None = None
 _redis_available: bool | None = None  # Cache Redis availability check
 
 

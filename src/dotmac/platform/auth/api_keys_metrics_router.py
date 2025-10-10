@@ -21,7 +21,7 @@ logger = structlog.get_logger(__name__)
 # Cache TTL (in seconds)
 API_KEYS_STATS_CACHE_TTL = 300  # 5 minutes
 
-router = APIRouter(prefix="/api-keys", tags=["API Keys Metrics"])
+router = APIRouter(tags=["API Keys Metrics"])
 
 
 # ============================================================================

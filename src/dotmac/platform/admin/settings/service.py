@@ -522,7 +522,10 @@ class SettingsManagementService:
         """Get last update time for a category from audit logs."""
         for log in self._audit_logs:
             if log.category == category:
-                return log.timestamp
+                timestamp = log.timestamp
+                if isinstance(timestamp, datetime):
+                    return timestamp
+                return None
         return None
 
     def _get_last_update_info(self, category: SettingsCategory) -> dict[str, Any]:

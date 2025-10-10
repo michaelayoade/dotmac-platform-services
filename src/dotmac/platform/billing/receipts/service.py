@@ -329,7 +329,9 @@ class ReceiptService:
         else:
             # Create simple line item from payment
             payment_extra = payment.extra_data or {}
-            description = cast(str, payment_extra.get("description", f"Payment {payment.payment_id}"))
+            description = cast(
+                str, payment_extra.get("description", f"Payment {payment.payment_id}")
+            )
             product_id = cast(str | None, payment_extra.get("product_id"))
             line_items.append(
                 ReceiptLineItem(

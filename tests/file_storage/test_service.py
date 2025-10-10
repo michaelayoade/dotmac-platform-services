@@ -4,15 +4,11 @@ Tests for file storage service.
 
 import hashlib
 import json
-import uuid
-from datetime import datetime, UTC
-from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from dotmac.platform.file_storage.service import (
-    FileMetadata,
     FileStorageService,
     LocalFileStorage,
     MemoryFileStorage,
@@ -524,7 +520,7 @@ class TestEndToEndFileOperations:
             assert metadata["file_name"] == "e2e_test.txt"
             assert metadata["content_type"] == "text/plain"
             assert metadata["metadata"]["author"] == "test_user"
-            print(f"✓ File retrieved successfully")
+            print("✓ File retrieved successfully")
 
             # 3. Update metadata
             success = await service.update_file_metadata(
@@ -537,22 +533,22 @@ class TestEndToEndFileOperations:
             )
 
             assert success is True
-            print(f"✓ Metadata updated")
+            print("✓ Metadata updated")
 
             # 4. List files
             files = await service.list_files(tenant_id="test_tenant")
             assert len(files) >= 1
             assert any(f.file_id == file_id for f in files)
-            print(f"✓ File listed in storage")
+            print("✓ File listed in storage")
 
             # 5. Delete the file
             deleted = await service.delete_file(file_id, "test_tenant")
             assert deleted is True
-            print(f"✓ File deleted")
+            print("✓ File deleted")
 
             # 6. Verify deletion
             retrieved_after_delete, _ = await service.retrieve_file(file_id, "test_tenant")
             assert retrieved_after_delete is None
-            print(f"✓ File no longer accessible after deletion")
+            print("✓ File no longer accessible after deletion")
 
             print("\n✅ Complete file lifecycle test passed!")

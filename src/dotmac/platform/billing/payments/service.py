@@ -1,11 +1,10 @@
-"""
-Payment processing service with tenant support and idempotency
-"""
+"""Payment processing service with tenant support and idempotency."""
 
-import logging
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
+import structlog
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +30,7 @@ from dotmac.platform.billing.payments.providers import PaymentProvider
 from dotmac.platform.webhooks.events import get_event_bus
 from dotmac.platform.webhooks.models import WebhookEvent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class PaymentService:
@@ -616,6 +615,172 @@ class PaymentService:
 
         await self.db.commit()
         await self.db.refresh(payment)
+
+        return Payment.model_validate(payment)
+
+    async def get_payment(self, tenant_id: str, payment_id: str) -> Payment | None:
+        """Get payment by ID with tenant isolation.
+
+        This method is used by webhook handlers to retrieve payment records.
+
+        Args:
+            tenant_id: Tenant identifier
+            payment_id: Payment identifier
+
+        Returns:
+            Payment object if found, None otherwise
+        """
+        payment_entity = await self._get_payment_entity(tenant_id, payment_id)
+        if not payment_entity:
+            return None
+        return Payment.model_validate(payment_entity)
+
+    async def update_payment_status(
+        self,
+        tenant_id: str,
+        payment_id: str,
+        new_status: PaymentStatus,
+        provider_data: dict[str, Any] | None = None,
+        error_message: str | None = None,
+    ) -> Payment:
+        """Update payment status from webhook notification.
+
+        This method is called by webhook handlers when payment providers
+        send status updates (success, failure, refund, etc.).
+
+        Args:
+            tenant_id: Tenant identifier
+            payment_id: Payment identifier
+            new_status: New payment status
+            provider_data: Optional provider-specific data to store
+            error_message: Optional error message for failed payments
+
+        Returns:
+            Updated Payment object
+
+        Raises:
+            PaymentNotFoundError: If payment not found
+        """
+        payment = await self._get_payment_entity(tenant_id, payment_id)
+        if not payment:
+            raise PaymentNotFoundError(f"Payment {payment_id} not found")
+
+        old_status = payment.status
+        payment.status = new_status
+        payment.updated_at = datetime.now(UTC)
+
+        # Set processed timestamp for terminal states
+        if new_status in (PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.REFUNDED):
+            if not payment.processed_at:
+                payment.processed_at = datetime.now(UTC)
+
+        # Store provider-specific data
+        if provider_data:
+            if payment.provider_payment_data:
+                payment.provider_payment_data.update(provider_data)
+            else:
+                payment.provider_payment_data = provider_data
+
+        # Store error message for failures
+        if error_message:
+            payment.failure_reason = error_message
+
+        await self.db.commit()
+        await self.db.refresh(payment)
+
+        # Log status change
+        logger.info(
+            "Payment status updated via webhook",
+            payment_id=payment_id,
+            old_status=old_status.value,
+            new_status=new_status.value,
+            tenant_id=tenant_id,
+        )
+
+        return Payment.model_validate(payment)
+
+    async def process_refund_notification(
+        self,
+        tenant_id: str,
+        payment_id: str,
+        refund_amount: Decimal,
+        provider_refund_id: str | None = None,
+        reason: str | None = None,
+    ) -> Payment:
+        """Process refund notification from payment provider webhook.
+
+        This is distinct from refund_payment which initiates refunds.
+        This method updates our records when the provider notifies us
+        of a refund (either initiated externally or via our system).
+
+        Args:
+            tenant_id: Tenant identifier
+            payment_id: Payment identifier
+            refund_amount: Amount refunded
+            provider_refund_id: Provider's refund transaction ID
+            reason: Reason for refund
+
+        Returns:
+            Updated Payment object
+
+        Raises:
+            PaymentNotFoundError: If payment not found
+            PaymentError: If refund amount exceeds payment amount
+        """
+        payment = await self._get_payment_entity(tenant_id, payment_id)
+        if not payment:
+            raise PaymentNotFoundError(f"Payment {payment_id} not found")
+
+        # Validate refund amount
+        current_refunded = payment.refund_amount or Decimal("0")
+        total_refunded = current_refunded + refund_amount
+
+        if total_refunded > payment.amount:
+            raise PaymentError(
+                f"Refund amount {total_refunded} exceeds payment amount {payment.amount}"
+            )
+
+        # Update payment record
+        payment.refund_amount = total_refunded
+        payment.updated_at = datetime.now(UTC)
+
+        # Set status based on refund amount
+        if total_refunded >= payment.amount:
+            payment.status = PaymentStatus.REFUNDED
+            payment.refunded_at = datetime.now(UTC)
+        elif total_refunded > 0:
+            payment.status = PaymentStatus.PARTIALLY_REFUNDED
+
+        # Store refund details in provider data
+        refund_data = {
+            "refund_amount": str(refund_amount),
+            "refund_reason": reason or "Refund via provider",
+            "refunded_at": datetime.now(UTC).isoformat(),
+        }
+        if provider_refund_id:
+            refund_data["provider_refund_id"] = provider_refund_id
+
+        if payment.provider_payment_data:
+            if "refunds" not in payment.provider_payment_data:
+                payment.provider_payment_data["refunds"] = []
+            payment.provider_payment_data["refunds"].append(refund_data)
+        else:
+            payment.provider_payment_data = {"refunds": [refund_data]}
+
+        await self.db.commit()
+        await self.db.refresh(payment)
+
+        # Create refund transaction
+        await self._create_transaction(payment, TransactionType.REFUND)
+
+        logger.info(
+            "Refund processed from webhook notification",
+            payment_id=payment_id,
+            refund_amount=str(refund_amount),
+            total_refunded=str(total_refunded),
+            status=payment.status.value,
+            tenant_id=tenant_id,
+        )
 
         return Payment.model_validate(payment)
 

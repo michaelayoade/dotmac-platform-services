@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 # Cache TTL (in seconds)
 FILES_STATS_CACHE_TTL = 300  # 5 minutes
 
-router = APIRouter(prefix="/files", tags=["File Storage Stats"])
+router = APIRouter(tags=["File Storage Stats"])
 
 
 # ============================================================================

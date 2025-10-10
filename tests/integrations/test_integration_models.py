@@ -1,12 +1,10 @@
 """Tests for integration models and dataclasses."""
 
-import pytest
-
 from dotmac.platform.integrations import (
-    IntegrationStatus,
-    IntegrationType,
     IntegrationConfig,
     IntegrationHealth,
+    IntegrationStatus,
+    IntegrationType,
 )
 
 

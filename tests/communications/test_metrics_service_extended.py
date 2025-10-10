@@ -2,7 +2,7 @@
 Extended tests for communication metrics service to improve coverage.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -16,8 +16,8 @@ from dotmac.platform.communications.metrics_service import (
 from dotmac.platform.communications.models import (
     CommunicationLog,
     CommunicationStats,
-    CommunicationType,
     CommunicationStatus,
+    CommunicationType,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -241,7 +241,7 @@ class TestGetStatsWithFilters:
         result_mock.__iter__ = MagicMock(return_value=iter([row_mock]))
         mock_db_session.execute.return_value = result_mock
 
-        start_date = datetime.now(timezone.utc) - timedelta(days=7)
+        start_date = datetime.now(UTC) - timedelta(days=7)
 
         # Execute
         stats = await metrics_service.get_stats(
@@ -267,7 +267,7 @@ class TestGetStatsWithFilters:
         result_mock.__iter__ = MagicMock(return_value=iter([row_mock]))
         mock_db_session.execute.return_value = result_mock
 
-        end_date = datetime.now(timezone.utc)
+        end_date = datetime.now(UTC)
 
         # Execute
         stats = await metrics_service.get_stats(
@@ -388,7 +388,7 @@ class TestAggregateDailyStats:
     @pytest.mark.asyncio
     async def test_aggregate_daily_stats_specific_date(self, metrics_service, mock_db_session):
         """Test aggregating stats for a specific date."""
-        specific_date = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        specific_date = datetime(2024, 1, 15, tzinfo=UTC)
 
         # Setup mocks
         status_result_mock = MagicMock()
@@ -434,7 +434,7 @@ class TestAggregateDailyStats:
         # Create existing stats entry with proper attribute initialization
         existing_stats = MagicMock(spec=CommunicationStats)
         existing_stats.id = uuid4()
-        existing_stats.stats_date = datetime.now(timezone.utc).replace(
+        existing_stats.stats_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         existing_stats.type = CommunicationType.EMAIL

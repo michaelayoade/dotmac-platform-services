@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 # Cache TTL (in seconds)
 ACTIVITY_CACHE_TTL = 300  # 5 minutes
 
-router = APIRouter(prefix="/analytics", tags=["Analytics Activity"])
+router = APIRouter(tags=["Analytics Activity"])
 
 
 # ============================================================================
@@ -187,8 +187,8 @@ async def get_analytics_activity_stats(
 
         return ActivityStatsResponse(**stats_data)
 
-    except Exception as e:
-        logger.error("Failed to fetch analytics activity stats", error=str(e), exc_info=True)
+    except (RuntimeError, ValueError, TypeError, ConnectionError) as exc:
+        logger.error("Failed to fetch analytics activity stats", error=str(exc), exc_info=True)
         # Return safe defaults on error
         return ActivityStatsResponse(
             total_events=0,

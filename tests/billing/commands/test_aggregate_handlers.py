@@ -5,27 +5,26 @@ Tests that command handlers properly use domain aggregates,
 enforce business rules, and publish domain events.
 """
 
-import pytest
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import uuid4
 
-from dotmac.platform.core import Money
+import pytest
+
 from dotmac.platform.billing.commands.aggregate_handlers import (
     AggregateInvoiceCommandHandler,
     AggregatePaymentCommandHandler,
 )
 from dotmac.platform.billing.commands.invoice_commands import (
-    CreateInvoiceCommand,
-    VoidInvoiceCommand,
     ApplyPaymentToInvoiceCommand,
+    CreateInvoiceCommand,
     MarkInvoiceAsPaidCommand,
+    VoidInvoiceCommand,
 )
 from dotmac.platform.billing.commands.payment_commands import (
     CreatePaymentCommand,
     RefundPaymentCommand,
 )
 from dotmac.platform.billing.domain import Invoice, Payment
+from dotmac.platform.core import Money
 from dotmac.platform.core.exceptions import BusinessRuleError
 
 

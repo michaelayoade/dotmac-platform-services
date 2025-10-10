@@ -11,6 +11,21 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+# Configure SQLite for all tests by default (unless explicitly overridden)
+# This prevents database authentication errors when PostgreSQL is not running
+# Override with: DOTMAC_DATABASE_URL_ASYNC=postgresql://... pytest
+#
+# IMPORTANT: We unset DATABASE_URL to prevent the Settings class from using
+# the PostgreSQL connection from .env file. The test fixtures will use
+# DOTMAC_DATABASE_URL_ASYNC which defaults to SQLite in async_db_engine fixture.
+if "DATABASE_URL" in os.environ and "DOTMAC_DATABASE_URL_ASYNC" not in os.environ:
+    # User has DATABASE_URL set but not test override - remove it for tests
+    del os.environ["DATABASE_URL"]
+if "DOTMAC_DATABASE_URL_ASYNC" not in os.environ:
+    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = "sqlite+aiosqlite:///:memory:"
+if "DOTMAC_DATABASE_URL" not in os.environ:
+    os.environ["DOTMAC_DATABASE_URL"] = "sqlite:///:memory:"
+
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -96,6 +111,7 @@ try:
     from sqlalchemy.engine import make_url
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.pool import StaticPool
 
     HAS_SQLALCHEMY = True
 except ImportError:
@@ -131,8 +147,8 @@ try:
 
     try:
         from dotmac.platform.billing import models as billing_models  # noqa: F401
-        from dotmac.platform.billing.core import entities as billing_entities  # noqa: F401
         from dotmac.platform.billing.bank_accounts import entities as bank_entities  # noqa: F401
+        from dotmac.platform.billing.core import entities as billing_entities  # noqa: F401
     except ImportError:
         pass
 
@@ -300,7 +316,10 @@ if HAS_SQLALCHEMY:
             except Exception:
                 url = None
 
-            if url is not None and url.get_backend_name().startswith("sqlite"):
+            # SQLite-specific configuration
+            is_sqlite = url is not None and url.get_backend_name().startswith("sqlite")
+            if is_sqlite:
+                connect_args["check_same_thread"] = False
                 database = url.database
                 if database and database != ":memory":
                     candidate = Path(database)
@@ -308,14 +327,23 @@ if HAS_SQLALCHEMY:
                         candidate = Path.cwd() / candidate
                     candidate.parent.mkdir(parents=True, exist_ok=True)
 
-            engine = create_async_engine(
-                db_url,
-                connect_args=connect_args,
-                pool_size=20,  # Increase pool size for tests
-                max_overflow=30,  # Allow overflow connections
-                pool_pre_ping=True,  # Verify connections before use
-                pool_recycle=3600,  # Recycle connections every hour
-            )
+            # Create engine with SQLite-specific pooling for in-memory databases
+            if is_sqlite:
+                engine = create_async_engine(
+                    db_url,
+                    connect_args=connect_args,
+                    poolclass=StaticPool,  # Required for SQLite in-memory async
+                    pool_pre_ping=True,
+                )
+            else:
+                engine = create_async_engine(
+                    db_url,
+                    connect_args=connect_args,
+                    pool_size=20,  # Increase pool size for tests
+                    max_overflow=30,  # Allow overflow connections
+                    pool_pre_ping=True,  # Verify connections before use
+                    pool_recycle=3600,  # Recycle connections every hour
+                )
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
@@ -326,8 +354,8 @@ if HAS_SQLALCHEMY:
                 if HAS_DATABASE_BASE:
                     async with engine.begin() as conn:
                         await conn.run_sync(Base.metadata.drop_all)
-                # Properly dispose of the engine with close flag to avoid RuntimeWarnings
-                await engine.dispose(close=False)
+                # Force close all connections to prevent event loop issues across tests
+                await engine.dispose(close=True)
                 # Give asyncio a chance to clean up pending tasks
                 await asyncio.sleep(0)
 
@@ -354,7 +382,10 @@ if HAS_SQLALCHEMY:
             except Exception:
                 url = None
 
-            if url is not None and url.get_backend_name().startswith("sqlite"):
+            # SQLite-specific configuration
+            is_sqlite = url is not None and url.get_backend_name().startswith("sqlite")
+            if is_sqlite:
+                connect_args["check_same_thread"] = False
                 database = url.database
                 if database and database != ":memory":
                     candidate = Path(database)
@@ -362,14 +393,23 @@ if HAS_SQLALCHEMY:
                         candidate = Path.cwd() / candidate
                     candidate.parent.mkdir(parents=True, exist_ok=True)
 
-            engine = create_async_engine(
-                db_url,
-                connect_args=connect_args,
-                pool_size=20,  # Increase pool size for tests
-                max_overflow=30,  # Allow overflow connections
-                pool_pre_ping=True,  # Verify connections before use
-                pool_recycle=3600,  # Recycle connections every hour
-            )
+            # Create engine with SQLite-specific pooling for in-memory databases
+            if is_sqlite:
+                engine = create_async_engine(
+                    db_url,
+                    connect_args=connect_args,
+                    poolclass=StaticPool,  # Required for SQLite in-memory async
+                    pool_pre_ping=True,
+                )
+            else:
+                engine = create_async_engine(
+                    db_url,
+                    connect_args=connect_args,
+                    pool_size=20,  # Increase pool size for tests
+                    max_overflow=30,  # Allow overflow connections
+                    pool_pre_ping=True,  # Verify connections before use
+                    pool_recycle=3600,  # Recycle connections every hour
+                )
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
@@ -380,8 +420,8 @@ if HAS_SQLALCHEMY:
                 if HAS_DATABASE_BASE:
                     async with engine.begin() as conn:
                         await conn.run_sync(Base.metadata.drop_all)
-                # Properly dispose of the engine with close flag to avoid RuntimeWarnings
-                await engine.dispose(close=False)
+                # Force close all connections to prevent event loop issues across tests
+                await engine.dispose(close=True)
                 # Give asyncio a chance to clean up pending tasks
                 await asyncio.sleep(0)
 
@@ -440,7 +480,7 @@ else:
 if HAS_FASTAPI:
 
     @pytest.fixture
-    def test_app():
+    def test_app(async_db_engine):
         """Test FastAPI application with routers and auth configured.
 
         This fixture provides a complete test app with:
@@ -448,17 +488,18 @@ if HAS_FASTAPI:
         - Auth system configured with test user
         - Proper dependency overrides for testing
         - Tenant middleware for multi-tenant support
+        - Database session override to prevent event loop issues
 
         Can be used by ALL router tests across all modules.
         """
-        from fastapi import FastAPI, Depends
-        from unittest.mock import Mock
+
+        from fastapi import FastAPI
 
         app = FastAPI(title="Test App")
 
         # Add tenant middleware for multi-tenant support
         try:
-            from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+            from dotmac.platform.tenant import TenantConfiguration, TenantMiddleware, TenantMode
 
             tenant_config = TenantConfiguration(
                 mode=TenantMode.MULTI,
@@ -472,8 +513,11 @@ if HAS_FASTAPI:
         # Setup auth override for testing
         # Override get_current_user to return test user
         try:
-            from dotmac.platform.auth.dependencies import get_current_user
             from dotmac.platform.auth.core import UserInfo
+            from dotmac.platform.auth.dependencies import (
+                get_current_user,
+                get_current_user_optional,
+            )
 
             async def override_get_current_user():
                 """Test user with admin permissions."""
@@ -487,6 +531,8 @@ if HAS_FASTAPI:
                 )
 
             app.dependency_overrides[get_current_user] = override_get_current_user
+            # Also override optional version for endpoints that accept unauthenticated requests
+            app.dependency_overrides[get_current_user_optional] = override_get_current_user
         except ImportError:
             pass
 
@@ -499,6 +545,30 @@ if HAS_FASTAPI:
                 return "test-tenant"
 
             app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+        except ImportError:
+            pass
+
+        # Override database session to use test engine
+        # This prevents event loop issues across tests
+        try:
+            from sqlalchemy.ext.asyncio import async_sessionmaker
+
+            from dotmac.platform.db import get_async_session
+
+            test_session_maker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+
+            async def override_get_async_session():
+                """Test database session using test engine."""
+                async with test_session_maker() as session:
+                    try:
+                        yield session
+                    except Exception:
+                        await session.rollback()
+                        raise
+                    finally:
+                        await session.close()
+
+            app.dependency_overrides[get_async_session] = override_get_async_session
         except ImportError:
             pass
 
@@ -549,7 +619,9 @@ if HAS_FASTAPI:
         try:
             from dotmac.platform.tenant.usage_billing_router import router as usage_billing_router
 
-            app.include_router(usage_billing_router, tags=["Tenant Usage Billing"])
+            app.include_router(
+                usage_billing_router, prefix="/api/v1/tenants", tags=["Tenant Usage Billing"]
+            )
         except ImportError:
             pass
 
@@ -635,6 +707,18 @@ if HAS_FASTAPI:
             from dotmac.platform.analytics.router import router as analytics_router
 
             app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
+        except ImportError:
+            pass
+
+        # Analytics Metrics
+        try:
+            from dotmac.platform.analytics.metrics_router import router as analytics_metrics_router
+
+            app.include_router(
+                analytics_metrics_router,
+                prefix="/api/v1/metrics/analytics",
+                tags=["Analytics Activity"],
+            )
         except ImportError:
             pass
 
@@ -726,6 +810,96 @@ if HAS_FASTAPI:
         except ImportError:
             pass
 
+        # ============================================================================
+        # Metrics Routers - All metrics endpoints
+        # ============================================================================
+
+        # Billing Metrics
+        try:
+            from dotmac.platform.billing.metrics_router import customer_metrics_router
+            from dotmac.platform.billing.metrics_router import router as billing_metrics_router
+
+            app.include_router(
+                billing_metrics_router, prefix="/api/v1/metrics/billing", tags=["Billing Metrics"]
+            )
+            app.include_router(
+                customer_metrics_router,
+                prefix="/api/v1/metrics/customers",
+                tags=["Customer Metrics"],
+            )
+        except ImportError:
+            pass
+
+        # Auth Metrics
+        try:
+            from dotmac.platform.auth.metrics_router import router as auth_metrics_router
+
+            app.include_router(
+                auth_metrics_router, prefix="/api/v1/metrics/auth", tags=["Auth Metrics"]
+            )
+        except ImportError:
+            pass
+
+        # API Keys Metrics
+        try:
+            from dotmac.platform.auth.api_keys_metrics_router import (
+                router as api_keys_metrics_router,
+            )
+
+            app.include_router(
+                api_keys_metrics_router,
+                prefix="/api/v1/metrics/api-keys",
+                tags=["API Keys Metrics"],
+            )
+        except ImportError:
+            pass
+
+        # Communications Metrics
+        try:
+            from dotmac.platform.communications.metrics_router import router as comms_metrics_router
+
+            app.include_router(
+                comms_metrics_router,
+                prefix="/api/v1/metrics/communications",
+                tags=["Communications Metrics"],
+            )
+        except ImportError:
+            pass
+
+        # File Storage Metrics
+        try:
+            from dotmac.platform.file_storage.metrics_router import router as files_metrics_router
+
+            app.include_router(
+                files_metrics_router, prefix="/api/v1/metrics/files", tags=["File Storage Metrics"]
+            )
+        except ImportError:
+            pass
+
+        # Secrets Metrics
+        try:
+            from dotmac.platform.secrets.metrics_router import router as secrets_metrics_router
+
+            app.include_router(
+                secrets_metrics_router, prefix="/api/v1/metrics/secrets", tags=["Secrets Metrics"]
+            )
+        except ImportError:
+            pass
+
+        # Monitoring Metrics
+        try:
+            from dotmac.platform.monitoring.metrics_router import (
+                router as monitoring_metrics_router,
+            )
+
+            app.include_router(
+                monitoring_metrics_router,
+                prefix="/api/v1/metrics/monitoring",
+                tags=["Monitoring Metrics"],
+            )
+        except ImportError:
+            pass
+
         # Search
         try:
             from dotmac.platform.search.router import router as search_router
@@ -765,7 +939,8 @@ if HAS_FASTAPI:
         @pytest_asyncio.fixture
         async def authenticated_client(test_app):
             """Async test client with authentication for testing protected endpoints."""
-            from httpx import AsyncClient, ASGITransport
+            from httpx import ASGITransport, AsyncClient
+
             from dotmac.platform.auth.core import JWTService
 
             # Create JWT service and generate a test token
@@ -786,7 +961,10 @@ if HAS_FASTAPI:
             async with AsyncClient(
                 transport=transport,
                 base_url="http://testserver",
-                headers={"Authorization": f"Bearer {test_token}"},
+                headers={
+                    "Authorization": f"Bearer {test_token}",
+                    "X-Tenant-ID": "test-tenant",  # Required by tenant middleware
+                },
             ) as client:
                 yield client
 
@@ -795,7 +973,8 @@ if HAS_FASTAPI:
         @pytest.fixture
         async def authenticated_client(test_app):
             """Async test client with authentication for testing protected endpoints."""
-            from httpx import AsyncClient, ASGITransport
+            from httpx import ASGITransport, AsyncClient
+
             from dotmac.platform.auth.core import JWTService
 
             # Create JWT service and generate a test token
@@ -816,7 +995,10 @@ if HAS_FASTAPI:
             async with AsyncClient(
                 transport=transport,
                 base_url="http://testserver",
-                headers={"Authorization": f"Bearer {test_token}"},
+                headers={
+                    "Authorization": f"Bearer {test_token}",
+                    "X-Tenant-ID": "test-tenant",  # Required by tenant middleware
+                },
             ) as client:
                 yield client
 
@@ -860,30 +1042,17 @@ def test_environment():
     """Set up test environment variables."""
     original_env = os.environ.copy()
 
-    tmp_dir = Path(os.getcwd()) / "tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    db_path = tmp_dir / "test_db.sqlite"
-    if db_path.exists():
-        db_path.unlink()
-
-    # Set test environment
+    # Set test environment with in-memory SQLite database
+    # Using :memory: eliminates file locking issues and improves test speed
     os.environ["ENVIRONMENT"] = "test"
     os.environ["DOTMAC_ENV"] = "test"
     os.environ["TESTING"] = "true"
-    os.environ["DOTMAC_TEST_DB_PATH"] = str(db_path)
-    os.environ["DOTMAC_DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
-    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+    os.environ["DOTMAC_DATABASE_URL"] = "sqlite:///:memory:"
+    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = "sqlite+aiosqlite:///:memory:"
 
     try:
         yield
     finally:
-        # Clean up temporary database file if it exists
-        try:
-            if db_path.exists():
-                db_path.unlink()
-        except OSError:
-            pass
-
         # Restore original environment
         os.environ.clear()
         os.environ.update(original_env)
@@ -1021,10 +1190,10 @@ if HAS_SQLALCHEMY:
         @pytest_asyncio.fixture
         async def test_payment_method(async_session):
             """Create test payment method in real database for integration tests."""
-            from dotmac.platform.billing.core.entities import PaymentMethodEntity
-            from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentMethodStatus
-
             from uuid import uuid4
+
+            from dotmac.platform.billing.core.entities import PaymentMethodEntity
+            from dotmac.platform.billing.core.enums import PaymentMethodStatus, PaymentMethodType
 
             payment_method = PaymentMethodEntity(
                 payment_method_id=str(uuid4()),  # Generate valid UUID
@@ -1048,7 +1217,7 @@ if HAS_SQLALCHEMY:
         @pytest_asyncio.fixture
         def mock_stripe_provider():
             """Mock Stripe payment provider for integration tests."""
-            from unittest.mock import AsyncMock, MagicMock
+            from unittest.mock import AsyncMock
 
             provider = AsyncMock()
             provider.charge_payment_method = AsyncMock()
@@ -1057,9 +1226,10 @@ if HAS_SQLALCHEMY:
         @pytest_asyncio.fixture
         async def test_subscription_plan(async_session):
             """Create test subscription plan in real database."""
+            from decimal import Decimal
+
             from dotmac.platform.billing.models import BillingSubscriptionPlanTable
             from dotmac.platform.billing.subscriptions.models import BillingCycle
-            from decimal import Decimal
 
             plan = BillingSubscriptionPlanTable(
                 plan_id="plan_test_123",
@@ -1085,7 +1255,7 @@ if HAS_SQLALCHEMY:
             This provides an authenticated async client for testing
             billing API endpoints.
             """
-            from httpx import AsyncClient, ASGITransport
+            from httpx import ASGITransport, AsyncClient
 
             transport = ASGITransport(app=test_app)
             async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -1135,10 +1305,10 @@ if HAS_SQLALCHEMY:
         @pytest.fixture
         async def test_payment_method(async_session):
             """Create test payment method in real database."""
-            from dotmac.platform.billing.core.entities import PaymentMethodEntity
-            from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentMethodStatus
-
             from uuid import uuid4
+
+            from dotmac.platform.billing.core.entities import PaymentMethodEntity
+            from dotmac.platform.billing.core.enums import PaymentMethodStatus, PaymentMethodType
 
             payment_method = PaymentMethodEntity(
                 payment_method_id=str(uuid4()),  # Generate valid UUID
@@ -1171,9 +1341,10 @@ if HAS_SQLALCHEMY:
         @pytest.fixture
         async def test_subscription_plan(async_session):
             """Create test subscription plan."""
+            from decimal import Decimal
+
             from dotmac.platform.billing.models import BillingSubscriptionPlanTable
             from dotmac.platform.billing.subscriptions.models import BillingCycle
-            from decimal import Decimal
 
             plan = BillingSubscriptionPlanTable(
                 plan_id="plan_test_123",
@@ -1195,7 +1366,7 @@ if HAS_SQLALCHEMY:
         @pytest.fixture
         async def client(test_app):
             """Async HTTP client for integration tests."""
-            from httpx import AsyncClient, ASGITransport
+            from httpx import ASGITransport, AsyncClient
 
             transport = ASGITransport(app=test_app)
             async with AsyncClient(transport=transport, base_url="http://testserver") as client:

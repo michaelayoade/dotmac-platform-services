@@ -4,19 +4,20 @@ Minimal integration tests for data_transfer factory module to achieve coverage.
 This file focuses on real factory usage with minimal mocking.
 """
 
-import pytest
 from unittest.mock import patch
 
-from dotmac.platform.data_transfer.factory import (
-    DataTransferRegistry,
-    DataTransferFactory,
-    detect_format,
-)
+import pytest
+
 from dotmac.platform.data_transfer.core import (
+    BaseExporter,
+    BaseImporter,
     DataFormat,
     FormatError,
-    BaseImporter,
-    BaseExporter,
+)
+from dotmac.platform.data_transfer.factory import (
+    DataTransferFactory,
+    DataTransferRegistry,
+    detect_format,
 )
 
 
@@ -211,7 +212,7 @@ class TestFactoryMinimal:
     @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_with_custom_config(self, mock_settings):
         """Test creating with custom configuration."""
-        from dotmac.platform.data_transfer.core import TransferConfig, ImportOptions
+        from dotmac.platform.data_transfer.core import ImportOptions, TransferConfig
 
         mock_settings.features.data_transfer_enabled = True
 
@@ -315,7 +316,7 @@ class TestFactoryMinimal:
     @patch("dotmac.platform.data_transfer.factory.settings")
     def test_create_exporter_with_custom_config(self, mock_settings):
         """Test creating exporter with custom configuration."""
-        from dotmac.platform.data_transfer.core import TransferConfig, ExportOptions
+        from dotmac.platform.data_transfer.core import ExportOptions, TransferConfig
 
         mock_settings.features.data_transfer_enabled = True
 
@@ -329,10 +330,10 @@ class TestFactoryMinimal:
     def test_all_convenience_functions(self):
         """Test all convenience functions."""
         from dotmac.platform.data_transfer.factory import (
-            create_importer,
-            create_exporter,
-            create_csv_importer,
             create_csv_exporter,
+            create_csv_importer,
+            create_exporter,
+            create_importer,
         )
 
         with patch("dotmac.platform.data_transfer.factory.settings") as mock_settings:
@@ -356,8 +357,8 @@ class TestFactoryMinimal:
     def test_excel_convenience_functions(self, mock_dep, mock_settings):
         """Test Excel convenience functions."""
         from dotmac.platform.data_transfer.factory import (
-            create_excel_importer,
             create_excel_exporter,
+            create_excel_importer,
         )
 
         mock_settings.features.data_transfer_enabled = True

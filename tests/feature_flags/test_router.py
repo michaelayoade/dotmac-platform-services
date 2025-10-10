@@ -5,27 +5,26 @@ Tests the REST API endpoints for managing feature flags including
 authentication, validation, and comprehensive management operations.
 """
 
-import json
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.feature_flags.router import (
+    BulkFlagUpdateRequest,
     FeatureFlagCheckRequest,
     FeatureFlagRequest,
-    BulkFlagUpdateRequest,
     feature_flags_router,
 )
-from dotmac.platform.auth.core import UserInfo
 
 
 @pytest.fixture
 def client():
     """Create test client with mocked authentication."""
     from fastapi import FastAPI
+
     from dotmac.platform.auth.core import get_current_user
 
     app = FastAPI()
@@ -50,6 +49,7 @@ def client():
 def regular_user_client():
     """Create test client with regular user (no admin privileges)."""
     from fastapi import FastAPI
+
     from dotmac.platform.auth.core import get_current_user
 
     app = FastAPI()
@@ -73,6 +73,7 @@ def regular_user_client():
 def feature_flag_admin_client():
     """Create test client with feature flag admin role."""
     from fastapi import FastAPI
+
     from dotmac.platform.auth.core import get_current_user
 
     app = FastAPI()

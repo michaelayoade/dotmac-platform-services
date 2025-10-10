@@ -10,37 +10,30 @@ Tests cover:
 - Health checks
 """
 
-import pytest
-import asyncio
-from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import AsyncMock, Mock, MagicMock, patch, mock_open
-from uuid import UUID, uuid4
 import json
-import csv
-import io
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, mock_open, patch
+from uuid import uuid4
 
-from dotmac.platform.data_import.tasks import (
-    process_import_job,
-    process_import_chunk,
-    get_async_session,
-    _update_job_task_id,
-    _mark_job_failed,
-    _process_customer_import,
-    _process_csv_in_chunks,
-    _process_json_in_chunks,
-    _process_data_chunk,
-    _record_failure,
-    _process_chunk_data,
-    check_import_health,
-    DEFAULT_CHUNK_SIZE,
-    MAX_CHUNK_SIZE,
-)
+import pytest
 
 from dotmac.platform.data_import.models import (
-    ImportJob,
-    ImportJobStatus,
     ImportJobType,
+)
+from dotmac.platform.data_import.tasks import (
+    DEFAULT_CHUNK_SIZE,
+    MAX_CHUNK_SIZE,
+    _mark_job_failed,
+    _process_csv_in_chunks,
+    _process_customer_import,
+    _process_json_in_chunks,
+    _record_failure,
+    _update_job_task_id,
+    check_import_health,
+    get_async_session,
+    process_import_chunk,
+    process_import_job,
 )
 
 
@@ -351,7 +344,7 @@ class TestCheckImportHealth:
         mock_result = {
             "status_counts": {},
             "recent_failures": 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         for key in expected_keys:

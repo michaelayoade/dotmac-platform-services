@@ -1,62 +1,52 @@
-"""
-Comprehensive tests for pricing engine service.
+"""Comprehensive tests for pricing engine service.
 
-Tests rule management, price calculation, discount application, and usage tracking.
-"""
+Tests rule management, price calculation, discount application, and usage tracking."""
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.pricing.service import (
-
-pytestmark = pytest.mark.asyncio
-
-    PricingEngine,
-    generate_rule_id,
-    generate_usage_id,
-)
+from dotmac.platform.billing.exceptions import InvalidPricingRuleError, PricingError
+from dotmac.platform.billing.models import BillingPricingRuleTable
 from dotmac.platform.billing.pricing.models import (
+    DiscountType,
+    PriceCalculationRequest,
     PricingRule,
     PricingRuleCreateRequest,
     PricingRuleUpdateRequest,
-    PriceCalculationRequest,
-    PriceCalculationContext,
-    DiscountType,
 )
-from dotmac.platform.billing.exceptions import (
-    PricingError,
-    InvalidPricingRuleError,
-)
-from dotmac.platform.billing.models import (
-    BillingPricingRuleTable,
-    BillingRuleUsageTable,
+from dotmac.platform.billing.pricing.service import (
+    PricingEngine,
+    generate_rule_id,
+    generate_usage_id,
 )
 
 
 class TestIDGenerators:
     """Test ID generator functions."""
 
-    def test_generate_rule_id(self):
+    def test_generate_rule_id(self) -> None:
         """Test rule ID generation."""
         rule_id = generate_rule_id()
         assert rule_id.startswith("rule_")
         assert len(rule_id) == 17  # "rule_" + 12 hex chars
 
-    def test_generate_rule_id_unique(self):
+    def test_generate_rule_id_unique(self) -> None:
         """Test rule IDs are unique."""
         ids = {generate_rule_id() for _ in range(100)}
         assert len(ids) == 100
 
-    def test_generate_usage_id(self):
+    def test_generate_usage_id(self) -> None:
         """Test usage ID generation."""
         usage_id = generate_usage_id()
         assert usage_id.startswith("usage_")
         assert len(usage_id) == 18  # "usage_" + 12 hex chars
 
-    def test_generate_usage_id_unique(self):
+    def test_generate_usage_id_unique(self) -> None:
         """Test usage IDs are unique."""
         ids = {generate_usage_id() for _ in range(100)}
         assert len(ids) == 100
@@ -65,7 +55,7 @@ class TestIDGenerators:
 class TestPricingEngineInitialization:
     """Test pricing engine initialization."""
 
-    def test_pricing_engine_initialization(self):
+    def test_pricing_engine_initialization(self) -> None:
         """Test pricing engine is initialized correctly."""
         engine = PricingEngine()
         assert engine.product_service is not None
@@ -75,7 +65,7 @@ class TestPricingEngineInitialization:
 class TestCreatePricingRule:
     """Test creating pricing rules."""
 
-    async def test_create_percentage_rule_success(self):
+    async def test_create_percentage_rule_success(self) -> None:
         """Test creating a percentage discount rule."""
         engine = PricingEngine()
 
@@ -104,8 +94,8 @@ class TestCreatePricingRule:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 0
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         mock_session = AsyncMock(spec=AsyncSession)
         mock_session.add = MagicMock()
@@ -116,7 +106,7 @@ class TestCreatePricingRule:
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             # Mock refresh to set attributes
-            async def mock_refresh_side_effect(obj):
+            async def mock_refresh_side_effect(obj: PricingRule) -> None:
                 for key, value in vars(mock_db_rule).items():
                     if not key.startswith("_"):
                         setattr(obj, key, value)
@@ -130,7 +120,7 @@ class TestCreatePricingRule:
         assert result.discount_value == Decimal("20")
         assert result.applies_to_categories == ["electronics"]
 
-    async def test_create_rule_with_no_applicability_fails(self):
+    async def test_create_rule_with_no_applicability_fails(self) -> None:
         """Test that rules without applicability fail."""
         engine = PricingEngine()
 
@@ -146,7 +136,7 @@ class TestCreatePricingRule:
 
         assert "must apply to at least something" in str(exc_info.value)
 
-    async def test_create_rule_excessive_percentage_discount_fails(self):
+    async def test_create_rule_excessive_percentage_discount_fails(self) -> None:
         """Test that percentage discounts over max fail."""
         engine = PricingEngine()
 
@@ -165,7 +155,7 @@ class TestCreatePricingRule:
 
             assert "cannot exceed" in str(exc_info.value)
 
-    async def test_create_fixed_amount_rule(self):
+    async def test_create_fixed_amount_rule(self) -> None:
         """Test creating a fixed amount discount rule."""
         engine = PricingEngine()
 
@@ -194,8 +184,8 @@ class TestCreatePricingRule:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 0
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         mock_session = AsyncMock(spec=AsyncSession)
         mock_session.add = MagicMock()
@@ -205,7 +195,7 @@ class TestCreatePricingRule:
         with patch("dotmac.platform.billing.pricing.service.get_async_session") as mock_get_session:
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            async def mock_refresh_side_effect(obj):
+            async def mock_refresh_side_effect(obj: PricingRule) -> None:
                 for key, value in vars(mock_db_rule).items():
                     if not key.startswith("_"):
                         setattr(obj, key, value)
@@ -222,7 +212,7 @@ class TestCreatePricingRule:
 class TestGetPricingRule:
     """Test retrieving pricing rules."""
 
-    async def test_get_pricing_rule_success(self):
+    async def test_get_pricing_rule_success(self) -> None:
         """Test getting a pricing rule by ID."""
         engine = PricingEngine()
 
@@ -244,8 +234,8 @@ class TestGetPricingRule:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 0
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_db_rule
@@ -261,7 +251,7 @@ class TestGetPricingRule:
         assert result.rule_id == "rule_123"
         assert result.name == "Test Rule"
 
-    async def test_get_pricing_rule_not_found(self):
+    async def test_get_pricing_rule_not_found(self) -> None:
         """Test getting non-existent rule raises error."""
         engine = PricingEngine()
 
@@ -284,7 +274,7 @@ class TestGetPricingRule:
 class TestListPricingRules:
     """Test listing pricing rules with filters."""
 
-    async def test_list_all_active_rules(self):
+    async def test_list_all_active_rules(self) -> None:
         """Test listing all active rules."""
         engine = PricingEngine()
 
@@ -306,7 +296,7 @@ class TestListPricingRules:
         assert rules[0].rule_id == "rule_1"
         assert rules[1].rule_id == "rule_2"
 
-    async def test_list_rules_filtered_by_product(self):
+    async def test_list_rules_filtered_by_product(self) -> None:
         """Test listing rules filtered by product ID."""
         engine = PricingEngine()
 
@@ -329,7 +319,7 @@ class TestListPricingRules:
         assert len(rules) == 1
         assert rules[0].applies_to_product_ids == ["prod_123"]
 
-    async def test_list_rules_filtered_by_category(self):
+    async def test_list_rules_filtered_by_category(self) -> None:
         """Test listing rules filtered by category."""
         engine = PricingEngine()
 
@@ -352,7 +342,7 @@ class TestListPricingRules:
         assert len(rules) == 1
         assert rules[0].applies_to_categories == ["electronics"]
 
-    def _create_mock_rule(self, rule_id: str, name: str, is_active: bool):
+    def _create_mock_rule(self, rule_id: str, name: str, is_active: bool) -> MagicMock:
         """Helper to create mock rule."""
         mock_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_rule.rule_id = rule_id
@@ -372,8 +362,8 @@ class TestListPricingRules:
         mock_rule.is_active = is_active
         mock_rule.metadata_json = {}
         mock_rule.priority = 0
-        mock_rule.created_at = datetime.now(timezone.utc)
-        mock_rule.updated_at = datetime.now(timezone.utc)
+        mock_rule.created_at = datetime.now(UTC)
+        mock_rule.updated_at = datetime.now(UTC)
         return mock_rule
 
 
@@ -381,7 +371,7 @@ class TestListPricingRules:
 class TestUpdatePricingRule:
     """Test updating pricing rules."""
 
-    async def test_update_rule_name(self):
+    async def test_update_rule_name(self) -> None:
         """Test updating rule name."""
         engine = PricingEngine()
 
@@ -403,8 +393,8 @@ class TestUpdatePricingRule:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 0
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_db_rule
@@ -420,7 +410,7 @@ class TestUpdatePricingRule:
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             # Update the name after commit
-            async def mock_commit_side_effect():
+            async def mock_commit_side_effect() -> None:
                 mock_db_rule.name = "New Name"
 
             mock_session.commit.side_effect = mock_commit_side_effect
@@ -429,7 +419,7 @@ class TestUpdatePricingRule:
 
         assert result.name == "New Name"
 
-    async def test_update_rule_not_found(self):
+    async def test_update_rule_not_found(self) -> None:
         """Test updating non-existent rule fails."""
         engine = PricingEngine()
 
@@ -454,7 +444,7 @@ class TestUpdatePricingRule:
 class TestDeactivatePricingRule:
     """Test deactivating pricing rules."""
 
-    async def test_deactivate_rule_success(self):
+    async def test_deactivate_rule_success(self) -> None:
         """Test deactivating a pricing rule."""
         engine = PricingEngine()
 
@@ -476,8 +466,8 @@ class TestDeactivatePricingRule:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 0
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_db_rule
@@ -494,7 +484,7 @@ class TestDeactivatePricingRule:
 
         assert result.is_active is False
 
-    async def test_deactivate_rule_not_found(self):
+    async def test_deactivate_rule_not_found(self) -> None:
         """Test deactivating non-existent rule fails."""
         engine = PricingEngine()
 
@@ -517,7 +507,7 @@ class TestDeactivatePricingRule:
 class TestPriceCalculation:
     """Test price calculation engine."""
 
-    async def test_calculate_price_with_percentage_discount(self):
+    async def test_calculate_price_with_percentage_discount(self) -> None:
         """Test price calculation with percentage discount."""
         engine = PricingEngine()
 
@@ -546,8 +536,8 @@ class TestPriceCalculation:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 10
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         request = PriceCalculationRequest(
             product_id="prod_123",
@@ -581,7 +571,7 @@ class TestPriceCalculation:
         assert len(result.applied_adjustments) == 1
         assert result.applied_adjustments[0].discount_type == DiscountType.PERCENTAGE
 
-    async def test_calculate_price_with_fixed_amount_discount(self):
+    async def test_calculate_price_with_fixed_amount_discount(self) -> None:
         """Test price calculation with fixed amount discount."""
         engine = PricingEngine()
 
@@ -610,8 +600,8 @@ class TestPriceCalculation:
         mock_db_rule.is_active = True
         mock_db_rule.metadata_json = {}
         mock_db_rule.priority = 5
-        mock_db_rule.created_at = datetime.now(timezone.utc)
-        mock_db_rule.updated_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
+        mock_db_rule.updated_at = datetime.now(UTC)
 
         request = PriceCalculationRequest(
             product_id="prod_123",
@@ -640,7 +630,7 @@ class TestPriceCalculation:
         assert result.final_price == Decimal("40.00")
         assert result.applied_adjustments[0].discount_type == DiscountType.FIXED_AMOUNT
 
-    async def test_calculate_price_no_applicable_rules(self):
+    async def test_calculate_price_no_applicable_rules(self) -> None:
         """Test price calculation with no applicable rules."""
         engine = PricingEngine()
 
@@ -679,7 +669,7 @@ class TestPriceCalculation:
 class TestRuleUsageTracking:
     """Test rule usage tracking."""
 
-    async def test_get_rule_usage_stats(self):
+    async def test_get_rule_usage_stats(self) -> None:
         """Test getting usage statistics for a rule."""
         engine = PricingEngine()
 
@@ -689,7 +679,7 @@ class TestRuleUsageTracking:
         mock_db_rule.current_uses = 5
         mock_db_rule.max_uses = 10
         mock_db_rule.is_active = True
-        mock_db_rule.created_at = datetime.now(timezone.utc)
+        mock_db_rule.created_at = datetime.now(UTC)
 
         mock_rule_result = MagicMock()
         mock_rule_result.scalar_one_or_none.return_value = mock_db_rule
@@ -702,7 +692,7 @@ class TestRuleUsageTracking:
         # Setup execute to return different results based on call
         call_count = 0
 
-        async def mock_execute(stmt):
+        async def mock_execute(stmt: Any) -> Any:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -724,7 +714,7 @@ class TestRuleUsageTracking:
         assert stats["max_uses"] == 10
         assert stats["usage_remaining"] == 5
 
-    async def test_reset_rule_usage(self):
+    async def test_reset_rule_usage(self) -> None:
         """Test resetting rule usage counter."""
         engine = PricingEngine()
 
@@ -752,7 +742,7 @@ class TestRuleUsageTracking:
 class TestRuleActivation:
     """Test rule activation/deactivation."""
 
-    async def test_activate_rule(self):
+    async def test_activate_rule(self) -> None:
         """Test activating a rule."""
         engine = PricingEngine()
 
@@ -775,7 +765,7 @@ class TestRuleActivation:
         assert success is True
         assert mock_db_rule.is_active is True
 
-    async def test_deactivate_rule(self):
+    async def test_deactivate_rule(self) -> None:
         """Test deactivating a rule."""
         engine = PricingEngine()
 
@@ -798,7 +788,7 @@ class TestRuleActivation:
         assert success is True
         assert mock_db_rule.is_active is False
 
-    async def test_bulk_activate_rules(self):
+    async def test_bulk_activate_rules(self) -> None:
         """Test bulk activating rules."""
         engine = PricingEngine()
 
@@ -811,7 +801,7 @@ class TestRuleActivation:
         assert results["failed"] == 1
         assert len(results["errors"]) == 1
 
-    async def test_bulk_deactivate_rules(self):
+    async def test_bulk_deactivate_rules(self) -> None:
         """Test bulk deactivating rules."""
         engine = PricingEngine()
 
@@ -828,7 +818,7 @@ class TestRuleActivation:
 class TestRuleConflictDetection:
     """Test rule conflict detection."""
 
-    async def test_detect_no_conflicts(self):
+    async def test_detect_no_conflicts(self) -> None:
         """Test detecting no conflicts when rules don't overlap."""
         engine = PricingEngine()
 
@@ -848,7 +838,7 @@ class TestRuleConflictDetection:
 
         assert len(conflicts) == 0
 
-    async def test_detect_priority_overlap_conflict(self):
+    async def test_detect_priority_overlap_conflict(self) -> None:
         """Test detecting priority overlap conflicts."""
         engine = PricingEngine()
 
@@ -872,8 +862,13 @@ class TestRuleConflictDetection:
         assert conflicts[0]["priority"] == 10
 
     def _create_mock_rule(
-        self, rule_id: str, name: str, product_ids: list, categories: list, priority: int
-    ):
+        self,
+        rule_id: str,
+        name: str,
+        product_ids: list[str],
+        categories: list[str],
+        priority: int,
+    ) -> MagicMock:
         """Helper to create mock rule for conflict detection."""
         mock_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_rule.rule_id = rule_id
@@ -893,6 +888,6 @@ class TestRuleConflictDetection:
         mock_rule.is_active = True
         mock_rule.metadata_json = {}
         mock_rule.priority = priority
-        mock_rule.created_at = datetime.now(timezone.utc)
-        mock_rule.updated_at = datetime.now(timezone.utc)
+        mock_rule.created_at = datetime.now(UTC)
+        mock_rule.updated_at = datetime.now(UTC)
         return mock_rule

@@ -6,9 +6,9 @@ Create Date: 2025-10-04 18:45:34.627393
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "5e2f03239595"
@@ -20,6 +20,7 @@ depends_on = None
 def upgrade() -> None:
     """Add user profile columns to users table."""
     from sqlalchemy import inspect
+
     from alembic import context
 
     conn = context.get_bind()

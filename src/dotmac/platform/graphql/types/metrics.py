@@ -225,3 +225,153 @@ class DashboardOverview:
     file_storage: FileStorageMetrics | None = strawberry.field(
         default=None, description="File storage metrics"
     )
+
+
+@strawberry.type
+class InfrastructureServiceStatus:
+    """Health status for an individual infrastructure service."""
+
+    name: str = strawberry.field(description="Service name")
+    status: str = strawberry.field(description="Service status (healthy/degraded/unhealthy)")
+    message: str | None = strawberry.field(
+        default=None, description="Optional diagnostic message for the service"
+    )
+
+
+@strawberry.type
+class InfrastructureHealth:
+    """Overall infrastructure health summary."""
+
+    status: str = strawberry.field(description="Overall health status")
+    uptime: float = strawberry.field(description="Overall system uptime percentage")
+    services: list[InfrastructureServiceStatus] = strawberry.field(
+        description="Individual service health statuses"
+    )
+
+
+@strawberry.type
+class ResourceUsageMetrics:
+    """Real-time resource usage metrics."""
+
+    cpu_usage: float = strawberry.field(description="CPU usage percentage")
+    memory_usage: float = strawberry.field(description="Memory usage percentage")
+    disk_usage: float = strawberry.field(description="Disk usage percentage")
+    network_in_mb: float = strawberry.field(description="Network ingress (MB)")
+    network_out_mb: float = strawberry.field(description="Network egress (MB)")
+
+
+@strawberry.type
+class PerformanceMetricsDetail:
+    """Detailed performance metrics for infrastructure."""
+
+    avg_response_time_ms: float = strawberry.field(description="Average response time (ms)")
+    p95_response_time_ms: float = strawberry.field(description="P95 response time (ms)")
+    p99_response_time_ms: float = strawberry.field(description="P99 response time (ms)")
+    total_requests: int = strawberry.field(description="Total requests processed")
+    successful_requests: int = strawberry.field(description="Successful requests")
+    failed_requests: int = strawberry.field(description="Failed requests")
+    requests_per_second: float = strawberry.field(description="Requests per second")
+    error_rate: float = strawberry.field(description="Error rate (%)")
+    high_latency_requests: int = strawberry.field(description="Requests over 1s latency")
+    timeout_count: int = strawberry.field(description="Request timeouts")
+
+
+@strawberry.type
+class LogMetricsSummary:
+    """Aggregated log metrics for infrastructure monitoring."""
+
+    total_logs: int = strawberry.field(description="Total logs in period")
+    critical_logs: int = strawberry.field(description="Critical severity logs")
+    warning_logs: int = strawberry.field(description="Warning severity logs")
+    info_logs: int = strawberry.field(description="Informational logs")
+    error_rate: float = strawberry.field(description="Error rate based on logs (%)")
+
+
+@strawberry.type
+class InfrastructureMetrics:
+    """Comprehensive infrastructure metrics for dashboard."""
+
+    health: InfrastructureHealth = strawberry.field(description="Overall health summary")
+    resources: ResourceUsageMetrics = strawberry.field(description="Resource usage metrics")
+    performance: PerformanceMetricsDetail = strawberry.field(description="Performance statistics")
+    logs: LogMetricsSummary = strawberry.field(description="Log summary metrics")
+    period: str = strawberry.field(description="Metrics period")
+    timestamp: datetime = strawberry.field(description="Metrics generation timestamp")
+
+
+@strawberry.type
+class APIKeyScopeUsage:
+    """Usage statistics for API key scopes."""
+
+    scope: str = strawberry.field(description="Scope name")
+    count: int = strawberry.field(description="Usage count for the scope")
+
+
+@strawberry.type
+class APIKeyMetrics:
+    """API key usage and security metrics."""
+
+    total_keys: int = strawberry.field(description="Total number of API keys")
+    active_keys: int = strawberry.field(description="Active keys")
+    inactive_keys: int = strawberry.field(description="Inactive keys")
+    expired_keys: int = strawberry.field(description="Expired keys")
+    keys_created_last_30d: int = strawberry.field(description="Keys created in last 30 days")
+    keys_used_last_7d: int = strawberry.field(description="Keys used in last 7 days")
+    keys_expiring_soon: int = strawberry.field(description="Keys expiring within 30 days")
+    total_api_requests: int = strawberry.field(description="Total API requests made with keys")
+    avg_requests_per_key: float = strawberry.field(description="Average requests per key")
+    never_used_keys: int = strawberry.field(description="Keys never used")
+    keys_without_expiry: int = strawberry.field(description="Keys without expiration date")
+    top_scopes: list[APIKeyScopeUsage] = strawberry.field(description="Top scopes by usage")
+    period: str = strawberry.field(description="Metrics period")
+    timestamp: datetime = strawberry.field(description="Metrics generation timestamp")
+
+
+@strawberry.type
+class HighFrequencyUser:
+    """User with high secret access frequency."""
+
+    user_id: str = strawberry.field(description="User identifier")
+    access_count: int = strawberry.field(description="Number of accesses by the user")
+
+
+@strawberry.type
+class SecretAccessSummary:
+    """Summary of secret access counts."""
+
+    secret_path: str = strawberry.field(description="Secret path/name")
+    access_count: int = strawberry.field(description="Access count for the secret")
+
+
+@strawberry.type
+class SecretsMetrics:
+    """Secrets management metrics."""
+
+    total_secrets_accessed: int = strawberry.field(description="Secrets accessed count")
+    total_secrets_created: int = strawberry.field(description="Secrets created count")
+    total_secrets_updated: int = strawberry.field(description="Secrets updated count")
+    total_secrets_deleted: int = strawberry.field(description="Secrets deleted count")
+    unique_secrets_accessed: int = strawberry.field(description="Unique secrets accessed")
+    unique_users_accessing: int = strawberry.field(description="Unique users accessing secrets")
+    avg_accesses_per_secret: float = strawberry.field(description="Average accesses per secret")
+    failed_access_attempts: int = strawberry.field(description="Failed access attempts")
+    after_hours_accesses: int = strawberry.field(description="After-hours accesses")
+    high_frequency_users: list[HighFrequencyUser] = strawberry.field(
+        description="Top users by access count"
+    )
+    most_accessed_secrets: list[SecretAccessSummary] = strawberry.field(
+        description="Top accessed secrets"
+    )
+    secrets_created_last_7d: int = strawberry.field(description="Secrets created in last 7 days")
+    secrets_deleted_last_7d: int = strawberry.field(description="Secrets deleted in last 7 days")
+    period: str = strawberry.field(description="Metrics period")
+    timestamp: datetime = strawberry.field(description="Metrics generation timestamp")
+
+
+@strawberry.type
+class SecurityOverview:
+    """Security metrics overview including auth, API keys, and secrets."""
+
+    auth: AuthMetrics = strawberry.field(description="Authentication metrics")
+    api_keys: APIKeyMetrics = strawberry.field(description="API key metrics")
+    secrets: SecretsMetrics = strawberry.field(description="Secrets management metrics")

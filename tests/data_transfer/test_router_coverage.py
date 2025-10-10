@@ -1,14 +1,15 @@
 """Tests to boost data_transfer router coverage to 90%+."""
 
+from unittest.mock import patch
+from uuid import uuid4
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
-from dotmac.platform.data_transfer.router import data_transfer_router
-from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.data_transfer.router import data_transfer_router
 
 
 def mock_current_user():

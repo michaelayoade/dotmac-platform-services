@@ -6,7 +6,6 @@ AFTER: ~120 lines using shared helpers (45% reduction)
 """
 
 from unittest.mock import AsyncMock, Mock
-from uuid import uuid4
 
 import pytest
 
@@ -19,11 +18,10 @@ from dotmac.platform.contacts.schemas import (
     ContactMethodCreate,
 )
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import (
-    create_entity_test_helper,
     assert_entity_created,
     build_mock_db_session,
+    create_entity_test_helper,
 )
 
 pytestmark = pytest.mark.asyncio

@@ -7,9 +7,23 @@ import importlib
 import xml.etree.ElementTree as ET
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import pandas as pd
+
+from .core import (
+    BaseImporter,
+    DataBatch,
+    DataFormat,
+    DataRecord,
+    FormatError,
+    ImportError,
+    ImportOptions,
+    ProgressCallback,
+    TransferConfig,
+    TransferStatus,
+)
+
 
 class _YamlProtocol(Protocol):
     """Minimal subset of yaml API used in this module."""
@@ -25,19 +39,6 @@ else:
         yaml = cast(_YamlProtocol, importlib.import_module("yaml"))
     except ImportError:  # pragma: no cover - optional dependency
         yaml = None
-
-from .core import (
-    BaseImporter,
-    DataBatch,
-    DataFormat,
-    DataRecord,
-    FormatError,
-    ImportError,
-    ImportOptions,
-    ProgressCallback,
-    TransferConfig,
-    TransferStatus,
-)
 
 
 class CSVImporter(BaseImporter):

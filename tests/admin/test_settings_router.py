@@ -4,25 +4,14 @@ Integration tests for admin settings management router.
 Tests all API endpoints with authentication and authorization.
 """
 
-import pytest
 import json
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from uuid import uuid4, UUID
-from fastapi import FastAPI, Depends, HTTPException
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from dotmac.platform.admin.settings.models import (
-    SettingsCategory,
-    SettingsResponse,
-    SettingsUpdateRequest,
-    SettingsValidationResult,
-    AuditLog,
-    SettingsBackup,
-    BulkSettingsUpdate,
-    SettingsExportRequest,
-    SettingsImportRequest,
-)
 from dotmac.platform.auth.core import UserInfo
 
 

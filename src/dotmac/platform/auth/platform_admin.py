@@ -9,6 +9,7 @@ Provides capabilities for SaaS platform administrators to:
 """
 
 from typing import Any
+
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 
@@ -267,7 +268,6 @@ class PlatformAdminAuditLogger:
             details: Additional details for audit trail
         """
         log_entry = {
-            "event": "platform_admin_action",
             "user_id": user.user_id,
             "user_email": user.email,
             "action": action,
@@ -278,7 +278,7 @@ class PlatformAdminAuditLogger:
             "details": details or {},
         }
 
-        # Use structured logging
+        # Use structured logging - "Platform admin action" becomes the event
         logger.warning("Platform admin action", **log_entry)
 
         # TODO: Also write to dedicated audit table for compliance

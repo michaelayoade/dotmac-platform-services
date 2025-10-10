@@ -6,15 +6,15 @@ their interfaces are compatible. They focus on integration points
 and data flow between modules.
 """
 
-import pytest
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 
 # Test module availability and imports
 try:
-    from dotmac.platform.auth.core import UserInfo, JWTService
+    from dotmac.platform.auth.core import JWTService, UserInfo
     from dotmac.platform.core.models import TenantContext
 
     HAS_AUTH_TENANT = True
@@ -22,8 +22,8 @@ except ImportError:
     HAS_AUTH_TENANT = False
 
 try:
-    from dotmac.platform.secrets.factory import SecretsManager, SecretsManagerFactory
     from dotmac.platform.auth.core import JWTService
+    from dotmac.platform.secrets.factory import SecretsManager, SecretsManagerFactory
 
     HAS_SECRETS_AUTH = True
 except ImportError:
@@ -463,7 +463,7 @@ class IntegrationTestHelper:
     """Helper class for integration testing."""
 
     @staticmethod
-    def simulate_user_workflow(user_data: Dict[str, Any]) -> Dict[str, Any]:
+    def simulate_user_workflow(user_data: dict[str, Any]) -> dict[str, Any]:
         """Simulate a complete user workflow across modules."""
         workflow_steps = [
             "authentication",
@@ -480,13 +480,13 @@ class IntegrationTestHelper:
         return results
 
     @staticmethod
-    def validate_cross_module_data_flow(data: Dict[str, Any]) -> bool:
+    def validate_cross_module_data_flow(data: dict[str, Any]) -> bool:
         """Validate that data flows correctly between modules."""
         required_fields = ["user_id", "tenant_id", "timestamp"]
         return all(field in data for field in required_fields)
 
     @staticmethod
-    def mock_external_dependencies() -> Dict[str, Mock]:
+    def mock_external_dependencies() -> dict[str, Mock]:
         """Create mocks for external dependencies."""
         return {"database": Mock(), "redis": Mock(), "file_system": Mock(), "external_api": Mock()}
 

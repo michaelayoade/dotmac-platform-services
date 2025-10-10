@@ -1,11 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { ReactNode, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, Shield, Users, Building2, Activity, Settings } from "lucide-react"
+import {
+  AlertCircle,
+  Shield,
+  Building2,
+  Activity,
+  Settings,
+  LayoutDashboard,
+  Search,
+  type LucideIcon,
+} from "lucide-react"
 import { PlatformStatsOverview } from "./components/PlatformStatsOverview"
 import { TenantManagement } from "./components/TenantManagement"
 import { SystemConfiguration } from "./components/SystemConfiguration"
@@ -19,10 +28,66 @@ interface PlatformAdminHealth {
   permissions: string[]
 }
 
+type NavigationSection = {
+  value: string
+  label: string
+  description: string
+  icon: LucideIcon
+  content: ReactNode
+  anchor?: string
+}
+
 export default function PlatformAdminDashboard() {
   const [health, setHealth] = useState<PlatformAdminHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const navigationSections = useMemo<NavigationSection[]>(
+    () => [
+      {
+        value: "overview",
+        label: "Dashboard & Stats",
+        description: "Monitor platform health and quick actions",
+        icon: LayoutDashboard,
+        content: <PlatformStatsOverview />,
+        anchor: "overview",
+      },
+      {
+        value: "tenants",
+        label: "Tenant Administration",
+        description: "Manage tenants, status, and impersonation",
+        icon: Building2,
+        content: <TenantManagement />,
+        anchor: "tenants",
+      },
+      {
+        value: "search",
+        label: "Cross-Tenant Search",
+        description: "Find users and resources across tenants",
+        icon: Search,
+        content: <CrossTenantSearch />,
+        anchor: "search",
+      },
+      {
+        value: "audit",
+        label: "Audit Activity",
+        description: "Review privileged administrator activity",
+        icon: Shield,
+        content: <AuditLogViewer />,
+        anchor: "audit",
+      },
+      {
+        value: "system",
+        label: "System Configuration",
+        description: "Feature flags and global configuration",
+        icon: Settings,
+        content: <SystemConfiguration />,
+        anchor: "system",
+      },
+    ],
+    []
+  )
+  const [activeSection, setActiveSection] = useState(() => navigationSections[0]?.value ?? "overview")
 
   useEffect(() => {
     checkPlatformAdminAccess()
@@ -51,6 +116,44 @@ export default function PlatformAdminDashboard() {
       setError("Failed to connect to platform admin API.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const syncTabWithHash = () => {
+      if (typeof window === "undefined") {
+        return
+      }
+      const hash = window.location.hash.replace("#", "")
+      if (!hash) {
+        return
+      }
+      const matched = navigationSections.find(
+        (section) => section.anchor === hash || section.value === hash
+      )
+      if (matched) {
+        setActiveSection(matched.value)
+      }
+    }
+
+    syncTabWithHash()
+    window.addEventListener("hashchange", syncTabWithHash)
+
+    return () => {
+      window.removeEventListener("hashchange", syncTabWithHash)
+    }
+  }, [navigationSections])
+
+  const handleSectionChange = (value: string) => {
+    setActiveSection(value)
+    if (typeof window === "undefined") {
+      return
+    }
+    const matched = navigationSections.find((section) => section.value === value)
+    if (matched?.anchor) {
+      window.history.replaceState(null, "", `#${matched.anchor}`)
+    } else {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search)
     }
   }
 
@@ -121,49 +224,60 @@ export default function PlatformAdminDashboard() {
       </Card>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="tenants" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Tenants
-          </TabsTrigger>
-          <TabsTrigger value="search" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Search
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Audit Log
-          </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            System
-          </TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeSection}
+        onValueChange={handleSectionChange}
+        className="lg:grid lg:grid-cols-[280px_1fr] lg:items-start lg:gap-6"
+      >
+        {/* Mobile navigation */}
+        <div className="lg:hidden">
+          <TabsList className="grid w-full grid-cols-2 gap-2 bg-transparent p-0">
+            {navigationSections.map((section) => (
+              <TabsTrigger
+                key={section.value}
+                value={section.value}
+                className="justify-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-medium data-[state=active]:border-primary data-[state=active]:bg-primary/10"
+              >
+                {section.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          <PlatformStatsOverview />
-        </TabsContent>
+        {/* Desktop side navigation */}
+        <aside className="hidden lg:block">
+          <TabsList className="flex h-full w-full flex-col items-stretch gap-2 rounded-lg bg-transparent p-0">
+            {navigationSections.map((section) => (
+              <TabsTrigger
+                key={section.value}
+                value={section.value}
+                className="justify-start gap-3 rounded-lg border border-transparent px-4 py-3 text-left text-sm font-semibold transition-colors data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary"
+              >
+                <section.icon className="h-4 w-4" />
+                <div className="flex flex-col">
+                  <span>{section.label}</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {section.description}
+                  </span>
+                </div>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </aside>
 
-        <TabsContent value="tenants" className="space-y-4">
-          <TenantManagement />
-        </TabsContent>
-
-        <TabsContent value="search" className="space-y-4">
-          <CrossTenantSearch />
-        </TabsContent>
-
-        <TabsContent value="audit" className="space-y-4">
-          <AuditLogViewer />
-        </TabsContent>
-
-        <TabsContent value="system" className="space-y-4">
-          <SystemConfiguration />
-        </TabsContent>
+        {/* Content */}
+        <div className="space-y-6 lg:col-start-2">
+          {navigationSections.map((section) => (
+            <TabsContent
+              key={section.value}
+              value={section.value}
+              id={section.anchor}
+              className="mt-0 space-y-6"
+            >
+              {section.content}
+            </TabsContent>
+          ))}
+        </div>
       </Tabs>
     </div>
   )

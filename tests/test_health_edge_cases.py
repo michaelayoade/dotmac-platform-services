@@ -5,21 +5,21 @@ Tests complex scenarios, error conditions, and edge cases
 to achieve maximum coverage of health_checks.py.
 """
 
+from unittest.mock import MagicMock, patch
+
+import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from contextlib import contextmanager
+from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import (
     RedisError,
-    ConnectionError as RedisConnectionError,
-    TimeoutError as RedisTimeoutError,
 )
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.exc import DatabaseError, OperationalError, SQLAlchemyError
-import httpx
 
 from dotmac.platform.monitoring.health_checks import (
-    ServiceStatus,
-    ServiceHealth,
     HealthChecker,
+    ServiceHealth,
+    ServiceStatus,
     check_startup_dependencies,
     ensure_infrastructure_running,
 )
@@ -204,7 +204,7 @@ class TestHealthCheckerEdgeCases:
 
             if "redis" in broker_url.lower():
                 with patch.object(health_checker, "_check_redis_url") as mock_check:
-                    mock_check.return_value = (True, f"Celery broker connection successful")
+                    mock_check.return_value = (True, "Celery broker connection successful")
 
                     result = health_checker.check_celery_broker()
                     assert result.name == "celery_broker"

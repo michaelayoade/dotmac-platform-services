@@ -4,25 +4,25 @@ This test verifies the complete authentication to RBAC permissions flow,
 ensuring the UUID conversion works correctly throughout.
 """
 
-import pytest
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.router import auth_router
-from dotmac.platform.auth.rbac_read_router import router as rbac_router
 from dotmac.platform.auth.core import hash_password
 from dotmac.platform.auth.models import Role
-from dotmac.platform.user_management.models import User
+from dotmac.platform.auth.rbac_read_router import router as rbac_router
+from dotmac.platform.auth.router import auth_router
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.user_management.models import User
 
 
 @pytest.fixture
 def app():
     """Create FastAPI app with auth and RBAC routers."""
-    from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+    from dotmac.platform.tenant import TenantConfiguration, TenantMiddleware, TenantMode
 
     app = FastAPI()
 
@@ -303,8 +303,9 @@ class TestUUIDConversionHelper:
 
     def test_ensure_uuid_with_string(self):
         """Test ensure_uuid converts string to UUID."""
-        from dotmac.platform.auth.core import ensure_uuid
         from uuid import UUID
+
+        from dotmac.platform.auth.core import ensure_uuid
 
         user_id_str = "550e8400-e29b-41d4-a716-446655440000"
         result = ensure_uuid(user_id_str)
@@ -314,8 +315,9 @@ class TestUUIDConversionHelper:
 
     def test_ensure_uuid_with_uuid(self):
         """Test ensure_uuid passes through UUID objects."""
-        from dotmac.platform.auth.core import ensure_uuid
         from uuid import UUID
+
+        from dotmac.platform.auth.core import ensure_uuid
 
         user_id_uuid = UUID("550e8400-e29b-41d4-a716-446655440000")
         result = ensure_uuid(user_id_uuid)

@@ -1,32 +1,30 @@
 """Comprehensive tests for auth exceptions to boost coverage to 90%."""
 
 import pytest
-from dotmac.platform.auth.exceptions import (
-    # Base exceptions
-    AuthError,
+
+from dotmac.platform.auth.exceptions import (  # Base exceptions; Token exceptions; Other exceptions
     AuthenticationError,
+    AuthError,
     AuthorizationError,
-    # Token exceptions
-    TokenError,
-    TokenExpired,
-    TokenNotFound,
-    InvalidToken,
-    InvalidSignature,
+    ConfigurationError,
+    ConnectionError,
+    InsufficientRole,
+    InsufficientScope,
     InvalidAlgorithm,
     InvalidAudience,
     InvalidIssuer,
-    # Other exceptions
-    InsufficientScope,
-    InsufficientRole,
-    TenantMismatch,
-    ServiceTokenError,
-    UnauthorizedService,
     InvalidServiceToken,
-    SecretsProviderError,
-    ConfigurationError,
+    InvalidSignature,
+    InvalidToken,
     RateLimitError,
-    ConnectionError,
+    SecretsProviderError,
+    ServiceTokenError,
+    TenantMismatch,
     TimeoutError,
+    TokenError,
+    TokenExpired,
+    TokenNotFound,
+    UnauthorizedService,
 )
 
 

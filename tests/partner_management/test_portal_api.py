@@ -1,19 +1,23 @@
 """Tests for Partner Portal API endpoints."""
 
-import pytest
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from dotmac.platform.partner_management.models import (
-    PartnerStatus,
-    PartnerTier,
     CommissionModel,
+    CommissionStatus,
+    PartnerPayout,
+    PartnerTier,
+    PayoutStatus,
     ReferralStatus,
 )
 from dotmac.platform.partner_management.schemas import (
-    PartnerCreate,
     PartnerAccountCreate,
     PartnerCommissionEventCreate,
+    PartnerCreate,
     ReferralLeadCreate,
 )
 
@@ -116,8 +120,8 @@ class TestPortalProfile:
 
     async def test_update_profile(self, async_db_session, test_tenant_id):
         """Test updating partner profile."""
-        from dotmac.platform.partner_management.service import PartnerService
         from dotmac.platform.partner_management.schemas import PartnerUpdate
+        from dotmac.platform.partner_management.service import PartnerService
 
         service = PartnerService(async_db_session)
 
@@ -182,8 +186,8 @@ class TestPortalReferrals:
 
     async def test_submit_referral(self, async_db_session, test_tenant_id):
         """Test submitting new referral."""
-        from dotmac.platform.partner_management.service import PartnerService
         from dotmac.platform.partner_management.schemas import ReferralLeadCreate
+        from dotmac.platform.partner_management.service import PartnerService
 
         service = PartnerService(async_db_session)
 
@@ -289,3 +293,126 @@ class TestPortalCustomers:
         assert len(customers) == 2
         assert all(c.is_active for c in customers)
         assert customers[0].engagement_type in ["direct", "referral"]
+
+
+@pytest.mark.asyncio
+class TestPortalStatements:
+    """Tests for partner statement endpoint."""
+
+    async def test_list_partner_statements(self, async_db_session, test_tenant_id):
+        """Partner statements aggregate payouts and linked commission events."""
+        from dotmac.platform.partner_management.portal_router import list_partner_statements
+        from dotmac.platform.partner_management.service import PartnerService
+
+        service = PartnerService(async_db_session)
+        partner = await service.create_partner(
+            PartnerCreate(company_name="Statement Partner", primary_email="statement@example.com"),
+        )
+
+        period_end = datetime.now(UTC)
+        period_start = period_end - timedelta(days=30)
+
+        payout = PartnerPayout(
+            id=uuid4(),
+            partner_id=partner.id,
+            tenant_id=partner.tenant_id,
+            total_amount=Decimal("950.00"),
+            currency="USD",
+            commission_count=2,
+            payment_reference="ACH-123",
+            payment_method="ach",
+            status=PayoutStatus.COMPLETED,
+            payout_date=datetime.now(UTC),
+            period_start=period_start,
+            period_end=period_end,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        async_db_session.add(payout)
+        await async_db_session.commit()
+        await async_db_session.refresh(payout)
+
+        # Create two commission events linked to the payout
+        base_amounts = [Decimal("400.00"), Decimal("300.00")]
+        commission_amounts = [Decimal("200.00"), Decimal("150.00")]
+
+        for base_amount, commission_amount in zip(base_amounts, commission_amounts, strict=True):
+            event = await service.create_commission_event(
+                PartnerCommissionEventCreate(
+                    partner_id=partner.id,
+                    customer_id=uuid4(),
+                    event_type="revenue_share",
+                    commission_amount=commission_amount,
+                    base_amount=base_amount,
+                ),
+            )
+            event.status = CommissionStatus.PAID
+            event.payout_id = payout.id
+            await async_db_session.commit()
+
+        statements = await list_partner_statements(partner=partner, db=async_db_session)
+
+        assert len(statements) == 1
+        statement = statements[0]
+        assert statement.revenue_total == sum(base_amounts)
+        assert statement.commission_total == sum(commission_amounts)
+        assert statement.adjustments_total == payout.total_amount - sum(commission_amounts)
+        assert statement.status == payout.status
+        expected_url = f"/api/v1/partners/portal/statements/{payout.id}/download"
+        assert statement.download_url == expected_url
+
+        from dotmac.platform.partner_management.portal_router import download_partner_statement
+
+        response = await download_partner_statement(
+            statement_id=payout.id, partner=partner, db=async_db_session
+        )
+        assert response.media_type == "text/csv"
+        assert "Content-Disposition" in response.headers
+        assert "partner_statement_" in response.headers["Content-Disposition"]
+        assert b"Statement ID" in response.body
+
+
+@pytest.mark.asyncio
+class TestPortalPayouts:
+    """Tests for partner payout history endpoint."""
+
+    async def test_list_partner_payouts(self, async_db_session, test_tenant_id):
+        """Ensure payouts are returned in a deterministic order."""
+        from dotmac.platform.partner_management.portal_router import list_partner_payouts
+        from dotmac.platform.partner_management.service import PartnerService
+
+        service = PartnerService(async_db_session)
+        partner = await service.create_partner(
+            PartnerCreate(company_name="Payout Partner", primary_email="payout@example.com"),
+        )
+
+        now = datetime.now(UTC)
+        payouts = []
+        for index, amount in enumerate([Decimal("500.00"), Decimal("250.00")]):
+            payout = PartnerPayout(
+                id=uuid4(),
+                partner_id=partner.id,
+                tenant_id=partner.tenant_id,
+                total_amount=amount,
+                currency="USD",
+                commission_count=1,
+                payment_reference=f"ACH-{100 + index}",
+                payment_method="wire",
+                status=PayoutStatus.PROCESSING if index == 0 else PayoutStatus.COMPLETED,
+                payout_date=now - timedelta(days=index * 7),
+                period_start=now - timedelta(days=(index + 1) * 30),
+                period_end=now - timedelta(days=index * 30),
+                created_at=now - timedelta(days=index * 7),
+                updated_at=now - timedelta(days=index * 7),
+            )
+            payouts.append(payout)
+            async_db_session.add(payout)
+
+        await async_db_session.commit()
+
+        result = await list_partner_payouts(partner=partner, db=async_db_session)
+
+        assert len(result) == len(payouts)
+        # Results should be ordered by payout_date desc
+        assert result[0].total_amount == payouts[0].total_amount
+        assert result[1].status == payouts[1].status

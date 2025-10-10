@@ -3,18 +3,13 @@ Tests for admin settings management functionality.
 """
 
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch
-from uuid import uuid4
 
 from dotmac.platform.admin.settings.models import (
-    AuditLog,
     SettingsCategory,
     SettingsCategoryInfo,
     SettingsResponse,
     SettingsUpdateRequest,
     SettingsValidationResult,
-    SettingField,
 )
 from dotmac.platform.admin.settings.service import SettingsManagementService
 
@@ -213,7 +208,7 @@ class TestSettingsManagementService:
         # Create some audit activity
         for i in range(5):
             update_request = SettingsUpdateRequest(
-                updates={f"smtp_host": f"host-{i}.example.com"},
+                updates={"smtp_host": f"host-{i}.example.com"},
                 validate_only=False,
             )
             service.update_category_settings(

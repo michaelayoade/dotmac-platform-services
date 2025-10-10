@@ -2,13 +2,14 @@
 Tests for search API router.
 """
 
-import pytest
-from unittest.mock import Mock, patch
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
+from unittest.mock import patch
 
-from dotmac.platform.search.router import search_router, SearchResult, SearchResponse
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.search.router import SearchResponse, SearchResult, search_router
 
 
 @pytest.fixture

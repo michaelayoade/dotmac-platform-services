@@ -4,15 +4,16 @@ Tests for missing coverage in vault_client.py.
 Focuses on error paths and edge cases not covered by existing tests.
 """
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
 import httpx
+import pytest
 
 from dotmac.platform.secrets.vault_client import (
-    VaultClient,
     AsyncVaultClient,
-    VaultError,
     VaultAuthenticationError,
+    VaultClient,
+    VaultError,
 )
 
 

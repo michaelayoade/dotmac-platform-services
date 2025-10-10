@@ -5,13 +5,14 @@ Tests all pricing rule router endpoints following the Two-Tier Testing Strategy.
 Coverage Target: 85%+ for router endpoints
 """
 
-import pytest
-from uuid import uuid4
 from unittest.mock import patch
+from uuid import uuid4
+
+import pytest
 from fastapi.testclient import TestClient
 
-from dotmac.platform.main import app
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.main import app
 
 
 @pytest.fixture

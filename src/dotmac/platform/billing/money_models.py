@@ -7,7 +7,7 @@ automatic currency validation, and locale-aware formatting.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Self
+from typing import Any
 
 from moneyed import Money
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator

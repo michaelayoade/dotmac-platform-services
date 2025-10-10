@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Reset and recreate the database."""
+import os
+
 import psycopg2
 from psycopg2 import sql
-from sqlalchemy import create_engine
-import os
 
 # Database settings
 DB_USER = os.getenv("DB_USER", "dotmac_user")

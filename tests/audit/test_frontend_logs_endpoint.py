@@ -5,12 +5,13 @@ Tests the POST /api/v1/audit/frontend-logs endpoint that accepts
 batched frontend logs from the client application.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from fastapi import status
 from httpx import AsyncClient
 
-from dotmac.platform.audit.models import ActivityType, ActivitySeverity
+from dotmac.platform.audit.models import ActivitySeverity, ActivityType
 
 
 @pytest.mark.asyncio
@@ -20,7 +21,7 @@ class TestFrontendLogsEndpoint:
     async def test_create_frontend_logs_unauthenticated(
         self, client: AsyncClient, async_db_session
     ):
-        """Test creating frontend logs without authentication (logs are skipped without tenant_id)."""
+        """Test creating frontend logs without authentication (uses default tenant)."""
         logs_data = {
             "logs": [
                 {
@@ -28,7 +29,7 @@ class TestFrontendLogsEndpoint:
                     "message": "Test error from frontend",
                     "service": "frontend",
                     "metadata": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "userAgent": "Mozilla/5.0",
                         "url": "http://localhost:3000/test",
                         "errorCode": 500,
@@ -39,7 +40,7 @@ class TestFrontendLogsEndpoint:
                     "message": "Test warning from frontend",
                     "service": "frontend",
                     "metadata": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "userAgent": "Mozilla/5.0",
                         "url": "http://localhost:3000/test",
                     },
@@ -53,11 +54,11 @@ class TestFrontendLogsEndpoint:
         result = response.json()
         assert result["status"] == "success"
         assert result["logs_received"] == 2
-        # Logs are skipped because there's no tenant_id for anonymous users
-        assert result["logs_stored"] == 0
+        # Logs are stored with default tenant for anonymous users
+        assert result["logs_stored"] == 2
 
     async def test_create_frontend_logs_authenticated(
-        self, authenticated_client: AsyncClient, async_db_session, current_user
+        self, authenticated_client: AsyncClient, async_db_session, mock_user_info
     ):
         """Test creating frontend logs with authentication."""
         logs_data = {
@@ -67,7 +68,7 @@ class TestFrontendLogsEndpoint:
                     "message": "User action logged",
                     "service": "frontend",
                     "metadata": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "userAgent": "Mozilla/5.0",
                         "url": "http://localhost:3000/dashboard",
                         "action": "button_click",
@@ -77,7 +78,10 @@ class TestFrontendLogsEndpoint:
             ]
         }
 
-        response = await authenticated_client.post("/api/v1/audit/frontend-logs", json=logs_data)
+        response = await authenticated_client.post(
+            "/api/v1/audit/frontend-logs",
+            json=logs_data,
+        )
 
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
@@ -85,7 +89,9 @@ class TestFrontendLogsEndpoint:
         assert result["logs_received"] == 1
         assert result["logs_stored"] == 1
 
-    async def test_create_frontend_logs_batched(self, client: AsyncClient, async_db_session):
+    async def test_create_frontend_logs_batched(
+        self, authenticated_client: AsyncClient, async_db_session
+    ):
         """Test creating a large batch of frontend logs."""
         logs = []
         for i in range(50):
@@ -95,7 +101,7 @@ class TestFrontendLogsEndpoint:
                     "message": f"Test log message {i}",
                     "service": "frontend",
                     "metadata": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "index": i,
                     },
                 }
@@ -103,7 +109,10 @@ class TestFrontendLogsEndpoint:
 
         logs_data = {"logs": logs}
 
-        response = await client.post("/api/v1/audit/frontend-logs", json=logs_data)
+        response = await authenticated_client.post(
+            "/api/v1/audit/frontend-logs",
+            json=logs_data,
+        )
 
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
@@ -200,10 +209,11 @@ class TestFrontendLogsEndpoint:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     async def test_frontend_logs_stored_correctly(
-        self, authenticated_client: AsyncClient, async_db_session, current_user
+        self, authenticated_client: AsyncClient, async_db_session
     ):
         """Test that frontend logs are stored correctly in audit_activities."""
         from sqlalchemy import select
+
         from dotmac.platform.audit.models import AuditActivity
 
         logs_data = {
@@ -213,7 +223,7 @@ class TestFrontendLogsEndpoint:
                     "message": "Critical error occurred",
                     "service": "frontend",
                     "metadata": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "userAgent": "Test Agent",
                         "url": "http://test.com",
                         "errorDetails": "Stack trace here",
@@ -222,9 +232,15 @@ class TestFrontendLogsEndpoint:
             ]
         }
 
-        response = await authenticated_client.post("/api/v1/audit/frontend-logs", json=logs_data)
+        response = await authenticated_client.post(
+            "/api/v1/audit/frontend-logs",
+            json=logs_data,
+        )
 
         assert response.status_code == status.HTTP_200_OK
+
+        # Refresh session to see committed data from API
+        await async_db_session.commit()
 
         # Query the database to verify storage
         stmt = select(AuditActivity).where(
@@ -236,15 +252,19 @@ class TestFrontendLogsEndpoint:
 
         assert activity is not None
         assert activity.severity == ActivitySeverity.HIGH.value
-        assert activity.user_id == current_user.user_id
+        # authenticated_client uses test-user-123
+        assert activity.user_id == "test-user-123"
         assert activity.details["level"] == "ERROR"
         assert activity.details["service"] == "frontend"
         assert activity.details["url"] == "http://test.com"
         assert activity.user_agent == "Test Agent"
 
-    async def test_frontend_logs_severity_mapping(self, client: AsyncClient, async_db_session):
+    async def test_frontend_logs_severity_mapping(
+        self, authenticated_client: AsyncClient, async_db_session
+    ):
         """Test that frontend log levels are correctly mapped to severities."""
         from sqlalchemy import select
+
         from dotmac.platform.audit.models import AuditActivity
 
         logs_data = {
@@ -270,8 +290,14 @@ class TestFrontendLogsEndpoint:
             ]
         }
 
-        response = await client.post("/api/v1/audit/frontend-logs", json=logs_data)
+        response = await authenticated_client.post(
+            "/api/v1/audit/frontend-logs",
+            json=logs_data,
+        )
         assert response.status_code == status.HTTP_200_OK
+
+        # Refresh session to see committed data from API
+        await async_db_session.commit()
 
         # Verify severity mappings
         stmt = select(AuditActivity).where(

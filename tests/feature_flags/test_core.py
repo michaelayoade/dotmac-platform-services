@@ -6,24 +6,23 @@ cache management, and flag evaluation logic.
 """
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 import redis.asyncio as redis
 
 from dotmac.platform.feature_flags.core import (
-    FeatureFlagError,
-    RedisUnavailableError,
+    _check_redis_availability,
+    _flag_cache,
     clear_cache,
     delete_flag,
     get_flag_status,
+    get_redis_client,
     get_variant,
     is_enabled,
     list_flags,
     set_flag,
     sync_from_redis,
-    _check_redis_availability,
-    get_redis_client,
-    _flag_cache,
 )
 
 pytestmark = pytest.mark.asyncio

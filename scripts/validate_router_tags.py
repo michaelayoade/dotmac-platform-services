@@ -11,7 +11,6 @@ Internal tags (cache keys, plugin metadata) are excluded from validation.
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 
 def get_api_router_tags():

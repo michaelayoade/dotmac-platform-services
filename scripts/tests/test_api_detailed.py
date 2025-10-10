@@ -3,10 +3,11 @@
 Detailed API endpoint testing for DotMac Platform Services.
 """
 
-import requests
 import json
-import tempfile
 import os
+import tempfile
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 
@@ -21,7 +22,7 @@ def print_response(response, description):
     if response.headers.get("content-type", "").startswith("application/json"):
         try:
             data = response.json()
-            print(f"📦 Response:")
+            print("📦 Response:")
             print(json.dumps(data, indent=2))
         except:
             print(f"📦 Response: {response.text[:200]}")

@@ -1,10 +1,11 @@
 """Tests for observability manager."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 from fastapi import FastAPI
 
-from dotmac.platform.observability.manager import ObservabilityMetricsRegistry, ObservabilityManager
+from dotmac.platform.observability.manager import ObservabilityManager, ObservabilityMetricsRegistry
 
 
 class TestObservabilityMetricsRegistry:

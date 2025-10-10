@@ -4,8 +4,8 @@ Seed development database with test data.
 Usage: python scripts/seed_data.py [--env=development]
 """
 
-import asyncio
 import argparse
+import asyncio
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,14 +13,16 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text
-from src.dotmac.platform.database import get_db_session, init_db
-from src.dotmac.platform.auth.models import User, Role, Permission
-from src.dotmac.platform.auth.password_service import PasswordService
-from src.dotmac.platform.tenant.models import Tenant, TenantUser
-from src.dotmac.platform.secrets.models import Secret
-from src.dotmac.platform.billing.models import Customer, Product, Price, Subscription, Invoice
 import logging
+
+from sqlalchemy import text
+from src.dotmac.platform.auth.password_service import PasswordService
+from src.dotmac.platform.secrets.models import Secret
+
+from src.dotmac.platform.auth.models import Permission, Role, User
+from src.dotmac.platform.billing.models import Customer, Invoice, Price, Product, Subscription
+from src.dotmac.platform.database import get_db_session, init_db
+from src.dotmac.platform.tenant.models import Tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

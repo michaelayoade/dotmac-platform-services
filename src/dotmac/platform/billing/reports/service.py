@@ -164,9 +164,10 @@ class BillingReportService:
     ) -> dict[str, Any]:
         """Generate detailed revenue report"""
 
-        return await self.revenue_generator.generate_detailed_report(
+        report: dict[str, Any] = await self.revenue_generator.generate_detailed_report(
             tenant_id, start_date, end_date, group_by
         )
+        return report
 
     async def generate_customer_report(
         self,
@@ -177,9 +178,10 @@ class BillingReportService:
     ) -> dict[str, Any]:
         """Generate customer analysis report"""
 
-        return await self.customer_generator.generate_customer_report(
+        report: dict[str, Any] = await self.customer_generator.generate_customer_report(
             tenant_id, start_date, end_date, top_n
         )
+        return report
 
     async def generate_aging_report(
         self,
@@ -188,9 +190,10 @@ class BillingReportService:
     ) -> dict[str, Any]:
         """Generate accounts receivable aging report"""
 
-        return await self.aging_generator.generate_aging_report(
+        report: dict[str, Any] = await self.aging_generator.generate_aging_report(
             tenant_id, as_of_date or datetime.now(UTC)
         )
+        return report
 
     async def generate_collections_report(
         self,
@@ -200,9 +203,10 @@ class BillingReportService:
     ) -> dict[str, Any]:
         """Generate collections performance report"""
 
-        return await self.aging_generator.generate_collections_report(
+        report: dict[str, Any] = await self.aging_generator.generate_collections_report(
             tenant_id, start_date, end_date
         )
+        return report
 
     async def generate_refunds_report(
         self,
@@ -212,7 +216,10 @@ class BillingReportService:
     ) -> dict[str, Any]:
         """Generate refunds and credit notes report"""
 
-        return await self.revenue_generator.generate_refunds_report(tenant_id, start_date, end_date)
+        report: dict[str, Any] = await self.revenue_generator.generate_refunds_report(
+            tenant_id, start_date, end_date
+        )
+        return report
 
     async def generate_custom_report(
         self,

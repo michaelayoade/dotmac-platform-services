@@ -1,17 +1,17 @@
 """Tests for distributed locks module."""
 
-import asyncio
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 
 # Import the entire module to ensure coverage tracking
 import dotmac.platform.core.distributed_locks
 from dotmac.platform.core.distributed_locks import (
-    get_redis_client,
-    distributed_lock,
-    try_lock,
-    release_lock,
     DistributedLock,
+    distributed_lock,
+    get_redis_client,
+    release_lock,
+    try_lock,
 )
 
 
@@ -33,7 +33,6 @@ class TestDistributedLocks:
     async def test_get_redis_client_creates_new(self, mock_settings, mock_from_url):
         """Test Redis client creation."""
         # Clear any existing client
-        import dotmac.platform.core.distributed_locks
 
         dotmac.platform.core.distributed_locks._redis_client = None
 
@@ -50,7 +49,6 @@ class TestDistributedLocks:
     async def test_get_redis_client_returns_existing(self):
         """Test Redis client returns existing instance."""
         # Set up existing client
-        import dotmac.platform.core.distributed_locks
 
         mock_existing_client = AsyncMock()
         dotmac.platform.core.distributed_locks._redis_client = mock_existing_client

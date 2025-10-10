@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import bz2
 import gzip
+import importlib
 import json
 import xml.etree.ElementTree as ET
 import zipfile
@@ -15,6 +15,21 @@ from typing import TYPE_CHECKING, Protocol, cast
 from xml.dom import minidom
 
 import pandas as pd
+
+from .core import (
+    BaseExporter,
+    CompressionType,
+    DataBatch,
+    DataFormat,
+    ExportError,
+    ExportOptions,
+    FormatError,
+    ProgressCallback,
+    ProgressInfo,
+    TransferConfig,
+    TransferStatus,
+)
+
 
 class _YamlProtocol(Protocol):
     """Minimal subset of yaml API used in this module."""
@@ -32,20 +47,6 @@ else:
         yaml = cast(_YamlProtocol, importlib.import_module("yaml"))
     except ImportError:  # pragma: no cover - optional dependency
         yaml = None
-
-from .core import (
-    BaseExporter,
-    CompressionType,
-    DataBatch,
-    DataFormat,
-    ExportError,
-    ExportOptions,
-    FormatError,
-    ProgressCallback,
-    ProgressInfo,
-    TransferConfig,
-    TransferStatus,
-)
 
 
 class CSVExporter(BaseExporter):

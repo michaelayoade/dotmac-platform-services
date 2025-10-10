@@ -13,14 +13,14 @@ Tests cover:
 - Request/Response model validation
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, Mock, patch
-from datetime import datetime
 
 from dotmac.platform.secrets.api import router
-from dotmac.platform.secrets.vault_client import VaultError, VaultAuthenticationError
+from dotmac.platform.secrets.vault_client import VaultError
 
 
 def mock_current_user():
@@ -471,8 +471,9 @@ class TestVaultDependency:
 
     def test_get_vault_client_dependency(self):
         """Test get_vault_client dependency."""
-        from dotmac.platform.secrets.api import get_vault_client
         import asyncio
+
+        from dotmac.platform.secrets.api import get_vault_client
 
         with patch("dotmac.platform.secrets.api.settings") as mock_settings:
             mock_settings.vault.enabled = True
@@ -490,9 +491,11 @@ class TestVaultDependency:
 
     def test_get_vault_client_disabled(self):
         """Test get_vault_client when vault is disabled."""
-        from dotmac.platform.secrets.api import get_vault_client
-        from fastapi import HTTPException
         import asyncio
+
+        from fastapi import HTTPException
+
+        from dotmac.platform.secrets.api import get_vault_client
 
         with patch("dotmac.platform.secrets.api.settings") as mock_settings:
             mock_settings.vault.enabled = False

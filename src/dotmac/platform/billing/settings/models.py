@@ -5,12 +5,13 @@ Billing settings data models
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import ConfigDict, Field, field_validator
 
 from dotmac.platform.billing.core.models import BillingBaseModel
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
-class CompanyInfo(BaseModel):
+class CompanyInfo(AppBaseModel):
     """Company information settings"""
 
     name: str = Field(..., min_length=1, max_length=200)
@@ -35,8 +36,8 @@ class CompanyInfo(BaseModel):
     logo_url: str | None = Field(None, description="URL to company logo")
     brand_color: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Acme Corporation",
                 "legal_name": "Acme Corporation Ltd.",
@@ -51,9 +52,10 @@ class CompanyInfo(BaseModel):
                 "website": "https://acme.com",
             }
         }
+    )
 
 
-class TaxSettings(BaseModel):
+class TaxSettings(AppBaseModel):
     """Tax calculation settings"""
 
     # Default tax behavior
@@ -72,8 +74,8 @@ class TaxSettings(BaseModel):
     tax_provider: str | None = Field(None, description="External tax service provider")
     tax_provider_config: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "calculate_tax": True,
                 "tax_inclusive_pricing": False,
@@ -84,9 +86,10 @@ class TaxSettings(BaseModel):
                 ],
             }
         }
+    )
 
 
-class PaymentSettings(BaseModel):
+class PaymentSettings(AppBaseModel):
     """Payment processing settings"""
 
     # Supported payment methods
@@ -114,8 +117,8 @@ class PaymentSettings(BaseModel):
     max_retry_attempts: int = Field(3, ge=1, le=10)
     retry_interval_hours: int = Field(24, ge=1, le=168)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "enabled_payment_methods": ["card", "bank_account", "digital_wallet"],
                 "default_currency": "USD",
@@ -124,9 +127,10 @@ class PaymentSettings(BaseModel):
                 "late_payment_fee": 1.5,
             }
         }
+    )
 
 
-class InvoiceSettings(BaseModel):
+class InvoiceSettings(AppBaseModel):
     """Invoice generation settings"""
 
     # Numbering
@@ -152,8 +156,8 @@ class InvoiceSettings(BaseModel):
     logo_on_invoices: bool = Field(True)
     color_scheme: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "invoice_number_prefix": "INV",
                 "default_due_days": 30,
@@ -163,9 +167,10 @@ class InvoiceSettings(BaseModel):
                 "reminder_schedule_days": [7, 3, 1],
             }
         }
+    )
 
 
-class NotificationSettings(BaseModel):
+class NotificationSettings(AppBaseModel):
     """Notification settings"""
 
     # Email settings
@@ -264,15 +269,15 @@ class BillingSettings(BillingBaseModel):
         }
     )
 
-    @validator("company_info", pre=True)
+    @field_validator("company_info", mode="before")
     @classmethod
     def validate_company_info(cls, v: Any) -> Any:
         if isinstance(v, dict):
             return CompanyInfo(**v)
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_info": {
                     "name": "Acme Corporation",
@@ -286,3 +291,4 @@ class BillingSettings(BillingBaseModel):
                 "invoice_settings": {"default_due_days": 30, "send_invoice_emails": True},
             }
         }
+    )

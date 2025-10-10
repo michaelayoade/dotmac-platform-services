@@ -1,12 +1,8 @@
 """Tests for user management models."""
 
-import pytest
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, create_engine
-from sqlalchemy.orm import sessionmaker
+from datetime import UTC, datetime
 
-from dotmac.platform.db import Base
 from dotmac.platform.user_management.models import User
 
 
@@ -91,7 +87,7 @@ class TestUserModel:
 
     def test_user_model_to_dict(self):
         """Test User model to_dict method."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user = User(
             username="testuser",
             email="test@example.com",
@@ -184,7 +180,7 @@ class TestUserModel:
             email="test@example.com",
             password_hash="hashed_password",
             failed_login_attempts=3,
-            locked_until=datetime.now(timezone.utc),
+            locked_until=datetime.now(UTC),
             last_login_ip="192.168.1.1",
         )
 

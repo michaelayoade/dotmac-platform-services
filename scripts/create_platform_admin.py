@@ -7,18 +7,20 @@ Usage:
     python scripts/create_platform_admin.py --email admin@example.com --password NewPassword123!
 """
 
-import asyncio
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text
-from src.dotmac.platform.database import get_db_session, init_db
-from src.dotmac.platform.auth.password_service import PasswordService
 import logging
+
+from sqlalchemy import text
+from src.dotmac.platform.auth.password_service import PasswordService
+
+from src.dotmac.platform.database import get_db_session, init_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

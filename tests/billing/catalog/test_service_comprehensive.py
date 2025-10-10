@@ -4,37 +4,31 @@ Comprehensive tests for billing catalog service.
 Tests product and category management with real database operations.
 """
 
-import pytest
 from decimal import Decimal
-from sqlalchemy import select
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.billing.catalog.models import (
+    ProductCategoryCreateRequest,
+    ProductCreateRequest,
+    ProductFilters,
+    ProductType,
+    ProductUpdateRequest,
+    TaxClass,
+    UsageType,
+)
 from dotmac.platform.billing.catalog.service import (
     ProductService,
-    generate_product_id,
     generate_category_id,
-)
-from dotmac.platform.billing.catalog.models import (
-    Product,
-    ProductCategory,
-    ProductType,
-    UsageType,
-    TaxClass,
-    ProductCreateRequest,
-    ProductUpdateRequest,
-    ProductCategoryCreateRequest,
-    ProductFilters,
-)
-from dotmac.platform.billing.models import (
-    BillingProductTable,
-    BillingProductCategoryTable,
+    generate_product_id,
 )
 from dotmac.platform.billing.exceptions import (
-    ProductError,
-    ProductNotFoundError,
+    BillingConfigurationError,
     CategoryNotFoundError,
     DuplicateProductError,
-    BillingConfigurationError,
+    ProductError,
+    ProductNotFoundError,
 )
 
 

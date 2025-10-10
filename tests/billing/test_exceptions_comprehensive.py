@@ -3,13 +3,13 @@
 import pytest
 
 from dotmac.platform.billing.exceptions import (
-    BillingError,
     BillingConfigurationError,
+    BillingError,
     CategoryNotFoundError,
     DuplicateProductError,
+    InvalidPricingRuleError,
     InvoiceError,
     InvoiceNotFoundError,
-    InvalidPricingRuleError,
     PaymentError,
     PaymentMethodError,
     PlanNotFoundError,

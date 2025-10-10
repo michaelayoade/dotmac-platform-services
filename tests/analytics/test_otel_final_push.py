@@ -4,13 +4,14 @@ Focuses on practical, testable paths in otel_collector.py and remaining base.py 
 """
 
 import os
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 
 from dotmac.platform.analytics.base import BaseAnalyticsCollector, CounterMetric, Metric
 from dotmac.platform.analytics.otel_collector import (
-    OTelConfig,
     OpenTelemetryCollector,
+    OTelConfig,
     SimpleAnalyticsCollector,
     create_otel_collector,
 )

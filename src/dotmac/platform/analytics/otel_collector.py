@@ -6,9 +6,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+import structlog
+
 # Optional OpenTelemetry imports
 from ..dependencies import safe_import
 from ..settings import settings
+from .base import (
+    BaseAnalyticsCollector,
+    CounterMetric,
+    GaugeMetric,
+    HistogramMetric,
+    Metric,
+)
 
 # Only import OpenTelemetry if enabled and available
 metrics: Any = None
@@ -103,16 +112,6 @@ if settings.observability.otel_enabled:
     )
     if sdk_trace_export:
         BatchSpanProcessor = sdk_trace_export.BatchSpanProcessor
-
-import structlog
-
-from .base import (
-    BaseAnalyticsCollector,
-    CounterMetric,
-    GaugeMetric,
-    HistogramMetric,
-    Metric,
-)
 
 logger = structlog.get_logger(__name__)
 

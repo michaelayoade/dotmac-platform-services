@@ -11,29 +11,13 @@ Tests all FastAPI endpoints including:
 - Error handling and authentication
 """
 
-import pytest
-from datetime import datetime, timezone
+from unittest.mock import patch
 from uuid import UUID, uuid4
-from unittest.mock import patch, MagicMock
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from dotmac.platform.data_transfer.models import (
-    ImportRequest,
-    ExportRequest,
-    TransferJobResponse,
-    TransferJobListResponse,
-    FormatsResponse,
-    TransferType,
-    ImportSource,
-    ExportTarget,
-)
-from dotmac.platform.data_transfer.core import (
-    DataFormat,
-    TransferStatus,
-    CompressionType,
-)
 from dotmac.platform.data_transfer.router import data_transfer_router
 
 
@@ -41,6 +25,7 @@ from dotmac.platform.data_transfer.router import data_transfer_router
 def client():
     """Create test client with mocked authentication."""
     from fastapi import FastAPI
+
     from dotmac.platform.auth.core import UserInfo
     from dotmac.platform.auth.dependencies import get_current_user
 
@@ -66,6 +51,7 @@ def client():
 def anonymous_client():
     """Create test client for anonymous access."""
     from fastapi import FastAPI
+
     from dotmac.platform.auth.dependencies import get_current_user
 
     app = FastAPI()

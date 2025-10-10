@@ -11,22 +11,21 @@ Tests cover:
 - Secrets mapping and configuration
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from typing import Dict, Any
+
+import pytest
 
 from dotmac.platform.secrets.secrets_loader import (
-    set_nested_attr,
+    SECRETS_MAPPING,
     get_nested_attr,
-    load_secrets_from_vault,
-    load_secrets_from_vault_sync,
-    validate_production_secrets,
     get_vault_secret,
     get_vault_secret_async,
-    SECRETS_MAPPING,
+    load_secrets_from_vault,
+    load_secrets_from_vault_sync,
+    set_nested_attr,
+    validate_production_secrets,
 )
 from dotmac.platform.secrets.vault_client import VaultError
-from dotmac.platform.settings import Settings
 
 
 class TestNestedAttributeHelpers:

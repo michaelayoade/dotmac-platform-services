@@ -4,22 +4,23 @@ Tests for billing catalog models.
 Covers Pydantic model validation, field constraints, and business logic.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
 from dotmac.platform.billing.catalog.models import (
     Product,
     ProductCategory,
-    ProductType,
-    UsageType,
-    ProductCreateRequest,
-    ProductUpdateRequest,
     ProductCategoryCreateRequest,
-    ProductCategoryUpdateRequest,
-    ProductResponse,
     ProductCategoryResponse,
+    ProductCategoryUpdateRequest,
+    ProductCreateRequest,
+    ProductResponse,
+    ProductType,
+    ProductUpdateRequest,
+    UsageType,
 )
 
 
@@ -87,7 +88,7 @@ class TestProductCategory:
                 description="Test",
                 is_active=True,
                 metadata={},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -105,7 +106,7 @@ class TestProductCategory:
                 description="Test",
                 is_active=True,
                 metadata={},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -117,7 +118,7 @@ class TestProductCategory:
             category_id="cat_123",
             tenant_id="test-tenant",
             name="Test Category",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert category.description is None
@@ -151,7 +152,7 @@ class TestProduct:
                 base_price=Decimal("-10.00"),  # Negative price should fail
                 currency="USD",
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -169,7 +170,7 @@ class TestProduct:
                 base_price=Decimal("10.00"),
                 currency="INVALID",  # Invalid currency code
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -187,7 +188,7 @@ class TestProduct:
                 base_price=Decimal("10.00"),
                 currency="USD",
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
         errors = exc_info.value.errors()
@@ -202,7 +203,7 @@ class TestProduct:
             name="Test Product",
             product_type=ProductType.ONE_TIME,
             base_price=Decimal("10.00"),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert product.description is None
@@ -238,7 +239,7 @@ class TestProduct:
             product_type=ProductType.USAGE_BASED,
             base_price=Decimal("0"),
             usage_rates={"api_calls": Decimal("0.01")},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert product.usage_rates["api_calls"] == Decimal("0.01")
 
@@ -410,7 +411,7 @@ class TestProductResponse:
 
     def test_product_response_creation(self):
         """Test product response model creation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = ProductResponse(
             product_id="prod_123",
             tenant_id="test-tenant",
@@ -432,7 +433,7 @@ class TestProductResponse:
 
     def test_product_response_json_encoders(self):
         """Test product response JSON serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = ProductResponse(
             product_id="prod_123",
             tenant_id="test-tenant",
@@ -461,7 +462,7 @@ class TestProductCategoryResponse:
 
     def test_category_response_creation(self):
         """Test category response model creation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = ProductCategoryResponse(
             category_id="cat_123",
             tenant_id="test-tenant",
@@ -479,7 +480,7 @@ class TestProductCategoryResponse:
 
     def test_category_response_json_encoders(self):
         """Test category response JSON serialization."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         response = ProductCategoryResponse(
             category_id="cat_123",
             tenant_id="test-tenant",

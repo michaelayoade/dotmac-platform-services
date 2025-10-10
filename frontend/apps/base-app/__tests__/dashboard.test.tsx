@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DashboardPage from '../app/dashboard/page';
 import { useRouter } from 'next/navigation';
+import { RBACProvider } from '@/contexts/RBACContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -24,7 +26,27 @@ jest.mock('@/lib/config', () => ({
 jest.mock('@/lib/utils/logger', () => ({
   logger: {
     error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
   },
+}));
+
+// Mock api-client for RBAC
+jest.mock('@/lib/api-client', () => ({
+  apiClient: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+  },
+}));
+
+// Mock toast
+jest.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({
+    toast: jest.fn(),
+  }),
 }));
 
 // Mock fetch globally
@@ -32,25 +54,51 @@ global.fetch = jest.fn();
 
 import { getCurrentUser, logout } from '@/lib/auth';
 import { logger } from '@/lib/utils/logger';
+import { apiClient } from '@/lib/api-client';
 
 describe('DashboardPage', () => {
   const mockPush = jest.fn();
   const mockReplace = jest.fn();
+  let queryClient: QueryClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
       replace: mockReplace,
     });
+
+    // Mock RBAC API calls with default empty responses
+    (apiClient.get as jest.Mock).mockResolvedValue({
+      roles: [],
+      permissions: [],
+      user_permissions: [],
+    });
   });
+
+  // Helper to render with required providers
+  const renderWithProviders = (component: React.ReactElement) => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <RBACProvider>
+          {component}
+        </RBACProvider>
+      </QueryClientProvider>
+    );
+  };
 
   it('renders loading state initially', () => {
     // Mock to never resolve
     (getCurrentUser as jest.Mock).mockImplementation(() => new Promise(() => {}));
     (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
@@ -73,7 +121,7 @@ describe('DashboardPage', () => {
       }),
     });
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for data to load
     await waitFor(() => {
@@ -103,7 +151,7 @@ describe('DashboardPage', () => {
       json: async () => ({}),
     });
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for redirect
     await waitFor(() => {
@@ -125,7 +173,7 @@ describe('DashboardPage', () => {
     // Mock failed health fetch
     (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for error handling
     await waitFor(() => {
@@ -158,7 +206,7 @@ describe('DashboardPage', () => {
     // Mock logout
     (logout as jest.Mock).mockResolvedValueOnce(undefined);
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for render
     await waitFor(() => {
@@ -187,7 +235,7 @@ describe('DashboardPage', () => {
       json: async () => ({}),
     });
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for render
     await waitFor(() => {
@@ -218,7 +266,7 @@ describe('DashboardPage', () => {
       json: async () => ({}),
     });
 
-    render(<DashboardPage />);
+    renderWithProviders(<DashboardPage />);
 
     // Wait for render
     await waitFor(() => {

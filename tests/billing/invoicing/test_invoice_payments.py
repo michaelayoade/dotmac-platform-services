@@ -5,16 +5,16 @@ BEFORE: 209 lines with repetitive mock setup
 AFTER: ~150 lines using shared helpers (28% reduction)
 """
 
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.billing.core.entities import TransactionEntity
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus, TransactionType
 from dotmac.platform.billing.core.exceptions import InvoiceNotFoundError
 from dotmac.platform.billing.invoicing.service import InvoiceService
-
-from tests.helpers import build_mock_db_session, build_success_result, build_not_found_result
+from tests.helpers import build_mock_db_session, build_not_found_result, build_success_result
 
 pytestmark = pytest.mark.asyncio
 

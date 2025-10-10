@@ -6,6 +6,7 @@ import hashlib
 import logging
 import secrets
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +18,9 @@ from dotmac.platform.billing.bank_accounts.entities import (
     PaymentMethodType,
     PaymentReconciliation,
 )
+from dotmac.platform.billing.bank_accounts.models import AccountType as AccountTypeModel
+from dotmac.platform.billing.bank_accounts.models import BankAccountStatus as BankAccountStatusModel
 from dotmac.platform.billing.bank_accounts.models import (
-    AccountType as AccountTypeModel,
-    BankAccountStatus as BankAccountStatusModel,
     BankAccountSummary,
     BankTransferCreate,
     CashPaymentCreate,
@@ -30,8 +31,8 @@ from dotmac.platform.billing.bank_accounts.models import (
     ManualPaymentResponse,
     MobileMoneyCreate,
     PaymentSearchFilters,
-    PaymentMethodType as PaymentMethodTypeModel,
 )
+from dotmac.platform.billing.bank_accounts.models import PaymentMethodType as PaymentMethodTypeModel
 from dotmac.platform.billing.core.exceptions import (
     BillingError,
     PaymentError,
@@ -349,6 +350,7 @@ class BankAccountService:
             is_active=account.is_active,
             accepts_deposits=account.accepts_deposits,
             verified_at=account.verified_at,
+            verification_notes=account.verification_notes,
             created_at=account.created_at,
             updated_at=account.updated_at,
             notes=account.notes,
@@ -369,10 +371,15 @@ class ManualPaymentService:
 
         payment_reference = self._generate_payment_reference("CASH")
 
+        # Convert customer_id to UUID if it's a string
+        customer_uuid = (
+            UUID(data.customer_id) if isinstance(data.customer_id, str) else data.customer_id
+        )
+
         payment = ManualPayment(
             tenant_id=tenant_id,
             payment_reference=payment_reference,
-            customer_id=data.customer_id,
+            customer_id=customer_uuid,
             invoice_id=data.invoice_id,
             bank_account_id=data.bank_account_id,
             payment_method=PaymentMethodType.CASH,
@@ -404,10 +411,15 @@ class ManualPaymentService:
 
         payment_reference = self._generate_payment_reference("CHK")
 
+        # Convert customer_id to UUID if it's a string
+        customer_uuid = (
+            UUID(data.customer_id) if isinstance(data.customer_id, str) else data.customer_id
+        )
+
         payment = ManualPayment(
             tenant_id=tenant_id,
             payment_reference=payment_reference,
-            customer_id=data.customer_id,
+            customer_id=customer_uuid,
             invoice_id=data.invoice_id,
             bank_account_id=data.bank_account_id,
             payment_method=PaymentMethodType.CHECK,
@@ -439,10 +451,15 @@ class ManualPaymentService:
 
         payment_reference = self._generate_payment_reference("TRF")
 
+        # Convert customer_id to UUID if it's a string
+        customer_uuid = (
+            UUID(data.customer_id) if isinstance(data.customer_id, str) else data.customer_id
+        )
+
         payment = ManualPayment(
             tenant_id=tenant_id,
             payment_reference=payment_reference,
-            customer_id=data.customer_id,
+            customer_id=customer_uuid,
             invoice_id=data.invoice_id,
             bank_account_id=data.bank_account_id,
             payment_method=data.payment_method,
@@ -475,10 +492,15 @@ class ManualPaymentService:
 
         payment_reference = self._generate_payment_reference("MOB")
 
+        # Convert customer_id to UUID if it's a string
+        customer_uuid = (
+            UUID(data.customer_id) if isinstance(data.customer_id, str) else data.customer_id
+        )
+
         payment = ManualPayment(
             tenant_id=tenant_id,
             payment_reference=payment_reference,
-            customer_id=data.customer_id,
+            customer_id=customer_uuid,
             invoice_id=data.invoice_id,
             bank_account_id=data.bank_account_id,
             payment_method=PaymentMethodType.MOBILE_MONEY,
@@ -511,7 +533,13 @@ class ManualPaymentService:
         query = select(ManualPayment).where(ManualPayment.tenant_id == tenant_id)
 
         if filters.customer_id:
-            query = query.where(ManualPayment.customer_id == filters.customer_id)
+            # Convert customer_id to UUID if it's a string
+            customer_uuid = (
+                UUID(filters.customer_id)
+                if isinstance(filters.customer_id, str)
+                else filters.customer_id
+            )
+            query = query.where(ManualPayment.customer_id == customer_uuid)
 
         if filters.invoice_id:
             query = query.where(ManualPayment.invoice_id == filters.invoice_id)

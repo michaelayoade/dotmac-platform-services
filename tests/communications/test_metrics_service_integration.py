@@ -2,19 +2,18 @@
 Integration tests for metrics service with real DB.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
 from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.communications.metrics_service import (
     CommunicationMetricsService,
     get_metrics_service,
 )
 from dotmac.platform.communications.models import (
-    CommunicationType,
     CommunicationStatus,
+    CommunicationType,
 )
-
 
 pytestmark = pytest.mark.asyncio
 

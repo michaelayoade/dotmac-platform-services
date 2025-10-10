@@ -112,7 +112,7 @@ class CachedPricingEngine(PricingEngine):
             return [PricingRule.model_validate(r) for r in cached_rules]
 
         # Load from database
-        rules = await super().list_pricing_rules(
+        rules: list[PricingRule] = await super().list_pricing_rules(
             tenant_id, active_only=active_only, product_id=product_id, category=category
         )
 
@@ -273,7 +273,7 @@ class CachedPricingEngine(PricingEngine):
         if cached_rules:
             return [PricingRule.model_validate(rule) for rule in cached_rules]
 
-        rules = await super()._get_applicable_rules(context, tenant_id)
+        rules: list[PricingRule] = await super()._get_applicable_rules(context, tenant_id)
 
         if rules:
             await self.cache.set(

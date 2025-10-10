@@ -4,15 +4,15 @@ Integration tests for partner management router with database.
 Tests router endpoints with actual database to cover response model mappings.
 """
 
-import pytest
-from uuid import uuid4
 from decimal import Decimal
+from uuid import uuid4
+
+import pytest
 
 from dotmac.platform.partner_management.schemas import (
-    PartnerCreate,
-    PartnerUserCreate,
     PartnerAccountCreate,
     PartnerCommissionEventCreate,
+    PartnerCreate,
     ReferralLeadCreate,
 )
 from dotmac.platform.partner_management.service import PartnerService
@@ -26,8 +26,8 @@ class TestPartnerRouterIntegration:
 
     async def test_list_partner_accounts_with_metadata(self, db_session, tenant_context):
         """Test list partner accounts returns accounts with metadata mapping."""
-        from dotmac.platform.partner_management.router import list_partner_accounts
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import list_partner_accounts
 
         service = PartnerService(db_session)
 
@@ -62,8 +62,8 @@ class TestPartnerRouterIntegration:
 
     async def test_list_commission_events_with_metadata(self, db_session, tenant_context):
         """Test list commission events returns events with metadata mapping."""
-        from dotmac.platform.partner_management.router import list_commission_events
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import list_commission_events
 
         service = PartnerService(db_session)
 
@@ -98,8 +98,8 @@ class TestPartnerRouterIntegration:
 
     async def test_create_commission_event_with_metadata(self, db_session, tenant_context):
         """Test create commission event returns event with metadata mapping."""
-        from dotmac.platform.partner_management.router import create_commission_event
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import create_commission_event
 
         service = PartnerService(db_session)
 
@@ -133,8 +133,8 @@ class TestPartnerRouterIntegration:
 
     async def test_list_referrals_with_metadata(self, db_session, tenant_context):
         """Test list referrals returns referrals with metadata mapping."""
-        from dotmac.platform.partner_management.router import list_referrals
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import list_referrals
 
         service = PartnerService(db_session)
 
@@ -169,8 +169,8 @@ class TestPartnerRouterIntegration:
 
     async def test_create_referral_with_metadata(self, db_session, tenant_context):
         """Test create referral returns referral with metadata mapping."""
-        from dotmac.platform.partner_management.router import create_referral
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import create_referral
 
         service = PartnerService(db_session)
 
@@ -203,8 +203,8 @@ class TestPartnerRouterIntegration:
 
     async def test_create_partner_account_with_metadata(self, db_session, tenant_context):
         """Test create partner account returns account with metadata mapping."""
-        from dotmac.platform.partner_management.router import create_partner_account
         from dotmac.platform.auth.core import UserInfo
+        from dotmac.platform.partner_management.router import create_partner_account
 
         service = PartnerService(db_session)
 

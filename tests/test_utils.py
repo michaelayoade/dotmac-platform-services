@@ -6,16 +6,14 @@ and reduce test failures across the codebase.
 """
 
 import asyncio
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, Optional, Type
-from unittest.mock import AsyncMock, Mock, MagicMock, PropertyMock, patch
-from uuid import UUID, uuid4
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
-
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ============================================================================
 # Async Testing Utilities
@@ -100,7 +98,7 @@ def create_mock_user_service() -> Mock:
             username="testuser",
             email="test@example.com",
             is_active=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     )
     service.update_user = AsyncMock(return_value=True)
@@ -161,7 +159,7 @@ def create_mock_auth_service() -> Mock:
             id=str(uuid4()),
             user_id="user123",
             token="session_token",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
         )
     )
     service.get_session = AsyncMock(return_value=None)
@@ -199,10 +197,10 @@ def utcnow() -> datetime:
 
     Replaces deprecated datetime.now(timezone.utc).
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def mock_utcnow(target_datetime: Optional[datetime] = None) -> Mock:
+def mock_utcnow(target_datetime: datetime | None = None) -> Mock:
     """
     Create a mock for datetime.now(timezone.utc).
 
@@ -210,7 +208,7 @@ def mock_utcnow(target_datetime: Optional[datetime] = None) -> Mock:
         target_datetime: Specific datetime to return, or current time if None.
     """
     if target_datetime is None:
-        target_datetime = datetime.now(timezone.utc)
+        target_datetime = datetime.now(UTC)
 
     return Mock(return_value=target_datetime)
 
@@ -288,8 +286,9 @@ def create_test_jwt(
     """
     Create a test JWT token with standard claims.
     """
+    from datetime import datetime, timedelta
+
     import jwt
-    from datetime import datetime, timedelta, timezone
 
     if scopes is None:
         scopes = ["read", "write"]
@@ -298,8 +297,8 @@ def create_test_jwt(
         "sub": user_id,
         "scopes": scopes,
         "tenant_id": tenant_id,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=1),
-        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+        "iat": datetime.now(UTC),
         "type": "access",
         **kwargs,
     }
@@ -318,7 +317,7 @@ class TestDataFactory:
     """
 
     @staticmethod
-    def create_user(overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    def create_user(overrides: dict[str, Any] = None) -> dict[str, Any]:
         """Create test user data."""
         data = {
             "id": str(uuid4()),
@@ -336,7 +335,7 @@ class TestDataFactory:
         return data
 
     @staticmethod
-    def create_invoice(overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    def create_invoice(overrides: dict[str, Any] = None) -> dict[str, Any]:
         """Create test invoice data."""
         data = {
             "id": str(uuid4()),
@@ -357,7 +356,7 @@ class TestDataFactory:
         return data
 
     @staticmethod
-    def create_bulk_email_job(overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    def create_bulk_email_job(overrides: dict[str, Any] = None) -> dict[str, Any]:
         """Create test bulk email job data."""
         data = {
             "id": str(uuid4()),
@@ -398,7 +397,7 @@ class AsyncTestCase:
 
     async def create_authenticated_client(self, app):
         """Create an authenticated async test client."""
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
 
         token = create_test_jwt()
         transport = ASGITransport(app=app)

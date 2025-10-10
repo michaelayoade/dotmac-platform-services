@@ -31,7 +31,9 @@ import {
   Server,
   Lock,
   BarChart3,
-  Handshake
+  Building2,
+  Handshake,
+  LifeBuoy
 } from 'lucide-react';
 import { TenantSelector } from '@/components/tenant-selector';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -54,7 +56,7 @@ interface NavSection {
   icon: React.ElementType;
   href: string;
   items?: NavItem[];
-  permission?: string;
+  permission?: string | string[];
 }
 
 const sections: NavSection[] = [
@@ -64,6 +66,36 @@ const sections: NavSection[] = [
     icon: Home,
     href: '/dashboard'
     // No permission required for overview
+  },
+  {
+    id: 'tenant-portal',
+    label: 'Tenant Portal',
+    icon: Building2,
+    href: '/tenant',
+    permission: ['tenants:read', 'platform:tenants:read'],
+    items: [
+      { name: 'Overview', href: '/tenant', icon: Home },
+      { name: 'Customers', href: '/tenant/customers', icon: Users },
+      { name: 'Billing & Plans', href: '/tenant/billing', icon: CreditCard },
+      { name: 'Users & Access', href: '/tenant/users', icon: User },
+      { name: 'Usage & Limits', href: '/tenant/usage', icon: Activity },
+      { name: 'Integrations', href: '/tenant/integrations', icon: ToggleLeft },
+      { name: 'Support', href: '/tenant/support', icon: LifeBuoy },
+    ],
+  },
+  {
+    id: 'partner-portal',
+    label: 'Partner Portal',
+    icon: Handshake,
+    href: '/partner',
+    permission: ['partners.read', 'platform:partners:read'],
+    items: [
+      { name: 'Overview', href: '/partner', icon: Home },
+      { name: 'Managed Tenants', href: '/partner/tenants', icon: Users },
+      { name: 'Partner Billing', href: '/partner/billing', icon: CreditCard },
+      { name: 'Resources', href: '/partner/resources', icon: FileText },
+      { name: 'Support', href: '/partner/support', icon: LifeBuoy },
+    ],
   },
   {
     id: 'operations',
@@ -149,15 +181,25 @@ const sections: NavSection[] = [
 ];
 
 // Helper function to check if section should be visible
-function checkSectionVisibility(section: NavSection, hasPermission: (permission: string) => boolean): boolean {
+function checkSectionVisibility(
+  section: NavSection,
+  hasPermission: (permission: string) => boolean,
+  hasAnyPermission: (permissions: string[]) => boolean
+): boolean {
   // If section has explicit permission requirement, check it
   if (section.permission) {
+    if (Array.isArray(section.permission)) {
+      return hasAnyPermission(section.permission);
+    }
     return hasPermission(section.permission);
   }
 
   // If section has no permission but has items, check if user has access to any item
   if (section.items && section.items.length > 0) {
-    return section.items.some(item => !item.permission || hasPermission(item.permission));
+    return section.items.some(item => {
+      if (!item.permission) return true;
+      return hasPermission(item.permission);
+    });
   }
 
   // If no permission requirement and no items, show by default
@@ -174,15 +216,15 @@ export default function DashboardLayout({
   const [user, setUser] = useState<Record<string, unknown> | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const pathname = usePathname();
-  const { hasPermission } = useRBAC();
+  const { hasPermission, hasAnyPermission } = useRBAC();
 
   // Type helper for user data
   const userData = user as { id?: string; username?: string; email?: string; full_name?: string; roles?: string[] } | null;
 
   // Filter sections based on permissions
   const visibleSections = useMemo(
-    () => sections.filter(section => checkSectionVisibility(section, hasPermission)),
-    [hasPermission]
+    () => sections.filter(section => checkSectionVisibility(section, hasPermission, hasAnyPermission)),
+    [hasPermission, hasAnyPermission]
   );
 
   // Toggle section expansion

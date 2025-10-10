@@ -5,8 +5,9 @@ This module contains event handlers that react to events from other
 modules (e.g., billing) and trigger appropriate communications.
 """
 
+from smtplib import SMTPException
+
 import structlog
-from pydantic import EmailStr
 
 from dotmac.platform.communications.email_service import EmailMessage, EmailService
 from dotmac.platform.events import subscribe
@@ -17,8 +18,9 @@ logger = structlog.get_logger(__name__)
 
 def _email_html_message(recipient: str, subject: str, html_body: str) -> EmailMessage:
     """Create an EmailMessage with HTML content."""
+    # EmailStr is a type annotation, not a constructor - just pass strings
     return EmailMessage(
-        to=[EmailStr(recipient)],
+        to=[recipient],  # Pydantic will validate as EmailStr
         subject=subject,
         html_body=html_body,
     )
@@ -77,7 +79,7 @@ async def send_invoice_created_email(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send invoice created email",
             invoice_id=invoice_id,
@@ -134,7 +136,7 @@ async def send_invoice_paid_email(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send invoice paid email",
             invoice_id=invoice_id,
@@ -192,7 +194,7 @@ async def send_invoice_overdue_reminder(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send invoice overdue email",
             invoice_id=invoice_id,
@@ -254,7 +256,7 @@ async def send_payment_failed_notification(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send payment failed email",
             payment_id=payment_id,
@@ -314,7 +316,7 @@ async def send_subscription_welcome_email(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send subscription welcome email",
             subscription_id=subscription_id,
@@ -370,7 +372,7 @@ async def send_subscription_cancelled_email(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send subscription cancelled email",
             subscription_id=subscription_id,
@@ -425,7 +427,7 @@ async def send_trial_ending_reminder(event: Event) -> None:
             customer_email=customer_email,
         )
 
-    except Exception as e:
+    except (SMTPException, OSError, RuntimeError, ValueError) as e:
         logger.error(
             "Failed to send trial ending email",
             subscription_id=subscription_id,

@@ -311,5 +311,5 @@ async def check_overdue_invoices(
     tenant_id = get_tenant_id_from_request(request)
     invoice_service = InvoiceService(db)
 
-    overdue_invoices = await invoice_service.check_overdue_invoices(tenant_id)
+    overdue_invoices: list[Invoice] = await invoice_service.check_overdue_invoices(tenant_id)
     return overdue_invoices

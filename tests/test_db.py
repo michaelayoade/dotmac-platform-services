@@ -1,33 +1,34 @@
 """Tests for database module."""
 
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock, Mock
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from sqlalchemy import Column, Integer, String
 
 # Import the entire module to ensure coverage tracking
 import dotmac.platform.db
 from dotmac.platform.db import (
+    AuditMixin,
     Base,
     BaseModel,
-    TimestampMixin,
     SoftDeleteMixin,
     TenantMixin,
-    AuditMixin,
-    get_sync_engine,
-    get_async_engine,
-    get_database_url,
-    get_async_database_url,
-    get_db,
-    get_async_db,
-    get_async_session,
-    get_session_dependency,
+    TimestampMixin,
+    check_database_health,
     create_all_tables,
     create_all_tables_async,
     drop_all_tables,
     drop_all_tables_async,
-    check_database_health,
+    get_async_database_url,
+    get_async_db,
+    get_async_engine,
+    get_async_session,
+    get_database_url,
+    get_db,
+    get_session_dependency,
+    get_sync_engine,
     init_db,
 )
 
@@ -70,7 +71,7 @@ class TestDatabaseModels:
         assert model.is_deleted is False
 
         # Test soft delete
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         model.deleted_at = now
         assert model.is_deleted is True
 
@@ -561,9 +562,9 @@ class TestModuleExports:
     def test_legacy_aliases(self):
         """Test legacy function aliases."""
         from dotmac.platform.db import (
+            get_async_db_session,
             get_database_session,
             get_db_session,
-            get_async_db_session,
             get_session,
         )
 

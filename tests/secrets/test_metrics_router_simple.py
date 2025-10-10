@@ -5,15 +5,15 @@ Tests the actual endpoint and response model validation without full database in
 Uses partial mocking - only mocks database queries, tests actual router logic.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import UTC, datetime, timedelta
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, Mock, patch
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.secrets.metrics_router import router, SecretsMetricsResponse
+from dotmac.platform.secrets.metrics_router import SecretsMetricsResponse, router
 
 
 def mock_current_user():
@@ -32,7 +32,7 @@ def app_with_router():
     """Create test app with secrets metrics router."""
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_current_user
-    app.include_router(router, prefix="/api/v1")
+    app.include_router(router, prefix="/api/v1/metrics/secrets", tags=["Secrets Metrics"])
     return app
 
 
@@ -48,7 +48,7 @@ class TestSecretsMetricsEndpoint:
     def test_metrics_endpoint_exists(self, client):
         """Test that metrics endpoint is registered."""
         # This will fail with 500 due to missing DB session, but proves endpoint exists
-        response = client.get("/api/v1/secrets/metrics")
+        response = client.get("/api/v1/metrics/secrets/metrics")
         # We expect either 200 or 500, but not 404
         assert response.status_code != status.HTTP_404_NOT_FOUND
 

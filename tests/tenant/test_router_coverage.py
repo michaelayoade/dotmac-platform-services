@@ -7,25 +7,22 @@ Note: These tests use a shared test database and should run sequentially to avoi
 tenant slug conflicts when using pytest-xdist parallel execution.
 """
 
-import pytest
 import uuid
+
+import pytest
 
 # Mark all tests in this module to run sequentially (not in parallel with pytest-xdist)
 pytestmark = pytest.mark.serial
 
 from datetime import UTC, datetime, timedelta
-from fastapi import status
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, MagicMock
 
+from fastapi import status
+from httpx import ASGITransport, AsyncClient
+
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.tenant.models import (
     Tenant,
-    TenantPlanType,
-    TenantStatus,
-    TenantInvitationStatus,
 )
-from dotmac.platform.tenant.schemas import TenantCreate
-from dotmac.platform.auth.core import UserInfo
 
 
 @pytest.fixture(scope="session")
@@ -82,7 +79,6 @@ async def db_cleanup(async_db_engine):
     yield
 
     # Clean up tenants using the engine directly to affect all sessions
-    from dotmac.platform.tenant.models import Tenant
     from sqlalchemy import delete
     from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -49,20 +49,20 @@ export const DropdownMenuTrigger = ({ children, ...props }: DropdownMenuTriggerP
 );
 
 export const DropdownMenuContent = ({ children, className = '', ...props }: DropdownMenuContentProps) => (
-  <div className={`z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-white dark:border-border dark:bg-muted p-1 shadow-md ${className}`} {...props}>
+  <div className={`z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg shadow-primary/10 ${className}`} {...props}>
     {children}
   </div>
 );
 
 export const DropdownMenuItem = ({ children, className = '', ...props }: DropdownMenuItemProps) => (
-  <div className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-foreground dark:text-white hover:bg-accent dark:hover:bg-muted ${className}`} {...props}>
+  <div className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-foreground hover:bg-accent ${className}`} {...props}>
     {children}
   </div>
 );
 
 export const DropdownMenuCheckboxItem = ({ children, className = '', checked, onCheckedChange, ...props }: DropdownMenuCheckboxItemProps) => (
   <div
-    className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-foreground dark:text-white hover:bg-accent dark:hover:bg-muted ${className}`}
+    className={`relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-foreground hover:bg-accent ${className}`}
     onClick={() => onCheckedChange?.(!checked)}
     {...props}
   >
@@ -72,7 +72,7 @@ export const DropdownMenuCheckboxItem = ({ children, className = '', checked, on
 );
 
 export const DropdownMenuLabel = ({ children, className = '', ...props }: DropdownMenuLabelProps) => (
-  <div className={`px-2 py-1.5 text-sm font-semibold text-foreground dark:text-white ${className}`} {...props}>
+  <div className={`px-2 py-1.5 text-sm font-semibold text-foreground ${className}`} {...props}>
     {children}
   </div>
 );

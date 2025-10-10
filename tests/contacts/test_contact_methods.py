@@ -13,11 +13,10 @@ import pytest
 from dotmac.platform.contacts.models import ContactMethodType
 from dotmac.platform.contacts.schemas import ContactMethodCreate, ContactMethodUpdate
 from dotmac.platform.contacts.service import ContactService
-
 from tests.helpers import (
     build_mock_db_session,
-    build_success_result,
     build_not_found_result,
+    build_success_result,
 )
 
 pytestmark = pytest.mark.asyncio

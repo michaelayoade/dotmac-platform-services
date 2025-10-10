@@ -5,19 +5,17 @@ Tests ServiceHealth class, HealthChecker class, and all service check methods
 to achieve high coverage of health_checks.py module.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-from contextlib import contextmanager
-from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
-from sqlalchemy.exc import DatabaseError, SQLAlchemyError
+from redis.exceptions import RedisError
+from sqlalchemy.exc import DatabaseError
 
 # Import the module to ensure it's loaded for coverage
-import dotmac.platform.monitoring.health_checks
-
 from dotmac.platform.monitoring.health_checks import (
-    ServiceStatus,
-    ServiceHealth,
     HealthChecker,
+    ServiceHealth,
+    ServiceStatus,
     check_startup_dependencies,
     ensure_infrastructure_running,
 )

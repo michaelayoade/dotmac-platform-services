@@ -2,9 +2,7 @@
 Integration tests for the token refresh endpoint with real JWT tokens.
 """
 
-import pytest
-from datetime import timedelta
-from dotmac.platform.auth.core import jwt_service, TokenType
+from dotmac.platform.auth.core import TokenType, jwt_service
 
 
 class TestRefreshTokenIntegration:

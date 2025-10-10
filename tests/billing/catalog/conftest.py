@@ -4,29 +4,23 @@ Fixtures for billing catalog tests.
 Provides database session, authentication, and test data fixtures.
 """
 
+import os
+
 import pytest
 import pytest_asyncio
-import os
-from decimal import Decimal
-from unittest.mock import AsyncMock
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-from httpx import AsyncClient, ASGITransport
 
 # Set test environment
 os.environ["TESTING"] = "1"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
-from dotmac.platform.db import Base
+from dotmac.platform.auth.core import UserInfo
 
 # Import billing models to ensure they're registered with Base.metadata
-from dotmac.platform.billing.models import (
-    BillingProductTable,
-    BillingProductCategoryTable,
-)
-
+from dotmac.platform.db import Base
 from dotmac.platform.main import app
-from dotmac.platform.auth.core import UserInfo
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -108,8 +102,8 @@ def auth_headers():
 @pytest_asyncio.fixture
 async def async_client(db_session, mock_current_user, tenant_id):
     """Create async HTTP client for API tests."""
-    from dotmac.platform.db import get_async_session
     from dotmac.platform.auth.dependencies import get_current_user
+    from dotmac.platform.db import get_async_session
     from dotmac.platform.tenant import get_current_tenant_id
 
     # Override dependencies

@@ -4,25 +4,29 @@ Comprehensive tests for contacts router endpoints.
 Tests cover all API endpoints with proper mocking and isolation.
 """
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID, uuid4
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
+from uuid import uuid4
 
-from dotmac.platform.contacts.router import router
+import pytest
+from fastapi import HTTPException
+
 from dotmac.platform.contacts.schemas import (
-    ContactCreate,
-    ContactUpdate,
-    ContactResponse,
-    ContactMethodCreate,
-    ContactMethodUpdate,
-    ContactLabelDefinitionCreate,
-    ContactFieldDefinitionCreate,
     ContactActivityCreate,
-    ContactSearchRequest,
-    ContactBulkUpdate,
+    ContactActivityResponse,
     ContactBulkDelete,
+    ContactBulkUpdate,
+    ContactCreate,
+    ContactFieldDefinitionCreate,
+    ContactFieldDefinitionResponse,
+    ContactLabelDefinitionCreate,
+    ContactLabelDefinitionResponse,
+    ContactMethodCreate,
+    ContactMethodResponse,
+    ContactMethodUpdate,
+    ContactResponse,
+    ContactSearchRequest,
+    ContactUpdate,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -56,19 +60,134 @@ def mock_user_info(sample_user_id):
 
 @pytest.fixture
 def mock_contact_response(sample_contact_id, sample_tenant_id):
-    """Mock contact response."""
-    mock = Mock()
-    mock.contact_id = sample_contact_id
-    mock.tenant_id = sample_tenant_id
-    mock.first_name = "John"
-    mock.last_name = "Doe"
-    mock.email = "john@example.com"
-    mock.status = "active"
-    mock.stage = "lead"
-    mock.contact_methods = []
-    mock.labels = []
-    mock.custom_fields = {}
-    return mock
+    """Mock contact response - returns proper ContactResponse object."""
+    return ContactResponse(
+        id=sample_contact_id,
+        tenant_id=sample_tenant_id,
+        customer_id=None,
+        first_name="John",
+        middle_name=None,
+        last_name="Doe",
+        display_name="John Doe",
+        prefix=None,
+        suffix=None,
+        company=None,
+        job_title=None,
+        department=None,
+        owner_id=None,
+        assigned_team_id=None,
+        notes=None,
+        tags=[],
+        metadata={},
+        birthday=None,
+        anniversary=None,
+        is_primary=False,
+        is_decision_maker=False,
+        is_billing_contact=False,
+        is_technical_contact=False,
+        preferred_contact_method=None,
+        preferred_language=None,
+        timezone=None,
+        is_verified=False,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        last_contacted_at=None,
+        deleted_at=None,
+        contact_methods=[],
+        labels=[],
+    )
+
+
+@pytest.fixture
+def mock_contact_method_response(sample_contact_id):
+    """Mock contact method response - returns proper ContactMethodResponse object."""
+    return ContactMethodResponse(
+        id=uuid4(),
+        contact_id=sample_contact_id,
+        type="email",
+        value="test@example.com",
+        label=None,
+        is_primary=False,
+        is_preferred=False,
+        verified_at=None,
+        verified_by=None,
+        notes=None,
+        metadata={},
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def mock_contact_activity_response(sample_contact_id, sample_user_id):
+    """Mock contact activity response - returns proper ContactActivityResponse object."""
+    return ContactActivityResponse(
+        id=uuid4(),
+        contact_id=sample_contact_id,
+        activity_type="call",
+        subject="Follow up call",
+        description="Discussed next steps",
+        activity_date=datetime.now(UTC),
+        duration_minutes=30,
+        status="completed",
+        outcome="positive",
+        metadata={},
+        performed_by=sample_user_id,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def mock_label_definition_response(sample_tenant_id):
+    """Mock label definition response - returns proper ContactLabelDefinitionResponse object."""
+    return ContactLabelDefinitionResponse(
+        id=uuid4(),
+        tenant_id=sample_tenant_id,
+        name="VIP Customer",
+        slug="vip-customer",
+        description="High value customer",
+        color="#FF5733",
+        icon="star",
+        category="status",
+        display_order=1,
+        is_visible=True,
+        is_system=False,
+        is_default=False,
+        metadata={},
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def mock_field_definition_response(sample_tenant_id):
+    """Mock field definition response - returns proper ContactFieldDefinitionResponse object."""
+    from dotmac.platform.contacts.models import ContactFieldType
+
+    return ContactFieldDefinitionResponse(
+        id=uuid4(),
+        tenant_id=sample_tenant_id,
+        name="Custom Field",
+        field_key="custom_field",
+        description="A custom field",
+        field_type=ContactFieldType.TEXT,
+        is_required=False,
+        is_unique=False,
+        is_searchable=True,
+        default_value=None,
+        validation_rules={},
+        options=None,
+        display_order=1,
+        placeholder="Enter value",
+        help_text="Help text",
+        field_group="custom",
+        is_visible=True,
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
 
 
 class TestContactCRUDEndpoints:
@@ -367,12 +486,13 @@ class TestContactMethodEndpoints:
     """Test contact method management endpoints."""
 
     @pytest.mark.asyncio
-    async def test_add_contact_method(self, sample_contact_id, sample_tenant_id, mock_user_info):
+    async def test_add_contact_method(
+        self, sample_contact_id, sample_tenant_id, mock_user_info, mock_contact_method_response
+    ):
         """Test adding a contact method."""
         with patch("dotmac.platform.contacts.router.ContactService") as MockService:
             mock_service = MockService.return_value
-            mock_method = Mock(method_id=uuid4(), method_type="email", value="test@example.com")
-            mock_service.add_contact_method = AsyncMock(return_value=mock_method)
+            mock_service.add_contact_method = AsyncMock(return_value=mock_contact_method_response)
 
             from dotmac.platform.contacts.router import add_contact_method
 
@@ -386,7 +506,7 @@ class TestContactMethodEndpoints:
                 tenant_id=sample_tenant_id,
             )
 
-            assert result == mock_method
+            assert result == mock_contact_method_response
             mock_service.add_contact_method.assert_called_once()
 
     @pytest.mark.asyncio
@@ -414,13 +534,16 @@ class TestContactMethodEndpoints:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_update_contact_method(self, sample_tenant_id, mock_user_info):
+    async def test_update_contact_method(
+        self, sample_tenant_id, mock_user_info, mock_contact_method_response
+    ):
         """Test updating a contact method."""
-        method_id = uuid4()
+        method_id = mock_contact_method_response.id
         with patch("dotmac.platform.contacts.router.ContactService") as MockService:
             mock_service = MockService.return_value
-            mock_method = Mock(method_id=method_id, value="updated@example.com")
-            mock_service.update_contact_method = AsyncMock(return_value=mock_method)
+            mock_service.update_contact_method = AsyncMock(
+                return_value=mock_contact_method_response
+            )
 
             from dotmac.platform.contacts.router import update_contact_method
 
@@ -434,7 +557,7 @@ class TestContactMethodEndpoints:
                 tenant_id=sample_tenant_id,
             )
 
-            assert result == mock_method
+            assert result == mock_contact_method_response
 
     @pytest.mark.asyncio
     async def test_update_contact_method_not_found(self, sample_tenant_id, mock_user_info):
@@ -504,12 +627,15 @@ class TestContactActivityEndpoints:
     """Test contact activity endpoints."""
 
     @pytest.mark.asyncio
-    async def test_add_contact_activity(self, sample_contact_id, sample_tenant_id, mock_user_info):
+    async def test_add_contact_activity(
+        self, sample_contact_id, sample_tenant_id, mock_user_info, mock_contact_activity_response
+    ):
         """Test adding an activity to a contact."""
         with patch("dotmac.platform.contacts.router.ContactService") as MockService:
             mock_service = MockService.return_value
-            mock_activity = Mock(activity_id=uuid4(), activity_type="note", description="Test note")
-            mock_service.add_contact_activity = AsyncMock(return_value=mock_activity)
+            mock_service.add_contact_activity = AsyncMock(
+                return_value=mock_contact_activity_response
+            )
 
             from dotmac.platform.contacts.router import add_contact_activity
 
@@ -525,7 +651,7 @@ class TestContactActivityEndpoints:
                 tenant_id=sample_tenant_id,
             )
 
-            assert result == mock_activity
+            assert result == mock_contact_activity_response
             mock_service.add_contact_activity.assert_called_once()
 
     @pytest.mark.asyncio
@@ -556,15 +682,13 @@ class TestContactActivityEndpoints:
 
     @pytest.mark.asyncio
     async def test_get_contact_activities(
-        self, sample_contact_id, sample_tenant_id, mock_user_info
+        self, sample_contact_id, sample_tenant_id, mock_user_info, mock_contact_activity_response
     ):
         """Test getting activities for a contact."""
         with patch("dotmac.platform.contacts.router.ContactService") as MockService:
             mock_service = MockService.return_value
-            mock_activities = [
-                Mock(activity_id=uuid4(), activity_type="note"),
-                Mock(activity_id=uuid4(), activity_type="call"),
-            ]
+            # Return two activity responses
+            mock_activities = [mock_contact_activity_response, mock_contact_activity_response]
             mock_service.get_contact_activities = AsyncMock(return_value=mock_activities)
 
             from dotmac.platform.contacts.router import get_contact_activities
@@ -588,16 +712,19 @@ class TestLabelDefinitionEndpoints:
     """Test label definition endpoints."""
 
     @pytest.mark.asyncio
-    async def test_create_label_definition(self, sample_tenant_id, mock_user_info):
+    async def test_create_label_definition(
+        self, sample_tenant_id, mock_user_info, mock_label_definition_response
+    ):
         """Test creating a label definition."""
         with patch("dotmac.platform.contacts.router.ContactLabelService") as MockService:
             mock_service = MockService.return_value
-            mock_label = Mock(label_id=uuid4(), name="VIP", category="customer_type")
-            mock_service.create_label_definition = AsyncMock(return_value=mock_label)
+            mock_service.create_label_definition = AsyncMock(
+                return_value=mock_label_definition_response
+            )
 
             from dotmac.platform.contacts.router import create_label_definition
 
-            label_data = ContactLabelDefinitionCreate(name="VIP", category="customer_type")
+            label_data = ContactLabelDefinitionCreate(name="VIP Customer", category="status")
 
             result = await create_label_definition(
                 label_data=label_data,
@@ -606,17 +733,17 @@ class TestLabelDefinitionEndpoints:
                 tenant_id=sample_tenant_id,
             )
 
-            assert result == mock_label
+            assert result == mock_label_definition_response
 
     @pytest.mark.asyncio
-    async def test_get_label_definitions(self, sample_tenant_id, mock_user_info):
+    async def test_get_label_definitions(
+        self, sample_tenant_id, mock_user_info, mock_label_definition_response
+    ):
         """Test getting label definitions."""
         with patch("dotmac.platform.contacts.router.ContactLabelService") as MockService:
             mock_service = MockService.return_value
-            mock_labels = [
-                Mock(label_id=uuid4(), name="VIP"),
-                Mock(label_id=uuid4(), name="Partner"),
-            ]
+            # Return two label responses
+            mock_labels = [mock_label_definition_response, mock_label_definition_response]
             mock_service.get_label_definitions = AsyncMock(return_value=mock_labels)
 
             from dotmac.platform.contacts.router import get_label_definitions
@@ -632,11 +759,13 @@ class TestLabelDefinitionEndpoints:
             assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_get_label_definitions_filtered(self, sample_tenant_id, mock_user_info):
+    async def test_get_label_definitions_filtered(
+        self, sample_tenant_id, mock_user_info, mock_label_definition_response
+    ):
         """Test getting filtered label definitions."""
         with patch("dotmac.platform.contacts.router.ContactLabelService") as MockService:
             mock_service = MockService.return_value
-            mock_labels = [Mock(label_id=uuid4(), name="VIP", category="customer_type")]
+            mock_labels = [mock_label_definition_response]
             mock_service.get_label_definitions = AsyncMock(return_value=mock_labels)
 
             from dotmac.platform.contacts.router import get_label_definitions
@@ -658,16 +787,23 @@ class TestFieldDefinitionEndpoints:
     """Test custom field definition endpoints."""
 
     @pytest.mark.asyncio
-    async def test_create_field_definition(self, sample_tenant_id, mock_user_info):
+    async def test_create_field_definition(
+        self, sample_tenant_id, mock_user_info, mock_field_definition_response
+    ):
         """Test creating a custom field definition."""
+        from dotmac.platform.contacts.models import ContactFieldType
+
         with patch("dotmac.platform.contacts.router.ContactFieldService") as MockService:
             mock_service = MockService.return_value
-            mock_field = Mock(field_id=uuid4(), field_name="custom_field", field_type="text")
-            mock_service.create_field_definition = AsyncMock(return_value=mock_field)
+            mock_service.create_field_definition = AsyncMock(
+                return_value=mock_field_definition_response
+            )
 
             from dotmac.platform.contacts.router import create_field_definition
 
-            field_data = ContactFieldDefinitionCreate(name="custom_field", field_type="text")
+            field_data = ContactFieldDefinitionCreate(
+                name="Custom Field", field_type=ContactFieldType.TEXT
+            )
 
             result = await create_field_definition(
                 field_data=field_data,
@@ -676,17 +812,17 @@ class TestFieldDefinitionEndpoints:
                 tenant_id=sample_tenant_id,
             )
 
-            assert result == mock_field
+            assert result == mock_field_definition_response
 
     @pytest.mark.asyncio
-    async def test_get_field_definitions(self, sample_tenant_id, mock_user_info):
+    async def test_get_field_definitions(
+        self, sample_tenant_id, mock_user_info, mock_field_definition_response
+    ):
         """Test getting field definitions."""
         with patch("dotmac.platform.contacts.router.ContactFieldService") as MockService:
             mock_service = MockService.return_value
-            mock_fields = [
-                Mock(field_id=uuid4(), field_name="custom_1"),
-                Mock(field_id=uuid4(), field_name="custom_2"),
-            ]
+            # Return two field definition responses
+            mock_fields = [mock_field_definition_response, mock_field_definition_response]
             mock_service.get_field_definitions = AsyncMock(return_value=mock_fields)
 
             from dotmac.platform.contacts.router import get_field_definitions

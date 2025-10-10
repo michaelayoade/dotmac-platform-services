@@ -4,13 +4,12 @@ Test which storage backend is actually being used.
 """
 
 import asyncio
-import os
-from dotmac.platform.settings import settings
+
 from dotmac.platform.file_storage.service import (
-    get_storage_service,
-    FileStorageService,
     StorageBackend,
+    get_storage_service,
 )
+from dotmac.platform.settings import settings
 
 
 def test_minio_availability():
@@ -52,14 +51,13 @@ def test_minio_availability():
             from dotmac.platform.file_storage.minio_storage import MinIOStorage
 
             # Try to create MinIO client
-            print(f"  Attempting to connect to MinIO...")
+            print("  Attempting to connect to MinIO...")
             storage = MinIOStorage()
 
             # Test bucket access
             print(f"  Checking bucket '{settings.storage.bucket}'...")
 
             # This will raise an error if MinIO is not accessible
-            from minio import Minio
 
             client = storage.client
 
@@ -118,16 +116,16 @@ def test_minio_availability():
         # Test retrieving the file
         retrieved_data, metadata = await service.retrieve_file(file_id, "test_tenant")
         if retrieved_data == test_data:
-            print(f"  ✓ File retrieved successfully")
+            print("  ✓ File retrieved successfully")
         else:
-            print(f"  ✗ File retrieval failed or data mismatch")
+            print("  ✗ File retrieval failed or data mismatch")
 
         # Clean up
         deleted = await service.delete_file(file_id, "test_tenant")
         if deleted:
-            print(f"  ✓ File deleted successfully")
+            print("  ✓ File deleted successfully")
         else:
-            print(f"  ✗ File deletion failed")
+            print("  ✗ File deletion failed")
 
     asyncio.run(test_operations())
     print()
@@ -137,11 +135,7 @@ def test_minio_availability():
     print("-" * 40)
 
     if service.backend_type == StorageBackend.LOCAL:
-        print(
-            "  Currently using LOCAL storage (files stored at: {})".format(
-                settings.storage.local_path
-            )
-        )
+        print(f"  Currently using LOCAL storage (files stored at: {settings.storage.local_path})")
         print()
         print("  To use MinIO:")
         print("  1. Ensure MinIO server is running:")

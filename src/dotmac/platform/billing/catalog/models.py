@@ -9,9 +9,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 
 from dotmac.platform.billing.models import BillingBaseModel
+from dotmac.platform.core.pydantic import AppBaseModel
 
 
 class ProductType(str, Enum):
@@ -60,12 +61,6 @@ class ProductCategory(BillingBaseModel):
     # Display order
     sort_order: int = Field(default=0, description="Display sort order")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
-
 
 class Product(BillingBaseModel):
     """Core product model - simple and flexible."""
@@ -106,13 +101,6 @@ class Product(BillingBaseModel):
         default_factory=dict, description="Custom metadata for product-specific attributes"
     )
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
-
     @field_validator("base_price")
     @classmethod
     def validate_base_price(cls, v: Decimal) -> Decimal:
@@ -150,7 +138,7 @@ class Product(BillingBaseModel):
 # Request/Response Models
 
 
-class ProductCategoryCreateRequest(BaseModel):
+class ProductCategoryCreateRequest(AppBaseModel):
     """Request model for creating product categories."""
 
     name: str = Field(description="Category name", max_length=100)
@@ -167,7 +155,7 @@ class ProductCategoryCreateRequest(BaseModel):
         return v.strip()
 
 
-class ProductCreateRequest(BaseModel):
+class ProductCreateRequest(AppBaseModel):
     """Request model for creating products."""
 
     sku: str = Field(description="Stock keeping unit", max_length=100)
@@ -191,7 +179,7 @@ class ProductCreateRequest(BaseModel):
         return v
 
 
-class ProductUpdateRequest(BaseModel):
+class ProductUpdateRequest(AppBaseModel):
     """Request model for updating products."""
 
     name: str | None = Field(None, max_length=255)
@@ -212,7 +200,7 @@ class ProductUpdateRequest(BaseModel):
         return v
 
 
-class ProductFilters(BaseModel):
+class ProductFilters(AppBaseModel):
     """Filter options for product listings."""
 
     category: str | None = Field(None, description="Filter by category")
@@ -222,7 +210,7 @@ class ProductFilters(BaseModel):
     search: str | None = Field(None, description="Search in name and description")
 
 
-class ProductResponse(BaseModel):
+class ProductResponse(AppBaseModel):
     """Response model for product data."""
 
     product_id: str
@@ -242,15 +230,8 @@ class ProductResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
-    )
 
-
-class ProductCategoryResponse(BaseModel):
+class ProductCategoryResponse(AppBaseModel):
     """Response model for product category data."""
 
     category_id: str
@@ -261,9 +242,3 @@ class ProductCategoryResponse(BaseModel):
     sort_order: int
     created_at: datetime
     updated_at: datetime | None
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )

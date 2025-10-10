@@ -10,29 +10,13 @@ Tests all analytics API endpoints with various scenarios including:
 - Error handling
 """
 
-import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from dotmac.platform.analytics.models import (
-    AggregationType,
-    AnalyticsQueryRequest,
-    DashboardPeriod,
-    EventData,
-    EventTrackRequest,
-    EventTrackResponse,
-    EventType,
-    MetricRecordRequest,
-    MetricRecordResponse,
-    MetricUnit,
-    ReportType,
-    TimeInterval,
-)
-from dotmac.platform.analytics.router import analytics_router, get_analytics_service
+from dotmac.platform.analytics.router import analytics_router
 
 
 @pytest.fixture
@@ -62,7 +46,7 @@ def current_user():
 @pytest.fixture
 def app_client(mock_analytics_service):
     """Create test client with mocked dependencies."""
-    from fastapi import FastAPI, Depends
+    from fastapi import FastAPI
 
     app = FastAPI()
 
@@ -136,7 +120,7 @@ class TestEventTracking:
     def test_track_event_with_custom_timestamp(self, app_client):
         """Test event tracking with custom timestamp."""
         client, service = app_client
-        custom_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        custom_time = datetime.now(UTC) - timedelta(hours=1)
         request_data = {
             "event_name": "purchase",
             "event_type": "custom",
@@ -257,12 +241,12 @@ class TestEventQuerying:
             {
                 "event_id": "evt1",
                 "event_name": "login",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
             {
                 "event_id": "evt2",
                 "event_name": "logout",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         ]
         service.query_events.return_value = mock_events
@@ -283,8 +267,8 @@ class TestEventQuerying:
     def test_query_events_with_date_range(self, app_client):
         """Test event querying with date range."""
         client, service = app_client
-        start_date = datetime.now(timezone.utc) - timedelta(days=7)
-        end_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC) - timedelta(days=7)
+        end_date = datetime.now(UTC)
 
         service.query_events.return_value = []
 
@@ -458,8 +442,8 @@ class TestReportGeneration:
         client, service = app_client
         service.generate_report.return_value = {}
 
-        start_date = datetime.now(timezone.utc) - timedelta(days=30)
-        end_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC) - timedelta(days=30)
+        end_date = datetime.now(UTC)
 
         response = client.get(
             "/analytics/reports/usage",

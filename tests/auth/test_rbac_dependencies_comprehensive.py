@@ -1,26 +1,27 @@
 """Comprehensive tests for RBAC dependencies."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+import pytest
 from fastapi import HTTPException
 
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.exceptions import AuthorizationError
 from dotmac.platform.auth.rbac_dependencies import (
     PermissionChecker,
-    RoleChecker,
-    ResourcePermissionChecker,
     PermissionMode,
+    ResourcePermissionChecker,
+    RoleChecker,
+    check_any_permission,
+    check_permission,
+    require_admin,
+    require_any_permission,
+    require_any_role,
     require_permission,
     require_permissions,
-    require_any_permission,
     require_role,
-    require_any_role,
-    require_admin,
-    check_permission,
-    check_any_permission,
 )
-from dotmac.platform.auth.exceptions import AuthorizationError
 
 
 @pytest.mark.asyncio

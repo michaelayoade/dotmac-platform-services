@@ -47,6 +47,64 @@ class TenantInfo(BaseModel):
     resource_count: int = 0
 
 
+class TenantDetailResponse(BaseModel):
+    """Detailed tenant information for platform admin."""
+
+    # Core tenant info
+    tenant_id: str
+    name: str
+    slug: str
+    domain: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+    # Status and subscription
+    status: str
+    plan_type: str
+    billing_cycle: str
+    billing_email: str | None = None
+
+    # Subscription dates
+    trial_ends_at: str | None = None
+    subscription_starts_at: str | None = None
+    subscription_ends_at: str | None = None
+
+    # Limits and quotas
+    max_users: int
+    max_api_calls_per_month: int
+    max_storage_gb: int
+
+    # Current usage
+    current_users: int
+    current_api_calls: int
+    current_storage_gb: float
+
+    # Feature flags and settings
+    features: dict[str, Any] = {}
+    settings: dict[str, Any] = {}
+
+    # Company information
+    company_size: str | None = None
+    industry: str | None = None
+    country: str | None = None
+    timezone: str = "UTC"
+
+    # Branding
+    logo_url: str | None = None
+    primary_color: str | None = None
+
+    # Timestamps
+    created_at: str
+    updated_at: str | None = None
+
+    # Metrics (aggregated from related data)
+    total_users: int = 0
+    total_customers: int = 0
+    total_active_subscriptions: int = 0
+    total_invoices: int = 0
+    total_revenue: float = 0.0
+
+
 class TenantListResponse(BaseModel):
     """Response for listing all tenants."""
 
@@ -181,51 +239,44 @@ async def list_all_tenants(
     )
 
     from dotmac.platform.customer_management.models import Customer
+    from dotmac.platform.tenant.models import Tenant
     from dotmac.platform.user_management.models import User
 
-    # Get distinct tenants from users table
-    tenant_query = (
-        select(User.tenant_id, func.count(User.id).label("user_count"))
-        .group_by(User.tenant_id)
-        .order_by(User.tenant_id)
-    )
+    # Get tenants from tenants table with user and customer counts
+    # First, get paginated tenant list
+    tenant_query = select(Tenant).order_by(Tenant.created_at.desc())
 
     # Apply pagination
     offset = (page - 1) * page_size
     tenant_query = tenant_query.offset(offset).limit(page_size)
 
     result = await db.execute(tenant_query)
-    tenant_data = result.all()
+    tenant_records = result.scalars().all()
 
     # Get total count
-    count_query = select(func.count(func.distinct(User.tenant_id)))
+    count_query = select(func.count(Tenant.id))
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Build tenant info list
+    # Build tenant info list with aggregated counts
     tenants = []
-    for tenant_id, user_count in tenant_data:
+    for tenant in tenant_records:
+        # Count users for this tenant
+        user_count_query = select(func.count(User.id)).where(User.tenant_id == tenant.id)
+        user_count_result = await db.execute(user_count_query)
+        user_count = user_count_result.scalar() or 0
+
         # Count resources (customers) for this tenant
-        resource_query = select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id)
+        resource_query = select(func.count(Customer.id)).where(Customer.tenant_id == tenant.id)
         resource_result = await db.execute(resource_query)
         resource_count = resource_result.scalar() or 0
 
-        # Get first user's created_at as tenant created_at approximation
-        user_query = (
-            select(User.created_at)
-            .where(User.tenant_id == tenant_id)
-            .order_by(User.created_at)
-            .limit(1)
-        )
-        user_result = await db.execute(user_query)
-        first_user = user_result.scalar_one_or_none()
-
         tenants.append(
             TenantInfo(
-                tenant_id=tenant_id,
-                name=f"Tenant {tenant_id}",  # Could be enhanced with a tenants table
-                created_at=first_user.isoformat() if first_user else None,
-                is_active=True,
+                tenant_id=tenant.id,
+                name=tenant.name,  # Real tenant name from database
+                created_at=tenant.created_at.isoformat(),
+                is_active=(tenant.status.value in ["active", "trial"]),
                 user_count=user_count,
                 resource_count=resource_count,
             )
@@ -236,6 +287,142 @@ async def list_all_tenants(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/tenants/{tenant_id}", response_model=TenantDetailResponse)
+async def get_tenant_detail(
+    tenant_id: str,
+    admin: UserInfo = Depends(require_platform_permission("platform:tenants:read")),
+    db: AsyncSession = Depends(get_async_session),
+) -> TenantDetailResponse:
+    """Get detailed information about a specific tenant.
+
+    Requires: platform:tenants:read permission
+
+    Returns comprehensive tenant details including usage metrics, billing data,
+    and subscription information.
+    """
+    await platform_audit.log_action(
+        user=admin,
+        action="get_tenant_detail",
+        target_tenant=tenant_id,
+    )
+
+    from fastapi import HTTPException
+
+    from dotmac.platform.customer_management.models import Customer
+    from dotmac.platform.tenant.models import Tenant
+    from dotmac.platform.user_management.models import User
+
+    # Get tenant from database
+    tenant_query = select(Tenant).where(Tenant.id == tenant_id)
+    result = await db.execute(tenant_query)
+    tenant = result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail=f"Tenant {tenant_id} not found")
+
+    # Aggregate metrics
+
+    # Count total users for this tenant
+    user_count_query = select(func.count(User.id)).where(User.tenant_id == tenant_id)
+    user_count_result = await db.execute(user_count_query)
+    total_users = user_count_result.scalar() or 0
+
+    # Count total customers for this tenant
+    customer_count_query = select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id)
+    customer_count_result = await db.execute(customer_count_query)
+    total_customers = customer_count_result.scalar() or 0
+
+    # Count active subscriptions (if billing module exists)
+    total_active_subscriptions = 0
+    total_invoices = 0
+    total_revenue = 0.0
+
+    try:
+        from dotmac.platform.billing.core.entities import InvoiceEntity
+        from dotmac.platform.billing.models import BillingSubscriptionTable
+
+        # Count active subscriptions
+        subscription_query = (
+            select(func.count(BillingSubscriptionTable.id))
+            .where(BillingSubscriptionTable.tenant_id == tenant_id)
+            .where(BillingSubscriptionTable.status == "active")
+        )
+        subscription_result = await db.execute(subscription_query)
+        total_active_subscriptions = subscription_result.scalar() or 0
+
+        # Count total invoices
+        invoice_count_query = select(func.count(InvoiceEntity.invoice_id)).where(
+            InvoiceEntity.tenant_id == tenant_id
+        )
+        invoice_count_result = await db.execute(invoice_count_query)
+        total_invoices = invoice_count_result.scalar() or 0
+
+        # Sum total revenue from paid invoices
+        revenue_query = select(func.sum(InvoiceEntity.total_amount)).where(
+            InvoiceEntity.tenant_id == tenant_id,
+            InvoiceEntity.status == "paid",
+        )
+        revenue_result = await db.execute(revenue_query)
+        revenue = revenue_result.scalar()
+        total_revenue = float(revenue) / 100.0 if revenue else 0.0  # Convert cents to dollars
+
+    except ImportError:
+        # Billing module not available
+        logger.debug("Billing module not available for tenant metrics", tenant_id=tenant_id)
+
+    # Build response
+    return TenantDetailResponse(
+        # Core tenant info
+        tenant_id=tenant.id,
+        name=tenant.name,
+        slug=tenant.slug,
+        domain=tenant.domain,
+        email=tenant.email,
+        phone=tenant.phone,
+        # Status and subscription
+        status=tenant.status.value,
+        plan_type=tenant.plan_type.value,
+        billing_cycle=tenant.billing_cycle.value,
+        billing_email=tenant.billing_email,
+        # Subscription dates
+        trial_ends_at=tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+        subscription_starts_at=(
+            tenant.subscription_starts_at.isoformat() if tenant.subscription_starts_at else None
+        ),
+        subscription_ends_at=(
+            tenant.subscription_ends_at.isoformat() if tenant.subscription_ends_at else None
+        ),
+        # Limits and quotas
+        max_users=tenant.max_users,
+        max_api_calls_per_month=tenant.max_api_calls_per_month,
+        max_storage_gb=tenant.max_storage_gb,
+        # Current usage
+        current_users=tenant.current_users,
+        current_api_calls=tenant.current_api_calls,
+        current_storage_gb=float(tenant.current_storage_gb),
+        # Feature flags and settings
+        features=tenant.features or {},
+        settings=tenant.settings or {},
+        # Company information
+        company_size=tenant.company_size,
+        industry=tenant.industry,
+        country=tenant.country,
+        timezone=tenant.timezone,
+        # Branding
+        logo_url=tenant.logo_url,
+        primary_color=tenant.primary_color,
+        # Timestamps
+        created_at=tenant.created_at.isoformat(),
+        updated_at=tenant.updated_at.isoformat() if tenant.updated_at else None,
+        # Aggregated metrics
+        total_users=total_users,
+        total_customers=total_customers,
+        total_active_subscriptions=total_active_subscriptions,
+        total_invoices=total_invoices,
+        total_revenue=total_revenue,
     )
 
 

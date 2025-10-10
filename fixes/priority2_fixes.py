@@ -17,7 +17,8 @@ This file contains the fixes for the three priority 2 issues:
 # Fix for test fixture:
 def fixed_mock_file_metadata():
     """Fixed mock file metadata for testing."""
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
+
     from dotmac.platform.file_storage.service import FileMetadata
 
     return FileMetadata(
@@ -48,6 +49,7 @@ def fixed_mock_file_metadata():
 async def fixed_test_load_secrets_from_vault_no_vault_config():
     """Fixed test for async secrets loading when Vault config unavailable."""
     from unittest.mock import Mock, patch
+
     from dotmac.platform.secrets.secrets_loader import load_secrets_from_vault
 
     mock_settings = Mock()
@@ -61,7 +63,8 @@ async def fixed_test_load_secrets_from_vault_no_vault_config():
 
 async def fixed_test_load_secrets_from_vault_success():
     """Fixed test for successful async secrets loading."""
-    from unittest.mock import Mock, AsyncMock, patch
+    from unittest.mock import AsyncMock, Mock, patch
+
     from dotmac.platform.secrets.secrets_loader import load_secrets_from_vault
 
     mock_settings = Mock()
@@ -97,7 +100,6 @@ async def fixed_test_load_secrets_from_vault_success():
 
 # Option 1: Create a proper context manager wrapper
 from contextlib import asynccontextmanager
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @asynccontextmanager
@@ -133,9 +135,10 @@ async def fixed_create_bulk_job(self, job_data, session=None):
 async def fixed_create_bulk_job_alt(self, job_data, session=None):
     """Alternative fix using manual session creation."""
     if session is None:
-        from dotmac.platform.db import async_engine
         from sqlalchemy.ext.asyncio import AsyncSession
         from sqlalchemy.orm import sessionmaker
+
+        from dotmac.platform.db import async_engine
 
         AsyncSessionLocal = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 

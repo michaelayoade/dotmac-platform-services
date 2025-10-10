@@ -5,29 +5,30 @@ Coverage target: 90%+
 Strategy: Test validation logic, helper methods, and mock database operations
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, ANY
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from dotmac.platform.billing.exceptions import (
+    InvalidPricingRuleError,
+    PriceCalculationError,
+    PricingError,
+)
+from dotmac.platform.billing.models import BillingPricingRuleTable, BillingProductTable
+from dotmac.platform.billing.pricing.models import (
+    DiscountType,
+    PriceCalculationContext,
+    PriceCalculationRequest,
+    PricingRule,
+    PricingRuleCreateRequest,
+    PricingRuleUpdateRequest,
+)
 from dotmac.platform.billing.pricing.service import (
     PricingEngine,
     generate_rule_id,
     generate_usage_id,
-)
-from dotmac.platform.billing.pricing.models import (
-    PricingRule,
-    PricingRuleCreateRequest,
-    PricingRuleUpdateRequest,
-    PriceCalculationRequest,
-    PriceCalculationContext,
-    DiscountType,
-)
-from dotmac.platform.billing.models import BillingPricingRuleTable, BillingProductTable
-from dotmac.platform.billing.exceptions import (
-    PricingError,
-    InvalidPricingRuleError,
-    PriceCalculationError,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -72,8 +73,8 @@ def sample_rule_request():
         customer_segments=["premium"],
         discount_type=DiscountType.PERCENTAGE,
         discount_value=Decimal("20.00"),
-        starts_at=datetime(2025, 11, 25, tzinfo=timezone.utc),
-        ends_at=datetime(2025, 11, 30, tzinfo=timezone.utc),
+        starts_at=datetime(2025, 11, 25, tzinfo=UTC),
+        ends_at=datetime(2025, 11, 30, tzinfo=UTC),
         max_uses=100,
         metadata={"campaign_id": "bf2025"},
     )
@@ -94,15 +95,15 @@ def mock_db_rule():
     rule.customer_segments = ["premium"]
     rule.discount_type = "PERCENTAGE"
     rule.discount_value = Decimal("15.00")
-    rule.starts_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    rule.ends_at = datetime(2025, 12, 31, tzinfo=timezone.utc)
+    rule.starts_at = datetime(2025, 1, 1, tzinfo=UTC)
+    rule.ends_at = datetime(2025, 12, 31, tzinfo=UTC)
     rule.max_uses = 100
     rule.current_uses = 10
     rule.priority = 0
     rule.is_active = True
     rule.metadata_json = {"note": "test"}
-    rule.created_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    rule.updated_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    rule.created_at = datetime(2025, 1, 1, tzinfo=UTC)
+    rule.updated_at = datetime(2025, 1, 1, tzinfo=UTC)
     return rule
 
 

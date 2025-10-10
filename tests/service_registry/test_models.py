@@ -3,7 +3,6 @@ Tests for service registry data models.
 """
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError

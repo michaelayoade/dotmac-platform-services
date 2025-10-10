@@ -3,16 +3,16 @@
 Create RBAC tables directly and seed data
 """
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
-from datetime import datetime, timezone
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+
 from dotmac.platform.db import get_sync_engine
-from dotmac.platform.settings import settings
 
 
 def create_rbac_tables():
@@ -441,8 +441,8 @@ def seed_rbac_data():
                         "category": category,
                         "is_active": True,
                         "is_system": True,
-                        "created_at": datetime.now(timezone.utc),
-                        "updated_at": datetime.now(timezone.utc),
+                        "created_at": datetime.now(UTC),
+                        "updated_at": datetime.now(UTC),
                     },
                 )
                 print(f"  ✓ Created permission: {name}")
@@ -489,8 +489,8 @@ def seed_rbac_data():
                         "is_active": True,
                         "is_system": is_system,
                         "is_default": is_default,
-                        "created_at": datetime.now(timezone.utc),
-                        "updated_at": datetime.now(timezone.utc),
+                        "created_at": datetime.now(UTC),
+                        "updated_at": datetime.now(UTC),
                     },
                 )
 
@@ -521,7 +521,7 @@ def seed_rbac_data():
                                     {
                                         "role_id": role_id,
                                         "permission_id": permission_ids[perm_name_all],
-                                        "granted_at": datetime.now(timezone.utc),
+                                        "granted_at": datetime.now(UTC),
                                     },
                                 )
                     elif perm_name in permission_ids:
@@ -544,7 +544,7 @@ def seed_rbac_data():
                                 {
                                     "role_id": role_id,
                                     "permission_id": permission_ids[perm_name],
-                                    "granted_at": datetime.now(timezone.utc),
+                                    "granted_at": datetime.now(UTC),
                                 },
                             )
                     else:

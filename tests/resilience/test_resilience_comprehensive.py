@@ -5,10 +5,9 @@ This module tests circuit breakers, service mesh functionality,
 load balancing, traffic policies, and other resilience patterns.
 """
 
-import asyncio
 import time
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -16,25 +15,24 @@ from tenacity import RetryError
 
 from dotmac.platform.resilience.circuit_breaker import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 from dotmac.platform.resilience.service_mesh import (
     CircuitBreakerState,
+    EncryptionLevel,
     LoadBalancer,
     RetryPolicy,
     ServiceCall,
     ServiceEndpoint,
+    ServiceMarketplace,
     ServiceMesh,
     ServiceMeshFactory,
     ServiceRegistry,
+    ServiceStatus,
     TrafficPolicy,
     TrafficRule,
-    ServiceStatus,
-    ServiceMarketplace,
-    PerformanceOptimizationService,
-    EncryptionLevel,
     setup_service_mesh_for_consolidated_services,
 )
 
@@ -313,7 +311,7 @@ class TestServiceCall:
         call_id = str(uuid4())
         trace_id = str(uuid4())
         span_id = str(uuid4())
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
         call = ServiceCall(
             call_id=call_id,
@@ -344,7 +342,7 @@ class TestServiceCall:
         call_id = str(uuid4())
         trace_id = str(uuid4())
         span_id = str(uuid4())
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
         call = ServiceCall(
             call_id=call_id,

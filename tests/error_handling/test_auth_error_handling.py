@@ -5,16 +5,6 @@ Tests comprehensive error scenarios for the auth module.
 """
 
 import pytest
-from datetime import datetime, timedelta, timezone
-from fastapi import status
-from unittest.mock import AsyncMock, patch, MagicMock
-
-from dotmac.platform.auth.exceptions import (
-    AuthError,
-    TokenExpired,
-    InvalidToken,
-    AuthenticationError,
-)
 
 
 class TestAuthenticationErrors:

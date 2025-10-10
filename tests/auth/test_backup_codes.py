@@ -4,17 +4,18 @@ Tests for Backup Code functionality.
 Tests backup code generation, storage, verification, and regeneration.
 """
 
-import pytest
 import uuid
-from httpx import AsyncClient
+
+import pytest
 from fastapi import FastAPI
+from httpx import AsyncClient
 from sqlalchemy import select
 
-from dotmac.platform.auth.router import auth_router
-from dotmac.platform.auth.mfa_service import mfa_service
 from dotmac.platform.auth.core import hash_password, verify_password
-from dotmac.platform.user_management.models import User, BackupCode
 from dotmac.platform.auth.dependencies import UserInfo
+from dotmac.platform.auth.mfa_service import mfa_service
+from dotmac.platform.auth.router import auth_router
+from dotmac.platform.user_management.models import BackupCode, User
 
 
 @pytest.fixture
@@ -71,8 +72,9 @@ def mock_user_info(test_user):
 async def client(app, async_db_session, mock_user_info):
     """Create async test client."""
     from httpx import ASGITransport
-    from dotmac.platform.db import get_session_dependency
+
     from dotmac.platform.auth.dependencies import get_current_user
+    from dotmac.platform.db import get_session_dependency
 
     app.dependency_overrides[get_session_dependency] = lambda: async_db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user_info

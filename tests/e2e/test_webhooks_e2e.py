@@ -12,38 +12,32 @@ Expected Coverage:
 - Webhook Models: → 95%+
 """
 
-import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
-from unittest.mock import AsyncMock, patch, MagicMock, Mock
 import os
 import uuid
-import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
 import httpx
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 # Set test environment
 os.environ["TESTING"] = "1"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-e2e-tests"
 
+from dotmac.platform.auth.dependencies import UserInfo
 from dotmac.platform.db import Base
 from dotmac.platform.main import app
-from dotmac.platform.webhooks.models import (
-    WebhookSubscription,
-    WebhookDelivery,
-    DeliveryStatus,
-    WebhookEvent,
-    WebhookSubscriptionCreate,
-    WebhookSubscriptionUpdate,
-)
-from dotmac.platform.webhooks.service import WebhookSubscriptionService
 from dotmac.platform.webhooks.delivery import WebhookDeliveryService
 from dotmac.platform.webhooks.events import get_event_bus
-from dotmac.platform.auth.dependencies import UserInfo
-
+from dotmac.platform.webhooks.models import (
+    DeliveryStatus,
+    WebhookDelivery,
+    WebhookSubscription,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -115,9 +109,9 @@ def mock_current_user(tenant_id, user_id):
 @pytest_asyncio.fixture
 async def async_client(db_session, tenant_id, mock_current_user):
     """Create async HTTP client with dependency overrides."""
+    from dotmac.platform.auth.dependencies import get_current_user
     from dotmac.platform.db import get_async_db
     from dotmac.platform.tenant import get_current_tenant_id
-    from dotmac.platform.auth.dependencies import get_current_user
 
     # Create a function that returns the session
     async def override_get_db():

@@ -23,9 +23,9 @@ if "dotmac.platform.settings" in sys.modules:
 if "dotmac.platform.file_storage.service" in sys.modules:
     del sys.modules["dotmac.platform.file_storage.service"]
 
-from dotmac.platform.settings import settings
-from dotmac.platform.file_storage.service import get_storage_service, StorageBackend
 import dotmac.platform.file_storage.service as service_module
+from dotmac.platform.file_storage.service import StorageBackend, get_storage_service
+from dotmac.platform.settings import settings
 
 
 async def test_minio_operations():

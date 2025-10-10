@@ -12,7 +12,6 @@ import pytest
 from dotmac.platform.contacts.models import ContactFieldType
 from dotmac.platform.contacts.schemas import ContactFieldDefinitionCreate
 from dotmac.platform.contacts.service import ContactFieldService
-
 from tests.helpers import build_mock_db_session
 
 pytestmark = pytest.mark.asyncio

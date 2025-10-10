@@ -5,23 +5,22 @@ Strategy: Use REAL database, mock ONLY external APIs (payment providers)
 Focus: Test complete workflows with actual DB operations
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
 from sqlalchemy import select
 
-from dotmac.platform.billing.payments.service import PaymentService
 from dotmac.platform.billing.core.entities import PaymentEntity, PaymentMethodEntity
 from dotmac.platform.billing.core.enums import (
-    PaymentStatus,
     PaymentMethodStatus,
     PaymentMethodType,
+    PaymentStatus,
 )
 from dotmac.platform.billing.core.exceptions import (
     PaymentError,
     PaymentMethodNotFoundError,
 )
+from dotmac.platform.billing.payments.service import PaymentService
 
 
 @pytest.mark.asyncio

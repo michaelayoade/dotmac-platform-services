@@ -54,7 +54,7 @@ export function MetricCardEnhanced({
     <div
       className={cn(
         "group relative rounded-lg border p-6 transition-all duration-200",
-        "bg-white border-border dark:bg-card dark:border-border",
+        "bg-card border-border",
         !error && "hover:border-border dark:hover:border-border hover:shadow-lg hover:shadow-sky-500/5",
         error && "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/20",
         className
@@ -81,15 +81,15 @@ export function MetricCardEnhanced({
             <>
               <p className={cn(
                 "text-3xl font-bold transition-colors duration-200",
-                showEmptyState ? "text-muted-foreground" : "text-white group-hover:text-sky-400"
+                showEmptyState ? "text-muted-foreground" : "text-foreground group-hover:text-sky-400"
               )}>
                 {formattedValue}
               </p>
 
               {showEmptyState ? (
-                <p className="text-xs text-foreground0 italic">{emptyStateMessage}</p>
+                <p className="text-xs text-muted-foreground italic">{emptyStateMessage}</p>
               ) : subtitle ? (
-                <p className="text-sm text-foreground0">{subtitle}</p>
+                <p className="text-sm text-muted-foreground">{subtitle}</p>
               ) : null}
 
               {trend && !showEmptyState && (

@@ -129,15 +129,19 @@ class AuditActivityCreate(BaseModel):
 
     @field_validator("tenant_id", mode="before")
     @classmethod
-    def validate_tenant_id(cls, v: Any) -> Any:
+    def validate_tenant_id(cls, v: Any) -> str:
         """Auto-populate tenant_id from context if not provided."""
-        if v is None or v == "":
+        tenant_value = v
+        if tenant_value is None or tenant_value == "":
             from ..tenant import get_current_tenant_id
 
-            v = get_current_tenant_id()
-        if not v:
-            raise ValueError("tenant_id is required and could not be resolved from context")
-        return v
+            tenant_value = get_current_tenant_id()
+        # Use "default" tenant for pre-authentication activities (login attempts, etc.)
+        if not tenant_value:
+            tenant_value = "default"
+        if isinstance(tenant_value, str):
+            return tenant_value
+        return str(tenant_value)
 
     action: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1)

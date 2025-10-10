@@ -7,21 +7,17 @@ Following strategic testing pattern:
 - Test full request/response flow
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from fastapi import FastAPI, status
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.router import auth_router
 from dotmac.platform.auth.core import hash_password
-from dotmac.platform.db import get_session_dependency
+from dotmac.platform.auth.router import auth_router
 from dotmac.platform.user_management.models import User
-
 
 # ============================================================================
 # Fixtures
@@ -31,7 +27,7 @@ from dotmac.platform.user_management.models import User
 @pytest.fixture
 def app():
     """Create FastAPI app with auth router and tenant middleware."""
-    from dotmac.platform.tenant import TenantMiddleware, TenantConfiguration, TenantMode
+    from dotmac.platform.tenant import TenantConfiguration, TenantMiddleware, TenantMode
 
     app = FastAPI()
 

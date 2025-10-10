@@ -11,11 +11,10 @@ These tests verify the entire flow from HTTP request to email delivery
 and database logging.
 """
 
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
-from uuid import uuid4
 
 from dotmac.platform.communications.email_service import EmailResponse
 

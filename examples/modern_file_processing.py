@@ -10,10 +10,9 @@ Performance benefits:
 - python-magic: More reliable MIME detection
 """
 
-from pathlib import Path
 import fitz  # PyMuPDF
-from PIL import Image
 import magic
+from PIL import Image
 
 
 # Example 1: Fast PDF text extraction (10x faster than PyPDF2)

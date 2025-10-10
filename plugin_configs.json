@@ -1,7 +1,7 @@
 {
   "instances": [
     {
-      "id": "1d9e7728-0e3c-4117-bffb-8591f378b725",
+      "id": "a913e3d8-e964-4e10-9834-0d859ba29335",
       "plugin_name": "Test Notification",
       "instance_name": "Valid",
       "config_schema": {
@@ -79,14 +79,14 @@
         "supports_test_connection": true
       },
       "status": "active",
-      "last_health_check": "2025-10-05T09:02:26.988750+00:00",
+      "last_health_check": "2025-10-09T12:20:52.991623+00:00",
       "last_error": null,
       "has_configuration": true,
       "configuration_version": null
     }
   ],
   "configurations": {
-    "1d9e7728-0e3c-4117-bffb-8591f378b725": {
+    "a913e3d8-e964-4e10-9834-0d859ba29335": {
       "api_key": {
         "__secret__": true
       },

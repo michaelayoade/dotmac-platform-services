@@ -38,24 +38,20 @@ from dotmac.platform.core.domain_event_integration import (
 )
 
 # Domain-Driven Design components
-from dotmac.platform.core.events import (
-    # Customer events
+from dotmac.platform.core.events import (  # Customer events; Billing events; Payment events; Subscription events
     CustomerCreatedEvent,
     CustomerDeletedEvent,
     CustomerUpdatedEvent,
     DomainEvent,
     DomainEventMetadata,
-    # Billing events
     InvoiceCreatedEvent,
     InvoiceOverdueEvent,
     InvoicePaymentReceivedEvent,
     InvoiceVoidedEvent,
     PaymentFailedEvent,
-    # Payment events
     PaymentProcessedEvent,
     PaymentRefundedEvent,
     SubscriptionCancelledEvent,
-    # Subscription events
     SubscriptionCreatedEvent,
     SubscriptionRenewedEvent,
     SubscriptionUpgradedEvent,

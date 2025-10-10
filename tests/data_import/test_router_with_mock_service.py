@@ -2,24 +2,24 @@
 
 import io
 import json
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from dotmac.platform.main import app
+from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.data_import.models import (
+    ImportFailure,
     ImportJob,
     ImportJobStatus,
     ImportJobType,
-    ImportFailure,
 )
 from dotmac.platform.data_import.service import ImportResult
-from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.main import app
 from dotmac.platform.tenant import set_current_tenant_id
 
 
@@ -70,16 +70,16 @@ def create_mock_job(
     job.failed_records = 0
     job.progress_percentage = 100.0
     job.success_rate = 100.0
-    job.started_at = datetime.now(timezone.utc)
-    job.completed_at = datetime.now(timezone.utc)
+    job.started_at = datetime.now(UTC)
+    job.completed_at = datetime.now(UTC)
     job.duration_seconds = 10.5
     job.error_message = None
     job.celery_task_id = None
     job.summary = {}
     job.config = {}
     job.initiated_by = None
-    job.created_at = datetime.now(timezone.utc)
-    job.updated_at = datetime.now(timezone.utc)
+    job.created_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     return job
 
 

@@ -3,16 +3,15 @@ Tests for search interfaces and data structures.
 """
 
 import pytest
-from dataclasses import FrozenInstanceError
 
 from dotmac.platform.search.interfaces import (
-    SearchType,
-    SortOrder,
+    SearchBackend,
     SearchFilter,
     SearchQuery,
-    SearchResult,
     SearchResponse,
-    SearchBackend,
+    SearchResult,
+    SearchType,
+    SortOrder,
 )
 
 

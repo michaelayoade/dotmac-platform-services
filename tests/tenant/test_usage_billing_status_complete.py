@@ -4,18 +4,18 @@ Complete tests for usage billing status endpoint to achieve 90%+ router coverage
 Focuses on recommendation generation logic (lines 185-240 in usage_billing_router.py).
 """
 
-import pytest
-from datetime import datetime, UTC
-from httpx import AsyncClient, ASGITransport
-from fastapi import status
-from unittest.mock import AsyncMock, MagicMock
-from decimal import Decimal
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastapi import status
+from httpx import ASGITransport, AsyncClient
+
+from dotmac.platform.auth.core import UserInfo
 from src.dotmac.platform.tenant.models import Tenant, TenantPlanType, TenantStatus
 from src.dotmac.platform.tenant.service import TenantService
-from dotmac.platform.auth.core import UserInfo
-
 
 pytestmark = pytest.mark.asyncio
 

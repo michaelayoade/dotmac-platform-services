@@ -5,9 +5,8 @@ This module provides common fixtures that are used across multiple test modules,
 reducing duplication and improving maintenance.
 """
 
-import uuid
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
@@ -21,7 +20,7 @@ try:
 except ImportError:
     # Fallback mock UserInfo
     class UserInfo:
-        def __init__(self, user_id: str, permissions: List[str] = None, **kwargs):
+        def __init__(self, user_id: str, permissions: list[str] = None, **kwargs):
             self.user_id = user_id
             self.permissions = permissions or []
             for key, value in kwargs.items():
@@ -30,7 +29,7 @@ except ImportError:
     HAS_USER_INFO = False
 
 try:
-    from dotmac.platform.user_management.models import User, CreateUserRequest, UpdateUserRequest
+    from dotmac.platform.user_management.models import CreateUserRequest, UpdateUserRequest, User
 
     HAS_USER_MODELS = True
 except ImportError:
@@ -44,7 +43,7 @@ except ImportError:
     HAS_CUSTOMER_MODELS = False
 
 try:
-    from dotmac.platform.data_transfer.core import TransferConfig, ImportOptions, ExportOptions
+    from dotmac.platform.data_transfer.core import ExportOptions, ImportOptions, TransferConfig
 
     HAS_DATA_TRANSFER = True
 except ImportError:
@@ -218,8 +217,8 @@ if HAS_CUSTOMER_MODELS:
             name="Test Customer",
             email="customer@example.com",
             tenant_id="tenant-123",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -238,8 +237,8 @@ if HAS_USER_MODELS:
             username="testuser",
             email="user@example.com",
             tenant_id="tenant-123",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
 
@@ -279,24 +278,24 @@ def mock_http_client() -> AsyncMock:
 
 
 @pytest.fixture
-def sample_api_response() -> Dict[str, Any]:
+def sample_api_response() -> dict[str, Any]:
     """Sample API response for testing."""
     return {
         "success": True,
         "data": {"id": "123", "name": "test"},
         "message": "Success",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
 @pytest.fixture
-def sample_error_response() -> Dict[str, Any]:
+def sample_error_response() -> dict[str, Any]:
     """Sample API error response for testing."""
     return {
         "success": False,
         "error": "Not Found",
         "message": "Resource not found",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -308,7 +307,7 @@ def sample_error_response() -> Dict[str, Any]:
 @pytest.fixture
 def fixed_datetime() -> datetime:
     """Fixed datetime for consistent testing."""
-    return datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -353,7 +352,7 @@ def mock_settings() -> Mock:
 # ============================================================================
 
 
-def create_mock_service(service_name: str, methods: List[str] = None) -> AsyncMock:
+def create_mock_service(service_name: str, methods: list[str] = None) -> AsyncMock:
     """
     Factory function to create mock services with specified methods.
 
@@ -374,7 +373,7 @@ def create_mock_service(service_name: str, methods: List[str] = None) -> AsyncMo
     return service
 
 
-def create_test_data(model_type: str, **kwargs) -> Dict[str, Any]:
+def create_test_data(model_type: str, **kwargs) -> dict[str, Any]:
     """
     Factory function to create test data for different model types.
 
@@ -390,13 +389,13 @@ def create_test_data(model_type: str, **kwargs) -> Dict[str, Any]:
             "id": str(uuid4()),
             "username": "testuser",
             "email": "test@example.com",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         },
         "customer": {
             "id": str(uuid4()),
             "name": "Test Customer",
             "email": "customer@example.com",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         },
     }
 

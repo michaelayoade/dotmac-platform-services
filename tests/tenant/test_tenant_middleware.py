@@ -5,7 +5,6 @@ Test tenant middleware for both single and multi-tenant modes.
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from dotmac.platform.tenant import (
     TenantConfiguration,

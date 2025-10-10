@@ -2,19 +2,18 @@
 Comprehensive tests for email service to improve coverage.
 """
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 import smtplib
-from email.mime.multipart import MIMEMultipart
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from dotmac.platform.communications.email_service import (
-    EmailService,
     EmailMessage,
     EmailResponse,
+    EmailService,
     get_email_service,
     send_email,
 )
-
 
 pytestmark = pytest.mark.asyncio
 

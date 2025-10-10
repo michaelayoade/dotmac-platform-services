@@ -9,23 +9,24 @@ Tests the complete flow:
 5. Query Handler → Read Models
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
-from dotmac.platform.billing.commands.invoice_commands import (
-    CreateInvoiceCommand,
-    VoidInvoiceCommand,
-    ApplyPaymentToInvoiceCommand,
-)
+import pytest
+
 from dotmac.platform.billing.commands.aggregate_handlers import (
     AggregateInvoiceCommandHandler,
 )
+from dotmac.platform.billing.commands.invoice_commands import (
+    ApplyPaymentToInvoiceCommand,
+    CreateInvoiceCommand,
+    VoidInvoiceCommand,
+)
+from dotmac.platform.billing.queries.handlers import InvoiceQueryHandler
 from dotmac.platform.billing.queries.invoice_queries import (
     GetInvoiceQuery,
     ListInvoicesQuery,
 )
-from dotmac.platform.billing.queries.handlers import InvoiceQueryHandler
 
 
 @pytest.mark.e2e
@@ -263,7 +264,7 @@ class TestInvoiceQueryE2E:
         2. Query handler retrieves from database
         3. Returns proper read model
         """
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_db_session = AsyncMock()
         query_handler = InvoiceQueryHandler(mock_db_session)
@@ -284,10 +285,10 @@ class TestInvoiceQueryE2E:
         mock_invoice.remaining_balance = 100000
         mock_invoice.currency = "USD"
         mock_invoice.status = "draft"
-        mock_invoice.created_at = datetime.now(timezone.utc)
-        mock_invoice.updated_at = datetime.now(timezone.utc)
-        mock_invoice.issue_date = datetime.now(timezone.utc)
-        mock_invoice.due_date = datetime.now(timezone.utc) + timedelta(days=30)
+        mock_invoice.created_at = datetime.now(UTC)
+        mock_invoice.updated_at = datetime.now(UTC)
+        mock_invoice.issue_date = datetime.now(UTC)
+        mock_invoice.due_date = datetime.now(UTC) + timedelta(days=30)
         mock_invoice.finalized_at = None
         mock_invoice.paid_at = None
         mock_invoice.voided_at = None
@@ -329,7 +330,7 @@ class TestInvoiceQueryE2E:
         2. Pagination logic
         3. Read model transformation
         """
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_db_session = AsyncMock()
         query_handler = InvoiceQueryHandler(mock_db_session)
@@ -376,9 +377,9 @@ class TestInvoiceBusinessRulesE2E:
         3. Attempt to void (should fail)
         4. Business rule exception propagates correctly
         """
-        from dotmac.platform.core.exceptions import BusinessRuleError
-        from unittest.mock import Mock
+
         from dotmac.platform.core import Money
+        from dotmac.platform.core.exceptions import BusinessRuleError
 
         mock_db_session = AsyncMock()
         mock_event_bus = AsyncMock()
@@ -435,8 +436,8 @@ class TestInvoiceBusinessRulesE2E:
         2. Attempt payment in EUR (should fail)
         3. Business rule enforced at aggregate level
         """
-        from dotmac.platform.core.exceptions import BusinessRuleError
         from dotmac.platform.core import Money
+        from dotmac.platform.core.exceptions import BusinessRuleError
 
         mock_db_session = AsyncMock()
         mock_event_bus = AsyncMock()

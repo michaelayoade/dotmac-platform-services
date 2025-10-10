@@ -571,7 +571,12 @@ export default function OrganizationSettingsPage() {
                           {invitation.status === 'pending' && (
                             <DropdownMenu>
                               <DropdownMenuTrigger>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                <Button
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  aria-label={`Open actions for invitation ${invitation.email}`}
+                                  title={`Open actions for invitation ${invitation.email}`}
+                                >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>

@@ -4,10 +4,10 @@ Celery worker management for testing.
 """
 
 import os
-import sys
-import time
 import signal
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 # Add project root to path

@@ -5,30 +5,28 @@ Tests all API key management endpoints including create, list, get, update, dele
 """
 
 import json
-from datetime import datetime, UTC, timedelta
-from typing import List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.api_keys_router import (
-    create_api_key,
-    list_api_keys,
-    get_api_key,
-    update_api_key,
-    revoke_api_key,
-    get_available_scopes,
-    _enhanced_create_api_key,
-    _list_user_api_keys,
-    _get_api_key_by_id,
-    _update_api_key_metadata,
-    _revoke_api_key_by_id,
-    _mask_api_key,
     APIKeyCreateRequest,
     APIKeyUpdateRequest,
+    _enhanced_create_api_key,
+    _get_api_key_by_id,
+    _list_user_api_keys,
+    _mask_api_key,
+    _revoke_api_key_by_id,
+    _update_api_key_metadata,
+    create_api_key,
+    get_api_key,
+    get_available_scopes,
+    list_api_keys,
+    revoke_api_key,
+    update_api_key,
 )
+from dotmac.platform.auth.core import UserInfo
 
 
 @pytest.fixture

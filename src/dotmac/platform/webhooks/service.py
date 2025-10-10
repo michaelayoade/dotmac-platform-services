@@ -210,7 +210,9 @@ class WebhookSubscriptionService:
         if tenant_id:
             subscription = await self.get_subscription(subscription_id, tenant_id)
         else:
-            stmt = select(WebhookSubscription).where(WebhookSubscription.id == uuid.UUID(subscription_id))
+            stmt = select(WebhookSubscription).where(
+                WebhookSubscription.id == uuid.UUID(subscription_id)
+            )
             result = await self.db.execute(stmt)
             subscription = result.scalar_one_or_none()
         if not subscription:

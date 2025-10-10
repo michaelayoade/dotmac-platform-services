@@ -303,6 +303,11 @@ class SubscriptionService:
         for field, value in update_data.items():
             if field == "metadata":
                 db_subscription.metadata_json = value
+            elif field == "status":
+                # Convert SubscriptionStatus enum to string value for database
+                db_subscription.status = (
+                    value.value if isinstance(value, SubscriptionStatus) else value
+                )
             else:
                 setattr(db_subscription, field, value)
 
@@ -364,7 +369,7 @@ class SubscriptionService:
             raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
 
         # Use setattr to avoid mypy Column assignment errors
-        setattr(db_subscription, "plan_id", change_request.new_plan_id)
+        db_subscription.plan_id = change_request.new_plan_id
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -430,14 +435,14 @@ class SubscriptionService:
 
         if immediate:
             # End subscription immediately - use setattr to avoid mypy Column assignment errors
-            setattr(db_subscription, "status", SubscriptionStatus.ENDED.value)
-            setattr(db_subscription, "ended_at", now)
-            setattr(db_subscription, "canceled_at", now)
+            db_subscription.status = SubscriptionStatus.ENDED.value
+            db_subscription.ended_at = now
+            db_subscription.canceled_at = now
         else:
             # Cancel at period end (default behavior) - use setattr to avoid mypy Column assignment errors
-            setattr(db_subscription, "cancel_at_period_end", True)
-            setattr(db_subscription, "canceled_at", now)
-            setattr(db_subscription, "status", SubscriptionStatus.CANCELED.value)
+            db_subscription.cancel_at_period_end = True
+            db_subscription.canceled_at = now
+            db_subscription.status = SubscriptionStatus.CANCELED.value
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -493,9 +498,9 @@ class SubscriptionService:
             raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
 
         # Use setattr to avoid mypy Column assignment errors
-        setattr(db_subscription, "status", SubscriptionStatus.ACTIVE.value)
-        setattr(db_subscription, "cancel_at_period_end", False)
-        setattr(db_subscription, "canceled_at", None)
+        db_subscription.status = SubscriptionStatus.ACTIVE.value
+        db_subscription.cancel_at_period_end = False
+        db_subscription.canceled_at = None
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -563,7 +568,7 @@ class SubscriptionService:
         )
 
         # Use setattr to avoid mypy Column assignment errors
-        setattr(db_subscription, "usage_records", current_usage)
+        db_subscription.usage_records = current_usage
 
         await self.db.commit()
         await self.db.refresh(db_subscription)
@@ -583,7 +588,8 @@ class SubscriptionService:
         """Get current period usage for subscription."""
 
         subscription = await self.get_subscription(subscription_id, tenant_id)
-        return subscription.usage_records
+        usage_records: dict[str, int] = subscription.usage_records
+        return usage_records
 
     # ========================================
     # Renewal Processing (for background jobs)
@@ -741,9 +747,15 @@ class SubscriptionService:
         metadata_raw = getattr(db_plan, "metadata_json", None)
         metadata: dict[str, Any] = metadata_raw if metadata_raw else {}
 
-        # Handle timestamps
-        created_at: datetime = getattr(db_plan, "created_at", datetime.now(UTC))
-        updated_at: datetime = getattr(db_plan, "updated_at", datetime.now(UTC))
+        # Handle timestamps - use fallback if None (for test mocks)
+        created_at_value = getattr(db_plan, "created_at", None)
+        created_at: datetime = (
+            created_at_value if created_at_value is not None else datetime.now(UTC)
+        )
+        updated_at_value = getattr(db_plan, "updated_at", None)
+        updated_at: datetime = (
+            updated_at_value if updated_at_value is not None else datetime.now(UTC)
+        )
 
         return SubscriptionPlan(
             plan_id=plan_id,
@@ -858,7 +870,7 @@ class SubscriptionService:
             return False
 
         # Use setattr to avoid mypy Column assignment errors
-        setattr(db_subscription, "status", status.value)
+        db_subscription.status = status.value
         await self.db.commit()
         return True
 
@@ -878,7 +890,7 @@ class SubscriptionService:
 
         # Use setattr to avoid mypy Column assignment errors
         empty_usage: dict[str, Any] = {}
-        setattr(db_subscription, "usage_records", empty_usage)
+        db_subscription.usage_records = empty_usage
         await self.db.commit()
         return True
 
@@ -896,9 +908,8 @@ class SubscriptionService:
     async def get_usage(self, subscription_id: str, tenant_id: str) -> dict[str, int] | None:
         """Get current usage for a subscription."""
         subscription = await self.get_subscription(subscription_id, tenant_id)
-        if not subscription:
-            return None
-        return subscription.usage_records
+        usage_records: dict[str, int] = subscription.usage_records
+        return usage_records
 
     async def calculate_proration_preview(
         self, subscription_id: str, new_plan_id: str, tenant_id: str

@@ -8,8 +8,6 @@ Handlers are responsible for:
 4. Publishing domain events
 """
 
-from typing import Any
-
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 

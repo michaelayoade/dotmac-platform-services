@@ -2,23 +2,23 @@
 Shared fixtures for customer management tests.
 """
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.customer_management.models import (
+    CommunicationChannel,
     Customer,
     CustomerStatus,
     CustomerTier,
     CustomerType,
-    CommunicationChannel,
 )
 from dotmac.platform.customer_management.service import CustomerService
-from dotmac.platform.auth.core import UserInfo
 
 
 @pytest.fixture

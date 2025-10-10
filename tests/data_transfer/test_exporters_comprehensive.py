@@ -2,45 +2,40 @@
 Comprehensive tests for data_transfer exporters module.
 """
 
-import asyncio
 import gzip
-import zipfile
-import bz2
 import json
-import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import AsyncGenerator
-from unittest.mock import Mock, patch, AsyncMock
 import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
+from pathlib import Path
 
-import pytest
 import pandas as pd
+import pytest
 import yaml
 
 from dotmac.platform.data_transfer.core import (
-    DataRecord,
+    CompressionType,
     DataBatch,
     DataFormat,
-    CompressionType,
+    DataRecord,
     ExportError,
     ExportOptions,
     FormatError,
-    TransferStatus,
     ProgressInfo,
     TransferConfig,
+    TransferStatus,
 )
 from dotmac.platform.data_transfer.exporters import (
     CSVExporter,
+    ExcelExporter,
     JSONExporter,
     XMLExporter,
     YAMLExporter,
-    ExcelExporter,
-    create_exporter,
-    export_data,
     compress_file,
+    create_exporter,
     detect_format,
+    export_data,
 )
-
 
 # from dotmac.platform.data_transfer.factory import DataTransferRegistry  # Not used
 

@@ -5,23 +5,24 @@ Tests async operations, rule matching, discount calculations,
 usage scenarios, and edge cases.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from dotmac.platform.billing.exceptions import InvalidPricingRuleError, PricingError
+from dotmac.platform.billing.pricing.models import (
+    DiscountType,
+    PriceCalculationRequest,
+    PricingRuleCreateRequest,
+    PricingRuleUpdateRequest,
+)
 from dotmac.platform.billing.pricing.service import (
     PricingEngine,
     generate_rule_id,
     generate_usage_id,
 )
-from dotmac.platform.billing.pricing.models import (
-    PricingRuleCreateRequest,
-    PricingRuleUpdateRequest,
-    PriceCalculationRequest,
-    DiscountType,
-)
-from dotmac.platform.billing.exceptions import PricingError, InvalidPricingRuleError
 
 pytestmark = pytest.mark.asyncio
 
@@ -151,7 +152,7 @@ class TestCreatePricingRule:
     @pytest.mark.asyncio
     async def test_create_rule_with_time_constraints(self, pricing_engine, tenant_id):
         """Test creating rule with start and end dates."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rule_data = PricingRuleCreateRequest(
             name="Holiday Sale",
             applies_to_all=True,

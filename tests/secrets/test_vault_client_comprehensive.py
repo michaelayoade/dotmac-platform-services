@@ -13,15 +13,16 @@ Tests cover:
 - Namespace support
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
 import httpx
+import pytest
 
 from dotmac.platform.secrets.vault_client import (
-    VaultError,
+    AsyncVaultClient,
     VaultAuthenticationError,
     VaultClient,
-    AsyncVaultClient,
+    VaultError,
 )
 
 

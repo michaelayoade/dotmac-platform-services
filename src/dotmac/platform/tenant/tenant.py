@@ -103,6 +103,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/login",  # Auth endpoints don't need tenant
             "/api/v1/auth/register",
         }
+        # Paths where tenant is optional (middleware runs but doesn't require tenant)
+        self.optional_tenant_paths = {
+            "/api/v1/audit/frontend-logs",  # Frontend logs can be unauthenticated
+        }
         # Override config's require_tenant if explicitly provided
         if require_tenant is not None:
             self.require_tenant = require_tenant
@@ -132,16 +136,30 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Check if this is a platform admin request (they can operate without tenant)
         is_platform_admin_request = request.headers.get("X-Target-Tenant-ID") is not None
 
+        # Check if this path allows optional tenant
+        is_optional_tenant_path = request.url.path in self.optional_tenant_paths
+
         if tenant_id:
             # Set tenant ID on request state and context var
             request.state.tenant_id = tenant_id
             from . import set_current_tenant_id
 
             set_current_tenant_id(tenant_id)
-        elif self.require_tenant and not is_platform_admin_request:
-            # Only raise error if tenant is required and NOT a platform admin
+        elif self.require_tenant and not is_platform_admin_request and not is_optional_tenant_path:
+            # SECURITY: Fail fast when tenant is required but not provided
+            # This prevents silent fallback to default tenant which bypasses isolation
             from fastapi import status
             from starlette.responses import JSONResponse
+
+            import structlog
+
+            logger = structlog.get_logger(__name__)
+            logger.warning(
+                "Tenant ID required but not provided - rejecting request",
+                path=request.url.path,
+                method=request.method,
+                headers={k: v for k, v in request.headers.items() if k.lower().startswith("x-")},
+            )
 
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,14 +168,20 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 },
             )
         else:
-            # Fall back to default if available, or None for platform admins
-            request.state.tenant_id = (
-                self.config.default_tenant_id if not is_platform_admin_request else None
+            # SECURITY: Only fall back to default tenant in these specific cases:
+            # 1. require_tenant=False (explicitly allowed by configuration)
+            # 2. Platform admin with X-Target-Tenant-ID header (cross-tenant access)
+            # 3. Optional tenant paths (like frontend logs)
+            #
+            # If require_tenant=True in production, requests WITHOUT tenant_id are rejected above
+            fallback_tenant = (
+                self.config.default_tenant_id
+                if (not is_platform_admin_request or is_optional_tenant_path)
+                else None
             )
+            request.state.tenant_id = fallback_tenant
             from . import set_current_tenant_id
 
-            set_current_tenant_id(
-                self.config.default_tenant_id if not is_platform_admin_request else None
-            )
+            set_current_tenant_id(fallback_tenant)
 
         return await call_next(request)

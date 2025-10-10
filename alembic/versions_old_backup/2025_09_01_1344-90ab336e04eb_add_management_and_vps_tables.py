@@ -9,9 +9,9 @@ Create Date: 2025-09-01 13:44:35.718945
 import sqlalchemy as sa
 from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import UUID as GUID
 
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID as GUID
 
 # revision identifiers, used by Alembic.
 revision = "90ab336e04eb"

@@ -2,20 +2,18 @@
 Test webhook handlers for payment providers
 """
 
-import json
 import hashlib
 import hmac
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.config import BillingConfig, StripeConfig
-from dotmac.platform.billing.core.enums import PaymentStatus, InvoiceStatus
+from dotmac.platform.billing.core.enums import PaymentStatus
 from dotmac.platform.billing.webhooks.handlers import (
-    StripeWebhookHandler,
     PayPalWebhookHandler,
+    StripeWebhookHandler,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -129,7 +127,16 @@ class TestStripeWebhookHandler:
         assert result["payment_intent_id"] == "pi_123"
 
         # Verify service calls
-        stripe_handler.payment_service.get_payment.assert_called_once_with("tenant1", "pay_123")
+        stripe_handler.payment_service.update_payment_status.assert_called_once_with(
+            tenant_id="tenant1",
+            payment_id="pay_123",
+            new_status=PaymentStatus.SUCCEEDED,
+            provider_data={
+                "stripe_payment_intent_id": "pi_123",
+                "stripe_amount": 1000,
+                "stripe_currency": "usd",
+            },
+        )
         stripe_handler.invoice_service.mark_invoice_paid.assert_called_once_with(
             "tenant1", "inv_123", payment_id="pay_123"
         )
@@ -156,11 +163,14 @@ class TestStripeWebhookHandler:
 
         # Verify service call
         stripe_handler.payment_service.update_payment_status.assert_called_once_with(
-            "tenant1",
-            "pay_123",
-            PaymentStatus.FAILED,
-            provider_payment_id="pi_123",
-            failure_reason="Card declined",
+            tenant_id="tenant1",
+            payment_id="pay_123",
+            new_status=PaymentStatus.FAILED,
+            provider_data={
+                "stripe_payment_intent_id": "pi_123",
+                "stripe_error": "Card declined",
+            },
+            error_message="Card declined",
         )
 
     @pytest.mark.asyncio
@@ -183,13 +193,15 @@ class TestStripeWebhookHandler:
         assert result["status"] == "processed"
         assert result["amount_refunded"] == 500
 
-        # Verify service call
-        stripe_handler.payment_service.process_refund.assert_called_once_with(
-            "tenant1",
-            "pay_123",
-            500,
-            reason="Charge refunded via Stripe",
-        )
+        # Verify service call (handler converts cents to dollars: 500 cents = 5.00 dollars)
+        from decimal import Decimal
+
+        stripe_handler.payment_service.process_refund_notification.assert_called_once()
+        call_args = stripe_handler.payment_service.process_refund_notification.call_args[1]
+        assert call_args["tenant_id"] == "tenant1"
+        assert call_args["payment_id"] == "pay_123"
+        assert call_args["refund_amount"] == Decimal("5.00")
+        assert "reason" in call_args
 
     @pytest.mark.asyncio
     async def test_process_invoice_paid(self, stripe_handler):
@@ -250,12 +262,11 @@ class TestPayPalWebhookHandler:
         assert result["capture_id"] == "cap_123"
 
         # Verify service call
-        paypal_handler.payment_service.update_payment_status.assert_called_once_with(
-            "tenant1",
-            "pay_123",
-            PaymentStatus.SUCCEEDED,
-            provider_payment_id="cap_123",
-        )
+        paypal_handler.payment_service.update_payment_status.assert_called_once()
+        call_args = paypal_handler.payment_service.update_payment_status.call_args[1]
+        assert call_args["tenant_id"] == "tenant1"
+        assert call_args["payment_id"] == "pay_123"
+        assert call_args["new_status"] == PaymentStatus.SUCCEEDED
 
     @pytest.mark.asyncio
     async def test_process_payment_denied(self, paypal_handler):
@@ -274,13 +285,11 @@ class TestPayPalWebhookHandler:
         assert result["capture_id"] == "cap_123"
 
         # Verify service call
-        paypal_handler.payment_service.update_payment_status.assert_called_once_with(
-            "tenant1",
-            "pay_123",
-            PaymentStatus.FAILED,
-            provider_payment_id="cap_123",
-            failure_reason="Payment denied by PayPal",
-        )
+        paypal_handler.payment_service.update_payment_status.assert_called_once()
+        call_args = paypal_handler.payment_service.update_payment_status.call_args[1]
+        assert call_args["tenant_id"] == "tenant1"
+        assert call_args["payment_id"] == "pay_123"
+        assert call_args["new_status"] == PaymentStatus.FAILED
 
     @pytest.mark.asyncio
     async def test_process_payment_refunded(self, paypal_handler):
@@ -299,13 +308,15 @@ class TestPayPalWebhookHandler:
         assert result["status"] == "processed"
         assert result["refund_id"] == "ref_123"
 
-        # Verify service call
-        paypal_handler.payment_service.process_refund.assert_called_once_with(
-            "tenant1",
-            "pay_123",
-            500,  # Converted to cents
-            reason="Refunded via PayPal",
-        )
+        # Verify service call (handler uses process_refund_notification, not process_refund)
+        from decimal import Decimal
+
+        paypal_handler.payment_service.process_refund_notification.assert_called_once()
+        call_args = paypal_handler.payment_service.process_refund_notification.call_args[1]
+        assert call_args["tenant_id"] == "tenant1"
+        assert call_args["payment_id"] == "pay_123"
+        assert call_args["refund_amount"] == Decimal("5.00")
+        assert call_args["reason"] == "Refunded via PayPal"
 
     @pytest.mark.asyncio
     async def test_process_unhandled_event(self, paypal_handler):

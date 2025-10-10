@@ -10,9 +10,8 @@ from uuid import uuid4
 
 import pytest
 
-from dotmac.platform.contacts.service import ContactService
 from dotmac.platform.contacts.schemas import ContactUpdate
-
+from dotmac.platform.contacts.service import ContactService
 from tests.helpers import (
     assert_entity_updated,
     build_mock_db_session,

@@ -1,13 +1,12 @@
 """Tests for secrets inventory functionality."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 from fastapi import HTTPException
 
+from dotmac.platform.secrets.api import SecretListResponse, list_secrets
 from dotmac.platform.secrets.vault_client import AsyncVaultClient, VaultError
-from dotmac.platform.secrets.api import list_secrets
-from dotmac.platform.secrets.api import SecretInfo, SecretListResponse
 
 pytestmark = pytest.mark.asyncio
 

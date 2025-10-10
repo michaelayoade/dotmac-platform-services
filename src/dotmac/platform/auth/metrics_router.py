@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 # Cache TTL (in seconds)
 AUTH_METRICS_CACHE_TTL = 300  # 5 minutes
 
-router = APIRouter(prefix="/auth", tags=["Auth Metrics"])
+router = APIRouter(tags=["Auth Metrics"])
 
 
 # ============================================================================

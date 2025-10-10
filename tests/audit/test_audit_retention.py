@@ -2,24 +2,24 @@
 Tests for audit retention and archiving functionality.
 """
 
-import pytest
-import json
 import gzip
-from datetime import datetime, timedelta, timezone
+import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock
 
+import pytest
+
+from dotmac.platform.audit.models import (
+    ActivitySeverity,
+    ActivityType,
+    AuditActivity,
+)
 from dotmac.platform.audit.retention import (
     AuditRetentionPolicy,
     AuditRetentionService,
     cleanup_audit_logs_task,
-)
-from dotmac.platform.audit.models import (
-    AuditActivity,
-    ActivityType,
-    ActivitySeverity,
 )
 
 
@@ -51,7 +51,7 @@ def old_activities(async_db_session):
     """Create old audit activities for retention testing."""
 
     async def _create_activities():
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         activities = []
 
         # Create activities of different ages and severities
@@ -134,7 +134,7 @@ class TestAuditRetentionService:
         activities = await old_activities
 
         # Patch get_async_db to use test session
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         with patch("dotmac.platform.audit.retention.get_async_db") as mock_get_db:
             # Set up async context manager
@@ -152,7 +152,7 @@ class TestAuditRetentionService:
         assert "by_severity" in results
 
         # Verify nothing was actually deleted using correct SQLAlchemy syntax
-        from sqlalchemy import select, func
+        from sqlalchemy import func, select
 
         count_query = select(func.count()).select_from(AuditActivity)
         result = await async_db_session.execute(count_query)
@@ -164,7 +164,7 @@ class TestAuditRetentionService:
         self, retention_service, old_activities, async_db_session
     ):
         """Test actual cleanup with deletion."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Await the fixture coroutine
         activities = await old_activities
@@ -198,7 +198,7 @@ class TestAuditRetentionService:
 
         # Verify correct activities remain (based on retention policy)
         for activity in remaining_activities:
-            days_old = (datetime.now(timezone.utc) - activity.timestamp).days
+            days_old = (datetime.now(UTC) - activity.timestamp).days
             expected_retention = retention_service.policy.severity_retention.get(
                 activity.severity, 90
             )
@@ -209,7 +209,7 @@ class TestAuditRetentionService:
         self, retention_service, old_activities, async_db_session
     ):
         """Test cleanup with archiving enabled."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Await the fixture coroutine
         activities = await old_activities
@@ -253,7 +253,7 @@ class TestAuditRetentionService:
     @pytest.mark.asyncio
     async def test_restore_from_archive(self, retention_service, tmp_path, async_db_session):
         """Test restoring activities from archive."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Create test archive file
         archive_file = tmp_path / "test_archive.jsonl.gz"
@@ -264,7 +264,7 @@ class TestAuditRetentionService:
                 "severity": ActivitySeverity.LOW,
                 "user_id": "user123",
                 "tenant_id": "test_tenant",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "resource_type": None,
                 "resource_id": None,
                 "action": "login",
@@ -301,7 +301,7 @@ class TestAuditRetentionService:
         self, retention_service, tmp_path, async_db_session
     ):
         """Test restoring with tenant filter."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         archive_file = tmp_path / "test_archive.jsonl.gz"
 
@@ -313,7 +313,7 @@ class TestAuditRetentionService:
                 "severity": ActivitySeverity.LOW,
                 "user_id": "user123",
                 "tenant_id": "tenant1" if i % 2 == 0 else "tenant2",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "action": "login",
                 "description": f"Activity {i}",
                 "resource_type": None,
@@ -349,7 +349,7 @@ class TestAuditRetentionService:
         self, retention_service, old_activities, async_db_session
     ):
         """Test getting retention statistics."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Await the fixture coroutine
         activities = await old_activities
@@ -376,7 +376,7 @@ class TestAuditRetentionService:
     @pytest.mark.asyncio
     async def test_cleanup_error_handling(self, tmp_path):
         """Test error handling during cleanup."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Create retention service with temp path
         policy = AuditRetentionPolicy(archive_location=str(tmp_path / "archive"))
@@ -407,7 +407,7 @@ class TestAuditRetentionService:
     @pytest.mark.asyncio
     async def test_archive_error_handling(self, tmp_path, old_activities, async_db_session):
         """Test error handling during archiving."""
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
 
         # Await the fixture coroutine
         activities = await old_activities

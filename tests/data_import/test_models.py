@@ -1,14 +1,10 @@
 """Tests for data import models."""
 
-import pytest
-from datetime import datetime, timezone
-from uuid import uuid4
-
 from dotmac.platform.data_import.models import (
-    ImportJob,
-    ImportJobType,
-    ImportJobStatus,
     ImportFailure,
+    ImportJob,
+    ImportJobStatus,
+    ImportJobType,
 )
 
 

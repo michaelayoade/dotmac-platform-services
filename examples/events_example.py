@@ -5,7 +5,7 @@ This demonstrates how the new events system replaces 2500+ lines
 of complex code with simple, direct Celery usage.
 """
 
-from dotmac.platform.communications.events import publish_event, event_handler
+from dotmac.platform.communications.events import event_handler, publish_event
 
 
 # Define event handlers using the simple decorator

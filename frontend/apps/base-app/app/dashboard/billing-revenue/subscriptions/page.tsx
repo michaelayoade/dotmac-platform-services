@@ -500,6 +500,8 @@ export default function SubscriptionsPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => handlePauseSubscription(subscription)}
+                              aria-label={`Pause subscription for ${subscription.customer_name}`}
+                              title={`Pause subscription for ${subscription.customer_name}`}
                             >
                               <Pause className="h-4 w-4" />
                             </Button>
@@ -507,6 +509,8 @@ export default function SubscriptionsPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => handleCancelSubscription(subscription)}
+                              aria-label={`Cancel subscription for ${subscription.customer_name}`}
+                              title={`Cancel subscription for ${subscription.customer_name}`}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -517,6 +521,8 @@ export default function SubscriptionsPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => handlePauseSubscription(subscription)}
+                            aria-label={`Resume subscription for ${subscription.customer_name}`}
+                            title={`Resume subscription for ${subscription.customer_name}`}
                           >
                             <Play className="h-4 w-4" />
                           </Button>

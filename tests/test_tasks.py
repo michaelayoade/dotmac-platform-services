@@ -1,15 +1,14 @@
 """Tests for Celery tasks module."""
 
-import json
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 # Import the entire module to ensure coverage tracking
-import dotmac.platform.core.tasks
 from dotmac.platform.core.tasks import (
     app,
-    idempotent_task,
     get_celery_app,
+    idempotent_task,
     init_celery_instrumentation,
 )
 

@@ -164,7 +164,7 @@ class BaseIntegration(ABC):
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
-        pass
+        return None
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.name}:{self.provider})"

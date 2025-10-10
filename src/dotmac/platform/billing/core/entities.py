@@ -474,7 +474,7 @@ class CreditApplicationEntity(Base, TenantMixin):
     credit_note: Mapped[CreditNoteEntity] = relationship(back_populates="applications")
 
     # Indexes
-    __table_args__ = (
+    __table_args__: tuple[Any, ...] = (
         Index("idx_credit_application_tenant_target", "tenant_id", "applied_to_id"),
         {"extend_existing": True},
     )
@@ -484,7 +484,10 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
     """Customer credit balance database entity"""
 
     __tablename__ = "customer_credits"
-    __table_args__: tuple[Any, ...]
+    __table_args__: tuple[Any, ...] = (
+        Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),
+        {"extend_existing": True},
+    )
 
     customer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(255), primary_key=True)
@@ -502,8 +505,4 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):
     # Metadata
     extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
-    # Composite primary key
-    __table_args__ = (
-        Index("idx_customer_credit_tenant", "tenant_id", "customer_id"),
-        {"extend_existing": True},
-    )
+    # Composite primary key handled in __table_args__

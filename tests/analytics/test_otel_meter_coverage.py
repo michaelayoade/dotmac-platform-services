@@ -4,8 +4,9 @@ Focuses on lines 370-396, 428-474 which require a working meter.
 """
 
 import os
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from dotmac.platform.analytics.base import CounterMetric, GaugeMetric, HistogramMetric, MetricType
 from dotmac.platform.analytics.otel_collector import OpenTelemetryCollector, OTelConfig

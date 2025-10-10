@@ -5,23 +5,23 @@ This test suite achieves 90%+ coverage on plugins/router.py by testing
 all API endpoints with realistic data and minimal mocking.
 """
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
-from uuid import uuid4
+
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.main import app
-from dotmac.platform.plugins.registry import PluginRegistry
 from dotmac.platform.plugins.interfaces import NotificationProvider
 from dotmac.platform.plugins.schema import (
-    PluginConfig,
-    PluginType,
     FieldSpec,
     FieldType,
+    PluginConfig,
     PluginHealthCheck,
     PluginTestResult,
+    PluginType,
 )
-from dotmac.platform.auth.core import UserInfo
-from datetime import datetime, UTC
-
 
 # Fake implementations for testing
 
@@ -139,7 +139,7 @@ async def setup_registry(fake_plugin):
 def auth_headers(client):
     """Mock authentication to bypass auth requirements."""
     # Override the FastAPI dependency
-    from dotmac.platform.plugins.router import router, get_current_user
+    from dotmac.platform.plugins.router import get_current_user
 
     async def mock_get_current_user():
         return UserInfo(

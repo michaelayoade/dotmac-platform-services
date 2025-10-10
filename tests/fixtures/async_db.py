@@ -15,7 +15,7 @@ Usage:
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 
 def create_mock_async_result(data: list[Any] | None = None) -> MagicMock:

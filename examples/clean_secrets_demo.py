@@ -32,9 +32,9 @@ def demonstrate_new_clean_approach():
     try:
         from dotmac.platform.secrets.factory import (
             SecretsManager,  # Protocol interface
+            create_local_secrets_manager,
             create_secrets_manager,
             create_vault_secrets_manager,
-            create_local_secrets_manager,
         )
 
         print("🎯 Clear, explicit API:")

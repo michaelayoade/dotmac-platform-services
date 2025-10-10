@@ -5,20 +5,19 @@ Strategy: Mock ALL dependencies (database, metrics, event bus)
 Focus: Test invoice lifecycle, validation, status transitions in isolation
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.billing.core.entities import InvoiceEntity
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.core.exceptions import (
-    InvoiceNotFoundError,
     InvalidInvoiceStatusError,
+    InvoiceNotFoundError,
 )
-from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
+from dotmac.platform.billing.invoicing.service import InvoiceService
 
 
 class TestInvoiceCreation:
@@ -34,10 +33,10 @@ class TestInvoiceCreation:
         return db
 
     @pytest.fixture
-    def invoice_service(self, mock_db):
+    def invoice_service(self, mock_db_session):
         """Create invoice service with mocked dependencies."""
         with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
-            return InvoiceService(db_session=mock_db)
+            return InvoiceService(db_session=mock_db_session)
 
     @pytest.fixture
     def line_items(self):
@@ -69,7 +68,7 @@ class TestInvoiceCreation:
             },
         ]
 
-    async def test_create_invoice_success(self, invoice_service, mock_db, line_items):
+    async def test_create_invoice_success(self, invoice_service, mock_db_session, line_items):
         """Test successful invoice creation."""
         with patch.object(invoice_service, "_get_invoice_by_idempotency_key", return_value=None):
             with patch.object(
@@ -94,8 +93,8 @@ class TestInvoiceCreation:
                         )
 
                         # Verify invoice was added to DB
-                        assert mock_db.add.called
-                        assert mock_db.commit.called
+                        assert mock_db_session.add.called
+                        assert mock_db_session.commit.called
 
                         # Verify webhook was published
                         assert mock_event_bus.return_value.publish.called
@@ -109,8 +108,8 @@ class TestInvoiceCreation:
             customer_id="cust_123",
             billing_email="customer@example.com",
             billing_address={},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            issue_date=datetime.now(UTC),
+            due_date=datetime.now(UTC) + timedelta(days=30),
             currency="USD",
             subtotal=100,
             tax_amount=0,
@@ -140,18 +139,18 @@ class TestInvoiceCreation:
             assert invoice.invoice_id == "inv_123"
             assert invoice.invoice_number == "INV-2025-001"
 
-    async def test_create_invoice_calculates_totals(self, invoice_service, mock_db):
+    async def test_create_invoice_calculates_totals(self, invoice_service, mock_db_session):
         """Test that invoice totals are calculated correctly."""
         line_items = [
             {
                 "description": "Product with tax",
                 "quantity": 1,
-                "unit_price": 100.00,
-                "total_price": 100.00,
+                "unit_price": 10000,  # $100.00 in cents
+                "total_price": 10000,
                 "tax_rate": 0.10,
-                "tax_amount": 10.00,
+                "tax_amount": 1000,  # $10.00 in cents
                 "discount_percentage": 0.05,
-                "discount_amount": 5.00,
+                "discount_amount": 500,  # $5.00 in cents
                 "extra_data": {},
             }
         ]
@@ -171,26 +170,23 @@ class TestInvoiceCreation:
                         )
 
                         # Get created invoice from db.add call
-                        created_invoice = mock_db.add.call_args[0][0]
+                        created_invoice = mock_db_session.add.call_args[0][0]
 
-                        # Verify totals: subtotal + tax - discount
-                        assert created_invoice.subtotal == 100
-                        assert created_invoice.tax_amount == 10
-                        assert created_invoice.discount_amount == 5
-                        assert created_invoice.total_amount == 105  # 100 + 10 - 5
+                        # Verify totals: subtotal + tax - discount (in cents)
+                        assert created_invoice.subtotal == 10000  # $100.00
+                        assert created_invoice.tax_amount == 1000  # $10.00
+                        assert created_invoice.discount_amount == 500  # $5.00
+                        assert created_invoice.total_amount == 10500  # $105.00
 
 
 class TestInvoiceFinalization:
     """Test invoice finalization (draft -> open)."""
 
     @pytest.fixture
-    def invoice_service(self):
+    def invoice_service(self, mock_db_session):
         """Create invoice service."""
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_db.commit = AsyncMock()
-        mock_db.refresh = AsyncMock()
         with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
-            return InvoiceService(db_session=mock_db)
+            return InvoiceService(db_session=mock_db_session)
 
     @pytest.fixture
     def draft_invoice(self):
@@ -202,8 +198,8 @@ class TestInvoiceFinalization:
             customer_id="cust_123",
             billing_email="customer@example.com",
             billing_address={},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            issue_date=datetime.now(UTC),
+            due_date=datetime.now(UTC) + timedelta(days=30),
             currency="USD",
             subtotal=100,
             tax_amount=0,
@@ -250,13 +246,10 @@ class TestInvoiceVoiding:
     """Test invoice voiding logic."""
 
     @pytest.fixture
-    def invoice_service(self):
+    def invoice_service(self, mock_db_session):
         """Create invoice service."""
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_db.commit = AsyncMock()
-        mock_db.refresh = AsyncMock()
         with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
-            return InvoiceService(db_session=mock_db)
+            return InvoiceService(db_session=mock_db_session)
 
     @pytest.fixture
     def open_invoice(self):
@@ -268,8 +261,8 @@ class TestInvoiceVoiding:
             customer_id="cust_123",
             billing_email="customer@example.com",
             billing_address={},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            issue_date=datetime.now(UTC),
+            due_date=datetime.now(UTC) + timedelta(days=30),
             currency="USD",
             subtotal=100,
             tax_amount=0,
@@ -279,6 +272,7 @@ class TestInvoiceVoiding:
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
             line_items=[],
+            extra_data={},
         )
 
     async def test_void_invoice_success(self, invoice_service, open_invoice):
@@ -329,13 +323,10 @@ class TestInvoicePayment:
     """Test invoice payment marking."""
 
     @pytest.fixture
-    def invoice_service(self):
+    def invoice_service(self, mock_db_session):
         """Create invoice service."""
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_db.commit = AsyncMock()
-        mock_db.refresh = AsyncMock()
         with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
-            return InvoiceService(db_session=mock_db)
+            return InvoiceService(db_session=mock_db_session)
 
     @pytest.fixture
     def open_invoice(self):
@@ -347,8 +338,8 @@ class TestInvoicePayment:
             customer_id="cust_123",
             billing_email="customer@example.com",
             billing_address={},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            issue_date=datetime.now(UTC),
+            due_date=datetime.now(UTC) + timedelta(days=30),
             currency="USD",
             subtotal=100,
             tax_amount=0,
@@ -358,6 +349,7 @@ class TestInvoicePayment:
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
             line_items=[],
+            extra_data={},
         )
 
     async def test_mark_invoice_paid_success(self, invoice_service, open_invoice):
@@ -401,14 +393,10 @@ class TestCreditApplication:
     """Test credit application to invoices."""
 
     @pytest.fixture
-    def invoice_service(self):
+    def invoice_service(self, mock_db_session):
         """Create invoice service."""
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_db.commit = AsyncMock()
-        mock_db.refresh = AsyncMock()
-        mock_db.add = MagicMock()
         with patch("dotmac.platform.billing.invoicing.service.get_billing_metrics"):
-            return InvoiceService(db_session=mock_db)
+            return InvoiceService(db_session=mock_db_session)
 
     @pytest.fixture
     def open_invoice(self):
@@ -420,8 +408,8 @@ class TestCreditApplication:
             customer_id="cust_123",
             billing_email="customer@example.com",
             billing_address={},
-            issue_date=datetime.now(timezone.utc),
-            due_date=datetime.now(timezone.utc) + timedelta(days=30),
+            issue_date=datetime.now(UTC),
+            due_date=datetime.now(UTC) + timedelta(days=30),
             currency="USD",
             subtotal=100,
             tax_amount=0,
@@ -433,9 +421,10 @@ class TestCreditApplication:
             status=InvoiceStatus.OPEN,
             payment_status=PaymentStatus.PENDING,
             line_items=[],
+            extra_data={},
         )
 
-    async def test_apply_partial_credit(self, invoice_service, open_invoice, mock_db):
+    async def test_apply_partial_credit(self, invoice_service, open_invoice, mock_db_session):
         """Test applying partial credit to invoice."""
         with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
             invoice = await invoice_service.apply_credit_to_invoice(
@@ -450,7 +439,7 @@ class TestCreditApplication:
             assert open_invoice.remaining_balance == 70  # 100 - 30
             assert open_invoice.payment_status == PaymentStatus.PARTIALLY_REFUNDED
 
-    async def test_apply_full_credit(self, invoice_service, open_invoice, mock_db):
+    async def test_apply_full_credit(self, invoice_service, open_invoice, mock_db_session):
         """Test applying full credit marks invoice as paid."""
         with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
             invoice = await invoice_service.apply_credit_to_invoice(
@@ -466,7 +455,9 @@ class TestCreditApplication:
             assert open_invoice.payment_status == PaymentStatus.SUCCEEDED
             assert open_invoice.status == InvoiceStatus.PAID
 
-    async def test_apply_credit_creates_transaction(self, invoice_service, open_invoice, mock_db):
+    async def test_apply_credit_creates_transaction(
+        self, invoice_service, open_invoice, mock_db_session
+    ):
         """Test that credit application creates transaction record."""
         with patch.object(invoice_service, "_get_invoice_entity", return_value=open_invoice):
             await invoice_service.apply_credit_to_invoice(
@@ -477,8 +468,8 @@ class TestCreditApplication:
             )
 
             # Verify transaction was added
-            assert mock_db.add.called
-            transaction = mock_db.add.call_args[0][0]
+            assert mock_db_session.add.called
+            transaction = mock_db_session.add.call_args[0][0]
             assert transaction.amount == 50
             assert transaction.transaction_type.value == "credit"
 

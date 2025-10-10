@@ -12,33 +12,30 @@ Tests all search functionality including:
 """
 
 import os
-import pytest
-from typing import Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from dotmac.platform.search import (
-    SearchService,
-    SearchQuery,
-    SearchResult,
-    SearchResponse,
-    SearchBackend,
     InMemorySearchBackend,
+    SearchBackend,
+    SearchQuery,
+    SearchResponse,
+    SearchResult,
+    SearchService,
     create_search_backend_from_env,
 )
 from dotmac.platform.search.factory import (
-    SearchBackendRegistry,
     SearchBackendFactory,
+    SearchBackendRegistry,
+    create_memory_backend,
     create_search_backend,
     get_default_search_backend,
-    create_memory_backend,
-    _registry,
 )
+from dotmac.platform.search.interfaces import SearchFilter, SortOrder
 from dotmac.platform.search.router import search_router
-from dotmac.platform.search.interfaces import SearchFilter, SearchType, SortOrder
 
 
 class TestSearchBackendRegistry:
@@ -573,12 +570,11 @@ class TestSearchIntegration:
     def test_module_imports(self):
         """Test that all expected classes can be imported."""
         from dotmac.platform.search import (
-            SearchService,
-            SearchQuery,
-            SearchResult,
-            SearchResponse,
-            SearchBackend,
             InMemorySearchBackend,
+            SearchBackend,
+            SearchQuery,
+            SearchResponse,
+            SearchService,
             create_search_backend_from_env,
         )
 

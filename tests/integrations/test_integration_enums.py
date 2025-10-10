@@ -1,7 +1,5 @@
 """Tests for integration enums."""
 
-import pytest
-
 from dotmac.platform.integrations import (
     IntegrationStatus,
     IntegrationType,

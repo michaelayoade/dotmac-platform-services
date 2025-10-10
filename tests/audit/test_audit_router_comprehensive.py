@@ -8,24 +8,25 @@ Tests all audit activity endpoints including:
 - Get single activity by ID
 """
 
-import pytest
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
-from datetime import datetime, timezone, timedelta
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
 from dotmac.platform.audit.router import router as audit_router
-from dotmac.platform.audit.models import AuditActivity, ActivitySeverity, ActivityType
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.core import UserInfo, get_current_user_optional
 from dotmac.platform.db import get_async_session
-from dotmac.platform.auth.core import get_current_user_optional
 from dotmac.platform.tenant import get_current_tenant_id
+
+SampleActivities = tuple[list[AuditActivity], str]
 
 
 @pytest.fixture
-def app():
+def app() -> FastAPI:
     """Create FastAPI app with audit router."""
     app = FastAPI()
     app.include_router(audit_router, prefix="/api/v1/audit")
@@ -33,7 +34,7 @@ def app():
 
 
 @pytest.fixture
-def test_user():
+def test_user() -> UserInfo:
     """Create test user info."""
     return UserInfo(
         user_id=str(uuid4()),
@@ -46,7 +47,7 @@ def test_user():
 
 
 @pytest.fixture
-def client(app, async_db_session, test_user):
+def client(app: FastAPI, async_db_session: AsyncSession, test_user: UserInfo) -> TestClient:
     """Create test client with database and user."""
     app.dependency_overrides[get_async_session] = lambda: async_db_session
     app.dependency_overrides[get_current_user_optional] = lambda: test_user
@@ -55,7 +56,7 @@ def client(app, async_db_session, test_user):
 
 
 @pytest.fixture
-async def sample_activities(async_db_session: AsyncSession):
+async def sample_activities(async_db_session: AsyncSession) -> SampleActivities:
     """Create sample audit activities."""
     user_id = str(uuid4())
 
@@ -72,7 +73,7 @@ async def sample_activities(async_db_session: AsyncSession):
             resource_type="user",
             resource_id=user_id,
             ip_address="192.168.1.1",
-            created_at=datetime.now(timezone.utc) - timedelta(days=1),
+            created_at=datetime.now(UTC) - timedelta(days=1),
         ),
         AuditActivity(
             id=uuid4(),
@@ -82,7 +83,7 @@ async def sample_activities(async_db_session: AsyncSession):
             tenant_id="test-tenant",
             action="logout",
             description="User logged out",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=12),
+            created_at=datetime.now(UTC) - timedelta(hours=12),
         ),
         # Medium severity activity
         AuditActivity(
@@ -95,7 +96,7 @@ async def sample_activities(async_db_session: AsyncSession):
             description="Secret created",
             resource_type="secret",
             resource_id=str(uuid4()),
-            created_at=datetime.now(timezone.utc) - timedelta(days=2),
+            created_at=datetime.now(UTC) - timedelta(days=2),
         ),
         # High severity activity
         AuditActivity(
@@ -106,7 +107,7 @@ async def sample_activities(async_db_session: AsyncSession):
             tenant_id="test-tenant",
             action="api_error",
             description="API error occurred",
-            created_at=datetime.now(timezone.utc) - timedelta(days=5),
+            created_at=datetime.now(UTC) - timedelta(days=5),
         ),
         # Old activity (35 days ago)
         AuditActivity(
@@ -117,7 +118,7 @@ async def sample_activities(async_db_session: AsyncSession):
             tenant_id="test-tenant",
             action="create_user",
             description="User created",
-            created_at=datetime.now(timezone.utc) - timedelta(days=35),
+            created_at=datetime.now(UTC) - timedelta(days=35),
         ),
         # Different tenant activity (should be filtered out)
         AuditActivity(
@@ -128,7 +129,7 @@ async def sample_activities(async_db_session: AsyncSession):
             tenant_id="different-tenant",
             action="login",
             description="User logged in",
-            created_at=datetime.now(timezone.utc) - timedelta(days=1),
+            created_at=datetime.now(UTC) - timedelta(days=1),
         ),
     ]
 
@@ -146,7 +147,9 @@ class TestListActivities:
     """Test GET /audit/activities endpoint."""
 
     @pytest.mark.asyncio
-    async def test_list_activities_default_params(self, client, sample_activities):
+    async def test_list_activities_default_params(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test listing activities with default parameters."""
         response = client.get("/api/v1/audit/activities")
 
@@ -164,7 +167,9 @@ class TestListActivities:
         assert data["total"] <= 5  # Excludes different-tenant activity
 
     @pytest.mark.asyncio
-    async def test_list_activities_with_user_filter(self, client, sample_activities):
+    async def test_list_activities_with_user_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test filtering activities by user ID."""
         activities, user_id = sample_activities
 
@@ -179,7 +184,9 @@ class TestListActivities:
                 assert activity["user_id"] == user_id
 
     @pytest.mark.asyncio
-    async def test_list_activities_with_activity_type_filter(self, client, sample_activities):
+    async def test_list_activities_with_activity_type_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test filtering by activity type."""
         response = client.get("/api/v1/audit/activities?activity_type=user.login")
 
@@ -191,7 +198,9 @@ class TestListActivities:
             assert activity["activity_type"] == "user.login"
 
     @pytest.mark.asyncio
-    async def test_list_activities_with_severity_filter(self, client, sample_activities):
+    async def test_list_activities_with_severity_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test filtering by severity."""
         response = client.get("/api/v1/audit/activities?severity=high")
 
@@ -203,7 +212,9 @@ class TestListActivities:
             assert activity["severity"] == "high"
 
     @pytest.mark.asyncio
-    async def test_list_activities_with_resource_filter(self, client, sample_activities):
+    async def test_list_activities_with_resource_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test filtering by resource type."""
         response = client.get("/api/v1/audit/activities?resource_type=user")
 
@@ -215,7 +226,9 @@ class TestListActivities:
                 assert activity["resource_type"] == "user"
 
     @pytest.mark.asyncio
-    async def test_list_activities_with_days_filter(self, client, sample_activities):
+    async def test_list_activities_with_days_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test filtering by days parameter."""
         # Get activities from last 7 days only
         response = client.get("/api/v1/audit/activities?days=7")
@@ -227,7 +240,9 @@ class TestListActivities:
         assert data["total"] < 5  # Less than all activities
 
     @pytest.mark.asyncio
-    async def test_list_activities_pagination(self, client, sample_activities):
+    async def test_list_activities_pagination(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test pagination."""
         # Page 1 with 2 items per page
         response = client.get("/api/v1/audit/activities?page=1&per_page=2")
@@ -244,7 +259,7 @@ class TestListActivities:
             assert data["has_next"] is True
 
     @pytest.mark.asyncio
-    async def test_list_activities_invalid_page(self, client):
+    async def test_list_activities_invalid_page(self, client: TestClient) -> None:
         """Test with invalid page number."""
         response = client.get("/api/v1/audit/activities?page=0")
 
@@ -252,7 +267,7 @@ class TestListActivities:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_list_activities_invalid_per_page(self, client):
+    async def test_list_activities_invalid_per_page(self, client: TestClient) -> None:
         """Test with invalid per_page value."""
         response = client.get("/api/v1/audit/activities?per_page=2000")
 
@@ -260,7 +275,9 @@ class TestListActivities:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_list_activities_without_user(self, app, async_db_session):
+    async def test_list_activities_without_user(
+        self, app: FastAPI, async_db_session: AsyncSession
+    ) -> None:
         """Test listing activities without authenticated user."""
         # Override to return None for user
         app.dependency_overrides[get_async_session] = lambda: async_db_session
@@ -281,7 +298,9 @@ class TestRecentActivities:
     """Test GET /audit/activities/recent endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_recent_activities_default(self, client, sample_activities):
+    async def test_get_recent_activities_default(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting recent activities with default parameters."""
         response = client.get("/api/v1/audit/activities/recent")
 
@@ -297,7 +316,9 @@ class TestRecentActivities:
             assert activity["tenant_id"] == "test-tenant"
 
     @pytest.mark.asyncio
-    async def test_get_recent_activities_with_limit(self, client, sample_activities):
+    async def test_get_recent_activities_with_limit(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting recent activities with custom limit."""
         response = client.get("/api/v1/audit/activities/recent?limit=2")
 
@@ -307,7 +328,9 @@ class TestRecentActivities:
         assert len(data) <= 2
 
     @pytest.mark.asyncio
-    async def test_get_recent_activities_with_days(self, client, sample_activities):
+    async def test_get_recent_activities_with_days(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting recent activities with custom days."""
         response = client.get("/api/v1/audit/activities/recent?days=1")
 
@@ -315,13 +338,13 @@ class TestRecentActivities:
         data = response.json()
 
         # Should only include activities from last 1 day
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for activity in data:
             created_at = datetime.fromisoformat(activity["created_at"].replace("Z", "+00:00"))
             assert (now - created_at).days <= 1
 
     @pytest.mark.asyncio
-    async def test_get_recent_activities_invalid_limit(self, client):
+    async def test_get_recent_activities_invalid_limit(self, client: TestClient) -> None:
         """Test with invalid limit parameter."""
         response = client.get("/api/v1/audit/activities/recent?limit=200")
 
@@ -336,11 +359,13 @@ class TestUserActivities:
     """Test GET /audit/activities/user/{user_id} endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_user_activities(self, client, sample_activities):
+    async def test_get_user_activities(
+        self, authenticated_client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting activities for specific user."""
         activities, user_id = sample_activities
 
-        response = client.get(f"/api/v1/audit/activities/user/{user_id}")
+        response = await authenticated_client.get(f"/api/v1/audit/activities/user/{user_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -353,11 +378,15 @@ class TestUserActivities:
                 assert activity["user_id"] == user_id
 
     @pytest.mark.asyncio
-    async def test_get_user_activities_with_limit(self, client, sample_activities):
+    async def test_get_user_activities_with_limit(
+        self, authenticated_client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting user activities with limit."""
         activities, user_id = sample_activities
 
-        response = client.get(f"/api/v1/audit/activities/user/{user_id}?limit=1")
+        response = await authenticated_client.get(
+            f"/api/v1/audit/activities/user/{user_id}?limit=1"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -365,11 +394,13 @@ class TestUserActivities:
         assert len(data) <= 1
 
     @pytest.mark.asyncio
-    async def test_get_user_activities_nonexistent_user(self, client):
+    async def test_get_user_activities_nonexistent_user(
+        self, authenticated_client: TestClient
+    ) -> None:
         """Test getting activities for non-existent user."""
         fake_user_id = str(uuid4())
 
-        response = client.get(f"/api/v1/audit/activities/user/{fake_user_id}")
+        response = await authenticated_client.get(f"/api/v1/audit/activities/user/{fake_user_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -385,20 +416,28 @@ class TestActivitySummary:
     """Test GET /audit/activities/summary endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_activity_summary_default(self, client, sample_activities):
+    async def test_get_activity_summary_default(
+        self, authenticated_client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting activity summary with default parameters."""
-        response = client.get("/api/v1/audit/activities/summary")
+        response = await authenticated_client.get("/api/v1/audit/activities/summary")
 
         assert response.status_code == 200
         data = response.json()
 
         # Summary should include counts and aggregations
-        assert "total" in data or "by_type" in data or "by_severity" in data
+        assert (
+            "total_activities" in data
+            or "activities_by_type" in data
+            or "activities_by_severity" in data
+        )
 
     @pytest.mark.asyncio
-    async def test_get_activity_summary_with_days(self, client, sample_activities):
+    async def test_get_activity_summary_with_days(
+        self, authenticated_client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting activity summary for specific timeframe."""
-        response = client.get("/api/v1/audit/activities/summary?days=7")
+        response = await authenticated_client.get("/api/v1/audit/activities/summary?days=7")
 
         assert response.status_code == 200
         data = response.json()
@@ -414,12 +453,14 @@ class TestSingleActivity:
     """Test GET /audit/activities/{activity_id} endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_activity_by_id(self, client, sample_activities):
+    async def test_get_activity_by_id(
+        self, authenticated_client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test getting single activity by ID."""
         activities, user_id = sample_activities
         activity_id = str(activities[0].id)
 
-        response = client.get(f"/api/v1/audit/activities/{activity_id}")
+        response = await authenticated_client.get(f"/api/v1/audit/activities/{activity_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -429,18 +470,18 @@ class TestSingleActivity:
         assert "severity" in data
 
     @pytest.mark.asyncio
-    async def test_get_activity_nonexistent_id(self, client):
+    async def test_get_activity_nonexistent_id(self, authenticated_client: TestClient) -> None:
         """Test getting non-existent activity returns 404."""
         fake_id = str(uuid4())
 
-        response = client.get(f"/api/v1/audit/activities/{fake_id}")
+        response = await authenticated_client.get(f"/api/v1/audit/activities/{fake_id}")
 
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_get_activity_invalid_uuid(self, client):
+    async def test_get_activity_invalid_uuid(self, authenticated_client: TestClient) -> None:
         """Test with invalid UUID format."""
-        response = client.get("/api/v1/audit/activities/not-a-uuid")
+        response = await authenticated_client.get("/api/v1/audit/activities/not-a-uuid")
 
         # Should return validation error
         assert response.status_code == 422
@@ -453,23 +494,34 @@ class TestAuditRouterErrorHandling:
     """Test error handling in audit router."""
 
     @pytest.mark.asyncio
-    async def test_list_activities_database_error(self, app):
-        """Test handling of database errors."""
+    async def test_list_activities_database_error(
+        self, test_app: FastAPI, async_db_session: AsyncSession
+    ) -> None:
+        """Test handling of database errors during query execution."""
+        from unittest.mock import AsyncMock, patch
 
-        # Create a mock session that raises an error
-        async def mock_session_error():
-            raise Exception("Database error")
+        from httpx import ASGITransport, AsyncClient
 
-        app.dependency_overrides[get_async_session] = mock_session_error
-        app.dependency_overrides[get_current_user_optional] = lambda: None
-        app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
+        # Mock AuditService.get_activities to raise a database error
+        with patch("dotmac.platform.audit.router.AuditService") as MockService:
+            mock_service = AsyncMock()
+            mock_service.get_activities = AsyncMock(side_effect=Exception("Database error"))
+            MockService.return_value = mock_service
 
-        client = TestClient(app)
-        response = client.get("/api/v1/audit/activities")
+            test_app.dependency_overrides[get_current_user_optional] = lambda: None
+            test_app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
 
-        # Should return 500 error
-        assert response.status_code == 500
-        assert "Failed to retrieve" in response.json()["detail"]
+            transport = ASGITransport(app=test_app)
+            async with AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+                headers={"X-Tenant-ID": "test-tenant"},
+            ) as client:
+                response = await client.get("/api/v1/audit/activities")
+
+            # Should return 500 error from endpoint's exception handler
+            assert response.status_code == 500
+            assert "Failed to retrieve" in response.json()["detail"]
 
 
 # ==================== Tenant Isolation Tests ====================
@@ -479,7 +531,12 @@ class TestTenantIsolation:
     """Test that activities are properly isolated by tenant."""
 
     @pytest.mark.asyncio
-    async def test_tenant_isolation_in_listing(self, app, async_db_session, sample_activities):
+    async def test_tenant_isolation_in_listing(
+        self,
+        app: FastAPI,
+        async_db_session: AsyncSession,
+        sample_activities: SampleActivities,
+    ) -> None:
         """Test that only activities for current tenant are returned."""
         app.dependency_overrides[get_async_session] = lambda: async_db_session
         app.dependency_overrides[get_current_user_optional] = lambda: None
@@ -497,8 +554,11 @@ class TestTenantIsolation:
 
     @pytest.mark.asyncio
     async def test_different_tenant_activities_not_visible(
-        self, app, async_db_session, sample_activities
-    ):
+        self,
+        app: FastAPI,
+        async_db_session: AsyncSession,
+        sample_activities: SampleActivities,
+    ) -> None:
         """Test that activities from different tenant are not visible."""
         # Switch to different tenant
         app.dependency_overrides[get_async_session] = lambda: async_db_session
@@ -523,7 +583,9 @@ class TestCombinedFilters:
     """Test using multiple filters together."""
 
     @pytest.mark.asyncio
-    async def test_combined_user_and_severity_filter(self, client, sample_activities):
+    async def test_combined_user_and_severity_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test combining user_id and severity filters."""
         activities, user_id = sample_activities
 
@@ -538,7 +600,9 @@ class TestCombinedFilters:
             assert activity["severity"] == "medium"
 
     @pytest.mark.asyncio
-    async def test_combined_type_and_resource_filter(self, client, sample_activities):
+    async def test_combined_type_and_resource_filter(
+        self, client: TestClient, sample_activities: SampleActivities
+    ) -> None:
         """Test combining activity_type and resource_type filters."""
         response = client.get(
             "/api/v1/audit/activities?activity_type=user.login&resource_type=user"

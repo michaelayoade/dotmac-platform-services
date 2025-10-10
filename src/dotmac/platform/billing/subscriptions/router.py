@@ -5,13 +5,15 @@ Provides REST endpoints for managing subscription plans and customer subscriptio
 """
 
 from datetime import UTC
+from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.core.rate_limiting import limiter
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -40,29 +42,34 @@ router = APIRouter(tags=["Billing - Subscriptions"])
     response_model=SubscriptionPlanResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("20/minute")
 async def create_subscription_plan(
+    request: Request,
     plan_data: SubscriptionPlanCreateRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> SubscriptionPlanResponse:
+) -> dict[str, Any]:
     """Create a new subscription plan."""
     service = SubscriptionService(db_session)
     try:
         plan = await service.create_plan(plan_data, tenant_id)
-        return SubscriptionPlanResponse.model_validate(plan.model_dump())
+        # Return dict and let FastAPI serialize using response_model
+        return cast(dict[str, Any], plan.model_dump(mode="json"))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/plans", response_model=list[SubscriptionPlanResponse])
+@limiter.limit("100/minute")
 async def list_subscription_plans(
+    request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
     product_id: str | None = Query(None, description="Filter by product ID"),
     active_only: bool = Query(True, description="Show only active plans"),
-) -> list[SubscriptionPlanResponse]:
+) -> list[dict[str, Any]]:
     """List subscription plans."""
     service = SubscriptionService(db_session)
     plans = await service.list_plans(
@@ -70,21 +77,25 @@ async def list_subscription_plans(
         product_id=product_id,
         active_only=active_only,
     )
-    return [SubscriptionPlanResponse.model_validate(plan.model_dump()) for plan in plans]
+    # Return list of dicts and let FastAPI serialize using response_model
+    return [cast(dict[str, Any], plan.model_dump(mode="json")) for plan in plans]
 
 
 @router.get("/plans/{plan_id}", response_model=SubscriptionPlanResponse)
+@limiter.limit("100/minute")
 async def get_subscription_plan(
+    request: Request,
     plan_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> SubscriptionPlanResponse:
+) -> dict[str, Any]:
     """Get a specific subscription plan."""
     service = SubscriptionService(db_session)
     try:
         plan = await service.get_plan(plan_id, tenant_id)
-        return SubscriptionPlanResponse.model_validate(plan.model_dump())
+        # Return dict and let FastAPI serialize using response_model
+        return cast(dict[str, Any], plan.model_dump(mode="json"))
     except PlanNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Subscription plan {plan_id} not found"
@@ -137,16 +148,17 @@ async def create_subscription(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> SubscriptionResponse:
+) -> dict[str, Any]:
     """Create a new customer subscription."""
     service = SubscriptionService(db_session)
     try:
         subscription = await service.create_subscription(subscription_data, tenant_id)
-        response_data = subscription.model_dump()
+        response_data = cast(dict[str, Any], subscription.model_dump(mode="json"))
         # Add computed fields
         response_data["is_in_trial"] = subscription.is_in_trial()
         response_data["days_until_renewal"] = subscription.days_until_renewal()
-        return SubscriptionResponse.model_validate(response_data)
+        # Return dict and let FastAPI serialize using response_model
+        return response_data
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -186,7 +198,8 @@ async def list_subscriptions(
         response_data = sub.model_dump()
         response_data["is_in_trial"] = sub.is_in_trial()
         response_data["days_until_renewal"] = sub.days_until_renewal()
-        response_list.append(SubscriptionResponse.model_validate(response_data))
+        subscription_response = SubscriptionResponse.model_validate(response_data)
+        response_list.append(subscription_response)
 
     return response_list
 
@@ -280,7 +293,8 @@ async def get_subscription(
     response_data = subscription.model_dump()
     response_data["is_in_trial"] = subscription.is_in_trial()
     response_data["days_until_renewal"] = subscription.days_until_renewal()
-    return SubscriptionResponse.model_validate(response_data)
+    subscription_response: SubscriptionResponse = SubscriptionResponse.model_validate(response_data)
+    return subscription_response
 
 
 @router.patch("/{subscription_id}", response_model=SubscriptionResponse)
@@ -303,7 +317,10 @@ async def update_subscription(
         response_data = subscription.model_dump()
         response_data["is_in_trial"] = subscription.is_in_trial()
         response_data["days_until_renewal"] = subscription.days_until_renewal()
-        return SubscriptionResponse.model_validate(response_data)
+        subscription_response: SubscriptionResponse = SubscriptionResponse.model_validate(
+            response_data
+        )
+        return subscription_response
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -460,11 +477,12 @@ async def preview_plan_change_proration(
         proration = await service.calculate_proration_preview(
             subscription_id, new_plan_id, tenant_id
         )
-        if not proration:
+        if proration is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Subscription or plan not found"
             )
 
-        return proration
+        proration_result: ProrationResult = proration
+        return proration_result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

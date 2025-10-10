@@ -2,7 +2,7 @@
 
 import hashlib
 from datetime import UTC, datetime
-from typing import Any, Dict
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -105,10 +105,25 @@ async def _enhanced_create_api_key(
     scopes: list[str] | None = None,
     expires_at: datetime | None = None,
     description: str | None = None,
+    tenant_id: str | None = None,
 ) -> tuple[str, str]:
-    """Create API key with enhanced metadata."""
+    """Create API key with enhanced metadata and tenant binding.
+
+    SECURITY: API keys MUST be bound to a tenant to prevent cross-tenant access.
+
+    Args:
+        user_id: User ID (UUID as string)
+        name: Human-readable key name
+        scopes: Optional permission scopes
+        expires_at: Optional expiration timestamp
+        description: Optional key description
+        tenant_id: Tenant ID for multi-tenant isolation (REQUIRED for production)
+
+    Returns:
+        Tuple of (api_key, key_id)
+    """
     key_id = str(uuid4())
-    api_key = await api_key_service.create_api_key(user_id, name, scopes)
+    api_key = await api_key_service.create_api_key(user_id, name, scopes, tenant_id)
 
     # Store enhanced metadata
     client = await api_key_service._get_redis()
@@ -117,6 +132,7 @@ async def _enhanced_create_api_key(
         "user_id": user_id,
         "name": name,
         "scopes": scopes or [],
+        "tenant_id": tenant_id,  # SECURITY: Bind API key to tenant
         "created_at": datetime.now(UTC).isoformat(),
         "expires_at": expires_at.isoformat() if expires_at else None,
         "description": description,
@@ -268,12 +284,14 @@ async def create_api_key(
 ) -> APIKeyCreateResponse:
     """Create a new API key."""
     try:
+        # SECURITY: Bind API key to current user's tenant
         api_key, key_id = await _enhanced_create_api_key(
             user_id=current_user.user_id,
             name=request.name,
             scopes=request.scopes,
             expires_at=request.expires_at,
             description=request.description,
+            tenant_id=current_user.tenant_id,  # SECURITY: Enforce tenant binding
         )
 
         return APIKeyCreateResponse(

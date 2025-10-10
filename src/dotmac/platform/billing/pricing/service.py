@@ -227,7 +227,7 @@ class PricingEngine:
         if not db_rule:
             raise PricingError(f"Pricing rule {rule_id} not found")
 
-        setattr(db_rule, "is_active", False)
+        db_rule.is_active = False
 
         await self.db.commit()
         await self.db.refresh(db_rule)
@@ -508,7 +508,7 @@ class PricingEngine:
 
         if db_rule:
             current_uses = int(getattr(db_rule, "current_uses", 0))
-            setattr(db_rule, "current_uses", current_uses + 1)
+            db_rule.current_uses = current_uses + 1
 
         await self.db.commit()
 
@@ -653,7 +653,7 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        setattr(db_rule, "current_uses", 0)
+        db_rule.current_uses = 0
         await self.db.commit()
         return True
 
@@ -671,7 +671,7 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        setattr(db_rule, "is_active", True)
+        db_rule.is_active = True
         await self.db.commit()
         return True
 
@@ -689,7 +689,7 @@ class PricingEngine:
         if not db_rule:
             return False
 
-        setattr(db_rule, "is_active", False)
+        db_rule.is_active = False
         await self.db.commit()
         return True
 

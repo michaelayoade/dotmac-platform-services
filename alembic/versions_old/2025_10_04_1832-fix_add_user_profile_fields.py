@@ -7,8 +7,9 @@ Create Date: 2025-10-04 18:32:00.000000
 This migration ONLY adds the missing user profile fields without touching other tables.
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "fix_user_profile"

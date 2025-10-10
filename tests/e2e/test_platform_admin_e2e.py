@@ -4,16 +4,18 @@ E2E tests for Platform Admin features.
 Tests cross-tenant administration, impersonation, analytics, and system management.
 """
 
+from datetime import UTC
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.db import get_async_session, get_session_dependency
 from dotmac.platform.main import app
 from dotmac.platform.tenant import get_current_tenant_id
-from dotmac.platform.auth.dependencies import get_current_user
 
 
 @pytest.fixture
@@ -91,43 +93,92 @@ async def seed_multi_tenant_data(db_session):
     - 3 tenants with users and customers
     - Platform admin user
     """
-    from dotmac.platform.user_management.models import User
-    from dotmac.platform.customer_management.models import Customer
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta
 
-    # Create users across multiple tenants
+    from dotmac.platform.customer_management.models import Customer
+    from dotmac.platform.tenant.models import BillingCycle, Tenant, TenantPlanType, TenantStatus
+    from dotmac.platform.user_management.models import User
+
+    # Create actual tenant records
     tenants_data = [
-        {"tenant_id": "tenant-alpha", "users": 5, "customers": 10},
-        {"tenant_id": "tenant-beta", "users": 3, "customers": 7},
-        {"tenant_id": "tenant-gamma", "users": 8, "customers": 15},
+        {
+            "tenant_id": "tenant-alpha",
+            "name": "Alpha Corporation",
+            "slug": "alpha-corp",
+            "users": 5,
+            "customers": 10,
+        },
+        {
+            "tenant_id": "tenant-beta",
+            "name": "Beta Industries",
+            "slug": "beta-ind",
+            "users": 3,
+            "customers": 7,
+        },
+        {
+            "tenant_id": "tenant-gamma",
+            "name": "Gamma Solutions",
+            "slug": "gamma-sol",
+            "users": 8,
+            "customers": 15,
+        },
     ]
 
     for tenant_data in tenants_data:
-        tenant_id = tenant_data["tenant_id"]
+        # Create tenant record
+        tenant = Tenant(
+            id=tenant_data["tenant_id"],
+            name=tenant_data["name"],
+            slug=tenant_data["slug"],
+            email=f"contact@{tenant_data['slug']}.com",
+            status=TenantStatus.ACTIVE,
+            plan_type=TenantPlanType.PROFESSIONAL,
+            billing_cycle=BillingCycle.MONTHLY,
+            max_users=10,
+            max_api_calls_per_month=100000,
+            max_storage_gb=50,
+            current_users=tenant_data["users"],
+            current_api_calls=0,
+            current_storage_gb=0,
+            created_at=datetime.now(UTC) - timedelta(days=30),
+        )
+        db_session.add(tenant)
 
         # Create users for this tenant
         for i in range(tenant_data["users"]):
             user = User(
-                username=f"user{i}_{tenant_id}",
-                email=f"user{i}@{tenant_id}.com",
+                username=f"user{i}_{tenant_data['tenant_id']}",
+                email=f"user{i}@{tenant_data['slug']}.com",
                 password_hash="hashed_password",
-                tenant_id=tenant_id,
+                tenant_id=tenant_data["tenant_id"],
                 is_active=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             db_session.add(user)
 
         # Create customers for this tenant
         for i in range(tenant_data["customers"]):
             customer = Customer(
-                customer_number=f"{tenant_id}-CUST-{i:04d}",
+                customer_number=f"{tenant_data['tenant_id']}-CUST-{i:04d}",
                 first_name=f"Customer{i}",
-                last_name=f"Test",
-                email=f"customer{i}@{tenant_id}.com",
-                tenant_id=tenant_id,
-                created_at=datetime.now(timezone.utc),
+                last_name="Test",
+                email=f"customer{i}@{tenant_data['slug']}.com",
+                tenant_id=tenant_data["tenant_id"],
+                created_at=datetime.now(UTC),
             )
             db_session.add(customer)
+
+    # Create platform admin tenant
+    admin_tenant = Tenant(
+        id="platform-admin-tenant",
+        name="Platform Administration",
+        slug="platform-admin",
+        status=TenantStatus.ACTIVE,
+        plan_type=TenantPlanType.ENTERPRISE,
+        billing_cycle=BillingCycle.YEARLY,
+        created_at=datetime.now(UTC) - timedelta(days=365),
+    )
+    db_session.add(admin_tenant)
 
     # Create platform admin user
     platform_admin = User(
@@ -137,7 +188,7 @@ async def seed_multi_tenant_data(db_session):
         tenant_id="platform-admin-tenant",
         is_active=True,
         is_platform_admin=True,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db_session.add(platform_admin)
 
@@ -251,6 +302,82 @@ class TestTenantListing:
     async def test_non_admin_cannot_list_tenants(self, async_client):
         """Test non-admin user cannot list tenants."""
         response = await async_client.get("/api/v1/admin/platform/tenants")
+
+        assert response.status_code in [401, 403]
+
+    @pytest.mark.asyncio
+    async def test_get_tenant_detail(self, platform_admin_client, seed_multi_tenant_data):
+        """Test getting detailed information about a specific tenant."""
+        tenant_id = "tenant-alpha"
+
+        response = await platform_admin_client.get(f"/api/v1/admin/platform/tenants/{tenant_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify core tenant info
+        assert data["tenant_id"] == tenant_id
+        assert data["name"] == "Alpha Corporation"
+        assert data["slug"] == "alpha-corp"
+        assert data["email"] == "contact@alpha-corp.com"
+
+        # Verify status and subscription
+        assert data["status"] == "active"
+        assert data["plan_type"] == "professional"
+        assert data["billing_cycle"] == "monthly"
+
+        # Verify limits and quotas
+        assert data["max_users"] == 10
+        assert data["max_api_calls_per_month"] == 100000
+        assert data["max_storage_gb"] == 50
+
+        # Verify current usage
+        assert data["current_users"] == 5
+
+        # Verify aggregated metrics
+        assert data["total_users"] == 5
+        assert data["total_customers"] == 10
+
+        # Verify timestamps exist
+        assert "created_at" in data
+        assert data["created_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_get_tenant_detail_not_found(self, platform_admin_client):
+        """Test getting details for non-existent tenant returns 404."""
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants/nonexistent-tenant"
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_tenant_detail_returns_billing_metrics_fields(
+        self, platform_admin_client, seed_multi_tenant_data
+    ):
+        """Test tenant detail includes billing metrics fields (even if zero)."""
+        tenant_id = "tenant-beta"
+
+        # Get tenant detail
+        response = await platform_admin_client.get(f"/api/v1/admin/platform/tenants/{tenant_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify billing metric fields exist
+        assert "total_active_subscriptions" in data
+        assert "total_invoices" in data
+        assert "total_revenue" in data
+
+        # Without billing data, should be zero
+        assert data["total_active_subscriptions"] == 0
+        assert data["total_invoices"] == 0
+        assert data["total_revenue"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_non_admin_cannot_get_tenant_detail(self, async_client):
+        """Test non-admin user cannot get tenant details."""
+        response = await async_client.get("/api/v1/admin/platform/tenants/tenant-alpha")
 
         assert response.status_code in [401, 403]
 

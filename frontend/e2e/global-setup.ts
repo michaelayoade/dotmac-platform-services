@@ -56,7 +56,7 @@ async function createTestData() {
 
   try {
     // Create test admin user
-    const adminResponse = await fetch(`${baseUrl}/auth/register`, {
+    const adminResponse = await fetch(`${baseUrl}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -64,16 +64,19 @@ async function createTestData() {
         password: 'Test123!@#',
         username: 'testadmin',
         full_name: 'Test Admin',
-        roles: ['admin']
+        is_platform_admin: false
       })
     });
 
     if (adminResponse.ok) {
       console.log('✅ Test admin user created');
+    } else {
+      const errorText = await adminResponse.text();
+      console.log(`⚠️  Admin user creation response: ${adminResponse.status} ${errorText}`);
     }
 
     // Create test regular user
-    const userResponse = await fetch(`${baseUrl}/auth/register`, {
+    const userResponse = await fetch(`${baseUrl}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -81,45 +84,15 @@ async function createTestData() {
         password: 'Test123!@#',
         username: 'testuser',
         full_name: 'Test User',
-        roles: ['user']
+        is_platform_admin: false
       })
     });
 
     if (userResponse.ok) {
       console.log('✅ Test regular user created');
-    }
-
-    // Create test API key
-    // First login as admin
-    const loginResponse = await fetch(`${baseUrl}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'admin@test.com',
-        password: 'Test123!@#'
-      })
-    });
-
-    if (loginResponse.ok) {
-      const { access_token } = await loginResponse.json();
-
-      // Create API key
-      const apiKeyResponse = await fetch(`${baseUrl}/auth/api-keys`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${access_token}`
-        },
-        body: JSON.stringify({
-          name: 'E2E Test API Key',
-          scopes: ['read:users', 'write:users'],
-          expires_at: null
-        })
-      });
-
-      if (apiKeyResponse.ok) {
-        console.log('✅ Test API key created');
-      }
+    } else {
+      const errorText = await userResponse.text();
+      console.log(`⚠️  Regular user creation response: ${userResponse.status} ${errorText}`);
     }
 
     console.log('✅ Test data created successfully');
