@@ -123,8 +123,16 @@ class HealthChecker:
     def check_redis(self) -> ServiceHealth:
         """Check Redis connectivity with production-aware fallback handling.
 
-        SECURITY: In production, Redis is mandatory for session revocation to work
-        across multiple workers. Session fallback is disabled in production.
+        SECURITY: In production, Redis is MANDATORY for session revocation to work
+        across multiple workers. Session fallback is DISABLED in production.
+
+        Production behavior:
+        - Redis unavailable = UNHEALTHY + required=True (blocks startup)
+        - Application will NOT start without Redis in production
+
+        Development behavior:
+        - Redis unavailable = DEGRADED + warning (continues with fallback)
+        - In-memory fallback used (single-server only, not production-safe)
         """
         import os
 
@@ -134,32 +142,42 @@ class HealthChecker:
         is_production = os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod")
         require_redis = os.getenv("REQUIRE_REDIS_SESSIONS", str(is_production)).lower() == "true"
 
-        # Redis is critical but has fallback capabilities in non-production
+        # SECURITY: Redis is ALWAYS required in production (no fallback)
         if not is_healthy:
-            if require_redis:
-                # PRODUCTION: Redis failure is UNHEALTHY (no fallback)
+            if require_redis or is_production:
+                # PRODUCTION: Redis failure is CRITICAL - blocks startup
                 return ServiceHealth(
                     name="redis",
                     status=ServiceStatus.UNHEALTHY,
-                    message=f"{message}. Redis is REQUIRED in production for session management.",
-                    required=True,
+                    message=(
+                        f"{message}. "
+                        "CRITICAL: Redis is MANDATORY in production for multi-worker session management. "
+                        "Session revocation WILL NOT WORK without Redis. "
+                        "Application startup BLOCKED."
+                    ),
+                    required=True,  # Blocks production startup
                 )
             else:
                 # DEVELOPMENT: Redis failure is DEGRADED (fallback available)
-                fallback_enabled = getattr(settings, "redis_fallback_enabled", True)
-                if fallback_enabled:
-                    return ServiceHealth(
-                        name="redis",
-                        status=ServiceStatus.DEGRADED,
-                        message=f"{message}. Running with in-memory fallback (single-server only)",
-                        required=True,
-                    )
+                # This is NOT safe for production - session revocation breaks across workers
+                return ServiceHealth(
+                    name="redis",
+                    status=ServiceStatus.DEGRADED,
+                    message=(
+                        f"{message}. "
+                        "WARNING: Running with in-memory fallback (DEVELOPMENT ONLY). "
+                        "Session revocation does NOT work across multiple workers/servers. "
+                        "DO NOT use in production."
+                    ),
+                    required=False,  # Allows dev startup with warning
+                )
 
+        # Redis is healthy
         return ServiceHealth(
             name="redis",
-            status=ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY,
-            message=message,
-            required=True,
+            status=ServiceStatus.HEALTHY,
+            message=message if message else "Redis connection successful",
+            required=True,  # Always required, even when healthy
         )
 
     def check_vault(self) -> ServiceHealth:

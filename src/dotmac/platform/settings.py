@@ -185,6 +185,11 @@ class Settings(BaseSettings):
 
         SECURITY: This ensures production deployments don't use insecure defaults.
         Call this during application startup in production environments.
+
+        Checks:
+        - JWT secret is secure (not default)
+        - Trusted hosts are explicitly configured
+        - Redis is configured (not localhost) - REQUIRED for session management
         """
         if self.environment == Environment.PRODUCTION:
             if not self.jwt.is_secure:
@@ -199,6 +204,15 @@ class Settings(BaseSettings):
                     "SECURITY ERROR: TRUSTED_HOSTS must be explicitly configured in production. "
                     "Wildcard '*' or empty list is not allowed. "
                     "Set specific hostnames (e.g., TRUSTED_HOSTS=api.example.com,www.example.com)"
+                )
+
+            # SECURITY: Redis must be configured for multi-worker session management
+            if not self.redis.host or self.redis.host == "localhost":
+                raise ValueError(
+                    "SECURITY ERROR: Redis must be configured with production host in production. "
+                    "localhost is not suitable for multi-worker/multi-server deployments. "
+                    "Redis is MANDATORY for session revocation to work correctly across workers. "
+                    "Set REDIS__HOST to your production Redis server."
                 )
 
     # ============================================================
