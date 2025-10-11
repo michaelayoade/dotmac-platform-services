@@ -19,8 +19,15 @@ depends_on = None
 
 def upgrade() -> None:
     # Create PayoutStatus enum if it doesn't exist
+    # PostgreSQL doesn't support IF NOT EXISTS for CREATE TYPE, so check first
     op.execute(
-        "CREATE TYPE IF NOT EXISTS payoutstatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED')"
+        """
+        DO $$ BEGIN
+            CREATE TYPE payoutstatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+        """
     )
 
     # Create partner_payouts table
