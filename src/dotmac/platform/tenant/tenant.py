@@ -148,10 +148,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
         elif self.require_tenant and not is_platform_admin_request and not is_optional_tenant_path:
             # SECURITY: Fail fast when tenant is required but not provided
             # This prevents silent fallback to default tenant which bypasses isolation
+            import structlog
             from fastapi import status
             from starlette.responses import JSONResponse
-
-            import structlog
 
             logger = structlog.get_logger(__name__)
             logger.warning(

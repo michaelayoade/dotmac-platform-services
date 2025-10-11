@@ -15,7 +15,7 @@ from fastapi import Request, status
 from starlette.responses import JSONResponse
 
 from dotmac.platform.tenant.config import TenantConfiguration, TenantMode
-from dotmac.platform.tenant.tenant import TenantIdentityResolver, TenantMiddleware
+from dotmac.platform.tenant.tenant import TenantMiddleware
 
 
 @pytest.fixture

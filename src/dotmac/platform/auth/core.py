@@ -63,8 +63,8 @@ try:
     _access_token_expire_minutes = settings.jwt.access_token_expire_minutes
     _refresh_token_expire_days = settings.jwt.refresh_token_expire_days
     _redis_url = settings.redis.redis_url
-    # Get default role from settings or use minimal 'guest' role
-    _default_user_role = getattr(settings, "default_user_role", "guest")
+    # Get default role from settings (now has proper field with default="user")
+    _default_user_role = settings.default_user_role
 except ImportError:
     # Fallback values if settings not available
     _jwt_secret = "default-secret-change-this"
@@ -72,7 +72,7 @@ except ImportError:
     _access_token_expire_minutes = 15
     _refresh_token_expire_days = 7
     _redis_url = "redis://localhost:6379"
-    _default_user_role = "guest"  # Minimal permissions by default
+    _default_user_role = "user"  # Standard user role as fallback
 
 # Module constants
 JWT_SECRET = _jwt_secret
@@ -258,12 +258,31 @@ class JWTService:
         token = jwt.encode(self.header, to_encode, self.secret)
         return token.decode("utf-8") if isinstance(token, bytes) else token
 
-    def verify_token(self, token: str) -> dict[str, Any]:
-        """Verify and decode token with sync blacklist check."""
+    def verify_token(self, token: str, expected_type: TokenType | None = None) -> dict[str, Any]:
+        """Verify and decode token with sync blacklist check.
+
+        Args:
+            token: JWT token to verify
+            expected_type: Optional expected token type (ACCESS, REFRESH, or API_KEY)
+
+        Returns:
+            Token claims dictionary
+
+        Raises:
+            HTTPException: If token is invalid, revoked, or has wrong type
+        """
         try:
             claims_raw = jwt.decode(token, self.secret)
             claims_raw.validate()
             claims = cast(dict[str, Any], dict(claims_raw))
+
+            # Validate token type if specified
+            if expected_type:
+                token_type = claims.get("type")
+                if token_type != expected_type.value:
+                    raise JoseError(
+                        f"Invalid token type. Expected {expected_type.value}, got {token_type}"
+                    )
 
             # Check if token is revoked (sync version)
             jti = claims.get("jti")
@@ -336,12 +355,33 @@ class JWTService:
         except Exception:
             return False
 
-    async def verify_token_async(self, token: str) -> dict:
-        """Verify and decode token with revocation check (async version)."""
+    async def verify_token_async(
+        self, token: str, expected_type: TokenType | None = None
+    ) -> dict[str, Any]:
+        """Verify and decode token with revocation check (async version).
+
+        Args:
+            token: JWT token to verify
+            expected_type: Optional expected token type (ACCESS, REFRESH, or API_KEY)
+
+        Returns:
+            Token claims dictionary
+
+        Raises:
+            HTTPException: If token is invalid, revoked, or has wrong type
+        """
         try:
             claims_raw = jwt.decode(token, self.secret)
             claims_raw.validate()
             claims = cast(dict[str, Any], dict(claims_raw))
+
+            # Validate token type if specified
+            if expected_type:
+                token_type = claims.get("type")
+                if token_type != expected_type.value:
+                    raise JoseError(
+                        f"Invalid token type. Expected {expected_type.value}, got {token_type}"
+                    )
 
             # Check if token is revoked
             jti = claims.get("jti")
@@ -769,8 +809,16 @@ jwt_service = JWTService()
 
 # SECURITY: Disable session fallback in production to ensure revocation works across workers
 # In production, Redis is mandatory for proper session management
-_is_production = os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod")
-_require_redis_for_sessions = os.getenv("REQUIRE_REDIS_SESSIONS", str(_is_production)).lower() == "true"
+# Use settings.environment instead of os.getenv to respect .env files
+try:
+    _is_production = settings.environment.lower() in ("production", "prod")
+except (ImportError, AttributeError):
+    # Fallback if settings not available
+    _is_production = os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod")
+
+_require_redis_for_sessions = (
+    os.getenv("REQUIRE_REDIS_SESSIONS", str(_is_production)).lower() == "true"
+)
 
 session_manager = SessionManager(fallback_enabled=not _require_redis_for_sessions)
 
@@ -782,13 +830,22 @@ api_key_service = APIKeyService()
 # ============================================
 
 
-async def _verify_token_with_fallback(token: str) -> dict[str, Any]:
-    """Verify tokens using async path when available, falling back to the sync method."""
+async def _verify_token_with_fallback(
+    token: str, expected_type: TokenType | None = None
+) -> dict[str, Any]:
+    """Verify tokens using async path when available, falling back to the sync method.
 
+    Args:
+        token: JWT token to verify
+        expected_type: Optional expected token type for validation
+
+    Returns:
+        Token claims dictionary
+    """
     verify_async = getattr(jwt_service, "verify_token_async", None)
     if verify_async:
         try:
-            result = verify_async(token)
+            result = verify_async(token, expected_type)
             if inspect.isawaitable(result):
                 resolved = await result
                 return cast(dict[str, Any], resolved)
@@ -798,7 +855,7 @@ async def _verify_token_with_fallback(token: str) -> dict[str, Any]:
             # Mocked objects (MagicMock) may not support awaiting
             pass
 
-    return jwt_service.verify_token(token)
+    return jwt_service.verify_token(token, expected_type)
 
 
 async def get_current_user(
@@ -807,34 +864,38 @@ async def get_current_user(
     api_key: str | None = Depends(api_key_header),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> UserInfo:
-    """Get current authenticated user from Bearer token, OAuth2, API key, or HttpOnly cookie."""
+    """Get current authenticated user from Bearer token, OAuth2, API key, or HttpOnly cookie.
 
-    # Try Bearer token first
+    SECURITY: All JWT tokens are validated for ACCESS token type to prevent
+    refresh token reuse attacks. API keys are handled separately.
+    """
+
+    # Try Bearer token first - must be ACCESS token
     if credentials and credentials.credentials:
         try:
-            claims = await _verify_token_with_fallback(credentials.credentials)
+            claims = await _verify_token_with_fallback(credentials.credentials, TokenType.ACCESS)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
 
-    # Try OAuth2 token
+    # Try OAuth2 token - must be ACCESS token
     if token:
         try:
-            claims = await _verify_token_with_fallback(token)
+            claims = await _verify_token_with_fallback(token, TokenType.ACCESS)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
 
-    # Try HttpOnly cookie access token
+    # Try HttpOnly cookie access token - must be ACCESS token
     access_token = request.cookies.get("access_token")
     if access_token:
         try:
-            claims = await _verify_token_with_fallback(access_token)
+            claims = await _verify_token_with_fallback(access_token, TokenType.ACCESS)
             return _claims_to_user_info(claims)
         except HTTPException:
             pass
 
-    # Try API key
+    # Try API key (no token type check needed - different auth mechanism)
     if api_key:
         key_data = await api_key_service.verify_api_key(api_key)
         if key_data:

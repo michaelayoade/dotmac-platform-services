@@ -7,8 +7,8 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe('REST API Integration', () => {
   const BASE_URL = 'http://localhost:8000';
   const APP_URL = 'http://localhost:3000';
-  const TEST_EMAIL = 'admin@test.com';
-  const TEST_PASSWORD = 'Test123!@#';
+  const TEST_USERNAME = 'admin';
+  const TEST_PASSWORD = 'admin123';
 
   let authToken: string;
 
@@ -18,7 +18,7 @@ test.describe('REST API Integration', () => {
   async function authenticate(request: APIRequestContext): Promise<string> {
     const response = await request.post(`${BASE_URL}/api/v1/auth/login`, {
       data: {
-        email: TEST_EMAIL,
+        username: TEST_USERNAME,
         password: TEST_PASSWORD
       }
     });
@@ -129,7 +129,7 @@ test.describe('REST API Integration', () => {
     test('should display API data in UI', async ({ page, request }) => {
       // Login first
       await page.goto(`${APP_URL}/login`);
-      await page.getByTestId('email-input').fill(TEST_EMAIL);
+      await page.getByTestId('username-input').fill(TEST_USERNAME);
       await page.getByTestId('password-input').fill(TEST_PASSWORD);
       await page.getByTestId('submit-button').click();
 
@@ -205,7 +205,7 @@ test.describe('REST API Integration', () => {
     test('should include auth headers in API requests', async ({ page }) => {
       // Login first
       await page.goto(`${APP_URL}/login`);
-      await page.getByTestId('email-input').fill(TEST_EMAIL);
+      await page.getByTestId('username-input').fill(TEST_USERNAME);
       await page.getByTestId('password-input').fill(TEST_PASSWORD);
       await page.getByTestId('submit-button').click();
 
@@ -271,7 +271,7 @@ test.describe('REST API Integration', () => {
     test('should handle concurrent requests', async ({ page }) => {
       // Login first
       await page.goto(`${APP_URL}/login`);
-      await page.getByTestId('email-input').fill(TEST_EMAIL);
+      await page.getByTestId('username-input').fill(TEST_USERNAME);
       await page.getByTestId('password-input').fill(TEST_PASSWORD);
       await page.getByTestId('submit-button').click();
 
@@ -310,7 +310,7 @@ test.describe('REST API Integration', () => {
     test('should cache repeated requests', async ({ page }) => {
       // Login first
       await page.goto(`${APP_URL}/login`);
-      await page.getByTestId('email-input').fill(TEST_EMAIL);
+      await page.getByTestId('username-input').fill(TEST_USERNAME);
       await page.getByTestId('password-input').fill(TEST_PASSWORD);
       await page.getByTestId('submit-button').click();
 

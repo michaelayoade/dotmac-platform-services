@@ -12,8 +12,8 @@ test.describe('HttpOnly Cookie Authentication', () => {
 
   test('login flow sets HttpOnly cookies and redirects to dashboard', async ({ page, context }) => {
     // Fill in login form
-    await page.fill('[data-testid="email-input"]', 'testuser@example.com');
-    await page.fill('[data-testid="password-input"]', 'testpassword');
+    await page.fill('[data-testid="username-input"]', 'admin');
+    await page.fill('[data-testid="password-input"]', 'admin123');
 
     // Intercept the login API call
     const loginPromise = page.waitForResponse('/api/v1/auth/login/cookie');
@@ -58,8 +58,8 @@ test.describe('HttpOnly Cookie Authentication', () => {
   test('authenticated requests use HttpOnly cookies automatically', async ({ page, context }) => {
     // Login first
     await page.goto('/login');
-    await page.fill('[data-testid="email-input"]', 'testuser@example.com');
-    await page.fill('[data-testid="password-input"]', 'testpassword');
+    await page.fill('[data-testid="username-input"]', 'admin');
+    await page.fill('[data-testid="password-input"]', 'admin123');
     await page.click('[data-testid="submit-button"]');
 
     // Wait for redirect to dashboard
@@ -89,8 +89,8 @@ test.describe('HttpOnly Cookie Authentication', () => {
   test('token refresh happens automatically on 401', async ({ page, context }) => {
     // Login first
     await page.goto('/login');
-    await page.fill('[data-testid="email-input"]', 'testuser@example.com');
-    await page.fill('[data-testid="password-input"]', 'testpassword');
+    await page.fill('[data-testid="username-input"]', 'admin');
+    await page.fill('[data-testid="password-input"]', 'admin123');
     await page.click('[data-testid="submit-button"]');
 
     await expect(page).toHaveURL('/dashboard');
@@ -167,8 +167,8 @@ test.describe('HttpOnly Cookie Authentication', () => {
 
     // Login in first tab
     await page1.goto('/login');
-    await page1.fill('[data-testid="email-input"]', 'testuser@example.com');
-    await page1.fill('[data-testid="password-input"]', 'testpassword');
+    await page1.fill('[data-testid="username-input"]', 'admin');
+    await page1.fill('[data-testid="password-input"]', 'admin123');
     await page1.click('[data-testid="submit-button"]');
 
     await expect(page1).toHaveURL('/dashboard');
@@ -247,8 +247,8 @@ test.describe('HttpOnly Cookie Authentication', () => {
   test('XSS protection - cookies not accessible via JavaScript', async ({ page }) => {
     // Login first
     await page.goto('/login');
-    await page.fill('[data-testid="email-input"]', 'testuser@example.com');
-    await page.fill('[data-testid="password-input"]', 'testpassword');
+    await page.fill('[data-testid="username-input"]', 'admin');
+    await page.fill('[data-testid="password-input"]', 'admin123');
     await page.click('[data-testid="submit-button"]');
 
     await expect(page).toHaveURL('/dashboard');

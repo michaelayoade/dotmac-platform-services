@@ -58,13 +58,13 @@ class SecurityAudit:
         # Check SECRET_KEY
         secret_key = os.getenv("SECRET_KEY")
         if not secret_key:
-            self.add_issue(
-                "credentials", "SECRET_KEY not set in environment", severity="critical"
-            )
+            self.add_issue("credentials", "SECRET_KEY not set in environment", severity="critical")
         elif secret_key == "change-me-in-production":
             self.add_issue("credentials", "SECRET_KEY uses default value", severity="critical")
         elif len(secret_key) < 32:
-            self.add_issue("credentials", "SECRET_KEY is too short (< 32 characters)", severity="high")
+            self.add_issue(
+                "credentials", "SECRET_KEY is too short (< 32 characters)", severity="high"
+            )
         else:
             self.add_pass("credentials", "SECRET_KEY properly configured")
 
@@ -110,9 +110,7 @@ class SecurityAudit:
         # Check if rate limiting is enabled
         rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower()
         if rate_limit_enabled == "false":
-            self.add_issue(
-                "rate_limiting", "Rate limiting is DISABLED", severity="critical"
-            )
+            self.add_issue("rate_limiting", "Rate limiting is DISABLED", severity="critical")
         else:
             self.add_pass("rate_limiting", "Rate limiting enabled")
 
@@ -155,7 +153,9 @@ class SecurityAudit:
         print("[5/8] Checking TLS Configuration...")
 
         # Check if HTTPS redirect is enabled
-        https_redirect = os.getenv("HTTPS_REDIRECT", "true" if self.environment == "production" else "false")
+        https_redirect = os.getenv(
+            "HTTPS_REDIRECT", "true" if self.environment == "production" else "false"
+        )
 
         if self.environment == "production" and https_redirect.lower() == "false":
             self.add_issue(
@@ -261,7 +261,7 @@ class SecurityAudit:
     def run_audit(self) -> int:
         """Run complete security audit."""
         print(f"\n{'='*60}")
-        print(f"DotMac Platform Security Audit")
+        print("DotMac Platform Security Audit")
         print(f"Environment: {self.environment.upper()}")
         print(f"Timestamp: {datetime.now(UTC).isoformat()}")
         print(f"{'='*60}")
@@ -380,6 +380,7 @@ def main() -> int:
     # JSON output if requested
     if args.json:
         import json
+
         results = {
             "environment": environment,
             "timestamp": datetime.now(UTC).isoformat(),

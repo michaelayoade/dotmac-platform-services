@@ -40,10 +40,7 @@ class WebhookSecretRotator:
         return secrets.token_urlsafe(32)
 
     async def rotate_webhook(
-        self,
-        webhook: WebhookSubscription,
-        db,
-        force: bool = False
+        self, webhook: WebhookSubscription, db, force: bool = False
     ) -> dict[str, str | None]:
         """Rotate secret for a single webhook.
 
@@ -209,14 +206,14 @@ class WebhookSecretRotator:
 
     def print_summary(self) -> None:
         """Print rotation summary."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("WEBHOOK SECRET ROTATION SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"Rotated: {self.rotated_count}")
         print(f"Failed: {self.failed_count}")
         print(f"Skipped (dry run): {self.skipped_count}")
         print(f"Grace Period: {self.grace_period_days} days")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
 
 async def send_rotation_notification(

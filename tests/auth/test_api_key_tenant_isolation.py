@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from dotmac.platform.auth.api_keys_router import (
     APIKeyCreateRequest,
@@ -257,7 +256,6 @@ class TestCrossTenantAPIKeyIsolation:
         This test proves that services like audit/service.py that rely on
         current_user.tenant_id will properly filter data when using API keys.
         """
-        from unittest.mock import ANY
 
         # Create two tenants with data
         tenant1_data = [

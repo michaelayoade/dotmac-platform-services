@@ -257,6 +257,7 @@ export function useUniversalAuth(options: UniversalAuthOptions = {}): UniversalA
 
       // Build login payload with portal awareness
       const loginPayload = {
+        username: credentials.username ?? credentials.email?.split('@')[0],
         email: credentials.email,
         password: credentials.password,
         portal: currentPortal?.type || getPortalTypeFromURL(),

@@ -109,7 +109,7 @@ const TestAuthConsumer = () => {
       <div data-testid='has-admin-role'>{auth.hasRole(UserRole.TENANT_ADMIN).toString()}</div>
       <div data-testid='is-super-admin'>{auth.isSuperAdmin().toString()}</div>
       <button
-        onClick={() => auth.login({ email: 'test@example.com', password: 'test', portal: 'admin' })}
+        onClick={() => auth.login({ username: 'test', email: 'test@example.com', password: 'test', portal: 'admin' })}
       >
         Login
       </button>
@@ -417,7 +417,7 @@ describe('AuthProvider', () => {
 
         const handleLogin = async () => {
           try {
-            await auth.login({ email: 'invalid', password: 'invalid', portal: 'admin' });
+            await auth.login({ username: 'invalid', email: 'invalid@example.com', password: 'invalid', portal: 'admin' });
           } catch (err) {
             setError((err as Error).message);
           }

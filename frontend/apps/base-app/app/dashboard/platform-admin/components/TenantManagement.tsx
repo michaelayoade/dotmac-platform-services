@@ -99,12 +99,12 @@ export function TenantManagement() {
       platformAdminTenantService.impersonateTenant(tenantId, impersonationDuration),
     onSuccess: (response, tenantId) => {
       if (response.access_token) {
-        localStorage.setItem("impersonation_token", response.access_token);
+        sessionStorage.setItem("impersonation_token", response.access_token);
       }
       if (response.refresh_token) {
-        localStorage.setItem("impersonation_refresh_token", response.refresh_token);
+        sessionStorage.setItem("impersonation_refresh_token", response.refresh_token);
       }
-      localStorage.setItem("impersonating_tenant", tenantId);
+      sessionStorage.setItem("impersonating_tenant", tenantId);
 
       toast({
         title: "Impersonation Active",

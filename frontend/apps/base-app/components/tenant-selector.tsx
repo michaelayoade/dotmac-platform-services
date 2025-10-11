@@ -11,11 +11,9 @@ export function TenantSelector() {
   const { currentTenant, availableTenants, setTenant, isLoading } = useTenant();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleTenantChange = (tenant: Tenant) => {
+  const handleTenantChange = async (tenant: Tenant) => {
     setTenant(tenant);
     setIsOpen(false);
-    // Reload the page to apply the new tenant context
-    window.location.reload();
   };
 
   const getStatusColor = (status: string) => {
@@ -37,8 +35,11 @@ export function TenantSelector() {
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
           "bg-card text-foreground border-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -50,7 +51,9 @@ export function TenantSelector() {
         ) : (
           <Building2 className="h-4 w-4" />
         )}
-        <span className="max-w-[150px] truncate">{currentTenant?.name || 'Select Tenant'}</span>
+        <span className="max-w-[150px] truncate">
+          {currentTenant?.name || 'All tenants'}
+        </span>
         <ChevronDown className="h-4 w-4" />
       </button>
 
@@ -63,8 +66,16 @@ export function TenantSelector() {
           />
 
           {/* Dropdown */}
-          <div className="absolute z-20 mt-2 w-72 rounded-md border border-border bg-card shadow-lg shadow-primary/10">
-            <div className="py-1" role="menu">
+          <div
+            className="absolute z-20 mt-2 w-72 rounded-md border border-border bg-card shadow-lg shadow-primary/10"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setIsOpen(false);
+              }
+            }}
+            tabIndex={-1}
+          >
+            <div className="py-1" role="listbox" aria-label="Select tenant">
               {availableTenants.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-muted-foreground text-center">
                   No tenants available
@@ -75,7 +86,8 @@ export function TenantSelector() {
                     key={tenant.id}
                     onClick={() => handleTenantChange(tenant)}
                     className="flex w-full items-start justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-accent"
-                    role="menuitem"
+                    role="option"
+                    aria-selected={currentTenant?.id === tenant.id}
                   >
                     <div className="flex-1 text-left">
                       <div className="flex items-center gap-2">
@@ -114,12 +126,10 @@ export function TenantSelector() {
 export function TenantBadge() {
   const { currentTenant } = useTenant();
 
-  if (!currentTenant) return null;
-
   return (
     <div className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
       <Building2 className="h-3 w-3" />
-      <span>{currentTenant.name}</span>
+      <span>{currentTenant?.name ?? 'All tenants'}</span>
     </div>
   );
 }

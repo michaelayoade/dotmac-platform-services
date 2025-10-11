@@ -926,6 +926,16 @@ if HAS_FASTAPI:
         except ImportError:
             pass
 
+        # Integrations
+        try:
+            from dotmac.platform.integrations.router import integrations_router
+
+            app.include_router(
+                integrations_router, prefix="/api/v1/integrations", tags=["Integrations"]
+            )
+        except ImportError:
+            pass
+
         return app
 
     @pytest.fixture

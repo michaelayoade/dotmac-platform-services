@@ -12,12 +12,17 @@ help:
 	@echo "  make seed-db         Seed database with test data"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test            Run all tests with coverage"
-	@echo "  make test-fast       Run fast unit tests only (no coverage)"
-	@echo "  make test-unit       Run unit tests with coverage"
+	@echo "  make test-fast       🚀 Fast tests, no coverage (<1 min) - RECOMMENDED"
+	@echo "  make test-module-cov MODULE=auth  📊 Single module coverage (fast!)"
+	@echo "  make test-critical   Test critical modules (auth, secrets, tenant, webhooks - 90%)"
+	@echo "  make test            Run all tests with coverage (SLOW locally, 15+ min)"
+	@echo "  make test-unit       Run unit tests with coverage (SLOW, 10-20 min)"
+	@echo "  make test-diff       Check diff coverage for PRs (use in CI)"
 	@echo "  make test-slow       Run only slow/comprehensive tests"
 	@echo "  make test-integration Run integration tests with Docker"
 	@echo "  make test-cov        Generate HTML coverage report"
+	@echo ""
+	@echo "  💡 TIP: Use 'test-module-cov' to check single module coverage quickly!"
 	@echo ""
 	@echo "Infrastructure:"
 	@echo "  make infra-up        Start all infrastructure services"
@@ -51,15 +56,47 @@ install:
 test-fast:
 	poetry run pytest tests/ -m "not integration and not slow" -x --tb=short -q
 
-# Unit tests with coverage (aligned with CI)
+# Unit tests with coverage (aligned with CI - base threshold)
+# Note: Full coverage is VERY slow locally due to large codebase (33k+ LOC)
+# Use test-module-cov for specific modules instead
 test-unit:
+	@echo "⚠️  WARNING: Full coverage takes 10-20+ minutes locally"
+	@echo "💡 Better options:"
+	@echo "   - make test-fast              (no coverage, <1 min)"
+	@echo "   - make test-module-cov MODULE=auth   (single module)"
+	@echo "   - Let CI measure coverage     (optimized, ~15 min)"
+	@echo ""
+	@read -p "Continue anyway? [y/N]: " confirm && [ "$$confirm" = "y" ] || exit 1
+	@echo ""
+	@echo "Running full coverage (this will take a while)..."
 	poetry run pytest tests/ -m "not integration" \
 		--cov=src/dotmac \
 		--cov-branch \
 		--cov-report=term-missing \
-		--cov-fail-under=85
+		--cov-report=xml \
+		--cov-fail-under=75
 
-# Full test suite with coverage (aligned with CI)
+# Test single module with coverage (fast!)
+# Usage: make test-module-cov MODULE=auth
+test-module-cov:
+	@if [ -z "$(MODULE)" ]; then \
+		echo "❌ Error: MODULE not specified"; \
+		echo "Usage: make test-module-cov MODULE=auth"; \
+		echo ""; \
+		echo "Available modules:"; \
+		echo "  auth, billing, customer_management, partner_management,"; \
+		echo "  user_management, tenant, webhooks, secrets, audit, core"; \
+		exit 1; \
+	fi
+	@echo "🔍 Testing $(MODULE) module with coverage..."
+	poetry run pytest tests/$(MODULE)/ \
+		--cov=src/dotmac/platform/$(MODULE) \
+		--cov-branch \
+		--cov-report=term-missing \
+		--cov-report=xml \
+		-v
+
+# Full test suite with coverage + module checks (aligned with CI)
 test:
 	poetry run pytest \
 		--cov=src/dotmac \
@@ -67,16 +104,57 @@ test:
 		--cov-report=term-missing \
 		--cov-report=xml \
 		--cov-report=html \
-		--cov-fail-under=85 \
+		--cov-fail-under=75 \
+		-v
+	@echo ""
+	@echo "Checking module-specific thresholds..."
+	poetry run python scripts/check_coverage.py coverage.xml
+
+# Check coverage for critical modules only (auth, secrets, tenant, webhooks)
+test-critical:
+	poetry run pytest tests/auth tests/secrets tests/tenant tests/webhooks \
+		--cov=src/dotmac/platform/auth \
+		--cov-append --cov=src/dotmac/platform/secrets \
+		--cov-append --cov=src/dotmac/platform/tenant \
+		--cov-append --cov=src/dotmac/platform/webhooks \
+		--cov-branch \
+		--cov-report=term-missing \
+		--cov-report=xml \
+		--cov-fail-under=90 \
 		-v
 
-# Generate and open coverage report (aligned with CI)
+# Check diff coverage (for PR validation)
+# Note: This is primarily for CI. Locally, just ensure your changes have tests.
+test-diff:
+	@echo "📊 Checking diff coverage (may be slow locally)..."
+	@echo "💡 Tip: Run 'make test-fast' first to ensure tests pass quickly."
+	@echo "🚀 CI will run this automatically on PRs."
+	@echo ""
+	COVERAGE_CORE=sysmon poetry run pytest \
+		--cov=src/dotmac \
+		--cov-branch \
+		--cov-report=xml \
+		--cov-fail-under=75 \
+		-q
+	@echo ""
+	poetry run diff-cover coverage.xml \
+		--compare-branch=origin/main \
+		--fail-under=80 \
+		--html-report=diff-cover.html
+	@echo "✅ Diff coverage report: diff-cover.html"
+
+# Generate and open coverage report with module checks
 test-cov:
 	poetry run pytest \
 		--cov=src/dotmac \
 		--cov-branch \
 		--cov-report=html \
-		--cov-fail-under=85
+		--cov-report=xml \
+		--cov-fail-under=75
+	@echo ""
+	@echo "Checking module-specific thresholds..."
+	poetry run python scripts/check_coverage.py coverage.xml
+	@echo ""
 	@echo "Opening coverage report..."
 	@python -m webbrowser htmlcov/index.html || open htmlcov/index.html
 

@@ -4,6 +4,7 @@
 
 export interface LoginCredentials {
   // Common fields
+  username?: string;
   email?: string;
   password: string;
   rememberMe?: boolean;

@@ -6,8 +6,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Admin User Journey', () => {
   const BASE_APP_URL = 'http://localhost:3000';
-  const TEST_EMAIL = 'admin@test.com';
-  const TEST_PASSWORD = 'Test123!@#';
+  const TEST_USERNAME = 'admin';
+  const TEST_PASSWORD = 'admin123';
 
   /**
    * Helper to login
@@ -15,7 +15,7 @@ test.describe('Admin User Journey', () => {
   async function login(page: any) {
     await page.goto(`${BASE_APP_URL}/login`);
     await page.waitForLoadState('networkidle');
-    await page.getByTestId('email-input').fill(TEST_EMAIL);
+    await page.getByTestId('username-input').fill(TEST_USERNAME);
     await page.getByTestId('password-input').fill(TEST_PASSWORD);
     await page.getByTestId('submit-button').click();
     await page.waitForURL(/dashboard/, { timeout: 10000 });

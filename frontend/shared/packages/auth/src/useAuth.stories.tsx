@@ -30,7 +30,7 @@ const UseAuthDemo = () => {
 
   const handleLogin = async () => {
     try {
-      await login({ email, password });
+      await login({ username: email.split('@')[0], email, password });
     } catch (err) {
       console.error('Login failed:', err);
     }

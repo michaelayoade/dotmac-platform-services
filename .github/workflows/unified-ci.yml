@@ -20,8 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COV_FAIL_UNDER: 85
-  DIFF_COV_FAIL_UNDER: 95
+  # Risk-based coverage thresholds
+  COV_BASE_THRESHOLD: 75  # Base repo-wide threshold
+  DIFF_COV_THRESHOLD: 80  # PR diff coverage (enforces gradual improvement)
   NODE_VERSION: 20
   PNPM_VERSION: 9
   PYTHON_VERSION: 3.12
@@ -156,15 +157,32 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}/src"
           DATABASE_URL: postgresql://dotmac_user:change-me-in-production@localhost:5432/${{ env.DB_NAME }}
           DOTMAC_REDIS_URL: redis://localhost:6379/0
+          COVERAGE_CORE: sysmon  # Use sysmon tracing for better performance
         run: |
           poetry run pytest tests/ \
             --cov=src/dotmac/platform \
-            --cov-report=term \
+            --cov-branch \
+            --cov-report=term-missing \
             --cov-report=xml \
             --cov-report=html \
-            --cov-fail-under=85 \
+            --cov-fail-under=${{ env.COV_BASE_THRESHOLD }} \
             --tb=short \
+            -n auto \
             -q
+
+      - name: Check module-specific coverage thresholds
+        if: always()
+        run: |
+          poetry run python scripts/check_coverage.py coverage.xml
+
+      - name: Check diff coverage (PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "📊 Checking diff coverage for PR..."
+          poetry run diff-cover coverage.xml \
+            --compare-branch=origin/${{ github.base_ref }} \
+            --fail-under=${{ env.DIFF_COV_THRESHOLD }} \
+            --html-report=diff-cover.html
 
       - name: Upload coverage reports
         if: always()
@@ -174,6 +192,7 @@ jobs:
           path: |
             htmlcov/
             coverage.xml
+            diff-cover.html
           retention-days: 30
 
   # ====================

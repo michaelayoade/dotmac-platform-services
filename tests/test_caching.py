@@ -1,6 +1,6 @@
 """Tests for caching module."""
 
-import pickle
+import json
 from unittest.mock import MagicMock, Mock, patch
 
 # Import the entire module to ensure coverage tracking
@@ -39,9 +39,10 @@ class TestCaching:
 
     @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_redis_success(self, mock_redis):
-        """Test cache_get with Redis successful retrieval."""
+        """Test cache_get with Redis successful retrieval (JSON)."""
         test_value = {"test": "data"}
-        mock_redis.get.return_value = pickle.dumps(test_value)
+        # Use JSON serialization instead of pickle for security
+        mock_redis.get.return_value = json.dumps(test_value).encode("utf-8")
 
         result = cache_get("test_key", "default")
 
@@ -87,14 +88,15 @@ class TestCaching:
 
     @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_set_with_redis_success(self, mock_redis):
-        """Test cache_set with Redis successful storage."""
+        """Test cache_set with Redis successful storage (JSON)."""
         test_value = {"test": "data"}
         mock_redis.setex = Mock()
 
         result = cache_set("test_key", test_value, 600)
 
         assert result is True
-        mock_redis.setex.assert_called_once_with("test_key", 600, pickle.dumps(test_value))
+        # Use JSON serialization instead of pickle for security
+        mock_redis.setex.assert_called_once_with("test_key", 600, json.dumps(test_value))
 
     @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_set_with_redis_exception(self, mock_redis):
@@ -332,9 +334,10 @@ class TestCaching:
 
     @patch("dotmac.platform.core.caching.redis_client")
     def test_cache_get_with_bytes_data(self, mock_redis):
-        """Test cache_get properly handles bytes data from Redis."""
+        """Test cache_get properly handles bytes data from Redis (JSON)."""
         test_value = {"test": "data"}
-        mock_redis.get.return_value = pickle.dumps(test_value)
+        # Use JSON serialization instead of pickle for security
+        mock_redis.get.return_value = json.dumps(test_value).encode("utf-8")
 
         result = cache_get("test_key")
 

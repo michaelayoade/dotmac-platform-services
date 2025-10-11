@@ -77,7 +77,7 @@ export default function HomePage() {
 
         <div className="bg-card/30 backdrop-blur border border-border/50 rounded-lg p-4 mt-8">
           <p className="text-sm text-muted-foreground mb-2">Quick Start - Test Credentials:</p>
-          <p className="text-sky-400 font-mono text-sm">admin@example.com / admin123</p>
+          <p className="text-sky-400 font-mono text-sm">admin / admin123</p>
         </div>
       </div>
 

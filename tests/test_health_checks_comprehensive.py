@@ -211,10 +211,8 @@ class TestHealthChecker:
 
     @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_redis_failure(self, mock_settings, health_checker):
-        """Test Redis check failure."""
+        """Test Redis check failure in development mode (fallback available)."""
         mock_settings.redis.redis_url = "redis://localhost:6379"
-        # Disable fallback to ensure status is DEGRADED
-        mock_settings.redis_fallback_enabled = True
 
         with patch.object(health_checker, "_check_redis_url") as mock_check:
             mock_check.return_value = (False, "Connection failed")
@@ -222,9 +220,9 @@ class TestHealthChecker:
             result = health_checker.check_redis()
 
             assert result.name == "redis"
-            assert result.status == ServiceStatus.DEGRADED  # With fallback enabled, it's DEGRADED
+            assert result.status == ServiceStatus.DEGRADED  # Development mode: fallback available
             assert "Connection failed" in result.message
-            assert result.required is True
+            assert result.required is False  # Not required in development (fallback available)
 
     @patch("dotmac.platform.monitoring.health_checks.settings")
     def test_check_vault_disabled(self, mock_settings, health_checker):

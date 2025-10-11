@@ -96,6 +96,12 @@ async def create_customer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create customer",
         ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error creating customer", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create customer",
+        ) from exc
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
@@ -182,6 +188,12 @@ async def update_customer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update customer",
         ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error updating customer", customer_id=str(customer_id), error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update customer",
+        ) from exc
 
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -243,6 +255,12 @@ async def search_customers(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search customers",
         ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error searching customers", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search customers",
+        ) from exc
 
 
 @router.post(
@@ -278,6 +296,12 @@ async def add_customer_activity(
         )
     except SQLAlchemyError as exc:
         logger.error("Failed to add activity", customer_id=str(customer_id), error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add activity",
+        ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error adding activity", customer_id=str(customer_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add activity",
@@ -348,6 +372,12 @@ async def add_customer_note(
         )
     except SQLAlchemyError as exc:
         logger.error("Failed to add note", customer_id=str(customer_id), error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add note",
+        ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error adding note", customer_id=str(customer_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add note",
@@ -442,6 +472,12 @@ async def create_segment(
         ) from exc
     except SQLAlchemyError as exc:
         logger.error("Failed to create segment", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create segment",
+        ) from exc
+    except Exception as exc:
+        logger.error("Unexpected error creating segment", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create segment",

@@ -8,18 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Search, Filter } from "lucide-react"
-
-interface SearchResult {
-  id: string
-  type: string
-  tenant_id: string
-  data: Record<string, any>
-}
+import { platformAdminService, type CrossTenantSearchResultItem } from "@/lib/services/platform-admin-service"
 
 export function CrossTenantSearch() {
   const [query, setQuery] = useState("")
   const [resourceType, setResourceType] = useState<string>("all")
-  const [results, setResults] = useState<SearchResult[]>([])
+  const [results, setResults] = useState<CrossTenantSearchResultItem[]>([])
   const [loading, setLoading] = useState(false)
   const [totalResults, setTotalResults] = useState(0)
   const { toast } = useToast()
@@ -36,35 +30,24 @@ export function CrossTenantSearch() {
 
     setLoading(true)
     try {
-      const response = await fetch("/api/v1/admin/platform/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-        body: JSON.stringify({
-          query,
-          resource_type: resourceType === "all" ? null : resourceType,
-          limit: 50,
-        }),
+      const data = await platformAdminService.search({
+        query,
+        resource_type: resourceType === "all" ? null : resourceType,
+        limit: 50,
       })
+      setResults(data.results || [])
+      setTotalResults(data.total || 0)
 
-      if (response.ok) {
-        const data = await response.json()
-        setResults(data.results || [])
-        setTotalResults(data.total || 0)
-
-        if (data.total === 0) {
-          toast({
-            title: "No Results",
-            description: `No resources found matching "${query}"`,
-          })
-        }
+      if ((data.total ?? 0) === 0) {
+        toast({
+          title: "No Results",
+          description: `No resources found matching "${query}"`,
+        })
       }
     } catch (error) {
       toast({
         title: "Search Failed",
-        description: "Failed to perform cross-tenant search",
+        description: error instanceof Error ? error.message : "Failed to perform cross-tenant search",
         variant: "destructive",
       })
     } finally {

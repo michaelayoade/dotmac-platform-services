@@ -1,7 +1,7 @@
 """
 Authentication router for FastAPI.
 
-Provides login, register, token refresh endpoints.
+Provides login, register, token refresh endpoints with rate limiting.
 """
 
 import json
@@ -27,6 +27,7 @@ from dotmac.platform.auth.core import (
 )
 from dotmac.platform.auth.email_service import get_auth_email_service
 from dotmac.platform.auth.mfa_service import mfa_service
+from dotmac.platform.core.rate_limiting import rate_limit
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.settings import settings
 from dotmac.platform.user_management.models import User
@@ -352,6 +353,7 @@ async def _authenticate_and_issue_tokens(
 
 
 @auth_router.post("/login", response_model=TokenResponse)
+@rate_limit("5/minute")  # SECURITY: Prevent brute force attacks
 async def login(
     login_request: LoginRequest,
     request: Request,
@@ -723,6 +725,7 @@ async def issue_token(
 
 
 @auth_router.post("/register", response_model=TokenResponse)
+@rate_limit("3/minute")  # SECURITY: Prevent mass account creation
 async def register(
     register_request: RegisterRequest,
     request: Request,
@@ -762,17 +765,66 @@ async def register(
             detail="Registration failed. Please check your input and try again.",
         )
 
-    # Create new user with configurable default role
+    # Determine role: first user in tenant gets 'admin', others get DEFAULT_USER_ROLE
     try:
+        # Check if this is the first user in the tenant
+        from sqlalchemy import func, select
+
+        from dotmac.platform.auth.models import Role
+        from dotmac.platform.auth.rbac_service import RBACService
+
+        user_count_result = await session.execute(
+            select(func.count(User.id)).where(User.tenant_id == current_tenant_id)
+        )
+        user_count = user_count_result.scalar() or 0
+
+        # First user in tenant becomes admin, others get default role
+        assigned_role_name = "admin" if user_count == 0 else DEFAULT_USER_ROLE
+
+        logger.info(
+            "Assigning role to new user",
+            tenant_id=current_tenant_id,
+            is_first_user=user_count == 0,
+            assigned_role=assigned_role_name,
+        )
+
+        # Create user WITHOUT roles in JSON column (RBAC manages roles)
         new_user = await user_service.create_user(
             username=register_request.username,
             email=register_request.email,
             password=register_request.password,
             full_name=register_request.full_name,
-            roles=[DEFAULT_USER_ROLE],  # Use configurable default role
+            roles=[],  # Empty - RBAC will manage roles via user_roles table
             is_active=True,
             tenant_id=current_tenant_id,  # Inherit tenant from request context
         )
+
+        # Assign RBAC role via user_roles table
+        rbac_service = RBACService(session)
+
+        # Get the role from database
+        role_result = await session.execute(select(Role).where(Role.name == assigned_role_name))
+        role = role_result.scalar_one_or_none()
+
+        if role:
+            # Assign role through RBAC (creates entry in user_roles table)
+            await rbac_service.assign_role_to_user(
+                user_id=new_user.id,
+                role_name=assigned_role_name,
+                granted_by=new_user.id,  # Self-assignment during registration
+            )
+            logger.info(
+                "RBAC role assigned successfully",
+                user_id=str(new_user.id),
+                role_name=assigned_role_name,
+                role_id=str(role.id),
+            )
+        else:
+            logger.warning(
+                "Role not found in database - user created without RBAC role",
+                role_name=assigned_role_name,
+                user_id=str(new_user.id),
+            )
     except Exception as e:
         logger.error("Failed to create user", exc_info=True)  # Use exc_info for safer logging
         await log_api_activity(
@@ -792,27 +844,34 @@ async def register(
             detail="Failed to create user",
         )
 
-    # Create tokens
+    # Get RBAC roles and permissions for token
+    user_roles = await rbac_service.get_user_roles(new_user.id)
+    user_permissions = await rbac_service.get_user_permissions(new_user.id)
+
+    role_names = [r.name for r in user_roles]
+    permission_names = list(user_permissions)  # user_permissions is already a set of permission strings
+
+    # Create tokens with RBAC roles/permissions
     access_token = jwt_service.create_access_token(
         subject=str(new_user.id),
         additional_claims={
             "username": new_user.username,
             "email": new_user.email,
-            "roles": new_user.roles or [],
-            "permissions": new_user.permissions or [],
+            "roles": role_names,  # RBAC roles from user_roles table
+            "permissions": permission_names,  # RBAC permissions
             "tenant_id": new_user.tenant_id,
         },
     )
 
     refresh_token = jwt_service.create_refresh_token(subject=str(new_user.id))
 
-    # Create session
+    # Create session with RBAC roles
     await session_manager.create_session(
         user_id=str(new_user.id),
         data={
             "username": new_user.username,
             "email": new_user.email,
-            "roles": new_user.roles or [],
+            "roles": role_names,  # RBAC roles
             "access_token": access_token,
         },
     )
@@ -828,7 +887,9 @@ async def register(
             "username": new_user.username,
             "email": new_user.email,
             "full_name": new_user.full_name,
-            "roles": new_user.roles or [],
+            "roles": role_names,  # RBAC roles
+            "is_first_user": user_count == 0,
+            "assigned_role": assigned_role_name,
         },
         # Extract context from request
         ip_address=request.client.host if request.client else None,
@@ -859,6 +920,7 @@ async def register(
 
 
 @auth_router.post("/refresh", response_model=TokenResponse)
+@rate_limit("10/minute")  # SECURITY: Reasonable limit for token refresh
 async def refresh_token(
     request: Request,
     response: Response,
@@ -881,16 +943,10 @@ async def refresh_token(
                 detail="Refresh token not provided",
             )
 
-        # Verify refresh token
-        payload = jwt_service.verify_token(refresh_token_value)
+        # Verify refresh token with type validation
+        from dotmac.platform.auth.core import TokenType
 
-        # Check if it's actually a refresh token
-        token_type = payload.get("type")
-        if token_type != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type - refresh token required",
-            )
+        payload = jwt_service.verify_token(refresh_token_value, expected_type=TokenType.REFRESH)
 
         user_id = payload.get("sub")
         if not user_id:
@@ -1238,6 +1294,7 @@ async def verify_token(
 
 
 @auth_router.post("/password-reset")
+@rate_limit("3/minute")  # SECURITY: Prevent abuse of password reset
 async def request_password_reset(
     request: PasswordResetRequest,
     session: AsyncSession = Depends(get_auth_session),

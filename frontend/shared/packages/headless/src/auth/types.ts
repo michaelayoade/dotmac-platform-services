@@ -34,6 +34,7 @@ export interface AuthSession {
 
 export interface LoginCredentials {
   email?: string;
+  username?: string;
   password: string;
   portalId?: string;
   accountNumber?: string;

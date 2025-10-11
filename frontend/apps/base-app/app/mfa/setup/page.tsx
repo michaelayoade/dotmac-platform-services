@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { ShieldCheck, MessageSquare, QrCode, ArrowLeft, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -187,9 +188,12 @@ export default function MfaSetupPage() {
 
                   <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-6 text-center">
                     {setupData?.qr_code ? (
-                      <img
+                      <Image
                         src={setupData.qr_code}
                         alt="MFA QR code"
+                        width={144}
+                        height={144}
+                        unoptimized
                         className="mx-auto h-36 w-36 rounded-md border border-primary/20 bg-background p-2 shadow-sm"
                         data-testid="mfa-qr-code"
                       />

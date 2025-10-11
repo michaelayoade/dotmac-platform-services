@@ -1,51 +1,38 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Shield, Clock } from "lucide-react"
-
-interface AuditAction {
-  id: string
-  user_id: string
-  action: string
-  timestamp: string
-  target_tenant?: string
-  details?: Record<string, any>
-}
+import { platformAdminService, type AuditAction } from "@/lib/services/platform-admin-service"
+import { useToast } from "@/components/ui/use-toast"
 
 export function AuditLogViewer() {
   const [actions, setActions] = useState<AuditAction[]>([])
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  useEffect(() => {
-    fetchAuditLog()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchAuditLog, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const fetchAuditLog = async () => {
+  const loadAuditLog = useCallback(async () => {
+    setLoading(true)
     try {
-      const response = await fetch("/api/v1/admin/platform/audit/recent?limit=50", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        // For now, the endpoint returns empty array
-        // In production, this would contain real audit data
-        setActions(data.actions || [])
-      }
+      const data = await platformAdminService.getAuditLog(50)
+      setActions(data.actions || [])
     } catch (error) {
-      console.error("Failed to fetch audit log:", error)
+      const message = error instanceof Error ? error.message : "Failed to fetch audit log"
+      toast({ title: "Unable to load audit log", description: message, variant: "destructive" })
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    void loadAuditLog()
+    const interval = setInterval(() => {
+      void loadAuditLog()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadAuditLog])
 
   return (
     <Card>

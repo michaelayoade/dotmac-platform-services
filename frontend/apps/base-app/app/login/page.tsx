@@ -27,9 +27,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      logger.info('Starting login process', { email: data.email });
+      logger.info('Starting login process', { username: data.username });
 
-      const response = await apiClient.login(data.email, data.password);
+      const response = await apiClient.login(data.username, data.password);
       logger.debug('Login response received', { success: response.success });
 
       if (response.success) {
@@ -61,7 +61,7 @@ export default function LoginPage() {
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-xs text-blue-300 font-medium">Test Credentials:</p>
-              <p className="text-xs text-blue-200 mt-1">admin@example.com / admin123</p>
+              <p className="text-xs text-blue-200 mt-1">admin / admin123</p>
             </div>
           )}
         </div>
@@ -74,22 +74,22 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-2">
-              Email address
+            <label htmlFor="username" className="block text-sm font-medium text-muted-foreground mb-2">
+              Username
             </label>
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              {...register('email')}
+              id="username"
+              type="text"
+              autoComplete="username"
+              {...register('username')}
               className={`w-full px-3 py-2 bg-accent border ${
-                errors.email ? 'border-red-500' : 'border-border'
+                errors.username ? 'border-red-500' : 'border-border'
               } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
-              placeholder="you@example.com"
-              data-testid="email-input"
+              placeholder="your-username"
+              data-testid="username-input"
             />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>
+            {errors.username && (
+              <p className="mt-1 text-sm text-red-400">{errors.username.message}</p>
             )}
           </div>
 

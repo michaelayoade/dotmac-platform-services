@@ -7,18 +7,18 @@ import { test, expect, type Page } from '@playwright/test';
 
 test.describe('Base App Authentication Flow', () => {
   const BASE_APP_URL = 'http://localhost:3000';
-  const TEST_EMAIL = 'admin@test.com';
-  const TEST_PASSWORD = 'Test123!@#';
+  const TEST_USERNAME = 'admin';
+  const TEST_PASSWORD = 'admin123';
 
   /**
    * Helper function to perform login
    */
-  async function login(page: Page, email: string = TEST_EMAIL, password: string = TEST_PASSWORD) {
+  async function login(page: Page, username: string = TEST_USERNAME, password: string = TEST_PASSWORD) {
     await page.goto(`${BASE_APP_URL}/login`);
     await page.waitForLoadState('networkidle');
 
     // Fill in login form
-    await page.getByTestId('email-input').fill(email);
+    await page.getByTestId('username-input').fill(username);
     await page.getByTestId('password-input').fill(password);
 
     // Submit form
@@ -40,13 +40,13 @@ test.describe('Base App Authentication Flow', () => {
     await expect(page.locator('text=Sign in to your DotMac Platform account')).toBeVisible();
 
     // Check form elements with test IDs
-    await expect(page.getByTestId('email-input')).toBeVisible();
+    await expect(page.getByTestId('username-input')).toBeVisible();
     await expect(page.getByTestId('password-input')).toBeVisible();
     await expect(page.getByTestId('submit-button')).toBeVisible();
 
     // Check test credentials hint in development
     await expect(page.locator('text=Test Credentials')).toBeVisible();
-    await expect(page.locator('text=admin@example.com')).toBeVisible();
+    await expect(page.locator('text=admin / admin123')).toBeVisible();
   });
 
   test('register page loads correctly', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('Base App Authentication Flow', () => {
   });
 
   test('failed login shows error message', async ({ page }) => {
-    await login(page, TEST_EMAIL, 'wrongpassword');
+    await login(page, TEST_USERNAME, 'wrongpassword');
 
     // Should show error message
     await expect(page.getByTestId('error-message')).toBeVisible();
@@ -180,7 +180,7 @@ test.describe('Base App Authentication Flow', () => {
     await page.waitForLoadState('networkidle');
 
     // Form elements should still be visible and usable
-    await expect(page.getByTestId('email-input')).toBeVisible();
+    await expect(page.getByTestId('username-input')).toBeVisible();
     await expect(page.getByTestId('password-input')).toBeVisible();
     await expect(page.getByTestId('submit-button')).toBeVisible();
 
@@ -192,7 +192,7 @@ test.describe('Base App Authentication Flow', () => {
     await page.goto(`${BASE_APP_URL}/login`);
 
     // Fill form
-    await page.getByTestId('email-input').fill(TEST_EMAIL);
+    await page.getByTestId('username-input').fill(TEST_USERNAME);
     await page.getByTestId('password-input').fill(TEST_PASSWORD);
 
     // Click submit and immediately check for loading state

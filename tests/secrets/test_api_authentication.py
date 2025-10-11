@@ -234,7 +234,9 @@ class TestSecretsAPIPlatformAdminAccess:
 
         mock_request = MagicMock()
 
-        with patch("dotmac.platform.secrets.api.require_platform_admin", return_value=platform_admin_user):
+        with patch(
+            "dotmac.platform.secrets.api.require_platform_admin", return_value=platform_admin_user
+        ):
             with patch("dotmac.platform.secrets.api.log_api_activity", new_callable=AsyncMock):
                 result = await get_secret(
                     path="app/secret",
@@ -254,7 +256,9 @@ class TestSecretsAPIPlatformAdminAccess:
 
         mock_request = MagicMock()
 
-        with patch("dotmac.platform.secrets.api.require_platform_admin", return_value=platform_admin_user):
+        with patch(
+            "dotmac.platform.secrets.api.require_platform_admin", return_value=platform_admin_user
+        ):
             with patch("dotmac.platform.secrets.api.log_api_activity", new_callable=AsyncMock):
                 result = await create_or_update_secret(
                     path="app/new_secret",

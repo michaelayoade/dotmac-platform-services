@@ -9,7 +9,7 @@ session revocation was ineffective without Redis due to in-memory fallback.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -271,7 +271,9 @@ class TestSessionManagerHealthCheck:
         # Make connection fail
         mock_redis_available.ping = AsyncMock(side_effect=Exception("Connection failed"))
 
-        with patch("dotmac.platform.auth.core.redis_async.from_url", return_value=mock_redis_available):
+        with patch(
+            "dotmac.platform.auth.core.redis_async.from_url", return_value=mock_redis_available
+        ):
             session_manager = SessionManager(fallback_enabled=True)
 
             # Try to get Redis connection
@@ -290,6 +292,7 @@ class TestGlobalSessionManagerConfiguration:
         with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
             # Reload module to pick up new environment
             import importlib
+
             from dotmac.platform.auth import core
 
             importlib.reload(core)
@@ -307,6 +310,7 @@ class TestGlobalSessionManagerConfiguration:
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
             # Reload module to pick up new environment
             import importlib
+
             from dotmac.platform.auth import core
 
             importlib.reload(core)

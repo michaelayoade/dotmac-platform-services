@@ -42,7 +42,7 @@ describe('auth utilities', () => {
 
     const { login } = require('../lib/auth');
 
-    const result = await login({ email: 'admin@example.com', password: 'admin123' });
+    const result = await login({ username: 'admin', password: 'admin123' });
 
     // Expect full URL with base URL from environment
     expect(fetch).toHaveBeenCalledWith(
@@ -51,7 +51,7 @@ describe('auth utilities', () => {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'admin@example.com', password: 'admin123' }),
+        body: JSON.stringify({ username: 'admin', password: 'admin123' }),
       })
     );
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
@@ -72,7 +72,7 @@ describe('auth utilities', () => {
 
     const { login } = require('../lib/auth');
 
-    await expect(login({ email: 'bad@example.com', password: 'nope' }))
+    await expect(login({ username: 'bad-user', password: 'nope' }))
       .rejects.toThrow('Invalid username or password');
   });
 

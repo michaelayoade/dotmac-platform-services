@@ -33,7 +33,8 @@ import {
   BarChart3,
   Building2,
   Handshake,
-  LifeBuoy
+  LifeBuoy,
+  LayoutDashboard
 } from 'lucide-react';
 import { TenantSelector } from '@/components/tenant-selector';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -150,6 +151,20 @@ const sections: NavSection[] = [
       { name: 'Logs', href: '/dashboard/infrastructure/logs', icon: FileText, permission: 'infrastructure.read' },
       { name: 'Observability', href: '/dashboard/infrastructure/observability', icon: Search, permission: 'infrastructure.read' },
       { name: 'Feature Flags', href: '/dashboard/infrastructure/feature-flags', icon: ToggleLeft, permission: 'infrastructure.read' },
+    ],
+  },
+  {
+    id: 'platform-admin',
+    label: 'Platform Admin',
+    icon: Shield,
+    href: '/dashboard/platform-admin',
+    permission: 'platform:admin',
+    items: [
+      { name: 'Overview', href: '/dashboard/platform-admin', icon: LayoutDashboard },
+      { name: 'Tenant Management', href: '/dashboard/platform-admin/tenants', icon: Building2 },
+      { name: 'Cross-Tenant Search', href: '/dashboard/platform-admin/search', icon: Search },
+      { name: 'Audit Activity', href: '/dashboard/platform-admin/audit', icon: Activity },
+      { name: 'System Configuration', href: '/dashboard/platform-admin/system', icon: Settings },
     ],
   },
   {

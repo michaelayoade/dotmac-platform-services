@@ -720,7 +720,9 @@ class TestPayoutCreationWithCommissionCount:
                 select(PartnerCommissionEvent).where(PartnerCommissionEvent.id == commission_id)
             )
             commission = result.scalar_one()
-            assert commission.status == CommissionStatus.APPROVED  # Remains APPROVED for financial reporting
+            assert (
+                commission.status == CommissionStatus.APPROVED
+            )  # Remains APPROVED for financial reporting
             assert commission.payout_id == payout_response.id
 
     async def test_create_payout_with_single_commission(self, db_session, test_tenant_id):

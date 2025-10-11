@@ -9,6 +9,7 @@ import '@testing-library/jest-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { authService } from '@/lib/api/services/auth.service';
 import { apiClient } from '@/lib/api-client';
+import type { AxiosResponse, AxiosRequestConfig } from 'axios';
 
 // Mock dependencies
 jest.mock('@/lib/api/services/auth.service');
@@ -24,6 +25,16 @@ jest.mock('next/navigation', () => ({
 
 const mockAuthService = authService as jest.Mocked<typeof authService>;
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+
+const createAxiosResponse = <T,>(data: T, config: AxiosRequestConfig = {}): AxiosResponse<T> =>
+  ({
+    data,
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config: config as AxiosRequestConfig,
+    request: undefined,
+  } as AxiosResponse<T>);
 
 // Mock Dashboard component (simplified)
 const MockDashboard = () => {
@@ -69,9 +80,9 @@ describe('Dashboard Component', () => {
       },
     });
 
-    mockApiClient.get.mockResolvedValue({
-      data: { effective_permissions: [] },
-    });
+    mockApiClient.get.mockResolvedValue(
+      createAxiosResponse({ effective_permissions: [] })
+    );
   });
 
   describe('Rendering', () => {

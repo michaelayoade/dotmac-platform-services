@@ -64,7 +64,7 @@ const AuthDemo = () => {
 
       <div className='space-x-2'>
         <button
-          onClick={() => login({ email: 'demo@dotmac.cloud', password: 'demo123' })}
+          onClick={() => login({ username: 'demo', email: 'demo@dotmac.cloud', password: 'demo123', portal: 'admin' })}
           className='px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700'
         >
           Login as Demo User

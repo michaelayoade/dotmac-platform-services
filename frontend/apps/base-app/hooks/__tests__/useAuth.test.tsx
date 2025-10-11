@@ -9,6 +9,7 @@ import { useAuth, AuthProvider } from '../useAuth';
 import { authService } from '@/lib/api/services/auth.service';
 import { apiClient } from '@/lib/api-client';
 import { ReactNode } from 'react';
+import type { AxiosResponse, AxiosRequestConfig } from 'axios';
 
 // Mock dependencies
 jest.mock('@/lib/api/services/auth.service');
@@ -21,8 +22,19 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
-const mockAuthService = authService as jest.Mocked<typeof authService>;
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockAuthService = authService as unknown as jest.Mocked<typeof authService>;
+const mockApiClient = apiClient as unknown as jest.Mocked<typeof apiClient>;
+
+const createAxiosResponse = <T,>(data: T, config: AxiosRequestConfig = {}): AxiosResponse<T> => {
+  return {
+    data,
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config,
+    request: undefined,
+  } as AxiosResponse<T>;
+};
 
 // Wrapper component for testing
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -60,11 +72,11 @@ describe('useAuth Hook', () => {
         data: mockUser,
       });
 
-      mockApiClient.get.mockResolvedValue({
-        data: {
+      mockApiClient.get.mockResolvedValue(
+        createAxiosResponse({
           effective_permissions: [{ name: 'read:users' }],
-        },
-      });
+        })
+      );
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -95,14 +107,17 @@ describe('useAuth Hook', () => {
         data: {
           user: mockUser,
           access_token: 'mock-token',
+          refresh_token: 'mock-refresh-token',
+          token_type: 'bearer',
+          expires_in: 3600,
         },
       });
 
-      mockApiClient.get.mockResolvedValue({
-        data: {
+      mockApiClient.get.mockResolvedValue(
+        createAxiosResponse({
           effective_permissions: [],
-        },
-      });
+        })
+      );
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -167,14 +182,11 @@ describe('useAuth Hook', () => {
         data: mockUser,
       });
 
-      mockApiClient.get.mockResolvedValue({
-        data: { effective_permissions: [] },
-      });
+      mockApiClient.get.mockResolvedValue(
+        createAxiosResponse({ effective_permissions: [] })
+      );
 
-      mockAuthService.logout.mockResolvedValue({
-        success: true,
-        data: null,
-      });
+      mockAuthService.logout.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -212,9 +224,9 @@ describe('useAuth Hook', () => {
         data: mockUser,
       });
 
-      mockApiClient.get.mockResolvedValue({
-        data: mockPermissions,
-      });
+      mockApiClient.get.mockResolvedValue(
+        createAxiosResponse(mockPermissions)
+      );
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -296,9 +308,9 @@ describe('useAuth Hook', () => {
           data: updatedUser,
         });
 
-      mockApiClient.get.mockResolvedValue({
-        data: { effective_permissions: [] },
-      });
+      mockApiClient.get.mockResolvedValue(
+        createAxiosResponse({ effective_permissions: [] })
+      );
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 

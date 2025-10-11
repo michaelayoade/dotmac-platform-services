@@ -127,7 +127,7 @@ ROUTER_CONFIGS = [
     RouterConfig(
         module_path="dotmac.platform.tenant.usage_billing_router",
         router_name="router",
-        prefix="",  # Already has /api/v1/tenants prefix in the router
+        prefix="/api/v1/usage",
         tags=["Tenant Usage Billing"],
         description="Usage tracking and billing integration",
         requires_auth=True,
@@ -347,6 +347,14 @@ ROUTER_CONFIGS = [
         prefix="/api/v1",
         tags=["Monitoring Metrics"],
         description="Monitoring metrics (system health, performance, logs)",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.integrations.router",
+        router_name="integrations_router",
+        prefix="/api/v1/integrations",
+        tags=["Integrations"],
+        description="External service integrations (Email, SMS, Storage, etc.)",
         requires_auth=True,
     ),
 ]

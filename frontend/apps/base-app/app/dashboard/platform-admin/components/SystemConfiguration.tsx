@@ -1,78 +1,51 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Settings, Database, Trash2, CheckCircle2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-
-interface SystemConfig {
-  environment: string
-  multi_tenant_mode: boolean
-  features_enabled: {
-    rbac: boolean
-    audit_logging: boolean
-    platform_admin: boolean
-  }
-}
+import { platformAdminService, type SystemConfig } from "@/lib/services/platform-admin-service"
 
 export function SystemConfiguration() {
   const [config, setConfig] = useState<SystemConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchSystemConfig()
-  }, [])
-
-  const fetchSystemConfig = async () => {
+  const fetchSystemConfig = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/admin/platform/system/config", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setConfig(data)
-      }
+      const data = await platformAdminService.getSystemConfig()
+      setConfig(data)
     } catch (error) {
-      console.error("Failed to fetch system config:", error)
+      const message = error instanceof Error ? error.message : "Failed to load system configuration"
+      toast({ title: "Unable to load config", description: message, variant: "destructive" })
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
-  const handleClearCache = async (cacheType: string = "all") => {
+  useEffect(() => {
+    void fetchSystemConfig()
+  }, [fetchSystemConfig])
+
+  const handleClearCache = useCallback(async (cacheType: string = "all") => {
     try {
-      const response = await fetch(
-        `/api/v1/admin/platform/system/cache/clear${cacheType !== "all" ? `?cache_type=${cacheType}` : ""}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-        }
-      )
-
-      if (response.ok) {
-        const result = await response.json()
-        toast({
-          title: "Cache Cleared",
-          description: `${result.cache_type || cacheType} cache cleared successfully`,
-        })
-      }
-    } catch (error) {
+      const result = await platformAdminService.clearCache(cacheType)
       toast({
-        title: "Error",
-        description: "Failed to clear cache",
-        variant: "destructive",
+        title: "Cache cleared",
+        description:
+          typeof result.cache_type === "string"
+            ? `${result.cache_type} cache cleared successfully`
+            : "Cache cleared successfully",
       })
+      void fetchSystemConfig()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to clear cache"
+      toast({ title: "Error", description: message, variant: "destructive" })
     }
-  }
+  }, [fetchSystemConfig, toast])
 
   if (loading) {
     return (

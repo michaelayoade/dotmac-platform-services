@@ -9,7 +9,7 @@ to ensure multi-worker session management works correctly.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -79,7 +79,9 @@ class TestRedisProductionMandatory:
     def test_require_redis_sessions_env_var(self):
         """Test that REQUIRE_REDIS_SESSIONS environment variable overrides defaults."""
         # Force Redis to be required even in development
-        with patch.dict(os.environ, {"ENVIRONMENT": "development", "REQUIRE_REDIS_SESSIONS": "true"}):
+        with patch.dict(
+            os.environ, {"ENVIRONMENT": "development", "REQUIRE_REDIS_SESSIONS": "true"}
+        ):
             with patch(
                 "dotmac.platform.monitoring.health_checks.HealthChecker._check_redis_url",
                 return_value=(False, "Connection refused"),

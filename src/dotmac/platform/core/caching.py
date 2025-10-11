@@ -1,9 +1,11 @@
 """
 Simple caching setup using redis-py and cachetools directly.
 
+SECURITY: Uses JSON serialization instead of pickle to prevent
+arbitrary code execution vulnerabilities.
 """
 
-import pickle
+import json
 from functools import wraps
 from typing import Any
 
@@ -56,21 +58,33 @@ def cache_get(key: str, default: Any | None = None) -> Any:
     """
     Get value from cache (Redis if available, memory otherwise).
 
+    SECURITY: Uses JSON deserialization to prevent pickle vulnerabilities.
+
     Args:
         key: Cache key
         default: Default value if not found
 
     Returns:
         Cached value or default
+
+    Note:
+        Only JSON-serializable types are supported. Complex objects
+        (e.g., datetime, custom classes) should be converted before caching.
     """
     client = get_redis()
     if client:
         try:
             value = client.get(key)
-            if value and isinstance(value, (bytes, bytearray, memoryview)):
-                return pickle.loads(
-                    value
-                )  # nosec B301 - Pickle used for internal cache serialization only, data is trusted
+            if value:
+                # Decode bytes to string and parse JSON
+                if isinstance(value, bytes):
+                    return json.loads(value.decode("utf-8"))
+                if isinstance(value, (bytearray, memoryview)):
+                    return json.loads(bytes(value).decode("utf-8"))
+                return json.loads(value)
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+            # Invalid JSON or encoding - return default
+            pass
         except Exception:
             pass  # Fall back to memory cache
 
@@ -81,23 +95,36 @@ def cache_set(key: str, value: Any, ttl: int | None = 300) -> bool:
     """
     Set value in cache (Redis if available, memory otherwise).
 
+    SECURITY: Uses JSON serialization to prevent pickle vulnerabilities.
+
     Args:
         key: Cache key
-        value: Value to cache
+        value: Value to cache (must be JSON-serializable)
         ttl: Time to live in seconds
 
     Returns:
         True if successful
+
+    Raises:
+        TypeError: If value is not JSON-serializable
+
+    Note:
+        Only JSON-serializable types are supported. Complex objects
+        (e.g., datetime, custom classes) should be converted before caching.
     """
     client = get_redis()
     if client:
         try:
-            payload = pickle.dumps(value)
+            # Serialize to JSON
+            payload = json.dumps(value)
             if ttl is None:
                 client.set(key, payload)
             else:
                 client.setex(key, ttl, payload)
             return True
+        except (TypeError, ValueError) as e:
+            # Value not JSON-serializable - raise error for caller to handle
+            raise TypeError(f"Cache value must be JSON-serializable: {e}") from e
         except Exception:
             pass  # Fall back to memory cache
 

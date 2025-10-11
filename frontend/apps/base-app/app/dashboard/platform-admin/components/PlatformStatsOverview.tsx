@@ -1,46 +1,60 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building2, Users, Database, TrendingUp, Activity } from "lucide-react"
-
-interface PlatformStats {
-  total_tenants: number
-  active_tenants: number
-  total_users: number
-  total_resources: number
-  system_health: string
-}
+import { useToast } from "@/components/ui/use-toast"
+import { platformAdminService, type PlatformStats } from "@/lib/services/platform-admin-service"
 
 export function PlatformStatsOverview() {
   const [stats, setStats] = useState<PlatformStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+
+  const updateStats = useCallback(
+    async (showSpinner: boolean) => {
+      if (showSpinner) {
+        setLoading(true)
+      }
+      try {
+        const data = await platformAdminService.getStats()
+        setStats(data)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load platform statistics"
+        toast({ title: "Unable to load stats", description: message, variant: "destructive" })
+      } finally {
+        if (showSpinner) {
+          setLoading(false)
+        }
+      }
+    },
+    [toast]
+  )
 
   useEffect(() => {
-    fetchPlatformStats()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchPlatformStats, 30000)
+    void updateStats(true)
+    const interval = setInterval(() => {
+      void updateStats(false)
+    }, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [updateStats])
 
-  const fetchPlatformStats = async () => {
+  const handleClearCache = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/admin/platform/stats", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
+      const result = await platformAdminService.clearCache()
+      toast({
+        title: "Cache cleared",
+        description:
+          typeof result.cache_type === "string"
+            ? `${result.cache_type} cache cleared successfully`
+            : "Platform cache cleared successfully",
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
+      void updateStats(false)
     } catch (error) {
-      console.error("Failed to fetch platform stats:", error)
-    } finally {
-      setLoading(false)
+      const message = error instanceof Error ? error.message : "Failed to clear cache"
+      toast({ title: "Unable to clear cache", description: message, variant: "destructive" })
     }
-  }
+  }, [toast, updateStats])
 
   if (loading) {
     return (
@@ -128,7 +142,10 @@ export function PlatformStatsOverview() {
         <CardContent>
           <div className="grid gap-2 md:grid-cols-3">
             <button
-              onClick={() => window.location.hash = "#tenants"}
+              type="button"
+              onClick={() => {
+                window.location.hash = "#tenants"
+              }}
               className="flex items-center gap-2 p-4 border rounded-lg hover:bg-accent transition-colors"
             >
               <Building2 className="h-5 w-5" />
@@ -139,15 +156,9 @@ export function PlatformStatsOverview() {
             </button>
 
             <button
+              type="button"
               onClick={() => {
-                fetch("/api/v1/admin/platform/system/cache/clear", {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-                  },
-                })
-                  .then(() => alert("Cache cleared successfully"))
-                  .catch(() => alert("Failed to clear cache"))
+                void handleClearCache()
               }}
               className="flex items-center gap-2 p-4 border rounded-lg hover:bg-accent transition-colors"
             >
@@ -159,7 +170,10 @@ export function PlatformStatsOverview() {
             </button>
 
             <button
-              onClick={() => window.location.hash = "#audit"}
+              type="button"
+              onClick={() => {
+                window.location.hash = "#audit"
+              }}
               className="flex items-center gap-2 p-4 border rounded-lg hover:bg-accent transition-colors"
             >
               <Activity className="h-5 w-5" />

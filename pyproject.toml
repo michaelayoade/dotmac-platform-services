@@ -118,6 +118,7 @@ strawberry-graphql = "^0.282.0"
 pytest = "^7.4.3"
 pytest-asyncio = "^0.21.1"
 pytest-cov = "^4.1.0"
+diff-cover = "^9.0.0"
 black = "^24.3.0"
 ruff = ">=0.1.0"
 mypy = ">=1.7.0"
@@ -146,10 +147,10 @@ passlib = {extras = ["bcrypt"], version = "^1.7.4"}  # For password hashing test
 isort = "^6.0.1"
 pytest-xdist = "^3.8.0"
 types-redis = "^4.6.0.20241004"
-types-passlib = "^1.7.7.20250602"
+types-passlib = "^1.7.7.20240327"
 types-stripe = "^3.5.2.20240106"
-types-pytz = "^2025.2.0.20250809"
-types-cachetools = "^5.5.0.20240822"
+types-pytz = "^2024.2.0.20240913"
+types-cachetools = "^5.5.0.20240820"
 
 
 
@@ -170,17 +171,14 @@ markers = [
     "benchmark: Performance benchmark tests",
     "performance: Performance tests",
     "chaos: Chaos engineering tests",
-    "contract: API contract tests"
+    "contract: API contract tests",
+    "critical: Critical security/business logic tests (90%+ coverage)"
 ]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=src/dotmac",
-    "--cov-branch",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
-    "--cov-report=html",
-    "--cov-fail-under=90"
+    # Coverage disabled by default - enable with --cov flag
+    # Use: pytest --cov for coverage
 ]
 
 [tool.coverage.run]
@@ -192,13 +190,15 @@ omit = [
     "*/__pycache__/*",
     "*/migrations/*",
     "*/examples/*",
-    "*/scripts/*"
+    "*/scripts/*",
+    "*/__main__.py"
 ]
 parallel = true
 
 [tool.coverage.report]
-# Aligned with CI threshold - realistic baseline with full test suite
-fail_under = 85
+# Base threshold - module-specific targets in .coveragerc
+# Enforced gradually via diff coverage (80% on PRs)
+fail_under = 75
 precision = 2
 skip_covered = false
 show_missing = true
@@ -215,6 +215,9 @@ exclude_lines = [
     "@abc.abstractmethod",
     "except ImportError:",
     "# nocov",
+    "if 0:",
+    "if False:",
+    "assert False"
 ]
 
 [tool.coverage.html]

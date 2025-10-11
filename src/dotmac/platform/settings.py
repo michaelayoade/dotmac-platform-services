@@ -78,6 +78,18 @@ class Settings(BaseSettings):
     )
 
     # ============================================================
+    # Authentication & Authorization
+    # ============================================================
+
+    # Default role for new user registrations (after first user)
+    # First user in a tenant always gets "admin" role
+    # Subsequent users get this role by default
+    default_user_role: str = Field(
+        "user",
+        description="Default role for new registrations (first user gets 'admin', others get this)",
+    )
+
+    # ============================================================
     # Database Configuration
     # ============================================================
 

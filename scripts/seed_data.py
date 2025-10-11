@@ -16,9 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 
 from sqlalchemy import text
-from src.dotmac.platform.auth.password_service import PasswordService
-from src.dotmac.platform.secrets.models import Secret
 
+from src.dotmac.platform.auth.core import hash_password
 from src.dotmac.platform.auth.models import Permission, Role, User
 from src.dotmac.platform.billing.models import Customer, Invoice, Price, Product, Subscription
 from src.dotmac.platform.database import get_db_session, init_db
@@ -179,7 +178,6 @@ TEST_SECRETS = [
 
 class DataSeeder:
     def __init__(self):
-        self.password_service = PasswordService()
         self.db = None
 
     async def seed_all(self, clear_existing=False):
@@ -337,7 +335,7 @@ class DataSeeder:
             )
             if not existing.first():
                 # Hash password
-                hashed_password = self.password_service.hash_password(user_data["password"])
+                hashed_password = hash_password(user_data["password"])
 
                 user = User(
                     username=user_data["username"],

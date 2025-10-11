@@ -14,7 +14,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/login');
 
     // Check form elements exist
-    await expect(page.locator('[data-testid="email-input"]')).toBeVisible();
+    await expect(page.locator('[data-testid="username-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="password-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="submit-button"]')).toBeVisible();
 
@@ -26,7 +26,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/login');
 
     // Fill in invalid credentials
-    await page.fill('[data-testid="email-input"]', 'invalid@example.com');
+    await page.fill('[data-testid="username-input"]', 'invalid-user');
     await page.fill('[data-testid="password-input"]', 'wrong_password');
     await page.click('[data-testid="submit-button"]');
 
@@ -38,7 +38,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/login');
 
     // Fill in valid test credentials
-    await page.fill('[data-testid="email-input"]', 'admin@example.com');
+    await page.fill('[data-testid="username-input"]', 'admin');
     await page.fill('[data-testid="password-input"]', 'admin123');
     await page.click('[data-testid="submit-button"]');
 
@@ -52,7 +52,7 @@ test.describe('Authentication Flow', () => {
   test('should logout successfully', async ({ page }) => {
     // Login first
     await page.goto('/login');
-    await page.fill('[data-testid="email-input"]', 'admin@example.com');
+    await page.fill('[data-testid="username-input"]', 'admin');
     await page.fill('[data-testid="password-input"]', 'admin123');
     await page.click('[data-testid="submit-button"]');
     await page.waitForURL(/.*dashboard/);
@@ -120,7 +120,7 @@ test.describe('Additional Auth Features', () => {
 
     // Check that test credentials are displayed
     await expect(page.locator('text=Test credentials:')).toBeVisible();
-    await expect(page.locator('text=admin@example.com / admin123')).toBeVisible();
+    await expect(page.locator('text=admin / admin123')).toBeVisible();
   });
 
   test('should navigate back to home from login', async ({ page }) => {
@@ -135,7 +135,7 @@ test.describe('Additional Auth Features', () => {
     await page.goto('/login');
 
     // Start filling form
-    await page.fill('[data-testid="email-input"]', 'admin@example.com');
+    await page.fill('[data-testid="username-input"]', 'admin');
     await page.fill('[data-testid="password-input"]', 'admin123');
 
     // Click login and check for loading state

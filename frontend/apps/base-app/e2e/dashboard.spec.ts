@@ -1,11 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
 
 // Helper to login before tests
-async function loginAsUser(page: Page, email = 'admin@example.com', password = 'admin123') {
+async function loginAsUser(page: Page, username = 'admin', password = 'admin123') {
   await page.goto('/login');
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
+  await page.fill('[data-testid="username-input"]', username);
+  await page.fill('[data-testid="password-input"]', password);
+  await page.click('[data-testid="submit-button"]');
   await page.waitForURL(/.*dashboard/);
 }
 

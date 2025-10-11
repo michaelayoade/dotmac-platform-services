@@ -102,7 +102,6 @@ def test_commission_details_endpoint_uses_correct_dependency():
     assert partner_param.default is not inspect.Parameter.empty
 
     # Get the dependency callable from Depends
-    from fastapi.params import Depends as DependsClass
 
     # Check if the default has the dependency attribute (it's a Depends instance)
     if hasattr(partner_param.default, "dependency"):

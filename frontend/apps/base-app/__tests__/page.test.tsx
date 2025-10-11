@@ -111,7 +111,7 @@ describe('HomePage', () => {
 
     // Check test credentials section
     expect(screen.getByText('Quick Start - Test Credentials:')).toBeInTheDocument();
-    expect(screen.getByText('admin@example.com / admin123')).toBeInTheDocument();
+    expect(screen.getByText('admin / admin123')).toBeInTheDocument();
   });
 
   it('renders feature cards', async () => {
