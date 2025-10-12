@@ -4,7 +4,7 @@ Receipt API router
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -22,6 +22,8 @@ from dotmac.platform.database import get_async_session
 class GenerateReceiptForPaymentRequest(BaseModel):
     """Generate receipt for payment request"""
 
+    model_config = ConfigDict()
+
     payment_id: str = Field(..., description="Payment ID to generate receipt for")
     include_pdf: bool = Field(True, description="Include PDF generation")
     include_html: bool = Field(True, description="Include HTML generation")
@@ -31,6 +33,8 @@ class GenerateReceiptForPaymentRequest(BaseModel):
 class GenerateReceiptForInvoiceRequest(BaseModel):
     """Generate receipt for invoice payment request"""
 
+    model_config = ConfigDict()
+
     invoice_id: str = Field(..., description="Invoice ID to generate receipt for")
     payment_details: dict = Field(..., description="Payment details")
     include_pdf: bool = Field(True, description="Include PDF generation")
@@ -39,6 +43,8 @@ class GenerateReceiptForInvoiceRequest(BaseModel):
 
 class ReceiptListResponse(BaseModel):
     """Receipt list response"""
+
+    model_config = ConfigDict()
 
     receipts: list[Receipt]
     total_count: int

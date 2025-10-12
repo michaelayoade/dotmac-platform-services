@@ -22,6 +22,55 @@ from dotmac.platform.auth.router import auth_router
 from dotmac.platform.user_management.models import BackupCode, User
 
 
+@pytest.fixture(autouse=True)
+async def cleanup_session_state():
+    """Clean up Redis session state before each test."""
+    from dotmac.platform.auth.core import session_manager
+
+    # Clear any existing sessions in Redis before test
+    if session_manager._redis:
+        # Clear all 2fa_pending sessions
+        keys = await session_manager._redis.keys("2fa_pending:*")
+        if keys:
+            await session_manager._redis.delete(*keys)
+    else:
+        # Clear fallback store
+        keys_to_delete = [k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")]
+        for key in keys_to_delete:
+            del session_manager._fallback_store[key]
+
+    yield
+
+    # Clean up after test as well
+    if session_manager._redis:
+        keys = await session_manager._redis.keys("2fa_pending:*")
+        if keys:
+            await session_manager._redis.delete(*keys)
+    else:
+        keys_to_delete = [k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")]
+        for key in keys_to_delete:
+            del session_manager._fallback_store[key]
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    """Disable rate limiting for all 2FA tests."""
+
+    # Directly patch the limiter to disable it
+    from dotmac.platform.core.rate_limiting import get_limiter
+
+    limiter_instance = get_limiter()
+    original_enabled = limiter_instance.enabled
+
+    # Disable rate limiting
+    limiter_instance.enabled = False
+
+    yield
+
+    # Restore original state
+    limiter_instance.enabled = original_enabled
+
+
 @pytest.fixture
 def app():
     """Create FastAPI app for testing."""

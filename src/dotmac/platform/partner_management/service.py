@@ -7,6 +7,7 @@ Provides CRUD operations for partner management following project patterns.
 import secrets
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -71,14 +72,24 @@ class PartnerService:
         tenant_id = self._resolve_tenant_id()
         return validated_id, tenant_id
 
+    def _build_partner_filters(
+        self, tenant_id: str, status: PartnerStatus | None = None
+    ) -> list[Any]:
+        """Build reusable partner query filters."""
+        filters: list[Any] = [
+            Partner.tenant_id == tenant_id,
+            Partner.deleted_at.is_(None),
+        ]
+
+        if status:
+            filters.append(Partner.status == status)
+
+        return filters
+
     def _get_base_partner_query(self, tenant_id: str) -> Select[tuple[Partner]]:
         """Get base partner query with tenant filtering."""
-        return select(Partner).where(
-            and_(
-                Partner.tenant_id == tenant_id,
-                Partner.deleted_at.is_(None),
-            )
-        )
+        filters = self._build_partner_filters(tenant_id)
+        return select(Partner).where(*filters)
 
     async def _generate_partner_number(self) -> str:
         """Generate unique partner number."""
@@ -175,19 +186,28 @@ class PartnerService:
         status: PartnerStatus | None = None,
         offset: int = 0,
         limit: int = 100,
-    ) -> list[Partner]:
-        """List partners with optional filtering."""
+    ) -> tuple[list[Partner], int]:
+        """List partners with optional filtering and total count."""
         tenant_id = self._resolve_tenant_id()
 
-        query = self._get_base_partner_query(tenant_id)
+        filters = self._build_partner_filters(tenant_id, status)
 
-        if status:
-            query = query.where(Partner.status == status)
+        list_query = (
+            select(Partner)
+            .where(*filters)
+            .order_by(Partner.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
 
-        query = query.offset(offset).limit(limit).order_by(Partner.created_at.desc())
+        result = await self.session.execute(list_query)
+        partners = list(result.scalars().all())
 
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
+        count_query = select(func.count(Partner.id)).where(*filters)
+        total_result = await self.session.execute(count_query)
+        total_count = total_result.scalar_one()
+
+        return partners, total_count
 
     async def update_partner(
         self,

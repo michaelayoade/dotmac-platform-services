@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import structlog
 from celery.exceptions import CeleryError
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dotmac.platform.celery_app import celery_app
 
@@ -35,15 +35,13 @@ class BulkEmailJob(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     status: str = Field(default="queued", description="Job status")
 
-    model_config = {
-        "str_strip_whitespace": True,
-        "validate_assignment": True,
-        "extra": "forbid",
-    }
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
 
 class BulkEmailResult(BaseModel):
     """Bulk email job result."""
+
+    model_config = ConfigDict()
 
     job_id: str = Field(..., description="Job ID")
     status: str = Field(..., description="Overall status")

@@ -175,7 +175,8 @@ class TestGetAuthMetricsCached:
         assert isinstance(metrics["total_users"], int)
         assert isinstance(metrics["login_success_rate"], (int, float))
         assert isinstance(metrics["mfa_adoption_rate"], (int, float))
-        assert isinstance(metrics["timestamp"], datetime)
+        # Timestamp can be either datetime (fresh) or string (from cache)
+        assert isinstance(metrics["timestamp"], (datetime, str))
 
     @pytest.mark.asyncio
     async def test_metrics_with_users(

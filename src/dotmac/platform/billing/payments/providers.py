@@ -6,11 +6,13 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PaymentResult(BaseModel):
     """Payment processing result"""
+
+    model_config = ConfigDict()
 
     success: bool
     provider_payment_id: str | None = None
@@ -22,6 +24,8 @@ class PaymentResult(BaseModel):
 class RefundResult(BaseModel):
     """Refund processing result"""
 
+    model_config = ConfigDict()
+
     success: bool
     provider_refund_id: str | None = None
     error_message: str | None = None
@@ -30,6 +34,8 @@ class RefundResult(BaseModel):
 
 class SetupIntent(BaseModel):
     """Payment method setup intent"""
+
+    model_config = ConfigDict()
 
     intent_id: str
     client_secret: str

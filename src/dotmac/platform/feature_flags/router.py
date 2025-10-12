@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.feature_flags import (
@@ -33,6 +33,8 @@ feature_flags_router = APIRouter(tags=["Feature Flags"])
 class FeatureFlagRequest(BaseModel):
     """Request model for creating/updating feature flags."""
 
+    model_config = ConfigDict()
+
     enabled: bool = Field(description="Whether the flag is enabled")
     context: dict[str, Any] | None = Field(None, description="Context conditions for the flag")
     description: str | None = Field(
@@ -50,6 +52,8 @@ class FeatureFlagRequest(BaseModel):
 class FeatureFlagResponse(BaseModel):
     """Response model for feature flag data."""
 
+    model_config = ConfigDict()
+
     name: str = Field(description="Flag name")
     enabled: bool = Field(description="Whether the flag is enabled")
     context: dict[str, Any] = Field(description="Context conditions")
@@ -61,12 +65,16 @@ class FeatureFlagResponse(BaseModel):
 class FeatureFlagCheckRequest(BaseModel):
     """Request model for checking feature flags."""
 
+    model_config = ConfigDict()
+
     flag_name: str = Field(description="Name of the flag to check")
     context: dict[str, Any] | None = Field(None, description="Context for flag evaluation")
 
 
 class FeatureFlagCheckResponse(BaseModel):
     """Response model for flag check results."""
+
+    model_config = ConfigDict()
 
     flag_name: str = Field(description="Flag name")
     enabled: bool = Field(description="Whether the flag is enabled")
@@ -76,6 +84,8 @@ class FeatureFlagCheckResponse(BaseModel):
 
 class FlagStatusResponse(BaseModel):
     """Response model for feature flag system status."""
+
+    model_config = ConfigDict()
 
     redis_available: bool = Field(description="Whether Redis is available")
     redis_url: str | None = Field(None, description="Redis URL (masked)")
@@ -89,6 +99,8 @@ class FlagStatusResponse(BaseModel):
 
 class BulkFlagUpdateRequest(BaseModel):
     """Request model for bulk flag operations."""
+
+    model_config = ConfigDict()
 
     flags: dict[str, FeatureFlagRequest] = Field(description="Dictionary of flag name to flag data")
 

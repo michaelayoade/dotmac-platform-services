@@ -26,7 +26,7 @@ from dotmac.platform.user_management.models import User
 def jwt_service():
     """Create mock JWT service."""
     service = Mock(spec=JWTService)
-    service.create_token = Mock(return_value="mocked_jwt_token")
+    service._create_token = Mock(return_value="mocked_jwt_token")
     service.verify_token = Mock(
         return_value={
             "sub": str(uuid4()),
@@ -81,8 +81,8 @@ def rbac_token_service(jwt_service, rbac_service):
 def mock_cache():
     """Mock cache functions."""
     with (
-        patch("dotmac.platform.auth.token_with_rbac.cache_set", new_callable=AsyncMock) as mock_set,
-        patch("dotmac.platform.auth.token_with_rbac.cache_get", new_callable=AsyncMock) as mock_get,
+        patch("dotmac.platform.auth.token_with_rbac.cache_set") as mock_set,
+        patch("dotmac.platform.auth.token_with_rbac.cache_get") as mock_get,
     ):
         mock_get.return_value = None
         yield {"set": mock_set, "get": mock_get}
@@ -92,8 +92,12 @@ def mock_cache():
 def mock_settings():
     """Mock settings."""
     with patch("dotmac.platform.auth.token_with_rbac.settings") as mock:
-        mock.access_token_expire_minutes = 15
-        mock.refresh_token_expire_days = 7
+        # Create nested jwt settings
+        mock.jwt = Mock()
+        mock.jwt.access_token_expire_minutes = 15
+        mock.jwt.refresh_token_expire_days = 7
+        mock.jwt.algorithm = "HS256"
+        mock.jwt.secret_key = "test-secret-key"
         yield mock
 
 
@@ -119,8 +123,8 @@ class TestAccessTokenCreation:
         rbac_service.get_user_roles.assert_called_once_with(test_user.id)
 
         # Verify JWT service was called with correct claims
-        jwt_service.create_token.assert_called_once()
-        claims = jwt_service.create_token.call_args[0][0]
+        jwt_service._create_token.assert_called_once()
+        claims = jwt_service._create_token.call_args[0][0]
 
         assert claims["sub"] == str(test_user.id)
         assert claims["email"] == test_user.email
@@ -130,8 +134,7 @@ class TestAccessTokenCreation:
         assert "admin" in claims["roles"]
         assert "user" in claims["roles"]
         assert claims["type"] == "access"
-        assert "exp" in claims
-        assert "iat" in claims
+        # exp and iat are added by _create_token, not in the claims parameter
 
     @pytest.mark.asyncio
     async def test_create_access_token_with_custom_expiry(
@@ -147,14 +150,12 @@ class TestAccessTokenCreation:
 
         assert token == "mocked_jwt_token"
 
-        # Verify expiration was set correctly
-        claims = jwt_service.create_token.call_args[0][0]
-        exp_time = claims["exp"]
-        iat_time = claims["iat"]
+        # Verify custom expiration delta was passed to _create_token
+        jwt_service._create_token.assert_called_once()
+        expires_delta_arg = jwt_service._create_token.call_args[0][1]
 
-        # Expiration should be ~2 hours from issued time
-        time_diff = exp_time - iat_time
-        assert 7100 < time_diff.total_seconds() < 7300  # ~2 hours with some tolerance
+        # Should be ~2 hours
+        assert expires_delta_arg.total_seconds() == 7200  # 2 hours
 
     @pytest.mark.asyncio
     async def test_create_access_token_with_additional_claims(
@@ -168,7 +169,7 @@ class TestAccessTokenCreation:
             test_user, db_session, additional_claims=additional
         )
 
-        claims = jwt_service.create_token.call_args[0][0]
+        claims = jwt_service._create_token.call_args[0][0]
         assert claims["custom_claim"] == "custom_value"
         assert claims["another"] == 123
 
@@ -210,7 +211,7 @@ class TestAccessTokenCreation:
 
         token = await rbac_token_service.create_access_token(user, db_session)
 
-        claims = jwt_service.create_token.call_args[0][0]
+        claims = jwt_service._create_token.call_args[0][0]
         assert claims["tenant_id"] is None
 
 
@@ -230,13 +231,12 @@ class TestRefreshTokenCreation:
         assert token == "mocked_jwt_token"
 
         # Verify JWT service was called
-        jwt_service.create_token.assert_called_once()
-        claims = jwt_service.create_token.call_args[0][0]
+        jwt_service._create_token.assert_called_once()
+        claims = jwt_service._create_token.call_args[0][0]
 
         assert claims["sub"] == str(test_user.id)
         assert claims["type"] == "refresh"
-        assert "exp" in claims
-        assert "iat" in claims
+        # exp and iat are added by _create_token, not in the claims parameter
         # Refresh tokens should NOT include permissions
         assert "permissions" not in claims
         assert "roles" not in claims
@@ -252,31 +252,27 @@ class TestRefreshTokenCreation:
 
         assert token == "mocked_jwt_token"
 
-        claims = jwt_service.create_token.call_args[0][0]
-        exp_time = claims["exp"]
-        iat_time = claims["iat"]
+        # Verify custom expiration delta was passed to _create_token
+        expires_delta_arg = jwt_service._create_token.call_args[0][1]
 
-        # Expiration should be ~14 days (allow for slight timing differences)
-        time_diff = exp_time - iat_time
-        total_days = time_diff.total_seconds() / 86400
-        assert 13.9 < total_days <= 14.0
+        # Expiration should be 14 days
+        total_days = expires_delta_arg.total_seconds() / 86400
+        assert total_days == 14.0
 
     @pytest.mark.asyncio
     async def test_create_refresh_token_default_expiry(
         self, rbac_token_service, test_user, jwt_service, mock_settings
     ):
         """Test refresh token uses default expiry from settings."""
-        mock_settings.refresh_token_expire_days = 7
+        mock_settings.jwt.refresh_token_expire_days = 7
 
         await rbac_token_service.create_refresh_token(test_user)
 
-        claims = jwt_service.create_token.call_args[0][0]
-        exp_time = claims["exp"]
-        iat_time = claims["iat"]
+        # Verify default expiration delta was used
+        expires_delta_arg = jwt_service._create_token.call_args[0][1]
 
-        time_diff = exp_time - iat_time
-        total_days = time_diff.total_seconds() / 86400
-        assert 6.9 < total_days <= 7.0
+        total_days = expires_delta_arg.total_seconds() / 86400
+        assert total_days == 7.0
 
 
 # ==================== Token Verification Tests ====================

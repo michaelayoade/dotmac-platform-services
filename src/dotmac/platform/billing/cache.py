@@ -14,7 +14,7 @@ from functools import wraps
 from typing import Any, TypeVar
 
 import structlog
-from cachetools import TTLCache  # type: ignore[import-untyped]
+from cachetools import TTLCache  # noqa: PGH003
 
 # Core cache primitives reused here for consistency
 from dotmac.platform.core.cache_decorators import CacheTier

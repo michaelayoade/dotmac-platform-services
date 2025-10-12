@@ -15,6 +15,7 @@ from typing import Any
 
 import structlog
 from sqlalchemy import and_, delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
@@ -208,7 +209,7 @@ class AuditRetentionService:
                         if tenant_id:
                             delete_query = delete_query.where(AuditActivity.tenant_id == tenant_id)
 
-                        result = await session.execute(delete_query)
+                        result: CursorResult[Any] = await session.execute(delete_query)
                         deleted_count = int(result.rowcount or 0)
                         await session.commit()
 

@@ -62,21 +62,29 @@ class CachedPricingEngine(PricingEngine):
         cache_key = CacheKey.pricing_rule(rule_id, tenant_id)
 
         # Try cache first
-        cached_rule = await self.cache.get(cache_key)
-        if cached_rule:
-            logger.debug("Pricing rule retrieved from cache", rule_id=rule_id, tenant_id=tenant_id)
-            return PricingRule.model_validate(cached_rule)
+        try:
+            cached_rule = await self.cache.get(cache_key)
+            if cached_rule:
+                logger.debug(
+                    "Pricing rule retrieved from cache", rule_id=rule_id, tenant_id=tenant_id
+                )
+                return PricingRule.model_validate(cached_rule)
+        except Exception as e:
+            logger.warning("Cache get failed, falling back to database", error=str(e))
 
         # Load from database
         rule = await super().get_pricing_rule(rule_id, tenant_id)
 
         # Cache the result
-        await self.cache.set(
-            cache_key,
-            rule.model_dump(),
-            ttl=self.config.PRICING_RULE_TTL,
-            tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"],
-        )
+        try:
+            await self.cache.set(
+                cache_key,
+                rule.model_dump(),
+                ttl=self.config.PRICING_RULE_TTL,
+                tags=[f"tenant:{tenant_id}", f"pricing_rule:{rule_id}"],
+            )
+        except Exception as e:
+            logger.warning("Cache set failed", error=str(e))
 
         return rule
 
@@ -252,6 +260,45 @@ class CachedPricingEngine(PricingEngine):
         )
 
         return rule
+
+    async def delete_pricing_rule(self, rule_id: str, tenant_id: str) -> None:
+        """
+        Delete pricing rule and clear all related caches.
+
+        This performs a hard delete and invalidates:
+        - The specific rule cache
+        - All pricing rules list caches for the tenant
+        - All affected price calculation caches
+        """
+        # Get the rule before deleting to know what caches to invalidate
+        try:
+            rule = await self.get_pricing_rule(rule_id, tenant_id)
+        except Exception:
+            # Rule doesn't exist, let parent handle the error
+            await super().delete_pricing_rule(rule_id, tenant_id)
+            return
+
+        # Delete from database
+        await super().delete_pricing_rule(rule_id, tenant_id)
+
+        # Clear rule cache
+        cache_key = CacheKey.pricing_rule(rule_id, tenant_id)
+        await self.cache.delete(cache_key)
+
+        # Invalidate rules list caches
+        await self.cache.invalidate_pattern(f"billing:pricing:rules:{tenant_id}:*")
+
+        # Invalidate affected price calculations
+        if rule.applies_to_all:
+            await self.cache.invalidate_pattern(f"billing:price:{tenant_id}:*")
+        elif rule.applies_to_product_ids:
+            for product_id in rule.applies_to_product_ids:
+                await self.cache.invalidate_pattern(f"billing:price:{tenant_id}:{product_id}:*")
+
+        # Also invalidate applicable rules cache
+        await self.cache.invalidate_pattern(f"billing:pricing:applicable:{tenant_id}:*")
+
+        logger.info("Pricing rule deleted and caches cleared", rule_id=rule_id, tenant_id=tenant_id)
 
     async def _get_applicable_rules(
         self, context: PriceCalculationContext, tenant_id: str

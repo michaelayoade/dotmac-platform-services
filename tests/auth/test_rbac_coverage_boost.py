@@ -15,7 +15,6 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.exceptions import AuthorizationError
@@ -304,7 +303,7 @@ class TestRoleCRUDErrors:
         await async_db_session.flush()
 
         # Should raise error on duplicate
-        with pytest.raises(IntegrityError):
+        with pytest.raises(AuthorizationError, match="Role 'duplicate' already exists"):
             await rbac_service.create_role(
                 name="duplicate",
                 display_name="Another Duplicate",
@@ -321,7 +320,7 @@ class TestRoleCRUDErrors:
         await async_db_session.flush()
 
         # Should raise error on duplicate
-        with pytest.raises(IntegrityError):
+        with pytest.raises(AuthorizationError, match="Permission 'test.permission' already exists"):
             await rbac_service.create_permission(
                 name="test.permission",
                 display_name="Another Test",

@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 import structlog
 from sqlalchemy import and_, select
@@ -783,6 +784,148 @@ class PaymentService:
         )
 
         return Payment.model_validate(payment)
+
+    async def cancel_payment(
+        self, tenant_id: str, payment_id: str, cancellation_reason: str | None = None
+    ) -> Payment:
+        """
+        Cancel a pending or processing payment.
+
+        Args:
+            tenant_id: Tenant identifier
+            payment_id: Payment identifier
+            cancellation_reason: Reason for cancellation
+
+        Returns:
+            Cancelled Payment object
+
+        Raises:
+            PaymentNotFoundError: If payment not found
+            PaymentError: If payment cannot be cancelled (already succeeded/failed/refunded)
+        """
+        payment = await self._get_payment_entity(tenant_id, payment_id)
+        if not payment:
+            raise PaymentNotFoundError(f"Payment {payment_id} not found")
+
+        # Only pending or processing payments can be cancelled
+        if payment.status not in [PaymentStatus.PENDING, PaymentStatus.PROCESSING]:
+            raise PaymentError(
+                f"Cannot cancel payment in {payment.status} status. "
+                f"Only pending or processing payments can be cancelled."
+            )
+
+        # Update payment status
+        payment.status = PaymentStatus.CANCELLED
+        payment.failure_reason = cancellation_reason or "Cancelled by user"
+        payment.updated_at = datetime.now(UTC)
+
+        await self.db.commit()
+        await self.db.refresh(payment)
+
+        logger.info(
+            "Payment cancelled",
+            tenant_id=tenant_id,
+            payment_id=payment_id,
+            reason=cancellation_reason,
+        )
+
+        return Payment.model_validate(payment)
+
+    async def record_offline_payment(
+        self,
+        tenant_id: str,
+        customer_id: str,
+        amount: Decimal,
+        currency: str,
+        payment_method: str,
+        invoice_id: str | None = None,
+        reference_number: str | None = None,
+        notes: str | None = None,
+        payment_date: datetime | None = None,
+    ) -> Payment:
+        """
+        Record an offline payment (cash, check, bank transfer, etc.).
+
+        Args:
+            tenant_id: Tenant identifier
+            customer_id: Customer identifier
+            amount: Payment amount
+            currency: Currency code (ISO 4217)
+            payment_method: Payment method (cash, check, bank_transfer, etc.)
+            invoice_id: Optional invoice to apply payment to
+            reference_number: Check number, transaction ID, etc.
+            notes: Additional notes about the payment
+            payment_date: When payment was received (defaults to now)
+
+        Returns:
+            Created Payment object
+
+        Raises:
+            PaymentError: If payment creation fails
+        """
+        # Validate payment method for offline payments and map to enum
+        payment_method_lower = payment_method.lower()
+        payment_method_mapping = {
+            "cash": PaymentMethodType.CASH,
+            "check": PaymentMethodType.CHECK,
+            "bank_transfer": PaymentMethodType.BANK_ACCOUNT,
+            "wire_transfer": PaymentMethodType.WIRE_TRANSFER,
+            "money_order": PaymentMethodType.CHECK,  # Treat money orders like checks
+        }
+
+        if payment_method_lower not in payment_method_mapping:
+            raise PaymentError(
+                f"Invalid offline payment method: {payment_method}. "
+                f"Valid methods: {', '.join(payment_method_mapping.keys())}"
+            )
+
+        payment_method_type = payment_method_mapping[payment_method_lower]
+
+        # Create payment entity
+        payment_entity = PaymentEntity(
+            payment_id=str(uuid4()),
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            amount=amount,
+            currency=currency.upper(),
+            status=PaymentStatus.SUCCEEDED,  # Offline payments are pre-verified
+            payment_method_type=payment_method_type,
+            provider="offline",
+            provider_payment_id=reference_number,
+            metadata={
+                "payment_method": payment_method,
+                "reference_number": reference_number,
+                "notes": notes,
+                "recorded_at": datetime.now(UTC).isoformat(),
+            },
+            created_at=payment_date or datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        self.db.add(payment_entity)
+
+        # If invoice_id provided, link the payment
+        if invoice_id:
+            # Note: This is a simplified version. In production, you'd want to:
+            # 1. Verify the invoice exists and belongs to the customer
+            # 2. Call invoice_service.apply_payment_to_invoice()
+            # 3. Update invoice status if fully paid
+            payment_entity.metadata["invoice_id"] = invoice_id
+
+        await self.db.commit()
+        await self.db.refresh(payment_entity)
+
+        logger.info(
+            "Offline payment recorded",
+            tenant_id=tenant_id,
+            payment_id=payment_entity.payment_id,
+            customer_id=customer_id,
+            amount=amount,
+            payment_method=payment_method,
+            reference=reference_number,
+        )
+
+        return Payment.model_validate(payment_entity)
 
     # ============================================================================
     # Private helper methods

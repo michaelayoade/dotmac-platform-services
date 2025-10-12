@@ -8,6 +8,7 @@ These tests verify the fixes for the HIGH severity security issue where
 tenant middleware silently fell back to default tenant, bypassing isolation.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -77,8 +78,7 @@ class TestTenantMiddlewareFailFast:
         mock_request.method = "GET"
         mock_request.headers = {}  # No tenant header
         mock_request.query_params = {}  # No tenant query param
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}  # No tenant in state
+        mock_request.state = SimpleNamespace()  # No tenant in state
 
         mock_call_next = AsyncMock()
 
@@ -114,8 +114,7 @@ class TestTenantMiddlewareFailFast:
         mock_request.method = "GET"
         mock_request.headers = {"X-Tenant-ID": "tenant-123"}  # Valid tenant
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock(return_value={"status": "ok"})
 
@@ -143,8 +142,7 @@ class TestTenantMiddlewareFailFast:
         mock_request.method = "GET"
         mock_request.headers = {}
         mock_request.query_params = {"tenant_id": "tenant-456"}  # Query param
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock(return_value={"status": "ok"})
 
@@ -171,7 +169,7 @@ class TestTenantMiddlewareFailFast:
         mock_request.url.path = "/health"  # Exempt path
         mock_request.headers = {}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock(return_value={"status": "healthy"})
 
@@ -196,8 +194,7 @@ class TestTenantMiddlewareFailFast:
         mock_request.method = "POST"
         mock_request.headers = {}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock(return_value={"status": "ok"})
 
@@ -232,8 +229,7 @@ class TestTenantMiddlewareOptionalMode:
         mock_request.method = "GET"
         mock_request.headers = {}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock(return_value={"status": "ok"})
 
@@ -260,8 +256,7 @@ class TestTenantMiddlewareOptionalMode:
         mock_request.url.path = "/api/v1/customers"
         mock_request.headers = {"X-Tenant-ID": "tenant-999"}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -292,8 +287,7 @@ class TestTenantMiddlewarePlatformAdmin:
             "X-Target-Tenant-ID": "tenant-target-123"  # Platform admin impersonation
         }
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -323,8 +317,7 @@ class TestTenantMiddlewarePlatformAdmin:
         mock_request.method = "GET"
         mock_request.headers = {}  # No X-Target-Tenant-ID
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -352,8 +345,7 @@ class TestTenantMiddlewareSingleTenant:
         mock_request.url.path = "/api/v1/customers"
         mock_request.headers = {}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -379,8 +371,7 @@ class TestTenantMiddlewareSingleTenant:
         mock_request.url.path = "/api/v1/customers"
         mock_request.headers = {"X-Tenant-ID": "some-other-tenant"}
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -425,8 +416,7 @@ class TestTenantMiddlewareSecurityRegression:
         mock_request.method = "GET"
         mock_request.headers = {}  # Missing X-Tenant-ID
         mock_request.query_params = {}
-        mock_request.state = MagicMock()
-        mock_request.state.__dict__ = {}
+        mock_request.state = SimpleNamespace()
 
         mock_call_next = AsyncMock()
 
@@ -467,8 +457,7 @@ class TestTenantMiddlewareSecurityRegression:
         mock_request_a.url.path = "/api/v1/customers"
         mock_request_a.headers = {"X-Tenant-ID": "tenant-a"}
         mock_request_a.query_params = {}
-        mock_request_a.state = MagicMock()
-        mock_request_a.state.__dict__ = {}
+        mock_request_a.state = SimpleNamespace()
 
         await middleware.dispatch(mock_request_a, AsyncMock())
 
@@ -477,8 +466,7 @@ class TestTenantMiddlewareSecurityRegression:
         mock_request_b.url.path = "/api/v1/customers"
         mock_request_b.headers = {"X-Tenant-ID": "tenant-b"}
         mock_request_b.query_params = {}
-        mock_request_b.state = MagicMock()
-        mock_request_b.state.__dict__ = {}
+        mock_request_b.state = SimpleNamespace()
 
         await middleware.dispatch(mock_request_b, AsyncMock())
 

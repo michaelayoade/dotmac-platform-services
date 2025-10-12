@@ -106,7 +106,18 @@ class TestRouterRegistration:
             "/api/v1/tenants": {
                 "dotmac.platform.tenant.router",
                 "dotmac.platform.tenant.usage_billing_router",
-            }
+            },
+            "/api/v1": {
+                "dotmac.platform.plugins.router",
+                "dotmac.platform.billing.metrics_router",
+                "dotmac.platform.auth.metrics_router",
+                "dotmac.platform.communications.metrics_router",
+                "dotmac.platform.file_storage.metrics_router",
+                "dotmac.platform.analytics.metrics_router",
+                "dotmac.platform.auth.api_keys_metrics_router",
+                "dotmac.platform.secrets.metrics_router",
+                "dotmac.platform.monitoring.metrics_router",
+            },
         }
 
         # Check for unexpected duplicates

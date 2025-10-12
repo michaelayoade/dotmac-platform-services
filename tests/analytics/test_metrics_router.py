@@ -8,7 +8,6 @@ for the analytics activity statistics endpoint.
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -168,16 +167,15 @@ class TestAnalyticsActivityStatsEndpoint:
         )
         assert response.status_code == 422
 
-    @pytest.mark.skip(
-        reason="Test infrastructure always provides auth override - auth tested in integration tests"
-    )
-    async def test_get_analytics_activity_stats_requires_auth(self, client: AsyncClient):
+    async def test_get_analytics_activity_stats_requires_auth(
+        self, unauthenticated_client: AsyncClient
+    ):
         """Test that endpoint requires authentication.
 
-        Note: Skipped because the test app in conftest.py always has auth overridden.
-        Authentication is tested in integration tests without mocked auth.
+        Uses unauthenticated_client fixture which does NOT override auth,
+        allowing us to verify that authentication is actually enforced.
         """
-        response = await client.get("/api/v1/metrics/analytics/activity")
+        response = await unauthenticated_client.get("/api/v1/metrics/analytics/activity")
         assert response.status_code == 401
 
     async def test_get_analytics_activity_stats_error_handling(

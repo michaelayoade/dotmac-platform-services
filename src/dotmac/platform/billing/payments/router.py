@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,8 @@ router = APIRouter(prefix="/payments", tags=["Billing - Payments"])
 
 class FailedPaymentsSummary(BaseModel):
     """Summary of failed payments."""
+
+    model_config = ConfigDict()
 
     count: int
     total_amount: float

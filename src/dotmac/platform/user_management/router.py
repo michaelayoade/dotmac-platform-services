@@ -9,7 +9,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -32,6 +32,8 @@ user_router = APIRouter()
 class UserCreateRequest(BaseModel):
     """User creation request model."""
 
+    model_config = ConfigDict()
+
     username: str = Field(..., min_length=3, max_length=50, description="Username")
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., min_length=8, description="Password")
@@ -43,6 +45,8 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     """User update request model."""
 
+    model_config = ConfigDict()
+
     email: EmailStr | None = Field(None, description="Email address")
     full_name: str | None = Field(None, description="Full name")
     roles: list[str] | None = Field(None, description="User roles")
@@ -51,6 +55,8 @@ class UserUpdateRequest(BaseModel):
 
 class UserResponse(BaseModel):
     """User response model."""
+
+    model_config = ConfigDict()
 
     user_id: str = Field(..., description="User ID")
     username: str = Field(..., description="Username")
@@ -66,6 +72,8 @@ class UserResponse(BaseModel):
 class PasswordChangeRequest(BaseModel):
     """Password change request model."""
 
+    model_config = ConfigDict()
+
     current_password: str = Field(..., description="Current password")
     new_password: str = Field(..., min_length=8, description="New password")
     confirm_password: str = Field(..., description="Confirm new password")
@@ -73,6 +81,8 @@ class PasswordChangeRequest(BaseModel):
 
 class UserListResponse(BaseModel):
     """User list response model."""
+
+    model_config = ConfigDict()
 
     users: list[UserResponse] = Field(..., description="List of users")
     total: int = Field(..., description="Total number of users")

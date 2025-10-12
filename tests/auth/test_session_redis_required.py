@@ -289,17 +289,36 @@ class TestGlobalSessionManagerConfiguration:
 
     def test_global_session_manager_production_mode(self):
         """Test that global session_manager is configured for production when ENV is set."""
-        with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
-            # Reload module to pick up new environment
+        # Note: conftest.py sets REQUIRE_REDIS_SESSIONS=false by default for tests
+        # We need to remove it to let production mode logic work
+        env_patch = {"ENVIRONMENT": "production"}
+        # Remove REQUIRE_REDIS_SESSIONS so it defaults based on production mode
+        if "REQUIRE_REDIS_SESSIONS" in os.environ:
+            del os.environ["REQUIRE_REDIS_SESSIONS"]
+
+        with patch.dict(os.environ, env_patch, clear=False):
+            # Reload modules to pick up new environment
             import importlib
 
+            from dotmac.platform import settings as settings_module
             from dotmac.platform.auth import core
 
+            # Reset settings singleton before reload
+            settings_module._settings = None
+
+            # Reload both modules
+            importlib.reload(settings_module)
             importlib.reload(core)
 
             # ASSERTION: Production mode detected
-            assert core._is_production is True
-            assert core._require_redis_for_sessions is True
+            assert (
+                core._is_production is True
+            ), f"Expected production mode, got: {core._is_production}"
+            # In production, _require_redis_for_sessions should be True
+            # It defaults to str(_is_production) which is "True", and "True".lower() == "true"
+            assert (
+                core._require_redis_for_sessions is True
+            ), f"Expected Redis required for sessions in production, got: {core._require_redis_for_sessions}"
 
             # ASSERTION: SessionManager created without fallback
             # Note: Can't directly test fallback_enabled without inspecting private var
@@ -308,11 +327,17 @@ class TestGlobalSessionManagerConfiguration:
     def test_global_session_manager_development_mode(self):
         """Test that global session_manager allows fallback in development."""
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
-            # Reload module to pick up new environment
+            # Reload modules to pick up new environment
             import importlib
 
+            from dotmac.platform import settings as settings_module
             from dotmac.platform.auth import core
 
+            # Reset settings singleton before reload
+            settings_module._settings = None
+
+            # Reload both modules
+            importlib.reload(settings_module)
             importlib.reload(core)
 
             # ASSERTION: Development mode detected

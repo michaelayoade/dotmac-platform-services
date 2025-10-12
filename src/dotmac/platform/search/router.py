@@ -4,7 +4,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
@@ -15,6 +15,7 @@ search_router = APIRouter()
 
 # Response Models
 class SearchResult(BaseModel):
+    model_config = ConfigDict()
     id: str = Field(..., description="Result ID")
     type: str = Field(..., description="Result type")
     title: str = Field(..., description="Title")
@@ -24,6 +25,7 @@ class SearchResult(BaseModel):
 
 
 class SearchResponse(BaseModel):
+    model_config = ConfigDict()
     query: str = Field(..., description="Search query")
     results: list[SearchResult] = Field(..., description="Search results")
     total: int = Field(..., description="Total results")

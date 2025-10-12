@@ -92,6 +92,8 @@ class ImportJobResponse(BaseModel):
 class ImportJobListResponse(BaseModel):
     """Response model for list of import jobs."""
 
+    model_config = ConfigDict()
+
     jobs: list[ImportJobResponse] = Field(description="List of import jobs")
     total: int = Field(description="Total number of jobs")
     limit: int = Field(description="Results per page")
@@ -100,6 +102,8 @@ class ImportJobListResponse(BaseModel):
 
 class ImportStatusResponse(BaseModel):
     """Response model for import job status check."""
+
+    model_config = ConfigDict()
 
     job_id: str = Field(description="Import job ID")
     status: ImportJobStatus = Field(description="Current status")
@@ -116,6 +120,8 @@ class ImportStatusResponse(BaseModel):
 
 class ImportFailureResponse(BaseModel):
     """Response model for import failure details."""
+
+    model_config = ConfigDict()
 
     row_number: int = Field(description="Row number that failed")
     error_type: str = Field(description="Type of error")
@@ -138,6 +144,8 @@ class ImportRequest(BaseModel):
 class BulkImportRequest(BaseModel):
     """Request model for bulk import operations."""
 
+    model_config = ConfigDict()
+
     imports: list[dict[str, Any]] = Field(description="List of import configurations")
     dry_run: bool = Field(default=False, description="Validate all without persisting")
     use_async: bool = Field(default=True, description="Process all in background")
@@ -146,6 +154,8 @@ class BulkImportRequest(BaseModel):
 
 class ImportTemplateResponse(BaseModel):
     """Response model for import template download."""
+
+    model_config = ConfigDict()
 
     entity_type: str = Field(description="Type of entity")
     format: str = Field(description="File format (csv, json)")

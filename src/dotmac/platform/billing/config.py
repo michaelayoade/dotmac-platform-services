@@ -5,11 +5,13 @@ Billing module configuration
 import os
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StripeConfig(BaseModel):
     """Stripe configuration"""
+
+    model_config = ConfigDict()
 
     api_key: str = Field(..., description="Stripe API key")
     webhook_secret: str | None = Field(None, description="Stripe webhook secret")
@@ -19,6 +21,8 @@ class StripeConfig(BaseModel):
 class PayPalConfig(BaseModel):
     """PayPal configuration"""
 
+    model_config = ConfigDict()
+
     client_id: str = Field(..., description="PayPal client ID")
     client_secret: str = Field(..., description="PayPal client secret")
     webhook_id: str | None = Field(None, description="PayPal webhook ID")
@@ -27,6 +31,8 @@ class PayPalConfig(BaseModel):
 
 class TaxConfig(BaseModel):
     """Tax configuration"""
+
+    model_config = ConfigDict()
 
     provider: str | None = Field(None, description="Tax provider (avalara, taxjar)")
     avalara_api_key: str | None = Field(None, description="Avalara API key")
@@ -38,6 +44,8 @@ class TaxConfig(BaseModel):
 class CurrencyConfig(BaseModel):
     """Currency configuration - Single currency support"""
 
+    model_config = ConfigDict()
+
     default_currency: str = Field("USD", description="Default currency code")
     currency_symbol: str = Field("$", description="Currency symbol")
     currency_decimal_places: int = Field(2, description="Number of decimal places")
@@ -47,6 +55,8 @@ class CurrencyConfig(BaseModel):
 
 class InvoiceConfig(BaseModel):
     """Invoice configuration"""
+
+    model_config = ConfigDict()
 
     number_format: str = Field(
         "INV-{year}-{sequence:06d}",
@@ -65,6 +75,8 @@ class InvoiceConfig(BaseModel):
 class PaymentConfig(BaseModel):
     """Payment configuration"""
 
+    model_config = ConfigDict()
+
     default_provider: str = Field("stripe", description="Default payment provider")
     auto_retry_failed: bool = Field(True, description="Auto-retry failed payments")
     max_retry_attempts: int = Field(3, description="Maximum payment retry attempts")
@@ -80,6 +92,8 @@ class PaymentConfig(BaseModel):
 
 class WebhookConfig(BaseModel):
     """Webhook configuration"""
+
+    model_config = ConfigDict()
 
     endpoint_base_url: str = Field(
         "https://api.example.com",
@@ -135,6 +149,8 @@ def _default_payment_config() -> PaymentConfig:
 
 class BillingConfig(BaseModel):
     """Main billing configuration"""
+
+    model_config = ConfigDict()
 
     # Provider configurations
     stripe: StripeConfig | None = None

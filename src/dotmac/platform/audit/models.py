@@ -133,12 +133,21 @@ class AuditActivityCreate(BaseModel):
         """Auto-populate tenant_id from context if not provided."""
         tenant_value = v
         if tenant_value is None or tenant_value == "":
-            from ..tenant import get_current_tenant_id
+            from ..tenant import get_current_tenant_id, get_tenant_config
 
             tenant_value = get_current_tenant_id()
-        # Use "default" tenant for pre-authentication activities (login attempts, etc.)
-        if not tenant_value:
-            tenant_value = "default"
+
+            # If still no tenant_id, check if we can use default or must fail
+            if not tenant_value:
+                tenant_config = get_tenant_config()
+                # In multi-tenant mode without a default, tenant_id is required
+                if not tenant_config.is_single_tenant and not tenant_config.default_tenant_id:
+                    raise ValueError(
+                        "tenant_id is required for audit logging in multi-tenant mode without default"
+                    )
+                # Use default tenant if configured
+                tenant_value = tenant_config.default_tenant_id or "default"
+
         if isinstance(tenant_value, str):
             return tenant_value
         return str(tenant_value)
@@ -174,6 +183,8 @@ class AuditActivityResponse(BaseModel):
 
 class AuditActivityList(BaseModel):
     """Model for paginated audit activity lists."""
+
+    model_config = ConfigDict()
 
     activities: list[AuditActivityResponse]
     total: int
@@ -233,6 +244,8 @@ class FrontendLogsRequest(BaseModel):
 
 class FrontendLogsResponse(BaseModel):
     """Response for frontend log ingestion."""
+
+    model_config = ConfigDict()
 
     status: str = "success"
     logs_received: int

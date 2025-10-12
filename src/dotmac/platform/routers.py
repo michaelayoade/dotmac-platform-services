@@ -117,6 +117,14 @@ ROUTER_CONFIGS = [
         description="User management endpoints",
     ),
     RouterConfig(
+        module_path="dotmac.platform.user_management.team_router",
+        router_name="router",
+        prefix="/api/v1/teams",
+        tags=["Team Management"],
+        description="Team and team member management",
+        requires_auth=True,
+    ),
+    RouterConfig(
         module_path="dotmac.platform.tenant.router",
         router_name="router",
         prefix="/api/v1/tenants",
@@ -238,6 +246,14 @@ ROUTER_CONFIGS = [
         requires_auth=True,
     ),
     RouterConfig(
+        module_path="dotmac.platform.billing.reconciliation_router",
+        router_name="router",
+        prefix="/api/v1/billing/reconciliations",
+        tags=["Billing - Reconciliation"],
+        description="Payment reconciliation and recovery",
+        requires_auth=True,
+    ),
+    RouterConfig(
         module_path="dotmac.platform.monitoring.logs_router",
         router_name="logs_router",
         prefix="/api/v1/monitoring",
@@ -259,6 +275,14 @@ ROUTER_CONFIGS = [
         prefix="/api/v1/partners",
         tags=["Partner Management"],
         description="Partner relationship management",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.ticketing.router",
+        router_name="router",
+        prefix="/api/v1/ticketing",
+        tags=["Ticketing"],
+        description="Cross-organization ticketing workflows",
         requires_auth=True,
     ),
     RouterConfig(

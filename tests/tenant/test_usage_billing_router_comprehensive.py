@@ -478,11 +478,12 @@ class TestGetUsageBillingStatus:
 class TestEndpointAuthentication:
     """Test authentication requirements for all endpoints."""
 
-    @pytest.mark.skip(
-        reason="Test infrastructure always provides auth override - auth tested in integration tests"
-    )
-    async def test_endpoints_require_authentication(self, client, sample_tenant):
-        """Test that all endpoints require authentication."""
+    async def test_endpoints_require_authentication(self, unauthenticated_client, sample_tenant):
+        """Test that all endpoints require authentication.
+
+        Uses unauthenticated_client fixture which does NOT override auth,
+        allowing us to verify that authentication is actually enforced.
+        """
         endpoints = [
             ("POST", f"/api/v1/tenants/{sample_tenant.id}/usage/record-with-billing"),
             ("POST", f"/api/v1/tenants/{sample_tenant.id}/usage/sync-billing"),
@@ -493,9 +494,9 @@ class TestEndpointAuthentication:
 
         for method, url in endpoints:
             if method == "POST":
-                response = await client.post(url, json={})
+                response = await unauthenticated_client.post(url, json={})
             else:
-                response = await client.get(url)
+                response = await unauthenticated_client.get(url)
 
             # Should require authentication
             assert response.status_code in [

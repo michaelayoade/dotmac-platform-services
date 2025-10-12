@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,8 @@ def _statement_download_url(statement_id: UUID) -> str:
 class PartnerDashboardStats(BaseModel):
     """Dashboard statistics for partner portal."""
 
+    model_config = ConfigDict()
+
     total_customers: int = Field(default=0, description="Total customers assigned")
     active_customers: int = Field(default=0, description="Currently active customers")
     total_revenue_generated: Decimal = Field(
@@ -67,6 +69,8 @@ class PartnerDashboardStats(BaseModel):
 
 class PartnerCustomerResponse(BaseModel):
     """Partner customer information for portal."""
+
+    model_config = ConfigDict()
 
     id: UUID
     customer_id: UUID
@@ -186,6 +190,9 @@ async def list_partner_referrals(
     )
 
     referrals = list(result.scalars().all())
+    # Set metadata attribute from metadata_ for Pydantic validation
+    for r in referrals:
+        r.metadata = r.metadata_
     return [ReferralLeadResponse.model_validate(r, from_attributes=True) for r in referrals]
 
 

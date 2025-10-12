@@ -9,7 +9,6 @@ Run with: pytest tests/integration/test_frontend_backend_smoke.py -v
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.main import app
 
@@ -23,16 +22,16 @@ class TestUserManagementEndpoints:
         response = await async_client.get("/api/v1/user-management/users")
 
         # Should return 401/403 without auth, not 404
-        assert response.status_code in [200, 401, 403], \
-            f"Endpoint should exist but got {response.status_code}"
+        assert response.status_code in [
+            200,
+            401,
+            403,
+        ], f"Endpoint should exist but got {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_user_response_structure(self, async_client: AsyncClient, auth_headers: dict):
         """Validate user list response matches frontend interface."""
-        response = await async_client.get(
-            "/api/v1/user-management/users",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/user-management/users", headers=auth_headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -51,24 +50,24 @@ class TestSettingsEndpoints:
         """Verify GET /api/v1/admin/settings/categories endpoint exists."""
         response = await async_client.get("/api/v1/admin/settings/categories")
 
-        assert response.status_code in [200, 401, 403], \
-            "Settings categories endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Settings categories endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_category_settings_endpoint(self, async_client: AsyncClient):
         """Verify GET /api/v1/admin/settings/category/{name} endpoint exists."""
         response = await async_client.get("/api/v1/admin/settings/category/jwt")
 
-        assert response.status_code in [200, 401, 403, 404], \
-            "Category settings endpoint should exist"
+        assert response.status_code in [
+            200,
+            401,
+            403,
+            404,
+        ], "Category settings endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_settings_response_structure(self, async_client: AsyncClient, auth_headers: dict):
         """Validate settings response matches frontend interface."""
-        response = await async_client.get(
-            "/api/v1/admin/settings/categories",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/admin/settings/categories", headers=auth_headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -90,24 +89,21 @@ class TestPluginsEndpoints:
         """Verify GET /api/v1/plugins endpoint exists."""
         response = await async_client.get("/api/v1/plugins")
 
-        assert response.status_code in [200, 401, 403], \
-            "Plugins list endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Plugins list endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_plugin_instances_endpoint(self, async_client: AsyncClient):
         """Verify GET /api/v1/plugins/instances endpoint exists."""
         response = await async_client.get("/api/v1/plugins/instances")
 
-        assert response.status_code in [200, 401, 403], \
-            "Plugin instances endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Plugin instances endpoint should exist"
 
     @pytest.mark.asyncio
-    async def test_plugin_instance_response_structure(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_plugin_instance_response_structure(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         """Validate plugin instance response matches frontend interface."""
-        response = await async_client.get(
-            "/api/v1/plugins/instances",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/plugins/instances", headers=auth_headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -125,16 +121,14 @@ class TestMonitoringEndpoints:
         """Verify GET /api/v1/monitoring/metrics endpoint exists."""
         response = await async_client.get("/api/v1/monitoring/metrics?period=24h")
 
-        assert response.status_code in [200, 401, 403], \
-            "Metrics endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Metrics endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_log_stats_endpoint(self, async_client: AsyncClient):
         """Verify GET /api/v1/monitoring/logs/stats endpoint exists."""
         response = await async_client.get("/api/v1/monitoring/logs/stats?period=24h")
 
-        assert response.status_code in [200, 401, 403], \
-            "Log stats endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Log stats endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_health_endpoint(self, async_client: AsyncClient):
@@ -146,15 +140,17 @@ class TestMonitoringEndpoints:
         data = response.json()
         assert "status" in data, "Health response must have 'status' field"
         assert "checks" in data, "Health response must have 'checks' field"
-        assert data["status"] in ["healthy", "degraded", "unhealthy"], \
-            "Status must be one of: healthy, degraded, unhealthy"
+        assert data["status"] in [
+            "healthy",
+            "degraded",
+            "unhealthy",
+        ], "Status must be one of: healthy, degraded, unhealthy"
 
     @pytest.mark.asyncio
     async def test_metrics_response_structure(self, async_client: AsyncClient, auth_headers: dict):
         """Validate metrics response matches frontend interface."""
         response = await async_client.get(
-            "/api/v1/monitoring/metrics?period=24h",
-            headers=auth_headers
+            "/api/v1/monitoring/metrics?period=24h", headers=auth_headers
         )
 
         if response.status_code == 200:
@@ -166,7 +162,7 @@ class TestMonitoringEndpoints:
                 "avg_response_time_ms",
                 "successful_requests",
                 "failed_requests",
-                "top_errors"
+                "top_errors",
             ]
 
             for field in required_fields:
@@ -183,24 +179,23 @@ class TestDataTransferEndpoints:
         """Verify GET /api/v1/data-transfer/jobs endpoint exists."""
         response = await async_client.get("/api/v1/data-transfer/jobs?page=1&page_size=20")
 
-        assert response.status_code in [200, 401, 403], \
-            "Data transfer jobs endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Data transfer jobs endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_formats_endpoint(self, async_client: AsyncClient):
         """Verify GET /api/v1/data-transfer/formats endpoint exists."""
         response = await async_client.get("/api/v1/data-transfer/formats")
 
-        assert response.status_code in [200, 401, 403], \
-            "Data transfer formats endpoint should exist"
+        assert response.status_code in [
+            200,
+            401,
+            403,
+        ], "Data transfer formats endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_jobs_response_structure(self, async_client: AsyncClient, auth_headers: dict):
         """Validate jobs list response matches frontend interface."""
-        response = await async_client.get(
-            "/api/v1/data-transfer/jobs",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/data-transfer/jobs", headers=auth_headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -222,16 +217,14 @@ class TestIntegrationsEndpoints:
         """Verify GET /api/v1/integrations endpoint exists."""
         response = await async_client.get("/api/v1/integrations")
 
-        assert response.status_code in [200, 401, 403], \
-            "Integrations list endpoint should exist"
+        assert response.status_code in [200, 401, 403], "Integrations list endpoint should exist"
 
     @pytest.mark.asyncio
-    async def test_integrations_response_structure(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_integrations_response_structure(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         """Validate integrations response matches frontend interface."""
-        response = await async_client.get(
-            "/api/v1/integrations",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/integrations", headers=auth_headers)
 
         if response.status_code == 200:
             data = response.json()
@@ -250,7 +243,7 @@ class TestIntegrationsEndpoints:
                     "status",
                     "settings_count",
                     "has_secrets",
-                    "required_packages"
+                    "required_packages",
                 ]
                 for field in required_fields:
                     assert field in integration, f"Integration must have '{field}' field"
@@ -270,31 +263,25 @@ class TestCrossModuleIntegration:
 
         # For now, just verify both endpoints exist
         users_response = await async_client.get(
-            "/api/v1/user-management/users",
-            headers=auth_headers
+            "/api/v1/user-management/users", headers=auth_headers
         )
 
-        audit_response = await async_client.get(
-            "/api/v1/audit/activities",
-            headers=auth_headers
-        )
+        audit_response = await async_client.get("/api/v1/audit/activities", headers=auth_headers)
 
         assert users_response.status_code in [200, 401, 403]
         assert audit_response.status_code in [200, 401, 403]
 
     @pytest.mark.asyncio
-    async def test_settings_to_integrations_flow(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_settings_to_integrations_flow(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         """Test that settings changes can affect integrations."""
         # Verify settings and integrations endpoints work together
         settings_response = await async_client.get(
-            "/api/v1/admin/settings/categories",
-            headers=auth_headers
+            "/api/v1/admin/settings/categories", headers=auth_headers
         )
 
-        integrations_response = await async_client.get(
-            "/api/v1/integrations",
-            headers=auth_headers
-        )
+        integrations_response = await async_client.get("/api/v1/integrations", headers=auth_headers)
 
         assert settings_response.status_code in [200, 401, 403]
         assert integrations_response.status_code in [200, 401, 403]
@@ -305,6 +292,7 @@ class TestCrossModuleIntegration:
 async def async_client():
     """Provide async HTTP client for testing."""
     from httpx import AsyncClient
+
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
 
@@ -313,6 +301,4 @@ async def async_client():
 def auth_headers():
     """Provide mock auth headers for testing."""
     # In a real test, you would generate a valid JWT token
-    return {
-        "Authorization": "Bearer test-token-for-smoke-tests"
-    }
+    return {"Authorization": "Bearer test-token-for-smoke-tests"}

@@ -45,6 +45,8 @@ class BillingBaseModel(BaseModel):
 class InvoiceLineItem(BaseModel):
     """Invoice line item"""
 
+    model_config = ConfigDict()
+
     line_item_id: str | None = Field(None, description="Line item identifier")
     description: str = Field(default="", min_length=0, max_length=500)
     quantity: int = Field(default=1, ge=0)
@@ -89,6 +91,8 @@ class InvoiceLineItem(BaseModel):
 
 class Invoice(BillingBaseModel):
     """Core invoice model with idempotency support"""
+
+    model_config = ConfigDict()
 
     invoice_id: str | None = Field(None, description="Invoice identifier")
     invoice_number: str | None = Field(None, description="Human-readable invoice number")
@@ -155,6 +159,8 @@ class Invoice(BillingBaseModel):
 class Payment(BillingBaseModel):
     """Payment record with idempotency"""
 
+    model_config = ConfigDict()
+
     payment_id: str = Field(default_factory=lambda: str(uuid4()))
 
     # Idempotency
@@ -194,6 +200,8 @@ class Payment(BillingBaseModel):
 
 class PaymentMethod(BillingBaseModel):
     """Customer payment method"""
+
+    model_config = ConfigDict()
 
     payment_method_id: str = Field(default_factory=lambda: str(uuid4()))
     customer_id: str
@@ -237,6 +245,8 @@ class PaymentMethod(BillingBaseModel):
 class Transaction(BillingBaseModel):
     """Financial transaction ledger entry"""
 
+    model_config = ConfigDict()
+
     transaction_id: str = Field(default_factory=lambda: str(uuid4()))
 
     # Transaction details
@@ -265,6 +275,8 @@ class Transaction(BillingBaseModel):
 class CreditNoteLineItem(BaseModel):
     """Credit note line item"""
 
+    model_config = ConfigDict()
+
     line_item_id: str = Field(default_factory=lambda: str(uuid4()))
     description: str = Field(..., min_length=1, max_length=500)
     quantity: int = Field(1, ge=1)
@@ -286,6 +298,8 @@ class CreditNoteLineItem(BaseModel):
 
 class CreditNote(BillingBaseModel):
     """Credit note for refunds, adjustments, and corrections"""
+
+    model_config = ConfigDict()
 
     credit_note_id: str = Field(default_factory=lambda: str(uuid4()))
     credit_note_number: str | None = Field(None, description="Human-readable credit note number")
@@ -336,6 +350,8 @@ class CreditNote(BillingBaseModel):
 class CreditApplication(BillingBaseModel):
     """Credit note application to invoices or customer account"""
 
+    model_config = ConfigDict()
+
     application_id: str = Field(default_factory=lambda: str(uuid4()))
     credit_note_id: str
 
@@ -356,6 +372,8 @@ class CreditApplication(BillingBaseModel):
 
 class CustomerCredit(BillingBaseModel):
     """Customer account credit balance"""
+
+    model_config = ConfigDict()
 
     customer_id: str
 
@@ -383,6 +401,8 @@ class CustomerCredit(BillingBaseModel):
 class Customer(BillingBaseModel):
     """Customer billing information"""
 
+    model_config = ConfigDict()
+
     customer_id: str = Field(description="Unique customer identifier")
     email: str = Field(description="Customer email address")
 
@@ -408,6 +428,8 @@ class Customer(BillingBaseModel):
 class Subscription(BillingBaseModel):
     """Customer subscription"""
 
+    model_config = ConfigDict()
+
     subscription_id: str = Field(description="Unique subscription identifier")
     customer_id: str = Field(description="Customer identifier")
 
@@ -430,6 +452,8 @@ class Subscription(BillingBaseModel):
 class Product(BillingBaseModel):
     """Product for billing"""
 
+    model_config = ConfigDict()
+
     product_id: str = Field(description="Unique product identifier")
     name: str = Field(description="Product name")
     description: str | None = Field(None, description="Product description")
@@ -443,6 +467,8 @@ class Product(BillingBaseModel):
 
 class Price(BillingBaseModel):
     """Price information"""
+
+    model_config = ConfigDict()
 
     price_id: str = Field(description="Unique price identifier")
     product_id: str = Field(description="Associated product ID")
@@ -461,6 +487,8 @@ class Price(BillingBaseModel):
 
 class InvoiceItem(BillingBaseModel):
     """Invoice line item"""
+
+    model_config = ConfigDict()
 
     item_id: str = Field(description="Unique item identifier")
     invoice_id: str = Field(description="Associated invoice ID")

@@ -273,6 +273,21 @@ require_billing_payment_process = require_permission("billing.payment.process")
 require_billing_refund = require_permission("billing.payment.refund")
 require_billing_export = require_permission("billing.export")
 
+# Billing Reconciliation
+require_billing_reconciliation_create = require_permission("billing.reconciliation.create")
+require_billing_reconciliation_read = require_permission("billing.reconciliation.read")
+require_billing_reconciliation_update = require_permission("billing.reconciliation.update")
+require_billing_reconciliation_approve = require_permission("billing.reconciliation.approve")
+require_billing_payment_retry = require_permission("billing.payment.retry")
+require_billing_admin = require_permission("billing.admin")
+
+# Team Management
+require_team_read = require_permission("team.read")
+require_team_create = require_permission("team.create")
+require_team_update = require_permission("team.update")
+require_team_delete = require_permission("team.delete")
+require_team_manage_members = require_permission("team.manage_members")
+
 # Security Management
 require_security_secret_read = require_permission("security.secret.read")
 require_security_secret_write = require_permission("security.secret.write")

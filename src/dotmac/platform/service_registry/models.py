@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServiceStatus(str, Enum):
@@ -23,6 +23,8 @@ class ServiceStatus(str, Enum):
 class ServiceHealth(BaseModel):
     """Service health information."""
 
+    model_config = ConfigDict()
+
     status: str
     latency_ms: float | None = None
     cpu_usage: float | None = None
@@ -35,6 +37,8 @@ class ServiceHealth(BaseModel):
 
 class ServiceInfo(BaseModel):
     """Service registration information."""
+
+    model_config = ConfigDict()
 
     id: str
     name: str

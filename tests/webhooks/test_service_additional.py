@@ -200,6 +200,8 @@ class TestDisableSubscription:
 
     async def test_disable_subscription_success(self):
         """Test disabling a subscription."""
+        from unittest.mock import patch
+
         mock_db = MagicMock()
         mock_db.commit = AsyncMock()
 
@@ -208,16 +210,18 @@ class TestDisableSubscription:
         # Create mock subscription
         mock_sub = MagicMock(spec=WebhookSubscription)
         mock_sub.is_active = True
-        mock_sub.metadata = {}
+        mock_sub.custom_metadata = {}
 
         service.get_subscription = AsyncMock(return_value=mock_sub)
 
-        await service.disable_subscription(
-            subscription_id="sub-123", tenant_id="tenant-123", reason="Too many failures"
-        )
+        # Mock flag_modified since we're using a mock object
+        with patch("dotmac.platform.webhooks.service.flag_modified"):
+            await service.disable_subscription(
+                subscription_id="sub-123", tenant_id="tenant-123", reason="Too many failures"
+            )
 
         assert mock_sub.is_active is False
-        assert mock_sub.metadata["disabled_reason"] == "Too many failures"
+        assert mock_sub.custom_metadata["disabled_reason"] == "Too many failures"
 
     async def test_disable_subscription_not_found(self):
         """Test disabling non-existent subscription."""

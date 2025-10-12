@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 from uuid import uuid4
 
 import structlog
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,11 +33,13 @@ class EmailMessage(BaseModel):
     cc: list[EmailStr] = Field(default_factory=list, description="CC recipients")
     bcc: list[EmailStr] = Field(default_factory=list, description="BCC recipients")
 
-    model_config = {"str_strip_whitespace": True, "validate_assignment": True, "extra": "forbid"}
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
 
 class EmailResponse(BaseModel):
     """Email sending response."""
+
+    model_config = ConfigDict()
 
     id: str = Field(..., description="Unique message ID")
     status: str = Field(..., description="Delivery status")

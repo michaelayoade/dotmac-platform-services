@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
+from dotmac.platform.audit import models as audit_models  # noqa: F401 - Ensure audit tables exist
 from dotmac.platform.auth.core import hash_password
 from dotmac.platform.auth.dependencies import UserInfo
 from dotmac.platform.auth.mfa_service import mfa_service

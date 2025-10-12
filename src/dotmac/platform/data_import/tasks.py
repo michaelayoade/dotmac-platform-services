@@ -396,6 +396,12 @@ async def _process_data_chunk(
     if job_type == ImportJobType.CUSTOMERS:
         service = CustomerService(session)
         mapper = CustomerMapper
+    elif job_type == ImportJobType.INVOICES:
+        from dotmac.platform.billing.invoicing.mappers import InvoiceMapper
+        from dotmac.platform.billing.invoicing.service import InvoiceService
+
+        service = InvoiceService(session)
+        mapper = InvoiceMapper
     else:
         # Add other job types as needed
         raise ValueError(f"Unsupported job type: {job_type}")
@@ -406,27 +412,39 @@ async def _process_data_chunk(
 
         try:
             # Validate and transform data
-            if job_type == ImportJobType.CUSTOMERS:
-                validated_data = mapper.validate_import_row(row_data, row_number)
-                if isinstance(validated_data, CustomerImportSchema):
+            validated_data = mapper.validate_import_row(row_data, row_number)
+
+            # Check if validation was successful (returns schema) or failed (returns error dict)
+            from dotmac.platform.billing.invoicing.mappers import InvoiceImportSchema
+
+            if isinstance(validated_data, (CustomerImportSchema, InvoiceImportSchema)):
+                # Validation successful - create the entity
+                if job_type == ImportJobType.CUSTOMERS:
                     model_data = mapper.from_import_to_model(
                         validated_data, tenant_id, generate_customer_number=True
                     )
                     await service.create_customer(**model_data)
-                    successful += 1
-                else:
-                    error_detail = validated_data
-                    failed += 1
-                    errors.append(error_detail)
-                    await _record_failure(
-                        session,
-                        job,
-                        row_number,
-                        "validation",
-                        error_detail.get("error", "Validation failed"),
-                        row_data,
-                        tenant_id,
+                elif job_type == ImportJobType.INVOICES:
+                    model_data = mapper.from_import_to_model(
+                        validated_data, tenant_id, generate_invoice_number=True
                     )
+                    await service.create_invoice(**model_data)
+
+                successful += 1
+            else:
+                # Validation failed - record the error
+                error_detail = validated_data
+                failed += 1
+                errors.append(error_detail)
+                await _record_failure(
+                    session,
+                    job,
+                    row_number,
+                    "validation",
+                    error_detail.get("error", "Validation failed"),
+                    row_data,
+                    tenant_id,
+                )
 
         except Exception as e:
             failed += 1
@@ -470,10 +488,52 @@ async def _process_invoice_import(
     user_id: str | None,
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Process invoice import job."""
-    # Similar structure to customer import
-    # Implementation will follow the same pattern
-    raise NotImplementedError("Invoice import processing is not implemented yet")
+    """
+    Process invoice import job.
+
+    Expected CSV/JSON format:
+    - customer_id: UUID or customer_number (required)
+    - invoice_number: string (optional, auto-generated if missing)
+    - amount: decimal (required)
+    - currency: 3-letter code (default: USD)
+    - status: draft|pending|paid|cancelled|overdue (default: draft)
+    - due_date: ISO date string (optional)
+    - issue_date: ISO date string (optional)
+    - paid_date: ISO date string (optional)
+    - description: text (optional)
+    - subtotal: decimal (optional)
+    - tax_amount: decimal (optional)
+    - discount_amount: decimal (optional)
+    - purchase_order: string (optional)
+    - notes: text (optional)
+    """
+    from ..db import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        # Get job
+        job = await session.get(ImportJob, job_id)
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        # Get file format
+        file_format = ImportFileFormat.CSV
+        if file_path.endswith(".json"):
+            file_format = ImportFileFormat.JSON
+
+        # Get chunk size from config
+        chunk_size = (config or {}).get("chunk_size", 100)
+
+        # Process based on file format
+        if file_format == ImportFileFormat.CSV:
+            result = await _process_csv_in_chunks(
+                session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
+            )
+        else:
+            result = await _process_json_in_chunks(
+                session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
+            )
+
+        return result
 
 
 async def _process_subscription_import(
@@ -483,9 +543,34 @@ async def _process_subscription_import(
     user_id: str | None,
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Process subscription import job."""
-    # Similar structure to customer import
-    raise NotImplementedError("Subscription import processing is not implemented yet")
+    """
+    Process subscription import job.
+
+    TODO: Implement subscription import processing following the customer import pattern.
+
+    Implementation steps:
+    1. Create SubscriptionImportSchema in billing/subscriptions/mappers.py
+       - Required fields: customer_id, plan_id
+       - Optional fields: status, billing_cycle, start_date, end_date, trial_end_date, quantity
+    2. Create SubscriptionMapper with validate_import_row() and from_import_to_model() methods
+    3. Update _process_data_chunk() to handle ImportJobType.SUBSCRIPTIONS case
+    4. Test with sample CSV/JSON files
+
+    Expected CSV/JSON format:
+    - customer_id: UUID or customer_number (required)
+    - plan_id: UUID or plan code (required)
+    - status: active|trialing|past_due|cancelled|paused (default: active)
+    - billing_cycle: monthly|quarterly|yearly|custom (default: monthly)
+    - start_date: ISO date string (optional, defaults to now)
+    - end_date: ISO date string (optional)
+    - trial_end_date: ISO date string (optional)
+    - quantity: integer (default: 1)
+    - amount: decimal (optional, uses plan amount if not provided)
+    """
+    raise NotImplementedError(
+        "Subscription import requires SubscriptionImportSchema and SubscriptionMapper implementation. "
+        "Follow the pattern in customer_management/mappers.py"
+    )
 
 
 async def _process_payment_import(
@@ -495,9 +580,34 @@ async def _process_payment_import(
     user_id: str | None,
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Process payment import job."""
-    # Similar structure to customer import
-    raise NotImplementedError("Payment import processing is not implemented yet")
+    """
+    Process payment import job.
+
+    TODO: Implement payment import processing following the customer import pattern.
+
+    Implementation steps:
+    1. Create PaymentImportSchema in billing/payments/mappers.py
+       - Required fields: customer_id, amount, currency, payment_method
+       - Optional fields: invoice_id, status, payment_date, transaction_id, reference
+    2. Create PaymentMapper with validate_import_row() and from_import_to_model() methods
+    3. Update _process_data_chunk() to handle ImportJobType.PAYMENTS case
+    4. Test with sample CSV/JSON files
+
+    Expected CSV/JSON format:
+    - customer_id: UUID or customer_number (required)
+    - amount: decimal (required)
+    - currency: 3-letter code (default: USD)
+    - payment_method: card|bank_transfer|cash|check (required)
+    - invoice_id: UUID (optional, links payment to invoice)
+    - status: pending|completed|failed|refunded (default: completed)
+    - payment_date: ISO date string (optional, defaults to now)
+    - transaction_id: string (optional, external payment system ID)
+    - reference: string (optional, customer reference number)
+    """
+    raise NotImplementedError(
+        "Payment import requires PaymentImportSchema and PaymentMapper implementation. "
+        "Follow the pattern in customer_management/mappers.py"
+    )
 
 
 async def _process_chunk_data(

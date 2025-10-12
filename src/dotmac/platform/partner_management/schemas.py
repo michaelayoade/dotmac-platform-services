@@ -185,6 +185,8 @@ class PartnerResponse(PartnerBase):
 class PartnerListResponse(BaseModel):
     """Response for partner list endpoint."""
 
+    model_config = ConfigDict()
+
     partners: list[PartnerResponse]
     total: int
     page: int = Field(ge=1)
@@ -315,6 +317,8 @@ class PartnerAccountResponse(PartnerAccountBase):
 class PartnerAccountListResponse(BaseModel):
     """List response for partner customer accounts."""
 
+    model_config = ConfigDict()
+
     accounts: list[PartnerAccountResponse]
     total: int
     page: int = Field(ge=1)
@@ -387,6 +391,8 @@ class PartnerCommissionEventResponse(PartnerCommissionEventBase):
 
 class PartnerCommissionEventListResponse(BaseModel):
     """Response for commission event list."""
+
+    model_config = ConfigDict()
 
     events: list[PartnerCommissionEventResponse]
     total: int
@@ -474,6 +480,8 @@ class ReferralLeadResponse(ReferralLeadBase):
 class ReferralLeadListResponse(BaseModel):
     """Response for referral lead list."""
 
+    model_config = ConfigDict()
+
     referrals: list[ReferralLeadResponse]
     total: int
     page: int = Field(ge=1)
@@ -487,6 +495,8 @@ class ReferralLeadListResponse(BaseModel):
 
 class PartnerSummary(BaseModel):
     """Partner performance summary."""
+
+    model_config = ConfigDict()
 
     partner_id: UUID
     partner_name: str
@@ -511,6 +521,8 @@ class PartnerSummary(BaseModel):
 
 class PartnerPayoutSummary(BaseModel):
     """Payout summary for a partner."""
+
+    model_config = ConfigDict()
 
     partner_id: UUID
     period_start: datetime
@@ -557,6 +569,8 @@ class PartnerPayoutResponse(BaseModel):
 class PartnerPayoutListResponse(BaseModel):
     """List response for partner payouts."""
 
+    model_config = ConfigDict()
+
     payouts: list[PartnerPayoutResponse]
     total: int
     page: int = Field(ge=1)
@@ -565,6 +579,8 @@ class PartnerPayoutListResponse(BaseModel):
 
 class PayoutSummary(BaseModel):
     """Lightweight payout summary for dashboards."""
+
+    model_config = ConfigDict()
 
     payout_id: UUID
     partner_id: UUID
@@ -593,6 +609,8 @@ class PartnerRevenueMetrics(BaseModel):
 
 class PartnerRevenueDashboard(BaseModel):
     """Aggregated partner revenue dashboard metrics."""
+
+    model_config = ConfigDict()
 
     partner_id: UUID
     company_name: str
@@ -628,6 +646,8 @@ class PartnerRevenueDashboard(BaseModel):
 
 class PartnerStatementResponse(BaseModel):
     """Monthly partner statement derived from payout data."""
+
+    model_config = ConfigDict()
 
     id: UUID
     payout_id: UUID | None = None

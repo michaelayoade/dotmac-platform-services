@@ -5,11 +5,15 @@ Models and schemas for admin settings management.
 from datetime import datetime
 from enum import Enum
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import Field, field_validator
+from sqlalchemy import JSON, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dotmac.platform.core.pydantic import AppBaseModel
+from dotmac.platform.db import Base, TenantMixin, TimestampMixin
 
 
 class SettingsCategory(str, Enum):
@@ -170,3 +174,21 @@ class SettingsImportRequest(AppBaseModel):
     validate_only: bool = Field(True, description="Validate before importing")
     overwrite: bool = Field(False, description="Overwrite existing settings")
     reason: str | None = Field(None, description="Reason for import")
+
+
+class AdminSettingsAuditEntry(Base, TimestampMixin, TenantMixin):
+    """Database model for admin settings audit logs."""
+
+    __tablename__ = "admin_settings_audit_log"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, index=True
+    )
+    category: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    changes: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

@@ -59,6 +59,7 @@ class IntegrationType(str, Enum):
 
     EMAIL = "email"
     SMS = "sms"
+    CURRENCY = "currency"
     STORAGE = "storage"
     SEARCH = "search"
     ANALYTICS = "analytics"
@@ -319,6 +320,19 @@ class SMSIntegration(BaseIntegration):
         pass
 
 
+class CurrencyIntegration(BaseIntegration):
+    """Base class for currency exchange rate integrations."""
+
+    @abstractmethod
+    async def fetch_rates(
+        self,
+        base_currency: str,
+        target_currencies: list[str],
+    ) -> dict[str, float]:
+        """Fetch exchange rates for the provided base/target currencies."""
+        pass
+
+
 class TwilioIntegration(SMSIntegration):
     """Twilio SMS integration."""
 
@@ -430,6 +444,98 @@ class TwilioIntegration(SMSIntegration):
             )
 
 
+class OpenExchangeRatesIntegration(CurrencyIntegration):
+    """Integration with OpenExchangeRates for currency data."""
+
+    def __init__(self, config: IntegrationConfig) -> None:
+        super().__init__(config)
+        self._app_id: str | None = None
+        self._base_url: str = self.config.settings.get(
+            "endpoint", "https://openexchangerates.org/api/latest.json"
+        )
+
+    async def initialize(self) -> None:
+        """Initialize OpenExchangeRates integration by loading API key."""
+        try:
+            await self.load_secrets()
+            api_key = self.get_secret("api_key") or self.get_secret("token")
+            if not api_key:
+                raise ValueError("OpenExchangeRates API key not configured")
+
+            self._app_id = api_key
+            self._status = IntegrationStatus.READY
+            logger.info("OpenExchangeRates integration initialized", integration=self.name)
+        except Exception as exc:
+            self._status = IntegrationStatus.ERROR
+            logger.error("Failed to initialize OpenExchangeRates", error=str(exc))
+            raise
+
+    async def fetch_rates(
+        self,
+        base_currency: str,
+        target_currencies: list[str],
+    ) -> dict[str, float]:
+        """Fetch latest rates from OpenExchangeRates."""
+        if self._status != IntegrationStatus.READY or not self._app_id:
+            raise RuntimeError("OpenExchangeRates integration not ready")
+
+        import httpx
+
+        params = {
+            "app_id": self._app_id,
+        }
+
+        # Free tier of OpenExchangeRates only supports USD as base.
+        if base_currency.upper() != "USD":
+            params["base"] = base_currency.upper()
+
+        if target_currencies:
+            params["symbols"] = ",".join(sorted({c.upper() for c in target_currencies}))
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(self._base_url, params=params)
+                response.raise_for_status()
+                payload = response.json()
+        except Exception as exc:
+            logger.error(
+                "Failed to fetch exchange rates",
+                integration=self.name,
+                error=str(exc),
+            )
+            raise
+
+        rates = payload.get("rates", {})
+        if not isinstance(rates, dict):
+            raise RuntimeError("Invalid response from OpenExchangeRates: missing rates")
+
+        return {currency.upper(): float(rate) for currency, rate in rates.items()}
+
+    async def health_check(self) -> IntegrationHealth:
+        """Perform a lightweight health check."""
+        try:
+            if self._status != IntegrationStatus.READY or not self._app_id:
+                return IntegrationHealth(
+                    name=self.name,
+                    status=IntegrationStatus.ERROR,
+                    message="Integration not initialized",
+                )
+
+            # Limit network usage by checking cached initialization data
+            return IntegrationHealth(
+                name=self.name,
+                status=self._status,
+                message="OpenExchangeRates integration operational",
+                metadata={"endpoint": self._base_url},
+            )
+        except Exception as exc:
+            return IntegrationHealth(
+                name=self.name,
+                status=IntegrationStatus.ERROR,
+                message=f"Health check failed: {str(exc)}",
+            )
+
+
 class IntegrationRegistry:
     """Registry for managing integrations."""
 
@@ -445,6 +551,7 @@ class IntegrationRegistry:
             {
                 "email:sendgrid": SendGridIntegration,
                 "sms:twilio": TwilioIntegration,
+                "currency:openexchangerates": OpenExchangeRatesIntegration,
                 # Add more providers here
             }
         )
@@ -494,6 +601,27 @@ class IntegrationRegistry:
                 required_packages=["twilio"],
             )
             await self.register_integration(sms_config)
+
+        # Currency integrations
+        if settings.billing.enable_multi_currency:
+            supported_currencies = getattr(settings.billing, "supported_currencies", []) or []
+            if len(supported_currencies) > 1:
+                currency_config = IntegrationConfig(
+                    name="currency",
+                    type=IntegrationType.CURRENCY,
+                    provider=getattr(settings.billing, "exchange_rate_provider", "openexchangerates"),
+                    enabled=True,
+                    settings={
+                        "base_currency": settings.billing.default_currency,
+                        "supported_currencies": supported_currencies,
+                        "endpoint": getattr(
+                            settings.billing, "exchange_rate_endpoint", None
+                        ),
+                    },
+                    secrets_path="currency/openexchangerates",
+                    required_packages=["httpx"],
+                )
+                await self.register_integration(currency_config)
 
         logger.info("Configured integrations from settings", count=len(self._configs))
 
@@ -605,8 +733,10 @@ __all__ = [
     "BaseIntegration",
     "EmailIntegration",
     "SMSIntegration",
+    "CurrencyIntegration",
     "SendGridIntegration",
     "TwilioIntegration",
+    "OpenExchangeRatesIntegration",
     "IntegrationConfig",
     "IntegrationHealth",
     "IntegrationStatus",

@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .catalog.service import ProductService
@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 class InvoiceItem(BaseModel):
     """Invoice line item from billing calculation."""
 
+    model_config = ConfigDict()
+
     description: str = Field(description="Item description")
     product_id: str = Field(description="Product identifier")
     quantity: int = Field(description="Quantity", ge=1)
@@ -44,6 +46,8 @@ class InvoiceItem(BaseModel):
 
 class BillingInvoiceRequest(BaseModel):
     """Request to create invoice from billing system."""
+
+    model_config = ConfigDict()
 
     customer_id: str = Field(description="Customer identifier")
     subscription_id: str | None = Field(None, description="Related subscription")

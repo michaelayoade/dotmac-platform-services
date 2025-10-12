@@ -10,7 +10,7 @@ import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.platform_admin import require_platform_admin
@@ -54,12 +54,16 @@ async def get_vault_client() -> AsyncVaultClient:
 class SecretData(BaseModel):
     """Secret data model."""
 
+    model_config = ConfigDict()
+
     data: dict[str, Any] = Field(..., description="Secret key-value pairs")
     metadata: dict[str, Any] | None = Field(None, description="Optional metadata")
 
 
 class SecretResponse(BaseModel):
     """Secret response model."""
+
+    model_config = ConfigDict()
 
     path: str = Field(..., description="Secret path")
     data: dict[str, Any] = Field(..., description="Secret data")
@@ -68,6 +72,8 @@ class SecretResponse(BaseModel):
 
 class SecretInfo(BaseModel):
     """Secret information with metadata."""
+
+    model_config = ConfigDict()
 
     path: str = Field(..., description="Secret path")
     created_time: str | None = Field(None, description="When the secret was created")
@@ -79,11 +85,15 @@ class SecretInfo(BaseModel):
 class SecretListResponse(BaseModel):
     """List secrets response."""
 
+    model_config = ConfigDict()
+
     secrets: list[SecretInfo] = Field(..., description="List of secrets with metadata")
 
 
 class HealthResponse(BaseModel):
     """Vault health response."""
+
+    model_config = ConfigDict()
 
     healthy: bool = Field(..., description="Health status")
     vault_url: str = Field(..., description="Vault URL")

@@ -64,6 +64,8 @@ class TraceData(BaseModel):
 class TracesResponse(BaseModel):
     """Response for trace queries."""
 
+    model_config = ConfigDict()
+
     traces: list[TraceData] = Field(default_factory=list, description="Trace data")
     total: int = Field(description="Total number of traces")
     page: int = Field(description="Current page")
@@ -82,6 +84,8 @@ class MetricType(str, Enum):
 class MetricDataPoint(BaseModel):
     """Single metric data point."""
 
+    model_config = ConfigDict()
+
     timestamp: datetime = Field(description="Timestamp")
     value: float = Field(description="Metric value")
     labels: dict[str, str] = Field(default_factory=dict, description="Metric labels")
@@ -89,6 +93,8 @@ class MetricDataPoint(BaseModel):
 
 class MetricSeries(BaseModel):
     """Time series metric data."""
+
+    model_config = ConfigDict()
 
     name: str = Field(description="Metric name")
     type: MetricType = Field(description="Metric type")
@@ -99,12 +105,16 @@ class MetricSeries(BaseModel):
 class MetricsResponse(BaseModel):
     """Response for metrics queries."""
 
+    model_config = ConfigDict()
+
     metrics: list[MetricSeries] = Field(default_factory=list, description="Metric series")
     time_range: dict[str, str] = Field(default_factory=dict, description="Time range")
 
 
 class ServiceDependency(BaseModel):
     """Service dependency information."""
+
+    model_config = ConfigDict()
 
     from_service: str = Field(description="Source service")
     to_service: str = Field(description="Target service")
@@ -115,6 +125,8 @@ class ServiceDependency(BaseModel):
 
 class ServiceMapResponse(BaseModel):
     """Service dependency map."""
+
+    model_config = ConfigDict()
 
     services: list[str] = Field(default_factory=list, description="All services")
     dependencies: list[ServiceDependency] = Field(
@@ -128,6 +140,8 @@ class ServiceMapResponse(BaseModel):
 class PerformanceMetrics(BaseModel):
     """Performance percentile metrics."""
 
+    model_config = ConfigDict()
+
     percentile: str = Field(description="Percentile (e.g., P50, P95)")
     value: float = Field(description="Latency value in milliseconds")
     target: float = Field(description="Target SLA value")
@@ -136,6 +150,8 @@ class PerformanceMetrics(BaseModel):
 
 class PerformanceResponse(BaseModel):
     """Performance metrics response."""
+
+    model_config = ConfigDict()
 
     percentiles: list[PerformanceMetrics] = Field(
         default_factory=list, description="Percentile data"

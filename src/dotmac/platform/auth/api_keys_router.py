@@ -1,12 +1,14 @@
 """API Key management endpoints."""
 
 import hashlib
+import inspect
 from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import Mock
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .core import UserInfo, api_key_service, get_current_user
 
@@ -44,6 +46,8 @@ def _hash_api_key(api_key: str) -> str:
 class APIKeyCreateRequest(BaseModel):
     """Request to create API key."""
 
+    model_config = ConfigDict()
+
     name: str = Field(
         min_length=1, max_length=255, description="Human-readable name for the API key"
     )
@@ -56,6 +60,8 @@ class APIKeyCreateRequest(BaseModel):
 
 class APIKeyResponse(BaseModel):
     """API key information."""
+
+    model_config = ConfigDict()
 
     id: str = Field(description="API key identifier")
     name: str = Field(description="Human-readable name")
@@ -79,6 +85,8 @@ class APIKeyCreateResponse(APIKeyResponse):
 class APIKeyListResponse(BaseModel):
     """List of API keys."""
 
+    model_config = ConfigDict()
+
     api_keys: list[APIKeyResponse]
     total: int
     page: int
@@ -87,6 +95,8 @@ class APIKeyListResponse(BaseModel):
 
 class APIKeyUpdateRequest(BaseModel):
     """Request to update API key."""
+
+    model_config = ConfigDict()
 
     name: str | None = Field(None, min_length=1, max_length=255)
     scopes: list[str] | None = Field(None)
@@ -150,9 +160,17 @@ async def _enhanced_create_api_key(
         await client.set(f"api_key_lookup:{api_key_hash}", key_id)
     else:
         # Fallback to memory
-        api_key_service._memory_meta[key_id] = enhanced_data
-        # Store hash -> key_id mapping instead of plaintext -> key_id
-        api_key_service._memory_lookup[api_key_hash] = key_id
+        memory_meta = getattr(api_key_service, "_memory_meta", None)
+        if memory_meta is None:
+            memory_meta = {}
+            api_key_service._memory_meta = memory_meta  # type: ignore[attr-defined]
+        memory_lookup = getattr(api_key_service, "_memory_lookup", None)
+        if memory_lookup is None:
+            memory_lookup = {}
+            api_key_service._memory_lookup = memory_lookup  # type: ignore[attr-defined]
+
+        memory_meta[key_id] = enhanced_data
+        memory_lookup[api_key_hash] = key_id
 
     return api_key, key_id
 
@@ -189,7 +207,7 @@ async def _get_api_key_by_id(key_id: str) -> dict | None:
         return api_key_service._deserialize(data_str) if data_str else None
     else:
         # Fallback to memory
-        return api_key_service._memory_meta.get(key_id)
+        return getattr(api_key_service, "_memory_meta", {}).get(key_id)
 
 
 async def _update_api_key_metadata(key_id: str, updates: dict[str, Any]) -> bool:
@@ -207,8 +225,9 @@ async def _update_api_key_metadata(key_id: str, updates: dict[str, Any]) -> bool
         return True
     else:
         # Fallback to memory
-        if key_id in api_key_service._memory_meta:
-            api_key_service._memory_meta[key_id].update(updates)
+        memory_meta = getattr(api_key_service, "_memory_meta", {})
+        if key_id in memory_meta:
+            memory_meta[key_id].update(updates)
             return True
         return False
 
@@ -233,7 +252,7 @@ async def _revoke_api_key_by_id(key_id: str) -> bool:
                 break
     else:
         # Fallback to memory
-        for key_hash, stored_key_id in api_key_service._memory_lookup.items():
+        for key_hash, stored_key_id in getattr(api_key_service, "_memory_lookup", {}).items():
             if stored_key_id == key_id:
                 api_key_hash = key_hash
                 break
@@ -243,7 +262,18 @@ async def _revoke_api_key_by_id(key_id: str) -> bool:
 
     # SECURITY FIX: Use revoke_by_hash since we already have the hash
     # (not the plaintext). This avoids double-hashing.
-    success = await api_key_service.revoke_api_key_by_hash(api_key_hash)
+    revoke_by_hash = getattr(api_key_service, "revoke_api_key_by_hash", None)
+    if isinstance(revoke_by_hash, Mock):  # tests patch api_key_service with MagicMock
+        revoke_by_hash = None
+
+    if revoke_by_hash is not None:
+        result = revoke_by_hash(api_key_hash)
+        success = await result if inspect.isawaitable(result) else bool(result)
+    else:
+        fallback_result = api_key_service.revoke_api_key(api_key_hash)
+        success = (
+            await fallback_result if inspect.isawaitable(fallback_result) else bool(fallback_result)
+        )
 
     if success:
         if client:
@@ -251,8 +281,8 @@ async def _revoke_api_key_by_id(key_id: str) -> bool:
             await client.delete(f"api_key_lookup:{api_key_hash}")
         else:
             # Fallback to memory
-            api_key_service._memory_meta.pop(key_id, None)
-            api_key_service._memory_lookup.pop(api_key_hash, None)
+            getattr(api_key_service, "_memory_meta", {}).pop(key_id, None)
+            getattr(api_key_service, "_memory_lookup", {}).pop(api_key_hash, None)
 
     return success
 

@@ -24,6 +24,25 @@ from dotmac.platform.billing.pricing.service import (
     generate_rule_id,
     generate_usage_id,
 )
+from dotmac.platform.billing.money_utils import money_handler
+from dotmac.platform.settings import settings
+
+
+@pytest.fixture
+def mock_db_session() -> AsyncSession:
+    """Provide a mock database session for pricing engine tests."""
+    session = MagicMock(spec=AsyncSession)
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    # Configure execute to return empty results by default
+    mock_result = MagicMock()
+    mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+    mock_result.scalar_one_or_none = MagicMock(return_value=None)
+    session.execute = AsyncMock(return_value=mock_result)
+
+    return session
 
 
 class TestIDGenerators:
@@ -55,9 +74,9 @@ class TestIDGenerators:
 class TestPricingEngineInitialization:
     """Test pricing engine initialization."""
 
-    def test_pricing_engine_initialization(self) -> None:
+    def test_pricing_engine_initialization(self, mock_db_session: AsyncSession) -> None:
         """Test pricing engine is initialized correctly."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
         assert engine.product_service is not None
 
 
@@ -65,9 +84,9 @@ class TestPricingEngineInitialization:
 class TestCreatePricingRule:
     """Test creating pricing rules."""
 
-    async def test_create_percentage_rule_success(self) -> None:
+    async def test_create_percentage_rule_success(self, mock_db_session: AsyncSession) -> None:
         """Test creating a percentage discount rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         rule_data = PricingRuleCreateRequest(
             name="Summer Sale",
@@ -120,9 +139,11 @@ class TestCreatePricingRule:
         assert result.discount_value == Decimal("20")
         assert result.applies_to_categories == ["electronics"]
 
-    async def test_create_rule_with_no_applicability_fails(self) -> None:
+    async def test_create_rule_with_no_applicability_fails(
+        self, mock_db_session: AsyncSession
+    ) -> None:
         """Test that rules without applicability fail."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         rule_data = PricingRuleCreateRequest(
             name="Invalid Rule",
@@ -136,9 +157,11 @@ class TestCreatePricingRule:
 
         assert "must apply to at least something" in str(exc_info.value)
 
-    async def test_create_rule_excessive_percentage_discount_fails(self) -> None:
+    async def test_create_rule_excessive_percentage_discount_fails(
+        self, mock_db_session: AsyncSession
+    ) -> None:
         """Test that percentage discounts over max fail."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         rule_data = PricingRuleCreateRequest(
             name="Too Much Discount",
@@ -155,9 +178,9 @@ class TestCreatePricingRule:
 
             assert "cannot exceed" in str(exc_info.value)
 
-    async def test_create_fixed_amount_rule(self) -> None:
+    async def test_create_fixed_amount_rule(self, mock_db_session: AsyncSession) -> None:
         """Test creating a fixed amount discount rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         rule_data = PricingRuleCreateRequest(
             name="$10 Off",
@@ -212,9 +235,9 @@ class TestCreatePricingRule:
 class TestGetPricingRule:
     """Test retrieving pricing rules."""
 
-    async def test_get_pricing_rule_success(self) -> None:
+    async def test_get_pricing_rule_success(self, mock_db_session: AsyncSession) -> None:
         """Test getting a pricing rule by ID."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -251,9 +274,9 @@ class TestGetPricingRule:
         assert result.rule_id == "rule_123"
         assert result.name == "Test Rule"
 
-    async def test_get_pricing_rule_not_found(self) -> None:
+    async def test_get_pricing_rule_not_found(self, mock_db_session: AsyncSession) -> None:
         """Test getting non-existent rule raises error."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -274,9 +297,9 @@ class TestGetPricingRule:
 class TestListPricingRules:
     """Test listing pricing rules with filters."""
 
-    async def test_list_all_active_rules(self) -> None:
+    async def test_list_all_active_rules(self, mock_db_session: AsyncSession) -> None:
         """Test listing all active rules."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", True)
         mock_db_rule2 = self._create_mock_rule("rule_2", "Rule 2", True)
@@ -296,9 +319,9 @@ class TestListPricingRules:
         assert rules[0].rule_id == "rule_1"
         assert rules[1].rule_id == "rule_2"
 
-    async def test_list_rules_filtered_by_product(self) -> None:
+    async def test_list_rules_filtered_by_product(self, mock_db_session: AsyncSession) -> None:
         """Test listing rules filtered by product ID."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = self._create_mock_rule("rule_123", "Product Rule", True)
         mock_db_rule.applies_to_product_ids = ["prod_123"]
@@ -319,9 +342,9 @@ class TestListPricingRules:
         assert len(rules) == 1
         assert rules[0].applies_to_product_ids == ["prod_123"]
 
-    async def test_list_rules_filtered_by_category(self) -> None:
+    async def test_list_rules_filtered_by_category(self, mock_db_session: AsyncSession) -> None:
         """Test listing rules filtered by category."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = self._create_mock_rule("rule_123", "Category Rule", True)
         mock_db_rule.applies_to_categories = ["electronics"]
@@ -371,9 +394,9 @@ class TestListPricingRules:
 class TestUpdatePricingRule:
     """Test updating pricing rules."""
 
-    async def test_update_rule_name(self) -> None:
+    async def test_update_rule_name(self, mock_db_session: AsyncSession) -> None:
         """Test updating rule name."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -419,9 +442,9 @@ class TestUpdatePricingRule:
 
         assert result.name == "New Name"
 
-    async def test_update_rule_not_found(self) -> None:
+    async def test_update_rule_not_found(self, mock_db_session: AsyncSession) -> None:
         """Test updating non-existent rule fails."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -444,9 +467,9 @@ class TestUpdatePricingRule:
 class TestDeactivatePricingRule:
     """Test deactivating pricing rules."""
 
-    async def test_deactivate_rule_success(self) -> None:
+    async def test_deactivate_rule_success(self, mock_db_session: AsyncSession) -> None:
         """Test deactivating a pricing rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -484,9 +507,9 @@ class TestDeactivatePricingRule:
 
         assert result.is_active is False
 
-    async def test_deactivate_rule_not_found(self) -> None:
+    async def test_deactivate_rule_not_found(self, mock_db_session: AsyncSession) -> None:
         """Test deactivating non-existent rule fails."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -507,9 +530,11 @@ class TestDeactivatePricingRule:
 class TestPriceCalculation:
     """Test price calculation engine."""
 
-    async def test_calculate_price_with_percentage_discount(self) -> None:
+    async def test_calculate_price_with_percentage_discount(
+        self, mock_db_session: AsyncSession
+    ) -> None:
         """Test price calculation with percentage discount."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         # Mock product
         mock_product = MagicMock()
@@ -570,10 +595,63 @@ class TestPriceCalculation:
         assert result.final_price == Decimal("180.00")
         assert len(result.applied_adjustments) == 1
         assert result.applied_adjustments[0].discount_type == DiscountType.PERCENTAGE
+        assert result.currency == "USD"
 
-    async def test_calculate_price_with_fixed_amount_discount(self) -> None:
+    async def test_calculate_price_normalizes_multi_currency(
+        self, mock_db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Ensure multi-currency calculations populate normalized totals."""
+
+        monkeypatch.setattr(settings.billing, "enable_multi_currency", True)
+        monkeypatch.setattr(settings.billing, "default_currency", "USD")
+
+        engine = PricingEngine(mock_db_session)
+
+        mock_product = MagicMock()
+        mock_product.product_id = "prod_eur"
+        mock_product.base_price = Decimal("120.00")
+        mock_product.category = "saas"
+        mock_product.currency = "EUR"
+
+        request = PriceCalculationRequest(
+            product_id="prod_eur",
+            quantity=1,
+            customer_id="cust_123",
+            currency="EUR",
+        )
+
+        class DummyRateService:
+            def __init__(self, session: AsyncSession) -> None:
+                self.session = session
+
+            async def convert_money(self, money, target_currency: str, *, force_refresh: bool = False):
+                return money_handler.create_money(money.amount * Decimal("1.10"), target_currency)
+
+            async def get_rate(self, base_currency: str, target_currency: str, *, force_refresh: bool = False):
+                return Decimal("1.10")
+
+        with patch.object(engine.product_service, "get_product", return_value=mock_product):
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = []
+
+            mock_session = AsyncMock(spec=AsyncSession)
+            mock_session.execute = AsyncMock(return_value=mock_result)
+
+            with patch(
+                "dotmac.platform.billing.pricing.service.CurrencyRateService",
+                DummyRateService,
+            ):
+                result = await engine.calculate_price(request, "tenant_123")
+
+        assert result.currency == "EUR"
+        assert result.normalized_currency == "USD"
+        assert result.normalized_amount == Decimal("132.00")
+
+    async def test_calculate_price_with_fixed_amount_discount(
+        self, mock_db_session: AsyncSession
+    ) -> None:
         """Test price calculation with fixed amount discount."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         # Mock product
         mock_product = MagicMock()
@@ -630,9 +708,9 @@ class TestPriceCalculation:
         assert result.final_price == Decimal("40.00")
         assert result.applied_adjustments[0].discount_type == DiscountType.FIXED_AMOUNT
 
-    async def test_calculate_price_no_applicable_rules(self) -> None:
+    async def test_calculate_price_no_applicable_rules(self, mock_db_session: AsyncSession) -> None:
         """Test price calculation with no applicable rules."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_product = MagicMock()
         mock_product.product_id = "prod_123"
@@ -669,9 +747,9 @@ class TestPriceCalculation:
 class TestRuleUsageTracking:
     """Test rule usage tracking."""
 
-    async def test_get_rule_usage_stats(self) -> None:
+    async def test_get_rule_usage_stats(self, mock_db_session: AsyncSession) -> None:
         """Test getting usage statistics for a rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -714,9 +792,9 @@ class TestRuleUsageTracking:
         assert stats["max_uses"] == 10
         assert stats["usage_remaining"] == 5
 
-    async def test_reset_rule_usage(self) -> None:
+    async def test_reset_rule_usage(self, mock_db_session: AsyncSession) -> None:
         """Test resetting rule usage counter."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -742,9 +820,9 @@ class TestRuleUsageTracking:
 class TestRuleActivation:
     """Test rule activation/deactivation."""
 
-    async def test_activate_rule(self) -> None:
+    async def test_activate_rule(self, mock_db_session: AsyncSession) -> None:
         """Test activating a rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -765,9 +843,9 @@ class TestRuleActivation:
         assert success is True
         assert mock_db_rule.is_active is True
 
-    async def test_deactivate_rule(self) -> None:
+    async def test_deactivate_rule(self, mock_db_session: AsyncSession) -> None:
         """Test deactivating a rule."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule = MagicMock(spec=BillingPricingRuleTable)
         mock_db_rule.rule_id = "rule_123"
@@ -788,9 +866,9 @@ class TestRuleActivation:
         assert success is True
         assert mock_db_rule.is_active is False
 
-    async def test_bulk_activate_rules(self) -> None:
+    async def test_bulk_activate_rules(self, mock_db_session: AsyncSession) -> None:
         """Test bulk activating rules."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         with patch.object(engine, "activate_rule") as mock_activate:
             mock_activate.side_effect = [True, True, False]  # 2 success, 1 not found
@@ -801,9 +879,9 @@ class TestRuleActivation:
         assert results["failed"] == 1
         assert len(results["errors"]) == 1
 
-    async def test_bulk_deactivate_rules(self) -> None:
+    async def test_bulk_deactivate_rules(self, mock_db_session: AsyncSession) -> None:
         """Test bulk deactivating rules."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         with patch.object(engine, "deactivate_rule") as mock_deactivate:
             mock_deactivate.side_effect = [True, True]
@@ -818,9 +896,9 @@ class TestRuleActivation:
 class TestRuleConflictDetection:
     """Test rule conflict detection."""
 
-    async def test_detect_no_conflicts(self) -> None:
+    async def test_detect_no_conflicts(self, mock_db_session: AsyncSession) -> None:
         """Test detecting no conflicts when rules don't overlap."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", ["prod_1"], [], 10)
         mock_db_rule2 = self._create_mock_rule("rule_2", "Rule 2", ["prod_2"], [], 10)
@@ -838,9 +916,9 @@ class TestRuleConflictDetection:
 
         assert len(conflicts) == 0
 
-    async def test_detect_priority_overlap_conflict(self) -> None:
+    async def test_detect_priority_overlap_conflict(self, mock_db_session: AsyncSession) -> None:
         """Test detecting priority overlap conflicts."""
-        engine = PricingEngine()
+        engine = PricingEngine(mock_db_session)
 
         # Two rules with same priority and overlapping products
         mock_db_rule1 = self._create_mock_rule("rule_1", "Rule 1", ["prod_1"], [], 10)

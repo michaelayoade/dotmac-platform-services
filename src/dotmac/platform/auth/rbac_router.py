@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +29,8 @@ router = APIRouter(tags=["RBAC"])
 class PermissionResponse(BaseModel):
     """Permission response model"""
 
+    model_config = ConfigDict()
+
     id: UUID
     name: str
     display_name: str
@@ -40,6 +42,8 @@ class PermissionResponse(BaseModel):
 
 class RoleResponse(BaseModel):
     """Role response model"""
+
+    model_config = ConfigDict()
 
     id: UUID
     name: str
@@ -56,6 +60,8 @@ class RoleResponse(BaseModel):
 class RoleCreateRequest(BaseModel):
     """Request to create a role"""
 
+    model_config = ConfigDict()
+
     name: str = Field(..., min_length=1, max_length=100)
     display_name: str = Field(..., min_length=1, max_length=200)
     description: str | None = None
@@ -67,6 +73,8 @@ class RoleCreateRequest(BaseModel):
 class RoleUpdateRequest(BaseModel):
     """Request to update a role"""
 
+    model_config = ConfigDict()
+
     display_name: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = None
     permissions: list[str] | None = None
@@ -77,6 +85,8 @@ class RoleUpdateRequest(BaseModel):
 class UserRoleAssignment(BaseModel):
     """User role assignment request"""
 
+    model_config = ConfigDict()
+
     user_id: UUID
     role_name: str
     expires_at: datetime | None = None
@@ -85,6 +95,8 @@ class UserRoleAssignment(BaseModel):
 
 class UserPermissionGrant(BaseModel):
     """Direct permission grant request"""
+
+    model_config = ConfigDict()
 
     user_id: UUID
     permission_name: str
@@ -96,6 +108,8 @@ class UserPermissionGrant(BaseModel):
 class PermissionGrantRequest(BaseModel):
     """Request to grant permission to user"""
 
+    model_config = ConfigDict()
+
     permission_name: str
     expires_at: datetime | None = None
     reason: str | None = None
@@ -103,6 +117,8 @@ class PermissionGrantRequest(BaseModel):
 
 class UserPermissionsResponse(BaseModel):
     """User permissions response"""
+
+    model_config = ConfigDict()
 
     user_id: UUID
     permissions: list[str]

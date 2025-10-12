@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class FieldType(str, Enum):
@@ -33,6 +33,8 @@ class FieldType(str, Enum):
 class ValidationRule(BaseModel):
     """Validation rule for a field."""
 
+    model_config = ConfigDict()
+
     type: str = Field(description="Type of validation rule")
     value: Any = Field(description="Validation parameter")
     message: str | None = Field(None, description="Custom error message")
@@ -41,6 +43,8 @@ class ValidationRule(BaseModel):
 class SelectOption(BaseModel):
     """Option for select fields."""
 
+    model_config = ConfigDict()
+
     value: str = Field(description="Option value")
     label: str = Field(description="Display label")
     description: str | None = Field(None, description="Option description")
@@ -48,6 +52,8 @@ class SelectOption(BaseModel):
 
 class FieldSpec(BaseModel):
     """Specification for a configuration field."""
+
+    model_config = ConfigDict()
 
     key: str = Field(description="Field identifier")
     label: str = Field(description="Display label")
@@ -122,6 +128,8 @@ class PluginStatus(str, Enum):
 class PluginConfig(BaseModel):
     """Plugin configuration schema."""
 
+    model_config = ConfigDict()
+
     name: str = Field(description="Plugin name")
     type: PluginType = Field(description="Plugin type")
     version: str = Field(description="Plugin version")
@@ -165,6 +173,8 @@ class PluginConfig(BaseModel):
 class PluginInstance(BaseModel):
     """Instance of a registered plugin."""
 
+    model_config = ConfigDict()
+
     id: UUID = Field(description="Plugin instance ID")
     plugin_name: str = Field(description="Plugin name")
     instance_name: str = Field(description="Instance name (for multiple instances)")
@@ -183,6 +193,8 @@ class PluginInstance(BaseModel):
 class PluginConfigurationValue(BaseModel):
     """Plugin configuration field value."""
 
+    model_config = ConfigDict()
+
     plugin_instance_id: UUID = Field(description="Plugin instance ID")
     field_key: str = Field(description="Field identifier")
     value: Any = Field(description="Field value (None for secrets)")
@@ -197,6 +209,8 @@ class PluginConfigurationValue(BaseModel):
 class PluginHealthCheck(BaseModel):
     """Plugin health check result."""
 
+    model_config = ConfigDict()
+
     plugin_instance_id: UUID = Field(description="Plugin instance ID")
     status: str = Field(description="Health status (healthy/unhealthy/unknown)")
     message: str | None = Field(None, description="Status message")
@@ -207,6 +221,8 @@ class PluginHealthCheck(BaseModel):
 
 class PluginTestResult(BaseModel):
     """Plugin connection test result."""
+
+    model_config = ConfigDict()
 
     success: bool = Field(description="Whether test was successful")
     message: str = Field(description="Test result message")
@@ -221,6 +237,8 @@ class PluginTestResult(BaseModel):
 class PluginConfigurationResponse(BaseModel):
     """Response model for plugin configuration."""
 
+    model_config = ConfigDict()
+
     plugin_instance_id: UUID = Field(description="Plugin instance ID")
     configuration: dict[str, Any] = Field(description="Configuration values (secrets masked)")
     config_schema: PluginConfig = Field(description="Configuration schema", alias="schema")
@@ -231,12 +249,16 @@ class PluginConfigurationResponse(BaseModel):
 class PluginListResponse(BaseModel):
     """Response model for plugin list."""
 
+    model_config = ConfigDict()
+
     plugins: list[PluginInstance] = Field(description="Registered plugin instances")
     total: int = Field(description="Total number of plugins")
 
 
 class PluginSchemaResponse(BaseModel):
     """Response model for plugin schema."""
+
+    model_config = ConfigDict()
 
     config_schema: PluginConfig = Field(description="Plugin configuration schema", alias="schema")
     instance_id: UUID | None = Field(None, description="Plugin instance ID if configured")

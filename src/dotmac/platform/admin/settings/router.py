@@ -9,8 +9,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.admin.settings.models import (
+    AdminSettingsAuditEntry,
     AuditLog,
     BulkSettingsUpdate,
     SettingsBackup,
@@ -25,6 +28,7 @@ from dotmac.platform.admin.settings.models import (
 from dotmac.platform.admin.settings.service import SettingsManagementService
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.db import get_session_dependency
 
 router = APIRouter(
     tags=["Admin - Settings"],
@@ -36,6 +40,7 @@ settings_service: SettingsManagementService = SettingsManagementService()
 
 @router.get("/categories", response_model=list[SettingsCategoryInfo])
 async def get_all_categories(
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.read")),
 ) -> list[SettingsCategoryInfo]:
     """
@@ -44,7 +49,7 @@ async def get_all_categories(
     Returns a list of categories with metadata about each category
     including field counts, sensitivity, and restart requirements.
     """
-    categories: list[SettingsCategoryInfo] = settings_service.get_all_categories()
+    categories = await settings_service.get_all_categories(session=session)
     return categories
 
 
@@ -52,6 +57,7 @@ async def get_all_categories(
 async def get_category_settings(
     category: SettingsCategory,
     include_sensitive: bool = False,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.read")),
 ) -> SettingsResponse:
     """
@@ -66,10 +72,11 @@ async def get_category_settings(
         Settings for the specified category
     """
     try:
-        return settings_service.get_category_settings(
+        return await settings_service.get_category_settings(
             category=category,
             include_sensitive=include_sensitive,
             user_id=current_admin.user_id,
+            session=session,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -80,6 +87,7 @@ async def update_category_settings(
     category: SettingsCategory,
     update_request: SettingsUpdateRequest,
     request: Request,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.update")),
 ) -> SettingsResponse | JSONResponse:
     """
@@ -123,13 +131,15 @@ async def update_category_settings(
         user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
         # Apply the updates
-        return settings_service.update_category_settings(
+        return await settings_service.update_category_settings(
             category=category,
             update_request=update_request,
             user_id=current_admin.user_id,
             user_email=user_email,
             ip_address=client_ip,
             user_agent=user_agent,
+            tenant_id=current_admin.tenant_id,
+            session=session,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -169,6 +179,7 @@ async def validate_settings(
 async def bulk_update_settings(
     bulk_update: BulkSettingsUpdate,
     request: Request,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.update")),
 ) -> dict:
     """
@@ -211,13 +222,15 @@ async def bulk_update_settings(
                 restart_required=False,  # Can be updated based on actual needs
             )
 
-            settings_service.update_category_settings(
+            await settings_service.update_category_settings(
                 category=category,
                 update_request=update_request,
                 user_id=current_admin.user_id,
                 user_email=user_email,
                 ip_address=client_ip,
                 user_agent=user_agent,
+                tenant_id=current_admin.tenant_id,
+                session=session,
             )
             results[category.value] = "Success"
 
@@ -267,6 +280,7 @@ async def create_settings_backup(
 @router.post("/restore/{backup_id}")
 async def restore_settings_backup(
     backup_id: str,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.restore")),
 ) -> dict:
     """
@@ -290,10 +304,12 @@ async def restore_settings_backup(
         # Get email, fallback to username
         user_email: str = current_admin.email or current_admin.username or current_admin.user_id
 
-        restored = settings_service.restore_backup(
+        restored = await settings_service.restore_backup(
             backup_id=backup_uuid,
             user_id=current_admin.user_id,
             user_email=user_email,
+            tenant_id=current_admin.tenant_id,
+            session=session,
         )
 
         return {
@@ -309,6 +325,7 @@ async def get_audit_logs(
     category: SettingsCategory | None = None,
     user_id: str | None = None,
     limit: int = 100,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.audit.read")),
 ) -> list[AuditLog]:
     """
@@ -326,10 +343,11 @@ async def get_audit_logs(
     Returns:
         List of audit log entries
     """
-    audit_logs: list[AuditLog] = settings_service.get_audit_logs(
+    audit_logs = await settings_service.get_audit_logs(
         category=category,
         user_id=user_id,
         limit=limit,
+        session=session,
     )
     return audit_logs
 
@@ -371,6 +389,7 @@ async def export_settings(
 async def import_settings(
     import_request: SettingsImportRequest,
     request: Request,
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.import")),
 ) -> dict:
     """
@@ -423,13 +442,15 @@ async def import_settings(
                     restart_required=False,  # Can be updated based on actual needs
                 )
 
-                settings_service.update_category_settings(
+                await settings_service.update_category_settings(
                     category=category,
                     update_request=update_request,
                     user_id=current_admin.user_id,
                     user_email=user_email,
                     ip_address=client_ip,
                     user_agent=user_agent,
+                    tenant_id=current_admin.tenant_id,
+                    session=session,
                 )
 
                 imported_categories.append(category_str)
@@ -477,6 +498,7 @@ async def reset_category_to_defaults(
 
 @router.get("/health")
 async def settings_health_check(
+    session: AsyncSession = Depends(get_session_dependency),
     current_admin: UserInfo = Depends(require_permission("settings.read")),
 ) -> dict:
     """
@@ -491,11 +513,15 @@ async def settings_health_check(
     Returns:
         Health status and statistics
     """
-    categories = settings_service.get_all_categories()
+    categories = await settings_service.get_all_categories(session=session)
+    audit_count_result = await session.execute(
+        select(func.count()).select_from(AdminSettingsAuditEntry)
+    )
+    audit_logs_count = audit_count_result.scalar_one()
 
     return {
         "status": "healthy",
         "categories_available": len(categories),
-        "audit_logs_count": len(settings_service._audit_logs),
+        "audit_logs_count": audit_logs_count,
         "backups_count": len(settings_service._backups),
     }

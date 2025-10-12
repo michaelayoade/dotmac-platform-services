@@ -8,7 +8,6 @@ for both monitoring metrics and log statistics endpoints.
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -136,12 +135,13 @@ class TestMonitoringMetricsEndpoint:
             assert data["total_requests"] == 0
             assert data["error_rate"] == 0.0
 
-    @pytest.mark.skip(
-        reason="Test infrastructure always provides auth override - auth tested in integration tests"
-    )
-    async def test_get_monitoring_metrics_requires_auth(self, client: AsyncClient):
-        """Test that endpoint requires authentication."""
-        response = await client.get("/api/v1/metrics/monitoring/metrics")
+    async def test_get_monitoring_metrics_requires_auth(self, unauthenticated_client: AsyncClient):
+        """Test that endpoint requires authentication.
+
+        Uses unauthenticated_client fixture which does NOT override auth,
+        allowing us to verify that authentication is actually enforced.
+        """
+        response = await unauthenticated_client.get("/api/v1/metrics/monitoring/metrics")
         assert response.status_code == 401
 
     async def test_get_monitoring_metrics_error_handling(self, client: AsyncClient, auth_headers):
@@ -346,12 +346,13 @@ class TestLogStatsEndpoint:
         )
         assert response.status_code == 422
 
-    @pytest.mark.skip(
-        reason="Test infrastructure always provides auth override - auth tested in integration tests"
-    )
-    async def test_get_log_stats_requires_auth(self, client: AsyncClient):
-        """Test that endpoint requires authentication."""
-        response = await client.get("/api/v1/metrics/monitoring/logs/stats")
+    async def test_get_log_stats_requires_auth(self, unauthenticated_client: AsyncClient):
+        """Test that endpoint requires authentication.
+
+        Uses unauthenticated_client fixture which does NOT override auth,
+        allowing us to verify that authentication is actually enforced.
+        """
+        response = await unauthenticated_client.get("/api/v1/metrics/monitoring/logs/stats")
         assert response.status_code == 401
 
     async def test_get_log_stats_error_handling(self, client: AsyncClient, auth_headers):

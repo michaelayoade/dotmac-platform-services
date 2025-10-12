@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ..auth.core import UserInfo
 from ..auth.dependencies import get_current_user
@@ -36,6 +36,8 @@ router = APIRouter(
 class CreatePluginInstanceRequest(BaseModel):
     """Request to create a plugin instance."""
 
+    model_config = ConfigDict()
+
     plugin_name: str
     instance_name: str
     configuration: dict[str, Any] = {}
@@ -44,11 +46,15 @@ class CreatePluginInstanceRequest(BaseModel):
 class UpdatePluginConfigurationRequest(BaseModel):
     """Request to update plugin configuration."""
 
+    model_config = ConfigDict()
+
     configuration: dict[str, Any]
 
 
 class TestConnectionRequest(BaseModel):
     """Request to test plugin connection."""
+
+    model_config = ConfigDict()
 
     configuration: dict[str, Any] | None = None
 

@@ -3,7 +3,6 @@
 import secrets
 
 import structlog
-from pydantic import EmailStr
 
 from dotmac.platform.core.caching import get_redis
 
@@ -49,7 +48,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[EmailStr(email)],
+            to=[email],
             subject=subject,
             text_body=content,
             html_body=content.replace("\n", "<br>"),
@@ -115,7 +114,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[EmailStr(email)],
+            to=[email],
             subject=subject,
             text_body=content,
             html_body=content.replace("\n", "<br>"),
@@ -163,6 +162,69 @@ def verify_reset_token(token: str) -> str | None:
         return None
 
 
+async def send_verification_email(email: str, user_name: str, verification_url: str) -> bool:
+    """
+    Send email verification link using communications module.
+
+    Args:
+        email: User email address
+        user_name: User's display name
+        verification_url: URL containing verification token
+
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    try:
+        app_name = getattr(settings, "app_name", "DotMac Platform")
+        subject = f"Verify Your Email - {app_name}"
+
+        content = f"""
+Hi {user_name},
+
+Please verify your email address to complete your account setup.
+
+Click the link below to verify your email:
+{verification_url}
+
+This link will expire in 24 hours.
+
+If you didn't request this verification, you can safely ignore this email.
+
+Best regards,
+The {app_name} Team
+""".strip()
+
+        from ..communications.email_service import EmailMessage, get_email_service
+
+        # Create message with HTML version
+        html_content = f"""
+<p>Hi {user_name},</p>
+<p>Please verify your email address to complete your account setup.</p>
+<p><a href="{verification_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a></p>
+<p>Or copy and paste this URL into your browser:</p>
+<p>{verification_url}</p>
+<p>This link will expire in 24 hours.</p>
+<p>If you didn't request this verification, you can safely ignore this email.</p>
+<p>Best regards,<br>The {app_name} Team</p>
+""".strip()
+
+        message = EmailMessage(
+            to=[email],
+            subject=subject,
+            text_body=content,
+            html_body=html_content,
+        )
+
+        # Send using async communications service
+        service = get_email_service()
+        response = await service.send_email(message)
+        return response.status == "sent"
+
+    except Exception as e:
+        logger.error("Failed to send verification email", email=email, error=str(e))
+        return False
+
+
 async def send_password_reset_success_email(email: str, user_name: str) -> bool:
     """
     Send password reset success confirmation email using communications module.
@@ -198,7 +260,7 @@ The {app_name} Team
 
         # Create message
         message = EmailMessage(
-            to=[EmailStr(email)],
+            to=[email],
             subject=subject,
             text_body=content,
             html_body=content.replace("\n", "<br>"),
@@ -218,6 +280,7 @@ The {app_name} Team
 __all__ = [
     "send_welcome_email",
     "send_password_reset_email",
+    "send_verification_email",
     "verify_reset_token",
     "send_password_reset_success_email",
     "get_auth_email_service",
@@ -234,6 +297,11 @@ class AuthEmailServiceFacade:
         self, email: str, user_name: str
     ) -> tuple[bool, str | None]:
         return await send_password_reset_email(email, user_name)
+
+    async def send_verification_email(
+        self, email: str, user_name: str, verification_url: str
+    ) -> bool:
+        return await send_verification_email(email, user_name, verification_url)
 
     def verify_reset_token(self, token: str) -> str | None:
         return verify_reset_token(token)

@@ -189,7 +189,9 @@ async def update_customer(
             detail="Failed to update customer",
         ) from exc
     except Exception as exc:
-        logger.error("Unexpected error updating customer", customer_id=str(customer_id), error=str(exc))
+        logger.error(
+            "Unexpected error updating customer", customer_id=str(customer_id), error=str(exc)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update customer",
@@ -301,7 +303,9 @@ async def add_customer_activity(
             detail="Failed to add activity",
         ) from exc
     except Exception as exc:
-        logger.error("Unexpected error adding activity", customer_id=str(customer_id), error=str(exc))
+        logger.error(
+            "Unexpected error adding activity", customer_id=str(customer_id), error=str(exc)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add activity",

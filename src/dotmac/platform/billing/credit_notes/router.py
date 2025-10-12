@@ -6,7 +6,7 @@ import csv
 import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -31,6 +31,8 @@ from dotmac.platform.database import get_async_session
 class CreateCreditNoteRequest(BaseModel):
     """Create credit note request"""
 
+    model_config = ConfigDict()
+
     invoice_id: str = Field(..., description="Invoice to credit")
     reason: CreditReason = Field(..., description="Reason for credit")
     line_items: list[dict] = Field(..., min_length=1, description="Credit line items")
@@ -42,11 +44,15 @@ class CreateCreditNoteRequest(BaseModel):
 class IssueCreditNoteRequest(BaseModel):
     """Issue credit note request"""
 
+    model_config = ConfigDict()
+
     send_notification: bool = Field(True, description="Send notification to customer")
 
 
 class VoidCreditNoteRequest(BaseModel):
     """Void credit note request"""
+
+    model_config = ConfigDict()
 
     reason: str = Field(..., min_length=1, max_length=500, description="Void reason")
 
@@ -54,12 +60,16 @@ class VoidCreditNoteRequest(BaseModel):
 class ApplyCreditRequest(BaseModel):
     """Apply credit request"""
 
+    model_config = ConfigDict()
+
     invoice_id: str = Field(..., description="Invoice to apply credit to")
     amount: int = Field(..., gt=0, description="Amount to apply in minor currency units")
 
 
 class CreditNoteListResponse(BaseModel):
     """Credit note list response"""
+
+    model_config = ConfigDict()
 
     credit_notes: list[CreditNote]
     total_count: int

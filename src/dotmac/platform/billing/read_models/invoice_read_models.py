@@ -194,6 +194,8 @@ class CustomerInvoiceSummary(BaseModel):
 class OverdueInvoicesSummary(BaseModel):
     """Summary of overdue invoices for tenant"""
 
+    model_config = ConfigDict()
+
     total_overdue: int = Field(default=0)
     total_amount_overdue: int = Field(default=0)
     currency: str = Field(default="USD")

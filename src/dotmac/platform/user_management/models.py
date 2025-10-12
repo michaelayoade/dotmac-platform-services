@@ -200,3 +200,121 @@ class ProfileChangeHistory(Base, TimestampMixin, TenantMixin):
         return (
             f"<ProfileChangeHistory(id={self.id}, user_id={self.user_id}, field={self.field_name})>"
         )
+
+
+class Team(Base, TimestampMixin, TenantMixin):
+    """
+    Team model for organizing users within a tenant.
+
+    Teams are used for:
+    - Assigning contacts to teams for management
+    - RBAC: team-level permissions
+    - Analytics: team performance tracking
+    - Ticketing: routing tickets to teams
+    """
+
+    __tablename__ = "teams"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_teams_tenant_name"),
+        UniqueConstraint("tenant_id", "slug", name="uq_teams_tenant_slug"),
+    )
+
+    # Primary key
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+
+    # Team details
+    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Team settings
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Team lead (optional)
+    team_lead_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+
+    # Team metadata
+    color: Mapped[str | None] = mapped_column(String(7), nullable=True)  # Hex color for UI
+    icon: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Icon identifier
+    metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Team(id={self.id}, name={self.name}, tenant_id={self.tenant_id})>"
+
+    def to_dict(self) -> dict:
+        """Convert team to dictionary for API responses."""
+        return {
+            "id": str(self.id),
+            "tenant_id": self.tenant_id,
+            "name": self.name,
+            "slug": self.slug,
+            "description": self.description,
+            "is_active": self.is_active,
+            "is_default": self.is_default,
+            "team_lead_id": str(self.team_lead_id) if self.team_lead_id else None,
+            "color": self.color,
+            "icon": self.icon,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class TeamMember(Base, TimestampMixin, TenantMixin):
+    """
+    Many-to-many relationship between users and teams.
+
+    A user can belong to multiple teams, and a team can have multiple users.
+    """
+
+    __tablename__ = "team_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "team_id", "user_id", name="uq_team_members_tenant_team_user"
+        ),
+    )
+
+    # Primary key
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+
+    # Relationships
+    team_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+
+    # Membership details
+    role: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="member", index=True
+    )  # member, lead, admin
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Dates
+    joined_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC), nullable=False)
+    left_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # Metadata
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<TeamMember(id={self.id}, team_id={self.team_id}, user_id={self.user_id}, role={self.role})>"
+
+    def to_dict(self) -> dict:
+        """Convert team member to dictionary for API responses."""
+        return {
+            "id": str(self.id),
+            "tenant_id": self.tenant_id,
+            "team_id": str(self.team_id),
+            "user_id": str(self.user_id),
+            "role": self.role,
+            "is_active": self.is_active,
+            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
+            "left_at": self.left_at.isoformat() if self.left_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

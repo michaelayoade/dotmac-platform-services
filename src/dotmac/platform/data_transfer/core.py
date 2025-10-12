@@ -131,12 +131,16 @@ class ProgressInfo(BaseModel):
 class DataRecord(BaseModel):
     """Single data record."""
 
+    model_config = ConfigDict()
+
     data: dict[str, Any]
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DataBatch(BaseModel):
     """Batch of data records."""
+
+    model_config = ConfigDict()
 
     records: list[DataRecord]
     batch_number: int
@@ -150,6 +154,8 @@ class DataBatch(BaseModel):
 
 class TransferConfig(BaseModel):
     """Configuration for transfer operations."""
+
+    model_config = ConfigDict()
 
     batch_size: int = 1000
     max_workers: int = 4
@@ -167,6 +173,8 @@ class TransferConfig(BaseModel):
 class ImportOptions(BaseModel):
     """Import-specific options."""
 
+    model_config = ConfigDict()
+
     delimiter: str = ","
     header_row: int | None = 0
     skip_rows: int = 0
@@ -181,6 +189,8 @@ class ImportOptions(BaseModel):
 
 class ExportOptions(BaseModel):
     """Export-specific options."""
+
+    model_config = ConfigDict()
 
     delimiter: str = ","
     include_headers: bool = True

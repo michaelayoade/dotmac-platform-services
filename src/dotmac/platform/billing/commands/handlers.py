@@ -11,7 +11,6 @@ Handlers are responsible for:
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.billing.core.enums import PaymentMethodType, PaymentStatus
 from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.billing.models import Invoice, Payment
 from dotmac.platform.billing.payments.service import PaymentService
@@ -144,9 +143,14 @@ class InvoiceCommandHandler:
         if invoice is None:
             raise ValueError(f"Invoice {command.invoice_id} not found")
 
-        # TODO: Implement update_invoice method in InvoiceService
-        # For now, return the existing invoice
-        # invoice = await self.invoice_service.update_invoice(...)
+        # Update invoice using the service method
+        invoice = await self.invoice_service.update_invoice(
+            tenant_id=command.tenant_id,
+            invoice_id=command.invoice_id,
+            due_date=command.due_date,
+            notes=command.notes,
+            metadata=command.extra_data,
+        )
 
         await self.event_bus.publish(
             event_type="billing.invoice.updated",
@@ -249,7 +253,19 @@ class InvoiceCommandHandler:
         if invoice is None:
             raise ValueError(f"Invoice {command.invoice_id} not found")
 
-        # TODO: Implement send_invoice or email sending logic in InvoiceService
+        # Send invoice email using the service method
+        success = await self.invoice_service.send_invoice_email(
+            tenant_id=command.tenant_id,
+            invoice_id=command.invoice_id,
+            recipient_email=command.recipient_email,
+        )
+
+        if not success:
+            logger.warning(
+                "Failed to send invoice email",
+                invoice_id=command.invoice_id,
+                recipient=command.recipient_email,
+            )
 
         await self.event_bus.publish(
             event_type="billing.invoice.sent",
@@ -282,8 +298,13 @@ class InvoiceCommandHandler:
         if invoice is None:
             raise ValueError(f"Invoice {command.invoice_id} not found")
 
-        # TODO: Implement apply_payment method in InvoiceService
-        # For now, just return the invoice
+        # Apply payment to invoice using the service method
+        invoice = await self.invoice_service.apply_payment_to_invoice(
+            tenant_id=command.tenant_id,
+            invoice_id=command.invoice_id,
+            payment_id=command.payment_id,
+            amount=command.amount,
+        )
 
         await self.event_bus.publish(
             event_type="billing.invoice.payment_applied",
@@ -430,20 +451,11 @@ class PaymentCommandHandler:
             payment_id=command.payment_id,
         )
 
-        # TODO: Implement cancel_payment in PaymentService
-        # For now, create a stub payment response
-        payment = Payment(
-            payment_id=command.payment_id,
+        # Cancel payment using the service method
+        payment = await self.payment_service.cancel_payment(
             tenant_id=command.tenant_id,
-            customer_id="unknown",  # TODO: fetch real data
-            amount=0,  # TODO: fetch real data
-            currency="USD",
-            status=PaymentStatus.CANCELLED,
-            payment_method_type=PaymentMethodType.CARD,
-            provider="stub",
-            provider_fee=0,
-            failure_reason=command.cancellation_reason,
-            retry_count=0,
+            payment_id=command.payment_id,
+            cancellation_reason=command.cancellation_reason,
         )
 
         await self.event_bus.publish(
@@ -468,16 +480,16 @@ class PaymentCommandHandler:
             payment_method=command.payment_method,
         )
 
-        # TODO: Implement record_offline_payment in PaymentService
-        # For now, create a regular payment
-        payment = await self.payment_service.create_payment(
+        # Record offline payment using the service method
+        payment = await self.payment_service.record_offline_payment(
             tenant_id=command.tenant_id,
             customer_id=command.customer_id,
             amount=command.amount,
             currency=command.currency,
-            payment_method_id=command.payment_method,  # Using payment_method as ID for now
-            invoice_ids=[command.invoice_id] if command.invoice_id else None,
-            metadata={"reference_number": command.reference_number, "notes": command.notes or ""},
+            payment_method=command.payment_method,
+            invoice_id=command.invoice_id,
+            reference_number=command.reference_number,
+            notes=command.notes,
         )
 
         await self.event_bus.publish(

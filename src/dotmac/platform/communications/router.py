@@ -12,7 +12,7 @@ import structlog
 from celery.exceptions import CeleryError
 from fastapi import APIRouter, Depends, HTTPException
 from jinja2 import TemplateSyntaxError, UndefinedError
-from pydantic import BaseModel, EmailStr, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user_optional
@@ -43,6 +43,8 @@ router = APIRouter(tags=["Communications"])
 
 class EmailRequest(BaseModel):
     """Email request model."""
+
+    model_config = ConfigDict()
 
     to: list[EmailStr] = Field(..., description="Recipients")
     subject: str = Field(..., min_length=1, description="Subject")
@@ -182,6 +184,8 @@ async def queue_email_endpoint(request: EmailRequest) -> Any:
 class TemplateRequest(BaseModel):
     """Template creation request."""
 
+    model_config = ConfigDict()
+
     name: str = Field(..., min_length=1, description="Template name")
     subject_template: str = Field(..., description="Subject template")
     text_template: str | None = Field(None, description="Text template")
@@ -190,6 +194,8 @@ class TemplateRequest(BaseModel):
 
 class TemplateResponse(BaseModel):
     """Template response."""
+
+    model_config = ConfigDict()
 
     id: str
     name: str
@@ -272,6 +278,8 @@ async def get_template_endpoint(template_id: str) -> Any:
 class RenderRequest(BaseModel):
     """Template render request."""
 
+    model_config = ConfigDict()
+
     template_id: str = Field(..., description="Template ID")
     data: dict[str, Any] = Field(default_factory=dict, description="Template data")
 
@@ -307,6 +315,8 @@ async def delete_template_endpoint(template_id: str) -> Any:
 
 class BulkEmailRequest(BaseModel):
     """Bulk email request."""
+
+    model_config = ConfigDict()
 
     job_name: str = Field(..., description="Job name")
     messages: list[EmailRequest] = Field(..., description="Email messages to send")
@@ -418,6 +428,8 @@ async def health_check() -> Any:
 class QuickRenderRequest(BaseModel):
     """Quick template render request."""
 
+    model_config = ConfigDict()
+
     subject: str = Field(..., description="Subject template")
     text_body: str | None = Field(None, description="Text body template")
     html_body: str | None = Field(None, description="HTML body template")
@@ -448,6 +460,8 @@ async def quick_render_endpoint(request: QuickRenderRequest) -> Any:
 class CommunicationStats(BaseModel):
     """Communication statistics model."""
 
+    model_config = ConfigDict()
+
     sent: int = Field(default=0, description="Total sent")
     delivered: int = Field(default=0, description="Total delivered")
     failed: int = Field(default=0, description="Total failed")
@@ -457,6 +471,8 @@ class CommunicationStats(BaseModel):
 
 class CommunicationActivity(BaseModel):
     """Communication activity model."""
+
+    model_config = ConfigDict()
 
     id: str = Field(..., description="Activity ID")
     type: str = Field(..., description="Communication type (email/webhook/sms)")

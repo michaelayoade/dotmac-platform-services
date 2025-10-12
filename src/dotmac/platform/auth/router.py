@@ -4,15 +4,16 @@ Authentication router for FastAPI.
 Provides login, register, token refresh endpoints with rate limiting.
 """
 
+import inspect
 import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.security import HTTPBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import (
@@ -27,8 +28,14 @@ from dotmac.platform.auth.core import (
 )
 from dotmac.platform.auth.email_service import get_auth_email_service
 from dotmac.platform.auth.mfa_service import mfa_service
+from dotmac.platform.communications.models import (
+    CommunicationLog,
+    CommunicationStatus,
+    CommunicationType,
+)
 from dotmac.platform.core.rate_limiting import rate_limit
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.integrations import IntegrationStatus, get_integration_async
 from dotmac.platform.settings import settings
 from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
@@ -113,15 +120,24 @@ def get_token_from_cookie(request: Request, cookie_name: str) -> str | None:
 
 async def get_auth_session() -> AsyncGenerator[AsyncSession, None]:
     """Adapter to reuse the shared session dependency helper."""
-    async for session in get_session_dependency():
+    dependency = get_session_dependency()
+
+    if inspect.isasyncgen(dependency):
+        async for session in dependency:
+            yield session
+        return
+
+    if inspect.isawaitable(dependency):
+        session = await dependency
         yield session
+        return
+
+    yield dependency
 
 
 # Backwards compatibility: some tests patch this symbol directly
-async def get_async_session() -> (
-    AsyncGenerator[AsyncSession, None]
-):  # pragma: no cover - compatibility wrapper
-    async for session in get_session_dependency():
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:  # pragma: no cover
+    async for session in get_auth_session():
         yield session
 
 
@@ -134,12 +150,16 @@ security = HTTPBearer(auto_error=False)
 class LoginRequest(BaseModel):
     """Login request model."""
 
+    model_config = ConfigDict()
+
     username: str = Field(..., description="Username or email")
     password: str = Field(..., description="Password")
 
 
 class Verify2FALoginRequest(BaseModel):
     """2FA verification during login request model."""
+
+    model_config = ConfigDict()
 
     user_id: str = Field(..., description="User ID from login challenge")
     code: str = Field(
@@ -151,11 +171,15 @@ class Verify2FALoginRequest(BaseModel):
 class RegenerateBackupCodesRequest(BaseModel):
     """Request model for regenerating backup codes."""
 
+    model_config = ConfigDict()
+
     password: str = Field(..., min_length=1, description="User password for verification")
 
 
 class RegisterRequest(BaseModel):
     """Registration request model."""
+
+    model_config = ConfigDict()
 
     username: str = Field(..., min_length=3, max_length=50, description="Username")
     email: EmailStr = Field(..., description="Email address")
@@ -166,6 +190,8 @@ class RegisterRequest(BaseModel):
 class TokenResponse(BaseModel):
     """Token response model."""
 
+    model_config = ConfigDict()
+
     access_token: str = Field(..., description="Access token")
     refresh_token: str = Field(..., description="Refresh token")
     token_type: str = Field(default="bearer", description="Token type")
@@ -174,6 +200,8 @@ class TokenResponse(BaseModel):
 
 class LoginSuccessResponse(BaseModel):
     """Cookie-based login success response."""
+
+    model_config = ConfigDict()
 
     success: bool = Field(default=True, description="Login successful")
     user_id: str = Field(..., description="User ID")
@@ -186,17 +214,23 @@ class LoginSuccessResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Refresh token request model."""
 
+    model_config = ConfigDict()
+
     refresh_token: str = Field(..., description="Refresh token")
 
 
 class PasswordResetRequest(BaseModel):
     """Password reset request model."""
 
+    model_config = ConfigDict()
+
     email: EmailStr = Field(..., description="Email address")
 
 
 class PasswordResetConfirm(BaseModel):
     """Password reset confirmation model."""
+
+    model_config = ConfigDict()
 
     token: str = Field(..., description="Reset token")
     new_password: str = Field(..., min_length=8, description="New password")
@@ -211,18 +245,36 @@ async def _authenticate_and_issue_tokens(
     session: AsyncSession,
 ) -> TokenResponse:
     """Shared login flow used by both JSON and OAuth2 password endpoints."""
-    from dotmac.platform.tenant import get_current_tenant_id
+    from dotmac.platform.tenant import get_current_tenant_id, get_tenant_config
 
     user_service = UserService(session)
 
     # Get current tenant from request context (set by TenantMiddleware)
     current_tenant_id = get_current_tenant_id()
+    tenant_config = get_tenant_config()
+    default_tenant_id = tenant_config.default_tenant_id if tenant_config else None
 
     # Try to find user by username or email within the current tenant
     # This prevents multiple results if same username exists in different tenants
     user = await user_service.get_user_by_username(username, tenant_id=current_tenant_id)
     if not user:
         user = await user_service.get_user_by_email(username, tenant_id=current_tenant_id)
+
+    # Platform admin fallback: allow login when tenant is not resolved but user is global
+    fallback_tenant_scope = {None}
+    if default_tenant_id is not None:
+        fallback_tenant_scope.add(default_tenant_id)
+
+    if not user and current_tenant_id in fallback_tenant_scope:
+        # Retry lookup without tenant scoping to support platform admins (tenant_id=None)
+        candidate = await user_service.get_user_by_username(username)
+        if not candidate and "@" in username:
+            candidate = await user_service.get_user_by_email(username)
+
+        if candidate:
+            # Ensure we only allow cross-tenant login for true platform admins
+            if candidate.is_platform_admin or candidate.tenant_id in fallback_tenant_scope:
+                user = candidate
 
     if not user or not verify_password(password, user.password_hash):
         # Log failed login attempt
@@ -247,6 +299,7 @@ async def _authenticate_and_issue_tokens(
             description=f"Login attempt on disabled account: {user.username}",
             severity=ActivitySeverity.HIGH,
             details={"username": user.username, "reason": "account_disabled"},
+            session=session,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -288,6 +341,7 @@ async def _authenticate_and_issue_tokens(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         # Return special response indicating 2FA is required
@@ -339,6 +393,7 @@ async def _authenticate_and_issue_tokens(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         tenant_id=user.tenant_id,
+        session=session,
     )
 
     # Set HttpOnly authentication cookies
@@ -406,6 +461,7 @@ async def _verify_backup_code_and_log(
             ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         # Warn if running low on backup codes
@@ -423,6 +479,7 @@ async def _verify_totp_code_and_log(
     user: User,
     code: str,
     request: Request,
+    session: AsyncSession,
 ) -> bool:
     """Verify TOTP code and log the verification."""
     if not user.mfa_secret:
@@ -445,6 +502,7 @@ async def _verify_totp_code_and_log(
             ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
             tenant_id=user.tenant_id,
+            session=session,
         )
 
     return code_valid
@@ -454,6 +512,7 @@ async def _log_2fa_verification_failure(
     user: User,
     is_backup_code: bool,
     request: Request,
+    session: AsyncSession,
 ) -> None:
     """Log failed 2FA verification."""
     client_ip = request.client.host if request.client else None
@@ -467,6 +526,7 @@ async def _log_2fa_verification_failure(
         ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
         tenant_id=user.tenant_id,
+        session=session,
     )
 
 
@@ -523,6 +583,7 @@ async def _complete_2fa_login(
         ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
         tenant_id=user.tenant_id,
+        session=session,
     )
 
     # Set HttpOnly authentication cookies
@@ -578,10 +639,14 @@ async def verify_2fa_login(
                 user, verify_request.code, session, request
             )
         else:
-            code_valid = await _verify_totp_code_and_log(user, verify_request.code, request)
+            code_valid = await _verify_totp_code_and_log(
+                user, verify_request.code, request, session
+            )
 
         if not code_valid:
-            await _log_2fa_verification_failure(user, verify_request.is_backup_code, request)
+            await _log_2fa_verification_failure(
+                user, verify_request.is_backup_code, request, session
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid 2FA code",
@@ -638,6 +703,7 @@ async def login_cookie_only(
             details={"username": login_request.username, "reason": "invalid_credentials"},
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
+            session=session,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -698,6 +764,7 @@ async def login_cookie_only(
         ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
         tenant_id=user.tenant_id,
+        session=session,
     )
 
     # Return success response without tokens
@@ -849,7 +916,9 @@ async def register(
     user_permissions = await rbac_service.get_user_permissions(new_user.id)
 
     role_names = [r.name for r in user_roles]
-    permission_names = list(user_permissions)  # user_permissions is already a set of permission strings
+    permission_names = list(
+        user_permissions
+    )  # user_permissions is already a set of permission strings
 
     # Create tokens with RBAC roles/permissions
     access_token = jwt_service.create_access_token(
@@ -895,6 +964,7 @@ async def register(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         tenant_id=new_user.tenant_id,
+        session=session,
     )
 
     # Send welcome email
@@ -1135,6 +1205,7 @@ async def revoke_session(
     session_id: str,
     request: Request,
     user_info: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> dict:
     """
     Revoke a specific session by ID.
@@ -1185,6 +1256,7 @@ async def revoke_session(
             severity=ActivitySeverity.MEDIUM,
             details={"session_id": session_id},
             tenant_id=user_info.tenant_id,
+            session=session,
         )
 
         logger.info("Session revoked", user_id=user_info.user_id, session_id=session_id)
@@ -1208,6 +1280,7 @@ async def revoke_session(
 async def revoke_all_sessions(
     request: Request,
     user_info: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> dict:
     """
     Revoke all sessions except the current one.
@@ -1254,6 +1327,7 @@ async def revoke_all_sessions(
             severity=ActivitySeverity.HIGH,
             details={"sessions_revoked": revoked_count},
             tenant_id=user_info.tenant_id,
+            session=session,
         )
 
         logger.info(
@@ -1375,6 +1449,8 @@ async def confirm_password_reset(
 
 class UpdateProfileRequest(BaseModel):
     """Update profile request model."""
+
+    model_config = ConfigDict()
 
     first_name: str | None = Field(None, max_length=100, description="First name")
     last_name: str | None = Field(None, max_length=100, description="Last name")
@@ -1502,6 +1578,8 @@ class UpdateProfileRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     """Change password request model."""
+
+    model_config = ConfigDict()
 
     current_password: str = Field(..., description="Current password")
     new_password: str = Field(..., min_length=8, description="New password")
@@ -1716,6 +1794,7 @@ async def update_current_user_profile(
             severity=ActivitySeverity.LOW,
             details={"updated_fields": list(update_data.keys())},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info(
@@ -1837,6 +1916,7 @@ async def upload_avatar(
             severity=ActivitySeverity.LOW,
             details={"file_id": file_id, "file_size": file_size},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("Avatar uploaded successfully", user_id=str(user.id), file_id=file_id)
@@ -1923,6 +2003,7 @@ async def delete_avatar(
             severity=ActivitySeverity.LOW,
             details={"avatar_deleted": True},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("Avatar deleted successfully", user_id=str(user.id))
@@ -1951,11 +2032,15 @@ async def delete_avatar(
 class SendVerificationEmailRequest(BaseModel):
     """Request model for sending verification email."""
 
+    model_config = ConfigDict()
+
     email: EmailStr = Field(description="Email address to verify")
 
 
 class ConfirmEmailRequest(BaseModel):
     """Request model for confirming email verification."""
+
+    model_config = ConfigDict()
 
     token: str = Field(min_length=32, max_length=255, description="Verification token")
 
@@ -2015,14 +2100,26 @@ async def send_verification_email(
             _email_service = get_auth_email_service()
             verification_url = f"{getattr(settings, 'frontend_url', 'http://localhost:3000')}/verify-email?token={token}"
 
-            # TODO: Fix email service - AuthEmailServiceFacade doesn't have send_email method
-            # For now, log the verification email (needs proper implementation)
-            logger.info(
-                "Email verification requested",
-                user_id=str(user.id),
+            # Send verification email using communications service
+            user_name = user.username or user.email
+            success = await _email_service.send_verification_email(
                 email=email_request.email,
+                user_name=user_name,
                 verification_url=verification_url,
             )
+
+            if success:
+                logger.info(
+                    "Email verification sent successfully",
+                    user_id=str(user.id),
+                    email=email_request.email,
+                )
+            else:
+                logger.warning(
+                    "Failed to send verification email",
+                    user_id=str(user.id),
+                    email=email_request.email,
+                )
         except Exception as e:
             logger.warning(
                 "Failed to send verification email",
@@ -2041,6 +2138,7 @@ async def send_verification_email(
             severity=ActivitySeverity.LOW,
             details={"email": email_request.email},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         return {
@@ -2140,6 +2238,7 @@ async def confirm_email_verification(
                 "ip_address": verification_token.used_ip,
             },
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         return {
@@ -2232,6 +2331,7 @@ async def change_password(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "incorrect_current_password"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2251,6 +2351,7 @@ async def change_password(
             severity=ActivitySeverity.MEDIUM,
             details={"success": True},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("Password changed successfully", user_id=str(user.id))
@@ -2275,11 +2376,15 @@ async def change_password(
 class Enable2FARequest(BaseModel):
     """Request to enable 2FA."""
 
+    model_config = ConfigDict()
+
     password: str = Field(..., description="User's current password for verification")
 
 
 class Enable2FAResponse(BaseModel):
     """Response with 2FA setup information."""
+
+    model_config = ConfigDict()
 
     secret: str = Field(..., description="TOTP secret (show only once)")
     qr_code: str = Field(..., description="QR code data URL for authenticator app")
@@ -2290,11 +2395,15 @@ class Enable2FAResponse(BaseModel):
 class Verify2FARequest(BaseModel):
     """Request to verify 2FA token."""
 
+    model_config = ConfigDict()
+
     token: str = Field(..., description="6-digit TOTP code", min_length=6, max_length=6)
 
 
 class Disable2FARequest(BaseModel):
     """Request to disable 2FA."""
+
+    model_config = ConfigDict()
 
     password: str = Field(..., description="User's current password for verification")
     token: str = Field(
@@ -2333,6 +2442,7 @@ async def enable_2fa(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "incorrect_password"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2375,6 +2485,7 @@ async def enable_2fa(
             severity=ActivitySeverity.MEDIUM,
             details={"status": "pending_verification"},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("2FA setup initiated", user_id=str(user.id))
@@ -2435,6 +2546,7 @@ async def verify_2fa_setup(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "invalid_token"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2454,6 +2566,7 @@ async def verify_2fa_setup(
             severity=ActivitySeverity.HIGH,
             details={"status": "enabled"},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("2FA enabled successfully", user_id=str(user.id))
@@ -2505,6 +2618,7 @@ async def disable_2fa(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "incorrect_password"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2528,6 +2642,7 @@ async def disable_2fa(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "invalid_token"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2548,6 +2663,7 @@ async def disable_2fa(
             severity=ActivitySeverity.HIGH,
             details={"status": "disabled"},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info("2FA disabled successfully", user_id=str(user.id))
@@ -2612,6 +2728,7 @@ async def regenerate_backup_codes(
                 severity=ActivitySeverity.MEDIUM,
                 details={"reason": "incorrect_password"},
                 tenant_id=user.tenant_id,
+                session=session,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -2638,6 +2755,7 @@ async def regenerate_backup_codes(
             severity=ActivitySeverity.MEDIUM,
             details={"count": len(backup_codes)},
             tenant_id=user.tenant_id,
+            session=session,
         )
 
         logger.info(
@@ -2785,6 +2903,11 @@ async def request_phone_verification(
     """
     try:
         phone_number = phone_request.get("phone")
+        if not phone_number or not isinstance(phone_number, str):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number is required",
+            )
 
         # Generate 6-digit verification code
         import random
@@ -2808,20 +2931,114 @@ async def request_phone_verification(
                 "expires_at": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
             }
 
-        # TODO: Send SMS with verification code
-        # For now, log it (in production, use Twilio/SNS)
-        logger.info(
-            "Phone verification code",
-            user_id=user_info.user_id,
-            code=verification_code,
-            phone=phone_number,
+        sms_feature_enabled = bool(
+            getattr(settings.features, "sms_enabled", False)
+            or getattr(settings.features, "communications_enabled", False)
+        )
+        sms_from_number = getattr(settings, "sms_from_number", None)
+
+        if not sms_feature_enabled:
+            logger.warning(
+                "SMS verification requested while SMS feature disabled",
+                user_id=user_info.user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SMS verification is currently unavailable",
+            )
+
+        if not sms_from_number:
+            logger.error("SMS sender number not configured")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SMS verification not configured",
+            )
+
+        sms_integration = await get_integration_async("sms")
+        if sms_integration is None:
+            logger.error("SMS integration not available")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SMS provider is not configured",
+            )
+
+        if getattr(sms_integration, "status", None) != IntegrationStatus.READY:
+            logger.error(
+                "SMS integration not ready",
+                status=str(getattr(sms_integration, "status", "unknown")),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SMS provider is not ready",
+            )
+
+        message_body = (
+            f"Your DotMac verification code is {verification_code}. "
+            "It will expire in 10 minutes."
         )
 
-        return {
-            "message": "Verification code sent",
-            "debug_code": verification_code,
-        }  # Remove debug_code in production
+        send_result: dict[str, Any]
+        try:
+            send_result = await sms_integration.send_sms(
+                to=phone_number,
+                message=message_body,
+                from_number=sms_from_number,
+            )
+        except Exception as send_error:  # pragma: no cover - defensive logging
+            logger.error(
+                "Failed to send verification SMS",
+                error=str(send_error),
+                user_id=user_info.user_id,
+            )
+            send_result = {"status": "failed", "error": str(send_error)}
+
+        sms_sent = send_result.get("status") == "sent"
+        provider_message_id = send_result.get("message_id")
+        error_message = send_result.get("error") if not sms_sent else None
+
+        communication_log = CommunicationLog(
+            tenant_id=user_info.tenant_id,
+            type=CommunicationType.SMS,
+            recipient=phone_number,
+            sender=sms_from_number,
+            text_body=message_body,
+            status=CommunicationStatus.SENT if sms_sent else CommunicationStatus.FAILED,
+            sent_at=datetime.now(UTC) if sms_sent else None,
+            failed_at=datetime.now(UTC) if not sms_sent else None,
+            error_message=error_message,
+            provider=sms_integration.provider,
+            provider_message_id=provider_message_id,
+            metadata_={
+                "context": "phone_verification",
+                "user_id": user_info.user_id,
+            },
+        )
+
+        session.add(communication_log)
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+        if not sms_sent:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send verification code",
+            )
+
+        logger.info(
+            "Phone verification code sent via SMS",
+            user_id=user_info.user_id,
+            phone=phone_number,
+            provider_message_id=provider_message_id,
+        )
+
+        return {"message": "Verification code sent"}
+    except HTTPException:
+        raise
     except Exception as e:
+        await session.rollback()
         logger.error("Failed to send verification code", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

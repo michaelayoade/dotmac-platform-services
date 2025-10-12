@@ -187,7 +187,7 @@ async def get_analytics_activity_stats(
 
         return ActivityStatsResponse(**stats_data)
 
-    except (RuntimeError, ValueError, TypeError, ConnectionError) as exc:
+    except Exception as exc:
         logger.error("Failed to fetch analytics activity stats", error=str(exc), exc_info=True)
         # Return safe defaults on error
         return ActivityStatsResponse(

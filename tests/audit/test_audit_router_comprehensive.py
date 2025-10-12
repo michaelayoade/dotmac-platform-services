@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.audit.models import ActivitySeverity, AuditActivity
 from dotmac.platform.audit.router import router as audit_router
-from dotmac.platform.auth.core import UserInfo, get_current_user_optional
+from dotmac.platform.auth.core import UserInfo, get_current_user, get_current_user_optional
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -50,6 +50,7 @@ def test_user() -> UserInfo:
 def client(app: FastAPI, async_db_session: AsyncSession, test_user: UserInfo) -> TestClient:
     """Create test client with database and user."""
     app.dependency_overrides[get_async_session] = lambda: async_db_session
+    app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[get_current_user_optional] = lambda: test_user
     app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
     return TestClient(app)
@@ -278,16 +279,21 @@ class TestListActivities:
     async def test_list_activities_without_user(
         self, app: FastAPI, async_db_session: AsyncSession
     ) -> None:
-        """Test listing activities without authenticated user."""
-        # Override to return None for user
+        """Test listing activities without authenticated user but with tenant context.
+
+        This is an edge case where tenant_id is provided but user is None.
+        In production, this wouldn't happen, but the endpoint handles it gracefully.
+        """
+        # Override to return None for user but provide tenant_id
         app.dependency_overrides[get_async_session] = lambda: async_db_session
+        app.dependency_overrides[get_current_user] = lambda: None
         app.dependency_overrides[get_current_user_optional] = lambda: None
         app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
 
         client = TestClient(app)
         response = client.get("/api/v1/audit/activities")
 
-        # Should still work, just won't log the API activity
+        # Should still work with tenant_id override, just won't log the API activity
         assert response.status_code == 200
 
 
@@ -508,6 +514,7 @@ class TestAuditRouterErrorHandling:
             mock_service.get_activities = AsyncMock(side_effect=Exception("Database error"))
             MockService.return_value = mock_service
 
+            test_app.dependency_overrides[get_current_user] = lambda: None
             test_app.dependency_overrides[get_current_user_optional] = lambda: None
             test_app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
 
@@ -539,6 +546,7 @@ class TestTenantIsolation:
     ) -> None:
         """Test that only activities for current tenant are returned."""
         app.dependency_overrides[get_async_session] = lambda: async_db_session
+        app.dependency_overrides[get_current_user] = lambda: None
         app.dependency_overrides[get_current_user_optional] = lambda: None
         app.dependency_overrides[get_current_tenant_id] = lambda: "test-tenant"
 
@@ -562,6 +570,7 @@ class TestTenantIsolation:
         """Test that activities from different tenant are not visible."""
         # Switch to different tenant
         app.dependency_overrides[get_async_session] = lambda: async_db_session
+        app.dependency_overrides[get_current_user] = lambda: None
         app.dependency_overrides[get_current_user_optional] = lambda: None
         app.dependency_overrides[get_current_tenant_id] = lambda: "different-tenant"
 

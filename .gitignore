@@ -215,6 +215,7 @@ $RECYCLE.BIN/
 
 # Editor backups and swap files
 *.bak
+*.backup
 *.swp
 *.swo
 *~

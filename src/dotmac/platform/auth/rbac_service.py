@@ -9,6 +9,7 @@ from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy import and_, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -275,7 +276,7 @@ class RBACService:
             raise AuthorizationError(f"Role '{role_name}' not found")
 
         # Remove role assignment
-        result = await self.db.execute(
+        result: CursorResult[Any] = await self.db.execute(
             user_roles.delete().where(
                 and_(user_roles.c.user_id == user_id, user_roles.c.role_id == role.id)
             )
@@ -420,7 +421,7 @@ class RBACService:
             raise AuthorizationError(f"Permission '{permission_name}' not found")
 
         # Remove the permission grant
-        result = await self.db.execute(
+        result: CursorResult[Any] = await self.db.execute(
             user_permissions.delete().where(
                 and_(
                     user_permissions.c.user_id == user_id,

@@ -13,14 +13,14 @@ from typing import Any, TypeVar
 
 import redis.asyncio as redis
 import structlog
-from cachetools import TTLCache  # type: ignore[import-untyped]
+from cachetools import TTLCache  # noqa: PGH003
 
 from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
 
 # In-memory cache for fast lookups
-_flag_cache = TTLCache(maxsize=1000, ttl=60)  # 1 minute TTL
+_flag_cache: TTLCache[str, dict[str, Any]] = TTLCache(maxsize=1000, ttl=60)  # 1 minute TTL
 _redis_client: redis.Redis | None = None
 _redis_available: bool | None = None  # Cache Redis availability check
 
@@ -132,6 +132,7 @@ async def set_flag(name: str, enabled: bool, context: dict[str, Any] | None = No
 async def is_enabled(name: str, context: dict[str, Any] | None = None) -> bool:
     """Check if feature flag is enabled."""
     # Check cache first
+    flag_data: dict[str, Any] | None
     if name in _flag_cache:
         flag_data = _flag_cache[name]
     else:
@@ -158,7 +159,7 @@ async def is_enabled(name: str, context: dict[str, Any] | None = None) -> bool:
     enabled: bool = flag_data.get("enabled", False)
 
     # Simple context matching (can be extended)
-    flag_context = flag_data.get("context", {})
+    flag_context: dict[str, Any] = flag_data.get("context", {})
     if context and flag_context:
         # Check if all flag context conditions match
         for key, value in flag_context.items():

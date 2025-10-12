@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -29,6 +29,8 @@ from dotmac.platform.database import get_async_session
 class CreateInvoiceRequest(BaseModel):
     """Create invoice request model"""
 
+    model_config = ConfigDict()
+
     customer_id: str = Field(..., description="Customer identifier")
     billing_email: str = Field(..., description="Billing email address")
     billing_address: dict[str, str] = Field(..., description="Billing address")
@@ -48,6 +50,8 @@ class CreateInvoiceRequest(BaseModel):
 class UpdateInvoiceRequest(BaseModel):
     """Update invoice request model"""
 
+    model_config = ConfigDict()
+
     notes: str | None = Field(None, max_length=2000)
     internal_notes: str | None = Field(None, max_length=2000)
     due_date: datetime | None = None
@@ -56,11 +60,15 @@ class UpdateInvoiceRequest(BaseModel):
 class FinalizeInvoiceRequest(BaseModel):
     """Finalize invoice request model"""
 
+    model_config = ConfigDict()
+
     send_email: bool = Field(True, description="Send invoice email to customer")
 
 
 class VoidInvoiceRequest(BaseModel):
     """Void invoice request model"""
+
+    model_config = ConfigDict()
 
     reason: str = Field(..., min_length=1, max_length=500, description="Reason for voiding")
 
@@ -68,12 +76,16 @@ class VoidInvoiceRequest(BaseModel):
 class ApplyCreditRequest(BaseModel):
     """Apply credit to invoice request model"""
 
+    model_config = ConfigDict()
+
     credit_amount: int = Field(..., gt=0, description="Credit amount in minor currency units")
     credit_application_id: str = Field(..., description="Credit application identifier")
 
 
 class InvoiceListResponse(BaseModel):
     """Invoice list response model"""
+
+    model_config = ConfigDict()
 
     invoices: list[Invoice]
     total_count: int

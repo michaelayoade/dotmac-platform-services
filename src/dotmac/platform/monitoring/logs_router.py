@@ -84,6 +84,8 @@ class LogsResponse(BaseModel):
 class LogStats(BaseModel):
     """Log statistics."""
 
+    model_config = ConfigDict()
+
     total: int = Field(description="Total log count")
     by_level: dict[str, int] = Field(default_factory=dict, description="Count by log level")
     by_service: dict[str, int] = Field(default_factory=dict, description="Count by service")

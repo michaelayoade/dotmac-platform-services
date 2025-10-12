@@ -5,7 +5,7 @@ Simple MinIO storage client for file management.
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, cast
+from typing import BinaryIO
 
 import structlog
 from minio import Minio
@@ -127,7 +127,7 @@ class MinIOStorage:
 
         try:
             response = self.client.get_object(self.bucket, object_name)
-            data = cast(bytes, response.read())
+            data: bytes = response.read()
             response.close()
             response.release_conn()
             return data

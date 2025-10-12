@@ -95,6 +95,76 @@ class TestInvoiceCreation:
         assert invoice.invoice_number is not None
         assert invoice.invoice_number.startswith("INV-")
 
+    async def test_create_invoice_with_currency_normalization(
+        self,
+        async_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Ensure invoices capture currency conversion metadata when applicable."""
+
+        from dotmac.platform.integrations import IntegrationStatus
+
+        service = InvoiceService(async_session)
+
+        monkeypatch.setattr(
+            "dotmac.platform.settings.settings.billing.enable_multi_currency", True
+        )
+        monkeypatch.setattr(
+            "dotmac.platform.settings.settings.billing.default_currency", "USD"
+        )
+        monkeypatch.setattr(
+            "dotmac.platform.settings.settings.billing.supported_currencies",
+            ["USD", "EUR"],
+        )
+
+        class DummyCurrencyIntegration:
+            status = IntegrationStatus.READY
+            provider = "dummy"
+
+            async def fetch_rates(
+                self, base_currency: str, target_currencies: list[str]
+            ) -> dict[str, float]:
+                return {currency: 2.0 for currency in target_currencies}
+
+        async def fake_get_integration(name: str):
+            assert name == "currency"
+            return DummyCurrencyIntegration()
+
+        monkeypatch.setattr(
+            "dotmac.platform.billing.currency.service.get_integration_async",
+            fake_get_integration,
+        )
+
+        with patch("dotmac.platform.billing.invoicing.service.get_event_bus") as mock_event_bus:
+            mock_event_bus.return_value.publish = AsyncMock()
+
+            invoice = await service.create_invoice(
+                tenant_id="tenant-multi-currency",
+                customer_id="cust-eu",
+                billing_email="customer@example.com",
+                billing_address={"street": "Gran Via", "city": "Madrid", "country": "ES"},
+                line_items=[
+                    {
+                        "description": "EU Service Fee",
+                        "quantity": 1,
+                        "unit_price": 10000,
+                        "total_price": 10000,
+                        "tax_rate": 0.0,
+                        "tax_amount": 0,
+                        "discount_percentage": 0.0,
+                        "discount_amount": 0,
+                    }
+                ],
+                currency="EUR",
+            )
+
+        conversion = invoice.extra_data.get("currency_conversion")
+        assert conversion is not None
+        assert conversion["target_currency"] == "USD"
+        total_component = conversion["components"]["total_amount"]
+        assert total_component["original_minor_units"] == 10000
+        assert total_component["converted_minor_units"] == 20000
+
     async def test_create_invoice_with_discount(self, async_session: AsyncSession) -> None:
         """Test creating invoice with discounts applied."""
         service = InvoiceService(async_session)

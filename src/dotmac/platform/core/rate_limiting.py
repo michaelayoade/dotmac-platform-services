@@ -26,19 +26,20 @@ def _create_limiter() -> Limiter:
 
     storage_uri = settings.rate_limit.storage_url
     client = redis_client
+    enabled = settings.rate_limit.enabled
 
     if not storage_uri and client:
         storage_uri = settings.redis.cache_url
 
     if storage_uri:
         logger.debug("rate_limit.storage.initialized", storage=storage_uri)
-        return Limiter(key_func=get_remote_address, storage_uri=storage_uri)
+        return Limiter(key_func=get_remote_address, storage_uri=storage_uri, enabled=enabled)
 
     logger.warning(
         "rate_limit.storage.memory",
         message="Falling back to in-memory rate limiting; enable Redis for production",
     )
-    return Limiter(key_func=get_remote_address)
+    return Limiter(key_func=get_remote_address, enabled=enabled)
 
 
 def get_limiter() -> Limiter:

@@ -36,6 +36,7 @@ class TestCreateLimiter:
         """Test limiter creation with configured storage URI."""
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = "redis://localhost:6379/0"
+        mock_rate_limit.enabled = True  # Provide actual bool, not Mock
         mock_settings.rate_limit = mock_rate_limit
 
         result = _create_limiter()
@@ -48,6 +49,7 @@ class TestCreateLimiter:
         """Test limiter creation using Redis cache URL."""
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = None
+        mock_rate_limit.enabled = True  # Provide actual bool, not Mock
         mock_redis = Mock()
         mock_redis.cache_url = "redis://localhost:6379/1"
         mock_settings.rate_limit = mock_rate_limit
@@ -63,6 +65,7 @@ class TestCreateLimiter:
         """Test limiter creation falls back to in-memory storage."""
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = None
+        mock_rate_limit.enabled = True  # Provide actual bool, not Mock
         mock_settings.rate_limit = mock_rate_limit
 
         result = _create_limiter()
@@ -75,6 +78,7 @@ class TestCreateLimiter:
         """Test limiter uses Redis cache URL when redis_client exists."""
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = None
+        mock_rate_limit.enabled = True  # Provide actual bool, not Mock
         mock_redis = Mock()
         mock_redis.cache_url = "redis://localhost:6379/2"
         mock_settings.rate_limit = mock_rate_limit
@@ -288,6 +292,7 @@ class TestLimiterIntegration:
         # Test with no storage URL - provide real redis.cache_url to avoid urlparse issues
         mock_rate_limit = Mock()
         mock_rate_limit.storage_url = None
+        mock_rate_limit.enabled = True  # Provide actual bool, not Mock
         mock_redis = Mock()
         mock_redis.cache_url = "redis://localhost:6379/0"  # Real URL string for urlparse
         mock_settings.rate_limit = mock_rate_limit

@@ -20,7 +20,7 @@ from jinja2 import (
     meta,
     select_autoescape,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = structlog.get_logger(__name__)
 
@@ -36,11 +36,13 @@ class TemplateData(BaseModel):
     variables: list[str] = Field(default_factory=list, description="Template variables")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {"str_strip_whitespace": True, "validate_assignment": True, "extra": "forbid"}
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
 
 class RenderedTemplate(BaseModel):
     """Rendered template result."""
+
+    model_config = ConfigDict()
 
     template_id: str = Field(..., description="Template ID")
     subject: str = Field(..., description="Rendered subject")

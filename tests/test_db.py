@@ -108,14 +108,18 @@ class TestDatabaseModels:
 class TestDatabaseConnection:
     """Test database connection functions."""
 
+    @patch("dotmac.platform.db.get_database_url")
     @patch("dotmac.platform.db.settings")
     @patch("dotmac.platform.db.create_engine")
-    def test_get_sync_engine(self, mock_create_engine, mock_settings):
+    def test_get_sync_engine(self, mock_create_engine, mock_settings, mock_get_database_url):
         """Test get_sync_engine creates engine correctly."""
         # Reset engine state
         import dotmac.platform.db as db_module
 
         db_module._sync_engine = None
+
+        # Mock the database URL to return PostgreSQL
+        mock_get_database_url.return_value = "postgresql://user:pass@localhost/db"
 
         mock_settings.database.url = "postgresql://user:pass@localhost/db"
         mock_settings.database.pool_size = 5
@@ -146,14 +150,20 @@ class TestDatabaseConnection:
         assert engine2 == engine1
         assert mock_create_engine.call_count == 1  # Not called again
 
+    @patch("dotmac.platform.db.get_async_database_url")
     @patch("dotmac.platform.db.settings")
     @patch("dotmac.platform.db.create_async_engine")
-    def test_get_async_engine(self, mock_create_async_engine, mock_settings):
+    def test_get_async_engine(
+        self, mock_create_async_engine, mock_settings, mock_get_async_database_url
+    ):
         """Test get_async_engine creates async engine correctly."""
         # Reset engine state
         import dotmac.platform.db as db_module
 
         db_module._async_engine = None
+
+        # Mock the database URL to return PostgreSQL
+        mock_get_async_database_url.return_value = "postgresql+asyncpg://user:pass@localhost/db"
 
         mock_settings.database.url = "postgresql://user:pass@localhost/db"
         mock_settings.database.async_url = "postgresql+asyncpg://user:pass@localhost/db"
@@ -183,17 +193,21 @@ class TestDatabaseConnection:
 class TestDatabaseUrls:
     """Test database URL generation."""
 
+    @patch("dotmac.platform.db.os.getenv")
     @patch("dotmac.platform.db.settings")
-    def test_get_database_url_with_url_setting(self, mock_settings):
+    def test_get_database_url_with_url_setting(self, mock_settings, mock_getenv):
         """Test get_database_url when URL is explicitly set."""
+        mock_getenv.return_value = None  # No environment override
         mock_settings.database.url = "postgresql://explicit:url@host/db"
 
         result = get_database_url()
         assert result == "postgresql://explicit:url@host/db"
 
+    @patch("dotmac.platform.db.os.getenv")
     @patch("dotmac.platform.db.settings")
-    def test_get_database_url_sqlite_fallback(self, mock_settings):
+    def test_get_database_url_sqlite_fallback(self, mock_settings, mock_getenv):
         """Test get_database_url falls back to SQLite in development."""
+        mock_getenv.return_value = None  # No environment override
         mock_settings.database.url = None
         mock_settings.is_development = True
         mock_settings.database.password = None
@@ -201,9 +215,11 @@ class TestDatabaseUrls:
         result = get_database_url()
         assert result == "sqlite:///./dotmac_dev.sqlite"
 
+    @patch("dotmac.platform.db.os.getenv")
     @patch("dotmac.platform.db.settings")
-    def test_get_database_url_postgresql_components(self, mock_settings):
+    def test_get_database_url_postgresql_components(self, mock_settings, mock_getenv):
         """Test get_database_url builds PostgreSQL URL from components."""
+        mock_getenv.return_value = None  # No environment override
         mock_settings.database.url = None
         mock_settings.is_development = False
         mock_settings.database.username = "testuser"
@@ -215,22 +231,28 @@ class TestDatabaseUrls:
         result = get_database_url()
         assert result == "postgresql://testuser:testpass@testhost:5432/testdb"
 
-    def test_get_async_database_url_postgresql(self):
+    @patch("dotmac.platform.db.os.getenv")
+    def test_get_async_database_url_postgresql(self, mock_getenv):
         """Test get_async_database_url converts PostgreSQL to asyncpg."""
+        mock_getenv.return_value = None  # No environment override
         with patch(
             "dotmac.platform.db.get_database_url", return_value="postgresql://user:pass@host/db"
         ):
             result = get_async_database_url()
             assert result == "postgresql+asyncpg://user:pass@host/db"
 
-    def test_get_async_database_url_sqlite(self):
+    @patch("dotmac.platform.db.os.getenv")
+    def test_get_async_database_url_sqlite(self, mock_getenv):
         """Test get_async_database_url converts SQLite to aiosqlite."""
+        mock_getenv.return_value = None  # No environment override
         with patch("dotmac.platform.db.get_database_url", return_value="sqlite:///test.db"):
             result = get_async_database_url()
             assert result == "sqlite+aiosqlite:///test.db"
 
-    def test_get_async_database_url_other(self):
+    @patch("dotmac.platform.db.os.getenv")
+    def test_get_async_database_url_other(self, mock_getenv):
         """Test get_async_database_url with other database types."""
+        mock_getenv.return_value = None  # No environment override
         with patch("dotmac.platform.db.get_database_url", return_value="mysql://user:pass@host/db"):
             result = get_async_database_url()
             assert result == "mysql://user:pass@host/db"
@@ -380,6 +402,30 @@ class TestSessionManagement:
         session = await async_gen.__anext__()
         assert session == mock_session
 
+    @patch("dotmac.platform.db._async_session_maker")
+    @pytest.mark.asyncio
+    async def test_get_async_session_exception(self, mock_session_maker):
+        """Test get_async_session exception handling."""
+        mock_session = AsyncMock()
+
+        @asynccontextmanager
+        async def mock_context():
+            yield mock_session
+
+        mock_session_maker.return_value = mock_context()
+
+        # Use the async generator properly
+        try:
+            async_gen = get_async_session()
+            session = await async_gen.__anext__()
+            # Raise an exception inside the generator context
+            await async_gen.athrow(ValueError("Test exception"))
+        except ValueError:
+            pass
+
+        # The exception should trigger rollback
+        mock_session.rollback.assert_called_once()
+
 
 class TestSessionDependency:
     """Test get_session_dependency function."""
@@ -419,6 +465,50 @@ class TestSessionDependency:
             yield mock_session
 
         with patch("dotmac.platform.db.get_async_session", return_value=mock_context()):
+            async for session in get_session_dependency():
+                assert session == mock_session
+                break
+
+    @pytest.mark.asyncio
+    async def test_get_session_dependency_with_awaitable_asyncmock(self):
+        """Test get_session_dependency with awaitable AsyncMock."""
+        import asyncio
+
+        mock_session = AsyncMock()
+
+        # Create an awaitable that returns the mock session
+        async def awaitable_mock():
+            await asyncio.sleep(0)  # Make it truly awaitable
+            return mock_session
+
+        with patch("dotmac.platform.db.get_async_session", return_value=awaitable_mock()):
+            async for session in get_session_dependency():
+                assert session == mock_session
+                break
+
+    @pytest.mark.asyncio
+    async def test_get_session_dependency_with_awaitable_session(self):
+        """Test get_session_dependency with plain awaitable session."""
+        import asyncio
+
+        mock_session = AsyncMock()
+
+        # Create a plain awaitable that returns a session
+        async def get_awaitable_session():
+            await asyncio.sleep(0)
+            return mock_session
+
+        with patch("dotmac.platform.db.get_async_session", return_value=get_awaitable_session()):
+            async for session in get_session_dependency():
+                assert session == mock_session
+                break
+
+    @pytest.mark.asyncio
+    async def test_get_session_dependency_with_plain_session(self):
+        """Test get_session_dependency with plain session object."""
+        mock_session = Mock()  # Use non-async Mock
+
+        with patch("dotmac.platform.db.get_async_session", return_value=mock_session):
             async for session in get_session_dependency():
                 assert session == mock_session
                 break

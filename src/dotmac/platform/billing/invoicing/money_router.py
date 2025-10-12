@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -28,6 +28,8 @@ from dotmac.platform.database import get_async_session
 class MoneyLineItemRequest(BaseModel):
     """Line item request using decimal amounts instead of cents."""
 
+    model_config = ConfigDict()
+
     description: str = Field(..., min_length=1, max_length=500)
     quantity: int = Field(..., ge=1)
     unit_price: str = Field(..., description="Unit price as decimal string (e.g., '19.99')")
@@ -40,6 +42,8 @@ class MoneyLineItemRequest(BaseModel):
 
 class CreateMoneyInvoiceRequest(BaseModel):
     """Create invoice request using Money models."""
+
+    model_config = ConfigDict()
 
     customer_id: str = Field(..., description="Customer identifier")
     billing_email: str = Field(..., description="Billing email address")
@@ -57,6 +61,8 @@ class CreateMoneyInvoiceRequest(BaseModel):
 class PDFGenerationRequest(BaseModel):
     """PDF generation options."""
 
+    model_config = ConfigDict()
+
     company_info: dict[str, Any] | None = Field(None, description="Company information for invoice")
     customer_info: dict[str, Any] | None = Field(
         None, description="Additional customer information"
@@ -69,6 +75,8 @@ class PDFGenerationRequest(BaseModel):
 class BatchPDFRequest(BaseModel):
     """Batch PDF generation request."""
 
+    model_config = ConfigDict()
+
     invoice_ids: list[str] = Field(..., min_length=1, max_length=100)
     company_info: dict[str, Any] | None = None
     locale: str = Field("en_US")
@@ -76,6 +84,8 @@ class BatchPDFRequest(BaseModel):
 
 class InvoiceDiscountRequest(BaseModel):
     """Apply discount to invoice."""
+
+    model_config = ConfigDict()
 
     discount_percentage: float = Field(..., gt=0, le=100, description="Discount percentage (0-100)")
     reason: str = Field(..., min_length=1, max_length=500)

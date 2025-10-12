@@ -8,7 +8,7 @@ import os
 from typing import Any
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..settings import get_settings
 
@@ -17,6 +17,8 @@ logger = structlog.get_logger(__name__)
 
 class VaultConnectionConfig(BaseModel):
     """Configuration for Vault/OpenBao connection."""
+
+    model_config = ConfigDict()
 
     url: str = Field(description="Vault/OpenBao server URL")
     token: str | None = Field(None, description="Authentication token")

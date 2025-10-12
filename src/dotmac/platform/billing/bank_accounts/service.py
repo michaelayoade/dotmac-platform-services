@@ -37,6 +37,11 @@ from dotmac.platform.billing.core.exceptions import (
     BillingError,
     PaymentError,
 )
+from dotmac.platform.billing.recovery import (
+    BillingRetry,
+    CircuitBreaker,
+    ExponentialBackoff,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,11 @@ class BankAccountService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        # Initialize recovery helpers
+        self.retry_manager = BillingRetry(
+            max_attempts=3, strategy=ExponentialBackoff(base_delay=1.0, max_delay=30.0)
+        )
+        self.circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
 
     async def create_bank_account(
         self, tenant_id: str, data: CompanyBankAccountCreate, created_by: str
@@ -363,6 +373,11 @@ class ManualPaymentService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        # Initialize recovery helpers
+        self.retry_manager = BillingRetry(
+            max_attempts=3, strategy=ExponentialBackoff(base_delay=1.0, max_delay=30.0)
+        )
+        self.circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
 
     async def record_cash_payment(
         self, tenant_id: str, data: CashPaymentCreate, recorded_by: str
@@ -397,12 +412,21 @@ class ManualPaymentService:
             updated_by=recorded_by,
         )
 
-        self.db.add(payment)
-        await self.db.commit()
-        await self.db.refresh(payment)
+        # Use retry logic for database operations
+        async def _save_payment() -> ManualPayment:
+            self.db.add(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
+            return payment
 
-        logger.info(f"Recorded cash payment {payment.id} for customer {data.customer_id}")
-        return self._to_payment_response(payment)
+        try:
+            saved_payment = await self.retry_manager.execute(_save_payment)
+            logger.info(f"Recorded cash payment {saved_payment.id} for customer {data.customer_id}")
+            return self._to_payment_response(saved_payment)
+        except Exception as e:
+            logger.error(f"Failed to record cash payment: {e}")
+            await self.db.rollback()
+            raise PaymentError(f"Failed to record cash payment: {e}")
 
     async def record_check_payment(
         self, tenant_id: str, data: CheckPaymentCreate, recorded_by: str
@@ -437,12 +461,23 @@ class ManualPaymentService:
             updated_by=recorded_by,
         )
 
-        self.db.add(payment)
-        await self.db.commit()
-        await self.db.refresh(payment)
+        # Use retry logic for database operations
+        async def _save_payment() -> ManualPayment:
+            self.db.add(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
+            return payment
 
-        logger.info(f"Recorded check payment {payment.id} for customer {data.customer_id}")
-        return self._to_payment_response(payment)
+        try:
+            saved_payment = await self.retry_manager.execute(_save_payment)
+            logger.info(
+                f"Recorded check payment {saved_payment.id} for customer {data.customer_id}"
+            )
+            return self._to_payment_response(saved_payment)
+        except Exception as e:
+            logger.error(f"Failed to record check payment: {e}")
+            await self.db.rollback()
+            raise PaymentError(f"Failed to record check payment: {e}")
 
     async def record_bank_transfer(
         self, tenant_id: str, data: BankTransferCreate, recorded_by: str
@@ -478,12 +513,23 @@ class ManualPaymentService:
             updated_by=recorded_by,
         )
 
-        self.db.add(payment)
-        await self.db.commit()
-        await self.db.refresh(payment)
+        # Use retry logic for database operations
+        async def _save_payment() -> ManualPayment:
+            self.db.add(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
+            return payment
 
-        logger.info(f"Recorded bank transfer {payment.id} for customer {data.customer_id}")
-        return self._to_payment_response(payment)
+        try:
+            saved_payment = await self.retry_manager.execute(_save_payment)
+            logger.info(
+                f"Recorded bank transfer {saved_payment.id} for customer {data.customer_id}"
+            )
+            return self._to_payment_response(saved_payment)
+        except Exception as e:
+            logger.error(f"Failed to record bank transfer: {e}")
+            await self.db.rollback()
+            raise PaymentError(f"Failed to record bank transfer: {e}")
 
     async def record_mobile_money(
         self, tenant_id: str, data: MobileMoneyCreate, recorded_by: str
@@ -518,12 +564,23 @@ class ManualPaymentService:
             updated_by=recorded_by,
         )
 
-        self.db.add(payment)
-        await self.db.commit()
-        await self.db.refresh(payment)
+        # Use retry logic for database operations
+        async def _save_payment() -> ManualPayment:
+            self.db.add(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
+            return payment
 
-        logger.info(f"Recorded mobile money payment {payment.id} for customer {data.customer_id}")
-        return self._to_payment_response(payment)
+        try:
+            saved_payment = await self.retry_manager.execute(_save_payment)
+            logger.info(
+                f"Recorded mobile money payment {saved_payment.id} for customer {data.customer_id}"
+            )
+            return self._to_payment_response(saved_payment)
+        except Exception as e:
+            logger.error(f"Failed to record mobile money payment: {e}")
+            await self.db.rollback()
+            raise PaymentError(f"Failed to record mobile money payment: {e}")
 
     async def search_payments(
         self, tenant_id: str, filters: PaymentSearchFilters, limit: int = 100, offset: int = 0
@@ -578,31 +635,40 @@ class ManualPaymentService:
     ) -> ManualPaymentResponse:
         """Mark a payment as verified"""
 
-        result = await self.db.execute(
-            select(ManualPayment).where(
-                and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id == payment_id)
+        # Use circuit breaker for verification operations
+        async def _verify() -> ManualPayment:
+            result = await self.db.execute(
+                select(ManualPayment).where(
+                    and_(ManualPayment.tenant_id == tenant_id, ManualPayment.id == payment_id)
+                )
             )
-        )
-        payment = result.scalar_one_or_none()
+            payment = result.scalar_one_or_none()
 
-        if not payment:
-            raise PaymentError(f"Payment {payment_id} not found")
+            if not payment:
+                raise PaymentError(f"Payment {payment_id} not found")
 
-        payment.status = "verified"
-        payment.approved_by = verified_by
-        payment.approved_at = datetime.now(UTC)
-        payment.updated_by = verified_by
-        payment.updated_at = datetime.now(UTC)
+            payment.status = "verified"
+            payment.approved_by = verified_by
+            payment.approved_at = datetime.now(UTC)
+            payment.updated_by = verified_by
+            payment.updated_at = datetime.now(UTC)
 
-        if notes:
-            existing_notes = payment.notes or ""
-            payment.notes = f"{existing_notes}\nVerification: {notes}".strip()
+            if notes:
+                existing_notes = payment.notes or ""
+                payment.notes = f"{existing_notes}\nVerification: {notes}".strip()
 
-        await self.db.commit()
-        await self.db.refresh(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
+            return payment
 
-        logger.info(f"Verified payment {payment_id}")
-        return self._to_payment_response(payment)
+        try:
+            verified_payment = await self.circuit_breaker.call(_verify)
+            logger.info(f"Verified payment {payment_id}")
+            return self._to_payment_response(verified_payment)
+        except Exception as e:
+            logger.error(f"Failed to verify payment {payment_id}: {e}")
+            await self.db.rollback()
+            raise PaymentError(f"Failed to verify payment: {e}")
 
     async def reconcile_payments(
         self,

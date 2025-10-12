@@ -153,7 +153,7 @@ async def list_partners(
     """
     offset = (page - 1) * page_size
 
-    partners = await service.list_partners(
+    partners, total = await service.list_partners(
         status=status_filter,
         offset=offset,
         limit=page_size,
@@ -164,7 +164,7 @@ async def list_partners(
 
     return PartnerListResponse(
         partners=partner_responses,
-        total=len(partner_responses),  # TODO: Add count query
+        total=total,
         page=page,
         page_size=page_size,
     )

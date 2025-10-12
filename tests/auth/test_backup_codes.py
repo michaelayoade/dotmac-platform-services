@@ -76,12 +76,18 @@ async def client(app, async_db_session, mock_user_info):
     from dotmac.platform.auth.dependencies import get_current_user
     from dotmac.platform.db import get_session_dependency
 
-    app.dependency_overrides[get_session_dependency] = lambda: async_db_session
+    async def override_get_session():
+        yield async_db_session
+
+    app.dependency_overrides[get_session_dependency] = override_get_session
     app.dependency_overrides[get_current_user] = lambda: mock_user_info
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    from unittest.mock import AsyncMock, patch
+
+    with patch("dotmac.platform.auth.router.log_user_activity", new=AsyncMock()):
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
 
 # ========================================

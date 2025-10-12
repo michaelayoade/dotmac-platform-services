@@ -1,0 +1,289 @@
+"""
+Integration tests for the ticketing router.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from dotmac.platform.auth.core import UserInfo, get_current_user
+from dotmac.platform.auth.dependencies import get_current_user_optional
+from dotmac.platform.customer_management.models import (
+    CommunicationChannel,
+    Customer,
+    CustomerStatus,
+    CustomerTier,
+    CustomerType,
+)
+from dotmac.platform.db import get_session_dependency
+from dotmac.platform.partner_management.models import (
+    CommissionModel,
+    Partner,
+    PartnerStatus,
+    PartnerTier,
+    PartnerUser,
+)
+from dotmac.platform.tenant import get_current_tenant_id
+from dotmac.platform.ticketing.models import Ticket, TicketActorType
+from dotmac.platform.ticketing.router import router as ticketing_router
+from dotmac.platform.user_management.models import User
+
+
+@pytest.fixture
+def ticketing_app(async_db_session):
+    """
+    Build a dedicated FastAPI app for ticketing tests with dependency overrides.
+    """
+
+    app = FastAPI()
+    app.include_router(ticketing_router, prefix="/api/v1/ticketing")
+
+    current_user_holder: dict[str, UserInfo | None] = {"value": None}
+
+    async def override_get_current_user():
+        user = current_user_holder["value"]
+        if user is None:
+            raise AssertionError("Test must set current_user before making requests.")
+        return user
+
+    async def override_session():
+        yield async_db_session
+
+    def override_get_current_tenant_id():
+        return "test-tenant"
+
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_current_user_optional] = override_get_current_user
+    app.dependency_overrides[get_session_dependency] = override_session
+    app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+
+    return app, current_user_holder
+
+
+@pytest.mark.asyncio
+async def test_customer_creates_ticket_for_tenant(async_db_session, ticketing_app):
+    """Customers should be able to open tickets targeting their tenant support team."""
+    app, current_user_holder = ticketing_app
+
+    customer_user_id = uuid.uuid4()
+    user = User(
+        id=customer_user_id,
+        username="customer-user",
+        email="customer@example.com",
+        password_hash="hashed",
+        tenant_id="test-tenant",
+    )
+    customer = Customer(
+        id=uuid.uuid4(),
+        customer_number="CUST-0001",
+        first_name="Jane",
+        last_name="Doe",
+        status=CustomerStatus.ACTIVE,
+        customer_type=CustomerType.INDIVIDUAL,
+        tier=CustomerTier.BASIC,
+        email="customer@example.com",
+        preferred_channel=CommunicationChannel.EMAIL,
+        tenant_id="test-tenant",
+        user_id=customer_user_id,
+    )
+    async_db_session.add_all([user, customer])
+    await async_db_session.commit()
+
+    current_user_holder["value"] = UserInfo(
+        user_id=str(customer_user_id),
+        email="customer@example.com",
+        username="customer-user",
+        roles=["customer"],
+        permissions=["tickets:create"],
+        tenant_id="test-tenant",
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/v1/ticketing",
+            json={
+                "subject": "Need assistance",
+                "message": "Our onboarding is blocked.",
+                "target_type": "tenant",
+                "priority": "high",
+            },
+        )
+
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["origin_type"] == TicketActorType.CUSTOMER.value
+    assert payload["target_type"] == TicketActorType.TENANT.value
+    assert payload["customer_id"] == str(customer.id)
+    assert payload["priority"] == "high"
+    assert len(payload["messages"]) == 1
+    assert payload["messages"][0]["body"] == "Our onboarding is blocked."
+
+    # Ensure ticket persisted with correct tenant association
+    stored_ticket = await async_db_session.get(Ticket, uuid.UUID(payload["id"]))
+    assert stored_ticket is not None
+    assert stored_ticket.tenant_id == "test-tenant"
+    assert stored_ticket.customer_id == customer.id
+
+
+@pytest.mark.asyncio
+async def test_tenant_escalates_ticket_to_partner(async_db_session, ticketing_app):
+    """Tenant administrators should be able to escalate tickets to an active partner."""
+    app, current_user_holder = ticketing_app
+
+    partner = Partner(
+        id=uuid.uuid4(),
+        partner_number="PARTNER-001",
+        company_name="Partner Co",
+        primary_email="support@partner.co",
+        status=PartnerStatus.ACTIVE,
+        tier=PartnerTier.BRONZE,
+        commission_model=CommissionModel.REVENUE_SHARE,
+        tenant_id="test-tenant",
+    )
+    async_db_session.add(partner)
+    await async_db_session.commit()
+
+    current_user_holder["value"] = UserInfo(
+        user_id=str(uuid.uuid4()),
+        email="admin@tenant.com",
+        username="tenant-admin",
+        roles=["admin"],
+        permissions=["tickets:create", "tickets:update"],
+        tenant_id="test-tenant",
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/v1/ticketing",
+            json={
+                "subject": "Partner escalation",
+                "message": "We need partner assistance on deployment.",
+                "target_type": "partner",
+                "partner_id": str(partner.id),
+            },
+        )
+
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["partner_id"] == str(partner.id)
+    assert data["origin_type"] == TicketActorType.TENANT.value
+    assert data["target_type"] == TicketActorType.PARTNER.value
+
+
+@pytest.mark.asyncio
+async def test_partner_appends_message_with_status_transition(async_db_session, ticketing_app):
+    """Partners should respond to tickets and transition status."""
+    app, current_user_holder = ticketing_app
+
+    # Prepare partner and associated user
+    partner_id = uuid.uuid4()
+    partner_user_account_id = uuid.uuid4()
+    tenant_admin_id = uuid.uuid4()
+
+    partner = Partner(
+        id=partner_id,
+        partner_number="PARTNER-9000",
+        company_name="Reseller Partners",
+        primary_email="ops@reseller.io",
+        status=PartnerStatus.ACTIVE,
+        tier=PartnerTier.SILVER,
+        commission_model=CommissionModel.REVENUE_SHARE,
+        tenant_id="test-tenant",
+    )
+    tenant_user = User(
+        id=tenant_admin_id,
+        username="tenant-user",
+        email="tenant@example.com",
+        password_hash="hashed",
+        tenant_id="test-tenant",
+        roles=["admin"],
+    )
+    partner_portal_user = User(
+        id=partner_user_account_id,
+        username="partner-portal",
+        email="partner.user@example.com",
+        password_hash="hashed",
+        tenant_id="test-tenant",
+    )
+    partner_user = PartnerUser(
+        id=uuid.uuid4(),
+        partner_id=partner_id,
+        first_name="Pat",
+        last_name="Ner",
+        email="partner.user@example.com",
+        role="account_manager",
+        is_primary_contact=True,
+        user_id=partner_user_account_id,
+        tenant_id="test-tenant",
+    )
+
+    async_db_session.add_all([partner, tenant_user, partner_portal_user, partner_user])
+    await async_db_session.commit()
+
+    # Tenant opens ticket to partner
+    current_user_holder["value"] = UserInfo(
+        user_id=str(tenant_admin_id),
+        email="tenant@example.com",
+        username="tenant-user",
+        roles=["admin"],
+        permissions=["tickets:create"],
+        tenant_id="test-tenant",
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        create_resp = await client.post(
+            "/api/v1/ticketing",
+            json={
+                "subject": "Partner help needed",
+                "message": "Please review our integration plan.",
+                "target_type": "partner",
+                "partner_id": str(partner_id),
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        ticket_payload = create_resp.json()
+        ticket_id = ticket_payload["id"]
+
+        # Partner responds and moves ticket in progress
+        current_user_holder["value"] = UserInfo(
+            user_id=str(partner_user_account_id),
+            email="partner.user@example.com",
+            username="partner-portal",
+            roles=["partner"],
+            permissions=["tickets:respond"],
+            tenant_id="test-tenant",
+        )
+
+        message_resp = await client.post(
+            f"/api/v1/ticketing/{ticket_id}/messages",
+            json={
+                "message": "Review complete, proceeding with implementation.",
+                "new_status": "in_progress",
+            },
+        )
+
+    assert message_resp.status_code == 201, message_resp.text
+    updated_ticket = message_resp.json()
+    assert updated_ticket["status"] == "in_progress"
+    assert len(updated_ticket["messages"]) == 2
+    assert updated_ticket["messages"][-1]["sender_type"] == TicketActorType.PARTNER.value
+    assert (
+        updated_ticket["messages"][-1]["body"] == "Review complete, proceeding with implementation."
+    )
+    assert updated_ticket["partner_id"] == str(partner_id)
+    assert updated_ticket["last_response_at"] is not None
+
+    # Reload from database to verify persistence
+    stored_ticket = await async_db_session.get(Ticket, uuid.UUID(ticket_id))
+    assert stored_ticket.status == "in_progress"
+    assert stored_ticket.partner_id == partner_id
+    assert stored_ticket.last_response_at is not None
+    assert stored_ticket.last_response_at <= datetime.now(UTC)

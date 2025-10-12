@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     class DatabaseSettings(BaseModel):
         """Database configuration."""
 
+        model_config = ConfigDict()
+
         url: PostgresDsn | None = Field(None, description="Full database URL")
         host: str = Field("localhost", description="Database host")
         port: int = Field(5432, description="Database port")
@@ -129,6 +131,8 @@ class Settings(BaseSettings):
 
     class RedisSettings(BaseModel):
         """Redis configuration."""
+
+        model_config = ConfigDict()
 
         url: RedisDsn | None = Field(None, description="Full Redis URL")
         host: str = Field("localhost", description="Redis host")
@@ -176,6 +180,8 @@ class Settings(BaseSettings):
 
     class JWTSettings(BaseModel):
         """JWT configuration."""
+
+        model_config = ConfigDict()
 
         secret_key: str = Field("change-me", description="JWT secret key")
         algorithm: str = Field("HS256", description="JWT algorithm")
@@ -234,6 +240,8 @@ class Settings(BaseSettings):
     class CORSSettings(BaseModel):
         """CORS configuration."""
 
+        model_config = ConfigDict()
+
         enabled: bool = Field(True, description="Enable CORS")
         origins: list[str] = Field(
             default_factory=lambda: [
@@ -258,6 +266,8 @@ class Settings(BaseSettings):
 
     class EmailSettings(BaseModel):
         """Email and SMTP configuration."""
+
+        model_config = ConfigDict()
 
         # SMTP Configuration
         smtp_host: str = Field("localhost", description="SMTP server host")
@@ -290,6 +300,8 @@ class Settings(BaseSettings):
     class TenantSettings(BaseModel):
         """Multi-tenant configuration."""
 
+        model_config = ConfigDict()
+
         # Tenant mode
         mode: str = Field("single", description="Tenant mode: single or multi")
         default_tenant_id: str = Field("default", description="Default tenant ID")
@@ -318,6 +330,8 @@ class Settings(BaseSettings):
     class CelerySettings(BaseModel):
         """Celery configuration."""
 
+        model_config = ConfigDict()
+
         broker_url: str = Field("redis://localhost:6379/0", description="Broker URL")
         result_backend: str = Field("redis://localhost:6379/1", description="Result backend")
         task_serializer: str = Field("json", description="Task serializer")
@@ -343,6 +357,8 @@ class Settings(BaseSettings):
 
     class ObservabilitySettings(BaseModel):
         """Observability configuration."""
+
+        model_config = ConfigDict()
 
         # Logging
         log_level: LogLevel = Field(LogLevel.INFO, description="Log level")
@@ -395,6 +411,8 @@ class Settings(BaseSettings):
 
     class BillingSettings(BaseModel):
         """Billing system configuration."""
+
+        model_config = ConfigDict()
 
         # Product settings
         default_currency: str = Field("USD", description="Default currency for products")
@@ -470,6 +488,19 @@ class Settings(BaseSettings):
         enable_dunning_management: bool = Field(
             True, description="Enable dunning management for failed payments"
         )
+        exchange_rate_provider: str = Field(
+            "openexchangerates", description="Currency exchange rate provider identifier"
+        )
+        exchange_rate_refresh_minutes: int = Field(
+            60, description="How often to refresh exchange rates (minutes)"
+        )
+        exchange_rate_endpoint: str | None = Field(
+            None, description="Override endpoint for exchange rate provider"
+        )
+        supported_currencies: list[str] = Field(
+            default_factory=lambda: ["USD", "EUR", "GBP"],
+            description="Global list of supported currencies",
+        )
 
     billing: BillingSettings = BillingSettings()  # type: ignore[call-arg]
 
@@ -479,6 +510,8 @@ class Settings(BaseSettings):
 
     class RateLimitSettings(BaseModel):
         """Rate limiting configuration."""
+
+        model_config = ConfigDict()
 
         enabled: bool = Field(True, description="Enable rate limiting")
         default_limit: str = Field("100/hour", description="Default rate limit")
@@ -501,6 +534,8 @@ class Settings(BaseSettings):
     class VaultSettings(BaseModel):
         """Vault/OpenBao configuration (API-compatible)."""
 
+        model_config = ConfigDict()
+
         enabled: bool = Field(False, description="Enable Vault/OpenBao")
         url: str = Field("http://localhost:8200", description="Vault/OpenBao URL")
         token: str | None = Field(None, description="Vault token")
@@ -516,6 +551,8 @@ class Settings(BaseSettings):
 
     class StorageSettings(BaseModel):
         """MinIO object storage configuration."""
+
+        model_config = ConfigDict()
 
         provider: str = Field("minio", description="Storage provider: 'minio' or 'local'")
         enabled: bool = Field(True, description="Enable MinIO storage")
@@ -538,11 +575,17 @@ class Settings(BaseSettings):
     class FeatureFlags(BaseModel):
         """Feature flags for core platform features."""
 
+        model_config = ConfigDict()
+
         # Core features
         mfa_enabled: bool = Field(False, description="Enable multi-factor authentication")
         audit_logging: bool = Field(True, description="Enable audit logging")
         # Communications
         email_enabled: bool = Field(True, description="Enable email integrations")
+        communications_enabled: bool = Field(
+            True, description="Enable core communications functionality"
+        )
+        sms_enabled: bool = Field(False, description="Enable SMS integrations")
 
         # Storage - MinIO only
         storage_enabled: bool = Field(True, description="Enable MinIO storage")
@@ -576,6 +619,15 @@ class Settings(BaseSettings):
         db_sqlite: bool = Field(True, description="Enable SQLite support for dev/test")
 
     features: FeatureFlags = FeatureFlags()  # type: ignore[call-arg]
+
+    # ============================================================
+    # SMS / Communications
+    # ============================================================
+
+    sms_from_number: str | None = Field(
+        None,
+        description="Default SMS sender/phone number (E.164 format)",
+    )
 
     # ============================================================
     # Validation & Helpers

@@ -103,12 +103,14 @@ class TestPartnerServiceCRUD:
         )
 
         # List all partners
-        all_partners = await service.list_partners()
+        all_partners, total_count = await service.list_partners()
         assert len(all_partners) >= 2
+        assert total_count >= 2
 
         # List only pending partners
-        pending_partners = await service.list_partners(status=PartnerStatus.PENDING)
+        pending_partners, pending_count = await service.list_partners(status=PartnerStatus.PENDING)
         assert all(p.status == PartnerStatus.PENDING for p in pending_partners)
+        assert pending_count >= 1
 
 
 @pytest.mark.asyncio

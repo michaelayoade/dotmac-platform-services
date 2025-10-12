@@ -3,15 +3,20 @@ Settings management service for admin operations.
 """
 
 import json
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
 from pydantic import BaseModel, ValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform import settings as platform_settings
 from dotmac.platform.admin.settings.models import (
+    AdminSettingsAuditEntry,
     AuditLog,
     SettingField,
     SettingsBackup,
@@ -21,6 +26,7 @@ from dotmac.platform.admin.settings.models import (
     SettingsUpdateRequest,
     SettingsValidationResult,
 )
+from dotmac.platform.db import AsyncSessionLocal
 
 logger = structlog.get_logger(__name__)
 
@@ -66,17 +72,30 @@ class SettingsManagementService:
         SettingsCategory.CELERY: ["broker_url", "result_backend"],
     }
 
-    def __init__(self) -> None:
+    def __init__(self, session_factory: Callable[[], AsyncSession] | None = None) -> None:
         """Initialize settings management service."""
         self.settings = platform_settings.settings
-        self._audit_logs: list[AuditLog] = []
         self._backups: dict[UUID, SettingsBackup] = {}
+        self._session_factory = session_factory or AsyncSessionLocal
 
-    def get_category_settings(
+    @asynccontextmanager
+    async def _get_session(
+        self, session: AsyncSession | None = None
+    ) -> AsyncIterator[AsyncSession]:
+        """Provide an async session, reusing provided session when available."""
+        if session is not None:
+            yield session
+            return
+
+        async with self._session_factory() as new_session:
+            yield new_session
+
+    async def get_category_settings(
         self,
         category: SettingsCategory,
         include_sensitive: bool = False,
         user_id: str | None = None,
+        session: AsyncSession | None = None,
     ) -> SettingsResponse:
         """
         Get settings for a specific category.
@@ -96,8 +115,8 @@ class SettingsManagementService:
         settings_obj = getattr(self.settings, attr_name)
         fields = self._extract_fields(settings_obj, include_sensitive=include_sensitive)
 
-        # Get last update info from audit logs
-        last_update_info = self._get_last_update_info(category)
+        async with self._get_session(session) as db_session:
+            last_update_info = await self._get_last_update_info(db_session, category)
 
         return SettingsResponse(
             category=category,
@@ -107,7 +126,7 @@ class SettingsManagementService:
             updated_by=last_update_info.get("user_email"),
         )
 
-    def update_category_settings(
+    async def update_category_settings(
         self,
         category: SettingsCategory,
         update_request: SettingsUpdateRequest,
@@ -115,6 +134,8 @@ class SettingsManagementService:
         user_email: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        tenant_id: str | None = None,
+        session: AsyncSession | None = None,
     ) -> SettingsResponse:
         """
         Update settings for a specific category.
@@ -137,8 +158,7 @@ class SettingsManagementService:
 
         # Get current settings
         settings_obj = getattr(self.settings, attr_name)
-        old_values = {}
-        changes = {}
+        changes: dict[str, dict[str, Any]] = {}
 
         # Validate and apply updates
         for field_name, new_value in update_request.updates.items():
@@ -146,38 +166,51 @@ class SettingsManagementService:
                 raise ValueError(f"Invalid field '{field_name}' for category {category}")
 
             old_value = getattr(settings_obj, field_name)
-            old_values[field_name] = old_value
 
             # Apply the update
             if not update_request.validate_only:
                 setattr(settings_obj, field_name, new_value)
                 changes[field_name] = {"old": old_value, "new": new_value}
 
-        # Create audit log entry
-        if not update_request.validate_only and changes:
-            audit_entry = AuditLog(
-                id=uuid4(),
-                timestamp=datetime.now(UTC),
-                user_id=user_id,
-                user_email=user_email,
-                category=category,
-                action="update",
-                changes=changes,
-                reason=update_request.reason,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
-            self._audit_logs.append(audit_entry)
+        async with self._get_session(session) as db_session:
+            if not update_request.validate_only and changes:
+                audit_entry = AdminSettingsAuditEntry(
+                    tenant_id=tenant_id,
+                    category=category.value,
+                    action="update",
+                    user_id=user_id,
+                    user_email=user_email,
+                    reason=update_request.reason,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    changes=changes,
+                )
+                db_session.add(audit_entry)
+                await db_session.commit()
 
-            logger.info(
-                "Settings updated",
-                category=category.value,
-                user=user_email,
-                changes=list(changes.keys()),
-            )
+                logger.info(
+                    "Settings updated",
+                    category=category.value,
+                    user=user_email,
+                    changes=list(changes.keys()),
+                )
 
-        # Return updated settings
-        return self.get_category_settings(category, include_sensitive=False)
+                last_update_info = {
+                    "timestamp": audit_entry.created_at,
+                    "user_email": audit_entry.user_email,
+                }
+            else:
+                last_update_info = await self._get_last_update_info(db_session, category)
+
+        fields = self._extract_fields(settings_obj, include_sensitive=False)
+
+        return SettingsResponse(
+            category=category,
+            display_name=SettingsCategory.get_display_name(category),
+            fields=fields,
+            last_updated=last_update_info.get("timestamp"),
+            updated_by=last_update_info.get("user_email"),
+        )
 
     def validate_settings(
         self,
@@ -235,38 +268,41 @@ class SettingsManagementService:
 
         return result
 
-    def get_all_categories(self) -> list[SettingsCategoryInfo]:
+    async def get_all_categories(
+        self, session: AsyncSession | None = None
+    ) -> list[SettingsCategoryInfo]:
         """
         Get information about all available settings categories.
 
         Returns:
             List of category information
         """
-        categories = []
+        categories: list[SettingsCategoryInfo] = []
 
-        for category in SettingsCategory:
-            attr_name = self.CATEGORY_MAPPING.get(category)
-            if not attr_name or not hasattr(self.settings, attr_name):
-                continue
+        async with self._get_session(session) as db_session:
+            for category in SettingsCategory:
+                attr_name = self.CATEGORY_MAPPING.get(category)
+                if not attr_name or not hasattr(self.settings, attr_name):
+                    continue
 
-            settings_obj = getattr(self.settings, attr_name)
-            fields = self._extract_fields(settings_obj)
+                settings_obj = getattr(self.settings, attr_name)
+                fields = self._extract_fields(settings_obj)
 
-            has_sensitive = any(self._is_sensitive_field(field.name) for field in fields)
+                has_sensitive = any(self._is_sensitive_field(field.name) for field in fields)
+                restart_required = category in self.RESTART_REQUIRED_SETTINGS
+                last_update = await self._get_last_update_info(db_session, category)
 
-            restart_required = category in self.RESTART_REQUIRED_SETTINGS
-
-            categories.append(
-                SettingsCategoryInfo(
-                    category=category,
-                    display_name=SettingsCategory.get_display_name(category),
-                    description=self._get_category_description(category),
-                    fields_count=len(fields),
-                    has_sensitive_fields=has_sensitive,
-                    restart_required=restart_required,
-                    last_updated=self._get_last_update_time(category),
+                categories.append(
+                    SettingsCategoryInfo(
+                        category=category,
+                        display_name=SettingsCategory.get_display_name(category),
+                        description=self._get_category_description(category),
+                        fields_count=len(fields),
+                        has_sensitive_fields=has_sensitive,
+                        restart_required=restart_required,
+                        last_updated=last_update.get("timestamp"),
+                    )
                 )
-            )
 
         return categories
 
@@ -320,11 +356,13 @@ class SettingsManagementService:
 
         return backup
 
-    def restore_backup(
+    async def restore_backup(
         self,
         backup_id: UUID,
         user_id: str,
         user_email: str,
+        tenant_id: str | None = None,
+        session: AsyncSession | None = None,
     ) -> dict[SettingsCategory, SettingsResponse]:
         """
         Restore settings from a backup.
@@ -341,7 +379,9 @@ class SettingsManagementService:
         if not backup:
             raise ValueError(f"Backup not found: {backup_id}")
 
-        restored = {}
+        restored: dict[SettingsCategory, SettingsResponse] = {}
+        audit_entries: list[AdminSettingsAuditEntry] = []
+        restored_categories: list[SettingsCategory] = []
 
         for category_str, data in backup.settings_data.items():
             category = SettingsCategory(category_str)
@@ -358,23 +398,30 @@ class SettingsManagementService:
                         setattr(settings_obj, field_name, new_value)
                         changes[field_name] = {"old": old_value, "new": new_value}
 
-                # Audit log
                 if changes:
-                    audit_entry = AuditLog(
-                        id=uuid4(),
-                        timestamp=datetime.now(UTC),
-                        user_id=user_id,
-                        user_email=user_email,
-                        category=category,
-                        action="restore",
-                        changes=changes,
-                        reason=f"Restored from backup: {backup.name}",
-                        ip_address=None,
-                        user_agent=None,
+                    audit_entries.append(
+                        AdminSettingsAuditEntry(
+                            tenant_id=tenant_id,
+                            category=category.value,
+                            action="restore",
+                            user_id=user_id,
+                            user_email=user_email,
+                            reason=f"Restored from backup: {backup.name}",
+                            ip_address=None,
+                            user_agent=None,
+                            changes=changes,
+                        )
                     )
-                    self._audit_logs.append(audit_entry)
+                restored_categories.append(category)
 
-                restored[category] = self.get_category_settings(category)
+        async with self._get_session(session) as db_session:
+            if audit_entries:
+                for entry in audit_entries:
+                    db_session.add(entry)
+                await db_session.commit()
+
+            for category in restored_categories:
+                restored[category] = await self.get_category_settings(category, session=db_session)
 
         logger.info(
             "Settings restored from backup",
@@ -385,11 +432,27 @@ class SettingsManagementService:
 
         return restored
 
-    def get_audit_logs(
+    def _to_audit_log_model(self, entry: AdminSettingsAuditEntry) -> AuditLog:
+        """Convert ORM audit entry to API response model."""
+        return AuditLog(
+            id=entry.id,
+            timestamp=entry.created_at,
+            user_id=entry.user_id or "",
+            user_email=entry.user_email or "",
+            category=SettingsCategory(entry.category),
+            action=entry.action,
+            changes=entry.changes,
+            reason=entry.reason,
+            ip_address=entry.ip_address,
+            user_agent=entry.user_agent,
+        )
+
+    async def get_audit_logs(
         self,
         category: SettingsCategory | None = None,
         user_id: str | None = None,
         limit: int = 100,
+        session: AsyncSession | None = None,
     ) -> list[AuditLog]:
         """
         Get audit logs for settings changes.
@@ -402,18 +465,23 @@ class SettingsManagementService:
         Returns:
             List of audit logs
         """
-        logs = self._audit_logs
+        async with self._get_session(session) as db_session:
+            stmt = (
+                select(AdminSettingsAuditEntry)
+                .order_by(AdminSettingsAuditEntry.created_at.desc())
+                .limit(limit)
+            )
 
-        if category:
-            logs = [log for log in logs if log.category == category]
+            if category:
+                stmt = stmt.where(AdminSettingsAuditEntry.category == category.value)
 
-        if user_id:
-            logs = [log for log in logs if log.user_id == user_id]
+            if user_id:
+                stmt = stmt.where(AdminSettingsAuditEntry.user_id == user_id)
 
-        # Sort by timestamp descending
-        logs.sort(key=lambda x: x.timestamp, reverse=True)
+            result = await db_session.execute(stmt)
+            entries = result.scalars().all()
 
-        return logs[:limit]
+        return [self._to_audit_log_model(entry) for entry in entries]
 
     def export_settings(
         self,
@@ -476,8 +544,7 @@ class SettingsManagementService:
 
             # Mask sensitive values if needed
             if is_sensitive and not include_sensitive:
-                if value:
-                    value = "***MASKED***"
+                value = "***MASKED***"
 
             fields.append(
                 SettingField(
@@ -518,30 +585,26 @@ class SettingsManagementService:
         }
         return descriptions.get(category, "")
 
-    def _get_last_update_time(self, category: SettingsCategory) -> datetime | None:
-        """Get last update time for a category from audit logs."""
-        for log in self._audit_logs:
-            if log.category == category:
-                timestamp = log.timestamp
-                if isinstance(timestamp, datetime):
-                    return timestamp
-                return None
-        return None
+    async def _get_last_update_info(
+        self, session: AsyncSession, category: SettingsCategory
+    ) -> dict[str, Any]:
+        """Fetch last update info for category from persisted audit log."""
+        stmt = (
+            select(AdminSettingsAuditEntry)
+            .where(AdminSettingsAuditEntry.category == category.value)
+            .order_by(AdminSettingsAuditEntry.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        entry = result.scalar_one_or_none()
+        if not entry:
+            return {}
 
-    def _get_last_update_info(self, category: SettingsCategory) -> dict[str, Any]:
-        """Get last update information for a category from audit logs."""
-        # Sort logs by timestamp descending to get the most recent
-        sorted_logs = sorted(self._audit_logs, key=lambda x: x.timestamp, reverse=True)
-
-        for log in sorted_logs:
-            if log.category == category:
-                return {
-                    "timestamp": log.timestamp,
-                    "user_email": log.user_email,
-                    "user_id": log.user_id,
-                }
-
-        return {}
+        return {
+            "timestamp": entry.created_at,
+            "user_email": entry.user_email,
+            "user_id": entry.user_id,
+        }
 
     def _mask_sensitive_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Mask sensitive values in data dictionary."""

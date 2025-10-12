@@ -321,6 +321,8 @@ class TransferJobListResponse(BaseModel):
 class TransferValidationResult(BaseModel):
     """Validation result for transfer operation."""
 
+    model_config = ConfigDict()
+
     is_valid: bool = Field(..., description="Whether validation passed")
     errors: list[str] = Field(default_factory=list, description="Validation errors")
     warnings: list[str] = Field(default_factory=list, description="Validation warnings")
@@ -358,6 +360,8 @@ class TransferProgressUpdate(BaseModel):
 class DataFormatInfo(BaseModel):
     """Information about a data format."""
 
+    model_config = ConfigDict()
+
     format: DataFormat = Field(..., description="Format identifier")
     name: str = Field(..., description="Format display name")
     file_extensions: list[str] = Field(..., description="Supported file extensions")
@@ -372,6 +376,8 @@ class DataFormatInfo(BaseModel):
 
 class FormatsResponse(BaseModel):
     """Supported formats response."""
+
+    model_config = ConfigDict()
 
     import_formats: list[DataFormatInfo] = Field(..., description="Importable formats")
     export_formats: list[DataFormatInfo] = Field(..., description="Exportable formats")
@@ -402,6 +408,8 @@ class TransferStatistics(BaseModel):
 
 class TransferErrorResponse(BaseModel):
     """Transfer error response."""
+
+    model_config = ConfigDict()
 
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")

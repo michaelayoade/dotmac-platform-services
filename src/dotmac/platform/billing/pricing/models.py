@@ -9,7 +9,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.billing.models import BillingBaseModel
 from dotmac.platform.core.pydantic import AppBaseModel
@@ -142,6 +142,7 @@ class PriceCalculationContext(AppBaseModel):
     # Product context
     product_category: str | None = Field(None, description="Product category")
     base_price: Decimal = Field(description="Product base price")
+    currency: str = Field(default="USD", description="Currency used for calculation")
 
     # Additional context
     calculation_date: datetime = Field(
@@ -178,6 +179,13 @@ class PriceCalculationResult(AppBaseModel):
     subtotal: Decimal = Field(description="Base price * quantity")
     total_discount_amount: Decimal = Field(description="Total discount applied")
     final_price: Decimal = Field(description="Final price after all discounts")
+    currency: str = Field(default="USD", description="Currency used during pricing")
+    normalized_amount: Decimal | None = Field(
+        None, description="Final price normalized to default currency"
+    )
+    normalized_currency: str | None = Field(
+        None, description="Currency code for normalized amount"
+    )
 
     # Applied adjustments (in order)
     applied_adjustments: list[PriceAdjustment] = Field(
@@ -203,6 +211,8 @@ class PriceCalculationResult(AppBaseModel):
 
 class PricingRuleCreateRequest(BaseModel):
     """Request model for creating pricing rules."""
+
+    model_config = ConfigDict()
 
     name: str = Field(description="Rule name", max_length=255)
     description: str | None = Field(None, description="Rule description")
@@ -236,6 +246,8 @@ class PricingRuleCreateRequest(BaseModel):
 class PricingRuleUpdateRequest(BaseModel):
     """Request model for updating pricing rules."""
 
+    model_config = ConfigDict()
+
     name: str | None = Field(None, max_length=255)
     description: str | None = None
     discount_value: Decimal | None = Field(None, ge=0)
@@ -262,6 +274,9 @@ class PriceCalculationRequest(AppBaseModel):
         None, description="Date to calculate price for (default: now)"
     )
     metadata: dict[str, Any] = Field(default_factory=dict)
+    currency: str | None = Field(
+        None, description="Currency for the calculation (defaults to product currency)"
+    )
 
 
 class PricingRuleResponse(AppBaseModel):

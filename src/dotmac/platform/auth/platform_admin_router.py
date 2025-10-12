@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,8 @@ router = APIRouter(tags=["Platform Administration"])
 class TenantInfo(BaseModel):
     """Tenant information for platform admin."""
 
+    model_config = ConfigDict()
+
     tenant_id: str
     name: str | None = None
     created_at: str | None = None
@@ -49,6 +51,8 @@ class TenantInfo(BaseModel):
 
 class TenantDetailResponse(BaseModel):
     """Detailed tenant information for platform admin."""
+
+    model_config = ConfigDict()
 
     # Core tenant info
     tenant_id: str
@@ -108,6 +112,8 @@ class TenantDetailResponse(BaseModel):
 class TenantListResponse(BaseModel):
     """Response for listing all tenants."""
 
+    model_config = ConfigDict()
+
     tenants: list[TenantInfo]
     total: int
     page: int
@@ -116,6 +122,8 @@ class TenantListResponse(BaseModel):
 
 class PlatformStats(BaseModel):
     """Platform-wide statistics."""
+
+    model_config = ConfigDict()
 
     total_tenants: int
     active_tenants: int
@@ -127,6 +135,8 @@ class PlatformStats(BaseModel):
 class CrossTenantSearchRequest(BaseModel):
     """Request for cross-tenant search."""
 
+    model_config = ConfigDict()
+
     query: str = Field(..., min_length=1)
     resource_type: str | None = None
     tenant_ids: list[str] | None = None
@@ -135,6 +145,8 @@ class CrossTenantSearchRequest(BaseModel):
 
 class HealthCheckResponse(BaseModel):
     """Health check response for platform admin."""
+
+    model_config = ConfigDict()
 
     status: str
     user_id: str
@@ -145,12 +157,16 @@ class HealthCheckResponse(BaseModel):
 class PlatformPermissionsResponse(BaseModel):
     """Response for listing platform permissions."""
 
+    model_config = ConfigDict()
+
     permissions: dict[str, str]
     total: int
 
 
 class CrossTenantSearchResponse(BaseModel):
     """Response for cross-tenant search."""
+
+    model_config = ConfigDict()
 
     results: list[dict[str, Any]]
     total: int
@@ -160,6 +176,8 @@ class CrossTenantSearchResponse(BaseModel):
 class PlatformAuditResponse(BaseModel):
     """Response for platform audit log."""
 
+    model_config = ConfigDict()
+
     actions: list[dict[str, Any]]
     total: int
     limit: int
@@ -167,6 +185,8 @@ class PlatformAuditResponse(BaseModel):
 
 class ImpersonationTokenResponse(BaseModel):
     """Response for impersonation token creation."""
+
+    model_config = ConfigDict()
 
     access_token: str
     token_type: str
@@ -178,6 +198,8 @@ class ImpersonationTokenResponse(BaseModel):
 class CacheClearResponse(BaseModel):
     """Response for cache clearing operation."""
 
+    model_config = ConfigDict()
+
     status: str
     cache_type: str | None = None
     message: str | None = None
@@ -185,6 +207,8 @@ class CacheClearResponse(BaseModel):
 
 class SystemConfigResponse(BaseModel):
     """Response for system configuration."""
+
+    model_config = ConfigDict()
 
     environment: str
     multi_tenant_mode: bool | None = None

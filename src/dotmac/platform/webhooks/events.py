@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .delivery import WebhookDeliveryService
@@ -18,6 +18,8 @@ logger = structlog.get_logger(__name__)
 
 class EventSchema(BaseModel):
     """Schema for registering event types."""
+
+    model_config = ConfigDict()
 
     event_type: str
     description: str

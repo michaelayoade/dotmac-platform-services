@@ -137,6 +137,8 @@ class UserInfo(BaseModel):
 class TokenData(BaseModel):
     """Token response."""
 
+    model_config = ConfigDict()
+
     access_token: str
     refresh_token: str | None = None
     token_type: str = "bearer"

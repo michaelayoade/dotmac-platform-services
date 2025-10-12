@@ -26,6 +26,8 @@ class TenantContext(BaseModel):
     application to enable proper data isolation and access control.
     """
 
+    model_config = ConfigDict()
+
     tenant_id: str
     tenant_name: str | None = None
     domain: str | None = None

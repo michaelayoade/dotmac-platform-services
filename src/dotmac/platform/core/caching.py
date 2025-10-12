@@ -6,13 +6,24 @@ arbitrary code execution vulnerabilities.
 """
 
 import json
+from datetime import datetime
 from functools import wraps
 from typing import Any
 
 import redis
-from cachetools import LRUCache, TTLCache, cached  # type: ignore[import-untyped]
+from cachetools import LRUCache, TTLCache, cached  # noqa: PGH003
 
 from dotmac.platform.settings import settings
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 
 # Redis client for distributed caching (lazy initialisation)
 redis_client: redis.Redis | None = None
@@ -20,8 +31,8 @@ _redis_init_attempted = False
 
 # In-memory caches for local caching
 # These are thread-safe by default in cachetools
-memory_cache = TTLCache(maxsize=1000, ttl=300)  # 5 min TTL
-lru_cache = LRUCache(maxsize=500)
+memory_cache: TTLCache[str, Any] = TTLCache(maxsize=1000, ttl=300)  # 5 min TTL
+lru_cache: LRUCache[str, Any] = LRUCache(maxsize=500)
 
 
 def get_redis() -> redis.Redis | None:
@@ -115,8 +126,8 @@ def cache_set(key: str, value: Any, ttl: int | None = 300) -> bool:
     client = get_redis()
     if client:
         try:
-            # Serialize to JSON
-            payload = json.dumps(value)
+            # Serialize to JSON with datetime support
+            payload = json.dumps(value, cls=DateTimeEncoder)
             if ttl is None:
                 client.set(key, payload)
             else:

@@ -21,10 +21,15 @@ import pytest
 if "DATABASE_URL" in os.environ and "DOTMAC_DATABASE_URL_ASYNC" not in os.environ:
     # User has DATABASE_URL set but not test override - remove it for tests
     del os.environ["DATABASE_URL"]
+# Use a file-based SQLite database so multiple async engines share the same schema
 if "DOTMAC_DATABASE_URL_ASYNC" not in os.environ:
-    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = "sqlite+aiosqlite:///:memory:"
+    os.environ["DOTMAC_DATABASE_URL_ASYNC"] = "sqlite+aiosqlite:///./pytest.db"
 if "DOTMAC_DATABASE_URL" not in os.environ:
-    os.environ["DOTMAC_DATABASE_URL"] = "sqlite:///:memory:"
+    os.environ["DOTMAC_DATABASE_URL"] = "sqlite:///./pytest.db"
+# Use in-memory rate limiting and disable Redis requirements during tests
+os.environ.setdefault("RATE_LIMIT__STORAGE_URL", "memory://")
+os.environ.setdefault("REQUIRE_REDIS_SESSIONS", "false")
+os.environ.setdefault("RATE_LIMIT__ENABLED", "false")
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -164,6 +169,11 @@ try:
 
     try:
         from dotmac.platform.user_management import models as user_models  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from dotmac.platform.ticketing import models as ticketing_models  # noqa: F401
     except ImportError:
         pass
 
@@ -347,6 +357,22 @@ if HAS_SQLALCHEMY:
             if HAS_DATABASE_BASE:
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
+
+            # Ensure application code uses the test engine/session maker
+            try:
+                from dotmac.platform import db as db_module
+
+                db_module._async_engine = engine
+                db_module.AsyncSessionLocal = async_sessionmaker(  # type: ignore[attr-defined]
+                    autocommit=False,
+                    autoflush=False,
+                    bind=engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False,
+                )
+                db_module._async_session_maker = db_module.AsyncSessionLocal
+            except Exception:  # pragma: no cover - defensive guard if module layout changes
+                pass
 
             try:
                 yield engine
@@ -978,6 +1004,86 @@ if HAS_FASTAPI:
             ) as client:
                 yield client
 
+        @pytest_asyncio.fixture
+        async def unauthenticated_client(async_session):
+            """
+            HTTP client for testing unauthorized access (401/403 scenarios).
+
+            This fixture creates a fresh FastAPI app WITHOUT auth override,
+            allowing tests to verify authentication failures properly.
+
+            Still includes session and tenant overrides for database consistency.
+            """
+            from fastapi import FastAPI
+            from httpx import ASGITransport, AsyncClient
+
+            from dotmac.platform.db import get_async_session, get_session_dependency
+            from dotmac.platform.tenant import get_current_tenant_id
+
+            # Create minimal app without auth override
+            app = FastAPI(title="Unauth Test App")
+
+            # Override session dependencies (needed for DB access)
+            async def override_get_session():
+                yield async_session
+
+            app.dependency_overrides[get_session_dependency] = override_get_session
+            app.dependency_overrides[get_async_session] = override_get_session
+
+            # Override tenant (needed for tenant filtering)
+            def override_get_current_tenant_id():
+                return "test-tenant"
+
+            app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+
+            # ============================================================================
+            # Register routers for modules that need auth testing
+            # ============================================================================
+
+            # Analytics Metrics
+            try:
+                from dotmac.platform.analytics.metrics_router import (
+                    router as analytics_metrics_router,
+                )
+
+                app.include_router(
+                    analytics_metrics_router,
+                    prefix="/api/v1/metrics/analytics",
+                    tags=["Analytics Activity"],
+                )
+            except ImportError:
+                pass
+
+            # Monitoring Metrics
+            try:
+                from dotmac.platform.monitoring.metrics_router import (
+                    router as monitoring_metrics_router,
+                )
+
+                app.include_router(
+                    monitoring_metrics_router,
+                    prefix="/api/v1/metrics/monitoring",
+                    tags=["Monitoring Metrics"],
+                )
+            except ImportError:
+                pass
+
+            # Tenant Usage Billing Router
+            try:
+                from dotmac.platform.tenant.usage_billing_router import (
+                    router as usage_billing_router,
+                )
+
+                app.include_router(
+                    usage_billing_router, prefix="/api/v1/tenants", tags=["Tenant Usage Billing"]
+                )
+            except ImportError:
+                pass
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                yield client
+
     except ImportError:
         # Fallback if pytest_asyncio not available
         @pytest.fixture
@@ -1405,3 +1511,74 @@ if HAS_SQLALCHEMY:
                 "Authorization": f"Bearer {test_token}",
                 "X-Tenant-ID": "test-tenant",
             }
+
+
+@pytest.fixture
+async def unauthenticated_client(async_db_engine):
+    """
+    HTTP client WITHOUT auth override for testing authentication enforcement.
+
+    This fixture creates a FastAPI app that does NOT override get_current_user,
+    allowing tests to verify that endpoints properly enforce authentication.
+
+    Use this for testing:
+    - 401 responses when no auth provided
+    - 403 responses when insufficient permissions
+    - Authentication middleware behavior
+
+    Database and tenant dependencies are still overridden for test isolation.
+    """
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    # Import safely in case modules aren't available
+    try:
+        from dotmac.platform.db import get_async_session, get_session_dependency
+        from dotmac.platform.tenant import get_current_tenant_id
+    except ImportError:
+        pytest.skip("Required dependencies not available")
+
+    # Create minimal app without auth override
+    app = FastAPI(title="Unauthenticated Test App")
+
+    # Override database session (needed for DB access)
+    test_session_maker = async_sessionmaker(async_db_engine, expire_on_commit=False)
+
+    async def override_get_session():
+        async with test_session_maker() as session:
+            yield session
+
+    app.dependency_overrides[get_session_dependency] = override_get_session
+    app.dependency_overrides[get_async_session] = override_get_session
+
+    # Override tenant (needed for tenant filtering)
+    def override_get_current_tenant_id():
+        return "test-tenant"
+
+    app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+
+    # Register all routers so tests can hit endpoints
+    # Import and register routers using safe imports
+    router_modules = [
+        ("dotmac.platform.analytics.metrics_router", "router", "/api/v1/metrics/analytics"),
+        ("dotmac.platform.monitoring.metrics_router", "router", "/api/v1/metrics/monitoring"),
+        ("dotmac.platform.tenant.usage_billing_router", "router", "/api/v1/tenants"),
+        ("dotmac.platform.billing.payments.router", "router", "/api/v1/billing/payments"),
+        ("dotmac.platform.auth.router", "router", "/api/v1/auth"),
+    ]
+
+    for module_path, router_name, prefix in router_modules:
+        try:
+            module = __import__(module_path, fromlist=[router_name])
+            router = getattr(module, router_name)
+            app.include_router(router, prefix=prefix)
+        except (ImportError, AttributeError):
+            # Module or router not available, skip
+            pass
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+    app.dependency_overrides.clear()

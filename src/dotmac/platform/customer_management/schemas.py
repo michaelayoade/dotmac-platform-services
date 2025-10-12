@@ -194,6 +194,8 @@ class CustomerResponse(CustomerBase):
 class CustomerListResponse(BaseModel):
     """Response for customer list endpoint."""
 
+    model_config = ConfigDict()
+
     customers: list[CustomerResponse]
     total: int
     page: int = Field(ge=1)
@@ -204,6 +206,8 @@ class CustomerListResponse(BaseModel):
 
 class CustomerSearchParams(BaseModel):
     """Parameters for searching customers."""
+
+    model_config = ConfigDict()
 
     query: str | None = Field(None, description="Search query")
     status: CustomerStatus | None = None
@@ -330,12 +334,16 @@ class CustomerSegmentResponse(BaseModel):
 class CustomerSegmentSummary(BaseModel):
     """Summary of a customer segment for metrics."""
 
+    model_config = ConfigDict()
+
     name: str
     count: int
 
 
 class CustomerMetrics(BaseModel):
     """Customer metrics and analytics."""
+
+    model_config = ConfigDict()
 
     total_customers: int
     active_customers: int

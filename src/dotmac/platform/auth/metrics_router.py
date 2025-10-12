@@ -219,7 +219,7 @@ async def _get_auth_metrics_cached(
 # ============================================================================
 
 
-@router.get("/metrics", response_model=AuthMetricsResponse)
+@router.get("", response_model=AuthMetricsResponse)
 async def get_auth_metrics(
     period_days: int = Query(default=30, ge=1, le=365, description="Time period in days"),
     session: AsyncSession = Depends(get_session_dependency),

@@ -231,7 +231,12 @@ class TestAuthenticationDependencyFix:
                 )
 
                 assert user_info.user_id == "user123"
-                jwt_service_mock.verify_token_async.assert_called_once_with("valid-token")
+                # Verify async version called with token and token type
+                from dotmac.platform.auth.core import TokenType
+
+                jwt_service_mock.verify_token_async.assert_called_once_with(
+                    "valid-token", TokenType.ACCESS
+                )
 
     @pytest.mark.asyncio
     async def test_get_current_user_uses_async_verification(
@@ -255,7 +260,11 @@ class TestAuthenticationDependencyFix:
                 )
 
                 # Verify async version was called (which includes blacklist check)
-                jwt_service_mock.verify_token_async.assert_called_once_with("test-token")
+                from dotmac.platform.auth.core import TokenType
+
+                jwt_service_mock.verify_token_async.assert_called_once_with(
+                    "test-token", TokenType.ACCESS
+                )
                 # Verify sync version was NOT called
                 assert (
                     not hasattr(jwt_service_mock, "verify_token")

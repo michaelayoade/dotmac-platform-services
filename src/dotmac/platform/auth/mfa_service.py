@@ -129,13 +129,13 @@ class MFAService:
             List of backup codes in plaintext (store hashed!)
         """
         import secrets
+        import string
 
+        alphabet = string.ascii_uppercase
         codes = []
         for _ in range(count):
-            # Generate 8-character alphanumeric code
-            code = secrets.token_hex(4).upper()
-            # Format as XXXX-XXXX
-            formatted_code = f"{code[:4]}-{code[4:]}"
+            raw = "".join(secrets.choice(alphabet) for _ in range(8))
+            formatted_code = f"{raw[:4]}-{raw[4:]}"
             codes.append(formatted_code)
 
         return codes

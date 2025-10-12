@@ -5,6 +5,7 @@ Simple, standard SQLAlchemy setup replacing the custom database module.
 """
 
 import inspect
+import os
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
@@ -13,25 +14,16 @@ from unittest.mock import AsyncMock
 from urllib.parse import quote_plus
 from uuid import uuid4
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    String,
-    create_engine,
-)
+from sqlalchemy import Boolean, DateTime, String, create_engine
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    Session,
-    mapped_column,
-    sessionmaker,
-)
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from dotmac.platform.settings import settings
 
@@ -42,6 +34,10 @@ from dotmac.platform.settings import settings
 
 def get_database_url() -> str:
     """Get the sync database URL from settings."""
+    override_url = os.getenv("DOTMAC_DATABASE_URL")
+    if override_url:
+        return override_url
+
     if settings.database.url:
         return str(settings.database.url)
 
@@ -62,6 +58,10 @@ def get_database_url() -> str:
 
 def get_async_database_url() -> str:
     """Get the async database URL from settings."""
+    override_url = os.getenv("DOTMAC_DATABASE_URL_ASYNC")
+    if override_url:
+        return override_url
+
     sync_url = get_database_url()
     # Convert to async driver
     if "postgresql://" in sync_url:
@@ -197,15 +197,27 @@ def get_sync_engine() -> Any:
     """Get or create the synchronous engine."""
     global _sync_engine
     if _sync_engine is None:
-        _sync_engine = create_engine(
-            get_database_url(),
-            echo=settings.database.echo,
-            pool_size=settings.database.pool_size,
-            max_overflow=settings.database.max_overflow,
-            pool_timeout=settings.database.pool_timeout,
-            pool_recycle=settings.database.pool_recycle,
-            pool_pre_ping=settings.database.pool_pre_ping,
-        )
+        database_url = get_database_url()
+        url = make_url(database_url)
+        if url.get_backend_name().startswith("sqlite"):
+            connect_args: dict[str, Any] = {}
+            if database_url.startswith("sqlite"):
+                connect_args["check_same_thread"] = False
+            _sync_engine = create_engine(
+                database_url,
+                connect_args=connect_args,
+                poolclass=StaticPool,
+            )
+        else:
+            _sync_engine = create_engine(
+                database_url,
+                echo=settings.database.echo,
+                pool_size=settings.database.pool_size,
+                max_overflow=settings.database.max_overflow,
+                pool_timeout=settings.database.pool_timeout,
+                pool_recycle=settings.database.pool_recycle,
+                pool_pre_ping=settings.database.pool_pre_ping,
+            )
     return _sync_engine
 
 
@@ -213,15 +225,27 @@ def get_async_engine() -> Any:
     """Get or create the asynchronous engine."""
     global _async_engine
     if _async_engine is None:
-        _async_engine = create_async_engine(
-            get_async_database_url(),
-            echo=settings.database.echo,
-            pool_size=settings.database.pool_size,
-            max_overflow=settings.database.max_overflow,
-            pool_timeout=settings.database.pool_timeout,
-            pool_recycle=settings.database.pool_recycle,
-            pool_pre_ping=settings.database.pool_pre_ping,
-        )
+        async_url = get_async_database_url()
+        url = make_url(async_url)
+        if url.get_backend_name().startswith("sqlite"):
+            connect_args: dict[str, Any] = {}
+            if async_url.startswith("sqlite"):
+                connect_args["check_same_thread"] = False
+            _async_engine = create_async_engine(
+                async_url,
+                connect_args=connect_args,
+                poolclass=StaticPool,
+            )
+        else:
+            _async_engine = create_async_engine(
+                async_url,
+                echo=settings.database.echo,
+                pool_size=settings.database.pool_size,
+                max_overflow=settings.database.max_overflow,
+                pool_timeout=settings.database.pool_timeout,
+                pool_recycle=settings.database.pool_recycle,
+                pool_pre_ping=settings.database.pool_pre_ping,
+            )
     return _async_engine
 
 

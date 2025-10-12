@@ -328,10 +328,16 @@ class AuditService:
 
 
 async def log_user_activity(
-    user_id: str, activity_type: ActivityType, action: str, description: str, **kwargs: Any
+    user_id: str,
+    activity_type: ActivityType,
+    action: str,
+    description: str,
+    *,
+    session: AsyncSession | None = None,
+    **kwargs: Any,
 ) -> AuditActivity:
     """Helper to log user-specific activities."""
-    service = AuditService()
+    service = AuditService(session=session)
     return await service.log_activity(
         activity_type=activity_type,
         action=action,

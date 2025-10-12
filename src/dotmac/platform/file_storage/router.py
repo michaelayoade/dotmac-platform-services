@@ -21,7 +21,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.auth.platform_admin import is_platform_admin
@@ -76,6 +76,8 @@ def _resolve_tenant_id(request: Request, current_user: UserInfo) -> str:
 class FileUploadResponse(BaseModel):
     """File upload response."""
 
+    model_config = ConfigDict()
+
     file_id: str = Field(..., description="Unique file identifier")
     file_name: str = Field(..., description="Original file name")
     file_size: int = Field(..., description="File size in bytes")
@@ -87,6 +89,8 @@ class FileUploadResponse(BaseModel):
 class FileListResponse(BaseModel):
     """File list response."""
 
+    model_config = ConfigDict()
+
     files: list[FileMetadata] = Field(..., description="List of files")
     total: int = Field(..., description="Total number of files")
     page: int = Field(..., description="Current page")
@@ -95,6 +99,8 @@ class FileListResponse(BaseModel):
 
 class FileOperationRequest(BaseModel):
     """File operation request."""
+
+    model_config = ConfigDict()
 
     file_ids: list[str] = Field(..., description="File IDs to operate on")
     operation: str = Field(..., description="Operation to perform")

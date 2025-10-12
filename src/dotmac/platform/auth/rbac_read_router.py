@@ -7,7 +7,7 @@ Provides simple endpoints that the React RBAC context expects.
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
@@ -19,6 +19,8 @@ router = APIRouter(tags=["RBAC"])
 
 class PermissionInfo(BaseModel):
     """Simple permission info for frontend"""
+
+    model_config = ConfigDict()
 
     name: str
     display_name: str = ""
@@ -32,6 +34,8 @@ class PermissionInfo(BaseModel):
 class RoleInfo(BaseModel):
     """Simple role info for frontend"""
 
+    model_config = ConfigDict()
+
     name: str
     display_name: str
     description: str = ""
@@ -42,6 +46,8 @@ class RoleInfo(BaseModel):
 
 class UserPermissionsResponse(BaseModel):
     """User permissions response matching frontend expectations"""
+
+    model_config = ConfigDict()
 
     user_id: str
     roles: list[RoleInfo]

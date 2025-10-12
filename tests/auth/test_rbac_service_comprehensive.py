@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
 from dotmac.platform.auth.exceptions import AuthorizationError
 from dotmac.platform.auth.models import Permission, Role
@@ -443,7 +442,7 @@ class TestRolePermissionCRUD:
         existing_role = MagicMock(spec=Role)
 
         with patch.object(rbac_service, "_get_role_by_name", return_value=existing_role):
-            with pytest.raises(IntegrityError):
+            with pytest.raises(AuthorizationError, match="Role 'existing_role' already exists"):
                 await rbac_service.create_role(name="existing_role", display_name="Existing")
 
     async def test_create_role_parent_not_found(self, rbac_service):

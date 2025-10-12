@@ -3,6 +3,7 @@ Invoice service with tenant support and idempotency
 """
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -21,10 +22,13 @@ from dotmac.platform.billing.core.exceptions import (
     InvoiceNotFoundError,
 )
 from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
+from dotmac.platform.billing.currency.service import CurrencyRateService
+from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.metrics import get_billing_metrics
 from dotmac.platform.communications.email_service import EmailMessage, EmailService
 from dotmac.platform.webhooks.events import get_event_bus
 from dotmac.platform.webhooks.models import WebhookEvent
+from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +39,49 @@ class InvoiceService:
     def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
+
+    async def _normalize_currency_components(
+        self,
+        currency: str,
+        amounts: dict[str, int],
+    ) -> tuple[dict[str, Any], int, str] | None:
+        """Normalize invoice monetary components to default currency."""
+
+        if not settings.billing.enable_multi_currency:
+            return None
+
+        default_currency = settings.billing.default_currency.upper()
+        source_currency = currency.upper()
+
+        if source_currency == default_currency:
+            return None
+
+        rate_service = CurrencyRateService(self.db)
+        conversion_components: dict[str, Any] = {
+            "base_currency": source_currency,
+            "target_currency": default_currency,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "components": {},
+        }
+
+        converted_totals: dict[str, int] = {}
+
+        for key, minor_units in amounts.items():
+            money_value = money_handler.money_from_minor_units(minor_units, source_currency)
+            converted = await rate_service.convert_money(money_value, default_currency)
+            converted_minor = money_handler.money_to_minor_units(converted)
+            conversion_components["components"][key] = {
+                "original_minor_units": minor_units,
+                "converted_minor_units": converted_minor,
+                "converted_amount": str(converted.amount),
+            }
+            converted_totals[key] = converted_minor
+
+        rate = await rate_service.get_rate(source_currency, default_currency)
+        conversion_components["rate"] = str(rate)
+
+        normalized_total = converted_totals.get("total_amount", 0)
+        return conversion_components, normalized_total, default_currency
 
     async def create_invoice(
         self,
@@ -138,14 +185,37 @@ class InvoiceService:
         # Refresh with eager loading of line_items for Pydantic validation
         await self.db.refresh(invoice_entity, attribute_names=["line_items"])
 
+        # Normalize currency totals for reporting/metrics if needed
+        normalization = await self._normalize_currency_components(
+            currency,
+            {
+                "subtotal": subtotal,
+                "tax_amount": tax_amount,
+                "discount_amount": discount_amount,
+                "total_amount": total_amount,
+            },
+        )
+
+        metrics_currency = currency
+        metrics_total_amount = total_amount
+
+        if normalization:
+            conversion_details, normalized_total, normalized_currency = normalization
+            metrics_currency = normalized_currency
+            metrics_total_amount = normalized_total
+            conversion_section = invoice_entity.extra_data.get("currency_conversion", {})
+            conversion_section.update(conversion_details)
+            invoice_entity.extra_data["currency_conversion"] = conversion_section
+            await self.db.commit()
+
         # Create transaction record
         await self._create_invoice_transaction(invoice_entity)
 
         # Record metrics
         self.metrics.record_invoice_created(
             tenant_id=tenant_id,
-            amount=total_amount,
-            currency=currency,
+            amount=metrics_total_amount,
+            currency=metrics_currency,
             customer_id=customer_id,
         )
 
@@ -451,6 +521,251 @@ class InvoiceService:
         # Ensure extra_data is a dict for Pydantic validation
         if invoice.extra_data is None:
             invoice.extra_data = {}
+
+        return Invoice.model_validate(invoice)
+
+    async def update_invoice(
+        self,
+        tenant_id: str,
+        invoice_id: str,
+        due_date: datetime | None = None,
+        notes: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Invoice:
+        """
+        Update invoice fields.
+
+        Args:
+            tenant_id: Tenant identifier
+            invoice_id: Invoice identifier
+            due_date: New due date (optional)
+            notes: New notes (optional)
+            metadata: Additional metadata to merge (optional)
+
+        Returns:
+            Updated invoice
+
+        Raises:
+            InvoiceNotFoundError: If invoice doesn't exist
+            InvalidInvoiceStatusError: If invoice is in a non-updatable state
+        """
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        # Only allow updates on draft or open invoices
+        if invoice.status not in [InvoiceStatus.DRAFT, InvoiceStatus.OPEN]:
+            raise InvalidInvoiceStatusError(f"Cannot update invoice in {invoice.status} status")
+
+        # Update fields
+        if due_date is not None:
+            invoice.due_date = due_date
+        if notes is not None:
+            invoice.notes = notes
+        if metadata is not None:
+            current_metadata = invoice.extra_data or {}
+            invoice.extra_data = {**current_metadata, **metadata}
+
+        invoice.updated_at = datetime.now(UTC)
+
+        await self.db.commit()
+        await self.db.refresh(invoice, attribute_names=["line_items"])
+
+        # Ensure extra_data is a dict for Pydantic validation
+        if invoice.extra_data is None:
+            invoice.extra_data = {}
+
+        logger.info(
+            "Invoice updated",
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            updated_fields={"due_date": due_date, "notes": bool(notes), "metadata": bool(metadata)},
+        )
+
+        return Invoice.model_validate(invoice)
+
+    async def send_invoice_email(
+        self, tenant_id: str, invoice_id: str, recipient_email: str | None = None
+    ) -> bool:
+        """
+        Send invoice via email to customer.
+
+        Args:
+            tenant_id: Tenant identifier
+            invoice_id: Invoice identifier
+            recipient_email: Override recipient email (optional, uses invoice billing_email if not provided)
+
+        Returns:
+            True if email sent successfully, False otherwise
+
+        Raises:
+            InvoiceNotFoundError: If invoice doesn't exist
+        """
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        # Determine recipient email
+        email = recipient_email or invoice.billing_email
+        if not email:
+            logger.warning(
+                "Cannot send invoice - no email address",
+                tenant_id=tenant_id,
+                invoice_id=invoice_id,
+            )
+            return False
+
+        try:
+            # Use communications module to send email
+            from dotmac.platform.communications.email_service import EmailMessage, get_email_service
+            from dotmac.platform.settings import settings
+
+            app_name = getattr(settings, "app_name", "DotMac Platform")
+            subject = f"Invoice {invoice.invoice_number} from {app_name}"
+
+            # Create email content
+            content = f"""
+Dear Customer,
+
+Please find your invoice details below:
+
+Invoice Number: {invoice.invoice_number}
+Amount Due: {invoice.currency} {invoice.total_amount}
+Due Date: {invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date else 'N/A'}
+Status: {invoice.status.value}
+
+{f'Notes: {invoice.notes}' if invoice.notes else ''}
+
+Thank you for your business!
+
+Best regards,
+{app_name} Team
+""".strip()
+
+            html_content = f"""
+<h2>Invoice {invoice.invoice_number}</h2>
+<p><strong>Amount Due:</strong> {invoice.currency} {invoice.total_amount}</p>
+<p><strong>Due Date:</strong> {invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date else 'N/A'}</p>
+<p><strong>Status:</strong> {invoice.status.value}</p>
+{f'<p><strong>Notes:</strong> {invoice.notes}</p>' if invoice.notes else ''}
+<p>Thank you for your business!</p>
+""".strip()
+
+            message = EmailMessage(
+                to=[email],
+                subject=subject,
+                text_body=content,
+                html_body=html_content,
+            )
+
+            email_service = get_email_service()
+            response = await email_service.send_email(message)
+
+            success: bool = response.status == "sent"
+            if success:
+                logger.info(
+                    "Invoice email sent successfully",
+                    tenant_id=tenant_id,
+                    invoice_id=invoice_id,
+                    recipient=email,
+                )
+            else:
+                logger.warning(
+                    "Invoice email failed to send",
+                    tenant_id=tenant_id,
+                    invoice_id=invoice_id,
+                    recipient=email,
+                )
+
+            return success
+
+        except Exception as e:
+            logger.error(
+                "Failed to send invoice email",
+                tenant_id=tenant_id,
+                invoice_id=invoice_id,
+                error=str(e),
+            )
+            return False
+
+    async def apply_payment_to_invoice(
+        self, tenant_id: str, invoice_id: str, payment_id: str, amount: Decimal
+    ) -> Invoice:
+        """
+        Apply a payment to an invoice.
+
+        Args:
+            tenant_id: Tenant identifier
+            invoice_id: Invoice identifier
+            payment_id: Payment identifier
+            amount: Payment amount to apply
+
+        Returns:
+            Updated invoice
+
+        Raises:
+            InvoiceNotFoundError: If invoice doesn't exist
+            InvalidInvoiceStatusError: If invoice cannot accept payments
+        """
+        invoice = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice:
+            raise InvoiceNotFoundError(f"Invoice {invoice_id} not found")
+
+        # Check if invoice can accept payments
+        if invoice.status not in [
+            InvoiceStatus.OPEN,
+            InvoiceStatus.PARTIALLY_PAID,
+            InvoiceStatus.OVERDUE,
+        ]:
+            raise InvalidInvoiceStatusError(
+                f"Cannot apply payment to invoice in {invoice.status} status"
+            )
+
+        # Calculate new balance
+        old_balance = invoice.remaining_balance or invoice.total_amount
+        new_balance = max(Decimal("0"), old_balance - amount)
+
+        # Update invoice
+        invoice.remaining_balance = new_balance
+        invoice.updated_at = datetime.now(UTC)
+
+        # Update status based on new balance
+        if new_balance == 0:
+            invoice.status = InvoiceStatus.PAID
+            invoice.paid_at = datetime.now(UTC)
+            invoice.payment_status = PaymentStatus.SUCCEEDED
+        elif new_balance < invoice.total_amount:
+            invoice.status = InvoiceStatus.PARTIALLY_PAID
+            invoice.payment_status = PaymentStatus.PARTIALLY_REFUNDED
+
+        # Store payment reference in metadata
+        current_metadata = invoice.extra_data or {}
+        payments = current_metadata.get("payments", [])
+        payments.append(
+            {
+                "payment_id": payment_id,
+                "amount": float(amount),
+                "applied_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        invoice.extra_data = {**current_metadata, "payments": payments}
+
+        await self.db.commit()
+        await self.db.refresh(invoice, attribute_names=["line_items"])
+
+        # Ensure extra_data is a dict for Pydantic validation
+        if invoice.extra_data is None:
+            invoice.extra_data = {}
+
+        logger.info(
+            "Payment applied to invoice",
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            payment_id=payment_id,
+            amount=amount,
+            new_balance=new_balance,
+            new_status=invoice.status,
+        )
 
         return Invoice.model_validate(invoice)
 

@@ -58,10 +58,13 @@ def sample_pricing_rule():
 @pytest.fixture
 def cached_pricing_engine(mock_cache):
     """Cached pricing engine with mocked cache."""
+    # Create mock database session
+    mock_db = AsyncMock()
+
     with patch(
         "dotmac.platform.billing.pricing.cached_service.get_billing_cache", return_value=mock_cache
     ):
-        engine = CachedPricingEngine()
+        engine = CachedPricingEngine(db_session=mock_db, cache=mock_cache)
         return engine
 
 
@@ -108,7 +111,7 @@ class TestGetPricingRule:
 
             # Verify cache key and tags
             cache_call = mock_cache.set.call_args
-            assert cache_call[0][0].startswith("billing:pricing_rule:")
+            assert cache_call[0][0].startswith("billing:pricing:rule:")
             assert "tenant:tenant-1" in cache_call[1]["tags"]
             assert "pricing_rule:rule-123" in cache_call[1]["tags"]
 
@@ -177,10 +180,9 @@ class TestCreatePricingRule:
 
             create_request = PricingRuleCreateRequest(
                 name="Volume Discount",
-                rule_type=PricingRuleType.VOLUME_DISCOUNT,
-                product_id="product-1",
-                config={},
-                valid_from=datetime.now(UTC),
+                discount_type=DiscountType.PERCENTAGE,
+                discount_value=Decimal("10.0"),
+                applies_to_product_ids=["product-1"],
             )
 
             # Execute
@@ -188,9 +190,10 @@ class TestCreatePricingRule:
 
             # Verify cache invalidation
             assert mock_cache.invalidate_pattern.called
-            invalidation_pattern = mock_cache.invalidate_pattern.call_args[0][0]
-            assert "tenant-1" in invalidation_pattern
-            assert "pricing" in invalidation_pattern.lower()
+            # Check that at least one of the invalidation calls contains tenant-1 and pricing/price
+            all_calls = [call[0][0] for call in mock_cache.invalidate_pattern.call_args_list]
+            assert any("tenant-1" in pattern for pattern in all_calls)
+            assert any("pric" in pattern.lower() for pattern in all_calls)
 
 
 class TestUpdatePricingRule:
@@ -226,26 +229,31 @@ class TestCalculatePrice:
     @pytest.mark.asyncio
     async def test_calculate_price_cache_hit(self, cached_pricing_engine, mock_cache):
         """Test price calculation from cache."""
-        # Setup cached calculation
+        # Setup cached calculation - must match PriceCalculationResult fields
         cached_result = {
+            "product_id": "product-1",
+            "quantity": 10,
+            "customer_id": "customer-1",
             "base_price": 100.00,
-            "final_price": 90.00,
-            "applied_rules": ["rule-123"],
-            "discount_amount": 10.00,
+            "subtotal": 1000.00,
+            "total_discount_amount": 100.00,
+            "final_price": 900.00,
+            "applied_adjustments": [],
+            "calculation_timestamp": datetime.now(UTC).isoformat(),
         }
         mock_cache.get.return_value = cached_result
 
         calc_request = PriceCalculationRequest(
             product_id="product-1",
             quantity=10,
-            base_price=Decimal("100.00"),
+            customer_id="customer-1",
         )
 
         # Execute
         result = await cached_pricing_engine.calculate_price(calc_request, "tenant-1")
 
         # Verify
-        assert result.final_price == Decimal("90.00")
+        assert result.final_price == Decimal("900.00")
         mock_cache.get.assert_called_once()
 
     @pytest.mark.asyncio
@@ -254,11 +262,13 @@ class TestCalculatePrice:
         mock_cache.get.return_value = None
 
         calc_result = PriceCalculationResult(
+            product_id="product-1",
+            quantity=10,
+            customer_id="customer-1",
             base_price=Decimal("100.00"),
-            final_price=Decimal("90.00"),
-            applied_rules=["rule-123"],
-            discount_amount=Decimal("10.00"),
-            tax_amount=Decimal("0.00"),
+            subtotal=Decimal("1000.00"),
+            total_discount_amount=Decimal("100.00"),
+            final_price=Decimal("900.00"),
         )
 
         with patch.object(
@@ -269,14 +279,14 @@ class TestCalculatePrice:
             calc_request = PriceCalculationRequest(
                 product_id="product-1",
                 quantity=10,
-                base_price=Decimal("100.00"),
+                customer_id="customer-1",
             )
 
             # Execute
             result = await cached_pricing_engine.calculate_price(calc_request, "tenant-1")
 
             # Verify result cached
-            assert result.final_price == Decimal("90.00")
+            assert result.final_price == Decimal("900.00")
             mock_cache.set.assert_called_once()
 
 
@@ -284,8 +294,13 @@ class TestDeletePricingRule:
     """Test pricing rule deletion with cache cleanup."""
 
     @pytest.mark.asyncio
-    async def test_delete_pricing_rule_clears_caches(self, cached_pricing_engine, mock_cache):
+    async def test_delete_pricing_rule_clears_caches(
+        self, cached_pricing_engine, mock_cache, sample_pricing_rule
+    ):
         """Test that deleting a rule removes it from all caches."""
+        # Setup: Mock getting the rule before deletion
+        mock_cache.get.return_value = sample_pricing_rule.model_dump()
+
         with patch.object(
             cached_pricing_engine.__class__.__bases__[0],
             "delete_pricing_rule",
@@ -296,9 +311,18 @@ class TestDeletePricingRule:
             # Execute
             await cached_pricing_engine.delete_pricing_rule("rule-123", "tenant-1")
 
-            # Verify cache deletion
-            assert mock_cache.delete.called
-            assert mock_cache.invalidate_pattern.called
+            # Verify cache operations
+            assert mock_cache.delete.called, "Should delete specific rule cache"
+            assert mock_cache.invalidate_pattern.called, "Should invalidate pattern caches"
+
+            # Verify multiple invalidation patterns were called
+            invalidate_calls = [call[0][0] for call in mock_cache.invalidate_pattern.call_args_list]
+            assert any(
+                "pricing:rules" in pattern for pattern in invalidate_calls
+            ), "Should invalidate pricing rules list cache"
+            assert any(
+                "applicable" in pattern for pattern in invalidate_calls
+            ), "Should invalidate applicable rules cache"
 
 
 class TestCacheKeyGeneration:
@@ -345,11 +369,31 @@ class TestBatchOperations:
     @pytest.mark.asyncio
     async def test_batch_calculate_uses_cache_efficiently(self, cached_pricing_engine, mock_cache):
         """Test that batch calculations leverage cache."""
-        # Setup: Some calculations in cache, some not
+        # Setup: Some calculations in cache, some not - must match PriceCalculationResult fields
         cache_responses = [
-            {"base_price": 100.00, "final_price": 90.00, "applied_rules": []},  # Hit
+            {  # Hit
+                "product_id": "product-0",
+                "quantity": 10,
+                "customer_id": "customer-1",
+                "base_price": 100.00,
+                "subtotal": 1000.00,
+                "total_discount_amount": 100.00,
+                "final_price": 900.00,
+                "applied_adjustments": [],
+                "calculation_timestamp": datetime.now(UTC).isoformat(),
+            },
             None,  # Miss
-            {"base_price": 200.00, "final_price": 180.00, "applied_rules": []},  # Hit
+            {  # Hit
+                "product_id": "product-2",
+                "quantity": 10,
+                "customer_id": "customer-1",
+                "base_price": 200.00,
+                "subtotal": 2000.00,
+                "total_discount_amount": 200.00,
+                "final_price": 1800.00,
+                "applied_adjustments": [],
+                "calculation_timestamp": datetime.now(UTC).isoformat(),
+            },
         ]
         mock_cache.get.side_effect = cache_responses
 
@@ -357,16 +401,20 @@ class TestBatchOperations:
             cached_pricing_engine.__class__.__bases__[0], "calculate_price", new_callable=AsyncMock
         ) as mock_calc:
             mock_calc.return_value = PriceCalculationResult(
+                product_id="product-1",
+                quantity=10,
+                customer_id="customer-1",
                 base_price=Decimal("150.00"),
-                final_price=Decimal("135.00"),
-                applied_rules=[],
-                discount_amount=Decimal("15.00"),
-                tax_amount=Decimal("0.00"),
+                subtotal=Decimal("1500.00"),
+                total_discount_amount=Decimal("150.00"),
+                final_price=Decimal("1350.00"),
             )
 
             requests = [
                 PriceCalculationRequest(
-                    product_id=f"product-{i}", quantity=10, base_price=Decimal("100.00")
+                    product_id=f"product-{i}",
+                    quantity=10,
+                    customer_id="customer-1",
                 )
                 for i in range(3)
             ]

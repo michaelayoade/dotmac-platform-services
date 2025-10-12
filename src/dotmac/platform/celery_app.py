@@ -82,6 +82,16 @@ def setup_periodic_tasks(sender: Any, **kwargs: Any) -> None:
     """Configure any periodic tasks here."""
     import structlog
 
+    if settings.billing.enable_multi_currency:
+        from dotmac.platform.tasks import refresh_currency_rates_task
+
+        refresh_interval = max(300, settings.billing.exchange_rate_refresh_minutes * 60)
+        sender.add_periodic_task(
+            refresh_interval,
+            refresh_currency_rates_task.s(),
+            name="currency-refresh-rates",
+        )
+
     logger = structlog.get_logger(__name__)
     logger.info(
         "celery.worker.configured",

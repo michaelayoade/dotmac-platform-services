@@ -52,11 +52,11 @@ def mock_rbac_service():
 
 
 @pytest.fixture
-def test_app(mock_admin_user):
+def test_app(mock_admin_user, async_db_session):
     """Create a test FastAPI app with the router."""
     from dotmac.platform.admin.settings.router import router
     from dotmac.platform.auth.core import get_current_user
-    from dotmac.platform.db import get_async_session
+    from dotmac.platform.db import get_async_session, get_session_dependency
 
     app = FastAPI()
 
@@ -65,12 +65,14 @@ def test_app(mock_admin_user):
         return mock_admin_user
 
     async def override_get_async_session():
-        # Return a mock async session
-        mock_session = AsyncMock()
-        return mock_session
+        yield async_db_session
+
+    async def override_get_session():
+        yield async_db_session
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_async_session] = override_get_async_session
+    app.dependency_overrides[get_session_dependency] = override_get_session
 
     # Include the router with the same prefix as production
     app.include_router(router, prefix="/api/v1/admin/settings")

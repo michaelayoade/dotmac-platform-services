@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..settings import settings
 from .minio_storage import MinIOStorage, get_storage
@@ -36,6 +36,8 @@ class StorageBackend:
 
 class FileMetadata(BaseModel):
     """File metadata."""
+
+    model_config = ConfigDict()
 
     file_id: str = Field(..., description="Unique file identifier")
     file_name: str = Field(..., description="Original file name")

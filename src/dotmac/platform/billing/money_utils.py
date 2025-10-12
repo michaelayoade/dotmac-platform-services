@@ -6,7 +6,7 @@ locale-aware formatting, and currency validation.
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from babel import Locale
 from babel.core import UnknownLocaleError
@@ -162,17 +162,31 @@ def multiply_money(money: Money, multiplier: int | float | Decimal) -> Money:
 
 
 # Currency conversion utilities (for future enhancement)
+if TYPE_CHECKING:  # pragma: no cover - type checking only
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
 class CurrencyConverter:
-    """Placeholder for future currency conversion features."""
+    """Currency conversion helper backed by the currency rate service."""
 
-    def __init__(self) -> None:
-        # Could integrate with exchangerate-api.com or similar
-        self._rates: dict[str, float] = {}
+    def __init__(self, session: "AsyncSession") -> None:
+        from dotmac.platform.billing.currency.service import CurrencyRateService
 
-    def convert(self, money: Money, target_currency: str) -> Money:
-        """Convert money to target currency (future implementation)."""
-        # Placeholder - would need real exchange rates
-        raise NotImplementedError("Currency conversion requires exchange rate service")
+        self._service = CurrencyRateService(session)
+
+    async def convert(
+        self,
+        money: Money,
+        target_currency: str,
+        *,
+        force_refresh: bool = False,
+    ) -> Money:
+        """Convert money to a target currency using persisted exchange rates."""
+        return await self._service.convert_money(
+            money,
+            target_currency,
+            force_refresh=force_refresh,
+        )
 
 
 # Export commonly used functions and classes

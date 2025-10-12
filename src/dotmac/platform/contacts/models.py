@@ -135,9 +135,9 @@ class Contact(Base):
 
     # Primary identification
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    # TODO: Enable when tenants table is created
-    # tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
-    tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     # Legacy customer_id FK - use customer_links for new code
     customer_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -171,8 +171,9 @@ class Contact(Base):
     owner_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
-    # TODO: Enable when teams table is created
-    # assigned_team_id: Mapped[Optional[UUID]] = mapped_column(PGUUID(as_uuid=True), ForeignKey('teams.id'), nullable=True)
+    assigned_team_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Notes and metadata
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -239,7 +240,7 @@ class Contact(Base):
     owner = relationship("User", foreign_keys=[owner_id])
 
     __table_args__ = (
-        Index("ix_contacts_tenant_id", "tenant_id"),
+        # Note: tenant_id index created automatically via index=True in column definition
         Index("ix_contacts_customer_id", "customer_id"),
         Index("ix_contacts_display_name", "display_name"),
         Index("ix_contacts_company", "company"),
@@ -334,9 +335,9 @@ class ContactLabelDefinition(Base):
     __tablename__ = "contact_label_definitions"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    # TODO: Enable when tenants table is created
-    # tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
-    tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Label details
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -377,7 +378,7 @@ class ContactLabelDefinition(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "slug", name="uq_tenant_label_slug"),
-        Index("ix_contact_label_definitions_tenant_id", "tenant_id"),
+        # Note: tenant_id index created automatically via index=True in column definition
         Index("ix_contact_label_definitions_slug", "slug"),
         Index("ix_contact_label_definitions_category", "category"),
     )
@@ -394,9 +395,9 @@ class ContactFieldDefinition(Base):
     __tablename__ = "contact_field_definitions"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    # TODO: Enable when tenants table is created
-    # tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
-    tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Field details
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -451,7 +452,7 @@ class ContactFieldDefinition(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "field_key", name="uq_tenant_field_key"),
-        Index("ix_contact_field_definitions_tenant_id", "tenant_id"),
+        # Note: tenant_id index created automatically via index=True in column definition
         Index("ix_contact_field_definitions_field_key", "field_key"),
         Index("ix_contact_field_definitions_field_group", "field_group"),
     )

@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +31,8 @@ metrics_router = APIRouter(tags=["Metrics"])
 
 class ErrorRateResponse(BaseModel):
     """Error rate monitoring response."""
+
+    model_config = ConfigDict()
 
     rate: float
     total_requests: int
@@ -108,6 +110,8 @@ async def get_error_rate(
 
 class LatencyMetrics(BaseModel):
     """API latency metrics response."""
+
+    model_config = ConfigDict()
 
     p50: float
     p95: float
@@ -196,6 +200,8 @@ async def get_latency_metrics(
 
 class ResourceMetrics(BaseModel):
     """System resource metrics response."""
+
+    model_config = ConfigDict()
 
     cpu: float
     memory: float

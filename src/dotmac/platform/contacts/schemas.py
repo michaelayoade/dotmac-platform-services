@@ -22,6 +22,8 @@ from dotmac.platform.contacts.models import (
 class ContactMethodBase(BaseModel):
     """Base contact method schema."""
 
+    model_config = ConfigDict()
+
     type: ContactMethodType
     value: str = Field(min_length=1, max_length=500)
     label: str | None = Field(None, max_length=50)
@@ -48,6 +50,8 @@ class ContactMethodCreate(ContactMethodBase):
 
 class ContactMethodUpdate(BaseModel):
     """Schema for updating contact method."""
+
+    model_config = ConfigDict()
 
     value: str | None = Field(None, min_length=1, max_length=500)
     label: str | None = Field(None, max_length=50)
@@ -82,6 +86,8 @@ class ContactMethodResponse(ContactMethodBase):
 # Contact Schemas
 class ContactBase(BaseModel):
     """Base contact schema."""
+
+    model_config = ConfigDict()
 
     # Name fields
     first_name: str | None = Field(None, max_length=100)
@@ -160,6 +166,8 @@ class ContactCreate(ContactBase):
 class ContactUpdate(BaseModel):
     """Schema for updating contact."""
 
+    model_config = ConfigDict()
+
     # Name fields
     first_name: str | None = Field(None, max_length=100)
     middle_name: str | None = Field(None, max_length=100)
@@ -226,6 +234,8 @@ class ContactResponse(ContactBase):
 class ContactListResponse(BaseModel):
     """Response for contact list."""
 
+    model_config = ConfigDict()
+
     contacts: list[ContactResponse]
     total: int
     page: int
@@ -237,6 +247,8 @@ class ContactListResponse(BaseModel):
 # Label Schemas
 class ContactLabelDefinitionBase(BaseModel):
     """Base label definition schema."""
+
+    model_config = ConfigDict()
 
     name: str = Field(min_length=1, max_length=100)
     slug: str | None = Field(None, max_length=100)
@@ -259,6 +271,8 @@ class ContactLabelDefinitionCreate(ContactLabelDefinitionBase):
 
 class ContactLabelDefinitionUpdate(BaseModel):
     """Schema for updating label definition."""
+
+    model_config = ConfigDict()
 
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
@@ -286,6 +300,8 @@ class ContactLabelDefinitionResponse(ContactLabelDefinitionBase):
 # Field Definition Schemas
 class ContactFieldDefinitionBase(BaseModel):
     """Base field definition schema."""
+
+    model_config = ConfigDict()
 
     name: str = Field(min_length=1, max_length=100)
     field_key: str | None = Field(None, max_length=100)
@@ -317,6 +333,8 @@ class ContactFieldDefinitionCreate(ContactFieldDefinitionBase):
 
 class ContactFieldDefinitionUpdate(BaseModel):
     """Schema for updating field definition."""
+
+    model_config = ConfigDict()
 
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
@@ -353,6 +371,8 @@ class ContactFieldDefinitionResponse(ContactFieldDefinitionBase):
 class ContactActivityBase(BaseModel):
     """Base activity schema."""
 
+    model_config = ConfigDict()
+
     activity_type: str = Field(min_length=1, max_length=50)
     subject: str = Field(min_length=1, max_length=255)
     description: str | None = None
@@ -385,6 +405,8 @@ class ContactActivityResponse(ContactActivityBase):
 class ContactSearchRequest(BaseModel):
     """Contact search request schema."""
 
+    model_config = ConfigDict()
+
     query: str | None = None
     customer_id: UUID | None = None
     status: ContactStatus | None = None
@@ -401,12 +423,16 @@ class ContactSearchRequest(BaseModel):
 class ContactBulkUpdate(BaseModel):
     """Schema for bulk contact updates."""
 
+    model_config = ConfigDict()
+
     contact_ids: list[UUID]
     update_data: ContactUpdate
 
 
 class ContactBulkDelete(BaseModel):
     """Schema for bulk contact deletion."""
+
+    model_config = ConfigDict()
 
     contact_ids: list[UUID]
     hard_delete: bool = False

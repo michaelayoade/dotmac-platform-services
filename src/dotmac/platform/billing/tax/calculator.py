@@ -6,13 +6,15 @@ import logging
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
 
 class TaxRate(BaseModel):
     """Tax rate configuration"""
+
+    model_config = ConfigDict()
 
     name: str = Field(..., description="Tax name (e.g., VAT, GST, Sales Tax)")
     rate: Decimal = Field(..., ge=0, le=100, description="Tax rate percentage")
@@ -25,6 +27,8 @@ class TaxRate(BaseModel):
 
 class TaxCalculationResult(BaseModel):
     """Result of tax calculation"""
+
+    model_config = ConfigDict()
 
     subtotal: int = Field(..., description="Subtotal amount in minor units")
     tax_amount: int = Field(..., description="Total tax amount in minor units")

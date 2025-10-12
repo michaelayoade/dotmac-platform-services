@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class AppBaseModel(BaseModel):
@@ -24,6 +24,8 @@ class AppBaseModel(BaseModel):
     * Decimal values are converted to strings to avoid float precision loss.
     * UUID values are serialised to their canonical string representation.
     """
+
+    model_config = ConfigDict()
 
     @field_serializer("*", when_used="json", check_fields=False)
     def _serialize_special(self, value: Any) -> Any:  # noqa: D401 - inline doc

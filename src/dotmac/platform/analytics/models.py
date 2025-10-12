@@ -262,6 +262,8 @@ class MetricRecordResponse(BaseModel):
 class MetricDataPoint(BaseModel):
     """Single metric data point."""
 
+    model_config = ConfigDict()
+
     timestamp: datetime = Field(..., description="Data point timestamp")
     value: float = Field(..., description="Metric value")
     tags: dict[str, str] | None = Field(None, description="Associated tags")
@@ -274,6 +276,8 @@ class MetricDataPoint(BaseModel):
 class MetricSeries(BaseModel):
     """Time series of metric data."""
 
+    model_config = ConfigDict()
+
     metric_name: str = Field(..., description="Metric name")
     unit: str = Field(..., description="Metric unit")
     data_points: list[MetricDataPoint] = Field(..., description="Time series data")
@@ -282,6 +286,8 @@ class MetricSeries(BaseModel):
 
 class EventData(BaseModel):
     """Event data in query response."""
+
+    model_config = ConfigDict()
 
     event_id: str = Field(..., description="Event ID")
     event_name: str = Field(..., description="Event name")
@@ -326,6 +332,8 @@ class MetricsQueryResponse(BaseModel):
 class AggregationResult(BaseModel):
     """Single aggregation result."""
 
+    model_config = ConfigDict()
+
     group_key: dict[str, Any] | None = Field(None, description="Group by key values")
     aggregation: str = Field(..., description="Aggregation type")
     value: float = Field(..., description="Aggregated value")
@@ -345,6 +353,8 @@ class AggregationQueryResponse(BaseModel):
 
 class ReportSection(BaseModel):
     """Section of an analytics report."""
+
+    model_config = ConfigDict()
 
     title: str = Field(..., description="Section title")
     data: dict[str, Any] = Field(..., description="Section data")
@@ -376,6 +386,8 @@ class ReportResponse(BaseModel):
 class DashboardWidget(BaseModel):
     """Dashboard widget data."""
 
+    model_config = ConfigDict()
+
     widget_id: str = Field(..., description="Widget identifier")
     widget_type: str = Field(..., description="Widget type (chart, metric, table)")
     title: str = Field(..., description="Widget title")
@@ -406,6 +418,8 @@ class DashboardResponse(BaseModel):
 
 class AnalyticsErrorResponse(BaseModel):
     """Analytics error response."""
+
+    model_config = ConfigDict()
 
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")

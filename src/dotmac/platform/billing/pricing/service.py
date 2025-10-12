@@ -14,6 +14,8 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.catalog.service import ProductService
+from dotmac.platform.billing.currency.service import CurrencyRateService
+from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.exceptions import (
     InvalidPricingRuleError,
     PricingError,
@@ -242,6 +244,35 @@ class PricingEngine:
 
         return rule
 
+    async def delete_pricing_rule(self, rule_id: str, tenant_id: str) -> None:
+        """
+        Delete pricing rule permanently.
+
+        This is a hard delete that removes the rule from the database.
+        Use deactivate_pricing_rule() for soft deletes.
+        """
+        stmt = select(BillingPricingRuleTable).where(
+            and_(
+                BillingPricingRuleTable.rule_id == rule_id,
+                BillingPricingRuleTable.tenant_id == tenant_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        db_rule = result.scalar_one_or_none()
+
+        if not db_rule:
+            raise PricingError(f"Pricing rule {rule_id} not found")
+
+        # Delete the rule
+        await self.db.delete(db_rule)
+        await self.db.commit()
+
+        logger.info(
+            "Pricing rule deleted",
+            rule_id=rule_id,
+            tenant_id=tenant_id,
+        )
+
     # ========================================
     # Price Calculation Engine
     # ========================================
@@ -254,6 +285,13 @@ class PricingEngine:
         # Get product information
         product = await self.product_service.get_product(request.product_id, tenant_id)
 
+        if not product:
+            raise PricingError(f"Product not found: {request.product_id}")
+
+        calculation_currency = (
+            request.currency or getattr(product, "currency", settings.billing.default_currency)
+        ).upper()
+
         # Build calculation context
         context = PriceCalculationContext(
             product_id=product.product_id,
@@ -264,6 +302,7 @@ class PricingEngine:
             base_price=product.base_price,
             calculation_date=request.calculation_date or datetime.now(UTC),
             metadata=request.metadata,
+            currency=calculation_currency,
         )
 
         # Calculate base subtotal
@@ -300,7 +339,20 @@ class PricingEngine:
             total_discount_amount=total_discount,
             final_price=final_price,
             applied_adjustments=applied_adjustments,
+            currency=calculation_currency,
         )
+
+        if (
+            settings.billing.enable_multi_currency
+            and calculation_currency != settings.billing.default_currency.upper()
+        ):
+            rate_service = CurrencyRateService(self.db)
+            money_value = money_handler.create_money(final_price, calculation_currency)
+            converted = await rate_service.convert_money(
+                money_value, settings.billing.default_currency
+            )
+            result.normalized_currency = settings.billing.default_currency.upper()
+            result.normalized_amount = converted.amount
 
         logger.info(
             "Price calculated",
@@ -334,6 +386,7 @@ class PricingEngine:
 
         # Use custom price if set, otherwise plan price
         effective_price = custom_price or plan.price
+        plan_currency = getattr(plan, "currency", settings.billing.default_currency).upper()
 
         # Build simple context for subscription
         context = PriceCalculationContext(
@@ -343,6 +396,7 @@ class PricingEngine:
             customer_segments=customer_segments,
             product_category="subscription",  # Special category
             base_price=effective_price,
+            currency=plan_currency,
         )
 
         # Get subscription-specific rules
@@ -362,7 +416,7 @@ class PricingEngine:
                 await self._record_rule_usage(rule, context, tenant_id)
                 break  # First match wins
 
-        return PriceCalculationResult(
+        result = PriceCalculationResult(
             product_id=plan.product_id,
             quantity=1,
             customer_id=customer_id,
@@ -371,7 +425,22 @@ class PricingEngine:
             total_discount_amount=effective_price - final_price,
             final_price=final_price,
             applied_adjustments=applied_adjustments,
+            currency=plan_currency,
         )
+
+        if (
+            settings.billing.enable_multi_currency
+            and plan_currency != settings.billing.default_currency.upper()
+        ):
+            rate_service = CurrencyRateService(self.db)
+            money_value = money_handler.create_money(final_price, plan_currency)
+            converted = await rate_service.convert_money(
+                money_value, settings.billing.default_currency
+            )
+            result.normalized_currency = settings.billing.default_currency.upper()
+            result.normalized_amount = converted.amount
+
+        return result
 
     # ========================================
     # Private Helper Methods
@@ -586,6 +655,10 @@ class PricingEngine:
         """Get rules that would apply for given request (for testing/preview)."""
         product = await self.product_service.get_product(request.product_id, tenant_id)
 
+        calculation_currency = (
+            request.currency or getattr(product, "currency", settings.billing.default_currency)
+        ).upper()
+
         context = PriceCalculationContext(
             product_id=request.product_id,
             quantity=request.quantity,
@@ -593,6 +666,7 @@ class PricingEngine:
             customer_segments=request.customer_segments,
             product_category=product.category if product else None,
             base_price=product.base_price if product else Decimal("0"),
+            currency=calculation_currency,
             calculation_date=request.calculation_date or datetime.now(UTC),
             metadata=request.metadata,
         )

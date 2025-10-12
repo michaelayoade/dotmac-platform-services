@@ -117,6 +117,8 @@ class TestGetAllCategoriesEdgeCase:
     @pytest.mark.asyncio
     async def test_get_all_categories_skip_invalid(self):
         """Test that get_all_categories skips invalid categories (line 250)."""
+        from unittest.mock import AsyncMock, patch
+
         service = SettingsManagementService()
 
         # Mock CATEGORY_MAPPING to have one invalid entry
@@ -125,7 +127,9 @@ class TestGetAllCategoriesEdgeCase:
         # Add a mapping that points to non-existent attribute
         service.CATEGORY_MAPPING[SettingsCategory.DATABASE] = "non_existent_attr"
 
-        categories = service.get_all_categories()
+        # Mock _get_last_update_info to avoid database dependency
+        with patch.object(service, "_get_last_update_info", new=AsyncMock(return_value={})):
+            categories = await service.get_all_categories()
 
         # Should skip the invalid category (line 250 - continue statement)
         # The result should not include DATABASE category
@@ -197,7 +201,7 @@ class TestBackupEdgeCases:
         service.CATEGORY_MAPPING[SettingsCategory.DATABASE] = "non_existent_attr"
 
         # Restore should skip invalid category (line 350)
-        restored = service.restore_backup(
+        restored = await service.restore_backup(
             backup_id=backup.id, user_id="user-123", user_email="user@example.com"
         )
 
@@ -209,6 +213,8 @@ class TestBackupEdgeCases:
     @pytest.mark.asyncio
     async def test_restore_backup_no_changes(self):
         """Test restore when no fields match (line 362 - empty changes)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
         service = SettingsManagementService()
 
         # Create a backup with valid category
@@ -231,11 +237,22 @@ class TestBackupEdgeCases:
             }
         }
 
-        # Restore should skip non-existent fields (line 356 - if hasattr check)
-        # This means changes dict remains empty, so line 362 condition is false
-        restored = service.restore_backup(
-            backup_id=backup_id, user_id="user-123", user_email="user@example.com"
-        )
+        # Mock both database dependencies
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(service, "_get_session", return_value=mock_session),
+            patch.object(service, "_get_last_update_info", new=AsyncMock(return_value={})),
+        ):
+            # Restore should skip non-existent fields (line 356 - if hasattr check)
+            # This means changes dict remains empty, so line 362 condition is false
+            restored = await service.restore_backup(
+                backup_id=backup_id, user_id="user-123", user_email="user@example.com"
+            )
 
         # When changes dict is empty, the category should not be added to restored (line 362 if check fails)
         # However, if the restore found ANY valid fields from the original backup, it will restore them

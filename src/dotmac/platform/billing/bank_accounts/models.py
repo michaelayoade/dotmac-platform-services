@@ -257,12 +257,16 @@ class ManualPaymentResponse(BillingBaseModel):
 class ReconcilePaymentRequest(BaseModel):
     """Request to reconcile a payment"""
 
+    model_config = ConfigDict()
+
     payment_ids: list[int] = Field(..., description="Payment IDs to reconcile")
     reconciliation_notes: str | None = Field(None, description="Reconciliation notes")
 
 
 class PaymentSearchFilters(BaseModel):
     """Filters for searching payments"""
+
+    model_config = ConfigDict()
 
     customer_id: str | None = None
     invoice_id: str | None = None
@@ -290,6 +294,8 @@ class CashRegisterCreate(BaseModel):
 
 class CashRegisterResponse(BaseModel):
     """Cash register response"""
+
+    model_config = ConfigDict()
 
     id: int
     register_id: str
@@ -324,6 +330,8 @@ class CashTransactionCreate(BaseModel):
 class CashTransactionResponse(BaseModel):
     """Cash transaction response"""
 
+    model_config = ConfigDict()
+
     id: str
     register_id: str
     transaction_type: str
@@ -350,6 +358,8 @@ class CashRegisterReconciliationCreate(BaseModel):
 
 class CashRegisterReconciliationResponse(BaseModel):
     """Cash register reconciliation response"""
+
+    model_config = ConfigDict()
 
     id: str
     register_id: str
@@ -386,6 +396,8 @@ class ReconciliationCreate(BaseModel):
 class ReconciliationResponse(BaseModel):
     """Reconciliation response"""
 
+    model_config = ConfigDict()
+
     id: int
     reconciliation_date: datetime
     period_start: datetime
@@ -419,6 +431,8 @@ class ReconciliationResponse(BaseModel):
 
 class BankAccountSummary(BaseModel):
     """Bank account summary with stats"""
+
+    model_config = ConfigDict()
 
     account: CompanyBankAccountResponse
     total_deposits_mtd: float = Field(0.00, description="Month-to-date deposits")
