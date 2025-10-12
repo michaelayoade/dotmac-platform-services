@@ -300,3 +300,72 @@ class TenantInvitation(Base, TimestampMixin):
     def is_pending(self) -> bool:
         """Check if invitation is pending."""
         return self.status == TenantInvitationStatus.PENDING and not self.is_expired
+
+
+class VerificationMethod(str, PyEnum):
+    """Domain verification methods."""
+
+    DNS_TXT = "dns_txt"
+    DNS_CNAME = "dns_cname"
+    META_TAG = "meta_tag"
+    FILE_UPLOAD = "file_upload"
+
+
+class VerificationStatus(str, PyEnum):
+    """Domain verification status."""
+
+    PENDING = "pending"
+    VERIFIED = "verified"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class DomainVerificationAttempt(Base, TimestampMixin):
+    """
+    Domain verification attempt tracking.
+
+    Records domain ownership verification attempts for tenant custom domains.
+    """
+
+    __tablename__ = "domain_verification_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    verification_method: Mapped[str] = mapped_column(String(50), nullable=False)
+    verification_token: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    initiated_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    initiated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    attempt_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
+
+    def __repr__(self) -> str:
+        return (
+            f"<DomainVerificationAttempt(id={self.id}, domain={self.domain}, "
+            f"status={self.status})>"
+        )
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if verification attempt has expired."""
+        now = datetime.now(UTC)
+        # Handle both timezone-aware and naive datetimes (SQLite returns naive)
+        expires_at = (
+            self.expires_at.replace(tzinfo=UTC)
+            if self.expires_at.tzinfo is None
+            else self.expires_at
+        )
+        return now > expires_at
+
+    @property
+    def is_pending(self) -> bool:
+        """Check if verification is still pending."""
+        return self.status == "pending" and not self.is_expired

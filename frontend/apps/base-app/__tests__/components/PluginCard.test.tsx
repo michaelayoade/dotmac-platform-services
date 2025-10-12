@@ -2,8 +2,9 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PluginCard } from '../../app/dashboard/settings/plugins/components/PluginCard';
+import type { PluginConfig, PluginInstance } from '@/hooks/usePlugins';
 
-const mockPlugin = {
+const mockPlugin: PluginConfig = {
   name: "WhatsApp Business",
   type: "notification" as const,
   version: "1.0.0",
@@ -22,7 +23,10 @@ const mockPlugin = {
       description: "WhatsApp Business phone number",
       required: true,
       is_secret: false,
-      group: "Basic Configuration"
+      group: "Basic Configuration",
+      validation_rules: [],
+      options: [],
+      order: 1,
     },
     {
       key: "api_token",
@@ -31,7 +35,10 @@ const mockPlugin = {
       description: "WhatsApp Business API access token",
       required: true,
       is_secret: true,
-      group: "Basic Configuration"
+      group: "Basic Configuration",
+      validation_rules: [],
+      options: [],
+      order: 2,
     },
     {
       key: "business_account_id",
@@ -40,7 +47,10 @@ const mockPlugin = {
       description: "WhatsApp Business Account ID",
       required: true,
       is_secret: false,
-      group: "Basic Configuration"
+      group: "Basic Configuration",
+      validation_rules: [],
+      options: [],
+      order: 3,
     },
     {
       key: "webhook_url",
@@ -49,37 +59,42 @@ const mockPlugin = {
       description: "URL to receive webhook notifications",
       required: false,
       is_secret: false,
-      group: "Webhooks"
+      group: "Webhooks",
+      validation_rules: [],
+      options: [],
+      order: 4,
     }
   ]
 };
 
-const mockInstances = [
+const mockInstances: PluginInstance[] = [
   {
     id: "550e8400-e29b-41d4-a716-446655440000",
     plugin_name: "WhatsApp Business",
     instance_name: "Production WhatsApp",
+    config_schema: mockPlugin,
     status: "active" as const,
     has_configuration: true,
-    created_at: "2024-01-15T10:00:00Z",
-    last_error: undefined
+    last_health_check: "2024-01-15T12:00:00Z",
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440001",
     plugin_name: "WhatsApp Business",
     instance_name: "Test WhatsApp",
+    config_schema: mockPlugin,
     status: "error" as const,
     has_configuration: true,
-    created_at: "2024-01-10T08:00:00Z",
+    last_health_check: "2024-01-10T09:00:00Z",
     last_error: "Authentication failed: Invalid API token"
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440002",
     plugin_name: "WhatsApp Business",
     instance_name: "Staging WhatsApp",
+    config_schema: mockPlugin,
     status: "inactive" as const,
     has_configuration: false,
-    created_at: "2024-01-12T08:00:00Z"
+    last_health_check: null,
   }
 ];
 

@@ -30,6 +30,7 @@ import {
   formatPercentage,
   formatDuration,
   getSeverityColor,
+  type ServiceHealth,
 } from "@/hooks/useOperations";
 
 export default function OperationsPage() {
@@ -40,6 +41,14 @@ export default function OperationsPage() {
   const { data: metrics, isLoading: loadingMetrics, error: metricsError, refetch: refetchMetrics } = useMonitoringMetrics(metricsPeriod);
   const { data: logStats, isLoading: loadingLogs, error: logsError, refetch: refetchLogs } = useLogStats(logsPeriod);
   const { data: health, isLoading: loadingHealth, error: healthError, refetch: refetchHealth } = useSystemHealth();
+
+  const serviceChecks: Array<[string, ServiceHealth]> = health
+    ? (Object.entries(health.checks) as Array<[string, ServiceHealth | undefined]>).filter(
+        (entry): entry is [string, ServiceHealth] => Boolean(entry[1])
+      )
+    : [];
+  const topErrors = metrics?.top_errors ?? [];
+  const commonErrors = logStats?.most_common_errors ?? [];
 
   const isLoading = loadingMetrics || loadingLogs || loadingHealth;
   const error = metricsError || logsError || healthError;
@@ -101,7 +110,7 @@ export default function OperationsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(health.checks).map(([serviceName, check]) => (
+              {serviceChecks.map(([serviceName, check]) => (
                 <div
                   key={serviceName}
                   className={`rounded-lg border px-4 py-3 ${getStatusColor(check.status)}`}
@@ -268,7 +277,7 @@ export default function OperationsPage() {
           </Card>
 
           {/* Top Errors */}
-          {metrics.top_errors.length > 0 && (
+          {topErrors.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -279,7 +288,7 @@ export default function OperationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {metrics.top_errors.slice(0, 10).map((error, index) => (
+                  {topErrors.slice(0, 10).map((error, index) => (
                     <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">{error.error_type}</p>
@@ -391,7 +400,7 @@ export default function OperationsPage() {
           </div>
 
           {/* Most Common Errors */}
-          {logStats.most_common_errors.length > 0 && (
+          {commonErrors.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -402,7 +411,7 @@ export default function OperationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {logStats.most_common_errors.slice(0, 10).map((error, index) => (
+                  {commonErrors.slice(0, 10).map((error, index) => (
                     <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">{error.error_type}</p>

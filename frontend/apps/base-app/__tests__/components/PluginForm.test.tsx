@@ -2,9 +2,25 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PluginForm } from '../../app/dashboard/settings/plugins/components/PluginForm';
+import type { FieldSpec, PluginConfig, PluginInstance, PluginTestResult } from '@/hooks/usePlugins';
+
+const makeField = (
+  field: Omit<FieldSpec, 'validation_rules' | 'options' | 'required' | 'is_secret'> & {
+    required?: boolean;
+    is_secret?: boolean;
+    validation_rules?: FieldSpec['validation_rules'];
+    options?: FieldSpec['options'];
+  }
+): FieldSpec => ({
+  required: false,
+  is_secret: false,
+  validation_rules: [],
+  options: [],
+  ...field,
+});
 
 // Mock data
-const mockWhatsAppPlugin = {
+const mockWhatsAppPlugin: PluginConfig = {
   name: "WhatsApp Business",
   type: "notification" as const,
   version: "1.0.0",
@@ -16,40 +32,40 @@ const mockWhatsAppPlugin = {
   supports_health_check: true,
   supports_test_connection: true,
   fields: [
-    {
+    makeField({
       key: "phone_number",
       label: "Phone Number",
-      type: "phone" as const,
+      type: "phone",
       description: "WhatsApp Business phone number in E.164 format",
       required: true,
       pattern: "^\\+[1-9]\\d{1,14}$",
       group: "Basic Configuration",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    makeField({
       key: "api_token",
       label: "API Token",
-      type: "secret" as const,
+      type: "secret",
       description: "WhatsApp Business API access token",
       required: true,
       is_secret: true,
       min_length: 50,
       group: "Basic Configuration",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    makeField({
       key: "business_account_id",
       label: "Business Account ID",
-      type: "string" as const,
+      type: "string",
       description: "WhatsApp Business Account ID",
       required: true,
       group: "Basic Configuration",
-      order: 3
-    },
-    {
+      order: 3,
+    }),
+    makeField({
       key: "api_version",
       label: "API Version",
-      type: "select" as const,
+      type: "select",
       description: "WhatsApp Business API version",
       default: "v18.0",
       options: [
@@ -58,109 +74,116 @@ const mockWhatsAppPlugin = {
         { value: "v16.0", label: "v16.0" }
       ],
       group: "Environment",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    makeField({
       key: "sandbox_mode",
       label: "Sandbox Mode",
-      type: "boolean" as const,
+      type: "boolean",
       description: "Enable sandbox mode for testing",
       default: false,
       group: "Environment",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    makeField({
       key: "webhook_url",
       label: "Webhook URL",
-      type: "url" as const,
+      type: "url",
       description: "URL to receive webhook notifications",
       group: "Webhooks",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    makeField({
       key: "webhook_token",
       label: "Webhook Verification Token",
-      type: "secret" as const,
+      type: "secret",
       description: "Token for webhook verification",
       is_secret: true,
+      required: false,
       group: "Webhooks",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    makeField({
       key: "message_retry_count",
       label: "Message Retry Count",
-      type: "integer" as const,
+      type: "integer",
       description: "Number of retry attempts for failed messages",
       default: 3,
       min_value: 0,
       max_value: 5,
       group: "Advanced",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    makeField({
       key: "timeout_seconds",
       label: "Request Timeout",
-      type: "float" as const,
+      type: "float",
       description: "HTTP request timeout in seconds",
       default: 30.5,
       min_value: 5,
       max_value: 300,
       group: "Advanced",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    makeField({
       key: "custom_headers",
       label: "Custom Headers",
-      type: "json" as const,
+      type: "json",
       description: "Additional HTTP headers as JSON object",
       group: "Advanced",
-      order: 3
-    },
-    {
+      order: 3,
+    }),
+    makeField({
       key: "contact_email",
       label: "Contact Email",
-      type: "email" as const,
+      type: "email",
       description: "Contact email for notifications",
       group: "Advanced",
-      order: 4
-    },
-    {
+      order: 4,
+    }),
+    makeField({
       key: "created_date",
       label: "Created Date",
-      type: "date" as const,
+      type: "string",
       description: "Date when account was created",
       group: "Advanced",
-      order: 5
-    },
-    {
+      order: 5,
+    }),
+    makeField({
       key: "last_sync",
       label: "Last Sync Time",
-      type: "datetime" as const,
+      type: "string",
       description: "Last synchronization timestamp",
       group: "Advanced",
-      order: 6
-    }
+      order: 6,
+    })
   ]
 };
 
-const mockInstance = {
+const mockInstance: PluginInstance = {
   id: "550e8400-e29b-41d4-a716-446655440000",
   plugin_name: "WhatsApp Business",
   instance_name: "Production WhatsApp",
   config_schema: mockWhatsAppPlugin,
   status: "active" as const,
   has_configuration: true,
-  created_at: "2024-01-15T10:00:00Z",
   last_health_check: "2024-01-20T15:30:00Z"
 };
 
-const mockAvailablePlugins = [mockWhatsAppPlugin];
+const mockAvailablePlugins: PluginConfig[] = [mockWhatsAppPlugin];
 
-const defaultProps = {
+const defaultProps: Parameters<typeof PluginForm>[0] = {
   availablePlugins: mockAvailablePlugins,
   onSubmit: jest.fn(),
   onCancel: jest.fn(),
-  onTestConnection: jest.fn(),
+  onTestConnection: jest.fn<Promise<PluginTestResult>, [string, Record<string, unknown>?]>(
+    async () => ({
+      success: true,
+      message: 'ok',
+      details: {},
+      timestamp: new Date().toISOString(),
+    })
+  ),
 };
 
 // Helper to render form with default props

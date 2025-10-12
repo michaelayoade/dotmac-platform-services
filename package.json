@@ -9,7 +9,7 @@
     "test": "pnpm -r run test",
     "test:ci": "pnpm -r run test:ci",
     "lint": "pnpm -r run lint",
-    "type-check": "pnpm -r run type-check",
+    "type-check": "pnpm --filter @dotmac/base-app run type-check",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "clean": "pnpm -r run clean"

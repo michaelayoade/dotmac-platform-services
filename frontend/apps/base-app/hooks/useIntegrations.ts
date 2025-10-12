@@ -7,9 +7,16 @@
  * - POST /api/v1/integrations/{name}/health-check - Trigger health check
  */
 
-import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseQueryOptions,
+  type QueryKey,
+} from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { extractDataOrThrow } from '@/lib/api/response-helpers';
 
 // ============================================
 // Types matching backend integrations models
@@ -44,12 +51,19 @@ export interface IntegrationListResponse {
 /**
  * Fetch all registered integrations
  */
-export function useIntegrations(options?: UseQueryOptions<IntegrationListResponse, Error>) {
-  return useQuery<IntegrationListResponse, Error>({
+type QueryOptions<TData, TKey extends QueryKey> = Omit<
+  UseQueryOptions<TData, Error, TData, TKey>,
+  'queryKey' | 'queryFn'
+>;
+
+export function useIntegrations(
+  options?: QueryOptions<IntegrationListResponse, ['integrations']>
+) {
+  return useQuery<IntegrationListResponse, Error, IntegrationListResponse, ['integrations']>({
     queryKey: ['integrations'],
     queryFn: async () => {
       const response = await apiClient.get<IntegrationListResponse>('/integrations');
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load integrations');
     },
     refetchInterval: 60000, // Refresh every minute
     ...options,
@@ -61,13 +75,13 @@ export function useIntegrations(options?: UseQueryOptions<IntegrationListRespons
  */
 export function useIntegration(
   name: string,
-  options?: UseQueryOptions<IntegrationResponse, Error>
+  options?: QueryOptions<IntegrationResponse, ['integrations', string]>
 ) {
-  return useQuery<IntegrationResponse, Error>({
+  return useQuery<IntegrationResponse, Error, IntegrationResponse, ['integrations', string]>({
     queryKey: ['integrations', name],
     queryFn: async () => {
       const response = await apiClient.get<IntegrationResponse>(`/integrations/${name}`);
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load integration');
     },
     enabled: !!name,
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -91,7 +105,7 @@ export function useHealthCheck() {
       const response = await apiClient.post<IntegrationResponse>(
         `/integrations/${integrationName}/health-check`
       );
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to trigger health check');
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] });

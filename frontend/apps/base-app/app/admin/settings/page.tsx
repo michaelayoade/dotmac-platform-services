@@ -27,7 +27,12 @@ export default function AdminSettingsPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
 
   // Fetch all categories
-  const { data: categories = [], isLoading: isLoadingCategories, error: categoriesError } = useSettingsCategories();
+  const {
+    data: categoriesData,
+    isLoading: isLoadingCategories,
+    error: categoriesError,
+  } = useSettingsCategories();
+  const categories = categoriesData ?? [];
 
   // Fetch selected category settings
   const {

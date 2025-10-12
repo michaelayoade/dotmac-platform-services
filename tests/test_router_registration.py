@@ -105,7 +105,7 @@ class TestRouterRegistration:
         allowed_duplicates = {
             "/api/v1/tenants": {
                 "dotmac.platform.tenant.router",
-                "dotmac.platform.tenant.usage_billing_router",
+                "dotmac.platform.tenant.domain_verification_router",
             },
             "/api/v1": {
                 "dotmac.platform.plugins.router",

@@ -9,9 +9,16 @@
  * - GET /api/v1/admin/settings/audit-logs - Get audit logs
  */
 
-import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseQueryOptions,
+  type QueryKey,
+} from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { extractDataOrThrow } from '@/lib/api/response-helpers';
 
 // ============================================
 // Types matching backend admin/settings models
@@ -92,15 +99,22 @@ export interface AuditLog {
 // Query Hooks
 // ============================================
 
+type QueryOptions<TData, TKey extends QueryKey> = Omit<
+  UseQueryOptions<TData, Error, TData, TKey>,
+  'queryKey' | 'queryFn'
+>;
+
 /**
  * Fetch all settings categories
  */
-export function useSettingsCategories(options?: UseQueryOptions<SettingsCategoryInfo[], Error>) {
-  return useQuery<SettingsCategoryInfo[], Error>({
+export function useSettingsCategories(
+  options?: QueryOptions<SettingsCategoryInfo[], ['settings', 'categories']>
+) {
+  return useQuery<SettingsCategoryInfo[], Error, SettingsCategoryInfo[], ['settings', 'categories']>({
     queryKey: ['settings', 'categories'],
     queryFn: async () => {
       const response = await apiClient.get<SettingsCategoryInfo[]>('/admin/settings/categories');
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load settings categories');
     },
     ...options,
   });
@@ -112,9 +126,9 @@ export function useSettingsCategories(options?: UseQueryOptions<SettingsCategory
 export function useCategorySettings(
   category: SettingsCategory,
   includeSensitive: boolean = false,
-  options?: UseQueryOptions<SettingsResponse, Error>
+  options?: QueryOptions<SettingsResponse, ['settings', 'category', SettingsCategory, boolean]>
 ) {
-  return useQuery<SettingsResponse, Error>({
+  return useQuery<SettingsResponse, Error, SettingsResponse, ['settings', 'category', SettingsCategory, boolean]>({
     queryKey: ['settings', 'category', category, includeSensitive],
     queryFn: async () => {
       const response = await apiClient.get<SettingsResponse>(
@@ -123,7 +137,7 @@ export function useCategorySettings(
           params: { include_sensitive: includeSensitive },
         }
       );
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load category settings');
     },
     enabled: !!category,
     ...options,
@@ -137,9 +151,14 @@ export function useAuditLogs(
   category?: SettingsCategory | null,
   userId?: string | null,
   limit: number = 100,
-  options?: UseQueryOptions<AuditLog[], Error>
+  options?: QueryOptions<AuditLog[], ['settings', 'audit-logs', SettingsCategory | null | undefined, string | null | undefined, number]>
 ) {
-  return useQuery<AuditLog[], Error>({
+  return useQuery<
+    AuditLog[],
+    Error,
+    AuditLog[],
+    ['settings', 'audit-logs', SettingsCategory | null | undefined, string | null | undefined, number]
+  >({
     queryKey: ['settings', 'audit-logs', category, userId, limit],
     queryFn: async () => {
       const response = await apiClient.get<AuditLog[]>('/admin/settings/audit-logs', {
@@ -149,7 +168,7 @@ export function useAuditLogs(
           limit,
         },
       });
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load audit logs');
     },
     ...options,
   });
@@ -178,7 +197,7 @@ export function useUpdateCategorySettings() {
         `/admin/settings/category/${category}`,
         data
       );
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to update settings');
     },
     onSuccess: (data, variables) => {
       // Invalidate queries
@@ -220,7 +239,7 @@ export function useValidateSettings() {
           params: { category },
         }
       );
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to validate settings');
     },
   });
 }

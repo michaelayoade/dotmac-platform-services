@@ -171,12 +171,12 @@ jobs:
             -q
 
       - name: Check module-specific coverage thresholds
-        if: always()
+        if: success()
         run: |
           poetry run python scripts/check_coverage.py coverage.xml
 
       - name: Check diff coverage (PRs only)
-        if: github.event_name == 'pull_request'
+        if: success() && github.event_name == 'pull_request'
         run: |
           echo "📊 Checking diff coverage for PR..."
           poetry run diff-cover coverage.xml \

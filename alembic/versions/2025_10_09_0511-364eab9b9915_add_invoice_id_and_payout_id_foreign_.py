@@ -18,18 +18,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create PayoutStatus enum if it doesn't exist
-    # PostgreSQL doesn't support IF NOT EXISTS for CREATE TYPE, so check first
-    op.execute(
-        """
-        DO $$ BEGIN
-            CREATE TYPE payoutstatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-        """
-    )
-
     # Create partner_payouts table
     op.create_table(
         "partner_payouts",
@@ -41,9 +29,7 @@ def upgrade() -> None:
         sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column(
             "status",
-            sa.Enum(
-                "PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED", name="payoutstatus"
-            ),
+            sa.String(length=20),  # Use String instead of Enum to avoid type creation issues
             nullable=False,
         ),
         sa.Column("payout_date", sa.DateTime(timezone=True), nullable=True),
@@ -59,6 +45,13 @@ def upgrade() -> None:
     op.create_index("ix_partner_payouts_partner_id", "partner_payouts", ["partner_id"])
     op.create_index("ix_partner_payouts_period", "partner_payouts", ["period_start", "period_end"])
     op.create_index("ix_partner_payouts_tenant_id", "partner_payouts", ["tenant_id"])
+
+    # Add check constraint for status values
+    op.create_check_constraint(
+        "ck_partner_payouts_status",
+        "partner_payouts",
+        "status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED')",
+    )
 
     # Add foreign key constraint for invoice_id
     op.create_foreign_key(
@@ -95,10 +88,8 @@ def downgrade() -> None:
     )
 
     # Drop partner_payouts table
+    op.drop_constraint("ck_partner_payouts_status", "partner_payouts", type_="check")
     op.drop_index("ix_partner_payouts_tenant_id", "partner_payouts")
     op.drop_index("ix_partner_payouts_period", "partner_payouts")
     op.drop_index("ix_partner_payouts_partner_id", "partner_payouts")
     op.drop_table("partner_payouts")
-
-    # Drop PayoutStatus enum
-    op.execute("DROP TYPE IF EXISTS payoutstatus")

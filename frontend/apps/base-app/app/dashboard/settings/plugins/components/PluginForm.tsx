@@ -2,52 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { X, TestTube, Loader2, CheckCircle, XCircle, Eye, EyeOff, Upload, Calendar, Clock } from 'lucide-react';
+import type {
+  FieldSpec,
+  PluginConfig,
+  PluginInstance,
+  PluginTestResult,
+} from '@/hooks/usePlugins';
 
-interface FieldSpec {
-  key: string;
-  label: string;
-  type: 'string' | 'secret' | 'boolean' | 'integer' | 'float' | 'select' | 'json' | 'url' | 'email' | 'phone' | 'date' | 'datetime' | 'file';
-  description?: string;
-  required?: boolean;
-  is_secret?: boolean;
-  default?: unknown;
-  min_value?: number;
-  max_value?: number;
-  min_length?: number;
-  max_length?: number;
-  pattern?: string;
-  validation_rules?: string[];
-  options?: Array<{ value: string; label: string }>;
-  group?: string;
-  order?: number;
-}
+type ExtendedFieldSpec = Omit<FieldSpec, 'type'> & {
+  type: FieldSpec['type'] | 'date' | 'datetime' | 'file';
+};
 
-interface PluginConfig {
-  name: string;
-  type: 'notification' | 'integration' | 'payment' | 'storage';
-  version: string;
-  description: string;
-  author?: string;
-  homepage?: string;
-  tags?: string[];
-  dependencies?: string[];
-  supports_health_check: boolean;
-  supports_test_connection: boolean;
-  fields: FieldSpec[];
-}
-
-interface PluginInstance {
-  id: string;
-  plugin_name: string;
-  instance_name: string;
-  config_schema: PluginConfig;
-  status: 'active' | 'inactive' | 'error' | 'configured';
-  has_configuration: boolean;
-  created_at?: string;
-  updated_at?: string;
-  last_health_check?: string;
-  last_error?: string;
-}
+const valueOrUndefined = <T,>(value: T | null | undefined): T | undefined =>
+  value === null || value === undefined ? undefined : value;
 
 interface PluginFormProps {
   plugin?: PluginConfig | null;
@@ -55,7 +22,7 @@ interface PluginFormProps {
   availablePlugins: PluginConfig[];
   onSubmit: (data: { plugin_name: string; instance_name: string; configuration: Record<string, unknown> }) => Promise<void>;
   onCancel: () => void;
-  onTestConnection: (instanceId: string, testConfig?: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  onTestConnection: (instanceId: string, testConfig?: Record<string, unknown>) => Promise<PluginTestResult>;
 }
 
 // Dynamic field component
@@ -67,7 +34,7 @@ const DynamicField = ({
   onToggleSecret,
   error
 }: {
-  field: FieldSpec;
+  field: ExtendedFieldSpec;
   value: unknown;
   onChange: (value: unknown) => void;
   showSecrets: Record<string, boolean>;
@@ -87,11 +54,11 @@ const DynamicField = ({
             type="text"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.description}
+            placeholder={valueOrUndefined(field.description)}
             className={baseInputClasses}
-            minLength={field.min_length}
-            maxLength={field.max_length}
-            pattern={field.pattern}
+            minLength={valueOrUndefined(field.min_length)}
+            maxLength={valueOrUndefined(field.max_length)}
+            pattern={valueOrUndefined(field.pattern)}
             required={field.required}
           />
         );
@@ -106,8 +73,8 @@ const DynamicField = ({
               onChange={(e) => onChange(e.target.value)}
               placeholder="Enter secret value"
               className={`${baseInputClasses} pr-10`}
-              minLength={field.min_length}
-              maxLength={field.max_length}
+              minLength={valueOrUndefined(field.min_length)}
+              maxLength={valueOrUndefined(field.max_length)}
               required={field.required}
             />
             <button
@@ -141,10 +108,10 @@ const DynamicField = ({
             type="number"
             value={(value as string) || ''}
             onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
-            placeholder={field.description}
+            placeholder={valueOrUndefined(field.description)}
             className={baseInputClasses}
-            min={field.min_value}
-            max={field.max_value}
+            min={valueOrUndefined(field.min_value)}
+            max={valueOrUndefined(field.max_value)}
             step={1}
             required={field.required}
           />
@@ -157,10 +124,10 @@ const DynamicField = ({
             type="number"
             value={(value as string) || ''}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-            placeholder={field.description}
+            placeholder={valueOrUndefined(field.description)}
             className={baseInputClasses}
-            min={field.min_value}
-            max={field.max_value}
+            min={valueOrUndefined(field.min_value)}
+            max={valueOrUndefined(field.max_value)}
             step="any"
             required={field.required}
           />
@@ -239,7 +206,9 @@ const DynamicField = ({
             onChange={(e) => onChange(e.target.value)}
             placeholder="+1234567890"
             className={baseInputClasses}
-            pattern={field.pattern || '^\\+[1-9]\\d{1,14}$'}
+            minLength={valueOrUndefined(field.min_length)}
+            maxLength={valueOrUndefined(field.max_length)}
+            pattern={valueOrUndefined(field.pattern) ?? '^\\+[1-9]\\d{1,14}$'}
             required={field.required}
           />
         );
@@ -315,7 +284,7 @@ const DynamicField = ({
             type="text"
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.description}
+            placeholder={valueOrUndefined(field.description)}
             className={baseInputClasses}
             required={field.required}
           />
@@ -337,12 +306,17 @@ const DynamicField = ({
       {error && (
         <p className="text-xs text-rose-400">{error}</p>
       )}
-      {field.validation_rules && field.validation_rules.length > 0 && (
+      {field.validation_rules.length > 0 && (
         <div className="text-xs text-foreground0">
           <ul className="list-disc list-inside space-y-0.5">
-            {field.validation_rules.map((rule, index) => (
-              <li key={index}>{rule}</li>
-            ))}
+            {field.validation_rules.map((rule, index) => {
+              const ruleText =
+                rule.message ??
+                [rule.type, rule.value !== undefined ? String(rule.value) : null]
+                  .filter(Boolean)
+                  .join(': ');
+              return <li key={index}>{ruleText}</li>;
+            })}
           </ul>
         </div>
       )}
@@ -365,7 +339,7 @@ export const PluginForm = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<PluginTestResult | null>(null);
 
   // Initialize configuration from instance if editing
   useEffect(() => {
@@ -438,20 +412,20 @@ export const PluginForm = ({
           newErrors[field.key] = 'Invalid phone number format';
         }
 
-        if (field.min_length && value.length < field.min_length) {
+        if (field.min_length != null && value.length < field.min_length) {
           newErrors[field.key] = `Minimum length is ${field.min_length} characters`;
         }
 
-        if (field.max_length && value.length > field.max_length) {
+        if (field.max_length != null && value.length > field.max_length) {
           newErrors[field.key] = `Maximum length is ${field.max_length} characters`;
         }
 
         if (field.type === 'integer' || field.type === 'float') {
           const num = Number(value);
-          if (field.min_value !== undefined && num < field.min_value) {
+          if (field.min_value != null && num < field.min_value) {
             newErrors[field.key] = `Minimum value is ${field.min_value}`;
           }
-          if (field.max_value !== undefined && num > field.max_value) {
+          if (field.max_value != null && num > field.max_value) {
             newErrors[field.key] = `Maximum value is ${field.max_value}`;
           }
         }
@@ -501,16 +475,16 @@ export const PluginForm = ({
     setTestResult(null);
 
     try {
-      const result = await onTestConnection(instance?.id || '', configuration);
-      setTestResult({
-        success: result.success as boolean,
-        message: result.message as string
-      });
+      const result = await onTestConnection(instance?.id ?? '', configuration);
+      setTestResult(result);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Connection test failed';
       setTestResult({
         success: false,
-        message: errorMessage
+        message: errorMessage,
+        details: {},
+        timestamp: new Date().toISOString(),
+        response_time_ms: undefined,
       });
     } finally {
       setTesting(false);
@@ -522,14 +496,15 @@ export const PluginForm = ({
   };
 
   // Group fields by group
-  const groupedFields = selectedPlugin?.fields.reduce((groups, field) => {
-    const group = field.group || 'Configuration';
-    if (!groups[group]) {
-      groups[group] = [];
-    }
-    groups[group].push(field);
-    return groups;
-  }, {} as Record<string, FieldSpec[]>) || {};
+  const groupedFields =
+    (selectedPlugin?.fields as ExtendedFieldSpec[] | undefined)?.reduce((groups, field) => {
+      const group = field.group || 'Configuration';
+      if (!groups[group]) {
+        groups[group] = [];
+      }
+      groups[group].push(field);
+      return groups;
+    }, {} as Record<string, ExtendedFieldSpec[]>) ?? {};
 
   return (
     <div className="fixed inset-0 bg-card/75 flex items-center justify-center p-4 z-50">

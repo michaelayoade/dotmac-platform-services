@@ -39,14 +39,14 @@ export default function IntegrationsPage() {
   const { data, isLoading, error, refetch } = useIntegrations();
   const healthCheck = useHealthCheck();
 
-  const integrations = data?.integrations || [];
-  const total = data?.total || 0;
+  const integrations = data?.integrations ?? [];
+  const total = data?.total ?? 0;
 
   // Filter integrations by type
   const filteredIntegrations =
     selectedType === "all"
       ? integrations
-      : integrations.filter((i) => i.type === selectedType);
+      : integrations.filter((i: IntegrationResponse) => i.type === selectedType);
 
   // Group by type for categorized view
   const groupedIntegrations = groupByType(integrations);
@@ -197,7 +197,7 @@ export default function IntegrationsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredIntegrations.map((integration) => (
+          {filteredIntegrations.map((integration: IntegrationResponse) => (
             <Card key={integration.name} className="border-primary/30">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -269,7 +269,7 @@ export default function IntegrationsPage() {
                       <span>Required packages:</span>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {integration.required_packages.map((pkg) => (
+                      {integration.required_packages.map((pkg: string) => (
                         <Badge key={pkg} variant="secondary" className="text-xs">
                           {pkg}
                         </Badge>

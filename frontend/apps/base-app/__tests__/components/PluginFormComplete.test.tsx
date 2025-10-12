@@ -2,26 +2,63 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PluginForm } from '../../app/dashboard/settings/plugins/components/PluginForm';
+import type { FieldSpec, PluginConfig, PluginTestResult } from '@/hooks/usePlugins';
+
+const createField = (
+  field: Omit<FieldSpec, 'validation_rules' | 'options' | 'required' | 'is_secret'> & {
+    required?: boolean;
+    is_secret?: boolean;
+    validation_rules?: FieldSpec['validation_rules'];
+    options?: FieldSpec['options'];
+  }
+): FieldSpec => ({
+  required: false,
+  is_secret: false,
+  validation_rules: [],
+  options: [],
+  ...field,
+});
+
+const createPlugin = (overrides: Partial<PluginConfig>): PluginConfig => ({
+  name: 'Test Plugin',
+  type: 'integration',
+  version: '1.0.0',
+  description: 'Test plugin',
+  supports_health_check: true,
+  supports_test_connection: false,
+  tags: [],
+  dependencies: [],
+  fields: [],
+  ...overrides,
+});
+
+const noopTestConnection = jest.fn<Promise<PluginTestResult>, [string, Record<string, unknown>?]>(
+  async () => ({
+    success: true,
+    message: 'ok',
+    details: {},
+    timestamp: new Date().toISOString(),
+  })
+);
 
 describe('PluginForm Complete Coverage Tests', () => {
   it('handles JSON field with object value', async () => {
     const user = userEvent.setup();
 
-    const pluginWithJson = {
-      name: "JSON Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with JSON field",
-      supports_health_check: true,
-      supports_test_connection: false,
-      fields: [{
-        key: "json_config",
-        label: "JSON Config",
-        type: "json" as const,
-        description: "JSON configuration",
-        required: false
-      }]
-    };
+    const pluginWithJson = createPlugin({
+      name: 'JSON Plugin',
+      description: 'Plugin with JSON field',
+      fields: [
+        createField({
+          key: 'json_config',
+          label: 'JSON Config',
+          type: 'json',
+          description: 'JSON configuration',
+          required: false,
+          order: 1,
+        }),
+      ],
+    });
 
     const onSubmit = jest.fn();
     render(<PluginForm
@@ -29,7 +66,7 @@ describe('PluginForm Complete Coverage Tests', () => {
       availablePlugins={[pluginWithJson]}
       onSubmit={onSubmit}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     const instanceName = screen.getByLabelText(/Instance Name/);
@@ -57,28 +94,27 @@ describe('PluginForm Complete Coverage Tests', () => {
   it('handles JSON field with invalid JSON', async () => {
     const user = userEvent.setup();
 
-    const pluginWithJson = {
-      name: "JSON Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with JSON field",
-      supports_health_check: true,
-      supports_test_connection: false,
-      fields: [{
-        key: "json_config",
-        label: "JSON Config",
-        type: "json" as const,
-        description: "JSON configuration",
-        required: false
-      }]
-    };
+    const pluginWithJson = createPlugin({
+      name: 'JSON Plugin',
+      description: 'Plugin with JSON field',
+      fields: [
+        createField({
+          key: 'json_config',
+          label: 'JSON Config',
+          type: 'json',
+          description: 'JSON configuration',
+          required: false,
+          order: 1,
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithJson}
       availablePlugins={[pluginWithJson]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     const jsonField = screen.getByLabelText(/JSON Config/) as HTMLTextAreaElement;
@@ -90,37 +126,35 @@ describe('PluginForm Complete Coverage Tests', () => {
   });
 
   it('displays field descriptions for non-boolean fields', () => {
-    const pluginWithDescriptions = {
-      name: "Description Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with descriptions",
-      supports_health_check: true,
-      supports_test_connection: false,
+    const pluginWithDescriptions = createPlugin({
+      name: 'Description Plugin',
+      description: 'Plugin with descriptions',
       fields: [
-        {
-          key: "string_field",
-          label: "String Field",
-          type: "string" as const,
-          description: "This is a string field description",
-          required: false
-        },
-        {
-          key: "boolean_field",
-          label: "Boolean Field",
-          type: "boolean" as const,
-          description: "Enable this boolean feature",
-          required: false
-        }
-      ]
-    };
+        createField({
+          key: 'string_field',
+          label: 'String Field',
+          type: 'string',
+          description: 'This is a string field description',
+          required: false,
+          order: 1,
+        }),
+        createField({
+          key: 'boolean_field',
+          label: 'Boolean Field',
+          type: 'boolean',
+          description: 'Enable this boolean feature',
+          required: false,
+          order: 2,
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithDescriptions}
       availablePlugins={[pluginWithDescriptions]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     // String field description should be visible below the field
@@ -131,32 +165,31 @@ describe('PluginForm Complete Coverage Tests', () => {
   });
 
   it('displays validation rules when present', () => {
-    const pluginWithRules = {
-      name: "Rules Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with validation rules",
-      supports_health_check: true,
-      supports_test_connection: false,
-      fields: [{
-        key: "field_with_rules",
-        label: "Field With Rules",
-        type: "string" as const,
-        description: "Field with validation rules",
-        required: false,
-        validation_rules: [
-          "Must be at least 5 characters",
-          "Cannot contain special characters"
-        ]
-      }]
-    };
+    const pluginWithRules = createPlugin({
+      name: 'Rules Plugin',
+      description: 'Plugin with validation rules',
+      fields: [
+        createField({
+          key: 'field_with_rules',
+          label: 'Field With Rules',
+          type: 'string',
+          description: 'Field with validation rules',
+          required: false,
+          order: 1,
+          validation_rules: [
+            { type: 'minLength', value: 5, message: 'Must be at least 5 characters' },
+            { type: 'pattern', value: '^[a-zA-Z0-9]+$', message: 'Cannot contain special characters' },
+          ],
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithRules}
       availablePlugins={[pluginWithRules]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     expect(screen.getByText('Must be at least 5 characters')).toBeInTheDocument();
@@ -164,57 +197,53 @@ describe('PluginForm Complete Coverage Tests', () => {
   });
 
   it('displays secret indicator for secret fields', () => {
-    const pluginWithSecret = {
-      name: "Secret Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with secret field",
-      supports_health_check: true,
-      supports_test_connection: false,
-      fields: [{
-        key: "secret_field",
-        label: "Secret Field",
-        type: "string" as const,
-        description: "Secret field",
-        required: false,
-        is_secret: true
-      }]
-    };
+    const pluginWithSecret = createPlugin({
+      name: 'Secret Plugin',
+      description: 'Plugin with secret field',
+      fields: [
+        createField({
+          key: 'secret_field',
+          label: 'Secret Field',
+          type: 'string',
+          description: 'Secret field',
+          is_secret: true,
+          order: 1,
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithSecret}
       availablePlugins={[pluginWithSecret]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     expect(screen.getByText('(Secret)')).toBeInTheDocument();
   });
 
   it('handles file field without FileReader support', async () => {
-    const pluginWithFile = {
-      name: "File Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with file field",
-      supports_health_check: true,
-      supports_test_connection: false,
-      fields: [{
-        key: "file_field",
-        label: "File Field",
-        type: "file" as const,
-        description: "Upload a file",
-        required: false
-      }]
-    };
+    const pluginWithFile = createPlugin({
+      name: 'File Plugin',
+      description: 'Plugin with file field',
+      fields: [
+        createField({
+          key: 'file_field',
+          label: 'File Field',
+          type: 'string',
+          description: 'Upload a file',
+          order: 1,
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithFile}
       availablePlugins={[pluginWithFile]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     // File input uses different id pattern (file- instead of field-)
@@ -230,20 +259,20 @@ describe('PluginForm Complete Coverage Tests', () => {
   it('handles form submission without test connection support', async () => {
     const user = userEvent.setup();
 
-    const pluginWithoutTest = {
-      name: "No Test Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin without test connection",
-      supports_health_check: true,
+    const pluginWithoutTest = createPlugin({
+      name: 'No Test Plugin',
+      description: 'Plugin without test connection',
       supports_test_connection: false,
-      fields: [{
-        key: "simple_field",
-        label: "Simple Field",
-        type: "string" as const,
-        required: false
-      }]
-    };
+      fields: [
+        createField({
+          key: 'simple_field',
+          label: 'Simple Field',
+          type: 'string',
+          required: false,
+          order: 1,
+        }),
+      ],
+    });
 
     const onSubmit = jest.fn();
     render(<PluginForm
@@ -251,7 +280,7 @@ describe('PluginForm Complete Coverage Tests', () => {
       availablePlugins={[pluginWithoutTest]}
       onSubmit={onSubmit}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     const instanceName = screen.getByLabelText(/Instance Name/);
@@ -276,34 +305,32 @@ describe('PluginForm Complete Coverage Tests', () => {
     const user = userEvent.setup();
 
     const availablePlugins = [
-      {
-        name: "Plugin 1",
-        type: "integration" as const,
-        version: "1.0.0",
-        description: "First plugin",
-        supports_health_check: true,
+      createPlugin({
+        name: 'Plugin 1',
+        description: 'First plugin',
         supports_test_connection: true,
-        fields: [{
-          key: "field1",
-          label: "Field 1",
-          type: "string" as const,
-          required: false
-        }]
-      },
-      {
-        name: "Plugin 2",
-        type: "integration" as const,
-        version: "1.0.0",
-        description: "Second plugin",
-        supports_health_check: true,
+        fields: [
+          createField({
+            key: 'field1',
+            label: 'Field 1',
+            type: 'string',
+            order: 1,
+          }),
+        ],
+      }),
+      createPlugin({
+        name: 'Plugin 2',
+        description: 'Second plugin',
         supports_test_connection: true,
-        fields: [{
-          key: "field2",
-          label: "Field 2",
-          type: "string" as const,
-          required: false
-        }]
-      }
+        fields: [
+          createField({
+            key: 'field2',
+            label: 'Field 2',
+            type: 'string',
+            order: 1,
+          }),
+        ],
+      }),
     ];
 
     render(<PluginForm
@@ -311,7 +338,7 @@ describe('PluginForm Complete Coverage Tests', () => {
       availablePlugins={availablePlugins}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     // Select first plugin
@@ -335,34 +362,32 @@ describe('PluginForm Complete Coverage Tests', () => {
     const user = userEvent.setup();
 
     const availablePlugins = [
-      {
-        name: "Plugin A",
-        type: "integration" as const,
-        version: "1.0.0",
-        description: "Plugin A",
-        supports_health_check: true,
+      createPlugin({
+        name: 'Plugin A',
+        description: 'Plugin A',
         supports_test_connection: true,
-        fields: [{
-          key: "fieldA",
-          label: "Field A",
-          type: "string" as const,
-          required: false
-        }]
-      },
-      {
-        name: "Plugin B",
-        type: "integration" as const,
-        version: "1.0.0",
-        description: "Plugin B",
-        supports_health_check: true,
+        fields: [
+          createField({
+            key: 'fieldA',
+            label: 'Field A',
+            type: 'string',
+            order: 1,
+          }),
+        ],
+      }),
+      createPlugin({
+        name: 'Plugin B',
+        description: 'Plugin B',
         supports_test_connection: true,
-        fields: [{
-          key: "fieldB",
-          label: "Field B",
-          type: "string" as const,
-          required: false
-        }]
-      }
+        fields: [
+          createField({
+            key: 'fieldB',
+            label: 'Field B',
+            type: 'string',
+            order: 1,
+          }),
+        ],
+      }),
     ];
 
     render(<PluginForm
@@ -370,7 +395,7 @@ describe('PluginForm Complete Coverage Tests', () => {
       availablePlugins={availablePlugins}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     const instanceName = screen.getByLabelText(/Instance Name/);
@@ -399,36 +424,33 @@ describe('PluginForm Complete Coverage Tests', () => {
   it('handles validation for all field constraint types', async () => {
     const user = userEvent.setup();
 
-    const pluginWithConstraints = {
-      name: "Constraint Plugin",
-      type: "integration" as const,
-      version: "1.0.0",
-      description: "Plugin with various constraints",
-      supports_health_check: true,
+    const pluginWithConstraints = createPlugin({
+      name: 'Constraint Plugin',
+      description: 'Plugin with various constraints',
       supports_test_connection: false,
       fields: [
-        {
-          key: "string_with_pattern",
-          label: "String with Pattern",
-          type: "string" as const,
-          pattern: "^[A-Z]+$",
-          required: false
-        },
-        {
-          key: "number_field",
-          label: "Number Field",
-          type: "integer" as const,
-          required: false
-        }
-      ]
-    };
+        createField({
+          key: 'string_with_pattern',
+          label: 'String with Pattern',
+          type: 'string',
+          pattern: '^[A-Z]+$',
+          order: 1,
+        }),
+        createField({
+          key: 'number_field',
+          label: 'Number Field',
+          type: 'integer',
+          order: 2,
+        }),
+      ],
+    });
 
     render(<PluginForm
       plugin={pluginWithConstraints}
       availablePlugins={[pluginWithConstraints]}
       onSubmit={jest.fn()}
       onCancel={jest.fn()}
-      onTestConnection={jest.fn()}
+      onTestConnection={noopTestConnection}
     />);
 
     const stringField = screen.getByLabelText(/String with Pattern/);

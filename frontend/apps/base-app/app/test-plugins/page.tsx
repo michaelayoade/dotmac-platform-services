@@ -6,6 +6,13 @@ import { logger } from '@/lib/utils/logger';
 import { PluginForm } from '../dashboard/settings/plugins/components/PluginForm';
 import { PluginCard } from '../dashboard/settings/plugins/components/PluginCard';
 import { PluginHealthDashboard } from '../dashboard/settings/plugins/components/PluginHealthDashboard';
+import type {
+  PluginConfig,
+  PluginInstance,
+  PluginHealthCheck,
+  PluginTestResult,
+  FieldSpec,
+} from '@/hooks/usePlugins';
 
 // Migrated from sonner to useToast hook
 // Note: toast options have changed:
@@ -14,7 +21,22 @@ import { PluginHealthDashboard } from '../dashboard/settings/plugins/components/
 // - For complex options, refer to useToast documentation
 
 // Mock data matching our WhatsApp plugin schema
-const mockWhatsAppPlugin = {
+const withDefaults = (
+  field: Omit<FieldSpec, 'validation_rules' | 'options' | 'required' | 'is_secret'> & {
+    required?: boolean;
+    is_secret?: boolean;
+    validation_rules?: FieldSpec['validation_rules'];
+    options?: FieldSpec['options'];
+  }
+): FieldSpec => ({
+  required: false,
+  is_secret: false,
+  validation_rules: [],
+  options: [],
+  ...field,
+});
+
+const mockWhatsAppPlugin: PluginConfig = {
   name: "WhatsApp Business",
   type: "notification" as const,
   version: "1.0.0",
@@ -26,40 +48,40 @@ const mockWhatsAppPlugin = {
   supports_health_check: true,
   supports_test_connection: true,
   fields: [
-    {
+    withDefaults({
       key: "phone_number",
       label: "Phone Number",
-      type: "phone" as const,
+      type: "phone",
       description: "WhatsApp Business phone number in E.164 format",
       required: true,
       pattern: "^\\+[1-9]\\d{1,14}$",
       group: "Basic Configuration",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    withDefaults({
       key: "api_token",
       label: "API Token",
-      type: "secret" as const,
+      type: "secret",
       description: "WhatsApp Business API access token",
       required: true,
       is_secret: true,
       min_length: 50,
       group: "Basic Configuration",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    withDefaults({
       key: "business_account_id",
       label: "Business Account ID",
-      type: "string" as const,
+      type: "string",
       description: "WhatsApp Business Account ID",
       required: true,
       group: "Basic Configuration",
-      order: 3
-    },
-    {
+      order: 3,
+    }),
+    withDefaults({
       key: "api_version",
       label: "API Version",
-      type: "select" as const,
+      type: "select",
       description: "WhatsApp Business API version",
       default: "v18.0",
       options: [
@@ -68,68 +90,68 @@ const mockWhatsAppPlugin = {
         { value: "v16.0", label: "v16.0" }
       ],
       group: "Environment",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    withDefaults({
       key: "sandbox_mode",
       label: "Sandbox Mode",
-      type: "boolean" as const,
+      type: "boolean",
       description: "Enable sandbox mode for testing",
       default: false,
       group: "Environment",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    withDefaults({
       key: "webhook_url",
       label: "Webhook URL",
-      type: "url" as const,
+      type: "url",
       description: "URL to receive webhook notifications",
       group: "Webhooks",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    withDefaults({
       key: "webhook_token",
       label: "Webhook Verification Token",
-      type: "secret" as const,
+      type: "secret",
       description: "Token for webhook verification",
       is_secret: true,
       group: "Webhooks",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    withDefaults({
       key: "message_retry_count",
       label: "Message Retry Count",
-      type: "integer" as const,
+      type: "integer",
       description: "Number of retry attempts for failed messages",
       default: 3,
       min_value: 0,
       max_value: 5,
       group: "Advanced",
-      order: 1
-    },
-    {
+      order: 1,
+    }),
+    withDefaults({
       key: "timeout_seconds",
       label: "Request Timeout",
-      type: "integer" as const,
+      type: "float",
       description: "HTTP request timeout in seconds",
       default: 30,
       min_value: 5,
       max_value: 300,
       group: "Advanced",
-      order: 2
-    },
-    {
+      order: 2,
+    }),
+    withDefaults({
       key: "custom_headers",
       label: "Custom Headers",
-      type: "json" as const,
+      type: "json",
       description: "Additional HTTP headers as JSON object",
       group: "Advanced",
-      order: 3
-    }
+      order: 3,
+    }),
   ]
 };
 
-const mockInstances = [
+const mockInstances: PluginInstance[] = [
   {
     id: "550e8400-e29b-41d4-a716-446655440000",
     plugin_name: "WhatsApp Business",
@@ -137,7 +159,6 @@ const mockInstances = [
     config_schema: mockWhatsAppPlugin,
     status: "active" as const,
     has_configuration: true,
-    created_at: "2024-01-15T10:00:00Z",
     last_health_check: "2024-01-20T15:30:00Z"
   },
   {
@@ -147,12 +168,11 @@ const mockInstances = [
     config_schema: mockWhatsAppPlugin,
     status: "error" as const,
     has_configuration: true,
-    created_at: "2024-01-10T08:00:00Z",
     last_error: "Authentication failed: Invalid API token"
   }
 ];
 
-const mockHealthChecks = [
+const mockHealthChecks: PluginHealthCheck[] = [
   {
     plugin_instance_id: "550e8400-e29b-41d4-a716-446655440000",
     status: "healthy" as const,
@@ -181,13 +201,13 @@ const mockHealthChecks = [
   }
 ];
 
-const mockAvailablePlugins = [mockWhatsAppPlugin];
+const mockAvailablePlugins: PluginConfig[] = [mockWhatsAppPlugin];
 
 export default function TestPluginsPage() {
   const { toast } = useToast();
 
   const [showForm, setShowForm] = useState(false);
-  const [selectedPlugin, setSelectedPlugin] = useState<Record<string, unknown> | null>(null);
+  const [selectedPlugin, setSelectedPlugin] = useState<PluginConfig | null>(null);
   const [view, setView] = useState<'card' | 'form' | 'health'>('card');
 
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -198,7 +218,10 @@ export default function TestPluginsPage() {
     toast({ title: 'Success', description: `Plugin instance "${data.instance_name}" created successfully!` });
   };
 
-  const handleTestConnection = async (instanceId: string, testConfig?: Record<string, unknown>) => {
+  const handleTestConnection = async (
+    instanceId: string,
+    testConfig?: Record<string, unknown>
+  ): Promise<PluginTestResult> => {
     logger.info('Testing connection', { instanceId, testConfig });
     // Simulate connection test
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -208,7 +231,9 @@ export default function TestPluginsPage() {
       details: {
         business_name: "Test Business",
         api_version: testConfig?.api_version || "v18.0"
-      }
+      },
+      timestamp: new Date().toISOString(),
+      response_time_ms: 1250,
     };
   };
 
@@ -270,7 +295,7 @@ export default function TestPluginsPage() {
                 plugin={mockWhatsAppPlugin}
                 instances={mockInstances}
                 onInstall={(plugin) => {
-                  setSelectedPlugin(plugin as unknown as Record<string, unknown>);
+                  setSelectedPlugin(plugin);
                   setShowForm(true);
                 }}
               />
@@ -304,7 +329,7 @@ export default function TestPluginsPage() {
         {/* Form Modal */}
         {showForm && (
           <PluginForm
-            plugin={selectedPlugin as any}
+            plugin={selectedPlugin ?? undefined}
             availablePlugins={mockAvailablePlugins}
             onSubmit={handleSubmit}
             onCancel={() => {

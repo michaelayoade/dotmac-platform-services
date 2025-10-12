@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Puzzle,
   Plus,
@@ -30,6 +30,10 @@ import {
   type PluginConfig,
   type PluginInstance,
   type PluginHealthCheck,
+  type PluginType,
+  type PluginStatus,
+  type CreatePluginInstanceRequest,
+  type PluginTestResult,
 } from '@/hooks/usePlugins';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -38,8 +42,8 @@ type ViewMode = 'grid' | 'list' | 'health';
 export default function PluginsPage() {
   // State management
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterType, setFilterType] = useState<PluginType | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<PluginStatus | 'all'>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Modal states
@@ -48,9 +52,18 @@ export default function PluginsPage() {
   const [selectedPlugin, setSelectedPlugin] = useState<PluginConfig | null>(null);
 
   // Query hooks
-  const { data: availablePlugins = [], isLoading: loadingPlugins, error: pluginsError } = useAvailablePlugins();
-  const { data: instancesData, isLoading: loadingInstances, error: instancesError } = usePluginInstances();
-  const pluginInstances = instancesData?.plugins || [];
+  const {
+    data: availablePluginsData,
+    isLoading: loadingPlugins,
+    error: pluginsError,
+  } = useAvailablePlugins();
+  const availablePlugins = availablePluginsData ?? [];
+  const {
+    data: instancesData,
+    isLoading: loadingInstances,
+    error: instancesError,
+  } = usePluginInstances();
+  const pluginInstances = instancesData?.plugins ?? [];
 
   // Health check state
   const [healthChecks, setHealthChecks] = useState<PluginHealthCheck[]>([]);
@@ -66,7 +79,7 @@ export default function PluginsPage() {
   // Load health checks whenever instances change
   const loadHealthChecks = async () => {
     try {
-      const result = await bulkHealthCheck.mutateAsync();
+      const result = await bulkHealthCheck.mutateAsync(undefined);
       setHealthChecks(result);
     } catch (error) {
       console.error('Failed to load health checks:', error);
@@ -74,14 +87,14 @@ export default function PluginsPage() {
   };
 
   // Refresh health checks when instances load
-  useState(() => {
+  useEffect(() => {
     if (pluginInstances.length > 0) {
       loadHealthChecks();
     }
-  });
+  }, [pluginInstances.length]);
 
-  const handleCreateInstance = async (data: { plugin_name: string; instance_name: string; configuration: Record<string, unknown> }) => {
-    await createInstance.mutateAsync(data as any);
+  const handleCreateInstance = async (data: CreatePluginInstanceRequest) => {
+    await createInstance.mutateAsync(data);
     setShowCreateForm(false);
     setSelectedPlugin(null);
     await loadHealthChecks();
@@ -105,7 +118,10 @@ export default function PluginsPage() {
     setHealthChecks(prev => prev.filter(health => health.plugin_instance_id !== instanceId));
   };
 
-  const handleTestConnection = async (instanceId: string, testConfig?: Record<string, unknown>) => {
+  const handleTestConnection = async (
+    instanceId: string,
+    testConfig?: Record<string, unknown>
+  ): Promise<PluginTestResult> => {
     const result = await testConnection.mutateAsync({
       instanceId,
       configuration: testConfig || null,
@@ -116,6 +132,22 @@ export default function PluginsPage() {
   const handleRefreshPlugins = async () => {
     await refreshPlugins.mutateAsync();
     await loadHealthChecks();
+  };
+
+  const handleTypeFilterChange = (value: string) => {
+    if (value === 'all') {
+      setFilterType('all');
+      return;
+    }
+    setFilterType(value as PluginType);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    if (value === 'all') {
+      setFilterStatus('all');
+      return;
+    }
+    setFilterStatus(value as PluginStatus);
   };
 
   // Filter functions
@@ -262,7 +294,11 @@ export default function PluginsPage() {
             </div>
             <select
               value={viewMode === 'grid' ? filterType : filterStatus}
-              onChange={(e) => viewMode === 'grid' ? setFilterType(e.target.value) : setFilterStatus(e.target.value)}
+              onChange={(e) =>
+                viewMode === 'grid'
+                  ? handleTypeFilterChange(e.target.value)
+                  : handleStatusFilterChange(e.target.value)
+              }
               className="px-3 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               {viewMode === 'grid' ? (
@@ -274,6 +310,7 @@ export default function PluginsPage() {
                   <option value="storage">Storage</option>
                   <option value="search">Search</option>
                   <option value="analytics">Analytics</option>
+                  <option value="authentication">Authentication</option>
                   <option value="workflow">Workflow</option>
                 </>
               ) : (

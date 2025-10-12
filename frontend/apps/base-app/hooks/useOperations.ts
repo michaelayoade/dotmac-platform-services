@@ -7,8 +7,9 @@
  * - GET /health - Get system health status
  */
 
-import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
+import { useQuery, type UseQueryOptions, type QueryKey } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { extractDataOrThrow } from '@/lib/api/response-helpers';
 
 // ============================================
 // Types matching backend monitoring models
@@ -106,20 +107,25 @@ export interface ServiceHealth {
 // Query Hooks
 // ============================================
 
+type QueryOptions<TData, TKey extends QueryKey> = Omit<
+  UseQueryOptions<TData, Error, TData, TKey>,
+  'queryKey' | 'queryFn'
+>;
+
 /**
  * Fetch monitoring metrics
  */
 export function useMonitoringMetrics(
   period: '1h' | '24h' | '7d' = '24h',
-  options?: UseQueryOptions<MonitoringMetrics, Error>
+  options?: QueryOptions<MonitoringMetrics, ['monitoring', 'metrics', '1h' | '24h' | '7d']>
 ) {
-  return useQuery<MonitoringMetrics, Error>({
+  return useQuery<MonitoringMetrics, Error, MonitoringMetrics, ['monitoring', 'metrics', '1h' | '24h' | '7d']>({
     queryKey: ['monitoring', 'metrics', period],
     queryFn: async () => {
       const response = await apiClient.get<MonitoringMetrics>('/monitoring/metrics', {
         params: { period },
       });
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load monitoring metrics');
     },
     refetchInterval: 30000, // Refresh every 30 seconds
     ...options,
@@ -131,15 +137,15 @@ export function useMonitoringMetrics(
  */
 export function useLogStats(
   period: '1h' | '24h' | '7d' = '24h',
-  options?: UseQueryOptions<LogStats, Error>
+  options?: QueryOptions<LogStats, ['monitoring', 'logs', 'stats', '1h' | '24h' | '7d']>
 ) {
-  return useQuery<LogStats, Error>({
+  return useQuery<LogStats, Error, LogStats, ['monitoring', 'logs', 'stats', '1h' | '24h' | '7d']>({
     queryKey: ['monitoring', 'logs', 'stats', period],
     queryFn: async () => {
       const response = await apiClient.get<LogStats>('/monitoring/logs/stats', {
         params: { period },
       });
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load log statistics');
     },
     refetchInterval: 30000, // Refresh every 30 seconds
     ...options,
@@ -149,12 +155,14 @@ export function useLogStats(
 /**
  * Fetch system health
  */
-export function useSystemHealth(options?: UseQueryOptions<SystemHealth, Error>) {
-  return useQuery<SystemHealth, Error>({
+export function useSystemHealth(
+  options?: QueryOptions<SystemHealth, ['system', 'health']>
+) {
+  return useQuery<SystemHealth, Error, SystemHealth, ['system', 'health']>({
     queryKey: ['system', 'health'],
     queryFn: async () => {
       const response = await apiClient.get<SystemHealth>('/health');
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load system health');
     },
     refetchInterval: 15000, // Refresh every 15 seconds
     ...options,

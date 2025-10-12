@@ -362,7 +362,7 @@ test.describe('Payment Method Management', () => {
     await page.goto('/dashboard/billing/payment-methods');
 
     // Click set as default on a card
-    await page.click('button:has-text("Set as Default")').first();
+    await page.locator('button:has-text("Set as Default")').first().click();
 
     // Should show confirmation
     await expect(page.locator('text=/default.*updated|primary.*method/i')).toBeVisible();
@@ -374,7 +374,7 @@ test.describe('Payment Method Management', () => {
     await page.goto('/dashboard/billing/payment-methods');
 
     // Click remove
-    await page.click('button:has-text("Remove")').first();
+    await page.locator('button:has-text("Remove")').first().click();
 
     // Should show confirmation
     await expect(page.locator('text=/remove.*method|delete.*card/i')).toBeVisible();

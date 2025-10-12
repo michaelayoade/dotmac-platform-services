@@ -14,42 +14,12 @@ import {
   Clock,
   Activity,
   Shield,
-  Zap
+  Zap,
+  Search,
+  TrendingUp,
 } from 'lucide-react';
 
-interface FieldSpec {
-  key: string;
-  label: string;
-  type: string;
-  description?: string;
-  required?: boolean;
-  is_secret?: boolean;
-  group?: string;
-}
-
-interface PluginConfig {
-  name: string;
-  type: 'notification' | 'integration' | 'payment' | 'storage';
-  version: string;
-  description: string;
-  author?: string;
-  homepage?: string;
-  tags?: string[];
-  dependencies?: string[];
-  supports_health_check: boolean;
-  supports_test_connection: boolean;
-  fields: FieldSpec[];
-}
-
-interface PluginInstance {
-  id: string;
-  plugin_name: string;
-  instance_name: string;
-  status: 'active' | 'inactive' | 'error' | 'configured';
-  has_configuration: boolean;
-  created_at?: string;
-  last_error?: string;
-}
+import type { PluginConfig, PluginInstance, PluginStatus, PluginType } from '@/hooks/usePlugins';
 
 interface PluginCardProps {
   plugin: PluginConfig;
@@ -57,7 +27,7 @@ interface PluginCardProps {
   onInstall: (plugin: PluginConfig) => void;
 }
 
-const getTypeIcon = (type: string) => {
+const getTypeIcon = (type: PluginType) => {
   switch (type) {
     case 'notification':
       return <Activity className="h-5 w-5 text-sky-400" />;
@@ -67,12 +37,20 @@ const getTypeIcon = (type: string) => {
       return <Shield className="h-5 w-5 text-emerald-400" />;
     case 'storage':
       return <Settings className="h-5 w-5 text-purple-400" />;
+    case 'search':
+      return <Search className="h-5 w-5 text-teal-400" />;
+    case 'analytics':
+      return <TrendingUp className="h-5 w-5 text-emerald-400" />;
+    case 'authentication':
+      return <Users className="h-5 w-5 text-indigo-400" />;
+    case 'workflow':
+      return <Clock className="h-5 w-5 text-orange-400" />;
     default:
       return <Puzzle className="h-5 w-5 text-muted-foreground" />;
   }
 };
 
-const getTypeColor = (type: string) => {
+const getTypeColor = (type: PluginType) => {
   switch (type) {
     case 'notification':
       return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
@@ -82,12 +60,20 @@ const getTypeColor = (type: string) => {
       return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
     case 'storage':
       return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+    case 'search':
+      return 'bg-teal-500/10 text-teal-400 border-teal-500/20';
+    case 'analytics':
+      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    case 'authentication':
+      return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+    case 'workflow':
+      return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
     default:
       return 'bg-muted/10 text-muted-foreground border-border';
   }
 };
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: PluginStatus) => {
   switch (status) {
     case 'active':
       return 'bg-emerald-500/10 text-emerald-400';
@@ -97,6 +83,8 @@ const getStatusColor = (status: string) => {
       return 'bg-rose-500/10 text-rose-400';
     case 'configured':
       return 'bg-sky-500/10 text-sky-400';
+    case 'registered':
+      return 'bg-muted/10 text-muted-foreground';
     default:
       return 'bg-card0/10 text-muted-foreground';
   }

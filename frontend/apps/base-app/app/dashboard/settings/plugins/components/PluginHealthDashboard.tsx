@@ -15,25 +15,7 @@ import {
   AlertCircle,
   Info
 } from 'lucide-react';
-
-interface PluginInstance {
-  id: string;
-  plugin_name: string;
-  instance_name: string;
-  status: 'active' | 'inactive' | 'error' | 'configured';
-  has_configuration: boolean;
-  created_at?: string;
-  last_error?: string;
-}
-
-interface PluginHealthCheck {
-  plugin_instance_id: string;
-  status: 'healthy' | 'unhealthy' | 'error' | 'unknown';
-  message: string;
-  details: Record<string, any>;
-  response_time_ms?: number;
-  timestamp: string;
-}
+import type { PluginInstance, PluginHealthCheck } from '@/hooks/usePlugins';
 
 interface PluginHealthDashboardProps {
   instances: PluginInstance[];
@@ -253,7 +235,7 @@ export const PluginHealthDashboard = ({
 
                   <div className="flex items-center gap-4">
                     <div className="text-right text-sm">
-                      <div className="text-foreground">{formatResponseTime(health?.response_time_ms)}</div>
+                      <div className="text-foreground">{formatResponseTime(health?.response_time_ms ?? undefined)}</div>
                       <div className="text-foreground0">Response Time</div>
                     </div>
 
@@ -301,7 +283,7 @@ export const PluginHealthDashboard = ({
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Response Time:</span>
-                        <span className="text-foreground">{formatResponseTime(health.response_time_ms)}</span>
+                        <span className="text-foreground">{formatResponseTime(health.response_time_ms ?? undefined)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Timestamp:</span>

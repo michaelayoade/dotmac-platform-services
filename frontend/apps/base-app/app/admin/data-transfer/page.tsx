@@ -55,9 +55,9 @@ export default function DataTransferPage() {
   const { data: jobsData, isLoading, error, refetch } = useTransferJobs(queryParams);
   const cancelJob = useCancelJob();
 
-  const jobs = jobsData?.jobs || [];
-  const total = jobsData?.total || 0;
-  const hasMore = jobsData?.has_more || false;
+  const jobs = jobsData?.jobs ?? [];
+  const total = jobsData?.total ?? 0;
+  const hasMore = jobsData?.has_more ?? false;
 
   const handleCancelJob = async (jobId: string) => {
     if (!confirm("Are you sure you want to cancel this job? This action cannot be undone.")) {
@@ -69,9 +69,9 @@ export default function DataTransferPage() {
   // Calculate statistics
   const stats = {
     totalJobs: total,
-    running: jobs.filter((j) => j.status === "running").length,
-    completed: jobs.filter((j) => j.status === "completed").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
+    running: jobs.filter((job) => job.status === "running").length,
+    completed: jobs.filter((job) => job.status === "completed").length,
+    failed: jobs.filter((job) => job.status === "failed").length,
   };
 
   return (
@@ -232,7 +232,7 @@ export default function DataTransferPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {jobs.map((job) => (
+          {jobs.map((job: TransferJobResponse) => (
             <Card key={job.job_id} className="border-primary/30">
               <CardHeader>
                 <div className="flex items-start justify-between">

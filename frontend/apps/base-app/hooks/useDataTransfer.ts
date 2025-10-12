@@ -10,9 +10,16 @@
  * - GET /api/v1/data-transfer/formats - Get supported formats
  */
 
-import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseQueryOptions,
+  type QueryKey,
+} from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { extractDataOrThrow } from '@/lib/api/response-helpers';
 
 // ============================================
 // Types matching backend data transfer models
@@ -111,6 +118,11 @@ export interface TransferStatistics {
 // Query Hooks
 // ============================================
 
+type QueryOptions<TData, TKey extends QueryKey> = Omit<
+  UseQueryOptions<TData, Error, TData, TKey>,
+  'queryKey' | 'queryFn'
+>;
+
 /**
  * Fetch transfer jobs with optional filters
  */
@@ -121,9 +133,14 @@ export function useTransferJobs(
     page?: number;
     page_size?: number;
   },
-  options?: UseQueryOptions<TransferJobListResponse, Error>
+  options?: QueryOptions<TransferJobListResponse, ['data-transfer', 'jobs', typeof params]>
 ) {
-  return useQuery<TransferJobListResponse, Error>({
+  return useQuery<
+    TransferJobListResponse,
+    Error,
+    TransferJobListResponse,
+    ['data-transfer', 'jobs', typeof params]
+  >({
     queryKey: ['data-transfer', 'jobs', params],
     queryFn: async () => {
       const response = await apiClient.get<TransferJobListResponse>('/data-transfer/jobs', {
@@ -134,7 +151,7 @@ export function useTransferJobs(
           page_size: params?.page_size || 20,
         },
       });
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load transfer jobs');
     },
     refetchInterval: 5000, // Refresh every 5 seconds for real-time updates
     ...options,
@@ -146,13 +163,13 @@ export function useTransferJobs(
  */
 export function useTransferJob(
   jobId: string,
-  options?: UseQueryOptions<TransferJobResponse, Error>
+  options?: QueryOptions<TransferJobResponse, ['data-transfer', 'jobs', string]>
 ) {
-  return useQuery<TransferJobResponse, Error>({
+  return useQuery<TransferJobResponse, Error, TransferJobResponse, ['data-transfer', 'jobs', string]>({
     queryKey: ['data-transfer', 'jobs', jobId],
     queryFn: async () => {
       const response = await apiClient.get<TransferJobResponse>(`/data-transfer/jobs/${jobId}`);
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load transfer job');
     },
     enabled: !!jobId,
     refetchInterval: 3000, // Refresh every 3 seconds for job detail
@@ -163,12 +180,14 @@ export function useTransferJob(
 /**
  * Fetch supported data formats
  */
-export function useSupportedFormats(options?: UseQueryOptions<FormatsResponse, Error>) {
-  return useQuery<FormatsResponse, Error>({
+export function useSupportedFormats(
+  options?: QueryOptions<FormatsResponse, ['data-transfer', 'formats']>
+) {
+  return useQuery<FormatsResponse, Error, FormatsResponse, ['data-transfer', 'formats']>({
     queryKey: ['data-transfer', 'formats'],
     queryFn: async () => {
       const response = await apiClient.get<FormatsResponse>('/data-transfer/formats');
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to load data formats');
     },
     staleTime: 300000, // 5 minutes - formats don't change often
     ...options,
@@ -189,7 +208,7 @@ export function useCreateImportJob() {
   return useMutation({
     mutationFn: async (data: ImportRequest) => {
       const response = await apiClient.post<TransferJobResponse>('/data-transfer/import', data);
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to create import job');
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['data-transfer', 'jobs'] });
@@ -219,7 +238,7 @@ export function useCreateExportJob() {
   return useMutation({
     mutationFn: async (data: ExportRequest) => {
       const response = await apiClient.post<TransferJobResponse>('/data-transfer/export', data);
-      return response.data;
+      return extractDataOrThrow(response, 'Failed to create export job');
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['data-transfer', 'jobs'] });
@@ -248,7 +267,11 @@ export function useCancelJob() {
 
   return useMutation({
     mutationFn: async (jobId: string) => {
-      await apiClient.delete(`/data-transfer/jobs/${jobId}`);
+      const response = await apiClient.delete(`/data-transfer/jobs/${jobId}`);
+      // Allow success=false for 204 No Content (DELETE operations)
+      if (!response.success && response.status !== 204) {
+        throw new Error(response.error?.message || 'Failed to cancel job');
+      }
     },
     onSuccess: (_, jobId) => {
       queryClient.invalidateQueries({ queryKey: ['data-transfer', 'jobs'] });

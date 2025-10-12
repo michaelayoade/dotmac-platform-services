@@ -16,7 +16,10 @@ from celery import Task, shared_task
 
 from dotmac.platform.billing.reconciliation_service import ReconciliationService
 from dotmac.platform.core.tasks import idempotent_task
-from dotmac.platform.db import async_session_factory
+from dotmac.platform.db import AsyncSessionLocal
+
+# Compatibility alias for tests that patch this symbol
+async_session_factory = AsyncSessionLocal
 
 logger = structlog.get_logger(__name__)
 
@@ -67,7 +70,7 @@ async def _auto_reconcile_impl(
     tenant_id: str, bank_account_id: int, days_back: int
 ) -> dict[str, Any]:
     """Implementation of auto-reconciliation."""
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         service = ReconciliationService(db)
 
         # Calculate date range
@@ -174,7 +177,7 @@ def retry_failed_payments_batch(
 
 async def _retry_failed_payments_impl(tenant_id: str, max_payments: int) -> dict[str, Any]:
     """Implementation of batch payment retry."""
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         service = ReconciliationService(db)
 
         # Find failed payments
@@ -276,7 +279,7 @@ def generate_daily_reconciliation_report(self: Task, tenant_id: str) -> dict[str
 
 async def _generate_report_impl(tenant_id: str) -> dict[str, Any]:
     """Implementation of report generation."""
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         service = ReconciliationService(db)
 
         # Get today's reconciliation summary
@@ -356,7 +359,7 @@ def monitor_circuit_breaker_health(self: Task) -> dict[str, Any]:
 
 async def _monitor_circuit_breaker_impl() -> dict[str, Any]:
     """Implementation of circuit breaker monitoring."""
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         service = ReconciliationService(db)
 
         # Check circuit breaker state
@@ -426,7 +429,7 @@ async def _schedule_reconciliation_impl(
     tenant_id: str, bank_account_id: int, period_days: int
 ) -> str:
     """Implementation of reconciliation scheduling."""
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         service = ReconciliationService(db)
 
         # Calculate period
