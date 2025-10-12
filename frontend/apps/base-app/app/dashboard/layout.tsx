@@ -42,6 +42,7 @@ import { apiClient } from '@/lib/api/client';
 import { logger } from '@/lib/utils/logger';
 import { Can } from '@/components/auth/PermissionGuard';
 import { useRBAC } from '@/contexts/RBACContext';
+import { useBranding } from '@/hooks/useBranding';
 
 interface NavItem {
   name: string;
@@ -232,6 +233,7 @@ export default function DashboardLayout({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const pathname = usePathname();
   const { hasPermission, hasAnyPermission } = useRBAC();
+  const { branding } = useBranding();
 
   // Type helper for user data
   const userData = user as { id?: string; username?: string; email?: string; full_name?: string; roles?: string[] } | null;
@@ -342,7 +344,20 @@ export default function DashboardLayout({
               <Menu className="h-6 w-6" aria-hidden="true" />
             </button>
             <div className="flex items-center ml-4 lg:ml-0">
-              <div className="text-xl font-semibold text-foreground">DotMac Platform</div>
+              {(branding.logo.light || branding.logo.dark) ? (
+                <picture>
+                  {branding.logo.dark ? (
+                    <source srcSet={branding.logo.dark} media="(prefers-color-scheme: dark)" />
+                  ) : null}
+                  <img
+                    src={branding.logo.light || branding.logo.dark || ''}
+                    alt={`${branding.productName} logo`}
+                    className="h-6 w-auto"
+                  />
+                </picture>
+              ) : (
+                <div className="text-xl font-semibold text-foreground">{branding.productName}</div>
+              )}
             </div>
           </div>
 

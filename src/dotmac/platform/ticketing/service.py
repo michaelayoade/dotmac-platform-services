@@ -462,7 +462,8 @@ class TicketService:
         if tenant_scope and partner.tenant_id and partner.tenant_id != tenant_scope:
             raise TicketValidationError("Partner does not belong to the specified tenant context.")
 
-        return partner.id
+        result_id: UUID = partner.id
+        return result_id
 
     async def _resolve_customer_id(self, context: TicketActorContext) -> UUID | None:
         """Determine associated customer if the actor is a customer."""

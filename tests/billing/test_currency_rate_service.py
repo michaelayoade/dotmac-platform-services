@@ -1,11 +1,12 @@
-import pytest
 from decimal import Decimal
+
+import pytest
 from sqlalchemy import select
 
-from dotmac.platform.integrations import IntegrationStatus
-from dotmac.platform.billing.currency.service import CurrencyRateService
 from dotmac.platform.billing.currency.models import ExchangeRate
+from dotmac.platform.billing.currency.service import CurrencyRateService
 from dotmac.platform.billing.money_utils import money_handler
+from dotmac.platform.integrations import IntegrationStatus
 from dotmac.platform.settings import settings
 
 
@@ -15,7 +16,9 @@ class DummyCurrencyIntegration:
         self.status = IntegrationStatus.READY
         self.provider = "dummy"
 
-    async def fetch_rates(self, base_currency: str, target_currencies: list[str]) -> dict[str, float]:
+    async def fetch_rates(
+        self, base_currency: str, target_currencies: list[str]
+    ) -> dict[str, float]:
         return {currency: self._rates[currency] for currency in target_currencies}
 
 

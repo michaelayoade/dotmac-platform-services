@@ -32,7 +32,9 @@ def refresh_currency_rates_task() -> dict[str, Any]:
     if not targets:
         return {"status": "no_targets"}
 
-    result = sync_refresh_currency_rates(base_currency=base_currency, target_currencies=targets)
+    result: dict[str, Any] = sync_refresh_currency_rates(
+        base_currency=base_currency, target_currencies=targets
+    )
     result["status"] = "ok"
     return result
 

@@ -516,15 +516,15 @@ async def _process_invoice_import(
             raise ValueError(f"Job {job_id} not found")
 
         # Get file format
-        file_format = ImportFileFormat.CSV
+        file_format = "csv"
         if file_path.endswith(".json"):
-            file_format = ImportFileFormat.JSON
+            file_format = "json"
 
         # Get chunk size from config
         chunk_size = (config or {}).get("chunk_size", 100)
 
         # Process based on file format
-        if file_format == ImportFileFormat.CSV:
+        if file_format == "csv":
             result = await _process_csv_in_chunks(
                 session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
             )

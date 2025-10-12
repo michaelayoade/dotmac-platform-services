@@ -609,14 +609,14 @@ class IntegrationRegistry:
                 currency_config = IntegrationConfig(
                     name="currency",
                     type=IntegrationType.CURRENCY,
-                    provider=getattr(settings.billing, "exchange_rate_provider", "openexchangerates"),
+                    provider=getattr(
+                        settings.billing, "exchange_rate_provider", "openexchangerates"
+                    ),
                     enabled=True,
                     settings={
                         "base_currency": settings.billing.default_currency,
                         "supported_currencies": supported_currencies,
-                        "endpoint": getattr(
-                            settings.billing, "exchange_rate_endpoint", None
-                        ),
+                        "endpoint": getattr(settings.billing, "exchange_rate_endpoint", None),
                     },
                     secrets_path="currency/openexchangerates",
                     required_packages=["httpx"],

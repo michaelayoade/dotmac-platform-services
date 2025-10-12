@@ -186,7 +186,7 @@ class WebhookAuthType(str, Enum):
 
     NONE = "none"
     SIGNATURE = "signature"  # HMAC signature
-    BEARER_TOKEN = "bearer_token"
+    BEARER_TOKEN = "bearer_token"  # nosec B105 - enum value, not hardcoded password
     BASIC_AUTH = "basic_auth"
     API_KEY = "api_key"
 

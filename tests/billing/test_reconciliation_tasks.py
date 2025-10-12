@@ -11,21 +11,14 @@ Tests cover:
 """
 
 import os
-from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 
 # Set test environment
 os.environ["TESTING"] = "1"
 
-from dotmac.platform.billing.bank_accounts.entities import (
-    ManualPayment,
-    PaymentMethodType,
-    PaymentReconciliation,
-)
 from dotmac.platform.billing.reconciliation_tasks import (
     _auto_reconcile_impl,
     _generate_report_impl,

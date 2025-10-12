@@ -182,11 +182,12 @@ class CurrencyConverter:
         force_refresh: bool = False,
     ) -> Money:
         """Convert money to a target currency using persisted exchange rates."""
-        return await self._service.convert_money(
+        result: Money = await self._service.convert_money(
             money,
             target_currency,
             force_refresh=force_refresh,
         )
+        return result
 
 
 # Export commonly used functions and classes

@@ -24,6 +24,8 @@
     "test:visual:ui": "playwright test e2e/visual.spec.ts --ui",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
+    "storybook:smoke": "PORT=6006 storybook dev --smoke-test",
+    "branding:init": "node ./scripts/init-branding.cjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "cd ../../.. && (husky install || echo 'Husky not installed, skipping')",
     "generate:api": "bash scripts/generate-api-types.sh",

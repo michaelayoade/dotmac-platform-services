@@ -8,6 +8,7 @@ partners, and platform administrators.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import NoReturn
 from uuid import UUID
 
 import structlog
@@ -37,7 +38,7 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["Ticketing"])
 
 
-def _handle_ticket_error(exc: Exception) -> None:
+def _handle_ticket_error(exc: Exception) -> NoReturn:
     """Transform service exceptions into HTTP errors."""
     if isinstance(exc, TicketValidationError):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

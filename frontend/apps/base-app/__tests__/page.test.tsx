@@ -36,8 +36,8 @@ describe('HomePage', () => {
       expect(screen.getByText('Go to Dashboard')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
-    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /DotMac Platform/ })).toBeInTheDocument();
+    expect(screen.getByText('Reusable SaaS backend and APIs to launch faster.')).toBeInTheDocument();
 
     // Check for authenticated UI - should show dashboard button
     const dashboardButton = screen.getByRole('button', { name: 'Go to Dashboard' });
@@ -62,8 +62,8 @@ describe('HomePage', () => {
       expect(screen.getByText('Sign In')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
-    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /DotMac Platform/ })).toBeInTheDocument();
+    expect(screen.getByText('Reusable SaaS backend and APIs to launch faster.')).toBeInTheDocument();
 
     // Check for unauthenticated UI - should show sign in and register buttons
     const signInButton = screen.getByRole('button', { name: 'Sign In' });
@@ -104,14 +104,14 @@ describe('HomePage', () => {
     });
 
     // Check main headings and content
-    expect(screen.getByText('🚀 DotMac Platform Services')).toBeInTheDocument();
-    expect(screen.getByText('Enterprise Platform')).toBeInTheDocument();
-    expect(screen.getByText('Ready to Deploy')).toBeInTheDocument();
-    expect(screen.getByText(/Complete business platform with authentication/)).toBeInTheDocument();
+    expect(screen.getByText('🚀 DotMac Platform')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /DotMac Platform/ })).toBeInTheDocument();
+    expect(screen.getByText('Reusable SaaS backend and APIs to launch faster.')).toBeInTheDocument();
+    expect(screen.getByText(/Complete reusable backend for authentication/)).toBeInTheDocument();
 
     // Check test credentials section
     expect(screen.getByText('Quick Start - Test Credentials:')).toBeInTheDocument();
-    expect(screen.getByText('admin / admin123')).toBeInTheDocument();
+    expect(screen.getByText('newuser / Test123!@#')).toBeInTheDocument();
   });
 
   it('renders feature cards', async () => {

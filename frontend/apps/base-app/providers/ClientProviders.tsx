@@ -13,6 +13,7 @@ import { TenantProvider } from '@/lib/contexts/tenant-context';
 import { RBACProvider } from '@/contexts/RBACContext';
 import { AuthProvider } from '@/hooks/useAuth';
 import { ToastContainer } from '@/components/ui/toast';
+import { BrandingProvider } from '@/providers/BrandingProvider';
 
 export function ClientProviders({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -24,7 +25,9 @@ export function ClientProviders({ children }: { children: ReactNode }) {
 
   const appProviders = (
     <AppConfigProvider value={platformConfig}>
-      {children}
+      <BrandingProvider>
+        {children}
+      </BrandingProvider>
       <ToastContainer />
     </AppConfigProvider>
   );

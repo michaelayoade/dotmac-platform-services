@@ -49,7 +49,9 @@ async def get_all_categories(
     Returns a list of categories with metadata about each category
     including field counts, sensitivity, and restart requirements.
     """
-    categories = await settings_service.get_all_categories(session=session)
+    categories: list[SettingsCategoryInfo] = await settings_service.get_all_categories(
+        session=session
+    )
     return categories
 
 
@@ -343,7 +345,7 @@ async def get_audit_logs(
     Returns:
         List of audit log entries
     """
-    audit_logs = await settings_service.get_audit_logs(
+    audit_logs: list[AuditLog] = await settings_service.get_audit_logs(
         category=category,
         user_id=user_id,
         limit=limit,

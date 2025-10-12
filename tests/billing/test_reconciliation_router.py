@@ -13,7 +13,6 @@ import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI, status
@@ -24,18 +23,9 @@ os.environ["TESTING"] = "1"
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.billing.bank_accounts.entities import (
-    ManualPayment,
-    PaymentMethodType,
     PaymentReconciliation,
 )
 from dotmac.platform.billing.reconciliation_router import router
-from dotmac.platform.billing.reconciliation_schemas import (
-    PaymentRetryRequest,
-    ReconcilePaymentRequest,
-    ReconciliationApprove,
-    ReconciliationComplete,
-    ReconciliationStart,
-)
 from dotmac.platform.billing.reconciliation_service import ReconciliationService
 
 

@@ -163,11 +163,11 @@ async def _enhanced_create_api_key(
         memory_meta = getattr(api_key_service, "_memory_meta", None)
         if memory_meta is None:
             memory_meta = {}
-            api_key_service._memory_meta = memory_meta  # type: ignore[attr-defined]
+            api_key_service._memory_meta = memory_meta
         memory_lookup = getattr(api_key_service, "_memory_lookup", None)
         if memory_lookup is None:
             memory_lookup = {}
-            api_key_service._memory_lookup = memory_lookup  # type: ignore[attr-defined]
+            api_key_service._memory_lookup = memory_lookup
 
         memory_meta[key_id] = enhanced_data
         memory_lookup[api_key_hash] = key_id

@@ -294,6 +294,11 @@ require_security_secret_write = require_permission("security.secret.write")
 require_security_secret_delete = require_permission("security.secret.delete")
 require_security_audit_read = require_permission("security.audit.read")
 
+# Tenant Domain Management
+require_tenant_domain_verify = require_permission("tenant.domain.verify")
+require_tenant_domain_read = require_permission("tenant.domain.read")
+require_tenant_domain_delete = require_permission("tenant.domain.delete")
+
 # Admin Management
 require_admin = require_role("admin")
 require_admin_user_manage = require_permissions(

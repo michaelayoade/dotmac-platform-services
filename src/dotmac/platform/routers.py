@@ -133,6 +133,14 @@ ROUTER_CONFIGS = [
         requires_auth=True,
     ),
     RouterConfig(
+        module_path="dotmac.platform.tenant.domain_verification_router",
+        router_name="router",
+        prefix="/api/v1/tenants",
+        tags=["Tenant - Domain Verification"],
+        description="Custom domain verification for tenants",
+        requires_auth=True,
+    ),
+    RouterConfig(
         module_path="dotmac.platform.tenant.usage_billing_router",
         router_name="router",
         prefix="/api/v1/usage",

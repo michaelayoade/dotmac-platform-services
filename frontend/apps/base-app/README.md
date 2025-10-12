@@ -79,14 +79,45 @@ NEXT_PUBLIC_ENVIRONMENT=development
 # Optional
 NEXT_PUBLIC_ANALYTICS_ID=your-analytics-id
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_PRODUCT_NAME=DotMac Platform
+NEXT_PUBLIC_PRODUCT_TAGLINE="Reusable SaaS backend and APIs to launch faster."
+NEXT_PUBLIC_COMPANY_NAME=DotMac Platform
+NEXT_PUBLIC_SUPPORT_EMAIL=support@example.com
+NEXT_PUBLIC_LOGO_LIGHT=
+NEXT_PUBLIC_LOGO_DARK=
+NEXT_PUBLIC_LOGO_ICON=
+NEXT_PUBLIC_FAVICON=/favicon.ico
+NEXT_PUBLIC_BRAND_PRIMARY=#0ea5e9
+NEXT_PUBLIC_BRAND_PRIMARY_FOREGROUND=#ffffff
+NEXT_PUBLIC_BRAND_PRIMARY_HOVER=#0284c7
+NEXT_PUBLIC_BRAND_PRIMARY_HOVER_DARK=#38bdf8
+NEXT_PUBLIC_BRAND_ACCENT=#0ea5e9
+NEXT_PUBLIC_BRAND_ACCENT_FOREGROUND=#0f172a
+NEXT_PUBLIC_BRAND_ACCENT_DARK=#38bdf8
+NEXT_PUBLIC_BRAND_ACCENT_FOREGROUND_DARK=#0f172a
+NEXT_PUBLIC_BRAND_FONT_HEADING="Inter, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+NEXT_PUBLIC_BRAND_FONT_BODY="Inter, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+NEXT_PUBLIC_BRAND_RADIUS_LG=0.5rem
+NEXT_PUBLIC_BRAND_RADIUS_MD=0.375rem
+NEXT_PUBLIC_BRAND_RADIUS_SM=0.25rem
 ```
+
+### Branding Initializer
+
+```bash
+# Generate .env.branding with interactive prompts
+pnpm branding:init
+```
+
+The script saves your answers in `.env.branding` (and can append to `.env.local`). Restart `pnpm dev` so Next.js picks up the updates.
 
 ## Customization
 
-1. **Theme**: Edit `tailwind.config.ts` and `app/globals.css`
-2. **Auth**: Choose provider variant in `ClientProviders.tsx` (Simple/Secure/Enterprise)
-3. **API**: Update endpoints in `lib/config.ts`
-4. **Pages**: Add your routes in the `app/` directory
+1. **Run `pnpm branding:init`** to scaffold env variables, then tweak `platformConfig.branding` / `platformConfig.theme` in `lib/config.ts` if you need token-level control.
+2. **Theme Styles**: Adjust Tailwind utilities in `tailwind.config.ts` and baseline CSS variables in `app/globals.css`.
+3. **Auth**: Choose provider variant in `ClientProviders.tsx` (Simple/Secure/Enterprise).
+4. **API**: Update endpoints in `lib/config.ts`.
+5. **Pages**: Add your routes in the `app/` directory.
 
 ## Production Deployment
 
@@ -106,6 +137,29 @@ vercel deploy
 pnpm build
 pnpm start
 ```
+
+## Known Issues
+
+### Storybook Smoke Test
+
+**Issue**: `pnpm storybook:smoke` fails with webpack compilation errors.
+
+**Root Cause**: Known incompatibility between `@storybook/nextjs` 8.6.14 and Next.js 14.2.x webpack configuration. The error occurs during webpack's cache shutdown phase:
+```
+TypeError: Cannot read properties of undefined (reading 'tap')
+```
+
+**Workaround**:
+- Webpack caching is disabled in `.storybook/main.ts` to mitigate the issue
+- Storybook smoke test is **not** included in CI workflow
+- Regular Storybook dev server (`pnpm storybook`) works for manual testing
+
+**Resolution Timeline**:
+- ✅ Short-term: Skipped in CI, documented here
+- ⏳ Medium-term: Wait for Storybook 8.7+ or Next.js 15 with better compatibility
+- 🔄 Alternative: Consider Storybook 7.6.x (stable with Next.js 14)
+
+**Related**: [Storybook Issue #24708](https://github.com/storybookjs/storybook/issues/24708)
 
 ## Next Steps
 

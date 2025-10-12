@@ -8,11 +8,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { apiClient } from '@/lib/api/client';
 import { logger } from '@/lib/utils/logger';
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { branding } = useBranding();
 
   const {
     register,
@@ -57,7 +59,9 @@ export default function LoginPage() {
             ← Back to home
           </Link>
           <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your DotMac Platform account</p>
+          <p className="text-muted-foreground">
+            Sign in to your {branding.productName} account
+          </p>
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-xs text-blue-300 font-medium">Test Credentials:</p>
@@ -84,7 +88,7 @@ export default function LoginPage() {
               {...register('username')}
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.username ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="your-username"
               data-testid="username-input"
             />
@@ -104,7 +108,7 @@ export default function LoginPage() {
               {...register('password')}
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.password ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="••••••••"
               data-testid="password-input"
             />
@@ -118,14 +122,14 @@ export default function LoginPage() {
               <input
                 id="remember-me"
                 type="checkbox"
-                className="h-4 w-4 rounded border-border bg-accent text-sky-500 focus:ring-sky-500 focus:ring-offset-background"
+                className="h-4 w-4 rounded border-border bg-accent text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] focus:ring-offset-background"
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-muted-foreground">
                 Remember me
               </label>
             </div>
 
-            <Link href="/forgot-password" className="text-sm text-sky-400 hover:text-sky-300">
+            <Link href="/forgot-password" className="text-sm text-brand hover:text-[var(--brand-primary-hover)]">
               Forgot password?
             </Link>
           </div>
@@ -133,7 +137,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed btn-brand"
             data-testid="submit-button"
           >
             {loading ? 'Signing in...' : 'Sign in'}
@@ -142,7 +146,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="text-sky-400 hover:text-sky-300 font-medium">
+          <Link href="/register" className="text-brand hover:text-[var(--brand-primary-hover)] font-medium">
             Sign up
           </Link>
         </p>

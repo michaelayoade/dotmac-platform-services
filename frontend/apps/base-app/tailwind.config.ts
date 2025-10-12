@@ -12,8 +12,9 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#0ea5e9',
-          foreground: '#f8fafc',
+          DEFAULT: 'var(--brand-primary)',
+          foreground: 'var(--brand-primary-foreground)',
+          hover: 'var(--brand-primary-hover)',
         },
         // Theme-aware colors using CSS variables
         background: 'hsl(var(--background))',
@@ -49,11 +50,13 @@ const config: Config = {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        'brand-accent': 'var(--brand-accent)',
+        'brand-accent-foreground': 'var(--brand-accent-foreground)',
       },
       borderRadius: {
-        lg: '0.5rem',
-        md: '0.375rem',
-        sm: '0.25rem',
+        lg: 'var(--radius-lg)',
+        md: 'var(--radius-md)',
+        sm: 'var(--radius-sm)',
       },
     },
   },

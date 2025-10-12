@@ -7,7 +7,6 @@ Verifies that:
 3. Invalid tenant_id raises appropriate errors
 """
 
-
 import pytest
 from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError

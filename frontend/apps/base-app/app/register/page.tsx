@@ -7,11 +7,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { register as registerUser } from '@/lib/auth';
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { branding } = useBranding();
 
   const {
     register,
@@ -47,7 +49,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Create your account</h1>
-          <p className="text-muted-foreground">Join the DotMac Platform</p>
+          <p className="text-muted-foreground">Join the {branding.productName}</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card/50 backdrop-blur border border-border rounded-lg p-8 space-y-6">
@@ -67,7 +69,7 @@ export default function RegisterPage() {
               {...register('full_name')}
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.full_name ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="John Doe"
               data-testid="full-name-input"
             />
@@ -88,7 +90,7 @@ export default function RegisterPage() {
               required
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.email ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="you@example.com"
               data-testid="email-input"
             />
@@ -108,7 +110,7 @@ export default function RegisterPage() {
               {...register('password')}
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.password ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="••••••••"
               data-testid="password-input"
             />
@@ -131,7 +133,7 @@ export default function RegisterPage() {
               {...register('confirmPassword')}
               className={`w-full px-3 py-2 bg-accent border ${
                 errors.confirmPassword ? 'border-red-500' : 'border-border'
-              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent`}
+              } rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent`}
               placeholder="••••••••"
               data-testid="confirm-password-input"
             />
@@ -143,7 +145,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 bg-sky-500 hover:bg-sky-600 disabled:bg-muted disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+            className="w-full py-3 px-4 disabled:bg-muted disabled:cursor-not-allowed font-medium rounded-lg transition-colors btn-brand"
             data-testid="submit-button"
           >
             {loading ? 'Creating account...' : 'Sign up'}
@@ -151,7 +153,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="text-sky-400 hover:text-sky-300">
+            <Link href="/login" className="text-brand hover:text-[var(--brand-primary-hover)]">
               Sign in
             </Link>
           </p>

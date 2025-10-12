@@ -3,19 +3,19 @@
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green.svg)](.)
 [![Tests](https://img.shields.io/badge/tests-6146%20passing-green.svg)](.)
 
-**Complete SaaS platform backend** providing authentication, billing, customer management, communications, and 25+ integrated services for building production-ready applications.
+**Modular SaaS platform backend** providing authentication, billing, customer management, communications, and 25+ integrated services through consistent APIs to accelerate reusable product development.
 
 ## 🎯 What is DotMac Platform Services?
 
-A **batteries-included backend platform** that eliminates months of infrastructure work. Deploy a complete SaaS backend with authentication, billing, multi-tenancy, communications, file storage, and analytics in minutes instead of months.
+A **batteries-included backend and API layer** that eliminates months of infrastructure work. Ship reusable SaaS products faster with multi-tenant authentication, billing, communications, analytics, and storage delivered through stable REST and GraphQL contracts.
 
 ### Core Value Proposition
 
+✅ **API-First Platform Core**: RESTful APIs + GraphQL with auto-generated documentation
 ✅ **Skip the Infrastructure**: All essential SaaS services pre-integrated
 ✅ **Production Ready**: Battle-tested with 85%+ test coverage (6,146 tests)
 ✅ **Multi-Tenant by Default**: Built-in tenant isolation and management
 ✅ **Modern Stack**: Python 3.12+, FastAPI, SQLAlchemy 2.0, Pydantic v2
-✅ **API-First**: RESTful APIs + GraphQL with auto-generated documentation
 
 ## 📦 Complete Feature Set
 
@@ -78,7 +78,7 @@ A **batteries-included backend platform** that eliminates months of infrastructu
 - **Service Registry** - Consul-based service discovery
 - **Resilience Patterns** - Circuit breakers, retries, rate limiting
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Backend API)
 
 ### Requirements
 
@@ -328,21 +328,16 @@ make clean            # Clean build artifacts
 - **Bandit** security scanning
 - **85% test coverage** minimum
 
-## 🌐 Frontend Integration
+## 🌐 Reference Frontend (Optional)
 
-Includes a **Next.js 14 frontend** (`frontend/apps/base-app/`) with:
+A **Next.js 14 reference admin app** lives in `frontend/apps/base-app/`. Use it as:
+- A working example of how to integrate with every API surface
+- A starter admin portal you can reskin with theming and branding configuration
+- A validation harness for end-to-end workflows (RBAC, billing, observability)
+- Light theming is configured via environment variables (`NEXT_PUBLIC_PRODUCT_NAME`, `NEXT_PUBLIC_PRODUCT_TAGLINE`, etc.) and overridable design tokens defined in `frontend/apps/base-app/lib/config.ts`
+- Run `pnpm --filter @dotmac/base-app branding:init` to scaffold customized env defaults for branding and design tokens
 
-- TypeScript + React 18
-- TailwindCSS + shadcn/ui components
-- OpenAPI client auto-generation
-- Multi-theme support (light/dark)
-- Responsive dashboard layouts
-- Real-time metrics and charts
-
-Frontend connects to backend via:
-- REST API calls with auto-generated TypeScript types
-- GraphQL for analytics dashboards
-- Server-side rendering with Next.js
+The backend remains the system of record. Frontend adopters can fork, customize, or replace the reference app while consuming the same REST/GraphQL contracts.
 
 ## 📖 Documentation
 

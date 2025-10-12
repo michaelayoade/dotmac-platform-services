@@ -106,12 +106,8 @@ class TestInvoiceCreation:
 
         service = InvoiceService(async_session)
 
-        monkeypatch.setattr(
-            "dotmac.platform.settings.settings.billing.enable_multi_currency", True
-        )
-        monkeypatch.setattr(
-            "dotmac.platform.settings.settings.billing.default_currency", "USD"
-        )
+        monkeypatch.setattr("dotmac.platform.settings.settings.billing.enable_multi_currency", True)
+        monkeypatch.setattr("dotmac.platform.settings.settings.billing.default_currency", "USD")
         monkeypatch.setattr(
             "dotmac.platform.settings.settings.billing.supported_currencies",
             ["USD", "EUR"],
@@ -124,7 +120,7 @@ class TestInvoiceCreation:
             async def fetch_rates(
                 self, base_currency: str, target_currencies: list[str]
             ) -> dict[str, float]:
-                return {currency: 2.0 for currency in target_currencies}
+                return dict.fromkeys(target_currencies, 2.0)
 
         async def fake_get_integration(name: str):
             assert name == "currency"

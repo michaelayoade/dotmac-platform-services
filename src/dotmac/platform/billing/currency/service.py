@@ -5,15 +5,15 @@ Currency conversion service backed by persisted exchange rates.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Iterable
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 import structlog
+from moneyed import Money, get_currency
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from moneyed import Money, get_currency
 
 from dotmac.platform.billing.currency.models import ExchangeRate
 from dotmac.platform.billing.money_utils import money_handler
@@ -88,8 +88,9 @@ class CurrencyRateService:
         rate_entry = await self._get_latest_rate(base_currency, target_currency)
         if rate_entry and not force_refresh:
             if not rate_entry.expires_at or rate_entry.expires_at > now:
-                self._memory_cache[cache_key] = (now, rate_entry.rate)
-                return rate_entry.rate
+                rate_value: Decimal = rate_entry.rate
+                self._memory_cache[cache_key] = (now, rate_value)
+                return rate_value
 
         # Load from provider and persist
         await self.refresh_rates(base_currency=base_currency, target_currencies=[target_currency])
@@ -98,8 +99,9 @@ class CurrencyRateService:
         if not rate_entry:
             raise RuntimeError(f"Exchange rate not available for {base_currency}/{target_currency}")
 
-        self._memory_cache[cache_key] = (now, rate_entry.rate)
-        return rate_entry.rate
+        final_rate: Decimal = rate_entry.rate
+        self._memory_cache[cache_key] = (now, final_rate)
+        return final_rate
 
     async def refresh_rates(
         self,
@@ -110,7 +112,13 @@ class CurrencyRateService:
     ) -> None:
         """Refresh exchange rates for the given currencies using the configured integration."""
         base_currency = base_currency.upper()
-        targets = sorted({currency.upper() for currency in target_currencies if currency.upper() != base_currency})
+        targets = sorted(
+            {
+                currency.upper()
+                for currency in target_currencies
+                if currency.upper() != base_currency
+            }
+        )
 
         if not targets:
             logger.debug("No target currencies specified for refresh")

@@ -5,9 +5,14 @@ import { ReactNode } from 'react';
 import { ClientProviders } from '@/providers/ClientProviders';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
+const productName = process.env.NEXT_PUBLIC_PRODUCT_NAME ?? 'DotMac Platform';
+const productTagline = process.env.NEXT_PUBLIC_PRODUCT_TAGLINE ?? 'Reusable SaaS backend and APIs to launch faster.';
+const favicon = process.env.NEXT_PUBLIC_FAVICON ?? '/favicon.ico';
+
 export const metadata: Metadata = {
-  title: 'DotMac Base App',
-  description: 'Starter Next.js application pre-integrated with DotMac platform services.',
+  title: productName,
+  description: productTagline,
+  icons: [{ rel: 'icon', url: favicon }],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

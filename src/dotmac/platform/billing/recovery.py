@@ -6,7 +6,7 @@ and recovering from billing errors gracefully.
 """
 
 import asyncio
-import random
+import secrets
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -45,10 +45,15 @@ class ExponentialBackoff(RetryStrategy):
         self.jitter = jitter
 
     def get_delay(self, attempt: int) -> float:
-        """Calculate exponential backoff delay with optional jitter."""
+        """Calculate exponential backoff delay with optional jitter.
+
+        Uses secrets.SystemRandom for better randomness than random.random().
+        """
         delay: float = min(self.base_delay * (2**attempt), self.max_delay)
         if self.jitter:
-            delay = delay * (0.5 + random.random())
+            # Use secrets module for cryptographically strong random numbers
+            jitter_factor = 0.5 + (secrets.SystemRandom().random())
+            delay = delay * jitter_factor
         return delay
 
 

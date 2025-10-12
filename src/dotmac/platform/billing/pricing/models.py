@@ -183,9 +183,7 @@ class PriceCalculationResult(AppBaseModel):
     normalized_amount: Decimal | None = Field(
         None, description="Final price normalized to default currency"
     )
-    normalized_currency: str | None = Field(
-        None, description="Currency code for normalized amount"
-    )
+    normalized_currency: str | None = Field(None, description="Currency code for normalized amount")
 
     # Applied adjustments (in order)
     applied_adjustments: list[PriceAdjustment] = Field(

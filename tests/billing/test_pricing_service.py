@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.exceptions import InvalidPricingRuleError, PricingError
 from dotmac.platform.billing.models import BillingPricingRuleTable
+from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.pricing.models import (
     DiscountType,
     PriceCalculationRequest,
@@ -24,7 +25,6 @@ from dotmac.platform.billing.pricing.service import (
     generate_rule_id,
     generate_usage_id,
 )
-from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.settings import settings
 
 
@@ -624,10 +624,14 @@ class TestPriceCalculation:
             def __init__(self, session: AsyncSession) -> None:
                 self.session = session
 
-            async def convert_money(self, money, target_currency: str, *, force_refresh: bool = False):
+            async def convert_money(
+                self, money, target_currency: str, *, force_refresh: bool = False
+            ):
                 return money_handler.create_money(money.amount * Decimal("1.10"), target_currency)
 
-            async def get_rate(self, base_currency: str, target_currency: str, *, force_refresh: bool = False):
+            async def get_rate(
+                self, base_currency: str, target_currency: str, *, force_refresh: bool = False
+            ):
                 return Decimal("1.10")
 
         with patch.object(engine.product_service, "get_product", return_value=mock_product):

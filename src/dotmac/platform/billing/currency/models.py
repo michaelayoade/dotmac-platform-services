@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import DateTime, JSON, Numeric, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dotmac.platform.db import Base, TimestampMixin

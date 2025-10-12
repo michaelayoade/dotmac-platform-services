@@ -35,7 +35,9 @@ async def cleanup_session_state():
             await session_manager._redis.delete(*keys)
     else:
         # Clear fallback store
-        keys_to_delete = [k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")]
+        keys_to_delete = [
+            k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")
+        ]
         for key in keys_to_delete:
             del session_manager._fallback_store[key]
 
@@ -47,7 +49,9 @@ async def cleanup_session_state():
         if keys:
             await session_manager._redis.delete(*keys)
     else:
-        keys_to_delete = [k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")]
+        keys_to_delete = [
+            k for k in session_manager._fallback_store.keys() if k.startswith("2fa_pending:")
+        ]
         for key in keys_to_delete:
             del session_manager._fallback_store[key]
 

@@ -17,11 +17,16 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 // Mock config and logger
-jest.mock('@/lib/config', () => ({
-  platformConfig: {
-    apiBaseUrl: 'http://localhost:8000',
-  },
-}));
+jest.mock('@/lib/config', () => {
+  const actual = jest.requireActual('@/lib/config');
+  return {
+    ...actual,
+    platformConfig: {
+      ...actual.platformConfig,
+      apiBaseUrl: 'http://localhost:8000',
+    },
+  };
+});
 
 jest.mock('@/lib/utils/logger', () => ({
   logger: {

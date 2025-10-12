@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.billing.catalog.service import ProductService
 from dotmac.platform.billing.currency.service import CurrencyRateService
-from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.exceptions import (
     InvalidPricingRuleError,
     PricingError,
@@ -24,6 +23,7 @@ from dotmac.platform.billing.models import (
     BillingPricingRuleTable,
     BillingRuleUsageTable,
 )
+from dotmac.platform.billing.money_utils import money_handler
 from dotmac.platform.billing.pricing.models import (
     DiscountType,
     PriceAdjustment,
