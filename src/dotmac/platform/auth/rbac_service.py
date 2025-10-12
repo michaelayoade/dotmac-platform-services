@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy import and_, or_, select
-from sqlalchemy.engine import CursorResult
+from sqlalchemy.engine import CursorResult, Result
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -276,13 +276,14 @@ class RBACService:
             raise AuthorizationError(f"Role '{role_name}' not found")
 
         # Remove role assignment
-        result: CursorResult[Any] = await self.db.execute(
+        result: Result[Any] = await self.db.execute(
             user_roles.delete().where(
                 and_(user_roles.c.user_id == user_id, user_roles.c.role_id == role.id)
             )
         )
 
-        if result.rowcount == 0:
+        # Result.rowcount is available after execute() for DML statements
+        if getattr(result, 'rowcount', 0) == 0:
             logger.warning(f"Role {role_name} was not assigned to user {user_id}")
             return
 
@@ -421,7 +422,7 @@ class RBACService:
             raise AuthorizationError(f"Permission '{permission_name}' not found")
 
         # Remove the permission grant
-        result: CursorResult[Any] = await self.db.execute(
+        result: Result[Any] = await self.db.execute(
             user_permissions.delete().where(
                 and_(
                     user_permissions.c.user_id == user_id,
@@ -430,7 +431,8 @@ class RBACService:
             )
         )
 
-        if result.rowcount == 0:
+        # Result.rowcount is available after execute() for DML statements
+        if getattr(result, 'rowcount', 0) == 0:
             logger.warning(f"Permission {permission_name} was not granted to user {user_id}")
             return
 

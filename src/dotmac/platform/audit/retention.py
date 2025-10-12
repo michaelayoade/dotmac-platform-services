@@ -210,7 +210,8 @@ class AuditRetentionService:
                             delete_query = delete_query.where(AuditActivity.tenant_id == tenant_id)
 
                         result = await session.execute(delete_query)
-                        deleted_count = int(result.rowcount or 0)
+                        # Result.rowcount is available after execute() for DML statements
+                        deleted_count = int(getattr(result, 'rowcount', 0) or 0)
                         await session.commit()
 
                         results.total_deleted += deleted_count

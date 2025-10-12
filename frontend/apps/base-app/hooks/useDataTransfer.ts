@@ -269,7 +269,7 @@ export function useCancelJob() {
     mutationFn: async (jobId: string) => {
       const response = await apiClient.delete(`/data-transfer/jobs/${jobId}`);
       // Allow success=false for 204 No Content (DELETE operations)
-      if (!response.success && response.status !== 204) {
+      if (!response.success && response.error?.status !== 204) {
         throw new Error(response.error?.message || 'Failed to cancel job');
       }
     },

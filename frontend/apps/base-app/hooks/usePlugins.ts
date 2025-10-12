@@ -355,7 +355,7 @@ export function useDeletePluginInstance() {
     mutationFn: async (instanceId: string) => {
       const response = await apiClient.delete(`/plugins/instances/${instanceId}`);
       // Allow success=false for 204 No Content (DELETE operations)
-      if (!response.success && response.status !== 204) {
+      if (!response.success && response.error?.status !== 204) {
         throw new Error(response.error?.message || 'Failed to delete plugin instance');
       }
     },
