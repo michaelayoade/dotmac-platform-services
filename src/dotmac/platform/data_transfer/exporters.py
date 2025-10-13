@@ -12,7 +12,8 @@ import zipfile
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
-from xml.dom import minidom
+
+from defusedxml import minidom as defused_minidom
 
 import pandas as pd
 
@@ -223,9 +224,9 @@ class XMLExporter(BaseExporter):
 
             # Write to file
             if self.options.xml_pretty_print:
-                xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(
+                xml_str = defused_minidom.parseString(ET.tostring(root)).toprettyxml(
                     indent="  "
-                )  # nosec B318 - Internal use, trusted data
+                )
                 with open(file_path, "w", encoding=self.options.encoding) as f:
                     f.write(xml_str)
             else:

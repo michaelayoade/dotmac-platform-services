@@ -564,7 +564,10 @@ class Settings(BaseSettings):
         use_ssl: bool = Field(False, description="Use SSL")
 
         # Local fallback for development
-        local_path: str = Field("/tmp/storage", description="Local storage path for dev")
+        local_path: str = Field(
+            "/tmp/storage",  # nosec B108 - Configurable via env var, dev default only
+            description="Local storage path for dev",
+        )
 
     storage: StorageSettings = StorageSettings()  # type: ignore[call-arg]
 

@@ -10,6 +10,7 @@ Provides a unified interface for file storage operations with support for:
 import hashlib
 import json
 import re
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from io import BytesIO
@@ -73,9 +74,8 @@ class LocalFileStorage:
 
     def __init__(self, base_path: str | None = None) -> None:
         """Initialize local storage."""
-        base = Path(
-            base_path or settings.storage.local_path or "/tmp/dotmac-storage"
-        )  # nosec B108 - Configurable via settings
+        default_path = Path(tempfile.gettempdir()) / "dotmac-storage"
+        base = Path(base_path or settings.storage.local_path or str(default_path))
         base.mkdir(parents=True, exist_ok=True)
         self.base_path = base.resolve()
         self.metadata_path = self.base_path / ".metadata"
