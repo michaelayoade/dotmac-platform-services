@@ -276,10 +276,16 @@ class TestSecretsAPISecurityRegression:
         # SECURITY ASSERTION: Empty token rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
 
-    def test_invalid_jwt_rejected(self):
+    @patch("dotmac.platform.secrets.api.settings")
+    def test_invalid_jwt_rejected(self, mock_settings):
         """
         SECURITY TEST: Invalid JWTs are rejected.
         """
+        # Enable Vault so we don't get 503 before auth check
+        mock_settings.vault.enabled = True
+        mock_settings.vault.url = "http://localhost:8200"
+        mock_settings.vault.token = "test-token"
+
         client = TestClient(app)
 
         # Attempt with invalid JWT

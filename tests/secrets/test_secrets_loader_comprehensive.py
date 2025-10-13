@@ -660,6 +660,7 @@ class TestEdgeCasesCoverage:
     @pytest.mark.asyncio
     @patch("dotmac.platform.secrets.secrets_loader.validate_production_secrets")
     @patch("dotmac.platform.secrets.secrets_loader.AsyncVaultClient")
+    @patch("dotmac.platform.secrets.secrets_loader.HAS_VAULT_CONFIG", False)
     async def test_load_secrets_validates_production_secrets(
         self, mock_client_class, mock_validate
     ):
@@ -673,17 +674,23 @@ class TestEdgeCasesCoverage:
         mock_settings.vault.kv_version = 2
         mock_settings.environment = "production"  # Production mode
 
+        # Create mock client with all required async methods
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.health_check = AsyncMock(return_value=True)
+        mock_client.health_check = AsyncMock(return_value=True)  # MUST return True!
         mock_client.get_secrets = AsyncMock(return_value={})
         mock_client.close = AsyncMock()
+
+        # Mock the class constructor to return our mock client
         mock_client_class.return_value = mock_client
 
         await load_secrets_from_vault(mock_settings, vault_client=None)
 
-        # Should call validate_production_secrets
+        # ASSERTION: Health check should be called
+        mock_client.health_check.assert_called_once()
+
+        # ASSERTION: Should call validate_production_secrets
         mock_validate.assert_called_once_with(mock_settings)
 
     @patch("dotmac.platform.secrets.secrets_loader.settings")

@@ -314,8 +314,9 @@ class TestGetFile:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.get_object.side_effect = S3Error(
-            "NoSuchKey", "msg", "resource", "request_id", "host_id", Mock()
+        # Use lambda to avoid FrozenInstanceError with S3Error frozen dataclass
+        mock_client.get_object.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
+            S3Error("NoSuchKey", "msg", "resource", "request_id", "host_id", Mock())
         )
         mock_minio.return_value = mock_client
 
@@ -336,8 +337,9 @@ class TestGetFile:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.get_object.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
+        # Use lambda to avoid FrozenInstanceError with S3Error frozen dataclass
+        mock_client.get_object.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
+            S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
         )
         mock_minio.return_value = mock_client
 
@@ -781,8 +783,9 @@ class TestFilesystemOperations:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.fget_object.side_effect = S3Error(
-            "NoSuchKey", "msg", "resource", "request_id", "host_id", Mock()
+        # Use lambda to avoid FrozenInstanceError with S3Error frozen dataclass
+        mock_client.fget_object.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
+            S3Error("NoSuchKey", "msg", "resource", "request_id", "host_id", Mock())
         )
         mock_minio.return_value = mock_client
 
@@ -803,8 +806,9 @@ class TestFilesystemOperations:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.fget_object.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
+        # Use lambda to avoid FrozenInstanceError with S3Error frozen dataclass
+        mock_client.fget_object.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
+            S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
         )
         mock_minio.return_value = mock_client
 
