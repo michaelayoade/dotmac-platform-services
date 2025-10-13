@@ -157,12 +157,20 @@ async def async_client(db_engine, tenant_id, user_id):
     app.dependency_overrides[get_current_tenant_id] = lambda: tenant_id
     app.dependency_overrides[get_current_user] = mock_get_current_user
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://testserver",
-        follow_redirects=True,
-    ) as client:
-        yield client
+    # Set tenant context variable directly for E2E tests
+    # This ensures direct calls to get_current_tenant_id() return the correct value
+    from dotmac.platform.tenant import set_current_tenant_id
 
-    # Clear overrides after test
-    app.dependency_overrides.clear()
+    set_current_tenant_id(tenant_id)
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://testserver",
+            follow_redirects=True,
+        ) as client:
+            yield client
+    finally:
+        # Clear tenant context and overrides after test
+        set_current_tenant_id(None)
+        app.dependency_overrides.clear()

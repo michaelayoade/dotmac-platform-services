@@ -1197,13 +1197,16 @@ def disable_rate_limiting_globally(request):
     test_module = request.node.fspath.basename if hasattr(request.node, "fspath") else ""
     test_name = request.node.name if hasattr(request.node, "name") else ""
     test_class = request.node.cls.__name__ if hasattr(request.node, "cls") and request.node.cls else ""
+    # Get full node ID which includes class name even in parallel execution
+    node_id = request.node.nodeid if hasattr(request.node, "nodeid") else ""
 
     # Don't disable rate limiting for tests that specifically test it
-    # Check module name, test name, and class name (e.g., TestRateLimiting)
+    # Check module name, test name, class name, and node ID
     if (
         "rate_limit" in test_module.lower()
         or "rate_limit" in test_name.lower()
         or "ratelimit" in test_class.lower()
+        or "ratelimit" in node_id.lower()
     ):
         yield
         return

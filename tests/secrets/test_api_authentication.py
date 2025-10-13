@@ -276,8 +276,9 @@ class TestSecretsAPISecurityRegression:
         # SECURITY ASSERTION: Empty token rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
 
+    @patch("dotmac.platform.secrets.api.AsyncVaultClient")
     @patch("dotmac.platform.secrets.api.settings")
-    def test_invalid_jwt_rejected(self, mock_settings):
+    def test_invalid_jwt_rejected(self, mock_settings, mock_vault_client_class):
         """
         SECURITY TEST: Invalid JWTs are rejected.
         """
@@ -285,6 +286,13 @@ class TestSecretsAPISecurityRegression:
         mock_settings.vault.enabled = True
         mock_settings.vault.url = "http://localhost:8200"
         mock_settings.vault.token = "test-token"
+        mock_settings.vault.namespace = None
+        mock_settings.vault.mount_path = "secret"
+        mock_settings.vault.kv_version = 2
+
+        # Mock the AsyncVaultClient to avoid httpx instantiation issues
+        mock_client = AsyncMock()
+        mock_vault_client_class.return_value = mock_client
 
         client = TestClient(app)
 
