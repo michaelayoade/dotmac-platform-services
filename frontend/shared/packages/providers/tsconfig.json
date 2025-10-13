@@ -20,5 +20,6 @@
       "@dotmac/headless/*": ["../headless/src/*"]
     }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/__tests__/**", "**/*.stories.*", "**/*.spec.*"]
 }

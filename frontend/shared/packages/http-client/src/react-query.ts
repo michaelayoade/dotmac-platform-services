@@ -9,7 +9,7 @@ import {
 
 import { httpClient } from './index';
 import type { ApiError, HttpClientConfig } from './types';
-import type { HttpClient } from './http-client';
+import { HttpClient } from './http-client';
 
 interface RequestDescriptor<TResponse> {
   execute: () => Promise<TResponse>;

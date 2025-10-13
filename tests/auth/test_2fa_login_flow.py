@@ -56,25 +56,6 @@ async def cleanup_session_state():
             del session_manager._fallback_store[key]
 
 
-@pytest.fixture(autouse=True)
-def disable_rate_limiting():
-    """Disable rate limiting for all 2FA tests."""
-
-    # Directly patch the limiter to disable it
-    from dotmac.platform.core.rate_limiting import get_limiter
-
-    limiter_instance = get_limiter()
-    original_enabled = limiter_instance.enabled
-
-    # Disable rate limiting
-    limiter_instance.enabled = False
-
-    yield
-
-    # Restore original state
-    limiter_instance.enabled = original_enabled
-
-
 @pytest.fixture
 def app():
     """Create FastAPI app for testing."""

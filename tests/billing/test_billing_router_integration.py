@@ -478,21 +478,32 @@ class TestRateLimiting:
 
         This test MUST NOT skip - rate limiting is a mandatory security control.
         """
-        # Try to make many requests rapidly (exceeds 100/minute limit)
-        responses = []
-        for _ in range(150):  # Exceed the 100/minute limit on list_subscription_plans
-            response = await router_client.get(
-                "/api/v1/billing/subscriptions/plans",
-                headers=auth_headers,
+        # Enable rate limiting for this specific test (global fixture disables it)
+        from dotmac.platform.core.rate_limiting import get_limiter
+
+        limiter_instance = get_limiter()
+        original_enabled = limiter_instance.enabled
+        limiter_instance.enabled = True
+
+        try:
+            # Try to make many requests rapidly (exceeds 100/minute limit)
+            responses = []
+            for _ in range(150):  # Exceed the 100/minute limit on list_subscription_plans
+                response = await router_client.get(
+                    "/api/v1/billing/subscriptions/plans",
+                    headers=auth_headers,
+                )
+                responses.append(response.status_code)
+
+            # SECURITY: Rate limiting MUST be enforced - 429 responses are REQUIRED
+            rate_limited_count = responses.count(status.HTTP_429_TOO_MANY_REQUESTS)
+
+            assert rate_limited_count > 0, (
+                f"SECURITY FAILURE: Rate limiting not enforced on billing endpoints! "
+                f"Made 150 requests, expected HTTP 429 responses but got none. "
+                f"Response codes: {set(responses)}. "
+                f"This is a critical security vulnerability - billing endpoints MUST be rate limited."
             )
-            responses.append(response.status_code)
-
-        # SECURITY: Rate limiting MUST be enforced - 429 responses are REQUIRED
-        rate_limited_count = responses.count(status.HTTP_429_TOO_MANY_REQUESTS)
-
-        assert rate_limited_count > 0, (
-            f"SECURITY FAILURE: Rate limiting not enforced on billing endpoints! "
-            f"Made 150 requests, expected HTTP 429 responses but got none. "
-            f"Response codes: {set(responses)}. "
-            f"This is a critical security vulnerability - billing endpoints MUST be rate limited."
-        )
+        finally:
+            # Restore original state
+            limiter_instance.enabled = original_enabled

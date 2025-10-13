@@ -197,6 +197,21 @@ export interface MFASetupResponse {
   backupCodes: string[];
 }
 
+export interface SecurityContext {
+  timestamp: number;
+  userAgent: string;
+  sessionId: string;
+  device?: {
+    type: string;
+    os: string;
+    browser: string;
+  };
+  ipAddress?: string;
+  location?: {
+    region?: string;
+  };
+}
+
 export interface SecurityEvent {
   type: SecurityEventType;
   timestamp: Date;

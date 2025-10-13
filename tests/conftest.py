@@ -1185,6 +1185,36 @@ def test_environment():
         os.environ.update(original_env)
 
 
+@pytest.fixture(autouse=True, scope="function")
+def disable_rate_limiting_globally():
+    """Disable rate limiting for all tests to prevent 429 errors in test suite."""
+    from dotmac.platform.core.rate_limiting import get_limiter
+
+    try:
+        limiter_instance = get_limiter()
+        original_enabled = limiter_instance.enabled
+
+        # Disable rate limiting for tests
+        limiter_instance.enabled = False
+
+        # Clear any accumulated rate limit counters
+        try:
+            if hasattr(limiter_instance, "_storage") and limiter_instance._storage:
+                if hasattr(limiter_instance._storage, "reset"):
+                    limiter_instance._storage.reset()
+        except Exception:
+            pass  # Ignore storage reset errors
+
+        yield
+
+        # Restore original state
+        limiter_instance.enabled = original_enabled
+    except Exception:
+        # If rate limiting setup fails, just continue
+        # Some tests might not have rate limiting configured
+        yield
+
+
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest."""

@@ -57,11 +57,10 @@ def reset_limiter() -> None:
         # Clear the storage to reset rate limit counters
         try:
             if hasattr(_limiter, "_storage") and _limiter._storage:
-                # SlowAPI storage has a reset() or clear() method in some implementations
+                # SlowAPI storage has a reset() method in some implementations
                 if hasattr(_limiter._storage, "reset"):
                     _limiter._storage.reset()
-                elif hasattr(_limiter._storage, "clear"):
-                    _limiter._storage.clear()
+                # Note: clear() method requires a key parameter, so we skip it for global reset
         except Exception as e:
             logger.debug("rate_limit.storage.reset.failed", error=str(e))
     _limiter = None

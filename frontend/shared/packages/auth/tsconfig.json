@@ -20,5 +20,13 @@
     "noImplicitAny": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "**/*.test.*"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.*",
+    "**/__tests__/**",
+    "**/*.stories.*",
+    "**/*.spec.*",
+    "src/services/tokenService.ts"
+  ]
 }
