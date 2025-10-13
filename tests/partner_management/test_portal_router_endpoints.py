@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from dotmac.platform.billing.models import Customer
+from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.main import app
 from dotmac.platform.partner_management.models import (
     CommissionModel,
@@ -37,6 +37,7 @@ class TestPartnerDashboardEndpoint:
             company_name="Dashboard Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="dashboard@partner.example.com",
             default_commission_rate=Decimal("0.15"),
             total_customers=5,
             total_revenue_generated=Decimal("10000.00"),
@@ -66,8 +67,8 @@ class TestPartnerDashboardEndpoint:
             referral = ReferralLead(
                 id=uuid4(),
                 partner_id=partner.id,
-                lead_name=f"Lead {i}",
-                lead_email=f"lead{i}@test.com",
+                contact_name=f"Lead {i}",
+                contact_email=f"lead{i}@test.com",
                 status=ReferralStatus.QUALIFIED,
                 tenant_id=test_tenant_id,
             )
@@ -75,35 +76,33 @@ class TestPartnerDashboardEndpoint:
 
         await db_session.commit()
 
-        # Mock get_current_partner to return our partner
-        async def mock_get_current_partner():
-            return partner
+        # Verify partner data directly (test is verifying the database setup)
+        assert partner.total_customers == 5
+        assert partner.total_revenue_generated == Decimal("10000.00")
+        assert partner.total_commissions_earned == Decimal("1500.00")
+        assert partner.total_commissions_paid == Decimal("1000.00")
+        assert partner.total_referrals == 10
+        assert partner.converted_referrals == 5
 
-        # Test endpoint
-        async with AsyncClient(app=app, base_url="http://test") as client:
-            # Note: In real test, would need proper auth setup
-            # For now, testing the response structure
-            response_data = {
-                "total_customers": 5,
-                "active_customers": 3,
-                "total_revenue_generated": 10000.00,
-                "total_commissions_earned": 1500.00,
-                "total_commissions_paid": 1000.00,
-                "pending_commissions": 500.00,
-                "total_referrals": 10,
-                "converted_referrals": 5,
-                "pending_referrals": 2,
-                "conversion_rate": 50.0,
-                "current_tier": "gold",
-                "commission_model": "revenue_share",
-                "default_commission_rate": 0.15,
-            }
+        # Verify active customers count
+        result = await db_session.execute(
+            select(PartnerAccount).where(
+                PartnerAccount.partner_id == partner.id,
+                PartnerAccount.is_active == True,
+            )
+        )
+        active_accounts = result.scalars().all()
+        assert len(active_accounts) == 3
 
-            # Verify data structure
-            assert response_data["total_customers"] == 5
-            assert response_data["active_customers"] == 3
-            assert response_data["pending_commissions"] == 500.00
-            assert response_data["conversion_rate"] == 50.0
+        # Verify pending referrals count
+        result = await db_session.execute(
+            select(ReferralLead).where(
+                ReferralLead.partner_id == partner.id,
+                ReferralLead.status == ReferralStatus.QUALIFIED,
+            )
+        )
+        pending_referrals = result.scalars().all()
+        assert len(pending_referrals) == 2
 
 
 @pytest.mark.asyncio
@@ -153,6 +152,7 @@ class TestPartnerProfileEndpoints:
             company_name="Update Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="update@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -193,6 +193,7 @@ class TestReferralEndpoints:
             company_name="Referral Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="referral@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -208,8 +209,8 @@ class TestReferralEndpoints:
             referral = ReferralLead(
                 id=uuid4(),
                 partner_id=partner.id,
-                lead_name=name,
-                lead_email=email,
+                contact_name=name,
+                contact_email=email,
                 status=status,
                 tenant_id=test_tenant_id,
             )
@@ -236,6 +237,7 @@ class TestReferralEndpoints:
             company_name="Submit Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="submit@partner.example.com",
             total_referrals=0,
             tenant_id=test_tenant_id,
         )
@@ -244,9 +246,9 @@ class TestReferralEndpoints:
 
         # Submit referral (simulating POST endpoint)
         referral_data = {
-            "lead_name": "New Lead",
-            "lead_email": "newlead@test.com",
-            "lead_phone": "+1234567890",
+            "contact_name": "New Lead",
+            "contact_email": "newlead@test.com",
+            "contact_phone": "+1234567890",
             "company_name": "Lead Company",
             "notes": "Hot lead from conference",
         }
@@ -265,8 +267,8 @@ class TestReferralEndpoints:
         await db_session.refresh(referral)
         await db_session.refresh(partner)
 
-        assert referral.lead_name == "New Lead"
-        assert referral.lead_email == "newlead@test.com"
+        assert referral.contact_name == "New Lead"
+        assert referral.contact_email == "newlead@test.com"
         assert partner.total_referrals == 1
 
 
@@ -282,6 +284,7 @@ class TestCommissionEndpoints:
             company_name="Commission Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="commission@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -296,6 +299,7 @@ class TestCommissionEndpoints:
                 commission_rate=Decimal("0.15"),
                 commission_amount=Decimal("150.00") * (i + 1),
                 status=CommissionStatus.APPROVED,
+                event_type="invoice_paid",
                 event_date=datetime.utcnow() - timedelta(days=i),
                 tenant_id=test_tenant_id,
             )
@@ -329,6 +333,7 @@ class TestCustomerEndpoints:
             company_name="Customer Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="customer@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -337,7 +342,9 @@ class TestCustomerEndpoints:
         for i in range(3):
             customer = Customer(
                 id=uuid4(),
-                name=f"Customer {i}",
+                customer_number=f"CUST-{i:04d}",
+                first_name=f"Customer",
+                last_name=f"{i}",
                 email=f"customer{i}@test.com",
                 tenant_id=test_tenant_id,
             )
@@ -363,6 +370,7 @@ class TestCustomerEndpoints:
                 commission_rate=Decimal("0.15"),
                 commission_amount=Decimal("150.00") * (i + 1),
                 status=CommissionStatus.APPROVED,
+                event_type="invoice_paid",
                 event_date=datetime.utcnow(),
                 tenant_id=test_tenant_id,
             )
@@ -394,6 +402,7 @@ class TestStatementAndPayoutEndpoints:
             company_name="Statement Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="statement@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -401,15 +410,17 @@ class TestStatementAndPayoutEndpoints:
         # Create payouts (statements)
         now = datetime.utcnow()
         for i in range(3):
+            # Create payouts in reverse chronological order (i=0 is oldest, i=2 is newest)
+            days_ago = (2 - i) * 30
             payout = PartnerPayout(
                 id=uuid4(),
                 partner_id=partner.id,
-                period_start=now - timedelta(days=60 + i * 30),
-                period_end=now - timedelta(days=31 + i * 30),
+                period_start=now - timedelta(days=days_ago + 29),
+                period_end=now - timedelta(days=days_ago),
                 total_amount=Decimal("500.00") * (i + 1),
                 currency="USD",
                 status=PayoutStatus.COMPLETED if i < 2 else PayoutStatus.PENDING,
-                payout_date=now - timedelta(days=25 + i * 30),
+                payout_date=now - timedelta(days=days_ago),
                 payment_reference=f"PAY-{i:03d}",
                 tenant_id=test_tenant_id,
             )
@@ -438,6 +449,7 @@ class TestStatementAndPayoutEndpoints:
             company_name="Payout Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="payout@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -487,6 +499,7 @@ class TestStatementDownload:
             company_name="Download Test Partner",
             tier=PartnerTier.GOLD,
             commission_model=CommissionModel.REVENUE_SHARE,
+            primary_email="download@partner.example.com",
             tenant_id=test_tenant_id,
         )
         db_session.add(partner)
@@ -517,6 +530,7 @@ class TestStatementDownload:
                 commission_rate=Decimal("0.15"),
                 commission_amount=Decimal("150.00"),
                 status=CommissionStatus.PAID,
+                event_type="invoice_paid",
                 event_date=datetime(2025, 9, 10 + i * 5),
                 tenant_id=test_tenant_id,
             )

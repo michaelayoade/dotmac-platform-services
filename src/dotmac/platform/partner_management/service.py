@@ -389,10 +389,10 @@ class PartnerService:
         event = PartnerCommissionEvent(
             tenant_id=tenant_id,
             event_date=datetime.now(UTC),
-            **data.model_dump(exclude={"metadata"}),
+            **data.model_dump(exclude={"metadata_"}),
         )
 
-        event.metadata_ = data.metadata or {}
+        event.metadata_ = data.metadata_ or {}
 
         self.session.add(event)
 

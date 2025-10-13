@@ -338,6 +338,7 @@ class PartnerCommissionEventBase(BaseModel):
         validate_assignment=True,
         extra="forbid",
         from_attributes=True,
+        populate_by_name=True,
     )
 
     partner_id: UUID
@@ -354,7 +355,7 @@ class PartnerCommissionEventCreate(PartnerCommissionEventBase):
     base_amount: Decimal | None = Field(None, ge=Decimal("0"))
     commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
     notes: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
 
 
 class PartnerCommissionEventUpdate(BaseModel):
@@ -384,7 +385,7 @@ class PartnerCommissionEventResponse(PartnerCommissionEventBase):
     payout_id: UUID | None = None
     paid_at: datetime | None = None
     notes: str | None = None
-    metadata: dict[str, Any]
+    metadata_: dict[str, Any] = Field(serialization_alias="metadata")
     created_at: datetime
     updated_at: datetime
 

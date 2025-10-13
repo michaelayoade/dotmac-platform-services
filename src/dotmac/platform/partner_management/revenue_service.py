@@ -174,7 +174,7 @@ class PartnerRevenueService:
                 payout_id=event.payout_id,
                 paid_at=event.paid_at,
                 notes=event.notes,
-                metadata=(
+                metadata_=(
                     event.metadata_
                     if hasattr(event, "metadata_") and isinstance(event.metadata_, dict)
                     else {}

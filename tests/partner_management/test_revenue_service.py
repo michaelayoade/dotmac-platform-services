@@ -546,14 +546,14 @@ class TestCommissionMetadataSerialization:
         event_response = events[0]
 
         # The key assertion: metadata should be populated (not empty dict)
-        assert event_response.metadata is not None
-        assert event_response.metadata != {}
-        assert event_response.metadata == test_metadata
+        assert event_response.metadata_ is not None
+        assert event_response.metadata_ != {}
+        assert event_response.metadata_ == test_metadata
 
         # Verify specific metadata fields
-        assert event_response.metadata["invoice_number"] == "INV-2024-001"
-        assert event_response.metadata["customer_name"] == "Acme Corp"
-        assert event_response.metadata["payment_method"] == "credit_card"
+        assert event_response.metadata_["invoice_number"] == "INV-2024-001"
+        assert event_response.metadata_["customer_name"] == "Acme Corp"
+        assert event_response.metadata_["payment_method"] == "credit_card"
 
     async def test_commission_metadata_empty_when_not_set(self, db_session, test_tenant_id):
         """Test that metadata defaults to empty dict when not set."""
@@ -597,7 +597,7 @@ class TestCommissionMetadataSerialization:
         # Verify metadata is empty dict (not None)
         assert len(events) == 1
         event_response = events[0]
-        assert event_response.metadata == {}
+        assert event_response.metadata_ == {}
 
 
 @pytest.mark.asyncio

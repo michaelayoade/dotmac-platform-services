@@ -98,18 +98,30 @@ def test_commission_details_endpoint_uses_correct_dependency():
     assert "partner" in params
     partner_param = params["partner"]
 
-    # Verify the default is a Depends() call
-    assert partner_param.default is not inspect.Parameter.empty
+    # With Annotated, the dependency is in the annotation metadata, not the default
+    # Get the annotation
+    import typing
 
-    # Get the dependency callable from Depends
+    annotation = partner_param.annotation
 
-    # Check if the default has the dependency attribute (it's a Depends instance)
-    if hasattr(partner_param.default, "dependency"):
-        dependency_func = partner_param.default.dependency
-        # Verify it's get_portal_partner (by name or callable)
-        assert (
-            dependency_func.__name__ == "get_portal_partner"
-        ), f"Expected get_portal_partner, got {dependency_func.__name__}"
+    # For Annotated types, get the metadata
+    if hasattr(typing, "get_args"):
+        # Python 3.8+
+        annotation_args = typing.get_args(annotation)
+        if annotation_args and len(annotation_args) > 1:
+            # Second arg should be the Depends() call
+            dependency_metadata = annotation_args[1]
+            if hasattr(dependency_metadata, "dependency"):
+                dependency_func = dependency_metadata.dependency
+                # Verify it's get_portal_partner (by name or callable)
+                assert (
+                    dependency_func.__name__ == "get_portal_partner"
+                ), f"Expected get_portal_partner, got {dependency_func.__name__}"
+            else:
+                # If we got here without Depends, fail the test
+                raise AssertionError(
+                    f"Expected Depends() in annotation, got {type(dependency_metadata)}"
+                )
 
 
 def test_all_partner_management_routers_import():
