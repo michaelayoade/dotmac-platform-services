@@ -31,6 +31,37 @@ from dotmac.platform.file_storage.minio_storage import (
 )
 
 
+# Monkey-patch S3Error to make it non-frozen for Python 3.12+ compatibility
+# S3Error is a frozen dataclass which causes FrozenInstanceError when
+# Python tries to assign __traceback__ during exception handling
+import dataclasses
+
+# Create a new non-frozen version
+@dataclasses.dataclass
+class _NonFrozenS3Error(BaseException):
+    """Non-frozen S3Error for testing."""
+    code: str
+    message: str
+    resource: str
+    request_id: str
+    host_id: str
+    response: object
+
+    def __str__(self):
+        return f"S3 operation failed; code: {self.code}, message: {self.message}, resource: {self.resource}, request_id: {self.request_id}, host_id: {self.host_id}, response: {self.response}"
+
+# Replace S3Error in the minio.error module for tests
+import minio.error
+minio.error.S3Error = _NonFrozenS3Error
+# Also update the local import
+S3Error = _NonFrozenS3Error
+
+# CRITICAL: Patch S3Error in the minio_storage module that was already imported
+# This ensures the except S3Error clauses catch our non-frozen version
+import dotmac.platform.file_storage.minio_storage as minio_storage_module
+minio_storage_module.S3Error = _NonFrozenS3Error
+
+
 class TestFileInfo:
     """Test FileInfo dataclass."""
 

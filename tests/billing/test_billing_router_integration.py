@@ -480,12 +480,16 @@ class TestRateLimiting:
         """
         # Enable rate limiting for this specific test (global fixture disables it)
         from dotmac.platform.core.rate_limiting import get_limiter, reset_limiter
+        from dotmac.platform.settings import settings
         import os
 
         # Ensure Redis URL is set for rate limiting storage (required for pytest-xdist)
         # The rate limiter looks for RATE_LIMIT_STORAGE_URL, not REDIS_URL
         redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/2")
         os.environ["RATE_LIMIT_STORAGE_URL"] = redis_url
+
+        # Force reload settings to pick up the new environment variable
+        settings.rate_limit.storage_url = redis_url
 
         # Reset and recreate limiter with Redis storage
         reset_limiter()
