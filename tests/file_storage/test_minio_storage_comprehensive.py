@@ -167,9 +167,11 @@ class TestMinIOStorageInit:
         mock_settings.storage.use_ssl = False
 
         mock_client = Mock()
-        mock_client.bucket_exists.side_effect = S3Error(
-            "BucketCreationFailed", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_bucket_creation_failed(*args, **kwargs):
+            raise S3Error("BucketCreationFailed", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.bucket_exists = Mock(side_effect=raise_s3_bucket_creation_failed)
         mock_minio.return_value = mock_client
 
         with pytest.raises(S3Error):
@@ -259,9 +261,11 @@ class TestSaveFile:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.put_object.side_effect = S3Error(
-            "PutObjectFailed", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_put_object_failed(*args, **kwargs):
+            raise S3Error("PutObjectFailed", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.put_object = Mock(side_effect=raise_s3_put_object_failed)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -387,9 +391,11 @@ class TestDeleteFile:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.remove_object.side_effect = S3Error(
-            "NoSuchKey", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_no_such_key(*args, **kwargs):
+            raise S3Error("NoSuchKey", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.remove_object = Mock(side_effect=raise_s3_no_such_key)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -409,9 +415,11 @@ class TestDeleteFile:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.remove_object.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_access_denied(*args, **kwargs):
+            raise S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.remove_object = Mock(side_effect=raise_s3_access_denied)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -455,9 +463,11 @@ class TestFileExists:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.stat_object.side_effect = S3Error(
-            "NoSuchKey", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_no_such_key(*args, **kwargs):
+            raise S3Error("NoSuchKey", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.stat_object = Mock(side_effect=raise_s3_no_such_key)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -477,9 +487,11 @@ class TestFileExists:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.stat_object.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_access_denied(*args, **kwargs):
+            raise S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.stat_object = Mock(side_effect=raise_s3_access_denied)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -691,9 +703,11 @@ class TestListFiles:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.list_objects.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_list_access_denied(*args, **kwargs):
+            raise S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.list_objects = Mock(side_effect=raise_s3_list_access_denied)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()
@@ -740,9 +754,11 @@ class TestFilesystemOperations:
 
         mock_client = Mock()
         mock_client.bucket_exists.return_value = True
-        mock_client.fput_object.side_effect = S3Error(
-            "AccessDenied", "msg", "resource", "request_id", "host_id", Mock()
-        )
+        # Raise S3Error using function to avoid FrozenInstanceError
+        def raise_s3_fput_access_denied(*args, **kwargs):
+            raise S3Error("AccessDenied", "msg", "resource", "request_id", "host_id", Mock())
+
+        mock_client.fput_object = Mock(side_effect=raise_s3_fput_access_denied)
         mock_minio.return_value = mock_client
 
         storage = MinIOStorage()

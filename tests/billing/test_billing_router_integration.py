@@ -483,7 +483,9 @@ class TestRateLimiting:
         import os
 
         # Ensure Redis URL is set for rate limiting storage (required for pytest-xdist)
-        os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6379/2")
+        # The rate limiter looks for RATE_LIMIT_STORAGE_URL, not REDIS_URL
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/2")
+        os.environ["RATE_LIMIT_STORAGE_URL"] = redis_url
 
         # Reset and recreate limiter with Redis storage
         reset_limiter()
