@@ -18,7 +18,7 @@ from httpx import AsyncClient
 
 from dotmac.platform.communications.email_service import EmailResponse
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
 
 
 class TestEmailSendingE2E:
@@ -116,7 +116,8 @@ class TestEmailSendingE2E:
         with patch(
             "dotmac.platform.communications.email_service.EmailService.send_email"
         ) as mock_send:
-            mock_send.side_effect = Exception("SMTP connection failed")
+            # Use RuntimeError which is caught by the router and returns 500
+            mock_send.side_effect = RuntimeError("SMTP connection failed")
 
             response = await client.post(
                 "/api/v1/communications/email/send",

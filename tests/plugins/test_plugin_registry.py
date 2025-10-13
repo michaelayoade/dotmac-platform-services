@@ -261,7 +261,7 @@ class TestPluginRegistry:
         health = await registry.health_check_plugin(instance.id)
 
         assert health.status == "healthy"
-        assert health.plugin_instance_id == str(instance.id)
+        assert health.plugin_instance_id == instance.id
         assert health.details["configured"] is True
         assert health.response_time_ms is not None
 

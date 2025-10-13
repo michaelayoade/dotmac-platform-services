@@ -427,9 +427,13 @@ class TestFileStorageService:
     @pytest.mark.asyncio
     async def test_update_nonexistent_file_metadata(self):
         """Test updating metadata for nonexistent file."""
+        import uuid
+
         service = FileStorageService(backend=StorageBackend.MEMORY)
 
-        success = await service.update_file_metadata("nonexistent", {"test": "value"})
+        # Use a valid UUID that doesn't exist
+        nonexistent_id = str(uuid.uuid4())
+        success = await service.update_file_metadata(nonexistent_id, {"test": "value"})
 
         assert success is False
 
@@ -692,26 +696,32 @@ class TestMinIOFileStorageEdgeCases:
     @pytest.mark.asyncio
     async def test_delete_file_with_path(self):
         """Test deleting file with custom path."""
+        import uuid
+
         mock_client = Mock()
         mock_client.delete_file.return_value = True
 
         storage = MinIOFileStorage(minio_client=mock_client)
 
-        # Add metadata with path
+        # Use valid UUID for file_id
+        file_id = str(uuid.uuid4())
+
+        # Add metadata with path and tenant_id
         file_metadata = FileMetadata(
-            file_id="test-123",
+            file_id=file_id,
             file_name="test.txt",
             file_size=100,
             content_type="text/plain",
             created_at=datetime.now(UTC),
             path="/uploads/docs",
+            tenant_id="default",
         )
-        storage.metadata_store["test-123"] = file_metadata
+        storage.metadata_store[file_id] = file_metadata
 
-        result = await storage.delete("test-123")
+        result = await storage.delete(file_id)
 
         assert result is True
-        assert "test-123" not in storage.metadata_store
+        assert file_id not in storage.metadata_store
         mock_client.delete_file.assert_called_once()
 
     @pytest.mark.asyncio
@@ -806,23 +816,29 @@ class TestMinIOFileStorageEdgeCases:
     @pytest.mark.asyncio
     async def test_retrieve_file_with_path(self):
         """Test retrieving file with custom path."""
+        import uuid
+
         mock_client = Mock()
         mock_client.get_file.return_value = b"Retrieved data"
 
         storage = MinIOFileStorage(minio_client=mock_client)
 
-        # Add metadata with path
+        # Use valid UUID for file_id
+        file_id = str(uuid.uuid4())
+
+        # Add metadata with path and matching tenant_id
         file_metadata = FileMetadata(
-            file_id="test-123",
+            file_id=file_id,
             file_name="test.txt",
             file_size=100,
             content_type="text/plain",
             created_at=datetime.now(UTC),
             path="/custom/path",
+            tenant_id="tenant-1",
         )
-        storage.metadata_store["test-123"] = file_metadata
+        storage.metadata_store[file_id] = file_metadata
 
-        data, metadata = await storage.retrieve("test-123", tenant_id="tenant-1")
+        data, metadata = await storage.retrieve(file_id, tenant_id="tenant-1")
 
         assert data == b"Retrieved data"
         assert metadata is not None
@@ -831,22 +847,28 @@ class TestMinIOFileStorageEdgeCases:
     @pytest.mark.asyncio
     async def test_retrieve_file_without_path(self):
         """Test retrieving file without custom path."""
+        import uuid
+
         mock_client = Mock()
         mock_client.get_file.return_value = b"Retrieved data"
 
         storage = MinIOFileStorage(minio_client=mock_client)
 
-        # Add metadata without path
+        # Use valid UUID for file_id
+        file_id = str(uuid.uuid4())
+
+        # Add metadata without path but with default tenant_id
         file_metadata = FileMetadata(
-            file_id="test-123",
+            file_id=file_id,
             file_name="test.txt",
             file_size=100,
             content_type="text/plain",
             created_at=datetime.now(UTC),
+            tenant_id="default",
         )
-        storage.metadata_store["test-123"] = file_metadata
+        storage.metadata_store[file_id] = file_metadata
 
-        data, metadata = await storage.retrieve("test-123")
+        data, metadata = await storage.retrieve(file_id)
 
         assert data == b"Retrieved data"
         mock_client.get_file.assert_called_once()
@@ -854,25 +876,31 @@ class TestMinIOFileStorageEdgeCases:
     @pytest.mark.asyncio
     async def test_delete_file_without_path(self):
         """Test deleting file without custom path."""
+        import uuid
+
         mock_client = Mock()
         mock_client.delete_file.return_value = True
 
         storage = MinIOFileStorage(minio_client=mock_client)
 
-        # Add metadata without path
+        # Use valid UUID for file_id
+        file_id = str(uuid.uuid4())
+
+        # Add metadata without path but with default tenant_id
         file_metadata = FileMetadata(
-            file_id="test-456",
+            file_id=file_id,
             file_name="delete.txt",
             file_size=100,
             content_type="text/plain",
             created_at=datetime.now(UTC),
+            tenant_id="default",
         )
-        storage.metadata_store["test-456"] = file_metadata
+        storage.metadata_store[file_id] = file_metadata
 
-        result = await storage.delete("test-456")
+        result = await storage.delete(file_id)
 
         assert result is True
-        assert "test-456" not in storage.metadata_store
+        assert file_id not in storage.metadata_store
         mock_client.delete_file.assert_called_once()
 
 

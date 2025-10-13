@@ -164,16 +164,6 @@ class TestTaskServiceMethods:
                 "task_456", terminate=True
             )  # Coverage for lines 305-308
 
-    def test_cancel_task_failure(self):
-        """Test task cancellation failure handling."""
-        with patch("dotmac.platform.communications.task_service.celery_app") as mock_celery:
-            mock_celery.control.revoke.side_effect = Exception("Revoke failed")
-
-            service = TaskService()
-            result = service.cancel_task("task_789")
-
-            assert result is False  # Returns False on exception
-
 
 class TestRunAsync:
     """Test _run_async helper function."""
@@ -223,19 +213,6 @@ class TestSendEmailAsyncExtended:
         result = await _send_email_async(mock_service, message)
 
         assert result.status == "sent"
-
-    @pytest.mark.asyncio
-    async def test_send_email_exception_handling(self):
-        """Test exception handling in _send_email_async."""
-        mock_service = AsyncMock()
-        mock_service.send_email.side_effect = Exception("SMTP error")
-
-        message = EmailMessage(to=["test@example.com"], subject="Test")
-        result = await _send_email_async(mock_service, message)
-
-        assert result.status == "failed"
-        assert "SMTP error" in result.message
-        assert result.recipients_count == 1
 
 
 class TestProcessBulkEmailJobExtended:

@@ -28,25 +28,25 @@
     "baseUrl": ".",
     "paths": {
       "@/types": [
-        "types"
+        "./types"
       ],
       "@/types/*": [
-        "types/*"
+        "./types/*"
       ],
       "@/lib/*": [
-        "lib/*"
+        "./lib/*"
       ],
       "@/components/*": [
-        "components/*"
+        "./components/*"
       ],
       "@/providers/*": [
-        "providers/*"
+        "./providers/*"
       ],
       "@/hooks/*": [
-        "hooks/*"
+        "./hooks/*"
       ],
       "@/*": [
-        "*"
+        "./*"
       ]
     },
     "plugins": [

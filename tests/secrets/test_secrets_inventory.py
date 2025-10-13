@@ -151,8 +151,21 @@ class TestSecretsInventoryAPI:
         mock_client = AsyncMock()
         return mock_client
 
+    @pytest.fixture
+    def mock_user(self):
+        """Mock platform admin user."""
+        from dotmac.platform.auth.core import UserInfo
+
+        return UserInfo(
+            user_id="test-user",
+            email="test@example.com",
+            tenant_id="test-tenant",
+            roles=["platform_admin"],
+            permissions=["secrets:read", "secrets:write"],
+        )
+
     @pytest.mark.asyncio
-    async def test_list_secrets_api_success(self, mock_vault_client):
+    async def test_list_secrets_api_success(self, mock_vault_client, mock_user):
         """Test successful secrets listing via API."""
         mock_vault_client.list_secrets_with_metadata.return_value = [
             {
@@ -175,7 +188,7 @@ class TestSecretsInventoryAPI:
             },
         ]
 
-        response = await list_secrets(vault=mock_vault_client, prefix="app/")
+        response = await list_secrets(vault=mock_vault_client, current_user=mock_user, prefix="app/")
 
         assert isinstance(response, SecretListResponse)
         assert len(response.secrets) == 2
@@ -195,25 +208,25 @@ class TestSecretsInventoryAPI:
         mock_vault_client.list_secrets_with_metadata.assert_called_once_with("app/")
 
     @pytest.mark.asyncio
-    async def test_list_secrets_api_no_vault(self):
+    async def test_list_secrets_api_no_vault(self, mock_user):
         """Test API behavior when vault client is not available."""
-        response = await list_secrets(vault=None, prefix="app/")
+        response = await list_secrets(vault=None, current_user=mock_user, prefix="app/")
 
         assert isinstance(response, SecretListResponse)
         assert len(response.secrets) == 0
 
     @pytest.mark.asyncio
-    async def test_list_secrets_api_vault_error(self, mock_vault_client):
+    async def test_list_secrets_api_vault_error(self, mock_vault_client, mock_user):
         """Test API error handling."""
         mock_vault_client.list_secrets_with_metadata.side_effect = VaultError("Connection failed")
 
         with pytest.raises(HTTPException) as exc_info:
-            await list_secrets(vault=mock_vault_client, prefix="app/")
+            await list_secrets(vault=mock_vault_client, current_user=mock_user, prefix="app/")
 
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_list_secrets_api_parsing_error(self, mock_vault_client):
+    async def test_list_secrets_api_parsing_error(self, mock_vault_client, mock_user):
         """Test handling of malformed secret data."""
         mock_vault_client.list_secrets_with_metadata.return_value = [
             {
@@ -230,7 +243,7 @@ class TestSecretsInventoryAPI:
             },
         ]
 
-        response = await list_secrets(vault=mock_vault_client, prefix="")
+        response = await list_secrets(vault=mock_vault_client, current_user=mock_user, prefix="")
 
         assert len(response.secrets) == 2
 
@@ -242,17 +255,17 @@ class TestSecretsInventoryAPI:
         assert "parsing_error" in response.secrets[1].metadata
 
     @pytest.mark.asyncio
-    async def test_list_secrets_api_empty_prefix(self, mock_vault_client):
+    async def test_list_secrets_api_empty_prefix(self, mock_vault_client, mock_user):
         """Test listing secrets with empty prefix."""
         mock_vault_client.list_secrets_with_metadata.return_value = []
 
-        response = await list_secrets(vault=mock_vault_client, prefix="")
+        response = await list_secrets(vault=mock_vault_client, current_user=mock_user, prefix="")
 
         assert len(response.secrets) == 0
         mock_vault_client.list_secrets_with_metadata.assert_called_once_with("")
 
     @pytest.mark.asyncio
-    async def test_list_secrets_api_metadata_types(self, mock_vault_client):
+    async def test_list_secrets_api_metadata_types(self, mock_vault_client, mock_user):
         """Test that various metadata types are handled correctly."""
         mock_vault_client.list_secrets_with_metadata.return_value = [
             {
@@ -270,7 +283,7 @@ class TestSecretsInventoryAPI:
             }
         ]
 
-        response = await list_secrets(vault=mock_vault_client, prefix="test/")
+        response = await list_secrets(vault=mock_vault_client, current_user=mock_user, prefix="test/")
 
         assert len(response.secrets) == 1
         secret = response.secrets[0]

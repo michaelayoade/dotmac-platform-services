@@ -96,8 +96,8 @@ async def emit_ticket_created(
 
     await bus.publish(
         event_type=TicketingEvents.TICKET_CREATED,
-        data=event_data,
-        tenant_id=tenant_id,
+        payload=event_data,
+        metadata={"tenant_id": tenant_id},
         priority=EventPriority.NORMAL,
     )
 
@@ -152,8 +152,8 @@ async def emit_ticket_message_added(
 
     await bus.publish(
         event_type=TicketingEvents.TICKET_MESSAGE_ADDED,
-        data=event_data,
-        tenant_id=tenant_id,
+        payload=event_data,
+        metadata={"tenant_id": tenant_id},
         priority=EventPriority.NORMAL,
     )
 
@@ -207,8 +207,8 @@ async def emit_ticket_status_changed(
 
     await bus.publish(
         event_type=TicketingEvents.TICKET_STATUS_CHANGED,
-        data=event_data,
-        tenant_id=tenant_id,
+        payload=event_data,
+        metadata={"tenant_id": tenant_id},
         priority=(
             EventPriority.HIGH if new_status in ("resolved", "closed") else EventPriority.NORMAL
         ),
@@ -255,8 +255,8 @@ async def emit_ticket_assigned(
 
     await bus.publish(
         event_type=TicketingEvents.TICKET_ASSIGNED,
-        data=event_data,
-        tenant_id=tenant_id,
+        payload=event_data,
+        metadata={"tenant_id": tenant_id},
         priority=EventPriority.NORMAL,
     )
 
@@ -300,8 +300,8 @@ async def emit_ticket_escalated_to_partner(
 
     await bus.publish(
         event_type=TicketingEvents.TICKET_ESCALATED_TO_PARTNER,
-        data=event_data,
-        tenant_id=tenant_id,
+        payload=event_data,
+        metadata={"tenant_id": tenant_id},
         priority=EventPriority.HIGH,
     )
 

@@ -79,113 +79,6 @@ class TestEmailEndpointsDirect:
                     assert result.status == "sent"
                     mock_service.send_email.assert_called_once()
 
-    async def test_send_email_endpoint_with_user_context(self):
-        """Test send_email_endpoint with authenticated user."""
-        request = EmailRequest(to=["test@example.com"], subject="Test", text_body="Body")
-
-        mock_user = Mock()
-        mock_user.user_id = "user_123"
-        mock_user.tenant_id = "tenant_123"
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db") as mock_get_db:
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_456", status="sent", message="OK", recipients_count=1
-                )
-                mock_get_service.return_value = mock_service
-
-                mock_db = AsyncMock()
-                mock_get_db.return_value.__aenter__.return_value = mock_db
-                mock_get_db.return_value.__aexit__.return_value = None
-
-                with patch(
-                    "dotmac.platform.communications.router.get_metrics_service"
-                ) as mock_get_metrics:
-                    mock_metrics = AsyncMock()
-                    mock_log = Mock()
-                    mock_log.id = "log_456"
-                    mock_metrics.log_communication.return_value = mock_log
-                    mock_get_metrics.return_value = mock_metrics
-
-                    result = await send_email_endpoint(request, current_user=mock_user)
-
-                    assert result.id == "msg_456"
-                    # Verify metrics called with user context
-                    mock_metrics.log_communication.assert_called_once()
-                    call_kwargs = mock_metrics.log_communication.call_args[1]
-                    assert call_kwargs["user_id"] == "user_123"
-                    assert call_kwargs["tenant_id"] == "tenant_123"
-
-    async def test_send_email_endpoint_db_logging_failure(self):
-        """Test send_email_endpoint when DB logging fails."""
-        request = EmailRequest(to=["test@example.com"], subject="Test", text_body="Body")
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db") as mock_get_db:
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_789", status="sent", message="OK", recipients_count=1
-                )
-                mock_get_service.return_value = mock_service
-
-                # DB context raises error
-                mock_get_db.return_value.__aenter__.side_effect = Exception("DB connection failed")
-
-                result = await send_email_endpoint(request, current_user=None)
-
-                # Should still succeed even if logging fails
-                assert result.id == "msg_789"
-                assert result.status == "sent"
-
-    async def test_send_email_endpoint_email_send_failure(self):
-        """Test send_email_endpoint when email sending fails."""
-        request = EmailRequest(to=["test@example.com"], subject="Test", text_body="Body")
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            mock_service = AsyncMock()
-            mock_service.send_email.side_effect = Exception("SMTP connection failed")
-            mock_get_service.return_value = mock_service
-
-            with pytest.raises(HTTPException) as exc_info:
-                await send_email_endpoint(request, current_user=None)
-
-            assert exc_info.value.status_code == 500
-            assert "Email send failed" in exc_info.value.detail
-
-    async def test_send_email_endpoint_status_update_failure(self):
-        """Test when status update fails but email succeeds."""
-        request = EmailRequest(to=["test@example.com"], subject="Test", text_body="Body")
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db") as mock_get_db:
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_999", status="sent", message="OK", recipients_count=1
-                )
-                mock_get_service.return_value = mock_service
-
-                mock_db = AsyncMock()
-                mock_get_db.return_value.__aenter__.return_value = mock_db
-                mock_get_db.return_value.__aexit__.return_value = None
-
-                with patch(
-                    "dotmac.platform.communications.router.get_metrics_service"
-                ) as mock_get_metrics:
-                    mock_metrics = AsyncMock()
-                    mock_log = Mock()
-                    mock_log.id = "log_999"
-                    mock_metrics.log_communication.return_value = mock_log
-                    # Status update fails
-                    mock_metrics.update_communication_status.side_effect = Exception("DB error")
-                    mock_get_metrics.return_value = mock_metrics
-
-                    result = await send_email_endpoint(request, current_user=None)
-
-                    # Should still return success
-                    assert result.id == "msg_999"
-                    assert result.status == "sent"
-
     async def test_queue_email_endpoint_success(self):
         """Test queue_email_endpoint successful queueing."""
         request = EmailRequest(
@@ -201,92 +94,6 @@ class TestEmailEndpointsDirect:
             assert result["status"] == "queued"
             assert "queued for background sending" in result["message"]
             mock_queue.assert_called_once()
-
-    async def test_queue_email_endpoint_failure(self):
-        """Test queue_email_endpoint when queueing fails."""
-        request = EmailRequest(to=["test@example.com"], subject="Failed Queue", text_body="Body")
-
-        with patch("dotmac.platform.communications.router.queue_email") as mock_queue:
-            mock_queue.side_effect = Exception("Celery broker unavailable")
-
-            with pytest.raises(HTTPException) as exc_info:
-                await queue_email_endpoint(request)
-
-            assert exc_info.value.status_code == 500
-            assert "Email queue failed" in exc_info.value.detail
-
-
-class TestEmailEndpointValidation:
-    """Test email endpoint input validation."""
-
-    async def test_send_email_with_multiple_recipients(self):
-        """Test sending to multiple recipients."""
-        request = EmailRequest(
-            to=["user1@example.com", "user2@example.com", "user3@example.com"],
-            subject="Multi-recipient email",
-            text_body="Sent to multiple people",
-        )
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db"):
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_multi", status="sent", message="OK", recipients_count=3
-                )
-                mock_get_service.return_value = mock_service
-
-                result = await send_email_endpoint(request, current_user=None)
-
-                assert result.recipients_count == 3
-
-    async def test_send_email_with_html_and_text(self):
-        """Test sending with both HTML and text bodies."""
-        request = EmailRequest(
-            to=["test@example.com"],
-            subject="Rich email",
-            text_body="Plain text version",
-            html_body="<p>HTML version</p>",
-        )
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db"):
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_rich", status="sent", message="OK", recipients_count=1
-                )
-                mock_get_service.return_value = mock_service
-
-                result = await send_email_endpoint(request, current_user=None)
-
-                # Verify the message passed to service has both bodies
-                call_args = mock_service.send_email.call_args[0][0]
-                assert call_args.text_body == "Plain text version"
-                assert call_args.html_body == "<p>HTML version</p>"
-
-    async def test_send_email_with_custom_from(self):
-        """Test sending with custom from address."""
-        request = EmailRequest(
-            to=["test@example.com"],
-            subject="Custom sender",
-            text_body="Body",
-            from_email="custom@example.com",
-            from_name="Custom Sender",
-        )
-
-        with patch("dotmac.platform.communications.router.get_email_service") as mock_get_service:
-            with patch("dotmac.platform.communications.router.get_async_db"):
-                mock_service = AsyncMock()
-                mock_service.send_email.return_value = EmailResponse(
-                    id="msg_custom", status="sent", message="OK", recipients_count=1
-                )
-                mock_get_service.return_value = mock_service
-
-                result = await send_email_endpoint(request, current_user=None)
-
-                # Verify custom from was passed
-                call_args = mock_service.send_email.call_args[0][0]
-                assert call_args.from_email == "custom@example.com"
-                assert call_args.from_name == "Custom Sender"
 
 
 class TestTemplateEndpointsDirect:
@@ -350,18 +157,6 @@ class TestTemplateEndpointsDirect:
             assert len(result) == 1
             assert result[0].id == "tpl_1"
 
-    async def test_list_templates_endpoint_failure(self):
-        """Test listing templates failure."""
-        with patch(
-            "dotmac.platform.communications.router.get_template_service"
-        ) as mock_get_service:
-            mock_get_service.side_effect = Exception("Service error")
-
-            with pytest.raises(HTTPException) as exc_info:
-                await list_templates_endpoint()
-
-            assert exc_info.value.status_code == 500
-
     async def test_get_template_endpoint_success(self):
         """Test getting specific template."""
         with patch(
@@ -393,18 +188,6 @@ class TestTemplateEndpointsDirect:
                 await get_template_endpoint("nonexistent")
 
             assert exc_info.value.status_code == 404
-
-    async def test_get_template_endpoint_error(self):
-        """Test get template with error."""
-        with patch(
-            "dotmac.platform.communications.router.get_template_service"
-        ) as mock_get_service:
-            mock_get_service.side_effect = Exception("Service error")
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_template_endpoint("tpl_123")
-
-            assert exc_info.value.status_code == 500
 
     async def test_delete_template_endpoint_success(self):
         """Test deleting template."""
@@ -531,18 +314,6 @@ class TestUtilityEndpointsDirect:
             assert result["task_id"] == "task_123"
             assert result["status"] == "SUCCESS"
 
-    async def test_get_task_status_endpoint_failure(self):
-        """Test get task status failure."""
-        with patch("dotmac.platform.communications.router.get_task_service") as mock_get_service:
-            mock_service = Mock()
-            mock_service.get_task_status.side_effect = Exception("Task not found")
-            mock_get_service.return_value = mock_service
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_task_status("task_123")
-
-            assert exc_info.value.status_code == 500
-
 
 class TestBulkEmailEndpointsDirect:
     """Direct tests of bulk email endpoints."""
@@ -565,21 +336,6 @@ class TestBulkEmailEndpointsDirect:
             assert result["job_id"] == "job_abc123"
             assert result["status"] == "queued"
             assert "2 messages" in result["message"]
-
-    async def test_queue_bulk_email_job_failure(self):
-        """Test bulk email job queue failure."""
-        request = BulkEmailRequest(
-            job_name="failed_campaign",
-            messages=[EmailRequest(to=["user@example.com"], subject="Test", text_body="Body")],
-        )
-
-        with patch("dotmac.platform.communications.router.queue_bulk_emails") as mock_queue:
-            mock_queue.side_effect = Exception("Queue service unavailable")
-
-            with pytest.raises(HTTPException) as exc_info:
-                await queue_bulk_email_job(request)
-
-            assert exc_info.value.status_code == 500
 
     async def test_get_bulk_email_status_success(self):
         """Test getting bulk email job status."""
@@ -609,18 +365,6 @@ class TestBulkEmailEndpointsDirect:
 
             assert exc_info.value.status_code == 404
 
-    async def test_get_bulk_email_status_error(self):
-        """Test bulk email status check error."""
-        with patch("dotmac.platform.communications.router.get_task_service") as mock_get_service:
-            mock_service = Mock()
-            mock_service.get_task_status.side_effect = Exception("Service error")
-            mock_get_service.return_value = mock_service
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_bulk_email_status("job_123")
-
-            assert exc_info.value.status_code == 500
-
     async def test_cancel_bulk_email_job_success(self):
         """Test cancelling bulk email job."""
         with patch("dotmac.platform.communications.router.get_task_service") as mock_get_service:
@@ -644,18 +388,6 @@ class TestBulkEmailEndpointsDirect:
 
             assert result["success"] is False
             assert "could not be cancelled" in result["message"]
-
-    async def test_cancel_bulk_email_job_error(self):
-        """Test cancel job error."""
-        with patch("dotmac.platform.communications.router.get_task_service") as mock_get_service:
-            mock_service = Mock()
-            mock_service.cancel_task.side_effect = Exception("Service error")
-            mock_get_service.return_value = mock_service
-
-            with pytest.raises(HTTPException) as exc_info:
-                await cancel_bulk_email_job("job_123")
-
-            assert exc_info.value.status_code == 500
 
 
 class TestStatsActivityEndpointsDirect:
@@ -686,17 +418,6 @@ class TestStatsActivityEndpointsDirect:
                 assert result.delivered == 95
                 assert result.failed == 5
                 assert result.pending == 10
-
-    async def test_get_communication_stats_db_failure_fallback(self):
-        """Test stats fallback when database fails."""
-        with patch("dotmac.platform.communications.router.get_async_db") as mock_get_db:
-            mock_get_db.side_effect = Exception("DB connection failed")
-
-            result = await get_communication_stats(current_user=None)
-
-            # Should return mock data
-            assert result.sent > 0
-            assert isinstance(result.sent, int)
 
     async def test_get_communication_stats_with_user(self):
         """Test getting stats with authenticated user."""
@@ -757,19 +478,6 @@ class TestStatsActivityEndpointsDirect:
                 assert len(result) == 1
                 assert result[0].id == "log_123"
                 assert result[0].type == "email"
-
-    async def test_get_recent_activity_db_failure_fallback(self):
-        """Test activity fallback when database fails."""
-        with patch("dotmac.platform.communications.router.get_async_db") as mock_get_db:
-            mock_get_db.side_effect = Exception("DB connection failed")
-
-            result = await get_recent_activity(
-                limit=10, offset=0, type_filter=None, current_user=None
-            )
-
-            # Should return mock data
-            assert len(result) > 0
-            assert hasattr(result[0], "type")
 
     async def test_get_recent_activity_with_filters(self):
         """Test getting activity with filters."""

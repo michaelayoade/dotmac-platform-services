@@ -92,44 +92,48 @@ class TestRouterRegistration:
             # Skip commented out configs
             if config.module_path == "dotmac.platform.communications.webhooks_router":
                 continue
-            prefixes.append((config.prefix, config.module_path))
+            # Use module_path + router_name as unique identifier
+            # (same module can export multiple routers)
+            router_id = f"{config.module_path}:{config.router_name}"
+            prefixes.append((config.prefix, router_id))
 
         # Check for duplicates - group by prefix
         from collections import defaultdict
 
-        prefix_to_modules = defaultdict(list)
-        for prefix, module in prefixes:
-            prefix_to_modules[prefix].append(module)
+        prefix_to_routers = defaultdict(list)
+        for prefix, router_id in prefixes:
+            prefix_to_routers[prefix].append(router_id)
 
         # Allow specific known duplicate prefixes (routers with different routes)
+        # Format: "module_path:router_name"
         allowed_duplicates = {
             "/api/v1/tenants": {
-                "dotmac.platform.tenant.router",
-                "dotmac.platform.tenant.domain_verification_router",
+                "dotmac.platform.tenant.router:router",
+                "dotmac.platform.tenant.domain_verification_router:router",
             },
             "/api/v1": {
-                "dotmac.platform.plugins.router",
-                "dotmac.platform.billing.metrics_router",
-                "dotmac.platform.auth.metrics_router",
-                "dotmac.platform.communications.metrics_router",
-                "dotmac.platform.file_storage.metrics_router",
-                "dotmac.platform.analytics.metrics_router",
-                "dotmac.platform.auth.api_keys_metrics_router",
-                "dotmac.platform.secrets.metrics_router",
-                "dotmac.platform.monitoring.metrics_router",
+                "dotmac.platform.billing.metrics_router:router",
+                "dotmac.platform.billing.metrics_router:customer_metrics_router",
+                "dotmac.platform.auth.metrics_router:router",
+                "dotmac.platform.communications.metrics_router:router",
+                "dotmac.platform.file_storage.metrics_router:router",
+                "dotmac.platform.analytics.metrics_router:router",
+                "dotmac.platform.auth.api_keys_metrics_router:router",
+                "dotmac.platform.secrets.metrics_router:router",
+                "dotmac.platform.monitoring.metrics_router:router",
             },
         }
 
         # Check for unexpected duplicates
         unexpected_duplicates = []
-        for prefix, modules in prefix_to_modules.items():
-            if len(modules) > 1:
+        for prefix, router_ids in prefix_to_routers.items():
+            if len(router_ids) > 1:
                 # Check if this is an allowed duplicate
                 if prefix in allowed_duplicates:
-                    if set(modules) != allowed_duplicates[prefix]:
-                        unexpected_duplicates.append(f"{prefix}: {modules}")
+                    if set(router_ids) != allowed_duplicates[prefix]:
+                        unexpected_duplicates.append(f"{prefix}: {router_ids}")
                 else:
-                    unexpected_duplicates.append(f"{prefix}: {modules}")
+                    unexpected_duplicates.append(f"{prefix}: {router_ids}")
 
         assert (
             len(unexpected_duplicates) == 0

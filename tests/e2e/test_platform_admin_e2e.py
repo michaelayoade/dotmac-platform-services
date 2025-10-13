@@ -17,6 +17,8 @@ from dotmac.platform.db import get_async_session, get_session_dependency
 from dotmac.platform.main import app
 from dotmac.platform.tenant import get_current_tenant_id
 
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
+
 
 @pytest.fixture
 def platform_admin_id():
@@ -28,6 +30,31 @@ def platform_admin_id():
 def platform_admin_tenant():
     """Platform admin tenant ID."""
     return "platform-admin-tenant"
+
+
+@pytest.fixture
+def platform_admin_headers(platform_admin_id, platform_admin_tenant):
+    """Create authentication headers with JWT token for platform admin."""
+    from dotmac.platform.auth.core import jwt_service
+
+    token = jwt_service.create_access_token(
+        subject=platform_admin_id,
+        additional_claims={
+            "username": "platform_admin",
+            "email": f"{platform_admin_id}@platform.com",
+            "tenant_id": platform_admin_tenant,
+            "roles": ["platform_admin"],
+            "permissions": [
+                "platform:admin",
+                "platform:tenants:read",
+                "platform:tenants:write",
+                "platform:audit",
+                "platform:impersonate",
+            ],
+            "is_platform_admin": True,
+        },
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest_asyncio.fixture
@@ -44,8 +71,8 @@ async def platform_admin_client(db_engine, platform_admin_id, platform_admin_ten
         expire_on_commit=False,
     )
 
-    # Create platform admin user mock
-    def mock_platform_admin():
+    # Create platform admin user mock as async function
+    async def mock_platform_admin() -> UserInfo:
         return UserInfo(
             user_id=platform_admin_id,
             tenant_id=platform_admin_tenant,
@@ -205,9 +232,13 @@ class TestPlatformAdminHealth:
     """Test platform admin health check endpoint."""
 
     @pytest.mark.asyncio
-    async def test_platform_admin_health_check(self, platform_admin_client, platform_admin_id):
+    async def test_platform_admin_health_check(
+        self, platform_admin_client, platform_admin_headers, platform_admin_id
+    ):
         """Test platform admin health check returns correct status."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/health")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/health", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -230,9 +261,13 @@ class TestTenantListing:
     """Test platform admin tenant listing functionality."""
 
     @pytest.mark.asyncio
-    async def test_list_all_tenants(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_list_all_tenants(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test listing all tenants with user and resource counts."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/tenants")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -257,11 +292,13 @@ class TestTenantListing:
             assert tenant_info["is_active"] is True
 
     @pytest.mark.asyncio
-    async def test_list_tenants_pagination(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_list_tenants_pagination(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test tenant listing with pagination."""
         # First page
         response = await platform_admin_client.get(
-            "/api/v1/admin/platform/tenants?page=1&page_size=2"
+            "/api/v1/admin/platform/tenants?page=1&page_size=2", headers=platform_admin_headers
         )
 
         assert response.status_code == 200
@@ -274,7 +311,7 @@ class TestTenantListing:
 
         # Second page
         response = await platform_admin_client.get(
-            "/api/v1/admin/platform/tenants?page=2&page_size=2"
+            "/api/v1/admin/platform/tenants?page=2&page_size=2", headers=platform_admin_headers
         )
 
         assert response.status_code == 200
@@ -284,9 +321,13 @@ class TestTenantListing:
         assert len(data["tenants"]) == 2
 
     @pytest.mark.asyncio
-    async def test_tenant_counts_accurate(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_tenant_counts_accurate(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test that user and resource counts are accurate for each tenant."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/tenants")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -306,11 +347,15 @@ class TestTenantListing:
         assert response.status_code in [401, 403]
 
     @pytest.mark.asyncio
-    async def test_get_tenant_detail(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_get_tenant_detail(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test getting detailed information about a specific tenant."""
         tenant_id = "tenant-alpha"
 
-        response = await platform_admin_client.get(f"/api/v1/admin/platform/tenants/{tenant_id}")
+        response = await platform_admin_client.get(
+            f"/api/v1/admin/platform/tenants/{tenant_id}", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -343,23 +388,25 @@ class TestTenantListing:
         assert data["created_at"] is not None
 
     @pytest.mark.asyncio
-    async def test_get_tenant_detail_not_found(self, platform_admin_client):
+    async def test_get_tenant_detail_not_found(self, platform_admin_client, platform_admin_headers):
         """Test getting details for non-existent tenant returns 404."""
         response = await platform_admin_client.get(
-            "/api/v1/admin/platform/tenants/nonexistent-tenant"
+            "/api/v1/admin/platform/tenants/nonexistent-tenant", headers=platform_admin_headers
         )
 
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_tenant_detail_returns_billing_metrics_fields(
-        self, platform_admin_client, seed_multi_tenant_data
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
     ):
         """Test tenant detail includes billing metrics fields (even if zero)."""
         tenant_id = "tenant-beta"
 
         # Get tenant detail
-        response = await platform_admin_client.get(f"/api/v1/admin/platform/tenants/{tenant_id}")
+        response = await platform_admin_client.get(
+            f"/api/v1/admin/platform/tenants/{tenant_id}", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -386,9 +433,13 @@ class TestPlatformStats:
     """Test platform statistics endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_platform_stats(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_get_platform_stats(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test retrieving platform-wide statistics."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/stats")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/stats", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -408,9 +459,11 @@ class TestPlatformStats:
         assert data["system_health"] == "healthy"
 
     @pytest.mark.asyncio
-    async def test_system_health_check(self, platform_admin_client):
+    async def test_system_health_check(self, platform_admin_client, platform_admin_headers):
         """Test that system health is properly detected."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/stats")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/stats", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -423,9 +476,11 @@ class TestPlatformPermissions:
     """Test platform permissions listing."""
 
     @pytest.mark.asyncio
-    async def test_list_platform_permissions(self, platform_admin_client):
+    async def test_list_platform_permissions(self, platform_admin_client, platform_admin_headers):
         """Test listing all platform permissions."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/permissions")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/permissions", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -451,12 +506,15 @@ class TestTenantImpersonation:
     """Test tenant impersonation functionality."""
 
     @pytest.mark.asyncio
-    async def test_create_impersonation_token(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_create_impersonation_token(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test creating impersonation token for another tenant."""
         target_tenant = "tenant-alpha"
 
         response = await platform_admin_client.post(
-            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=30"
+            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=30",
+            headers=platform_admin_headers,
         )
 
         assert response.status_code == 200
@@ -472,19 +530,23 @@ class TestTenantImpersonation:
         assert data["impersonating"] is True
 
     @pytest.mark.asyncio
-    async def test_impersonation_token_duration_limits(self, platform_admin_client):
+    async def test_impersonation_token_duration_limits(
+        self, platform_admin_client, platform_admin_headers
+    ):
         """Test impersonation token respects duration limits."""
         target_tenant = "tenant-beta"
 
         # Test with valid duration
         response = await platform_admin_client.post(
-            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=60"
+            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=60",
+            headers=platform_admin_headers,
         )
         assert response.status_code == 200
 
         # Test with maximum duration (8 hours = 480 minutes)
         response = await platform_admin_client.post(
-            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=480"
+            f"/api/v1/admin/platform/tenants/{target_tenant}/impersonate?duration_minutes=480",
+            headers=platform_admin_headers,
         )
         assert response.status_code == 200
 
@@ -502,7 +564,9 @@ class TestCrossTenantSearch:
     """Test cross-tenant search functionality."""
 
     @pytest.mark.asyncio
-    async def test_cross_tenant_search(self, platform_admin_client, seed_multi_tenant_data):
+    async def test_cross_tenant_search(
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
+    ):
         """Test searching across all tenants."""
         search_request = {
             "query": "customer",
@@ -513,6 +577,7 @@ class TestCrossTenantSearch:
         response = await platform_admin_client.post(
             "/api/v1/admin/platform/search",
             json=search_request,
+            headers=platform_admin_headers,
         )
 
         assert response.status_code == 200
@@ -526,7 +591,7 @@ class TestCrossTenantSearch:
 
     @pytest.mark.asyncio
     async def test_cross_tenant_search_with_tenant_filter(
-        self, platform_admin_client, seed_multi_tenant_data
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
     ):
         """Test searching specific tenants only."""
         search_request = {
@@ -538,6 +603,7 @@ class TestCrossTenantSearch:
         response = await platform_admin_client.post(
             "/api/v1/admin/platform/search",
             json=search_request,
+            headers=platform_admin_headers,
         )
 
         assert response.status_code == 200
@@ -549,9 +615,11 @@ class TestPlatformAuditLog:
     """Test platform audit log functionality."""
 
     @pytest.mark.asyncio
-    async def test_get_recent_platform_actions(self, platform_admin_client):
+    async def test_get_recent_platform_actions(self, platform_admin_client, platform_admin_headers):
         """Test retrieving recent platform admin actions."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/audit/recent?limit=50")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/audit/recent?limit=50", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -562,14 +630,18 @@ class TestPlatformAuditLog:
         assert data["limit"] == 50
 
     @pytest.mark.asyncio
-    async def test_audit_log_limit_validation(self, platform_admin_client):
+    async def test_audit_log_limit_validation(self, platform_admin_client, platform_admin_headers):
         """Test audit log respects limit constraints."""
         # Test with maximum limit
-        response = await platform_admin_client.get("/api/v1/admin/platform/audit/recent?limit=200")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/audit/recent?limit=200", headers=platform_admin_headers
+        )
         assert response.status_code == 200
 
         # Test with minimum limit
-        response = await platform_admin_client.get("/api/v1/admin/platform/audit/recent?limit=1")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/audit/recent?limit=1", headers=platform_admin_headers
+        )
         assert response.status_code == 200
 
 
@@ -577,10 +649,11 @@ class TestSystemManagement:
     """Test system management endpoints."""
 
     @pytest.mark.asyncio
-    async def test_clear_system_cache(self, platform_admin_client):
+    async def test_clear_system_cache(self, platform_admin_client, platform_admin_headers):
         """Test clearing system-wide cache."""
         response = await platform_admin_client.post(
-            "/api/v1/admin/platform/system/cache/clear?cache_type=permissions"
+            "/api/v1/admin/platform/system/cache/clear?cache_type=permissions",
+            headers=platform_admin_headers,
         )
 
         assert response.status_code == 200
@@ -591,18 +664,22 @@ class TestSystemManagement:
         assert data["status"] in ["success", "error", "no_cache"]
 
     @pytest.mark.asyncio
-    async def test_clear_all_caches(self, platform_admin_client):
+    async def test_clear_all_caches(self, platform_admin_client, platform_admin_headers):
         """Test clearing all system caches."""
-        response = await platform_admin_client.post("/api/v1/admin/platform/system/cache/clear")
+        response = await platform_admin_client.post(
+            "/api/v1/admin/platform/system/cache/clear", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
 
     @pytest.mark.asyncio
-    async def test_get_system_configuration(self, platform_admin_client):
+    async def test_get_system_configuration(self, platform_admin_client, platform_admin_headers):
         """Test retrieving system configuration."""
-        response = await platform_admin_client.get("/api/v1/admin/platform/system/config")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/system/config", headers=platform_admin_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -644,11 +721,15 @@ class TestPlatformAdminAuthorization:
             assert response.status_code in [401, 403], f"Endpoint {endpoint} should be protected"
 
     @pytest.mark.asyncio
-    async def test_specific_permissions_enforced(self, platform_admin_client):
+    async def test_specific_permissions_enforced(
+        self, platform_admin_client, platform_admin_headers
+    ):
         """Test that specific platform permissions are enforced correctly."""
         # This would require a more complex setup with different permission levels
         # For now, just verify admin has access
-        response = await platform_admin_client.get("/api/v1/admin/platform/tenants")
+        response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants", headers=platform_admin_headers
+        )
         assert response.status_code == 200
 
 
@@ -657,20 +738,26 @@ class TestPlatformAdminE2EWorkflow:
 
     @pytest.mark.asyncio
     async def test_complete_platform_monitoring_workflow(
-        self, platform_admin_client, seed_multi_tenant_data
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
     ):
         """Test a complete platform monitoring workflow."""
         # 1. Check platform health
-        health_response = await platform_admin_client.get("/api/v1/admin/platform/health")
+        health_response = await platform_admin_client.get(
+            "/api/v1/admin/platform/health", headers=platform_admin_headers
+        )
         assert health_response.status_code == 200
 
         # 2. Get platform stats
-        stats_response = await platform_admin_client.get("/api/v1/admin/platform/stats")
+        stats_response = await platform_admin_client.get(
+            "/api/v1/admin/platform/stats", headers=platform_admin_headers
+        )
         assert stats_response.status_code == 200
         stats = stats_response.json()
 
         # 3. List all tenants
-        tenants_response = await platform_admin_client.get("/api/v1/admin/platform/tenants")
+        tenants_response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants", headers=platform_admin_headers
+        )
         assert tenants_response.status_code == 200
         tenants = tenants_response.json()
 
@@ -678,16 +765,20 @@ class TestPlatformAdminE2EWorkflow:
         assert tenants["total"] == stats["total_tenants"]
 
         # 4. Review platform permissions
-        perms_response = await platform_admin_client.get("/api/v1/admin/platform/permissions")
+        perms_response = await platform_admin_client.get(
+            "/api/v1/admin/platform/permissions", headers=platform_admin_headers
+        )
         assert perms_response.status_code == 200
 
     @pytest.mark.asyncio
     async def test_tenant_investigation_workflow(
-        self, platform_admin_client, seed_multi_tenant_data
+        self, platform_admin_client, platform_admin_headers, seed_multi_tenant_data
     ):
         """Test investigating a specific tenant."""
         # 1. List all tenants
-        tenants_response = await platform_admin_client.get("/api/v1/admin/platform/tenants")
+        tenants_response = await platform_admin_client.get(
+            "/api/v1/admin/platform/tenants", headers=platform_admin_headers
+        )
         assert tenants_response.status_code == 200
         tenants = tenants_response.json()
 
@@ -699,7 +790,8 @@ class TestPlatformAdminE2EWorkflow:
 
         # 3. Create impersonation token
         impersonate_response = await platform_admin_client.post(
-            f"/api/v1/admin/platform/tenants/{target_tenant['tenant_id']}/impersonate"
+            f"/api/v1/admin/platform/tenants/{target_tenant['tenant_id']}/impersonate",
+            headers=platform_admin_headers,
         )
         assert impersonate_response.status_code == 200
         impersonation = impersonate_response.json()

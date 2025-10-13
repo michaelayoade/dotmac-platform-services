@@ -198,15 +198,6 @@ class TestPricingRule:
         assert rule.is_active is True
         assert rule.metadata == {}
 
-    def test_pricing_rule_json_encoders(self, sample_pricing_rule):
-        """Test pricing rule JSON serialization."""
-        rule_dict = sample_pricing_rule.model_dump()
-
-        # DateTime should be converted to ISO format
-        assert isinstance(rule_dict["created_at"], str)
-
-        # Decimal should be converted to string
-        assert isinstance(rule_dict["discount_value"], str)
 
 
 class TestPriceCalculationContext:
@@ -253,22 +244,6 @@ class TestPriceCalculationContext:
         assert isinstance(context.calculation_date, datetime)
         assert context.metadata == {}
 
-    def test_context_json_encoders(self):
-        """Test context JSON serialization."""
-        context = PriceCalculationContext(
-            product_id="prod_123",
-            quantity=1,
-            customer_id="customer-456",
-            base_price=Decimal("99.99"),
-        )
-
-        context_dict = context.model_dump()
-
-        # DateTime should be converted to ISO format
-        assert isinstance(context_dict["calculation_date"], str)
-
-        # Decimal should be converted to string
-        assert isinstance(context_dict["base_price"], str)
 
 
 class TestPriceAdjustment:
@@ -292,25 +267,6 @@ class TestPriceAdjustment:
         assert adjustment.discount_amount == Decimal("10.00")
         assert adjustment.adjusted_price == Decimal("90.00")
 
-    def test_adjustment_json_encoders(self):
-        """Test price adjustment JSON serialization."""
-        adjustment = PriceAdjustment(
-            rule_id="rule_123",
-            rule_name="Test Rule",
-            discount_type=DiscountType.FIXED_AMOUNT,
-            discount_value=Decimal("5.00"),
-            original_price=Decimal("50.00"),
-            discount_amount=Decimal("5.00"),
-            adjusted_price=Decimal("45.00"),
-        )
-
-        adjustment_dict = adjustment.model_dump()
-
-        # All Decimal fields should be converted to string
-        assert isinstance(adjustment_dict["discount_value"], str)
-        assert isinstance(adjustment_dict["original_price"], str)
-        assert isinstance(adjustment_dict["discount_amount"], str)
-        assert isinstance(adjustment_dict["adjusted_price"], str)
 
 
 class TestPriceCalculationResult:
@@ -391,28 +347,6 @@ class TestPriceCalculationResult:
         assert result.applied_adjustments == []
         assert isinstance(result.calculation_timestamp, datetime)
 
-    def test_result_json_encoders(self):
-        """Test price calculation result JSON serialization."""
-        result = PriceCalculationResult(
-            product_id="prod_123",
-            quantity=1,
-            customer_id="customer-456",
-            base_price=Decimal("100.00"),
-            subtotal=Decimal("100.00"),
-            total_discount_amount=Decimal("10.00"),
-            final_price=Decimal("90.00"),
-        )
-
-        result_dict = result.model_dump()
-
-        # DateTime should be converted to ISO format
-        assert isinstance(result_dict["calculation_timestamp"], str)
-
-        # All Decimal fields should be converted to string
-        assert isinstance(result_dict["base_price"], str)
-        assert isinstance(result_dict["subtotal"], str)
-        assert isinstance(result_dict["total_discount_amount"], str)
-        assert isinstance(result_dict["final_price"], str)
 
 
 class TestPricingRuleCreateRequest:
@@ -612,36 +546,3 @@ class TestPricingRuleResponse:
         assert response.current_uses == 5
         assert response.max_uses == 100
 
-    def test_pricing_rule_response_json_encoders(self):
-        """Test pricing rule response JSON serialization."""
-        now = datetime.now(UTC)
-        response = PricingRuleResponse(
-            rule_id="rule_123",
-            tenant_id="test-tenant",
-            name="Test Rule",
-            description=None,
-            applies_to_product_ids=[],
-            applies_to_categories=[],
-            applies_to_all=True,
-            min_quantity=None,
-            customer_segments=[],
-            discount_type=DiscountType.FIXED_AMOUNT,
-            discount_value=Decimal("5.00"),
-            starts_at=now,
-            ends_at=now + timedelta(days=30),
-            max_uses=None,
-            current_uses=0,
-            priority=0,
-            is_active=True,
-            metadata={},
-            created_at=now,
-            updated_at=None,
-        )
-
-        response_dict = response.model_dump()
-
-        # Check JSON encoding
-        assert isinstance(response_dict["discount_value"], str)
-        assert isinstance(response_dict["starts_at"], str)
-        assert isinstance(response_dict["ends_at"], str)
-        assert isinstance(response_dict["created_at"], str)

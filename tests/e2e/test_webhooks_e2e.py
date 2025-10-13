@@ -39,7 +39,7 @@ from dotmac.platform.webhooks.models import (
     WebhookSubscription,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
 
 
 # ==================== Fixtures ====================
@@ -109,18 +109,26 @@ def mock_current_user(tenant_id, user_id):
 @pytest_asyncio.fixture
 async def async_client(db_session, tenant_id, mock_current_user):
     """Create async HTTP client with dependency overrides."""
+    from fastapi.security import HTTPAuthorizationCredentials
+
     from dotmac.platform.auth.dependencies import get_current_user
     from dotmac.platform.db import get_async_db
+    from dotmac.platform.routers import security
     from dotmac.platform.tenant import get_current_tenant_id
 
     # Create a function that returns the session
     async def override_get_db():
         yield db_session
 
+    # Override security to bypass Bearer token requirement
+    def override_security():
+        return HTTPAuthorizationCredentials(scheme="Bearer", credentials="test-token")
+
     # Override dependencies
     app.dependency_overrides[get_async_db] = override_get_db
     app.dependency_overrides[get_current_tenant_id] = lambda: tenant_id
     app.dependency_overrides[get_current_user] = lambda: mock_current_user
+    app.dependency_overrides[security] = override_security
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

@@ -8,12 +8,13 @@ Targets uncovered error handlers and edge cases.
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.db import get_async_session
-from dotmac.platform.main import app
 from dotmac.platform.tenant.models import TenantPlanType, TenantStatus
+from dotmac.platform.tenant.router import router as tenant_router
 from dotmac.platform.tenant.service import (
     TenantAlreadyExistsError,
     TenantNotFoundError,
@@ -66,19 +67,22 @@ class TestTenantRouterPropertyAssignments:
         # Mock computed properties
         mock_tenant.is_trial = True
         mock_tenant.is_active = True
+        mock_tenant.status_is_active = False  # TRIAL status, not ACTIVE
         mock_tenant.trial_expired = False
         mock_tenant.has_exceeded_user_limit = False
         mock_tenant.has_exceeded_api_limit = False
         mock_tenant.has_exceeded_storage_limit = False
 
-        # Mock user
-        async def override_user():
+        # Mock user - needs to accept parameters like get_current_user
+        async def override_user(request=None, token=None, api_key=None, credentials=None):
             return UserInfo(
                 user_id="test-user",
                 username="testuser",
                 email="test@example.com",
                 permissions=["tenants:write"],
                 tenant_id=None,
+                is_platform_admin=True,  # Required when tenant_id is None
+                roles=["platform_admin"],
             )
 
         # Mock database
@@ -92,9 +96,12 @@ class TestTenantRouterPropertyAssignments:
             service.create_tenant = AsyncMock(return_value=mock_tenant)
             return service
 
+        # Create a fresh FastAPI app for this test
+        app = FastAPI()
         app.dependency_overrides[get_current_user] = override_user
         app.dependency_overrides[get_async_session] = override_db
         app.dependency_overrides[get_tenant_service] = override_service
+        app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["tenants"])
 
         try:
             transport = ASGITransport(app=app)
@@ -110,6 +117,9 @@ class TestTenantRouterPropertyAssignments:
                 )
 
                 # This should hit lines 67-77 (response property assignments)
+                if response.status_code != 201:
+                    print(f"Response status: {response.status_code}")
+                    print(f"Response body: {response.text}")
                 assert response.status_code == 201
                 data = response.json()
                 assert data["id"] == "tenant-123"
@@ -126,13 +136,15 @@ class TestTenantRouterErrorHandlers:
         """Test creating tenant when slug already exists (line 77)."""
         from dotmac.platform.tenant.router import get_tenant_service
 
-        async def override_user():
+        async def override_user(request=None, token=None, api_key=None, credentials=None):
             return UserInfo(
                 user_id="test-user",
                 username="testuser",
                 email="test@example.com",
                 permissions=["tenants:write"],
                 tenant_id=None,
+                is_platform_admin=True,
+                roles=["platform_admin"],
             )
 
         async def override_db():
@@ -146,9 +158,12 @@ class TestTenantRouterErrorHandlers:
             )
             return service
 
+        # Create a fresh FastAPI app for this test
+        app = FastAPI()
         app.dependency_overrides[get_current_user] = override_user
         app.dependency_overrides[get_async_session] = override_db
         app.dependency_overrides[get_tenant_service] = override_service
+        app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["tenants"])
 
         try:
             transport = ASGITransport(app=app)
@@ -173,13 +188,15 @@ class TestTenantRouterErrorHandlers:
         """Test getting non-existent tenant (line 154)."""
         from dotmac.platform.tenant.router import get_tenant_service
 
-        async def override_user():
+        async def override_user(request=None, token=None, api_key=None, credentials=None):
             return UserInfo(
                 user_id="test-user",
                 username="testuser",
                 email="test@example.com",
                 permissions=["tenants:read"],
                 tenant_id=None,
+                is_platform_admin=True,
+                roles=["platform_admin"],
             )
 
         async def override_db():
@@ -193,9 +210,12 @@ class TestTenantRouterErrorHandlers:
             )
             return service
 
+        # Create a fresh FastAPI app for this test
+        app = FastAPI()
         app.dependency_overrides[get_current_user] = override_user
         app.dependency_overrides[get_async_session] = override_db
         app.dependency_overrides[get_tenant_service] = override_service
+        app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["tenants"])
 
         try:
             transport = ASGITransport(app=app)
@@ -212,13 +232,15 @@ class TestTenantRouterErrorHandlers:
         """Test updating non-existent tenant."""
         from dotmac.platform.tenant.router import get_tenant_service
 
-        async def override_user():
+        async def override_user(request=None, token=None, api_key=None, credentials=None):
             return UserInfo(
                 user_id="test-user",
                 username="testuser",
                 email="test@example.com",
                 permissions=["tenants:write"],
                 tenant_id=None,
+                is_platform_admin=True,
+                roles=["platform_admin"],
             )
 
         async def override_db():
@@ -232,9 +254,12 @@ class TestTenantRouterErrorHandlers:
             )
             return service
 
+        # Create a fresh FastAPI app for this test
+        app = FastAPI()
         app.dependency_overrides[get_current_user] = override_user
         app.dependency_overrides[get_async_session] = override_db
         app.dependency_overrides[get_tenant_service] = override_service
+        app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["tenants"])
 
         try:
             transport = ASGITransport(app=app)
@@ -253,13 +278,15 @@ class TestTenantRouterErrorHandlers:
         """Test deleting non-existent tenant (line 283)."""
         from dotmac.platform.tenant.router import get_tenant_service
 
-        async def override_user():
+        async def override_user(request=None, token=None, api_key=None, credentials=None):
             return UserInfo(
                 user_id="test-user",
                 username="testuser",
                 email="test@example.com",
                 permissions=["tenants:delete"],
                 tenant_id=None,
+                is_platform_admin=True,
+                roles=["platform_admin"],
             )
 
         async def override_db():
@@ -273,9 +300,12 @@ class TestTenantRouterErrorHandlers:
             )
             return service
 
+        # Create a fresh FastAPI app for this test
+        app = FastAPI()
         app.dependency_overrides[get_current_user] = override_user
         app.dependency_overrides[get_async_session] = override_db
         app.dependency_overrides[get_tenant_service] = override_service
+        app.include_router(tenant_router, prefix="/api/v1/tenants", tags=["tenants"])
 
         try:
             transport = ASGITransport(app=app)

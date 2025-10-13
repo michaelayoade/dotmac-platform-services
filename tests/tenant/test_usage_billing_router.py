@@ -3,12 +3,9 @@ Comprehensive tests for tenant usage billing router.
 
 Tests all endpoints in usage_billing_router.py to achieve 90%+ coverage.
 
-NOTE: This test file uses a session-scoped event loop and should be run
-separately in CI to avoid event loop conflicts with other test files:
-    pytest tests/tenant/test_usage_billing_router.py
-
-When run with all tenant tests, 1 test may occasionally fail due to
-pytest-asyncio event loop scoping limitations. All tests pass when run alone.
+NOTE: These tests have database fixture conflicts when run in batch with other tests.
+They pass individually but fail in batch due to SQLite table cleanup issues.
+Run separately with: pytest tests/tenant/test_usage_billing_router.py
 """
 
 import asyncio
@@ -29,12 +26,29 @@ def event_loop():
     """
     Session-scoped event loop for this test file.
 
-    These tests require a shared event loop for database fixtures.
-    This may conflict with other test files using function-scoped loops.
+    These tests require a shared event loop to avoid database cleanup conflicts.
     """
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(scope="session")
+def setup_test_database():
+    """
+    Create database tables for testing.
+
+    This fixture ensures all tables exist before tests run.
+    """
+    from sqlalchemy import create_engine
+    from dotmac.platform.db import Base
+
+    # Create in-memory SQLite database
+    engine = create_engine("sqlite:///:memory:", echo=False)
+    Base.metadata.create_all(engine)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 @pytest.fixture
@@ -84,7 +98,7 @@ def mock_usage_billing_integration():
 
 
 @pytest.fixture
-async def test_client_with_auth(test_app, async_db_session, mock_usage_billing_integration):
+async def test_client_with_auth(test_app, async_db_session, mock_usage_billing_integration, setup_test_database):
     """Create async test client with mocked authentication and default headers."""
     from dotmac.platform.auth.core import get_current_user
     from dotmac.platform.db import get_async_db

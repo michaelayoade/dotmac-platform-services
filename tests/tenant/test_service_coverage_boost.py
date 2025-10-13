@@ -194,11 +194,19 @@ class TestTenantCRUDCoverage:
             await tenant_service.get_tenant(sample_tenant.id)
 
     async def test_restore_tenant(self, tenant_service: TenantService, sample_tenant: Tenant):
-        """Test restoring soft-deleted tenant - skip due to is_active property conflict."""
+        """Test restoring soft-deleted tenant."""
         # Lines 342-349: restore_tenant method calling tenant.restore()
-        # NOTE: Skipping because restore() calls self.is_active = True which fails
-        # due to Tenant.is_active being a read-only property
-        pytest.skip("Tenant.is_active property conflicts with SoftDeleteMixin.restore()")
+        # First soft-delete the tenant
+        from datetime import UTC, datetime
+
+        sample_tenant.deleted_at = datetime.now(UTC)
+        await tenant_service.db.commit()
+
+        # Now restore it
+        restored = await tenant_service.restore_tenant(sample_tenant.id)
+
+        assert restored.id == sample_tenant.id
+        assert restored.deleted_at is None
 
     async def test_restore_already_active_tenant(
         self, tenant_service: TenantService, sample_tenant: Tenant
@@ -677,12 +685,36 @@ class TestBulkOperations:
             assert tenant.updated_by == "admin"
 
     async def test_bulk_delete_tenants_soft(self, tenant_service: TenantService):
-        """Test bulk soft deleting tenants - skip due to is_active property conflict."""
+        """Test bulk soft deleting tenants."""
         # Lines 684-697: bulk_delete_tenants (soft delete path)
-        # NOTE: Skipping this test because Tenant model has is_active as read-only property
-        # which conflicts with SoftDeleteMixin.soft_delete() trying to set it.
-        # The permanent delete path is tested below.
-        pytest.skip("Tenant.is_active property conflicts with SoftDeleteMixin.soft_delete()")
+        # Create multiple tenants
+        tenant_ids = []
+        for i in range(2):
+            data = TenantCreate(
+                name=f"Soft Delete {i}",
+                slug=f"soft-delete-{i}",
+                email=f"soft{i}@example.com",
+                plan_type=TenantPlanType.STARTER,
+            )
+            tenant = await tenant_service.create_tenant(data)
+            tenant_ids.append(tenant.id)
+
+        # Bulk soft delete (permanent=False is default)
+        count = await tenant_service.bulk_delete_tenants(
+            tenant_ids, permanent=False, deleted_by="admin"
+        )
+
+        assert count == 2
+
+        # Verify all soft-deleted (not found without include_deleted)
+        for tenant_id in tenant_ids:
+            with pytest.raises(TenantNotFoundError):
+                await tenant_service.get_tenant(tenant_id)
+
+        # But should be found with include_deleted=True
+        for tenant_id in tenant_ids:
+            tenant = await tenant_service.get_tenant(tenant_id, include_deleted=True)
+            assert tenant.deleted_at is not None
 
     async def test_bulk_delete_tenants_permanent(self, tenant_service: TenantService):
         """Test bulk permanently deleting tenants."""

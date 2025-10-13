@@ -49,15 +49,15 @@ class TestCoreModuleExports:
 
     def test_all_length(self):
         """Test that __all__ contains exactly the expected number of exports."""
-        # 8 exceptions + 2 models + 37 domain events components = 47 total
+        # 8 exceptions + 2 models + 38 domain events components = 48 total
         # Domain events components include:
         # - DomainEvent, DomainEventMetadata, DomainEventDispatcher, DomainEventPublisher
         # - AggregateRoot, Entity, ValueObject
         # - Value objects: Money, EmailAddress, PhoneNumber
         # - 13 predefined domain events (Invoice, Subscription, Customer, Payment)
-        # - 6 factory/helper functions
-        # - 5 caching/Redis/celery components
-        assert len(core.__all__) == 47
+        # - 8 factory/helper functions (including reset_domain_event_*)
+        # - 7 caching/Redis/celery components
+        assert len(core.__all__) == 48
 
     def test_import_from_core(self):
         """Test that symbols can be imported from core."""

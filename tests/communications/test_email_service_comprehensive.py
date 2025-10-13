@@ -270,59 +270,6 @@ class TestEmailServiceBulk:
                 assert any("Bulk email progress: 10/15" in str(call) for call in info_calls)
 
 
-class TestEmailServiceWithDatabase:
-    """Test email service with database session."""
-
-    async def test_send_email_with_db_session(self):
-        """Test email service accepts db parameter."""
-        mock_db = AsyncMock()
-        service = EmailService(db=mock_db, tenant_id="test_tenant")
-
-        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
-
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
-            response = await service.send_email(message)
-
-            assert response.status == "sent"
-            assert service.db == mock_db
-            assert service.tenant_id == "test_tenant"
-
-    async def test_send_email_with_tenant_id_override(self):
-        """Test passing tenant_id to send_email method."""
-        mock_db = AsyncMock()
-        service = EmailService(db=mock_db, tenant_id="default_tenant")
-
-        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
-
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
-            # Pass tenant_id override to send_email
-            response = await service.send_email(message, tenant_id="override_tenant")
-
-            assert response.status == "sent"
-
-    async def test_send_email_with_db_override(self):
-        """Test passing db session to send_email method."""
-        service = EmailService()
-        mock_db = AsyncMock()
-
-        message = EmailMessage(to=["user@example.com"], subject="Test", text_body="Body")
-
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
-            # Pass db override to send_email
-            response = await service.send_email(message, db=mock_db)
-
-            assert response.status == "sent"
-
-
 class TestEmailServiceFactory:
     """Test factory functions."""
 

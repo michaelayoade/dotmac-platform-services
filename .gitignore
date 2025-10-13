@@ -364,3 +364,4 @@ mutmut-results/
 # Local shell scripts for testing
 run_example_api.sh
 node_modules
+*.tsbuildinfo

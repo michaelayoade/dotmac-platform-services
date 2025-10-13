@@ -541,7 +541,7 @@ class TestHealthChecks:
         health = await registry.health_check_plugin(instance.id)
 
         assert health.status == "healthy"
-        assert health.plugin_instance_id == str(instance.id)
+        assert health.plugin_instance_id == instance.id
         assert health.response_time_ms >= 0  # Can be 0 for very fast checks
         assert health.timestamp is not None
         assert health.details["configured"] is True
@@ -560,7 +560,7 @@ class TestHealthChecks:
         health = await registry.health_check_plugin(instance.id)
 
         assert health.status == "unhealthy"
-        assert health.plugin_instance_id == str(instance.id)
+        assert health.plugin_instance_id == instance.id
 
     @pytest.mark.asyncio
     async def test_health_check_nonexistent_instance(self, registry):
@@ -1067,7 +1067,8 @@ class TestPluginDiscovery:
         plugin_dir.mkdir()
 
         plugin_code = """
-from dotmac.platform.plugins.interfaces import NotificationProvider, PluginConfig, PluginType, FieldSpec, FieldType, PluginHealthCheck, PluginTestResult
+from dotmac.platform.plugins.interfaces import NotificationProvider
+from dotmac.platform.plugins.schema import PluginConfig, PluginType, FieldSpec, FieldType, PluginHealthCheck, PluginTestResult
 from datetime import datetime, UTC
 from uuid import uuid4
 

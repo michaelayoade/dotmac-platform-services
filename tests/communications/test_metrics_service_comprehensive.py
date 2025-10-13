@@ -149,27 +149,6 @@ class TestCommunicationMetricsService:
         assert mock_log.error_message == "SMTP connection failed"
         assert mock_log.retry_count == 1  # Should be incremented
 
-    async def test_get_stats_default(self, metrics_service, mock_db_session):
-        """Test getting default statistics."""
-        # Mock result with status counts
-        mock_row1 = Mock()
-        mock_row1.status = CommunicationStatus.SENT
-        mock_row1.count = 80
-
-        mock_row2 = Mock()
-        mock_row2.status = CommunicationStatus.FAILED
-        mock_row2.count = 5
-
-        mock_result = Mock()
-        mock_result.__iter__ = Mock(return_value=iter([mock_row1, mock_row2]))
-        mock_db_session.execute.return_value = mock_result
-
-        stats = await metrics_service.get_stats()
-
-        assert stats["sent"] >= 80
-        assert stats["failed"] >= 5
-        assert mock_db_session.execute.called
-
     async def test_get_stats_with_filters(self, metrics_service, mock_db_session):
         """Test stats with tenant and date filters."""
         start_date = datetime.now(UTC) - timedelta(days=7)

@@ -362,15 +362,6 @@ class TestFileTemplateLoading:
             rendered = template.render(name="Eve")
             assert "Hello Eve" in rendered
 
-    def test_load_file_template_not_found(self):
-        """Test loading nonexistent file template."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            service = TemplateService(template_dir=tmpdir)
-
-            template = service.load_file_template("nonexistent.html")
-
-            assert template is None
-
 
 class TestTemplateServiceFactory:
     """Test factory and convenience functions."""

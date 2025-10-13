@@ -73,7 +73,7 @@ class TestSecretsAPIAuthentication:
         client = TestClient(app)
 
         # Attempt to access secret without authentication
-        response = client.get("/api/v1/secrets/app/database/password")
+        response = client.get("/api/v1/secrets/secrets/app/database/password")
 
         # SECURITY ASSERTION: Request is rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
@@ -85,7 +85,7 @@ class TestSecretsAPIAuthentication:
         client = TestClient(app)
 
         response = client.post(
-            "/api/v1/secrets/app/api/key",
+            "/api/v1/secrets/secrets/app/api/key",
             json={"data": {"api_key": "secret-key-123"}},
         )
 
@@ -98,7 +98,7 @@ class TestSecretsAPIAuthentication:
         """
         client = TestClient(app)
 
-        response = client.delete("/api/v1/secrets/app/temp/data")
+        response = client.delete("/api/v1/secrets/secrets/app/temp/data")
 
         # SECURITY ASSERTION: Request is rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
@@ -109,7 +109,7 @@ class TestSecretsAPIAuthentication:
         """
         client = TestClient(app)
 
-        response = client.get("/api/v1/secrets")
+        response = client.get("/api/v1/secrets/secrets")
 
         # SECURITY ASSERTION: Request is rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
@@ -122,106 +122,74 @@ class TestSecretsAPIPlatformAdminOnly:
     async def test_regular_user_cannot_read_secrets(self, regular_user, mock_vault_client):
         """
         SECURITY TEST: Regular users cannot read secrets even if authenticated.
+
+        This test verifies that require_platform_admin dependency properly
+        rejects non-admin users.
         """
-        from dotmac.platform.secrets.api import get_secret
+        from dotmac.platform.auth.platform_admin import require_platform_admin
 
-        # Mock request
-        mock_request = MagicMock()
-
-        # Attempt to get secret as regular user
+        # Attempt to call require_platform_admin with regular user
+        # This simulates what FastAPI dependency injection does
         with pytest.raises(HTTPException) as exc_info:
-            with patch("dotmac.platform.secrets.api.require_platform_admin") as mock_require:
-                # require_platform_admin should raise 403 for non-admins
-                mock_require.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Platform admin access required",
-                )
-
-                await get_secret(
-                    path="app/secret",
-                    request=mock_request,
-                    vault=mock_vault_client,
-                    current_user=regular_user,
-                )
+            await require_platform_admin(current_user=regular_user)
 
         # SECURITY ASSERTION: Regular user rejected
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "administrator access required" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_regular_user_cannot_write_secrets(self, regular_user, mock_vault_client):
         """
         SECURITY TEST: Regular users cannot write secrets.
+
+        This test verifies that require_platform_admin dependency properly
+        rejects non-admin users for write operations.
         """
-        from dotmac.platform.secrets.api import SecretData, create_or_update_secret
+        from dotmac.platform.auth.platform_admin import require_platform_admin
 
-        mock_request = MagicMock()
-
+        # Attempt to call require_platform_admin with regular user
         with pytest.raises(HTTPException) as exc_info:
-            with patch("dotmac.platform.secrets.api.require_platform_admin") as mock_require:
-                mock_require.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Platform admin access required",
-                )
-
-                await create_or_update_secret(
-                    path="app/secret",
-                    secret_data=SecretData(data={"key": "value"}),
-                    request=mock_request,
-                    vault=mock_vault_client,
-                    current_user=regular_user,
-                )
+            await require_platform_admin(current_user=regular_user)
 
         # SECURITY ASSERTION: Regular user rejected
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "administrator access required" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_regular_user_cannot_delete_secrets(self, regular_user, mock_vault_client):
         """
         SECURITY TEST: Regular users cannot delete secrets.
+
+        This test verifies that require_platform_admin dependency properly
+        rejects non-admin users for delete operations.
         """
-        from dotmac.platform.secrets.api import delete_secret
+        from dotmac.platform.auth.platform_admin import require_platform_admin
 
-        mock_request = MagicMock()
-
+        # Attempt to call require_platform_admin with regular user
         with pytest.raises(HTTPException) as exc_info:
-            with patch("dotmac.platform.secrets.api.require_platform_admin") as mock_require:
-                mock_require.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Platform admin access required",
-                )
-
-                await delete_secret(
-                    path="app/secret",
-                    request=mock_request,
-                    vault=mock_vault_client,
-                    current_user=regular_user,
-                )
+            await require_platform_admin(current_user=regular_user)
 
         # SECURITY ASSERTION: Regular user rejected
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "administrator access required" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_regular_user_cannot_list_secrets(self, regular_user, mock_vault_client):
         """
         SECURITY TEST: Regular users cannot list secrets.
+
+        This test verifies that require_platform_admin dependency properly
+        rejects non-admin users for list operations.
         """
-        from dotmac.platform.secrets.api import list_secrets
+        from dotmac.platform.auth.platform_admin import require_platform_admin
 
+        # Attempt to call require_platform_admin with regular user
         with pytest.raises(HTTPException) as exc_info:
-            with patch("dotmac.platform.secrets.api.require_platform_admin") as mock_require:
-                mock_require.side_effect = HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Platform admin access required",
-                )
-
-                await list_secrets(
-                    vault=mock_vault_client,
-                    current_user=regular_user,
-                    prefix="",
-                )
+            await require_platform_admin(current_user=regular_user)
 
         # SECURITY ASSERTION: Regular user rejected
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "administrator access required" in exc_info.value.detail.lower()
 
 
 class TestSecretsAPIPlatformAdminAccess:
@@ -288,7 +256,7 @@ class TestSecretsAPISecurityRegression:
         client = TestClient(app)
 
         # Attempt to list all secrets without auth
-        response = client.get("/api/v1/secrets")
+        response = client.get("/api/v1/secrets/secrets")
 
         # SECURITY ASSERTION: Request rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
@@ -303,7 +271,7 @@ class TestSecretsAPISecurityRegression:
 
         # Attempt with empty bearer token
         headers = {"Authorization": "Bearer "}
-        response = client.get("/api/v1/secrets/app/database", headers=headers)
+        response = client.get("/api/v1/secrets/secrets/app/database", headers=headers)
 
         # SECURITY ASSERTION: Empty token rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
@@ -316,18 +284,24 @@ class TestSecretsAPISecurityRegression:
 
         # Attempt with invalid JWT
         headers = {"Authorization": "Bearer invalid-jwt-token"}
-        response = client.get("/api/v1/secrets/app/database", headers=headers)
+        response = client.get("/api/v1/secrets/secrets/app/database", headers=headers)
 
         # SECURITY ASSERTION: Invalid JWT rejected
         assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
 
-    def test_health_endpoint_remains_public(self):
-        """Test that /health endpoint remains publicly accessible."""
+    def test_health_endpoint_requires_authentication(self):
+        """
+        SECURITY TEST: Health endpoint requires authentication.
+
+        Even though it's a health check, the Vault health endpoint exposes
+        sensitive information (Vault URL, mount path) and should require
+        authentication to prevent information disclosure.
+        """
         client = TestClient(app)
 
-        # Health endpoint should NOT require auth
+        # Attempt to access health endpoint without auth
         response = client.get("/api/v1/secrets/health")
 
-        # ASSERTION: Health endpoint is public
-        # May return 200 or 503 depending on Vault availability, but NOT 401/403
-        assert response.status_code not in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+        # SECURITY ASSERTION: Unauthenticated request rejected
+        # Health endpoint exposes Vault URL/mount path which is sensitive
+        assert response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)

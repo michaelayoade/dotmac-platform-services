@@ -40,7 +40,16 @@ def mock_context(mock_user):
 
     context = MagicMock(spec=Context)
     context.current_user = mock_user
-    context.db = AsyncMock()
+
+    # Create a mock database session with properly configured execute
+    mock_db = AsyncMock()
+    # Configure execute to return a mock result with proper async behavior
+    mock_result = MagicMock()
+    mock_result.one = MagicMock(return_value=MagicMock())
+    mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    context.db = mock_db
     return context
 
 
@@ -125,8 +134,8 @@ class TestAnalyticsQueries:
         }
 
         with patch(
-            "dotmac.platform.billing.metrics_router._get_billing_metrics_cached",
-            return_value=mock_billing_data,
+            "dotmac.platform.graphql.queries.analytics._get_billing_metrics_cached",
+            new=AsyncMock(return_value=mock_billing_data),
         ):
             result = await graphql_client.execute(query, context_value=mock_context)
 
@@ -168,8 +177,8 @@ class TestAnalyticsQueries:
         }
 
         with patch(
-            "dotmac.platform.billing.metrics_router._get_customer_metrics_cached",
-            return_value=mock_customer_data,
+            "dotmac.platform.graphql.queries.analytics._get_customer_metrics_cached",
+            new=AsyncMock(return_value=mock_customer_data),
         ):
             result = await graphql_client.execute(query, context_value=mock_context)
 
@@ -232,29 +241,79 @@ class TestAnalyticsQueries:
             "timestamp": datetime.now(UTC),
         }
 
-        # Mock database query for monitoring
-        from unittest.mock import MagicMock
+        mock_communications_data = {
+            "total_emails": 500,
+            "delivered_emails": 480,
+            "failed_emails": 20,
+            "total_sms": 100,
+            "delivered_sms": 95,
+            "failed_sms": 5,
+            "period": "30d",
+            "timestamp": datetime.now(UTC),
+        }
 
-        mock_row = MagicMock()
-        mock_row.total = 1000
-        mock_row.critical = 5
-        mock_row.warnings = 20
-        mock_row.api_requests = 800
-        mock_row.user_activities = 150
-        mock_row.system_activities = 50
+        mock_file_data = {
+            "total_files": 250,
+            "total_size": 1024000000,
+            "files_uploaded": 30,
+            "period": "30d",
+            "timestamp": datetime.now(UTC),
+        }
 
-        mock_result = MagicMock()
-        mock_result.one.return_value = mock_row
-        mock_context.db.execute = AsyncMock(return_value=mock_result)
+        mock_auth_data = {
+            "total_users": 100,
+            "active_users": 85,
+            "new_users": 15,
+            "total_logins": 1200,
+            "successful_logins": 1150,
+            "failed_logins": 50,
+            "period": "30d",
+            "timestamp": datetime.now(UTC),
+        }
+
+        mock_monitoring_data = {
+            "total_requests": 1000,
+            "successful_requests": 995,
+            "failed_requests": 5,
+            "critical_errors": 5,
+            "warning_count": 20,
+            "error_rate": 0.5,
+            "avg_response_time_ms": 150.0,
+            "p95_response_time_ms": 300.0,
+            "p99_response_time_ms": 500.0,
+            "api_requests": 800,
+            "user_activities": 150,
+            "system_activities": 50,
+            "high_latency_requests": 10,
+            "timeout_count": 2,
+            "period": "30d",
+            "timestamp": datetime.now(UTC),
+        }
 
         with (
             patch(
-                "dotmac.platform.billing.metrics_router._get_billing_metrics_cached",
-                return_value=mock_billing_data,
+                "dotmac.platform.graphql.queries.analytics._get_billing_metrics_cached",
+                new=AsyncMock(return_value=mock_billing_data),
             ),
             patch(
-                "dotmac.platform.billing.metrics_router._get_customer_metrics_cached",
-                return_value=mock_customer_data,
+                "dotmac.platform.graphql.queries.analytics._get_customer_metrics_cached",
+                new=AsyncMock(return_value=mock_customer_data),
+            ),
+            patch(
+                "dotmac.platform.graphql.queries.analytics._get_communication_stats_cached",
+                new=AsyncMock(return_value=mock_communications_data),
+            ),
+            patch(
+                "dotmac.platform.graphql.queries.analytics._get_file_stats_cached",
+                new=AsyncMock(return_value=mock_file_data),
+            ),
+            patch(
+                "dotmac.platform.graphql.queries.analytics._get_auth_metrics_cached",
+                new=AsyncMock(return_value=mock_auth_data),
+            ),
+            patch(
+                "dotmac.platform.graphql.queries.analytics._get_monitoring_metrics_cached",
+                new=AsyncMock(return_value=mock_monitoring_data),
             ),
         ):
             result = await graphql_client.execute(query, context_value=mock_context)
@@ -345,8 +404,8 @@ class TestAnalyticsQueries:
         }
 
         with patch(
-            "dotmac.platform.billing.metrics_router._get_billing_metrics_cached",
-            return_value=mock_billing_data,
+            "dotmac.platform.graphql.queries.analytics._get_billing_metrics_cached",
+            new=AsyncMock(return_value=mock_billing_data),
         ):
             # Test with 7 days
             result = await graphql_client.execute(

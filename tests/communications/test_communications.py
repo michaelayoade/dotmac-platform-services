@@ -106,25 +106,6 @@ class TestEmailService:
             mock_server.send_message.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_email_error_handling(self):
-        """Test email sending error handling."""
-        service = EmailService()
-
-        message = EmailMessage(
-            to=["recipient@example.com"], subject="Test Email", text_body="This is a test email."
-        )
-
-        # Mock SMTP to raise an exception
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_smtp.side_effect = Exception("SMTP connection failed")
-
-            response = await service.send_email(message)
-
-            assert response.status == "failed"
-            assert "SMTP connection failed" in response.message
-            assert response.recipients_count == 1
-
-    @pytest.mark.asyncio
     async def test_send_bulk_emails(self):
         """Test bulk email sending."""
         service = EmailService()

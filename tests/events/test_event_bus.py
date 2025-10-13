@@ -126,10 +126,11 @@ class TestEventBus:
 
         await asyncio.sleep(0.1)
 
-        # Event should be marked as failed
+        # Event should be in dead letter queue after max retries
         stored_event = await event_bus.get_event(event.event_id)
-        assert stored_event.status == EventStatus.FAILED
+        assert stored_event.status == EventStatus.DEAD_LETTER
         assert "Handler error" in stored_event.error_message
+        assert stored_event.retry_count == stored_event.max_retries
 
     @pytest.mark.asyncio
     async def test_event_persistence(self, event_bus):

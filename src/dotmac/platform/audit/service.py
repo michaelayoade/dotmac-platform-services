@@ -352,9 +352,11 @@ async def log_api_activity(
 ) -> AuditActivity:
     """Helper to log API request activities."""
     service = AuditService()
+    # Extract activity_type from kwargs if provided, otherwise use default
+    activity_type = kwargs.pop("activity_type", ActivityType.API_REQUEST)
     return await service.log_request_activity(
         request=request,
-        activity_type=ActivityType.API_REQUEST,
+        activity_type=activity_type,
         action=action,
         description=description,
         **kwargs,

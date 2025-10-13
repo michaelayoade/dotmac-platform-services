@@ -598,6 +598,17 @@ if HAS_FASTAPI:
         except ImportError:
             pass
 
+        # CRITICAL: Also override get_async_session from database.py
+        # Many routers import from ..database instead of ..db
+        try:
+            from dotmac.platform.database import (
+                get_async_session as get_async_session_from_database,
+            )
+
+            app.dependency_overrides[get_async_session_from_database] = override_get_async_session
+        except ImportError:
+            pass
+
         # ============================================================================
         # Register ALL module routers for testing
         # ============================================================================

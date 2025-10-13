@@ -104,7 +104,7 @@ def app_with_router(fake_storage_service):
     app = FastAPI()
     app.dependency_overrides[get_current_user] = mock_current_user
     app.dependency_overrides[get_storage_service] = lambda: fake_storage_service
-    app.include_router(router, prefix="/api/v1")
+    app.include_router(router, prefix="/api/v1/metrics/files")
     return app
 
 

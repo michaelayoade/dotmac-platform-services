@@ -61,11 +61,11 @@ def test_client(mock_contact_service):
 
     # Create mock user
     test_user = UserInfo(
-        user_id="test-user-id",
+        user_id=str(uuid4()),
         email="test@example.com",
         roles=["admin"],
         permissions=["contacts.create", "contacts.read", "contacts.update", "contacts.delete"],
-        tenant_id="test-tenant-id",
+        tenant_id=str(uuid4()),
     )
 
     # Mock dependencies using dependency overrides

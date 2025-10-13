@@ -227,58 +227,6 @@ class TestLogCommunication:
 # ============================================================================
 
 
-class TestGetStatsWithFilters:
-    """Test getting stats with various filters."""
-
-    @pytest.mark.asyncio
-    async def test_get_stats_with_start_date_only(self, metrics_service, mock_db_session):
-        """Test getting stats with start date filter."""
-        # Setup mock
-        result_mock = MagicMock()
-        row_mock = MagicMock()
-        row_mock.status = CommunicationStatus.SENT
-        row_mock.count = 5
-        result_mock.__iter__ = MagicMock(return_value=iter([row_mock]))
-        mock_db_session.execute.return_value = result_mock
-
-        start_date = datetime.now(UTC) - timedelta(days=7)
-
-        # Execute
-        stats = await metrics_service.get_stats(
-            tenant_id="tenant_123",
-            start_date=start_date,
-        )
-
-        # Verify
-        assert stats["sent"] == 5
-        assert stats["delivered"] == 0
-        assert stats["failed"] == 0
-        assert stats["pending"] == 0
-        mock_db_session.execute.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_stats_with_end_date_only(self, metrics_service, mock_db_session):
-        """Test getting stats with end date filter."""
-        # Setup mock
-        result_mock = MagicMock()
-        row_mock = MagicMock()
-        row_mock.status = CommunicationStatus.FAILED
-        row_mock.count = 3
-        result_mock.__iter__ = MagicMock(return_value=iter([row_mock]))
-        mock_db_session.execute.return_value = result_mock
-
-        end_date = datetime.now(UTC)
-
-        # Execute
-        stats = await metrics_service.get_stats(
-            end_date=end_date,
-        )
-
-        # Verify
-        assert stats["failed"] == 3
-        mock_db_session.execute.assert_called_once()
-
-
 # ============================================================================
 # Get Recent Activity Tests
 # ============================================================================

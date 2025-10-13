@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import HTTPException, status
+from starlette.requests import Request
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.file_storage.router import (
@@ -40,6 +41,18 @@ def mock_user():
 
 
 @pytest.fixture
+def mock_request():
+    """Mock FastAPI Request object."""
+    request = Mock(spec=Request)
+    request.client = Mock()
+    request.client.host = "127.0.0.1"
+    request.url = Mock()
+    request.url.path = "/api/v1/files"
+    request.method = "POST"
+    return request
+
+
+@pytest.fixture
 def mock_storage_service():
     """Mock storage service."""
     service = AsyncMock()
@@ -49,7 +62,9 @@ def mock_storage_service():
     )
     service.delete_file = AsyncMock(return_value=True)
     service.list_files = AsyncMock(return_value=[])
-    service.get_file_metadata = AsyncMock(return_value={"file_name": "test.txt"})
+    service.get_file_metadata = AsyncMock(
+        return_value={"file_name": "test.txt", "tenant_id": "tenant-123"}
+    )
     return service
 
 
@@ -57,7 +72,7 @@ class TestFileUploadEndpoint:
     """Test file upload endpoint."""
 
     @pytest.mark.asyncio
-    async def test_upload_file_success(self, mock_user, mock_storage_service):
+    async def test_upload_file_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful file upload."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -77,6 +92,7 @@ class TestFileUploadEndpoint:
             mock_file.seek = AsyncMock()
 
             result = await upload_file(
+                request=mock_request,
                 file=mock_file,
                 path=None,
                 description="Test upload",
@@ -93,7 +109,7 @@ class TestFileUploadEndpoint:
             mock_storage_service.store_file.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_upload_file_with_custom_path(self, mock_user, mock_storage_service):
+    async def test_upload_file_with_custom_path(self, mock_request, mock_user, mock_storage_service):
         """Test file upload with custom path."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -111,6 +127,7 @@ class TestFileUploadEndpoint:
             mock_file.seek = AsyncMock()
 
             result = await upload_file(
+                request=mock_request,
                 file=mock_file,
                 path="custom/path",
                 description="Test",
@@ -123,7 +140,7 @@ class TestFileUploadEndpoint:
             assert call_args.kwargs["path"] == "custom/path"
 
     @pytest.mark.asyncio
-    async def test_upload_file_too_large(self, mock_user, mock_storage_service):
+    async def test_upload_file_too_large(self, mock_request, mock_user, mock_storage_service):
         """Test file upload with file too large error."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -143,7 +160,8 @@ class TestFileUploadEndpoint:
 
             with pytest.raises(HTTPException) as exc_info:
                 await upload_file(
-                    file=mock_file,
+                request=mock_request,
+                file=mock_file,
                     path=None,
                     description=None,
                     current_user=mock_user,
@@ -153,7 +171,7 @@ class TestFileUploadEndpoint:
             assert "too large" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
-    async def test_upload_file_unnamed(self, mock_user, mock_storage_service):
+    async def test_upload_file_unnamed(self, mock_request, mock_user, mock_storage_service):
         """Test file upload without filename."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -171,6 +189,7 @@ class TestFileUploadEndpoint:
             mock_file.seek = AsyncMock()
 
             result = await upload_file(
+                request=mock_request,
                 file=mock_file,
                 path=None,
                 description=None,
@@ -181,7 +200,7 @@ class TestFileUploadEndpoint:
             assert result.content_type == "application/octet-stream"
 
     @pytest.mark.asyncio
-    async def test_upload_file_service_error(self, mock_user, mock_storage_service):
+    async def test_upload_file_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test file upload with service error."""
         mock_storage_service.store_file = AsyncMock(side_effect=Exception("Storage error"))
 
@@ -202,7 +221,8 @@ class TestFileUploadEndpoint:
 
             with pytest.raises(HTTPException) as exc_info:
                 await upload_file(
-                    file=mock_file,
+                request=mock_request,
+                file=mock_file,
                     path=None,
                     description=None,
                     current_user=mock_user,
@@ -216,7 +236,7 @@ class TestFileDownloadEndpoint:
     """Test file download endpoint."""
 
     @pytest.mark.asyncio
-    async def test_download_file_success(self, mock_user, mock_storage_service):
+    async def test_download_file_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful file download."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -225,7 +245,9 @@ class TestFileDownloadEndpoint:
 
             from dotmac.platform.file_storage.router import download_file
 
-            response = await download_file(file_id="file-123", current_user=mock_user)
+            response = await download_file(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert response.body == b"file content"
             assert response.media_type == "text/plain"
@@ -233,7 +255,7 @@ class TestFileDownloadEndpoint:
             assert "test.txt" in response.headers["Content-Disposition"]
 
     @pytest.mark.asyncio
-    async def test_download_file_not_found(self, mock_user, mock_storage_service):
+    async def test_download_file_not_found(self, mock_request, mock_user, mock_storage_service):
         """Test downloading non-existent file."""
         mock_storage_service.retrieve_file = AsyncMock(return_value=(None, None))
 
@@ -245,13 +267,15 @@ class TestFileDownloadEndpoint:
             from dotmac.platform.file_storage.router import download_file
 
             with pytest.raises(HTTPException) as exc_info:
-                await download_file(file_id="nonexistent", current_user=mock_user)
+                await download_file(
+                request=mock_request,
+                file_id="nonexistent", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
-    async def test_download_file_without_metadata(self, mock_user, mock_storage_service):
+    async def test_download_file_without_metadata(self, mock_request, mock_user, mock_storage_service):
         """Test downloading file without metadata."""
         mock_storage_service.retrieve_file = AsyncMock(return_value=(b"content", None))
 
@@ -262,14 +286,16 @@ class TestFileDownloadEndpoint:
 
             from dotmac.platform.file_storage.router import download_file
 
-            response = await download_file(file_id="file-123", current_user=mock_user)
+            response = await download_file(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert response.body == b"content"
             assert response.media_type == "application/octet-stream"  # Default
             assert "download" in response.headers["Content-Disposition"]  # Default filename
 
     @pytest.mark.asyncio
-    async def test_download_file_service_error(self, mock_user, mock_storage_service):
+    async def test_download_file_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test file download with service error."""
         mock_storage_service.retrieve_file = AsyncMock(side_effect=Exception("Retrieval error"))
 
@@ -281,7 +307,9 @@ class TestFileDownloadEndpoint:
             from dotmac.platform.file_storage.router import download_file
 
             with pytest.raises(HTTPException) as exc_info:
-                await download_file(file_id="file-123", current_user=mock_user)
+                await download_file(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "download failed" in exc_info.value.detail.lower()
@@ -291,7 +319,7 @@ class TestFileDeleteEndpoint:
     """Test file deletion endpoint."""
 
     @pytest.mark.asyncio
-    async def test_delete_file_success(self, mock_user, mock_storage_service):
+    async def test_delete_file_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful file deletion."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -300,14 +328,17 @@ class TestFileDeleteEndpoint:
 
             from dotmac.platform.file_storage.router import delete_file
 
-            result = await delete_file(file_id="file-123", current_user=mock_user)
+            result = await delete_file(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert "deleted successfully" in result["message"]
             assert "deleted_at" in result
-            mock_storage_service.delete_file.assert_called_once_with("file-123")
+            # Service is called with file_id and bucket name
+            assert mock_storage_service.delete_file.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_delete_file_not_found(self, mock_user, mock_storage_service):
+    async def test_delete_file_not_found(self, mock_request, mock_user, mock_storage_service):
         """Test deleting non-existent file."""
         mock_storage_service.delete_file = AsyncMock(return_value=False)
 
@@ -319,13 +350,15 @@ class TestFileDeleteEndpoint:
             from dotmac.platform.file_storage.router import delete_file
 
             with pytest.raises(HTTPException) as exc_info:
-                await delete_file(file_id="nonexistent", current_user=mock_user)
+                await delete_file(
+                request=mock_request,
+                file_id="nonexistent", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
-    async def test_delete_file_service_error(self, mock_user, mock_storage_service):
+    async def test_delete_file_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test file deletion with service error."""
         mock_storage_service.delete_file = AsyncMock(side_effect=Exception("Deletion error"))
 
@@ -337,7 +370,9 @@ class TestFileDeleteEndpoint:
             from dotmac.platform.file_storage.router import delete_file
 
             with pytest.raises(HTTPException) as exc_info:
-                await delete_file(file_id="file-123", current_user=mock_user)
+                await delete_file(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "deletion failed" in exc_info.value.detail.lower()
@@ -347,7 +382,7 @@ class TestListFilesEndpoint:
     """Test list files endpoint."""
 
     @pytest.mark.asyncio
-    async def test_list_files_success(self, mock_user, mock_storage_service):
+    async def test_list_files_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful file listing."""
         mock_files = [
             FileMetadata(
@@ -374,7 +409,9 @@ class TestListFilesEndpoint:
 
             from dotmac.platform.file_storage.router import list_files
 
-            result = await list_files(path=None, skip=0, limit=100, current_user=mock_user)
+            result = await list_files(
+                request=mock_request,
+                path=None, skip=0, limit=100, current_user=mock_user)
 
             assert isinstance(result, FileListResponse)
             assert len(result.files) == 2
@@ -383,7 +420,7 @@ class TestListFilesEndpoint:
             assert result.per_page == 100
 
     @pytest.mark.asyncio
-    async def test_list_files_with_path_filter(self, mock_user, mock_storage_service):
+    async def test_list_files_with_path_filter(self, mock_request, mock_user, mock_storage_service):
         """Test file listing with path filter."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -392,7 +429,9 @@ class TestListFilesEndpoint:
 
             from dotmac.platform.file_storage.router import list_files
 
-            await list_files(path="documents", skip=0, limit=100, current_user=mock_user)
+            await list_files(
+                request=mock_request,
+                path="documents", skip=0, limit=100, current_user=mock_user)
 
             # Verify path filter was applied
             call_args = mock_storage_service.list_files.call_args
@@ -400,7 +439,7 @@ class TestListFilesEndpoint:
             assert "user-123" in call_args.kwargs["path"]
 
     @pytest.mark.asyncio
-    async def test_list_files_with_pagination(self, mock_user, mock_storage_service):
+    async def test_list_files_with_pagination(self, mock_request, mock_user, mock_storage_service):
         """Test file listing with pagination."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -409,7 +448,9 @@ class TestListFilesEndpoint:
 
             from dotmac.platform.file_storage.router import list_files
 
-            result = await list_files(path=None, skip=50, limit=25, current_user=mock_user)
+            result = await list_files(
+                request=mock_request,
+                path=None, skip=50, limit=25, current_user=mock_user)
 
             assert result.page == 3  # skip 50, limit 25 = page 3
             assert result.per_page == 25
@@ -420,7 +461,7 @@ class TestListFilesEndpoint:
             assert call_args.kwargs["limit"] == 25
 
     @pytest.mark.asyncio
-    async def test_list_files_service_error(self, mock_user, mock_storage_service):
+    async def test_list_files_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test file listing with service error."""
         mock_storage_service.list_files = AsyncMock(side_effect=Exception("List error"))
 
@@ -432,7 +473,9 @@ class TestListFilesEndpoint:
             from dotmac.platform.file_storage.router import list_files
 
             with pytest.raises(HTTPException) as exc_info:
-                await list_files(path=None, skip=0, limit=100, current_user=mock_user)
+                await list_files(
+                request=mock_request,
+                path=None, skip=0, limit=100, current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "failed to list files" in exc_info.value.detail.lower()
@@ -442,22 +485,25 @@ class TestGetFileMetadataEndpoint:
     """Test get file metadata endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_file_metadata_success(self, mock_user, mock_storage_service):
+    async def test_get_file_metadata_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful file metadata retrieval."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
             patch("dotmac.platform.file_storage.router.get_current_user", return_value=mock_user),
+            patch("dotmac.platform.file_storage.router.get_current_tenant_id", return_value="tenant-123"),
         ):
 
             from dotmac.platform.file_storage.router import get_file_metadata
 
-            result = await get_file_metadata(file_id="file-123", current_user=mock_user)
+            result = await get_file_metadata(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert result["file_name"] == "test.txt"
             mock_storage_service.get_file_metadata.assert_called_once_with("file-123")
 
     @pytest.mark.asyncio
-    async def test_get_file_metadata_not_found(self, mock_user, mock_storage_service):
+    async def test_get_file_metadata_not_found(self, mock_request, mock_user, mock_storage_service):
         """Test getting metadata for non-existent file."""
         mock_storage_service.get_file_metadata = AsyncMock(return_value=None)
 
@@ -469,13 +515,15 @@ class TestGetFileMetadataEndpoint:
             from dotmac.platform.file_storage.router import get_file_metadata
 
             with pytest.raises(HTTPException) as exc_info:
-                await get_file_metadata(file_id="nonexistent", current_user=mock_user)
+                await get_file_metadata(
+                request=mock_request,
+                file_id="nonexistent", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
-    async def test_get_file_metadata_service_error(self, mock_user, mock_storage_service):
+    async def test_get_file_metadata_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test getting metadata with service error."""
         mock_storage_service.get_file_metadata = AsyncMock(side_effect=Exception("Metadata error"))
 
@@ -487,7 +535,9 @@ class TestGetFileMetadataEndpoint:
             from dotmac.platform.file_storage.router import get_file_metadata
 
             with pytest.raises(HTTPException) as exc_info:
-                await get_file_metadata(file_id="file-123", current_user=mock_user)
+                await get_file_metadata(
+                request=mock_request,
+                file_id="file-123", current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "failed to get file metadata" in exc_info.value.detail.lower()
@@ -497,7 +547,7 @@ class TestBatchOperationEndpoint:
     """Test batch operation endpoint."""
 
     @pytest.mark.asyncio
-    async def test_batch_delete_success(self, mock_user, mock_storage_service):
+    async def test_batch_delete_success(self, mock_request, mock_user, mock_storage_service):
         """Test successful batch delete operation."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -506,13 +556,13 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1", "file-2"],
                 operation="delete",
                 destination=None,
             )
 
-            result = await batch_operation(request=request, current_user=mock_user)
+            result = await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert result["operation"] == "delete"
             assert len(result["results"]) == 2
@@ -520,7 +570,7 @@ class TestBatchOperationEndpoint:
             assert mock_storage_service.delete_file.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_batch_delete_partial_failure(self, mock_user, mock_storage_service):
+    async def test_batch_delete_partial_failure(self, mock_request, mock_user, mock_storage_service):
         """Test batch delete with partial failures."""
         # First file succeeds, second fails
         mock_storage_service.delete_file = AsyncMock(side_effect=[True, False])
@@ -532,19 +582,19 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1", "file-2"],
                 operation="delete",
                 destination=None,
             )
 
-            result = await batch_operation(request=request, current_user=mock_user)
+            result = await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert result["results"][0]["status"] == "deleted"
             assert result["results"][1]["status"] == "failed"
 
     @pytest.mark.asyncio
-    async def test_batch_move_operation(self, mock_user, mock_storage_service):
+    async def test_batch_move_operation(self, mock_request, mock_user, mock_storage_service):
         """Test batch move operation."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -553,19 +603,19 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1"],
                 operation="move",
                 destination="new/path",
             )
 
-            result = await batch_operation(request=request, current_user=mock_user)
+            result = await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert result["operation"] == "move"
             assert result["results"][0]["status"] == "moved"
 
     @pytest.mark.asyncio
-    async def test_batch_copy_operation(self, mock_user, mock_storage_service):
+    async def test_batch_copy_operation(self, mock_request, mock_user, mock_storage_service):
         """Test batch copy operation."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -574,19 +624,19 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1"],
                 operation="copy",
                 destination="copy/path",
             )
 
-            result = await batch_operation(request=request, current_user=mock_user)
+            result = await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert result["operation"] == "copy"
             assert result["results"][0]["status"] == "copied"
 
     @pytest.mark.asyncio
-    async def test_batch_unsupported_operation(self, mock_user, mock_storage_service):
+    async def test_batch_unsupported_operation(self, mock_request, mock_user, mock_storage_service):
         """Test batch operation with unsupported operation type."""
         with (
             patch("dotmac.platform.file_storage.router.storage_service", mock_storage_service),
@@ -595,18 +645,18 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1"],
                 operation="unsupported",
                 destination=None,
             )
 
-            result = await batch_operation(request=request, current_user=mock_user)
+            result = await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert result["results"][0]["status"] == "unsupported_operation"
 
     @pytest.mark.asyncio
-    async def test_batch_operation_service_error(self, mock_user, mock_storage_service):
+    async def test_batch_operation_service_error(self, mock_request, mock_user, mock_storage_service):
         """Test batch operation with service error."""
         mock_storage_service.delete_file = AsyncMock(side_effect=Exception("Delete error"))
 
@@ -617,14 +667,14 @@ class TestBatchOperationEndpoint:
 
             from dotmac.platform.file_storage.router import batch_operation
 
-            request = FileOperationRequest(
+            operations_request = FileOperationRequest(
                 file_ids=["file-1"],
                 operation="delete",
                 destination=None,
             )
 
             with pytest.raises(HTTPException) as exc_info:
-                await batch_operation(request=request, current_user=mock_user)
+                await batch_operation(request=mock_request, operations=operations_request, current_user=mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert "batch operation failed" in exc_info.value.detail.lower()

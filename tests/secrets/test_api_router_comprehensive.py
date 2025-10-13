@@ -41,8 +41,11 @@ def app_with_router():
     """Create test app with secrets router."""
     app = FastAPI()
     from dotmac.platform.auth.dependencies import get_current_user
+    from dotmac.platform.auth.platform_admin import require_platform_admin
 
+    # Override both auth dependencies
     app.dependency_overrides[get_current_user] = mock_current_user
+    app.dependency_overrides[require_platform_admin] = mock_current_user
     app.include_router(router, prefix="/api/v1/vault")
     return app
 

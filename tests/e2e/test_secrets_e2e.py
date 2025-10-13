@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 # Pytest marker for E2E tests
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
 
 
 @pytest.fixture
@@ -47,9 +47,24 @@ def mock_audit_log():
 @pytest.fixture
 async def secrets_app(mock_vault_settings, mock_audit_log):
     """Create FastAPI app with secrets router for E2E testing."""
+    from dotmac.platform.auth.core import UserInfo
+    from dotmac.platform.auth.platform_admin import require_platform_admin
     from dotmac.platform.secrets.api import router as secrets_router
 
     app = FastAPI(title="Secrets E2E Test App")
+
+    # Override auth dependency to bypass authentication in E2E tests
+    def override_require_platform_admin():
+        return UserInfo(
+            user_id="test-admin-user",
+            email="admin@example.com",
+            tenant_id="test-tenant",
+            roles=["platform_admin"],
+            permissions=["secrets:read", "secrets:write", "secrets:delete"],
+        )
+
+    app.dependency_overrides[require_platform_admin] = override_require_platform_admin
+
     app.include_router(secrets_router, prefix="/api/v1/secrets", tags=["Secrets"])
 
     return app

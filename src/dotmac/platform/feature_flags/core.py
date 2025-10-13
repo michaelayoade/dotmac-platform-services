@@ -57,18 +57,17 @@ async def _check_redis_availability() -> bool:
         try:
             await test_client.ping()
         finally:
-            close_result = getattr(test_client, "close", None)
-            if callable(close_result):
-                result = close_result()
-                if inspect.isawaitable(result):
-                    await result
-            drain_result = getattr(test_client, "connection_pool", None)
-            if drain_result is not None:
-                disconnect = getattr(drain_result, "disconnect", None)
-                if callable(disconnect):
-                    maybe_await = disconnect()
-                    if inspect.isawaitable(maybe_await):
-                        await maybe_await
+            # Try aclose() first (modern async redis client)
+            aclose_method = getattr(test_client, "aclose", None)
+            if callable(aclose_method):
+                await aclose_method()
+            # Fallback to close() for older clients
+            elif hasattr(test_client, "close"):
+                close_result = getattr(test_client, "close", None)
+                if callable(close_result):
+                    result = close_result()
+                    if inspect.isawaitable(result):
+                        await result
 
         _redis_available = True
         logger.info("Redis available for feature flags", redis_url=redis_url)

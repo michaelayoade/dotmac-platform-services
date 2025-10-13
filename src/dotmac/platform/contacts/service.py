@@ -175,8 +175,10 @@ class ContactService:
         contact = result.scalar_one_or_none()
 
         # Cache if not including relationships
-        if contact and not include_methods and not include_labels:
-            cache_set(cache_key, contact, ttl=300)
+        # Note: Cannot cache SQLAlchemy models directly (not JSON-serializable)
+        # Caching disabled for now - would need to convert to dict/Pydantic model first
+        # if contact and not include_methods and not include_labels:
+        #     cache_set(cache_key, contact, ttl=300)
 
         return contact
 

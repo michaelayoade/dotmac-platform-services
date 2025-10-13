@@ -23,7 +23,7 @@ from dotmac.platform.auth.email_service import (
 class TestSendVerificationEmailFunction:
     """Test the send_verification_email function."""
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_send_verification_email_success(self, mock_get_email_service):
         """Test successful verification email sending."""
         # Mock email service
@@ -54,7 +54,7 @@ class TestSendVerificationEmailFunction:
         assert "abc123" in message.html_body
         assert "Test User" in message.text_body
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_send_verification_email_html_formatting(self, mock_get_email_service):
         """Test HTML email contains proper formatting."""
         mock_email_service = AsyncMock()
@@ -80,7 +80,7 @@ class TestSendVerificationEmailFunction:
         assert "Verify Email" in message.html_body  # Button text
         assert "John Doe" in message.html_body
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_send_verification_email_failure(self, mock_get_email_service):
         """Test verification email sending failure."""
         mock_email_service = AsyncMock()
@@ -97,7 +97,7 @@ class TestSendVerificationEmailFunction:
 
         assert result is False
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_send_verification_email_exception_handling(self, mock_get_email_service):
         """Test exception handling in send_verification_email."""
         mock_email_service = AsyncMock()
@@ -137,10 +137,11 @@ class TestAuthEmailServiceFacade:
         )
 
         assert result is True
+        # Facade delegates using positional arguments
         mock_send_verification.assert_called_once_with(
-            email="test@example.com",
-            user_name="Test User",
-            verification_url="https://example.com/verify?token=xyz",
+            "test@example.com",
+            "Test User",
+            "https://example.com/verify?token=xyz",
         )
 
     async def test_facade_all_email_methods_present(self):
@@ -184,7 +185,7 @@ class TestAuthRouterVerificationIntegration:
 class TestVerificationEmailContent:
     """Test verification email content generation."""
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_email_contains_required_elements(self, mock_get_email_service):
         """Test email contains all required elements."""
         mock_email_service = AsyncMock()
@@ -215,7 +216,7 @@ class TestVerificationEmailContent:
         assert "verify" in html_body.lower()
         assert "secure-token" in html_body
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     @patch("dotmac.platform.auth.email_service.settings")
     async def test_email_uses_app_name_from_settings(self, mock_settings, mock_get_email_service):
         """Test email uses app name from settings."""
@@ -243,7 +244,7 @@ class TestVerificationEmailContent:
 class TestEmailVerificationEdgeCases:
     """Test edge cases and error scenarios."""
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_handles_special_characters_in_name(self, mock_get_email_service):
         """Test handling of special characters in user name."""
         mock_email_service = AsyncMock()
@@ -261,7 +262,7 @@ class TestEmailVerificationEdgeCases:
         assert result is True
         # Email should be sent successfully even with special characters
 
-    @patch("dotmac.platform.auth.email_service.get_email_service")
+    @patch("dotmac.platform.communications.email_service.get_email_service")
     async def test_handles_long_verification_url(self, mock_get_email_service):
         """Test handling of very long verification URLs."""
         mock_email_service = AsyncMock()

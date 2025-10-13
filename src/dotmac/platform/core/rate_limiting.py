@@ -51,8 +51,19 @@ def get_limiter() -> Limiter:
 
 
 def reset_limiter() -> None:
-    """Reset the cached limiter instance (useful for tests)."""
+    """Reset the cached limiter instance and clear storage (useful for tests)."""
     global _limiter
+    if _limiter is not None:
+        # Clear the storage to reset rate limit counters
+        try:
+            if hasattr(_limiter, "_storage") and _limiter._storage:
+                # SlowAPI storage has a reset() or clear() method in some implementations
+                if hasattr(_limiter._storage, "reset"):
+                    _limiter._storage.reset()
+                elif hasattr(_limiter._storage, "clear"):
+                    _limiter._storage.clear()
+        except Exception as e:
+            logger.debug("rate_limit.storage.reset.failed", error=str(e))
     _limiter = None
 
 

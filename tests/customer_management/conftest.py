@@ -23,8 +23,28 @@ from dotmac.platform.customer_management.service import CustomerService
 
 @pytest.fixture
 def mock_session():
-    """Create a mock async database session."""
+    """Create a mock async database session with proper async mocking."""
+    from unittest.mock import MagicMock
+
     session = AsyncMock(spec=AsyncSession)
+    session.commit = AsyncMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.add = MagicMock()
+    session.delete = MagicMock()
+
+    # Mock execute() to return proper result chain
+    mock_result = MagicMock()
+    mock_scalars = MagicMock()
+    mock_scalars.all = MagicMock(return_value=[])
+    mock_scalars.first = MagicMock(return_value=None)
+    mock_scalars.one = MagicMock(return_value=None)
+    mock_result.scalars = MagicMock(return_value=mock_scalars)
+    mock_result.scalar_one = MagicMock(return_value=0)
+    mock_result.scalar_one_or_none = MagicMock(return_value=None)
+    mock_result.all = MagicMock(return_value=[])
+    session.execute = AsyncMock(return_value=mock_result)
+
     return session
 
 
@@ -118,3 +138,15 @@ def sample_customers():
         )
         customers.append(customer)
     return customers
+
+
+@pytest.fixture
+def customer_service(mock_session):
+    """Create customer service with mocked session."""
+    return CustomerService(session=mock_session)
+
+
+@pytest.fixture
+def existing_customer(sample_customer):
+    """Provide an existing customer for tests."""
+    return sample_customer

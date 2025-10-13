@@ -180,6 +180,7 @@ def mock_tenant_service() -> AsyncMock:
             # Properties
             is_trial=False,
             is_active=True,
+            status_is_active=(status == TenantStatus.ACTIVE),
             trial_expired=False,
             is_deleted=False,
         )
@@ -354,6 +355,7 @@ def mock_tenant_service() -> AsyncMock:
             # Properties
             is_trial=True,
             is_active=False,
+            status_is_active=(status == TenantStatus.ACTIVE),
             trial_expired=False,
             is_deleted=False,
         )

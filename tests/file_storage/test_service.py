@@ -471,15 +471,18 @@ class TestFileStorageService:
     @pytest.mark.asyncio
     async def test_service_handles_errors(self):
         """Test service error handling."""
+        from uuid import uuid4
+
         service = FileStorageService(backend=StorageBackend.MEMORY)
 
-        # Try to retrieve non-existent file
-        file_data, metadata = await service.retrieve_file("nonexistent")
+        # Try to retrieve non-existent file (must be valid UUID)
+        nonexistent_id = str(uuid4())
+        file_data, metadata = await service.retrieve_file(nonexistent_id)
         assert file_data is None
         assert metadata is None
 
-        # Try to delete non-existent file
-        success = await service.delete_file("nonexistent")
+        # Try to delete non-existent file (must be valid UUID)
+        success = await service.delete_file(nonexistent_id)
         assert success is False
 
 

@@ -92,17 +92,32 @@ class WebhookSubscriptionService:
         if is_active is not None:
             stmt = stmt.where(WebhookSubscription.is_active == is_active)
 
-        if event_type:
-            # Filter subscriptions that include this event type
+        # Check if we're using SQLite
+        dialect_name = self.db.bind.dialect.name if self.db.bind else "sqlite"
+        use_python_filtering = dialect_name == "sqlite" and event_type
+
+        if event_type and not use_python_filtering:
+            # PostgreSQL: Use json_contains in SQL
             stmt = stmt.where(func.json_array_length(WebhookSubscription.events) > 0).where(
                 func.json_contains(WebhookSubscription.events, f'"{event_type}"')
             )
 
         stmt = stmt.order_by(WebhookSubscription.created_at.desc())
-        stmt = stmt.limit(limit).offset(offset)
+
+        if not use_python_filtering:
+            # Apply pagination in SQL
+            stmt = stmt.limit(limit).offset(offset)
 
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        subscriptions = list(result.scalars().all())
+
+        if use_python_filtering:
+            # SQLite: Filter by event_type in Python
+            subscriptions = [sub for sub in subscriptions if event_type in sub.events]
+            # Apply pagination in Python
+            subscriptions = subscriptions[offset : offset + limit]
+
+        return subscriptions
 
     async def update_subscription(
         self,

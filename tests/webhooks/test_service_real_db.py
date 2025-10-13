@@ -163,12 +163,9 @@ class TestListSubscriptions:
 
     @pytest.mark.asyncio
     async def test_list_subscriptions_filter_event_type(
-        self, webhook_service: WebhookSubscriptionService, sample_subscription, is_sqlite
+        self, webhook_service: WebhookSubscriptionService, sample_subscription
     ):
         """Test filtering by event_type."""
-        if is_sqlite:
-            pytest.skip("SQLite doesn't support json_contains")
-
         result = await webhook_service.list_subscriptions(
             "test-tenant", event_type="user.registered"
         )
@@ -304,12 +301,8 @@ class TestGetSubscriptionsForEvent:
         webhook_service: WebhookSubscriptionService,
         sample_subscription,
         async_db_session: AsyncSession,
-        is_sqlite,
     ):
         """Test getting subscriptions for a specific event."""
-        if is_sqlite:
-            pytest.skip("SQLite doesn't support json_contains")
-
         # Create another subscription with different events
         other_sub = WebhookSubscription(
             tenant_id="test-tenant",

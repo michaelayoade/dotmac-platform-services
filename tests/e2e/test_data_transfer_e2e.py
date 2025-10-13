@@ -22,7 +22,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 # Pytest marker for E2E tests
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.asyncio, pytest.mark.e2e]
 
 
 @pytest.fixture

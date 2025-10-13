@@ -27,21 +27,19 @@ class TestPluginRouterFunctions:
         with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = MagicMock()
             mock_registry.initialize = AsyncMock()
-            # Ensure _initialized attribute doesn't exist initially
-            if hasattr(mock_registry, "_initialized"):
-                delattr(mock_registry, "_initialized")
+            # Ensure _plugins attribute doesn't exist initially
+            if hasattr(mock_registry, "_plugins"):
+                delattr(mock_registry, "_plugins")
             mock_get.return_value = mock_registry
 
             # First call - should initialize
             result = await get_registry()
             assert result == mock_registry
             mock_registry.initialize.assert_called_once()
-            # Function should set _initialized
-            assert hasattr(mock_registry, "_initialized")
-            assert mock_registry._initialized is True
 
-            # Reset for second call
+            # Reset for second call - now set _plugins to simulate initialized state
             mock_registry.initialize.reset_mock()
+            mock_registry._plugins = {}
 
             # Second call - should not initialize again
             result2 = await get_registry()
@@ -53,7 +51,7 @@ class TestPluginRouterFunctions:
         """Test get_registry when registry is already initialized."""
         with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = AsyncMock()
-            mock_registry._initialized = True  # Already initialized
+            mock_registry._plugins = {}  # Already initialized
             mock_registry.initialize = AsyncMock()
             mock_get.return_value = mock_registry
 
@@ -222,14 +220,12 @@ class TestErrorHandling:
         with patch("dotmac.platform.plugins.router.get_plugin_registry") as mock_get:
             mock_registry = MagicMock()
             mock_registry.initialize = AsyncMock(side_effect=Exception("Init failed"))
-            # Ensure _initialized doesn't exist
-            if hasattr(mock_registry, "_initialized"):
-                delattr(mock_registry, "_initialized")
+            # Ensure _plugins doesn't exist
+            if hasattr(mock_registry, "_plugins"):
+                delattr(mock_registry, "_plugins")
             mock_get.return_value = mock_registry
 
             # Should raise the exception from initialize
             with pytest.raises(Exception, match="Init failed"):
                 await get_registry()
             mock_registry.initialize.assert_called_once()
-            # Registry shouldn't have _initialized attribute set on error
-            assert not hasattr(mock_registry, "_initialized")

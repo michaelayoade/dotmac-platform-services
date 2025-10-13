@@ -527,20 +527,20 @@ class TestEdgeCasesCoverage:
         class FailingSetting:
             """A setting that raises exception when set."""
 
-            @property
-            def value(self):
-                return "old"
-
-            @value.setter
-            def value(self, val):
-                raise RuntimeError("Cannot set value")
+            def __setattr__(self, name, value):
+                # Raise exception for any attribute setting
+                raise RuntimeError(f"Cannot set {name}")
 
         settings_obj = FailingSetting()
-        secrets = {"setting.value": "new_value"}
+        # Provide secrets for paths that SECRETS_MAPPING looks for
+        secrets = {
+            "app/secret_key": "new_secret",
+            "database/password": "new_password",
+        }
 
-        # Should handle exception gracefully
+        # Should handle exception gracefully - all attempts to set attributes will fail
         count = _update_settings_with_secrets(settings_obj, secrets)
-        assert count == 0  # No settings updated due to exception
+        assert count == 0  # No settings updated due to exceptions
 
     @pytest.mark.asyncio
     async def test_cleanup_vault_client_async_with_close_method(self):

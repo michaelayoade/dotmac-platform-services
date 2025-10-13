@@ -14,6 +14,7 @@ os.environ["TESTING"] = "1"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-e2e-tests"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"  # Test database
+os.environ["DEFAULT_TENANT_ID"] = "e2e-test-tenant"  # Default tenant for e2e tests
 
 from httpx import ASGITransport, AsyncClient
 
@@ -23,6 +24,10 @@ from sqlalchemy.pool import StaticPool
 
 from dotmac.platform.db import Base
 from dotmac.platform.main import app
+from dotmac.platform.tenant.config import TenantConfiguration, set_tenant_config
+
+# Reinitialize tenant config with test environment variables
+set_tenant_config(TenantConfiguration())
 
 
 @pytest_asyncio.fixture(scope="function")

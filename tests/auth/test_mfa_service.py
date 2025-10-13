@@ -72,8 +72,8 @@ class TestMFAService:
 
         assert len(codes) == 10
         for code in codes:
-            # Format: XXXX-XXXX
-            assert re.match(r"^[A-F0-9]{4}-[A-F0-9]{4}$", code)
+            # Format: XXXX-XXXX (uppercase letters)
+            assert re.match(r"^[A-Z]{4}-[A-Z]{4}$", code)
 
         # All codes should be unique
         assert len(set(codes)) == 10

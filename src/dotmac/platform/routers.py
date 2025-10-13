@@ -194,7 +194,7 @@ ROUTER_CONFIGS = [
     RouterConfig(
         module_path="dotmac.platform.plugins.router",
         router_name="router",
-        prefix="/api/v1",
+        prefix="/api/v1/plugins",
         tags=["Plugin Management"],
         description="Dynamic plugin system management",
     ),

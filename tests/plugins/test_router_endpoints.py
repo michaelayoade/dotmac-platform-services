@@ -144,9 +144,9 @@ class TestPluginRouterEndpoints:
                 client = TestClient(app_with_router)
                 response = client.get("/api/v1/plugins/TestPlugin/schema")
 
-                # The router should call PluginSchemaResponse with config_schema
+                # The router should call PluginSchemaResponse with schema and instance_id
                 # This will fail in real code but we're testing the line is executed
-                mock_response.assert_called_once_with(config_schema=schema)
+                mock_response.assert_called_once_with(schema=schema, instance_id=None)
 
     def test_create_plugin_instance_success(self, app_with_router, mock_registry):
         """Test creating plugin instance successfully (lines 136-142)."""
