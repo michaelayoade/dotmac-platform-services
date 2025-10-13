@@ -149,21 +149,27 @@ async def async_client(db_engine, tenant_id, user_id):
     # Import additional dependencies that need overriding
     from dotmac.platform.db import get_session_dependency
 
-    # Create a custom middleware to set tenant context for each request
-    from starlette.middleware.base import BaseHTTPMiddleware
+    # Create an ASGI wrapper that sets tenant context for each request
+    # This avoids the "cannot add middleware after app started" error
+    original_app = app
 
-    class E2ETenantContextMiddleware(BaseHTTPMiddleware):
-        """Set tenant context for E2E tests before each request."""
+    class TenantContextASGIWrapper:
+        """ASGI wrapper that sets tenant context before each request."""
 
-        async def dispatch(self, request, call_next):
+        def __init__(self, app, tenant_id: str):
+            self.app = app
+            self.tenant_id = tenant_id
+
+        async def __call__(self, scope, receive, send):
             from dotmac.platform.tenant import set_current_tenant_id
 
-            set_current_tenant_id(tenant_id)
-            response = await call_next(request)
-            return response
+            # Set tenant context for this request
+            set_current_tenant_id(self.tenant_id)
+            # Call the wrapped app
+            await self.app(scope, receive, send)
 
-    # Add the E2E tenant middleware
-    app.add_middleware(E2ETenantContextMiddleware)
+    # Wrap the app with tenant context setter
+    wrapped_app = TenantContextASGIWrapper(original_app, tenant_id)
 
     # Override app dependencies
     app.dependency_overrides[get_async_session] = override_get_async_session
@@ -175,7 +181,7 @@ async def async_client(db_engine, tenant_id, user_id):
 
     try:
         async with AsyncClient(
-            transport=ASGITransport(app=app),
+            transport=ASGITransport(app=wrapped_app),
             base_url="http://testserver",
             follow_redirects=True,
         ) as client:
@@ -183,4 +189,3 @@ async def async_client(db_engine, tenant_id, user_id):
     finally:
         # Clear overrides after test
         app.dependency_overrides.clear()
-        # Note: Middleware will remain but only affects this test since app is fixture-scoped
