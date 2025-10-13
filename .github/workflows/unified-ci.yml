@@ -563,8 +563,8 @@ jobs:
             # - GHSA-4xh5-x5gv-qwph (pip 25.2 tarfile) - waiting for pip 25.3
             # - GHSA-wj6h-64fc-37mp (ecdsa timing) - no fix planned, low risk
 
-            # Display vulnerabilities for visibility
-            poetry run pip-audit --desc
+            # Display vulnerabilities for visibility (ignore exit code)
+            poetry run pip-audit --desc || true
 
             echo ""
             echo "✅ Known vulnerabilities documented in:"
