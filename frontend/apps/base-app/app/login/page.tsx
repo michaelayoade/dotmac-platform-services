@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { apiClient } from '@/lib/api/client';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth';
 import { useBranding } from '@/hooks/useBranding';
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
         logger.info('Redirecting to dashboard');
         router.push('/dashboard');
       } else {
-        logger.error('Login failed', new Error(response.error?.message || 'Login failed'), { response: response.error });
+        logger.error('Login failed', { error: response.error?.message || 'Login failed', response: response.error });
         setError(response.error?.message || 'Login failed');
       }
     } catch (err) {

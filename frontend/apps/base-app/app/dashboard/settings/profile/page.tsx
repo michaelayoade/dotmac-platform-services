@@ -65,7 +65,7 @@ import {
   useRevokeSession,
   useRevokeAllSessions,
 } from '@/hooks/useProfile';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 
 // Migrated from sonner to useToast hook
 // Note: toast options have changed:

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Component, ReactNode } from 'react';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 
 interface Props {
   children: ReactNode;
@@ -36,7 +36,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log error to error reporting service
-    logger.error('ErrorBoundary caught error', error, {
+    logger.error('ErrorBoundary caught error', {
+      error: error.message,
+      stack: error.stack,
       componentStack: errorInfo.componentStack,
       errorBoundary: true
     });

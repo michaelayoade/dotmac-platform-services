@@ -8,7 +8,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { authService } from '@/lib/api/services/auth.service';
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api/client';
 import type { AxiosResponse, AxiosRequestConfig } from 'axios';
 
 // Mock dependencies

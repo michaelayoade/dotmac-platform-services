@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { logger } from '@/lib/utils/logger';
+import { apiClient } from '@/lib/api/client';
+import { logger } from '@/lib/logger';
 
 export interface FeatureFlag {
   name: string;
@@ -72,7 +72,7 @@ export const useFeatureFlags = () => {
         enabled,
       });
 
-      const success = ('success' in response && (response as any).success) || response.status === 200;
+      const success = ('success' in response && (response as any).success) || response.error?.status === 200;
       if (success) {
         // Update local state
         setFlags(prev =>
@@ -111,7 +111,7 @@ export const useFeatureFlags = () => {
     try {
       const response = await apiClient.delete(`/api/v1/feature-flags/flags/${flagName}`);
 
-      const success = ('success' in response && (response as any).success) || response.status === 200 || response.status === 204;
+      const success = ('success' in response && (response as any).success) || response.error?.status === 200 || response.error?.status === 204;
       if (success) {
         setFlags(prev => prev.filter(flag => flag.name !== flagName));
         return true;

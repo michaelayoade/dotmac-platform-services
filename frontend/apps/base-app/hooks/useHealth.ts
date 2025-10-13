@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { logger } from '@/lib/utils/logger';
+import { apiClient } from '@/lib/api/client';
+import { logger } from '@/lib/logger';
 
 export interface ServiceHealth {
   name: string;

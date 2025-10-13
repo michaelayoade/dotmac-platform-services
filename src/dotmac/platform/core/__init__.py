@@ -71,7 +71,28 @@ from dotmac.platform.core.rate_limiting import get_limiter, limiter
 from dotmac.platform.core.tasks import app as celery_app
 from dotmac.platform.core.tasks import idempotent_task
 
+
+def ensure_pydantic_v2() -> None:
+    """Ensure Pydantic v2 is being used.
+
+    Raises:
+        ImportError: If Pydantic v1 is detected
+    """
+    try:
+        from pydantic import VERSION
+        major_version = int(VERSION.split('.')[0])
+        if major_version < 2:
+            raise ImportError(
+                f"Pydantic v2 is required, but v{VERSION} is installed. "
+                "Please upgrade: pip install 'pydantic>=2.0'"
+            )
+    except (ImportError, AttributeError, ValueError) as e:
+        raise ImportError(f"Failed to verify Pydantic version: {e}")
+
+
 __all__ = [
+    # Pydantic version check
+    "ensure_pydantic_v2",
     # Rate limiting
     "get_limiter",
     "limiter",

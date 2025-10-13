@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { X, Save, User, Building } from 'lucide-react';
 import { Customer } from '@/types';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 
 interface CustomerEditModalProps {
   customer?: Customer | null;

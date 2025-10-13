@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { logger } from '@/lib/utils/logger';
+import { apiClient } from '@/lib/api/client';
+import { logger } from '@/lib/logger';
 
 export interface PlanFeature {
   id: string;
@@ -152,7 +152,7 @@ export const useBillingPlans = () => {
     try {
       const response = await apiClient.delete(`/api/v1/billing/subscriptions/plans/${planId}`);
 
-      if ((response as any).success || response.status === 204) {
+      if ((response as any).success || response.error?.status === 204) {
         setPlans(prev => prev.filter(plan => plan.plan_id !== planId));
         return true;
       }

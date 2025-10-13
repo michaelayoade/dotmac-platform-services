@@ -58,8 +58,8 @@ jest.mock('@/components/ui/use-toast', () => ({
 global.fetch = jest.fn();
 
 import { getCurrentUser, logout } from '@/lib/auth';
-import { logger } from '@/lib/utils/logger';
-import { apiClient } from '@/lib/api-client';
+import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api/client';
 
 describe('DashboardPage', () => {
   const mockPush = jest.fn();

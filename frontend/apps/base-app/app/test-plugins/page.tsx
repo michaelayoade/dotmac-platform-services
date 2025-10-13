@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 import { PluginForm } from '../dashboard/settings/plugins/components/PluginForm';
 import { PluginCard } from '../dashboard/settings/plugins/components/PluginCard';
 import { PluginHealthDashboard } from '../dashboard/settings/plugins/components/PluginHealthDashboard';

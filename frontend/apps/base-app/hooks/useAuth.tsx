@@ -3,8 +3,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, User } from '@/lib/api/services/auth.service';
-import { logger } from '@/lib/utils/logger';
-import { apiClient } from '@/lib/api-client';
+import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api/client';
 
 interface UserPermissions {
   effective_permissions?: Array<{ name: string }>;

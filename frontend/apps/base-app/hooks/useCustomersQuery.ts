@@ -5,9 +5,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Customer, CustomerCreateInput, CustomerUpdateInput } from '@/types';
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api/client';
 import { queryKeys, optimisticHelpers, invalidateHelpers } from '@/lib/query-client';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 import { handleError } from '@/lib/utils/error-handler';
 import { useToast } from '@/components/ui/use-toast';
 

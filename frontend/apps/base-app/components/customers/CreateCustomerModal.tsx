@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { Customer, CustomerCreateInput, CustomerUpdateInput } from '@/types';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 
 interface CreateCustomerModalProps {
   onClose: () => void;

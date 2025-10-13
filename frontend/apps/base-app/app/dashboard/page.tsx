@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, logout as logoutUser } from '@/lib/auth';
 import { platformConfig } from '@/lib/config';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 import { useRBAC } from '@/contexts/RBACContext';
 
 interface User {

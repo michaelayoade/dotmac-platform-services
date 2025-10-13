@@ -7,7 +7,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAuth, AuthProvider } from '../useAuth';
 import { authService } from '@/lib/api/services/auth.service';
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api/client';
 import { ReactNode } from 'react';
 import type { AxiosResponse, AxiosRequestConfig } from 'axios';
 

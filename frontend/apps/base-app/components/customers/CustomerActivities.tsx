@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/lib/logger';
 import {
   Clock,
   Plus,
