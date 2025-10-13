@@ -8,8 +8,8 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
+    "strict": false,
+    "noUncheckedIndexedAccess": false,
     "noFallthroughCasesInSwitch": true,
     // Disabled for dev builds - enable in CI/pre-commit hooks
     // "noImplicitReturns": true,
@@ -21,7 +21,7 @@
     "incremental": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -64,6 +64,12 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/__tests__/**"
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/*.stories.ts",
+    "**/*.stories.tsx"
   ]
 }

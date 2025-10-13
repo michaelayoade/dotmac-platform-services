@@ -9,12 +9,11 @@ import os
 import pytest
 import pytest_asyncio
 
-# Set test environment variables
+# Set test environment variables (NOT DEFAULT_TENANT_ID - see fixture below)
 os.environ["TESTING"] = "1"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-e2e-tests"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"  # Test database
-os.environ["DEFAULT_TENANT_ID"] = "e2e-test-tenant"  # Default tenant for e2e tests
 
 from httpx import ASGITransport, AsyncClient
 
@@ -26,8 +25,28 @@ from dotmac.platform.db import Base
 from dotmac.platform.main import app
 from dotmac.platform.tenant.config import TenantConfiguration, set_tenant_config
 
-# Reinitialize tenant config with test environment variables
-set_tenant_config(TenantConfiguration())
+
+@pytest.fixture(autouse=True, scope="function")
+def e2e_tenant_config():
+    """Set e2e-specific tenant configuration."""
+    original_tenant_id = os.environ.get("DEFAULT_TENANT_ID")
+
+    # Set e2e tenant ID
+    os.environ["DEFAULT_TENANT_ID"] = "e2e-test-tenant"
+
+    # Reinitialize tenant config with e2e environment variables
+    set_tenant_config(TenantConfiguration())
+
+    yield
+
+    # Restore original tenant ID
+    if original_tenant_id:
+        os.environ["DEFAULT_TENANT_ID"] = original_tenant_id
+    else:
+        os.environ.pop("DEFAULT_TENANT_ID", None)
+
+    # Reinitialize tenant config to restore original settings
+    set_tenant_config(TenantConfiguration())
 
 
 @pytest_asyncio.fixture(scope="function")

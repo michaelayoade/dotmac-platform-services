@@ -291,7 +291,10 @@ class TestGlobalSessionManagerConfiguration:
         """Test that global session_manager is configured for production when ENV is set."""
         # Note: conftest.py sets REQUIRE_REDIS_SESSIONS=false by default for tests
         # We need to remove it to let production mode logic work
-        env_patch = {"ENVIRONMENT": "production"}
+        env_patch = {
+            "ENVIRONMENT": "production",
+            "SECRET_KEY": "production-secret-key-for-testing-at-least-32-characters-long",
+        }
         # Remove REQUIRE_REDIS_SESSIONS so it defaults based on production mode
         if "REQUIRE_REDIS_SESSIONS" in os.environ:
             del os.environ["REQUIRE_REDIS_SESSIONS"]

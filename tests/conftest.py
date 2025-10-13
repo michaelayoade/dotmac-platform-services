@@ -1186,9 +1186,21 @@ def test_environment():
 
 
 @pytest.fixture(autouse=True, scope="function")
-def disable_rate_limiting_globally():
-    """Disable rate limiting for all tests to prevent 429 errors in test suite."""
+def disable_rate_limiting_globally(request):
+    """Disable rate limiting for all tests to prevent 429 errors in test suite.
+
+    Exception: Tests in test_rate_limits.py are excluded so they can verify rate limiting works.
+    """
     from dotmac.platform.core.rate_limiting import get_limiter
+
+    # Skip disabling for tests that explicitly test rate limiting
+    test_module = request.node.fspath.basename if hasattr(request.node, "fspath") else ""
+    test_name = request.node.name if hasattr(request.node, "name") else ""
+
+    # Don't disable rate limiting for tests that specifically test it
+    if "rate_limit" in test_module.lower() or "rate_limit" in test_name.lower():
+        yield
+        return
 
     try:
         limiter_instance = get_limiter()
