@@ -149,27 +149,10 @@ async def async_client(db_engine, tenant_id, user_id):
     # Import additional dependencies that need overriding
     from dotmac.platform.db import get_session_dependency
 
-    # Create an ASGI wrapper that sets tenant context for each request
-    # This avoids the "cannot add middleware after app started" error
-    original_app = app
-
-    class TenantContextASGIWrapper:
-        """ASGI wrapper that sets tenant context before each request."""
-
-        def __init__(self, app, tenant_id: str):
-            self.app = app
-            self.tenant_id = tenant_id
-
-        async def __call__(self, scope, receive, send):
-            from dotmac.platform.tenant import set_current_tenant_id
-
-            # Set tenant context for this request
-            set_current_tenant_id(self.tenant_id)
-            # Call the wrapped app
-            await self.app(scope, receive, send)
-
-    # Wrap the app with tenant context setter
-    wrapped_app = TenantContextASGIWrapper(original_app, tenant_id)
+    # Patch get_current_tenant_id function to always return e2e tenant_id
+    # This is necessary because some code calls get_current_tenant_id() as a function
+    # rather than using it as a FastAPI dependency
+    from unittest.mock import patch
 
     # Override app dependencies
     app.dependency_overrides[get_async_session] = override_get_async_session
@@ -179,13 +162,28 @@ async def async_client(db_engine, tenant_id, user_id):
     app.dependency_overrides[get_current_tenant_id] = lambda: tenant_id
     app.dependency_overrides[get_current_user] = mock_get_current_user
 
+    # Patch the function itself for direct calls (file storage router uses this)
+    tenant_patch = patch(
+        "dotmac.platform.tenant.get_current_tenant_id", return_value=tenant_id
+    )
+    # Also patch where it's imported in file_storage.router
+    router_tenant_patch = patch(
+        "dotmac.platform.file_storage.router.get_current_tenant_id", return_value=tenant_id
+    )
+
+    tenant_patch.start()
+    router_tenant_patch.start()
+
     try:
         async with AsyncClient(
-            transport=ASGITransport(app=wrapped_app),
+            transport=ASGITransport(app=app),
             base_url="http://testserver",
             follow_redirects=True,
         ) as client:
             yield client
     finally:
+        # Stop patches
+        tenant_patch.stop()
+        router_tenant_patch.stop()
         # Clear overrides after test
         app.dependency_overrides.clear()

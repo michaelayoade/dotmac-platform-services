@@ -479,8 +479,14 @@ class TestRateLimiting:
         This test MUST NOT skip - rate limiting is a mandatory security control.
         """
         # Enable rate limiting for this specific test (global fixture disables it)
-        from dotmac.platform.core.rate_limiting import get_limiter
+        from dotmac.platform.core.rate_limiting import get_limiter, reset_limiter
+        import os
 
+        # Ensure Redis URL is set for rate limiting storage (required for pytest-xdist)
+        os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6379/2")
+
+        # Reset and recreate limiter with Redis storage
+        reset_limiter()
         limiter_instance = get_limiter()
         original_enabled = limiter_instance.enabled
         limiter_instance.enabled = True
