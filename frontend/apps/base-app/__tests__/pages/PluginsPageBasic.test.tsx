@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 
-// Mock the http-client with simpler approach
-jest.mock('@dotmac/http-client', () => ({
-  httpClient: {
+// Mock the API client
+jest.mock('@/lib/api/client', () => ({
+  apiClient: {
     get: jest.fn(),
     post: jest.fn(),
     put: jest.fn(),
@@ -25,14 +25,14 @@ jest.mock('../../app/dashboard/settings/plugins/components/PluginHealthDashboard
 }));
 
 describe('PluginsPage Basic Tests', () => {
-  const { httpClient } = require('@dotmac/http-client');
+  const { apiClient } = require('@/lib/api/client');
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Setup successful responses
-    httpClient.get.mockResolvedValue({ data: [] });
-    httpClient.post.mockResolvedValue({ data: [] });
+    apiClient.get.mockResolvedValue({ success: true, data: [] });
+    apiClient.post.mockResolvedValue({ success: true, data: [] });
   });
 
   it('renders loading state initially', async () => {
@@ -40,8 +40,8 @@ describe('PluginsPage Basic Tests', () => {
     const PluginsPage = (await import('../../app/dashboard/settings/plugins/page')).default;
 
     // Delay the response to test loading state
-    httpClient.get.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ data: [] }), 100)));
-    httpClient.post.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ data: [] }), 100)));
+    apiClient.get.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ success: true, data: [] }), 100)));
+    apiClient.post.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ success: true, data: [] }), 100)));
 
     render(<PluginsPage />);
 
@@ -64,7 +64,7 @@ describe('PluginsPage Basic Tests', () => {
   it('handles API errors gracefully', async () => {
     const PluginsPage = (await import('../../app/dashboard/settings/plugins/page')).default;
 
-    httpClient.get.mockRejectedValue(new Error('API Error'));
+    apiClient.get.mockRejectedValue(new Error('API Error'));
 
     render(<PluginsPage />);
 

@@ -4,8 +4,6 @@ import { ReactNode, useState } from 'react';
 import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
-// import { UniversalProviders } from '@dotmac/providers';
-// import { NotificationsProvider } from '@dotmac/notifications';
 import { AppConfigProvider } from './AppConfigContext';
 import { MSWProvider } from './MSWProvider';
 import { platformConfig } from '@/lib/config';

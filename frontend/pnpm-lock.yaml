@@ -17,30 +17,6 @@ importers:
 
   apps/base-app:
     dependencies:
-      '@dotmac/auth':
-        specifier: workspace:*
-        version: link:../../shared/packages/auth
-      '@dotmac/design-system':
-        specifier: workspace:*
-        version: link:../../shared/packages/design-system
-      '@dotmac/headless':
-        specifier: workspace:*
-        version: link:../../shared/packages/headless
-      '@dotmac/http-client':
-        specifier: workspace:*
-        version: link:../../shared/packages/http-client
-      '@dotmac/notifications':
-        specifier: workspace:*
-        version: link:../../shared/packages/notifications
-      '@dotmac/primitives':
-        specifier: workspace:*
-        version: link:../../shared/packages/primitives
-      '@dotmac/providers':
-        specifier: workspace:*
-        version: link:../../shared/packages/providers
-      '@dotmac/ui':
-        specifier: workspace:*
-        version: link:../../shared/packages/ui
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.63.0(react@18.3.1))

@@ -33,14 +33,6 @@
     "postinstall": "echo 'Skipping API generation during install'"
   },
   "dependencies": {
-    "@dotmac/auth": "workspace:*",
-    "@dotmac/design-system": "workspace:*",
-    "@dotmac/headless": "workspace:*",
-    "@dotmac/http-client": "workspace:*",
-    "@dotmac/notifications": "workspace:*",
-    "@dotmac/primitives": "workspace:*",
-    "@dotmac/providers": "workspace:*",
-    "@dotmac/ui": "workspace:*",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@tanstack/react-query": "^5.59.20",
