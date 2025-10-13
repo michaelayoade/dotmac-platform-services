@@ -149,6 +149,22 @@ async def async_client(db_engine, tenant_id, user_id):
     # Import additional dependencies that need overriding
     from dotmac.platform.db import get_session_dependency
 
+    # Create a custom middleware to set tenant context for each request
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class E2ETenantContextMiddleware(BaseHTTPMiddleware):
+        """Set tenant context for E2E tests before each request."""
+
+        async def dispatch(self, request, call_next):
+            from dotmac.platform.tenant import set_current_tenant_id
+
+            set_current_tenant_id(tenant_id)
+            response = await call_next(request)
+            return response
+
+    # Add the E2E tenant middleware
+    app.add_middleware(E2ETenantContextMiddleware)
+
     # Override app dependencies
     app.dependency_overrides[get_async_session] = override_get_async_session
     app.dependency_overrides[get_session_dependency] = (
@@ -156,12 +172,6 @@ async def async_client(db_engine, tenant_id, user_id):
     )
     app.dependency_overrides[get_current_tenant_id] = lambda: tenant_id
     app.dependency_overrides[get_current_user] = mock_get_current_user
-
-    # Set tenant context variable directly for E2E tests
-    # This ensures direct calls to get_current_tenant_id() return the correct value
-    from dotmac.platform.tenant import set_current_tenant_id
-
-    set_current_tenant_id(tenant_id)
 
     try:
         async with AsyncClient(
@@ -171,6 +181,6 @@ async def async_client(db_engine, tenant_id, user_id):
         ) as client:
             yield client
     finally:
-        # Clear tenant context and overrides after test
-        set_current_tenant_id(None)
+        # Clear overrides after test
         app.dependency_overrides.clear()
+        # Note: Middleware will remain but only affects this test since app is fixture-scoped
