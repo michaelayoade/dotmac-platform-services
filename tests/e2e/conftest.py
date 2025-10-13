@@ -27,8 +27,17 @@ from dotmac.platform.tenant.config import TenantConfiguration, set_tenant_config
 
 
 @pytest.fixture(autouse=True, scope="function")
-def e2e_tenant_config():
-    """Set e2e-specific tenant configuration."""
+def e2e_tenant_config(request):
+    """Set e2e-specific tenant configuration only for e2e tests."""
+    # Use nodeid which works reliably with pytest-xdist parallel execution
+    # nodeid format: "tests/e2e/test_file.py::test_function"
+    node_id = request.node.nodeid if hasattr(request.node, "nodeid") else ""
+
+    # Check if this is an e2e test by looking at the node ID
+    if "tests/e2e/" not in node_id:
+        yield
+        return
+
     original_tenant_id = os.environ.get("DEFAULT_TENANT_ID")
 
     # Set e2e tenant ID

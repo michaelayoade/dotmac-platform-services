@@ -1196,9 +1196,15 @@ def disable_rate_limiting_globally(request):
     # Skip disabling for tests that explicitly test rate limiting
     test_module = request.node.fspath.basename if hasattr(request.node, "fspath") else ""
     test_name = request.node.name if hasattr(request.node, "name") else ""
+    test_class = request.node.cls.__name__ if hasattr(request.node, "cls") and request.node.cls else ""
 
     # Don't disable rate limiting for tests that specifically test it
-    if "rate_limit" in test_module.lower() or "rate_limit" in test_name.lower():
+    # Check module name, test name, and class name (e.g., TestRateLimiting)
+    if (
+        "rate_limit" in test_module.lower()
+        or "rate_limit" in test_name.lower()
+        or "ratelimit" in test_class.lower()
+    ):
         yield
         return
 
