@@ -2,7 +2,7 @@
 Robust HTTP Client Base Class.
 
 Provides connection pooling, retries, circuit breakers, and tenant-aware logging
-for all OSS/BSS HTTP clients (VOLTHA, GenieACS, NetBox, etc.).
+for all HTTP clients.
 """
 
 import asyncio

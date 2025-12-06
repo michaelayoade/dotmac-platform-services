@@ -1,14 +1,14 @@
 {
   "instances": [
     {
-      "id": "71446d25-301b-4d2e-a0c2-86d01c0bfc71",
+      "id": "bc1e0539-0ea7-41bf-9729-b385851d7e50",
       "plugin_name": "Test Notification",
-      "instance_name": "Test",
+      "instance_name": "Valid",
       "config_schema": {
         "name": "Test Notification",
         "type": "notification",
         "version": "1.0.0",
-        "description": "Test notification plugin",
+        "description": "Test notification plugin for router testing",
         "author": null,
         "homepage": null,
         "fields": [
@@ -54,7 +54,7 @@
           },
           {
             "key": "timeout",
-            "label": "Timeout",
+            "label": "Timeout (seconds)",
             "type": "integer",
             "description": null,
             "required": false,
@@ -79,17 +79,16 @@
         "supports_test_connection": true
       },
       "status": "active",
-      "last_health_check": null,
+      "last_health_check": "2025-12-06T14:55:00.605320+00:00",
       "last_error": null,
       "has_configuration": true,
       "configuration_version": null
     }
   ],
   "configurations": {
-    "71446d25-301b-4d2e-a0c2-86d01c0bfc71": {
+    "bc1e0539-0ea7-41bf-9729-b385851d7e50": {
       "api_key": {
-        "__secret__": true,
-        "path": "plugins/71446d25-301b-4d2e-a0c2-86d01c0bfc71/api_key"
+        "__secret__": true
       },
       "endpoint": "https://test.com"
     }

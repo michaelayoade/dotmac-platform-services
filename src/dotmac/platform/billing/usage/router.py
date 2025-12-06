@@ -221,8 +221,7 @@ async def bulk_create_usage_records(
     """
     Bulk create usage records (up to 1000 records).
 
-    Useful for batch imports from RADIUS accounting, CDRs,
-    or other usage tracking systems.
+    Useful for batch imports from CDRs or other usage tracking systems.
     """
     tenant_id = get_tenant_id_from_request(request)
     service = UsageBillingService(db)

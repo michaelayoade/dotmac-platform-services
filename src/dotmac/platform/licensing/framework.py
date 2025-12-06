@@ -132,10 +132,10 @@ class FeatureModule(Base):
     Reusable feature module (building block).
 
     Examples:
-    - "RADIUS AAA" module
-    - "Wireless Management" module
     - "Advanced Analytics" module
-    - "GenieACS Integration" module
+    - "CRM Integration" module
+    - "Custom Reports" module
+    - "API Access" module
     """
 
     __tablename__ = "licensing_feature_modules"
@@ -327,7 +327,7 @@ class ServicePlan(Base):
     Composable service plan built from feature modules and quotas.
 
     Can be:
-    - Template (reusable, e.g., "Standard ISP Package")
+    - Template (reusable, e.g., "Standard Business Package")
     - Custom (one-off for specific customer)
     - Versioned (v1, v2, v3)
     """

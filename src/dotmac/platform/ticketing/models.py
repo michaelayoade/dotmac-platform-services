@@ -54,7 +54,7 @@ class TicketPriority(str, Enum):
 
 
 class TicketType(str, Enum):
-    """ISP-specific ticket types for categorization and routing."""
+    """Ticket types for categorization and routing."""
 
     GENERAL_INQUIRY = "general_inquiry"
     BILLING_ISSUE = "billing_issue"
@@ -151,12 +151,12 @@ class Ticket(BaseModel, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         nullable=False,
     )
 
-    # ISP-Specific Fields
+    # Service-Specific Fields
     ticket_type: Mapped[TicketType | None] = mapped_column(
         SQLEnum(TicketType, values_callable=lambda x: [e.value for e in x]),
         nullable=True,
         index=True,
-        comment="ISP-specific ticket categorization",
+        comment="Ticket type categorization",
     )
     service_address: Mapped[str | None] = mapped_column(
         String(500),

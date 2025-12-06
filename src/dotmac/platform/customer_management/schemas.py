@@ -20,8 +20,8 @@ from dotmac.platform.customer_management.models import (
 )
 
 
-class ISPServiceInfo(BaseModel):  # BaseModel resolves to Any in isolation
-    """ISP-specific service information."""
+class ServiceLocationInfo(BaseModel):  # BaseModel resolves to Any in isolation
+    """Service location and installation information."""
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -128,7 +128,7 @@ class CustomerCreate(CustomerBase):  # CustomerBase resolves to Any in isolation
     assigned_to: UUID | None = None
     segment_id: UUID | None = None
 
-    # ISP-specific fields
+    # Service location fields
     service_address_line1: str | None = Field(None, max_length=200)
     service_address_line2: str | None = Field(None, max_length=200)
     service_city: str | None = Field(None, max_length=100)
@@ -203,7 +203,7 @@ class CustomerUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     custom_fields: dict[str, Any] | None = None
     tags: list[str] | None = None
 
-    # ISP-specific fields
+    # Service location fields
     service_address_line1: str | None = Field(None, max_length=200)
     service_address_line2: str | None = Field(None, max_length=200)
     service_city: str | None = Field(None, max_length=100)
@@ -263,7 +263,7 @@ class CustomerResponse(CustomerBase):  # CustomerBase resolves to Any in isolati
     metadata: dict[str, Any]
     custom_fields: dict[str, Any]
 
-    # ISP-specific fields
+    # Service location fields
     service_address_line1: str | None = None
     service_address_line2: str | None = None
     service_city: str | None = None
@@ -326,7 +326,7 @@ class CustomerSearchParams(BaseModel):  # BaseModel resolves to Any in isolation
     min_lifetime_value: Decimal | None = Field(None, ge=0)
     max_lifetime_value: Decimal | None = Field(None, ge=0)
 
-    # ISP-specific filters
+    # Service location filters
     installation_status: str | None = None
     connection_type: str | None = None
     service_city: str | None = None

@@ -5,7 +5,7 @@ Seed Test Users for E2E Testing
 Creates different types of users with various access levels for testing:
 - Platform Admin
 - Tenant Admin
-- ISP Manager
+- Operations Manager
 - Customer Support
 - Regular User
 - Read-only User
@@ -31,8 +31,6 @@ from dotmac.platform.user_management.models import User
 
 # Import all models to ensure relationships are registered
 try:
-    from dotmac.platform.radius.models import RadCheck, NAS  # noqa: F401
-    from dotmac.platform.subscribers.models import Subscriber  # noqa: F401
     from dotmac.platform.customer_management.models import Customer  # noqa: F401
     from dotmac.platform.crm.models import Lead, Opportunity, Contact  # noqa: F401
 except ImportError:
@@ -169,15 +167,15 @@ async def seed_test_users():
             is_platform_admin=False,
         )
 
-        # 3. ISP Manager (manages ISP operations)
+        # 3. Operations Manager (manages operations)
         await create_user(
             db=db,
-            username="isp_manager",
-            email="isp.manager@example.com",
+            username="ops_manager",
+            email="ops.manager@example.com",
             password="admin123",
-            full_name="ISP Manager",
+            full_name="Operations Manager",
             tenant_id=tenant_id,
-            roles=["isp_manager", "manager"],
+            roles=["ops_manager", "manager"],
             is_superuser=False,
             is_platform_admin=False,
         )
@@ -208,15 +206,15 @@ async def seed_test_users():
             is_platform_admin=False,
         )
 
-        # 6. Network Engineer (manages network and infrastructure)
+        # 6. Technical Engineer (manages technical operations)
         await create_user(
             db=db,
-            username="network_eng",
-            email="network@example.com",
+            username="tech_eng",
+            email="tech@example.com",
             password="admin123",
-            full_name="Network Engineer",
+            full_name="Technical Engineer",
             tenant_id=tenant_id,
-            roles=["network_engineer", "engineer"],
+            roles=["tech_engineer", "engineer"],
             is_superuser=False,
             is_platform_admin=False,
         )
@@ -268,10 +266,10 @@ async def seed_test_users():
     print("-" * 70)
     print("Platform Admin:      admin           / admin123")
     print("Tenant Admin:        tenant_admin    / admin123")
-    print("ISP Manager:         isp_manager     / admin123")
+    print("Ops Manager:         ops_manager     / admin123")
     print("Customer Support:    support         / admin123")
     print("Billing Manager:     billing         / admin123")
-    print("Network Engineer:    network_eng     / admin123")
+    print("Technical Engineer:  tech_eng        / admin123")
     print("Regular User:        user            / user123")
     print("Read-only User:      readonly        / readonly123")
     print("Test User:           testuser        / test123")

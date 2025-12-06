@@ -183,17 +183,17 @@ class AIService:
         """Build system prompt based on session type and context."""
 
         base_prompts = {
-            ChatSessionType.CUSTOMER_SUPPORT: """You are a helpful customer support assistant for an Internet Service Provider (ISP).
+            ChatSessionType.CUSTOMER_SUPPORT: """You are a helpful customer support assistant.
 Your role is to:
 - Answer billing questions clearly and accurately
-- Help troubleshoot connectivity issues
+- Help troubleshoot service issues
 - Explain charges and services
 - Guide customers through self-service tasks
 - Escalate complex issues to human agents when needed
 
 Be friendly, professional, and concise. Always prioritize customer satisfaction.
 If you don't know something, say so and offer to escalate to a human agent.""",
-            ChatSessionType.ADMIN_ASSISTANT: """You are an AI assistant helping ISP operators and administrators.
+            ChatSessionType.ADMIN_ASSISTANT: """You are an AI assistant helping operators and administrators.
 Your role is to:
 - Help navigate the admin dashboard
 - Answer questions about configurations

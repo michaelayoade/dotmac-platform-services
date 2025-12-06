@@ -154,7 +154,7 @@ class SMSChannelProvider(NotificationChannelProvider):
             MessageAttributes={
                 "AWS.SNS.SMS.SenderID": {
                     "DataType": "String",
-                    "StringValue": self.config.get("sender_id", "ISP"),
+                    "StringValue": self.config.get("sender_id", "NOTIFY"),
                 },
                 "AWS.SNS.SMS.SMSType": {
                     "DataType": "String",

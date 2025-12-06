@@ -46,7 +46,7 @@ async def managed_tenant_1(db_session: AsyncSession) -> Tenant:
     """Create first managed tenant."""
     tenant = Tenant(
         id="managed-001",
-        name="Managed ISP Alpha",
+        name="Managed Tenant Alpha",
         slug="managed-alpha",
         status=TenantStatus.ACTIVE,
     )
@@ -61,7 +61,7 @@ async def managed_tenant_2(db_session: AsyncSession) -> Tenant:
     """Create second managed tenant."""
     tenant = Tenant(
         id="managed-002",
-        name="Managed ISP Beta",
+        name="Managed Tenant Beta",
         slug="managed-beta",
         status=TenantStatus.ACTIVE,
     )
@@ -312,7 +312,7 @@ class TestTenantManagementEndpoints:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["tenant_id"] == managed_tenant_1.id
-        assert data["tenant_name"] == "Managed ISP Alpha"
+        assert data["tenant_name"] == "Managed Tenant Alpha"
         assert data["access_role"] == "msp_full"
 
     async def test_get_unauthorized_tenant_detail(self, authenticated_client: AsyncClient):

@@ -119,7 +119,6 @@ class TestHealthCheckerProductionStartup:
                     "check_alertmanager": "alertmanager",
                     "check_prometheus": "prometheus",
                     "check_grafana": "grafana",
-                    "check_radius_server": "radius_server",
                 }
 
                 with ExitStack() as stack:
@@ -163,7 +162,6 @@ class TestHealthCheckerProductionStartup:
                     "check_alertmanager": "alertmanager",
                     "check_prometheus": "prometheus",
                     "check_grafana": "grafana",
-                    "check_radius_server": "radius_server",
                 }
 
                 with ExitStack() as stack:
@@ -207,7 +205,6 @@ class TestHealthCheckerProductionStartup:
                     "check_alertmanager": "alertmanager",
                     "check_prometheus": "prometheus",
                     "check_grafana": "grafana",
-                    "check_radius_server": "radius_server",
                 }
 
                 with ExitStack() as stack:

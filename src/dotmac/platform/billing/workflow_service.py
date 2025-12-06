@@ -753,7 +753,7 @@ class BillingService:
         activation_notes: str | None = None,
     ) -> dict[str, Any]:
         """
-        Activate a service for an ISP customer.
+        Activate a service for a customer.
 
         This method activates a previously provisioned service, updating
         the customer's service status and associated subscription to active.
@@ -806,8 +806,7 @@ class BillingService:
 
         tenant_id = customer.tenant_id
 
-        # Update customer ISP-specific fields to mark service as active
-        # This assumes customer has ISP fields from BSS Phase 1
+        # Update customer service-specific fields to mark service as active
         try:
             from ..customer_management.models import InstallationStatus
 
@@ -826,8 +825,8 @@ class BillingService:
             logger.info(f"Updated customer {customer_id} installation status to COMPLETED")
 
         except (ImportError, AttributeError):
-            # ISP fields not available, skip this step
-            logger.warning("ISP customer fields not available, skipping installation status update")
+            # Service fields not available, skip this step
+            logger.warning("Customer service fields not available, skipping installation status update")
 
         # Activate associated subscriptions
         subscription_activated = False

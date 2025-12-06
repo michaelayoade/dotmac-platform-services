@@ -106,7 +106,7 @@ class WebhookChannelProvider(NotificationChannelProvider):
         # Prepare headers
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "ISP-Platform-Notifications/1.0",
+            "User-Agent": "Platform-Notifications/1.0",
         }
 
         # Add signature if secret configured (for verification)

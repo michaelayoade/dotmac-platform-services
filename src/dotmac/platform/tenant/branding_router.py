@@ -1,5 +1,5 @@
 """
-Tenant-managed branding router for ISP Operations app.
+Tenant-managed branding router.
 
 Allows authenticated tenant administrators to fetch and update their
 branding configuration (logos, colors, support details, etc.).
@@ -19,7 +19,7 @@ from dotmac.platform.db import get_async_session
 from .schemas import TenantBrandingResponse, TenantBrandingUpdate
 from .service import TenantService
 
-router = APIRouter(prefix="/branding", tags=["ISP - Branding"])
+router = APIRouter(prefix="/branding", tags=["Tenant - Branding"])
 
 PLATFORM_TENANT_WRITE = "platform:tenants:write"
 PLATFORM_TENANT_READ = "platform:tenants:read"

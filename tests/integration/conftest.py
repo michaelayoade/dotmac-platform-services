@@ -410,46 +410,6 @@ async def smoke_test_customer(async_session, smoke_test_tenant):
 
 
 @pytest_asyncio.fixture
-async def subscriber_factory(async_session):
-    """
-    Subscriber factory for integration tests.
-
-    Uses the SubscriberFactory from tests/subscribers/conftest.py
-    with automatic cleanup after each test.
-    """
-    from tests.subscribers.conftest import SubscriberFactory
-
-    factory = SubscriberFactory(async_session)
-    yield factory
-    await factory.cleanup_all()
-
-
-@pytest_asyncio.fixture
-async def smoke_test_subscriber(subscriber_factory, smoke_test_tenant, smoke_test_customer):
-    """
-    Create smoke test subscriber for RADIUS integration tests.
-
-    Generates unique subscriber for each test run to ensure proper isolation.
-    """
-    from uuid import uuid4
-
-    from dotmac.platform.subscribers.models import SubscriberStatus
-
-    # Generate unique ID for this subscriber
-    unique_suffix = uuid4().hex[:8]
-
-    subscriber = await subscriber_factory.create(
-        id=f"sub_smoke_{unique_suffix}",
-        tenant_id=smoke_test_tenant.id,
-        customer_id=smoke_test_customer.id,
-        username=f"smoke_user_{unique_suffix}",
-        subscriber_number=f"SUB-SMOKE-{unique_suffix.upper()}",
-        status=SubscriberStatus.ACTIVE,
-    )
-    return subscriber
-
-
-@pytest_asyncio.fixture
 async def async_client(test_tenant_id, test_tenant, mock_user_info, async_session):
     """
     Async HTTP client for integration tests.

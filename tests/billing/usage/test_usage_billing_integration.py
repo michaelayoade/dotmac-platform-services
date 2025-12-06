@@ -1,7 +1,7 @@
 """
 Integration tests for usage billing workflows.
 
-Tests complete lifecycle: RADIUS accounting → usage aggregation → invoice generation
+Tests complete lifecycle: external usage → usage aggregation → invoice generation
 """
 
 from datetime import UTC, datetime, timedelta
@@ -74,7 +74,7 @@ def test_usage_record_data(test_customer: Customer):
         unit_price=Decimal("0.10"),
         period_start=now - timedelta(hours=1),
         period_end=now,
-        source_system="radius",
+        source_system="external",
         description="Test usage record",
     )
 
@@ -110,7 +110,7 @@ class TestUsageRecordManagement:
         assert record.total_amount == 155  # 15.5 * 0.10 * 100 cents = 155 cents ($1.55)
         assert record.currency == "USD"
         assert record.billed_status == BilledStatus.PENDING
-        assert record.source_system == "radius"
+        assert record.source_system == "external"
         assert record.invoice_id is None
 
     @pytest.mark.asyncio
@@ -226,38 +226,36 @@ class TestUsageBillingWorkflow:
     """Test complete usage billing workflow."""
 
     @pytest.mark.asyncio
-    async def test_radius_to_usage_record(
+    async def test_external_session_to_usage_record(
         self,
         usage_service: UsageBillingService,
         test_tenant_id: str,
         test_customer: Customer,
         db_session: AsyncSession,
     ):
-        """Test converting RADIUS accounting to usage record."""
-        # Simulate RADIUS accounting data
-        radius_session = {
-            "acctsessionid": "TEST-SESSION-001",
+        """Test converting external session data to usage record."""
+        session_payload = {
+            "session_id": "TEST-SESSION-001",
             "username": "test.user@alpha.com",
-            "acctstarttime": datetime.now(UTC) - timedelta(hours=2),
-            "acctstoptime": datetime.now(UTC),
-            "acctinputoctets": 5368709120,  # 5 GB download
-            "acctoutputoctets": 1073741824,  # 1 GB upload
-            "acctsessiontime": 7200,  # 2 hours
+            "start": datetime.now(UTC) - timedelta(hours=2),
+            "end": datetime.now(UTC),
+            "download_bytes": 5368709120,  # 5 GB download
+            "upload_bytes": 1073741824,  # 1 GB upload
+            "duration": 7200,  # 2 hours
         }
 
-        # Convert to usage record
         usage_data = UsageRecordCreate(
-            subscription_id="sub_radius_test",
+            subscription_id="sub_usage_test",
             customer_id=test_customer.id,
             usage_type=UsageType.BANDWIDTH_GB,
             quantity=Decimal("6.0"),  # 5 GB + 1 GB = 6 GB total
             unit="GB",
             unit_price=Decimal("0.05"),  # $0.05 per GB
-            period_start=radius_session["acctstarttime"],
-            period_end=radius_session["acctstoptime"],
-            source_system="radius",
-            source_record_id=radius_session["acctsessionid"],
-            description=f"Session usage for {radius_session['username']}",
+            period_start=session_payload["start"],
+            period_end=session_payload["end"],
+            source_system="external",
+            source_record_id=session_payload["session_id"],
+            description=f"Session usage for {session_payload['username']}",
         )
 
         record = await usage_service.create_usage_record(
@@ -266,11 +264,10 @@ class TestUsageBillingWorkflow:
         )
         await db_session.commit()
 
-        # Verify conversion
         assert record.usage_type == UsageType.BANDWIDTH_GB
         assert record.quantity == Decimal("6.0")
         assert record.total_amount == 30  # 6 * 0.05 * 100 = 30 cents
-        assert record.source_system == "radius"
+        assert record.source_system == "external"
         assert record.source_record_id == "TEST-SESSION-001"
 
     @pytest.mark.asyncio

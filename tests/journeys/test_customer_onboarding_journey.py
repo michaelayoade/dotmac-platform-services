@@ -93,7 +93,7 @@ class TestCustomerOnboardingJourney:
         assert customer.customer_number.startswith("CUST-")
         assert customer.email == user.email
 
-        # Step 4: Create billing plan (ISP internet plan)
+        # Step 4: Create billing plan (subscription plan)
         plan_id = f"plan-{uuid4().hex[:8]}"
         product_id = f"prod-{uuid4().hex[:8]}"
         plan = BillingSubscriptionPlanTable(

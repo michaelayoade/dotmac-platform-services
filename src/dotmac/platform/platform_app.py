@@ -190,7 +190,7 @@ def create_platform_app() -> FastAPI:
     """
     app = FastAPI(
         title="DotMac Platform Administration",
-        description="Platform-level operations for multi-tenant ISP management",
+        description="Platform-level operations for multi-tenant management",
         version=settings.app_version,
         lifespan=lifespan,
         docs_url="/docs" if not settings.is_production else None,

@@ -627,7 +627,7 @@ class DeviceTrafficLoader:
         if uncached_ids:
             # Note: In a real implementation, this would call the network monitoring service
             # For now, we'll return placeholder data
-            # The actual implementation would integrate with NetBox, GenieACS, or VOLTHA
+            # The actual implementation would integrate with an external monitoring service
 
             # from dotmac.platform.network_monitoring.service import NetworkMonitoringService
             # service = NetworkMonitoringService(...)

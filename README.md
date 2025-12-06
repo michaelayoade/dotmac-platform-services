@@ -159,7 +159,7 @@ See `.env.example` for all configuration options.
 
 ## Integration with Other Services
 
-This platform is designed to be consumed by other applications (like `dotmac-ftth-ops` for ISP operations). Integration is done via:
+This platform is designed to be consumed by other applications. Integration is done via:
 
 1. **REST API** - Standard HTTP endpoints with JWT auth
 2. **API Keys** - For service-to-service communication

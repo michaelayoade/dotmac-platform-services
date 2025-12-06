@@ -55,7 +55,7 @@ class TicketingService:
             assigned_team: Team to assign ticket to (optional, used as metadata)
             tenant_id: Tenant ID for multi-tenant isolation
             ticket_type: Type of ticket (e.g., "technical_support", "installation_request")
-            service_address: Service location address (for ISP field operations)
+            service_address: Service location address (for field operations)
 
         Returns:
             Dict with ticket details:
@@ -161,7 +161,7 @@ class TicketingService:
                 tenant_id=tenant_id,
                 metadata=metadata,
                 attachments=[],
-                # ISP-specific fields
+                # Service-specific fields
                 ticket_type=ticket_type_enum,
                 service_address=service_address,
             )
@@ -176,7 +176,7 @@ class TicketingService:
             # We must explicitly patch it here with the resolved customer_uuid
             ticket.customer_id = customer_uuid
 
-            # Update ISP-specific fields if already provided via schema (belt-and-suspenders)
+            # Update service-specific fields if already provided via schema (belt-and-suspenders)
             if ticket_type_enum and not ticket.ticket_type:
                 ticket.ticket_type = ticket_type_enum
             if service_address and not ticket.service_address:
@@ -228,7 +228,7 @@ class TicketingService:
         notes: str | None = None,
     ) -> dict[str, Any]:
         """
-        Schedule an installation appointment for ISP customer.
+        Schedule an installation appointment for a customer.
 
         This method creates an installation ticket with scheduled date/time
         and optionally assigns it to a specific field technician.

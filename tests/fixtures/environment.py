@@ -607,7 +607,6 @@ def _import_base_and_models():
 
     model_modules = [
         "dotmac.platform.contacts.models",
-        "dotmac.platform.genieacs.models",
         "dotmac.platform.customer_management.models",
         "dotmac.platform.data_transfer.db_models",
         "dotmac.platform.communications.models",
@@ -619,15 +618,8 @@ def _import_base_and_models():
         "dotmac.platform.audit.models",
         "dotmac.platform.user_management.models",
         "dotmac.platform.ticketing.models",
-        "dotmac.platform.services.lifecycle.models",
-        "dotmac.platform.subscribers.models",
-        "dotmac.platform.network.models",
-        "dotmac.platform.radius.models",
-        "dotmac.platform.fault_management.models",
         "dotmac.platform.notifications.models",
         "dotmac.platform.deployment.models",
-        "dotmac.platform.sales.models",
-        "dotmac.platform.wireless.models",
         "dotmac.platform.webhooks.models",
     ]
 

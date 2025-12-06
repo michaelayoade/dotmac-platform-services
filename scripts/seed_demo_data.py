@@ -43,11 +43,11 @@ DEMO_USERS = [
         "is_platform_admin": True,
     },
     {
-        "email": "isp-admin@demo.com",
-        "username": "isp-admin",
-        "first_name": "ISP",
+        "email": "ops-admin@demo.com",
+        "username": "ops-admin",
+        "first_name": "Operations",
         "last_name": "Administrator",
-        "password": "IspAdmin123!",
+        "password": "OpsAdmin123!",
         "role": UserRole.ADMIN,
         "is_platform_admin": False,
     },
@@ -152,12 +152,12 @@ async def create_demo_tenant(db: AsyncSession) -> Tenant:
 
     tenant = Tenant(
         id=DEMO_TENANT_ID,
-        name="Demo ISP",
-        slug="demo-isp",
+        name="Demo Company",
+        slug="demo-company",
         status=TenantStatus.ACTIVE,
-        company_name="Demo ISP Inc.",
-        contact_email="contact@demo-isp.com",
-        contact_phone="+1-555-DEMO-ISP",
+        company_name="Demo Company Inc.",
+        contact_email="contact@demo-company.com",
+        contact_phone="+1-555-DEMO-123",
         address="123 Demo Street",
         city="Demo City",
         state="NY",
@@ -166,7 +166,6 @@ async def create_demo_tenant(db: AsyncSession) -> Tenant:
         timezone="America/New_York",
         settings={
             "billing_enabled": True,
-            "radius_enabled": True,
             "crm_enabled": True,
             "max_users": 1000,
             "features": {
@@ -258,7 +257,7 @@ async def create_demo_customers(db: AsyncSession) -> list[Customer]:
             email=customer_data["email"],
             phone=customer_data["phone"],
             status=CustomerStatus.ACTIVE,
-            # ISP-specific fields
+            # Service location fields
             service_address=customer_data["service_address"],
             service_city=customer_data["service_city"],
             service_state=customer_data["service_state"],

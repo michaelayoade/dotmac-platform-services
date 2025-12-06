@@ -3,7 +3,7 @@ Usage billing domain service.
 
 Provides a cohesive API for creating and managing usage records,
 handling billing state transitions, computing aggregates, and
-generating usage reports for metered ISP services.
+generating usage reports for metered services.
 """
 
 from __future__ import annotations

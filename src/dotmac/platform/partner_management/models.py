@@ -750,7 +750,7 @@ class PartnerTenantLink(Base, TimestampMixin, AuditMixin):  # type: ignore[misc]
     """
     Join table linking partners to managed tenant accounts.
 
-    Enables MSPs and enterprise HQs to manage multiple ISP tenants
+    Enables MSPs and enterprise HQs to manage multiple tenants
     with scoped permissions.
     """
 
@@ -772,7 +772,7 @@ class PartnerTenantLink(Base, TimestampMixin, AuditMixin):  # type: ignore[misc]
         comment="Partner organization managing the tenant",
     )
 
-    # The managed tenant (ISP operator)
+    # The managed tenant (client organization)
     managed_tenant_id: Mapped[str] = mapped_column(
         String(255),
         ForeignKey("tenants.id", ondelete="CASCADE"),

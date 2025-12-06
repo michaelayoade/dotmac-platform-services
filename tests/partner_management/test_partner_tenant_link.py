@@ -63,8 +63,8 @@ async def managed_tenant(db_session: AsyncSession) -> Tenant:
     """Create a managed tenant."""
     tenant = Tenant(
         id="managed-tenant-001",
-        name="Managed ISP Tenant",
-        slug="managed-isp",
+        name="Managed Client Tenant",
+        slug="managed-client",
         status=TenantStatus.ACTIVE,
     )
     db_session.add(tenant)

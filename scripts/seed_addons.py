@@ -2,12 +2,12 @@
 """
 Seed data for billing add-ons catalog.
 
-Creates sample add-ons for ISP platform including:
+Creates sample add-ons for platform including:
 - Additional user seats
 - Priority support
 - Advanced analytics
-- Static IP addresses
-- Bandwidth upgrades
+- Extra storage
+- API rate limit increases
 """
 
 import asyncio

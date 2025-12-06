@@ -65,11 +65,11 @@ class TenantCreate(TenantBase):  # TenantBase resolves to Any in isolation
 
     oss_config: dict[str, dict[str, Any]] | None = Field(
         default=None,
-        description="Optional VOLTHA/GenieACS/NetBox/AWX overrides per service",
+        description="Optional external service configuration overrides",
     )
     branding: TenantBrandingConfig | None = Field(
         default=None,
-        description="Initial branding configuration applied to the ISP portal",
+        description="Initial branding configuration applied to the tenant portal",
     )
 
     @field_validator("slug")

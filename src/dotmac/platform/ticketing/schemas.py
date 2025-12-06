@@ -45,10 +45,10 @@ class TicketCreate(BaseModel):  # BaseModel resolves to Any in isolation
         description="Optional attachment metadata bundled with the initial message.",
     )
 
-    # ISP-specific fields
+    # Service-specific fields
     ticket_type: TicketType | None = Field(
         default=None,
-        description="ISP-specific ticket categorization",
+        description="Ticket type categorization",
     )
     service_address: str | None = Field(
         default=None,
@@ -108,7 +108,7 @@ class TicketUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     assigned_to_user_id: UUID | None = None
     metadata: dict[str, Any] | None = None
 
-    # ISP-specific updates
+    # Service-specific updates
     ticket_type: TicketType | None = None
     service_address: str | None = None
     affected_services: list[str] | None = None
@@ -151,7 +151,7 @@ class TicketSummary(BaseModel):  # BaseModel resolves to Any in isolation
     last_response_at: datetime | None
     context: dict[str, Any] = Field(default_factory=lambda: {})
 
-    # ISP-specific fields
+    # Service-specific fields
     ticket_type: TicketType | None = None
     service_address: str | None = None
     sla_due_date: datetime | None = None
@@ -167,7 +167,7 @@ class TicketDetail(TicketSummary):
 
     messages: list[TicketMessageRead] = Field(default_factory=lambda: [])
 
-    # Additional ISP-specific detailed fields
+    # Additional service-specific detailed fields
     affected_services: list[str] = Field(default_factory=lambda: [])
     device_serial_numbers: list[str] = Field(default_factory=lambda: [])
     first_response_at: datetime | None = None

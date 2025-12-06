@@ -1,5 +1,5 @@
 """
-Tests for the tenant branding router used by the ISP Operations app.
+Tests for the tenant branding router.
 """
 
 from unittest.mock import AsyncMock
@@ -45,8 +45,8 @@ def _build_branding_response() -> TenantBrandingResponse:
     return TenantBrandingResponse(
         tenant_id="tenant-123",
         branding=TenantBrandingConfig(
-            product_name="Tenant ISP",
-            support_email="support@tenant-isp.example.com",
+            product_name="Tenant Platform",
+            support_email="support@tenant.example.com",
             logo_light_url="https://cdn.example.com/logo.svg",
         ),
     )
@@ -87,7 +87,7 @@ async def test_get_branding_success(tenant_user: UserInfo):
         assert resp.status_code == 200
         data = resp.json()
         assert data["tenant_id"] == "tenant-123"
-        assert data["branding"]["product_name"] == "Tenant ISP"
+        assert data["branding"]["product_name"] == "Tenant Platform"
         service.get_tenant_branding.assert_awaited_once_with("tenant-123")
 
 
@@ -105,7 +105,7 @@ async def test_update_branding_requires_admin(tenant_user: UserInfo, non_admin_u
             "/api/v1/branding",
             json={
                 "branding": {
-                    "product_name": "Updated ISP",
+                    "product_name": "Updated Platform",
                     "support_email": "updated@example.com",
                 }
             },
@@ -120,7 +120,7 @@ async def test_update_branding_requires_admin(tenant_user: UserInfo, non_admin_u
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.put(
             "/api/v1/branding",
-            json={"branding": {"product_name": "Updated ISP"}},
+            json={"branding": {"product_name": "Updated Platform"}},
         )
         assert resp.status_code == 403
         service.update_tenant_branding.assert_not_called()

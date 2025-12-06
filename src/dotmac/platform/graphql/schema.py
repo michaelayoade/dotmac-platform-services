@@ -29,15 +29,8 @@ class Mutation:
         return "pong"
 
 
-@strawberry.type
-class RealtimeSubscription:
-    """Placeholder for future real-time GraphQL subscriptions."""
-    pass
-
-
-# Create the GraphQL schema
+# Create the GraphQL schema (without subscriptions for now)
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation,
-    subscription=RealtimeSubscription,
 )

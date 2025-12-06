@@ -698,7 +698,7 @@ class TestSearchFiltersImplementation:
         assert len(results) >= 1
 
     async def test_filter_by_installation_status(self, async_session):
-        """Test filtering by ISP installation status."""
+        """Test filtering by installation status."""
         service = CustomerService(async_session)
 
         # Create customers with different installation statuses
@@ -723,7 +723,7 @@ class TestSearchFiltersImplementation:
         service = CustomerService(async_session)
 
         # Create customers with different connection types
-        for i, conn_type in enumerate(["ftth", "wireless"]):
+        for i, conn_type in enumerate(["saas", "enterprise"]):
             customer_data = CustomerCreate(
                 first_name=f"Customer{i}",
                 last_name="Test",
@@ -733,11 +733,11 @@ class TestSearchFiltersImplementation:
             await service.create_customer(customer_data)
 
         # Act
-        params = CustomerSearchParams(connection_type="ftth")
+        params = CustomerSearchParams(connection_type="saas")
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
         # Assert
-        assert all(c.connection_type == "ftth" for c in results)
+        assert all(c.connection_type == "saas" for c in results)
 
     async def test_filter_by_service_location(self, async_session):
         """Test filtering by service city/state/country."""
@@ -815,7 +815,7 @@ class TestSearchFiltersImplementation:
             email="match@example.com",
             tier=CustomerTier.PREMIUM,
             country="NG",
-            connection_type="ftth",
+            connection_type="saas",
         )
         match_customer = await service.create_customer(customer_data_match)
         # Update status after creation
@@ -831,7 +831,7 @@ class TestSearchFiltersImplementation:
             email="nomatch@example.com",
             tier=CustomerTier.FREE,
             country="US",
-            connection_type="wireless",
+            connection_type="edge",
         )
         nomatch_customer = await service.create_customer(customer_data_nomatch)
         # Update status after creation
@@ -845,7 +845,7 @@ class TestSearchFiltersImplementation:
             status=CustomerStatus.ACTIVE,
             tier=CustomerTier.PREMIUM,
             country="NG",
-            connection_type="ftth",
+            connection_type="saas",
         )
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
@@ -855,14 +855,14 @@ class TestSearchFiltersImplementation:
             c.status == CustomerStatus.ACTIVE
             and c.tier == CustomerTier.PREMIUM
             and c.country == "NG"
-            and c.connection_type == "ftth"
+            and c.connection_type == "saas"
             for c in results
         )
 
 
 @pytest.mark.asyncio
 class TestNetworkParameterSearch:
-    """Test network parameter search filters for ISP operations."""
+    """Test network parameter search filters."""
 
     async def test_search_by_static_ip_exact(self, async_session):
         """Test searching by exact static IP address."""
@@ -968,19 +968,19 @@ class TestNetworkParameterSearch:
             await service.create_customer(customer_data)
 
         # Act - search for 1G profile
-        params = CustomerSearchParams(current_bandwidth_profile="1G/1G")
+        params = CustomerSearchParams(current_bandwidth_profile="enterprise")
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
         # Assert
         assert len(results) >= 1
-        assert all(c.current_bandwidth_profile == "1G/1G" for c in results)
+        assert all(c.current_bandwidth_profile == "enterprise" for c in results)
 
     async def test_search_by_last_mile_technology(self, async_session):
         """Test searching by access technology."""
         service = CustomerService(async_session)
 
         # Create customers with different technologies
-        for i, tech in enumerate(["gpon", "xgs-pon", "active-ethernet"]):
+        for i, tech in enumerate(["cloud", "edge", "hybrid"]):
             customer_data = CustomerCreate(
                 first_name=f"Customer{i}",
                 last_name="Test",
@@ -989,13 +989,13 @@ class TestNetworkParameterSearch:
             )
             await service.create_customer(customer_data)
 
-        # Act - search for gpon
-        params = CustomerSearchParams(last_mile_technology="gpon")
+        # Act - search for cloud
+        params = CustomerSearchParams(last_mile_technology="cloud")
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
         # Assert
         assert len(results) >= 1
-        assert all(c.last_mile_technology == "gpon" for c in results)
+        assert all(c.last_mile_technology == "cloud" for c in results)
 
     async def test_search_by_device_serial(self, async_session):
         """Test searching by device serial number in assigned_devices JSON."""
@@ -1007,7 +1007,7 @@ class TestNetworkParameterSearch:
             last_name="One",
             email="device1@example.com",
             assigned_devices={
-                "onu_serial": "ONU12345678",
+                "device_id": "DEV12345678",
                 "router_id": "RTR-001",
             },
         )
@@ -1018,14 +1018,14 @@ class TestNetworkParameterSearch:
             last_name="Two",
             email="device2@example.com",
             assigned_devices={
-                "onu_serial": "ONU87654321",
+                "device_id": "DEV87654321",
                 "router_id": "RTR-002",
             },
         )
         await service.create_customer(customer_data_2)
 
-        # Act - search for ONU serial
-        params = CustomerSearchParams(device_serial="ONU12345678")
+        # Act - search for device serial
+        params = CustomerSearchParams(device_serial="DEV12345678")
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
         # Assert
@@ -1033,7 +1033,7 @@ class TestNetworkParameterSearch:
         # Verify the device serial is in the assigned_devices
         found = False
         for customer in results:
-            if customer.assigned_devices and "ONU12345678" in str(customer.assigned_devices):
+            if customer.assigned_devices and "DEV12345678" in str(customer.assigned_devices):
                 found = True
                 break
         assert found, "Device serial not found in search results"
@@ -1101,8 +1101,8 @@ class TestNetworkParameterSearch:
             email="netmatch@example.com",
             static_ip_assigned="10.10.10.100",
             current_bandwidth_profile="1G/1G",
-            last_mile_technology="gpon",
-            connection_type="ftth",
+            last_mile_technology="enterprise",
+            connection_type="saas",
         )
         await service.create_customer(customer_data_match)
 
@@ -1113,8 +1113,8 @@ class TestNetworkParameterSearch:
             email="netnomatch@example.com",
             static_ip_assigned="10.20.20.200",
             current_bandwidth_profile="100M/100M",
-            last_mile_technology="wireless",
-            connection_type="wireless",
+            last_mile_technology="edge",
+            connection_type="edge",
         )
         await service.create_customer(customer_data_nomatch)
 
@@ -1122,8 +1122,8 @@ class TestNetworkParameterSearch:
         params = CustomerSearchParams(
             static_ip_assigned="10.10.10",
             current_bandwidth_profile="1G/1G",
-            last_mile_technology="gpon",
-            connection_type="ftth",
+            last_mile_technology="enterprise",
+            connection_type="saas",
         )
         results, _ = await service.search_customers(params, limit=50, offset=0)
 
@@ -1132,7 +1132,7 @@ class TestNetworkParameterSearch:
         assert all(
             c.static_ip_assigned.startswith("10.10.10")
             and c.current_bandwidth_profile == "1G/1G"
-            and c.last_mile_technology == "gpon"
-            and c.connection_type == "ftth"
+            and c.last_mile_technology == "enterprise"
+            and c.connection_type == "saas"
             for c in results
         )

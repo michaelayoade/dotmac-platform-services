@@ -199,7 +199,7 @@ async def seed_database(env: str, clear: bool = False):
                 logger.info("")
                 logger.info("Demo User Credentials:")
                 logger.info("  Admin:        admin@dotmac.com / Admin123!")
-                logger.info("  ISP Admin:    isp-admin@demo.com / IspAdmin123!")
+                logger.info("  Ops Admin:    ops-admin@demo.com / OpsAdmin123!")
                 logger.info("  Billing:      billing@demo.com / Billing123!")
                 logger.info("  Support:      support@demo.com / Support123!")
                 logger.info("  Customer:     customer@demo.com / Customer123!")

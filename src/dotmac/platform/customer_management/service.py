@@ -642,7 +642,7 @@ class CustomerService:
         if params.max_lifetime_value is not None:
             filter_conditions.append(Customer.lifetime_value <= params.max_lifetime_value)
 
-        # ISP-specific filters
+        # Service location filters
         if params.installation_status:
             filter_conditions.append(Customer.installation_status == params.installation_status)
         if params.connection_type:

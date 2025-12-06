@@ -267,7 +267,6 @@ class TestRouterPrefixExplicitness:
             ("dotmac.platform.billing.router", "router"),
             ("dotmac.platform.tenant.router", "router"),
             ("dotmac.platform.webhooks.router", "router"),
-            ("dotmac.platform.customer_portal.router", "router"),  # Added in Phase 2
         ]
 
         missing_prefixes = []

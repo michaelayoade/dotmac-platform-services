@@ -211,15 +211,15 @@ class TestTenantCRUDCoverage:
         """Tenant branding updates should persist and merge."""
         update = TenantBrandingUpdate(
             branding=TenantBrandingConfig(
-                product_name="Custom ISP",
-                support_email="support@custom-isp.com",
+                product_name="Custom Platform",
+                support_email="support@custom-platform.com",
             )
         )
         branding = await tenant_service.update_tenant_branding(sample_tenant.id, update)
-        assert branding.branding.product_name == "Custom ISP"
+        assert branding.branding.product_name == "Custom Platform"
 
         branding_after = await tenant_service.get_tenant_branding(sample_tenant.id)
-        assert branding_after.branding.support_email == "support@custom-isp.com"
+        assert branding_after.branding.support_email == "support@custom-platform.com"
 
     async def test_restore_tenant(self, tenant_service: TenantService, sample_tenant: Tenant):
         """Test restoring soft-deleted tenant."""

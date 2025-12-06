@@ -1,7 +1,7 @@
 """
 Usage Billing Models for metered and pay-as-you-go services.
 
-Supports granular usage tracking, aggregation, and billing for ISP services.
+Supports granular usage tracking, aggregation, and billing for services.
 """
 
 from datetime import datetime

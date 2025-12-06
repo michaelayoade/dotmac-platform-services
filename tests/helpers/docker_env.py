@@ -49,17 +49,17 @@ def get_service_host(service_name: str, default_host: str = "localhost") -> str:
     Otherwise, use localhost or the provided default.
 
     Args:
-        service_name: Docker service name (e.g., 'freeradius', 'netbox')
+        service_name: Docker service name (e.g., 'redis', 'postgres')
         default_host: Host to use when not in Docker (default: 'localhost')
 
     Returns:
         str: Host address to use for connecting to the service
 
     Examples:
-        >>> get_service_host('freeradius')  # Outside Docker
+        >>> get_service_host('redis')  # Outside Docker
         'localhost'
-        >>> get_service_host('freeradius')  # Inside Docker
-        'freeradius'
+        >>> get_service_host('redis')  # Inside Docker
+        'redis'
     """
     if is_running_in_docker():
         return service_name
@@ -82,10 +82,10 @@ def get_docker_network_url(
         str: Complete URL for the service
 
     Examples:
-        >>> get_docker_network_url('netbox', 8080)  # Outside Docker
-        'http://localhost:8080'
-        >>> get_docker_network_url('netbox', 8080)  # Inside Docker
-        'http://netbox:8080'
+        >>> get_docker_network_url('postgres', 5432)  # Outside Docker
+        'http://localhost:5432'
+        >>> get_docker_network_url('postgres', 5432)  # Inside Docker
+        'http://postgres:5432'
     """
     host = get_service_host(service_name, default_host)
     return f"{scheme}://{host}:{port}"

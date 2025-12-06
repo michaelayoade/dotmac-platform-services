@@ -256,7 +256,7 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin): 
     )
     birthday: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    # ISP-Specific Fields (Service Management)
+    # Service Location Fields
     service_address_line1: Mapped[str | None] = mapped_column(
         String(200), nullable=True, comment="Installation/service address"
     )

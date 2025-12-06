@@ -1,7 +1,7 @@
 """
-ISP/Telecom SaaS Licensing Models.
+SaaS Licensing Models.
 
-Subscription-tier and feature-group based licensing for multi-tenant ISP platform.
+Subscription-tier and feature-group based licensing for multi-tenant platform.
 """
 
 from datetime import UTC, datetime
@@ -39,7 +39,7 @@ else:
 
 
 class SubscriptionTier(str, Enum):
-    """Subscription tiers for ISP platform."""
+    """Subscription tiers for the platform."""
 
     STARTER = "STARTER"  # Basic features, limited users
     PROFESSIONAL = "PROFESSIONAL"  # Standard features, more users
@@ -85,17 +85,10 @@ class FeatureCategory(str, Enum):
     CRM = "CRM"  # Customer relationship management
     CUSTOMER_PORTAL = "CUSTOMER_PORTAL"  # Self-service portal
 
-    # Network Management
-    RADIUS = "RADIUS"  # RADIUS AAA
-    NETWORK_MONITORING = "NETWORK_MONITORING"  # Real-time monitoring
-    FIBER_MANAGEMENT = "FIBER_MANAGEMENT"  # Fiber infrastructure
-    WIRELESS = "WIRELESS"  # Wireless infrastructure
-
-    # OSS Integrations
-    NETBOX = "NETBOX"  # NetBox IPAM/DCIM
-    GENIEACS = "GENIEACS"  # GenieACS CPE management
-    VOLTHA = "VOLTHA"  # VOLTHA OLT management
-    WIREGUARD = "WIREGUARD"  # WireGuard VPN
+    # Integrations
+    API_ACCESS = "API_ACCESS"  # API access features
+    WEBHOOKS = "WEBHOOKS"  # Webhook integrations
+    CUSTOM_INTEGRATIONS = "CUSTOM_INTEGRATIONS"  # Custom integration support
 
     # Service Management
     ORCHESTRATION = "ORCHESTRATION"  # Service orchestration
@@ -110,11 +103,9 @@ class FeatureCategory(str, Enum):
     # Communications
     EMAIL = "EMAIL"  # Email notifications
     SMS = "SMS"  # SMS notifications
-    WEBHOOKS = "WEBHOOKS"  # Webhook integrations
 
     # Advanced Features
     AUTOMATION = "AUTOMATION"  # Workflow automation
-    API_ACCESS = "API_ACCESS"  # API access
     GRAPHQL = "GRAPHQL"  # GraphQL API
     WHITE_LABEL = "WHITE_LABEL"  # White-label branding
     MULTI_CURRENCY = "MULTI_CURRENCY"  # Multi-currency support

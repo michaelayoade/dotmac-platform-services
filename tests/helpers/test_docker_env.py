@@ -47,26 +47,26 @@ class TestDockerDetection:
     def test_get_service_host_outside_docker(self):
         """Test service host returns localhost outside Docker."""
         with patch("tests.helpers.docker_env.is_running_in_docker", return_value=False):
-            assert get_service_host("freeradius") == "localhost"
-            assert get_service_host("netbox", "127.0.0.1") == "127.0.0.1"
+            assert get_service_host("redis") == "localhost"
+            assert get_service_host("postgres", "127.0.0.1") == "127.0.0.1"
 
     def test_get_service_host_inside_docker(self):
         """Test service host returns service name inside Docker."""
         with patch("tests.helpers.docker_env.is_running_in_docker", return_value=True):
-            assert get_service_host("freeradius") == "freeradius"
-            assert get_service_host("netbox") == "netbox"
+            assert get_service_host("redis") == "redis"
+            assert get_service_host("postgres") == "postgres"
             assert get_service_host("vault") == "vault"
 
     def test_get_docker_network_url_outside_docker(self):
         """Test URL generation outside Docker uses localhost."""
         with patch("tests.helpers.docker_env.is_running_in_docker", return_value=False):
-            assert get_docker_network_url("netbox", 8080) == "http://localhost:8080"
+            assert get_docker_network_url("postgres", 5432) == "http://localhost:5432"
             assert get_docker_network_url("vault", 8200, scheme="https") == "https://localhost:8200"
 
     def test_get_docker_network_url_inside_docker(self):
         """Test URL generation inside Docker uses service name."""
         with patch("tests.helpers.docker_env.is_running_in_docker", return_value=True):
-            assert get_docker_network_url("netbox", 8080) == "http://netbox:8080"
+            assert get_docker_network_url("postgres", 5432) == "http://postgres:5432"
             assert get_docker_network_url("vault", 8200, scheme="https") == "https://vault:8200"
 
     def test_get_docker_network_url_custom_host(self):

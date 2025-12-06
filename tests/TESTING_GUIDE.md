@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide documents testing patterns and best practices derived from fixing 31 test failures and 2 production bugs in the dotmac-ftth-ops project.
+This guide documents testing patterns and best practices derived from fixing test failures and production bugs in the dotmac-platform-services project.
 
 ## Table of Contents
 
@@ -221,31 +221,25 @@ def test_user() -> UserInfo:
 
 ```python
 # 1. Read actual schema definition
-from dotmac.platform.access.drivers import OltMetrics
+from dotmac.platform.customer_management.schemas import CustomerCreate
 
-# OltMetrics schema has:
-# - olt_id: str
-# - pon_ports_up: int
-# - pon_ports_total: int
-# - onu_online: int
-# - onu_total: int
-# - upstream_rate_mbps: float | None
-# - downstream_rate_mbps: float | None
-# - raw: dict
+# CustomerCreate schema has:
+# - name: str
+# - email: str | None
+# - phone: str | None
+# - status: CustomerStatus
+# - billing_address: AddressCreate | None
 
 # 2. Create mock data that matches EXACTLY
-mock_service.collect_metrics = AsyncMock(
-    return_value=OltMetrics(
-        olt_id="olt1",           # ✅ Required field
-        pon_ports_up=8,          # ✅ Required field
-        pon_ports_total=8,       # ✅ Required field
-        onu_online=5,            # ✅ Required field
-        onu_total=5,             # ✅ Required field
-        upstream_rate_mbps=1000.0,  # ✅ Optional but correct type
-        downstream_rate_mbps=2500.0, # ✅ Optional but correct type
+mock_service.create_customer = AsyncMock(
+    return_value=CustomerCreate(
+        name="Acme Corp",           # ✅ Required field
+        email="contact@acme.com",   # ✅ Optional but correct type
+        phone="+1234567890",        # ✅ Optional but correct type
+        status=CustomerStatus.ACTIVE,  # ✅ Required field with correct enum
         # ❌ DON'T add fields that don't exist:
-        # cpu_usage=45.2,  # Not in schema!
-        # memory_usage=60.5,  # Not in schema!
+        # company_size=100,  # Not in schema!
+        # revenue=1000000,  # Not in schema!
     )
 )
 ```
@@ -260,22 +254,20 @@ from tests.helpers.contract_testing import (
 )
 
 # Option 1: Validate manually created mock data
-validator = SchemaValidator(OltMetrics)
+validator = SchemaValidator(CustomerCreate)
 mock_data = {
-    "olt_id": "olt1",
-    "pon_ports_up": 8,
-    "pon_ports_total": 8,
-    "onu_online": 5,
-    "onu_total": 5,
+    "name": "Acme Corp",
+    "email": "contact@acme.com",
+    "status": "active",
 }
 validator.validate(mock_data)  # Raises SchemaValidationError if invalid
 
 # Option 2: Generate valid mock data automatically
-mock_data = MockDataFactory.create(OltMetrics, olt_id="olt1")
+mock_data = MockDataFactory.create(CustomerCreate, name="Test Customer")
 # Automatically includes all required fields with sensible defaults
 
 # Option 3: Quick validation check
-is_valid, error = validate_mock_against_schema(mock_data, OltMetrics)
+is_valid, error = validate_mock_against_schema(mock_data, CustomerCreate)
 if not is_valid:
     print(f"Mock data invalid: {error}")
 ```
@@ -286,16 +278,16 @@ if not is_valid:
 
 ```python
 # ❌ WRONG
-OLTOverview(
-    olt_id="olt1",           # Schema has device_id, not olt_id
-    active_onus=4,           # Schema has online_onus, not active_onus
-    status="ACTIVE",         # Schema doesn't have status field
+CustomerResponse(
+    customer_name="Acme",    # Schema has name, not customer_name
+    active=True,             # Schema has status enum, not active bool
+    company="Acme Corp",     # Schema doesn't have company field
 )
 
 # ✅ CORRECT - Read schema first!
-OLTOverview(
-    device_id="olt1",        # Actual field name
-    online_onus=4,           # Actual field name
+CustomerResponse(
+    name="Acme",             # Actual field name
+    status=CustomerStatus.ACTIVE,  # Actual field with correct type
     # Don't include fields that don't exist
 )
 ```
@@ -304,13 +296,13 @@ OLTOverview(
 
 ```python
 # ❌ WRONG
-OLTOverview(
-    pon_ports=8,             # Schema expects list, not int
+CustomerResponse(
+    status="active",         # Schema expects enum, not string
 )
 
 # ✅ CORRECT
-OLTOverview(
-    pon_ports=[],            # Correct type
+CustomerResponse(
+    status=CustomerStatus.ACTIVE,  # Correct enum type
 )
 ```
 
@@ -318,52 +310,42 @@ OLTOverview(
 
 ```python
 # ❌ WRONG - Missing required fields
-OLTOverview(
-    device_id="olt1",
-    # Missing: serial_number, model, firmware_version, admin_state,
-    # oper_status, connect_status, total_pon_ports, active_pon_ports,
-    # total_onus, online_onus
+InvoiceCreate(
+    customer_id="cust-123",
+    # Missing: invoice_date, due_date, line_items, currency
 )
 
 # ✅ CORRECT - Include all required fields
-OLTOverview(
-    device_id="olt1",
-    serial_number="ABC123",
-    model="OLT-4000",
-    firmware_version="1.0.0",
-    admin_state="ENABLED",
-    oper_status="ACTIVE",
-    connect_status="REACHABLE",
-    total_pon_ports=8,
-    active_pon_ports=8,
-    total_onus=5,
-    online_onus=4,
-    pon_ports=[],
+InvoiceCreate(
+    customer_id="cust-123",
+    invoice_date=date.today(),
+    due_date=date.today() + timedelta(days=30),
+    currency="USD",
+    line_items=[
+        LineItemCreate(description="Service", amount=100.00)
+    ],
 )
 ```
 
 #### Mistake 4: Data in Wrong Location
 
 ```python
-# ❌ WRONG - DeviceDiscovery puts vendor as direct field
-DeviceDiscovery(
-    onu_id="1",
-    serial_number="ABC",
-    state="ACTIVE",
-    vendor="Huawei",  # ❌ Not a direct field!
+# ❌ WRONG - CustomerResponse puts extra data as direct field
+CustomerResponse(
+    id="1",
+    name="Acme",
+    company_size=100,  # ❌ Not a direct field!
 )
 
-# ✅ CORRECT - Vendor goes in metadata
-DeviceDiscovery(
-    onu_id="1",
-    serial_number="ABC",
-    state="ACTIVE",
-    rssi=-25.5,
-    metadata={"vendor": "Huawei", "model": "HG8310M"},  # ✅ Correct
+# ✅ CORRECT - Extra data goes in metadata
+CustomerResponse(
+    id="1",
+    name="Acme",
+    metadata={"company_size": 100, "industry": "Tech"},  # ✅ Correct
 )
 
 # Assertions must also use metadata
-assert data["metadata"]["vendor"] == "Huawei"  # Not data["vendor"]
+assert data["metadata"]["company_size"] == 100  # Not data["company_size"]
 ```
 
 ---
@@ -429,8 +411,8 @@ assert data["memory_usage"] == 60.5
 ```python
 # ✅ Read schema definition first
 # Then assert only on fields that actually exist
-assert data["olt_id"] == "olt1"
-assert data["pon_ports_up"] == 8
+assert data["customer_id"] == "cust-123"
+assert data["status"] == "active"
 ```
 
 ### Pitfall 4: Not Testing Response Schemas
@@ -531,17 +513,17 @@ Generates valid mock data from schemas:
 from tests.helpers.contract_testing import MockDataFactory
 
 # Generate with defaults
-mock_data = MockDataFactory.create(OltMetrics)
+mock_data = MockDataFactory.create(CustomerCreate)
 
 # Override specific fields
 mock_data = MockDataFactory.create(
-    OltMetrics,
-    olt_id="custom-olt",
-    pon_ports_up=10
+    CustomerCreate,
+    name="Test Customer",
+    email="test@example.com"
 )
 
 # Create actual instance
-instance = MockDataFactory.create_instance(OltMetrics, olt_id="test")
+instance = MockDataFactory.create_instance(CustomerCreate, name="test")
 ```
 
 ---

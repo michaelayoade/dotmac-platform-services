@@ -43,8 +43,6 @@ from .enums import (
     PaymentMethodStatus,
     PaymentMethodType,
     PaymentStatus,
-    ServiceStatus,
-    ServiceType,
     TransactionType,
 )
 
@@ -550,75 +548,3 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):  # type: ignore[m
     # Composite primary key handled in __table_args__
 
 
-# ============================================================================
-# Service Entities
-# ============================================================================
-
-
-class ServiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin, SoftDeleteMixin):  # type: ignore[misc]  # Mixin has type Any
-    """Service database entity for tracking customer services"""
-
-    __tablename__ = "services"
-
-    service_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
-    )
-
-    # References
-    customer_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    # Legacy field - kept for backwards compatibility
-    subscriber_id: Mapped[str | None] = mapped_column(String(255), index=True, comment="Deprecated: use customer_id")
-    subscription_id: Mapped[str | None] = mapped_column(String(255), index=True)
-    plan_id: Mapped[str | None] = mapped_column(String(255), index=True)
-
-    # Service details
-    service_type: Mapped[ServiceType] = mapped_column(
-        Enum(ServiceType, values_callable=lambda x: [e.value for e in x]),
-        nullable=False,
-        default=ServiceType.BROADBAND,
-    )
-    service_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    service_description: Mapped[str | None] = mapped_column(Text)
-
-    # Status
-    status: Mapped[ServiceStatus] = mapped_column(
-        Enum(ServiceStatus, values_callable=lambda x: [e.value for e in x]),
-        nullable=False,
-        default=ServiceStatus.PENDING,
-        index=True,
-    )
-
-    # Lifecycle timestamps
-    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # Suspension details
-    suspension_reason: Mapped[str | None] = mapped_column(Text)
-    suspend_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # Termination details
-    termination_reason: Mapped[str | None] = mapped_column(Text)
-
-    # Service configuration (flexible JSON for service-specific data)
-    bandwidth_mbps: Mapped[int | None] = mapped_column(Integer)
-    service_metadata: Mapped[dict[str, Any]] = mapped_column(
-        MutableDict.as_mutable(JSON), default=dict
-    )
-
-    # Pricing
-    monthly_price: Mapped[int | None] = mapped_column(Integer, comment="Price in minor units")
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
-
-    # Notes
-    notes: Mapped[str | None] = mapped_column(Text)
-    internal_notes: Mapped[str | None] = mapped_column(Text)
-
-    # Indexes and constraints
-    __table_args__: tuple[Any, ...] = (
-        Index("idx_service_tenant_customer", "tenant_id", "customer_id"),
-        Index("idx_service_tenant_subscriber", "tenant_id", "subscriber_id"),
-        Index("idx_service_tenant_status", "tenant_id", "status"),
-        Index("idx_service_tenant_type", "tenant_id", "service_type"),
-        {"extend_existing": True},
-    )

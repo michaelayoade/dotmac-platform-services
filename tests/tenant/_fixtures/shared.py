@@ -786,8 +786,6 @@ async def authenticated_client(
                 "platform:tenants:read",
                 "tenants:write",
                 "tenants:read",
-                "isp.oss.read",
-                "isp.oss.configure",
             ],
             tenant_id=None,
             is_platform_admin=True,

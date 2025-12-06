@@ -113,7 +113,7 @@ class EmailChannelProvider(NotificationChannelProvider):
                 </div>
                 {action_button}
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 0.85em; color: #666;">
-                    <p>This is an automated notification from your ISP Operations Platform.</p>
+                    <p>This is an automated notification from the Platform.</p>
                 </div>
             </div>
         </body>

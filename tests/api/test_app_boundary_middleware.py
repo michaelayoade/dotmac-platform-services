@@ -192,7 +192,7 @@ class TestAppBoundaryMiddleware:
     @pytest.mark.asyncio
     async def test_tenant_route_requires_tenant_scope(self, middleware, mock_request):
         """Test that tenant routes require tenant-level scopes."""
-        mock_request.url.path = "/api/tenant/v1/radius/sessions"
+        mock_request.url.path = "/api/tenant/v1/customers"
         mock_user = Mock()
         mock_user.id = "user-123"
         mock_user.scopes = ["public:read"]  # No tenant scopes
@@ -495,7 +495,7 @@ class TestMiddlewareIntegration:
             mock_settings.DEPLOYMENT_MODE = "hybrid"
 
             # Platform support user accessing tenant route with tenant context
-            mock_request.url.path = "/api/tenant/v1/radius/sessions"
+            mock_request.url.path = "/api/tenant/v1/customers"
             mock_user = Mock()
             mock_user.id = "support-123"
             mock_user.scopes = ["platform_support"]

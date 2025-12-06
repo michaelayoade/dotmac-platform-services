@@ -87,14 +87,23 @@ class TestCeleryInstrumentationHooks:
         assert "celery.instrumentation.failed" in warning_call[0]
         assert warning_call[1]["error"] == "Instrumentation failed"
 
-    @patch("dotmac.platform.genieacs.tasks.replay_pending_operations")
+    @patch("dotmac.platform.celery_app.settings")
     @patch("structlog.get_logger")
-    def test_setup_periodic_tasks(self, mock_get_logger, mock_replay_operations):
+    def test_setup_periodic_tasks(self, mock_get_logger, mock_settings):
         """Test periodic tasks setup logging."""
         mock_logger = Mock()
         mock_get_logger.return_value = mock_logger
 
-        setup_periodic_tasks(sender=Mock())
+        # Configure mock settings
+        mock_settings.billing.enable_multi_currency = False
+        mock_settings.timescaledb.is_configured = False
+        mock_settings.celery.broker_url = "redis://localhost:6379/0"
+        mock_settings.celery.result_backend = "redis://localhost:6379/1"
+
+        # Create a mock sender with add_periodic_task
+        mock_sender = Mock()
+
+        setup_periodic_tasks(sender=mock_sender)
 
         mock_logger.info.assert_called_once()
 
@@ -103,8 +112,8 @@ class TestCeleryInstrumentationHooks:
         assert "celery.worker.configured" in info_call[0]
         assert "queues" in info_call[1]
 
-        # Verify replay_pending_operations was triggered on startup
-        mock_replay_operations.apply_async.assert_called_once_with(countdown=5)
+        # Verify periodic tasks were registered (dunning task is always added)
+        mock_sender.add_periodic_task.assert_called()
 
 
 @pytest.mark.integration

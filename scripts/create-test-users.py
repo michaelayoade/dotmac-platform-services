@@ -33,21 +33,21 @@ async def create_test_users():
                 "email": "test@example.com",
                 "password": "TestPass123!",
                 "full_name": "Test User",
-                "tenant_name": "Test ISP",
+                "tenant_name": "Test Tenant",
                 "role": "admin"
             },
             {
                 "email": "operator@test.com",
                 "password": "OperatorPass123!",
                 "full_name": "Test Operator",
-                "tenant_name": "Test ISP",
+                "tenant_name": "Test Tenant",
                 "role": "operator"
             },
             {
                 "email": "customer@test.com",
                 "password": "CustomerPass123!",
                 "full_name": "Test Customer",
-                "tenant_name": "Test ISP",
+                "tenant_name": "Test Tenant",
                 "role": "customer"
             }
         ]

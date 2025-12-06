@@ -456,7 +456,7 @@ class TestSubscriptionWelcomeEmailHandler:
             payload={
                 "subscription_id": "sub_123",
                 "customer_id": "cust_123",
-                "customer_email": "subscriber@example.com",
+                "customer_email": "customer@example.com",
                 "plan_id": "premium",
             },
         )
@@ -476,7 +476,7 @@ class TestSubscriptionWelcomeEmailHandler:
             await send_subscription_welcome_email(event)
 
             call_args = mock_service.send_email.call_args[0][0]
-            assert call_args.to == ["subscriber@example.com"]
+            assert call_args.to == ["customer@example.com"]
             assert "Welcome" in call_args.subject
             assert "sub_123" in call_args.html_body
             assert "premium" in call_args.html_body

@@ -124,7 +124,7 @@ class TicketService:
             partner_id=partner_id,
             customer_id=customer_id,
             context=data.metadata or {},
-            # ISP-specific fields
+            # Service-specific fields
             ticket_type=data.ticket_type,
             service_address=data.service_address,
             affected_services=list(data.affected_services) if data.affected_services else [],
@@ -470,7 +470,7 @@ class TicketService:
             ticket.context.update(data.metadata)
             updated = True
 
-        # ISP-specific fields
+        # Service-specific fields
         # Role-based validation: Only tenant/platform actors can update operational metadata
         # Partners can view but not modify service details
         can_update_service_metadata = context.actor_type in {
