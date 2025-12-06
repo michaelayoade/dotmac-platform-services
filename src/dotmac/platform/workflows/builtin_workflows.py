@@ -378,111 +378,6 @@ CUSTOMER_RENEWAL_WORKFLOW = {
     "tags": {"category": "retention", "priority": "medium", "automated": True},
 }
 
-# Workflow: Ticket to Deployment (ISP-specific)
-TICKET_TO_DEPLOYMENT_WORKFLOW = {
-    "name": "isp_ticket_to_deployment",
-    "description": "ISP-specific workflow from service ticket to network deployment",
-    "definition": {
-        "steps": [
-            {
-                "name": "validate_site_survey",
-                "type": "service_call",
-                "description": "Validate site survey is completed",
-                "service": "crm_service",
-                "method": "get_site_survey",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                },
-                "max_retries": 2,
-            },
-            {
-                "name": "allocate_network_resources",
-                "type": "service_call",
-                "description": "Allocate IP addresses and VLAN",
-                "service": "network_service",
-                "method": "allocate_resources",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                    "service_location": "${context.service_location}",
-                    "bandwidth_plan": "${context.bandwidth_plan}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "provision_radius_account",
-                "type": "service_call",
-                "description": "Create RADIUS authentication account",
-                "service": "radius_service",
-                "method": "create_subscriber",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                    "username": "${step_allocate_network_resources_result.username}",
-                    "bandwidth_profile": "${context.bandwidth_plan}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "schedule_installation",
-                "type": "service_call",
-                "description": "Schedule field technician installation",
-                "service": "ticketing_service",
-                "method": "schedule_installation",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                    "installation_address": "${context.installation_address}",
-                    "technician_id": "${context.technician_id}",
-                    "scheduled_date": "${context.installation_date}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "configure_cpe_device",
-                "type": "service_call",
-                "description": "Push configuration to CPE via GenieACS",
-                "service": "genieacs_service",
-                "method": "provision_device",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                    "device_serial": "${context.cpe_serial}",
-                    "config_template": "${context.config_template}",
-                },
-                "max_retries": 2,
-            },
-            {
-                "name": "activate_service",
-                "type": "service_call",
-                "description": "Activate customer service in billing",
-                "service": "billing_service",
-                "method": "activate_service",
-                "params": {
-                    "customer_id": "${context.customer_id}",
-                    "service_id": "${step_allocate_network_resources_result.service_id}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "notify_customer_activation",
-                "type": "service_call",
-                "description": "Send service activation notification",
-                "service": "communications_service",
-                "method": "send_template_email",
-                "params": {
-                    "template": "service_activated",
-                    "recipient": "${context.customer_email}",
-                    "variables": {
-                        "service_details": "${step_allocate_network_resources_result}",
-                        "credentials": "${step_provision_radius_account_result}",
-                    },
-                },
-                "max_retries": 3,
-            },
-        ]
-    },
-    "version": "1.0.0",
-    "tags": {"category": "isp", "priority": "high", "automated": True},
-}
-
-
 def get_all_builtin_workflows() -> list[dict]:
     """
     Get all built-in workflow definitions.
@@ -495,7 +390,6 @@ def get_all_builtin_workflows() -> list[dict]:
         QUOTE_ACCEPTED_WORKFLOW,
         PARTNER_PROVISIONING_WORKFLOW,
         CUSTOMER_RENEWAL_WORKFLOW,
-        TICKET_TO_DEPLOYMENT_WORKFLOW,
     ]
 
 
@@ -514,6 +408,5 @@ def get_workflow_by_name(name: str) -> dict | None:
         "quote_accepted_to_order": QUOTE_ACCEPTED_WORKFLOW,
         "partner_customer_provisioning": PARTNER_PROVISIONING_WORKFLOW,
         "customer_renewal_process": CUSTOMER_RENEWAL_WORKFLOW,
-        "isp_ticket_to_deployment": TICKET_TO_DEPLOYMENT_WORKFLOW,
     }
     return workflows.get(name)

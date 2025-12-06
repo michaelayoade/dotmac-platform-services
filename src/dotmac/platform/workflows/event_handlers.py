@@ -198,48 +198,6 @@ class WorkflowEventHandler:
             logger.error(f"Failed to handle subscription.expiring event: {e}", exc_info=True)
             raise
 
-    async def handle_isp_installation_scheduled(self, event: Any) -> None:
-        """
-        Handle isp.installation.scheduled event for ISP deployment.
-
-        Event payload expected:
-        {
-            "customer_id": int,
-            "service_location": dict,
-            "bandwidth_plan": str,
-            "installation_address": str,
-            "technician_id": int,
-            "installation_date": str,
-            "cpe_serial": str,
-            "config_template": str,
-            "customer_email": str,
-            "tenant_id": str
-        }
-        """
-        logger.info(f"Handling isp.installation.scheduled event: {event.event_id}")
-
-        try:
-            payload = event.payload
-            context = payload.copy()
-
-            # Execute the ISP deployment workflow
-            execution = await self.workflow_service.execute_workflow(
-                workflow_name="isp_ticket_to_deployment",
-                context=context,
-                trigger_type="event",
-                trigger_source=event.event_type,
-                tenant_id=payload.get("tenant_id"),
-            )
-
-            logger.info(
-                f"ISP deployment workflow started: execution_id={execution.id}, "
-                f"customer_id={context['customer_id']}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to handle isp.installation.scheduled event: {e}", exc_info=True)
-            raise
-
     async def handle_workflow_completed(self, event: Any) -> None:
         """
         Handle workflow.execution.completed event for logging and notifications.
@@ -268,7 +226,6 @@ EVENT_HANDLER_MAP = {
     "lead.qualified": "handle_lead_qualified",
     "partner.customer.created": "handle_partner_customer_created",
     "subscription.expiring": "handle_subscription_expiring",
-    "isp.installation.scheduled": "handle_isp_installation_scheduled",
     "workflow.execution.completed": "handle_workflow_completed",
     "workflow.execution.failed": "handle_workflow_failed",
 }

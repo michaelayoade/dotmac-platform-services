@@ -26,8 +26,6 @@ from dotmac.platform.audit import AuditContextMiddleware
 from dotmac.platform.auth.billing_permissions import ensure_billing_rbac
 from dotmac.platform.auth.bootstrap import ensure_default_admin_user
 from dotmac.platform.auth.exceptions import AuthError, get_http_status
-from dotmac.platform.auth.field_service_permissions import ensure_field_service_rbac
-from dotmac.platform.auth.isp_permissions import ensure_isp_rbac
 from dotmac.platform.auth.partner_permissions import ensure_partner_rbac
 from dotmac.platform.core.exception_handlers import register_exception_handlers
 from dotmac.platform.core.rate_limiting import get_limiter
@@ -47,8 +45,6 @@ from dotmac.platform.secrets import load_secrets_from_vault_sync
 from dotmac.platform.settings import settings
 from dotmac.platform.telemetry import setup_telemetry
 from dotmac.platform.tenant import TenantMiddleware
-from dotmac.platform.tenant_app import tenant_app
-from dotmac.platform.timeseries import init_timescaledb, shutdown_timescaledb
 
 
 def rate_limit_handler(request: Request, exc: Exception) -> Response:
@@ -185,14 +181,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             )
             print("Running in degraded mode")
 
-    # Run comprehensive infrastructure health checks (Docker containers)
+    # Run infrastructure health checks (Docker containers)
     try:
-        # Check ISP services if ISP mode is enabled (optional)
-        include_isp_services = os.getenv("CHECK_ISP_SERVICES", "false").lower() == "true"
-
         await run_startup_health_checks(
             fail_on_unhealthy=False,  # Don't fail startup, just report
-            include_isp_services=include_isp_services,
         )
     except Exception as e:
         logger.warning(
@@ -224,30 +216,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         print(f"Redis initialization failed: {e}")
         raise
 
-    # Initialize TimescaleDB (optional time-series database)
-    if settings.timescaledb.is_configured:
-        try:
-            init_timescaledb()
-            logger.info("timescaledb.init.success", emoji="✅")
-            print("TimescaleDB initialized")
-        except Exception as e:
-            logger.error("timescaledb.init.failed", error=str(e), emoji="❌")
-            # Continue in development, fail in production
-            if settings.is_production:
-                raise
-            print(f"TimescaleDB initialization failed: {e}")
-
     # Seed RBAC permissions/roles after database init
     try:
         async with AsyncSessionLocal() as session:
-            await ensure_isp_rbac(session)
-            logger.info("rbac.isp_permissions.seeded", emoji="✅")
             await ensure_billing_rbac(session)
             logger.info("rbac.billing_permissions.seeded", emoji="✅")
             await ensure_partner_rbac(session)
             logger.info("rbac.partner_permissions.seeded", emoji="✅")
-            await ensure_field_service_rbac(session)
-            logger.info("rbac.field_service_permissions.seeded", emoji="✅")
     except Exception as e:
         logger.error("rbac.permissions.failed", error=str(e), emoji="❌")
         if settings.is_production:
@@ -275,14 +250,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("redis.shutdown.success", emoji="✅")
     except Exception as e:
         logger.error("redis.shutdown.failed", error=str(e), emoji="❌")
-
-    # Cleanup TimescaleDB connections
-    if settings.timescaledb.is_configured:
-        try:
-            await shutdown_timescaledb()
-            logger.info("timescaledb.shutdown.success", emoji="✅")
-        except Exception as e:
-            logger.error("timescaledb.shutdown.failed", error=str(e), emoji="❌")
 
     logger.info("service.shutdown.complete", emoji="✅")
 
@@ -384,28 +351,9 @@ def create_application() -> FastAPI:
         enable_platform_routes=settings.ENABLE_PLATFORM_ROUTES,
     )
 
-    if settings.DEPLOYMENT_MODE == "single_tenant":
-        # Single-tenant mode: Only mount tenant app (no platform routes)
-        logger.info("single_tenant_mode.mounting_tenant_app_only")
-        app.mount("/api/v1", tenant_app)  # Mount at /api/v1 for backward compatibility
-
-    elif settings.DEPLOYMENT_MODE == "hybrid":
-        # Hybrid mode: Could be control plane OR tenant instance
-        # Control plane: platform app only
-        # Tenant instance: tenant app only
-        # Determined by ENABLE_PLATFORM_ROUTES setting
-        if settings.ENABLE_PLATFORM_ROUTES:
-            logger.info("hybrid_mode.control_plane.mounting_platform_app")
-            app.mount("/api/platform/v1", platform_app)
-        else:
-            logger.info("hybrid_mode.tenant_instance.mounting_tenant_app")
-            app.mount("/api/tenant/v1", tenant_app)
-
-    else:  # multi_tenant (default)
-        # Multi-tenant SaaS mode: Mount both apps
-        logger.info("multi_tenant_mode.mounting_both_apps")
+    if settings.ENABLE_PLATFORM_ROUTES:
+        logger.info("mounting_platform_app")
         app.mount("/api/platform/v1", platform_app)
-        app.mount("/api/tenant/v1", tenant_app)
 
     # Health check endpoint (public - no auth required)
     @app.get("/health")

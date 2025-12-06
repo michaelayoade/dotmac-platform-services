@@ -164,76 +164,6 @@ def get_infrastructure_services() -> list[ServiceHealthCheck]:
     ]
 
 
-# ISP-specific services (docker-compose.isp.yml)
-def get_isp_services() -> list[ServiceHealthCheck]:
-    """Get ISP services with environment-aware hostnames."""
-    return [
-        # MongoDB for GenieACS
-        ServiceHealthCheck(
-            name="MongoDB (GenieACS)",
-            host=_get_service_host("mongodb", "localhost"),
-            port=27017,
-            protocol="tcp",
-            required=False,
-            enabled=False,  # Only enable if ISP stack is running
-        ),
-        ServiceHealthCheck(
-            name="FreeRADIUS",
-            host=_get_service_host("freeradius", "localhost"),
-            port=18120,
-            protocol="http",
-            required=False,
-            enabled=False,  # Only enable if ISP stack is running
-        ),
-        ServiceHealthCheck(
-            name="NetBox",
-            host=_get_service_host("netbox", "localhost"),
-            port=8080,
-            protocol="http",
-            path="/api/status/",
-            required=False,
-            enabled=False,
-        ),
-        ServiceHealthCheck(
-            name="GenieACS",
-            host=_get_service_host("genieacs", "localhost"),
-            port=7557,
-            protocol="http",
-            path="/devices",
-            required=False,
-            enabled=False,
-        ),
-        ServiceHealthCheck(
-            name="LibreNMS",
-            host=_get_service_host("librenms", "localhost"),
-            port=8001,  # Changed to 8001 to free port 8000 for FastAPI
-            protocol="http",
-            required=False,
-            enabled=False,
-        ),
-        ServiceHealthCheck(
-            name="AWX",
-            host=_get_service_host("awx-web", "localhost"),
-            port=8052,
-            protocol="http",
-            required=False,
-            enabled=False,
-        ),
-        ServiceHealthCheck(
-            name="TimescaleDB",
-            host=_get_service_host("timescaledb", "localhost"),
-            port=5433,  # Using mapped port 5433 to avoid conflict with main Postgres
-            protocol="tcp",
-            required=False,
-            enabled=False,
-        ),
-        # Note: WireGuard (UDP-only service) and worker containers (awx-task, netbox-worker)
-        # are not included in health checks because:
-        # - WireGuard: UDP service with no HTTP endpoint (monitor via Docker health or peer connectivity)
-        # - Workers: Background job processors monitored via parent services (AWX-Web, NetBox)
-    ]
-
-
 async def check_tcp_connectivity(host: str, port: int, timeout: float) -> tuple[bool, str, float]:
     """Check TCP connectivity to a host:port."""
     import time
@@ -336,18 +266,9 @@ async def check_service_health(service: ServiceHealthCheck) -> HealthCheckResult
         )
 
 
-async def check_all_infrastructure_health(
-    include_isp_services: bool = False,
-) -> list[HealthCheckResult]:
+async def check_all_infrastructure_health() -> list[HealthCheckResult]:
     """Check health of all infrastructure services."""
     services_to_check = get_infrastructure_services()
-
-    if include_isp_services:
-        # Enable ISP services if requested
-        isp_services = get_isp_services()
-        for svc in isp_services:
-            svc.enabled = True
-        services_to_check.extend(isp_services)
 
     # Run all health checks concurrently
     tasks = [check_service_health(service) for service in services_to_check]
@@ -399,20 +320,16 @@ def format_health_report(results: list[HealthCheckResult]) -> str:
     return "\n".join(lines)
 
 
-async def check_required_services_healthy(
-    include_isp_services: bool = False,
-) -> tuple[bool, list[HealthCheckResult]]:
+async def check_required_services_healthy() -> tuple[bool, list[HealthCheckResult]]:
     """Check if all required services are healthy.
 
     Returns:
         tuple: (all_required_healthy, results)
     """
-    results = await check_all_infrastructure_health(include_isp_services)
+    results = await check_all_infrastructure_health()
 
     # Get all service configs
     all_services = get_infrastructure_services()
-    if include_isp_services:
-        all_services.extend(get_isp_services())
 
     # Check if any required services are unhealthy
     required_unhealthy = []
@@ -434,13 +351,11 @@ async def check_required_services_healthy(
 
 async def run_startup_health_checks(
     fail_on_unhealthy: bool = False,
-    include_isp_services: bool = False,
 ) -> bool:
     """Run infrastructure health checks on startup.
 
     Args:
         fail_on_unhealthy: Whether to raise an exception if required services are unhealthy
-        include_isp_services: Whether to check ISP-specific services
 
     Returns:
         bool: True if all required services are healthy
@@ -450,7 +365,7 @@ async def run_startup_health_checks(
     """
     logger.info("🔍 Running infrastructure health checks...")
 
-    all_healthy, results = await check_required_services_healthy(include_isp_services)
+    all_healthy, results = await check_required_services_healthy()
 
     # Print report
     report = format_health_report(results)

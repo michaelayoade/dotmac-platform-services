@@ -578,26 +578,6 @@ def _ensure_model_registry_loaded() -> None:
     """Import model modules so Base metadata is complete."""
     _safe_import("dotmac.platform.models", context="core platform models")
 
-    # Project management tables (independent modules so we can log failures per file)
-    _safe_import(
-        "dotmac.platform.project_management.models",
-        context="project/task models",
-    )
-    _safe_import(
-        "dotmac.platform.project_management.resource_models",
-        context="project resource models",
-    )
-    _safe_import(
-        "dotmac.platform.project_management.time_tracking_models",
-        context="project time tracking models",
-    )
-
-    # Field service tables (technicians, availability, etc.)
-    _safe_import(
-        "dotmac.platform.field_service.models",
-        context="technician models",
-    )
-
 
 def create_all_tables() -> None:
     """Create all tables in the database."""

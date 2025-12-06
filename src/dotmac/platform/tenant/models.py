@@ -11,7 +11,6 @@ Provides comprehensive tenant management with:
 
 from datetime import UTC, datetime
 from enum import Enum as PyEnum
-from types import ModuleType
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -36,18 +35,6 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase as Base
 else:
     Base = BaseRuntime
-
-
-# Ensure optional RADIUS models are registered with SQLAlchemy when available.
-_radius_models: ModuleType | None
-try:  # pragma: no cover - optional dependency
-    import dotmac.platform.radius.models as _radius_models
-except ImportError:
-    _radius_models = None
-
-if _radius_models is not None:
-    Base.registry._class_registry.setdefault("RadCheck", _radius_models.RadCheck)
-    Base.registry._class_registry.setdefault("NAS", _radius_models.NAS)
 
 
 class TenantStatus(str, PyEnum):
@@ -187,15 +174,6 @@ class Tenant(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
     provisioning_jobs: Mapped[list["TenantProvisioningJob"]] = relationship(
         "TenantProvisioningJob", back_populates="tenant", cascade="all, delete-orphan"
     )
-
-    # RADIUS relationships (configured lazily to avoid optional import cycles)
-    @declared_attr.directive
-    def radius_checks(cls) -> Any:  # pragma: no cover - optional radius integration
-        return property(lambda self: [])
-
-    @declared_attr.directive
-    def nas_devices(cls) -> Any:  # pragma: no cover - optional radius integration
-        return property(lambda self: [])
 
     def __repr__(self) -> str:
         return f"<Tenant(id={self.id}, name={self.name}, slug={self.slug}, status={self.status})>"

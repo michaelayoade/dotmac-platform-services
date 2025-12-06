@@ -662,7 +662,13 @@ async def create_subscription_renewal_quote(
     from decimal import Decimal
     from uuid import UUID
 
-    from dotmac.platform.crm.service import QuoteService
+    try:
+        from dotmac.platform.crm.service import QuoteService
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="CRM quoting service is not available in this deployment",
+        )
 
     # First get subscription details
     subscription_service = SubscriptionService(db_session)

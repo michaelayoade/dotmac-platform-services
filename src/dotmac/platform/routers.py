@@ -703,14 +703,6 @@ ROUTER_CONFIGS = [
     # Real-time & Rate Limiting
     # ===========================================
     RouterConfig(
-        module_path="dotmac.platform.realtime.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Real-Time"],
-        description="Real-time updates via SSE and WebSocket",
-        requires_auth=False,
-    ),
-    RouterConfig(
         module_path="dotmac.platform.rate_limit.router",
         router_name="router",
         prefix="/api/v1",

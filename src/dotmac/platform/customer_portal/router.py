@@ -37,8 +37,12 @@ from dotmac.platform.billing.payment_methods.models import (
 from dotmac.platform.billing.payment_methods.service import PaymentMethodService
 from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.database import get_async_session
-from dotmac.platform.radius.models import RadAcct
 from dotmac.platform.settings import settings
+
+try:
+    from dotmac.platform.radius.models import RadAcct
+except ImportError:  # pragma: no cover - optional ISP dependency removed
+    RadAcct = None
 
 # TimescaleDB imports (optional - will fallback to PostgreSQL if not available)
 TimeSeriesSessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
@@ -206,6 +210,9 @@ async def calculate_usage_from_radius(
             )
 
     # Fallback to PostgreSQL RadAcct table
+    if RadAcct is None:
+        return 0.0, 0.0
+
     result = await db.execute(
         select(
             func.coalesce(func.sum(RadAcct.acctinputoctets), 0).label("total_input"),
@@ -306,6 +313,9 @@ async def get_daily_usage_breakdown(
             )
 
     # Fallback to PostgreSQL
+    if RadAcct is None:
+        return []
+
     result = await db.execute(
         select(
             func.date_trunc("day", RadAcct.acctstarttime).label("day"),
@@ -417,6 +427,9 @@ async def get_hourly_usage_breakdown(
             )
 
     # Fallback to PostgreSQL RadAcct table
+    if RadAcct is None:
+        return []
+
     result = await db.execute(
         select(
             func.date_trunc("hour", RadAcct.acctstarttime).label("hour"),
@@ -775,17 +788,17 @@ async def download_invoice_pdf(
 
         # Prepare company info (you may want to load this from settings)
         company_info = {
-            "name": "Your ISP Company",
+            "name": "Your Company",
             "address": {
-                "street": "123 Network Drive",
+                "street": "123 Platform Drive",
                 "city": "Tech City",
                 "state": "TC",
                 "postal_code": "12345",
                 "country": "US",
             },
-            "email": "billing@yourisp.com",
+            "email": "billing@yourcompany.com",
             "phone": "+1 (555) 123-4567",
-            "website": "www.yourisp.com",
+            "website": "www.example.com",
             "tax_id": "XX-XXXXXXX",
         }
 

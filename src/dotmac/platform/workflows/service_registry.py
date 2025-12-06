@@ -181,32 +181,6 @@ def create_default_registry(db_session: AsyncSession) -> ServiceRegistry:
 
     registry.register_factory("notifications_service", notifications_service_factory)
 
-    # ISP-specific services
-
-    # Network Resource Management - Workflow Adapter (NEW)
-    def network_service_factory(db: AsyncSession) -> Any:
-        from ..network.workflow_service import NetworkService
-
-        return NetworkService(db)
-
-    registry.register_factory("network_service", network_service_factory)
-
-    # RADIUS Management - Workflow Adapter
-    def radius_service_factory(db: AsyncSession) -> Any:
-        from ..radius.workflow_service import RADIUSService
-
-        return RADIUSService(db)
-
-    registry.register_factory("radius_service", radius_service_factory)
-
-    # GenieACS (CPE Management) - Workflow Adapter
-    def genieacs_service_factory(db: AsyncSession) -> Any:
-        from ..genieacs.workflow_service import GenieACSService
-
-        return GenieACSService(db)
-
-    registry.register_factory("genieacs_service", genieacs_service_factory)
-
     logger.info("Service registry initialized with default services")
     return registry
 

@@ -224,7 +224,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
                 detail={
                     "error": "Insufficient permissions for tenant operations",
                     "path": path,
-                    "required_scopes": ["isp_admin:*", "network:*", "billing:*", "customer:*"],
+                    "required_scopes": ["tenant_admin:*", "network:*", "billing:*", "customer:*"],
                     "help": "Contact your tenant administrator for access",
                 },
             )
@@ -301,7 +301,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
         Check if user has any tenant-level scopes.
 
         Tenant scopes include:
-        - isp_admin:*
+        - tenant_admin:*
         - network:*
         - billing:*
         - customer:*
@@ -331,7 +331,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
 
         # Check for tenant scopes
         tenant_scope_keywords = [
-            "isp_admin:",
+            "tenant_admin:",
             "network:",
             "billing:",
             "customer:",

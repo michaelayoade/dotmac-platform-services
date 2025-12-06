@@ -87,7 +87,7 @@ class TestAppBoundaryMiddleware:
         mock_request.url.path = "/api/platform/v1/tenants"
         mock_user = Mock()
         mock_user.id = "user-123"
-        mock_user.scopes = ["isp_admin:read", "billing:write"]  # No platform scopes
+        mock_user.scopes = ["tenant_admin:read", "billing:write"]  # No platform scopes
         mock_request.state.user = mock_user
         mock_request.state.tenant_id = None
 
@@ -237,7 +237,7 @@ class TestAppBoundaryMiddleware:
     async def test_tenant_scope_variations(self, middleware, mock_request):
         """Test various tenant scope formats are recognized."""
         tenant_scopes = [
-            ["isp_admin:*"],
+            ["tenant_admin:*"],
             ["network:read"],
             ["billing:write"],
             ["customer:*"],
@@ -307,7 +307,7 @@ class TestAppBoundaryMiddleware:
     def test_is_tenant_route(self, middleware):
         """Test tenant route detection."""
         assert middleware._is_tenant_route("/api/tenant/v1/customers")
-        assert middleware._is_tenant_route("/api/tenant/v1/radius/sessions")
+        assert middleware._is_tenant_route("/api/tenant/v1/billing/invoices")
         assert not middleware._is_tenant_route("/api/platform/v1/admin")
         assert not middleware._is_tenant_route("/api/v1/users")
 
@@ -322,7 +322,7 @@ class TestAppBoundaryMiddleware:
         assert middleware._has_platform_scope(user_with_platform_role)
 
         user_without_platform = Mock()
-        user_without_platform.scopes = ["isp_admin:*", "billing:read"]
+        user_without_platform.scopes = ["tenant_admin:*", "billing:read"]
         assert not middleware._has_platform_scope(user_without_platform)
 
         user_no_scopes = Mock()
@@ -336,7 +336,7 @@ class TestAppBoundaryMiddleware:
     def test_has_tenant_scope(self, middleware):
         """Test tenant scope detection."""
         user_with_tenant = Mock()
-        user_with_tenant.scopes = ["isp_admin:*", "billing:read"]
+        user_with_tenant.scopes = ["tenant_admin:*", "billing:read"]
         assert middleware._has_tenant_scope(user_with_tenant)
 
         user_with_platform = Mock()

@@ -49,22 +49,6 @@ class ExternalServiceBreakerManager:
             success_threshold=2,
         )
 
-        # IPAM/NetBox
-        self.register_breaker(
-            "netbox",
-            failure_threshold=5,
-            recovery_timeout=30.0,
-            success_threshold=2,
-        )
-
-        # GenieACS (TR-069)
-        self.register_breaker(
-            "genieacs",
-            failure_threshold=5,
-            recovery_timeout=45.0,
-            success_threshold=2,
-        )
-
         # Email services
         self.register_breaker(
             "smtp",

@@ -23,7 +23,6 @@ pytestmark = pytest.mark.integration
 def patch_lifespan_dependencies():
     """Patch asynchronous startup dependencies introduced in main.lifespan."""
     with (
-        patch("dotmac.platform.main.ensure_isp_rbac", new_callable=AsyncMock) as mock_isp_rbac,
         patch(
             "dotmac.platform.main.ensure_billing_rbac", new_callable=AsyncMock
         ) as mock_billing_rbac,
@@ -43,7 +42,6 @@ def patch_lifespan_dependencies():
         mock_session_factory.return_value = session_cm
         mock_run_startup_checks.return_value = True
         yield {
-            "isp_rbac": mock_isp_rbac,
             "billing_rbac": mock_billing_rbac,
             "default_admin": mock_default_admin,
             "init_redis": mock_init_redis,

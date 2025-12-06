@@ -92,12 +92,12 @@ async def get_validated_tenant_id(
     Use this in route handlers that need multi-tenant access validation:
 
     ```python
-    @router.get("/api/v1/subscribers")
-    async def get_subscribers(
+    @router.get("/api/v1/customers")
+    async def get_customers(
         tenant_id: str = Depends(get_validated_tenant_id)
     ):
         # tenant_id is now validated
-        return await subscriber_service.get_all(tenant_id)
+        return await customer_service.get_all(tenant_id)
     ```
     """
     return await validate_partner_tenant_access(request, current_user, tenant_id)

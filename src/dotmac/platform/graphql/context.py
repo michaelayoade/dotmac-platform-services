@@ -14,7 +14,6 @@ from strawberry.types import Info
 
 from dotmac.platform.auth.core import TokenType, UserInfo, jwt_service
 from dotmac.platform.db import AsyncSessionLocal
-from dotmac.platform.graphql.loaders import DataLoaderRegistry
 
 
 @strawberry.type
@@ -31,7 +30,7 @@ class Context(BaseContext):
     request: Request
     db: AsyncSession
     current_user: UserInfo | None = None
-    loaders: DataLoaderRegistry
+    loaders: dict[str, Any]
 
     def __init__(
         self,
@@ -44,7 +43,7 @@ class Context(BaseContext):
         self.request = request
         self.db = db
         self.current_user = current_user
-        self.loaders = DataLoaderRegistry(db)
+        self.loaders = {}
         self._background_tasks: BackgroundTasks | None = None
         self._close_registered = False
         self._session_closed = False

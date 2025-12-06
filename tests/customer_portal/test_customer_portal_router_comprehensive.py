@@ -84,9 +84,13 @@ def sample_customer(test_user: FakeUser):
 @pytest.fixture
 def fastapi_app():
     """Create FastAPI app for testing."""
-    from dotmac.platform.tenant_app import create_tenant_app
+    from fastapi import FastAPI
 
-    return create_tenant_app()
+    from dotmac.platform.customer_portal.router import router as customer_portal_router
+
+    app = FastAPI()
+    app.include_router(customer_portal_router)
+    return app
 
 
 @pytest.fixture

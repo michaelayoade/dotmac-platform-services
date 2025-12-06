@@ -22,14 +22,7 @@ celery_app = Celery(
         "dotmac.platform.tasks",
         "dotmac.platform.communications.task_service",
         "dotmac.platform.billing.dunning.tasks",
-        "dotmac.platform.services.lifecycle.tasks",
-        "dotmac.platform.genieacs.tasks",
-        "dotmac.platform.tenant.provisioning_tasks",
-        "dotmac.platform.radius.tasks",
-        "dotmac.platform.services.internet_plans.usage_monitoring_tasks",
-        "dotmac.platform.services.internet_plans.usage_billing_tasks",
         "dotmac.platform.data_transfer.tasks",
-        "dotmac.platform.network.tasks",  # IPv6 lifecycle cleanup tasks
     ],  # Auto-discover task modules
 )
 
@@ -111,96 +104,7 @@ def setup_periodic_tasks(sender: Any, **kwargs: Any) -> None:
     )
 
     # Service Lifecycle - Process scheduled terminations every 10 minutes
-    from dotmac.platform.services.lifecycle.tasks import (
-        perform_health_checks_task,
-        process_auto_resume_task,
-        process_scheduled_terminations_task,
-    )
-
-    sender.add_periodic_task(
-        600.0,  # 10 minutes
-        process_scheduled_terminations_task.s(),
-        name="lifecycle-process-scheduled-terminations",
-    )
-
-    # Service Lifecycle - Process auto-resumption every 15 minutes
-    sender.add_periodic_task(
-        900.0,  # 15 minutes
-        process_auto_resume_task.s(),
-        name="lifecycle-process-auto-resume",
-    )
-
-    # Service Lifecycle - Health checks every hour
-    sender.add_periodic_task(
-        3600.0,  # 1 hour
-        perform_health_checks_task.s(),
-        name="lifecycle-perform-health-checks",
-    )
-
-    # GenieACS - Check scheduled firmware upgrades every minute
-    from dotmac.platform.genieacs.tasks import (
-        check_scheduled_upgrades,
-        replay_pending_operations,
-    )
-
-    sender.add_periodic_task(
-        60.0,  # 1 minute
-        check_scheduled_upgrades.s(),
-        name="genieacs-check-scheduled-upgrades",
-    )
-    replay_pending_operations.apply_async(countdown=5)
-
-    # RADIUS - Sync sessions to TimescaleDB every 15 minutes (only if configured)
-    if settings.timescaledb.is_configured:
-        from dotmac.platform.radius.tasks import sync_sessions_to_timescaledb
-
-        sender.add_periodic_task(
-            900.0,  # 15 minutes
-            sync_sessions_to_timescaledb.s(batch_size=100, max_age_hours=24),
-            name="radius-sync-sessions-to-timescaledb",
-        )
-
-    # Data Cap Monitoring - Check subscriber usage against caps every hour
-    if settings.timescaledb.is_configured:
-        from dotmac.platform.services.internet_plans.usage_billing_tasks import (
-            process_usage_billing,
-        )
-        from dotmac.platform.services.internet_plans.usage_monitoring_tasks import (
-            monitor_data_cap_usage,
-        )
-
-        sender.add_periodic_task(
-            3600.0,  # 1 hour
-            monitor_data_cap_usage.s(batch_size=100),
-            name="services-monitor-data-cap-usage",
-        )
-
-        # Usage-Based Billing - Process overage charges daily at 00:00 UTC
-        # Run daily to check for subscriptions at end of billing period
-        sender.add_periodic_task(
-            86400.0,  # 24 hours (daily)
-            process_usage_billing.s(batch_size=100),
-            name="services-process-usage-billing",
-        )
-
-    # IPv6 Lifecycle Management (Phase 4) - Cleanup and metrics
-    # Cleanup stale IPv6 prefixes daily at 2:00 AM UTC
-    from celery.schedules import crontab
-
-    from dotmac.platform.network.tasks import cleanup_ipv6_stale_prefixes, emit_ipv6_metrics
-
-    sender.add_periodic_task(
-        crontab(hour=2, minute=0),  # Daily at 2 AM UTC
-        cleanup_ipv6_stale_prefixes.s(),
-        name="network-cleanup-ipv6-stale-prefixes",
-    )
-
-    # Emit IPv6 lifecycle metrics every 5 minutes
-    sender.add_periodic_task(
-        300.0,  # 5 minutes
-        emit_ipv6_metrics.s(),
-        name="network-emit-ipv6-metrics",
-    )
+    # (Add additional platform-level periodic tasks here as needed)
 
     logger = structlog.get_logger(__name__)
 
