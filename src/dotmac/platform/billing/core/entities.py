@@ -556,7 +556,7 @@ class CustomerCreditEntity(Base, TenantMixin, TimestampMixin):  # type: ignore[m
 
 
 class ServiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin, SoftDeleteMixin):  # type: ignore[misc]  # Mixin has type Any
-    """Service database entity for tracking subscriber services"""
+    """Service database entity for tracking customer services"""
 
     __tablename__ = "services"
 

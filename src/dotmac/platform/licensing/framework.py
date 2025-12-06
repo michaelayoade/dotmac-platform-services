@@ -214,10 +214,10 @@ class ModuleCapability(Base):
     """
     Specific capabilities provided by a feature module.
 
-    Example: "RADIUS AAA" module provides:
-    - "radius_authentication" capability
-    - "radius_accounting" capability
-    - "nas_management" capability
+    Example: "Billing" module provides:
+    - "invoicing" capability
+    - "payment_processing" capability
+    - "subscription_management" capability
     """
 
     __tablename__ = "licensing_module_capabilities"
@@ -268,7 +268,7 @@ class QuotaDefinition(Base):
 
     Examples:
     - "Staff Users" quota (max 50 users)
-    - "Subscribers" quota (max 10,000 subscribers)
+    - "Customers" quota (max 10,000 customers)
     - "API Calls" quota (100,000 calls/month)
     - "Storage" quota (500 GB)
     """
@@ -491,7 +491,7 @@ class PlanQuotaAllocation(Base):
     """
     Quota allocations for a service plan.
 
-    Defines limits for quotas (users, subscribers, API calls, storage, etc.)
+    Defines limits for quotas (users, customers, API calls, storage, etc.)
     """
 
     __tablename__ = "licensing_plan_quota_allocations"

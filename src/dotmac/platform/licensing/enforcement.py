@@ -244,7 +244,7 @@ def check_quota(
 
     Usage:
         @router.post("/customers")
-        @check_quota("active_subscribers", quantity=1)
+        @check_quota("active_customers", quantity=1)
         async def create_customer(
             quota_available: bool,
             quota_info: dict,

@@ -683,13 +683,13 @@ class CustomerService:
                 assigned_devices_json = sa.cast(Customer.assigned_devices, JSONB)
                 json_serial_filter = or_(
                     assigned_devices_json.op("@>")(
-                        sa.cast(literal({"onu_serial": params.device_serial}), JSONB)
+                        sa.cast(literal({"device_serial": params.device_serial}), JSONB)
                     ),
                     assigned_devices_json.op("@>")(
-                        sa.cast(literal({"router_id": params.device_serial}), JSONB)
+                        sa.cast(literal({"device_id": params.device_serial}), JSONB)
                     ),
                     assigned_devices_json.op("@>")(
-                        sa.cast(literal({"cpe_mac": params.device_serial}), JSONB)
+                        sa.cast(literal({"serial": params.device_serial}), JSONB)
                     ),
                 )
 

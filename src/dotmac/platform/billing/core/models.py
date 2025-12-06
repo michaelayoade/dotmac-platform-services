@@ -456,7 +456,7 @@ class Subscription(BillingBaseModel):
 
 
 class Service(BillingBaseModel):
-    """Service model for tracking subscriber services"""
+    """Service model for tracking customer services"""
 
     model_config = ConfigDict()
 
@@ -466,7 +466,7 @@ class Service(BillingBaseModel):
 
     # References
     customer_id: str = Field(..., description="Customer identifier")
-    subscriber_id: str | None = Field(None, description="Subscriber identifier")
+    subscriber_id: str | None = Field(None, description="Deprecated: use customer_id")
     subscription_id: str | None = Field(None, description="Subscription identifier")
     plan_id: str | None = Field(None, description="Service plan identifier")
 

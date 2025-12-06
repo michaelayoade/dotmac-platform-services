@@ -149,7 +149,7 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         String(50),
         nullable=False,
         index=True,
-        comment="Source system (radius, api, import, etc)",
+        comment="Source system (api, webhook, import, etc)",
     )
     source_record_id: Mapped[str | None] = mapped_column(
         String(100),

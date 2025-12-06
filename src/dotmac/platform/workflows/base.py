@@ -391,7 +391,7 @@ class WorkflowServiceBase:
         Get or create a circuit breaker for an external service.
 
         Args:
-            name: Circuit breaker name (e.g., "netbox", "genieacs")
+            name: Circuit breaker name (e.g., "payment_gateway", "email_service")
             config: Optional circuit breaker configuration
 
         Returns:

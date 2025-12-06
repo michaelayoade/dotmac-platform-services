@@ -47,7 +47,7 @@ class ISPServiceInfo(BaseModel):  # BaseModel resolves to Any in isolation
     installation_notes: str | None = None
 
     # Service details
-    connection_type: str | None = Field(None, pattern="^(ftth|wireless|dsl|cable|fiber|hybrid)$")
+    connection_type: str | None = Field(None, max_length=20)
     last_mile_technology: str | None = Field(None, max_length=50)
     service_plan_speed: str | None = Field(None, max_length=50)
 
@@ -340,10 +340,10 @@ class CustomerSearchParams(BaseModel):  # BaseModel resolves to Any in isolation
         None, description="Search by bandwidth/QoS profile"
     )
     last_mile_technology: str | None = Field(
-        None, description="Search by technology (gpon, xgs-pon, etc)"
+        None, description="Search by technology type or tier"
     )
     device_serial: str | None = Field(
-        None, description="Search by device serial number (ONU, CPE, router)"
+        None, description="Search by device serial number"
     )
 
     # Pagination

@@ -195,7 +195,7 @@ class NotificationPreference(BaseModel, TimestampMixin, TenantMixin):
     quiet_hours_timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Per-type preferences (JSON structure)
-    # Example: {"subscriber_provisioned": {"email": true, "sms": false, "push": true}}
+    # Example: {"customer_activated": {"email": true, "sms": false, "push": true}}
     type_preferences: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     # Priority filtering

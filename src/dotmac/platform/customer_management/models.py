@@ -300,21 +300,21 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin): 
         String(20),
         nullable=True,
         index=True,
-        comment="ftth, wireless, dsl, cable, fiber, hybrid",
+        comment="Service connection type (cloud, saas, enterprise, etc)",
     )
     last_mile_technology: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="gpon, xgs-pon, docsis3.1, lte, 5g, etc"
+        String(50), nullable=True, comment="Technology type or tier"
     )
     service_plan_speed: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="e.g., 100/100 Mbps, 1 Gbps"
+        String(50), nullable=True, comment="e.g., basic, pro, enterprise"
     )
 
-    # Network Device Links (JSON for flexibility)
+    # Device Links (JSON for flexibility)
     assigned_devices: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
         nullable=False,
-        comment="Device assignments: {onu_serial, cpe_mac, router_id, etc}",
+        comment="Device assignments: {device_id, serial, etc}",
     )
 
     # Bandwidth Management

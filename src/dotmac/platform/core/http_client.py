@@ -59,7 +59,7 @@ class RobustHTTPClient:
         Initialize robust HTTP client.
 
         Args:
-            service_name: Name of the service (e.g., "voltha", "genieacs", "netbox")
+            service_name: Name of the service (e.g., "billing", "notifications", "analytics")
             base_url: Base URL for the API
             tenant_id: Tenant ID for multi-tenancy support
             api_token: Bearer token for authentication

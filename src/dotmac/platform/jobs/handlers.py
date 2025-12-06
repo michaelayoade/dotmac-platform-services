@@ -70,8 +70,8 @@ async def _auto_assign_technician(
             if skills:
                 required_skills = skills
             else:
-                # Default skills for fiber installation
-                required_skills = ["fiber_installation", "ont_configuration"]
+                # Default skills for field service
+                required_skills = ["field_service", "technical_support"]
 
         # Get priority from ticket
         priority = ticket.priority.value if ticket.priority else "normal"
