@@ -199,6 +199,16 @@ class UserInfo(BaseModel):
             and self.active_managed_tenant_id != self.tenant_id
         )
 
+    @property
+    def partner_uuid(self) -> UUID | None:
+        """Normalized partner UUID (None if missing/invalid)."""
+        if not self.partner_id:
+            return None
+        try:
+            return ensure_uuid(self.partner_id)
+        except Exception:
+            return None
+
 
 class TokenData(BaseModel):
     """Token response."""
@@ -1055,7 +1065,7 @@ async def get_current_user(
     if credentials and credentials.credentials:
         try:
             claims = await _verify_token_with_fallback(credentials.credentials, TokenType.ACCESS)
-            return _claims_to_user_info(claims)
+            return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
 
@@ -1063,7 +1073,7 @@ async def get_current_user(
     if token:
         try:
             claims = await _verify_token_with_fallback(token, TokenType.ACCESS)
-            return _claims_to_user_info(claims)
+            return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
 
@@ -1072,7 +1082,7 @@ async def get_current_user(
     if access_token:
         try:
             claims = await _verify_token_with_fallback(access_token, TokenType.ACCESS)
-            return _claims_to_user_info(claims)
+            return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
 
@@ -1124,6 +1134,46 @@ def _claims_to_user_info(claims: dict[str, Any]) -> UserInfo:
         managed_tenant_ids=claims.get("managed_tenant_ids", []),
         active_managed_tenant_id=claims.get("active_managed_tenant_id"),
     )
+
+
+def _claims_to_user_with_context(request: Request, claims: dict[str, Any]) -> UserInfo:
+    """Convert claims to UserInfo and attach active tenant context when present."""
+    user_info = _claims_to_user_info(claims)
+    _apply_active_tenant_context(request, user_info)
+    return user_info
+
+
+def _apply_active_tenant_context(request: Request, user_info: UserInfo) -> None:
+    """
+    Attach active managed tenant context from request state or headers.
+
+    Tenant middleware resolves X-Active-Tenant-Id into request.state.tenant_id,
+    but the auth layer still needs to reflect that context on UserInfo so
+    cross-tenant access checks (e.g., partner support actions) succeed.
+    """
+    try:
+        active_tenant = getattr(request.state, "tenant_id", None)
+    except Exception:
+        active_tenant = None
+
+    if not active_tenant:
+        header_value = request.headers.get("X-Active-Tenant-Id")
+        if isinstance(header_value, str) and header_value.strip():
+            active_tenant = header_value.strip()
+
+    # Only set cross-tenant context for partner users with a valid managed tenant
+    if (
+        not active_tenant
+        or not user_info.partner_id
+        or (user_info.tenant_id and active_tenant == user_info.tenant_id)
+    ):
+        return
+
+    managed_ids = user_info.managed_tenant_ids or []
+    if managed_ids and active_tenant not in managed_ids:
+        return
+
+    user_info.active_managed_tenant_id = active_tenant
 
 
 # ============================================

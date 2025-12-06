@@ -69,7 +69,12 @@ async def list_managed_tenants(
             detail="User is not associated with a partner",
         )
 
-    partner_id = ensure_uuid(current_user.partner_id)
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
 
     # Build query for partner's tenant links
     query = (
@@ -170,7 +175,12 @@ async def get_managed_tenant_detail(
             detail="User is not associated with a partner",
         )
 
-    partner_id = ensure_uuid(current_user.partner_id)
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
 
     # Validate access to this tenant
     if tenant_id not in current_user.managed_tenant_ids:

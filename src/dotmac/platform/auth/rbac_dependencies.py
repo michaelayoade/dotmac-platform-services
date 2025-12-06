@@ -179,10 +179,17 @@ class PartnerPermissionChecker(PermissionChecker):
 
         from dotmac.platform.partner_management.models import PartnerTenantLink
 
+        partner_id = current_user.partner_uuid
+        if not partner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid partner identifier",
+            )
+
         # Query for active link
         result = await db.execute(
             select(PartnerTenantLink).where(
-                PartnerTenantLink.partner_id == current_user.partner_id,
+                PartnerTenantLink.partner_id == partner_id,
                 PartnerTenantLink.managed_tenant_id == current_user.active_managed_tenant_id,
                 PartnerTenantLink.is_active == True,  # noqa: E712
             )
@@ -193,7 +200,7 @@ class PartnerPermissionChecker(PermissionChecker):
             logger.warning(
                 "No active partner-tenant link found",
                 user_id=current_user.user_id,
-                partner_id=current_user.partner_id,
+                partner_id=partner_id,
                 managed_tenant_id=current_user.active_managed_tenant_id,
             )
             raise HTTPException(

@@ -398,7 +398,15 @@ def client(test_app):
     test_app.dependency_overrides.clear()
 ```
 
-### Pitfall 3: Hardcoding Assumptions About Schemas
+### Pitfall 3: Pulling in billing models when not needed
+
+**Problem:**
+- Importing the platform package or calling `_import_base_and_models()` without guards pulls in billing models, registering billing tables/indexes on the shared metadata and causing duplicate index/table errors (especially on SQLite).
+
+**Solution:**
+- Set `DOTMAC_SKIP_BILLING_MODELS=1` (or `DOTMAC_SKIP_PLATFORM_MODELS=1`) in test runs that don’t exercise billing. The platform package, router registration, and `_import_base_and_models` will skip billing imports/routers when this flag is set.
+
+### Pitfall 4: Hardcoding Assumptions About Schemas
 
 **Problem:**
 ```python
@@ -415,7 +423,7 @@ assert data["customer_id"] == "cust-123"
 assert data["status"] == "active"
 ```
 
-### Pitfall 4: Not Testing Response Schemas
+### Pitfall 5: Not Testing Response Schemas
 
 **Problem:**
 ```python
