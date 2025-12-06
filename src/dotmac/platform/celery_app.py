@@ -115,7 +115,6 @@ def setup_periodic_tasks(sender: Any, **kwargs: Any) -> None:
         "lifecycle-process-scheduled-terminations",
         "lifecycle-process-auto-resume",
         "lifecycle-perform-health-checks",
-        "genieacs-check-scheduled-upgrades",
         "network-cleanup-ipv6-stale-prefixes",
         "network-emit-ipv6-metrics",
     ]
@@ -123,7 +122,6 @@ def setup_periodic_tasks(sender: Any, **kwargs: Any) -> None:
     if settings.timescaledb.is_configured:
         periodic_task_names.extend(
             [
-                "radius-sync-sessions-to-timescaledb",
                 "services-monitor-data-cap-usage",
                 "services-process-usage-billing",
             ]

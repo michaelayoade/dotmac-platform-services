@@ -73,25 +73,6 @@ SECRETS_MAPPING = {
     "billing.avalara_api_key": "billing/avalara/api_key",
     "billing.taxjar_api_token": "billing/taxjar/api_token",
     # ============================================================
-    # OSS Integration Credentials (CONFIDENTIAL)
-    # ============================================================
-    # VOLTHA (PON Controller)
-    "oss.voltha.password": "oss/voltha/password",
-    "oss.voltha.api_token": "oss/voltha/token",
-    # GenieACS (TR-069 ACS)
-    "oss.genieacs.password": "oss/genieacs/password",
-    "oss.genieacs.api_token": "oss/genieacs/token",
-    # NetBox (IPAM/DCIM)
-    "oss.netbox.api_token": "oss/netbox/token",
-    "oss.netbox.password": "oss/netbox/password",
-    # Ansible AWX (Automation)
-    "oss.ansible.password": "oss/awx/password",
-    "oss.ansible.api_token": "oss/awx/token",
-    # ============================================================
-    # Network Service Credentials (RESTRICTED)
-    # ============================================================
-    "radius.secret": "radius/secret",
-    # ============================================================
     # Webhook Security (CONFIDENTIAL)
     # ============================================================
     "webhooks.signing_secret": "webhooks/signing_secret",

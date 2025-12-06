@@ -142,59 +142,11 @@ def _default_observability_settings() -> ObservabilitySettings:
     return cast(ObservabilitySettings, ObservabilitySettings.model_validate({}))
 
 
-class OSSSettings(BaseModel):  # BaseModel resolves to Any in isolation
-    """Operational support system integrations per service."""
+class IntegrationSettings(BaseModel):  # BaseModel resolves to Any in isolation
+    """External service integrations for platform operations."""
 
     model_config = ConfigDict()
 
-    voltha: ServiceEndpointSettings = Field(
-        default_factory=lambda: ServiceEndpointSettings(
-            url=os.getenv("VOLTHA_URL", "http://localhost:8881"),
-            username=os.getenv("VOLTHA_USERNAME"),
-            password=os.getenv("VOLTHA_PASSWORD"),
-            api_token=os.getenv("VOLTHA_TOKEN"),
-            verify_ssl=os.getenv("VOLTHA_VERIFY_SSL", "true").lower() not in {"false", "0"},
-            timeout_seconds=float(os.getenv("VOLTHA_TIMEOUT_SECONDS", "30")),
-            max_retries=int(os.getenv("VOLTHA_MAX_RETRIES", "3")),
-        ),
-        description="VOLTHA PON controller configuration",
-    )
-    genieacs: ServiceEndpointSettings = Field(
-        default_factory=lambda: ServiceEndpointSettings(
-            url=os.getenv("GENIEACS_URL", "http://localhost:7557"),
-            username=os.getenv("GENIEACS_USERNAME"),
-            password=os.getenv("GENIEACS_PASSWORD"),
-            api_token=os.getenv("GENIEACS_API_TOKEN"),
-            verify_ssl=os.getenv("GENIEACS_VERIFY_SSL", "true").lower() not in {"false", "0"},
-            timeout_seconds=float(os.getenv("GENIEACS_TIMEOUT_SECONDS", "30")),
-            max_retries=int(os.getenv("GENIEACS_MAX_RETRIES", "3")),
-        ),
-        description="GenieACS TR-069 controller configuration",
-    )
-    netbox: ServiceEndpointSettings = Field(
-        default_factory=lambda: ServiceEndpointSettings(
-            url=os.getenv("NETBOX_URL", "http://localhost:8080"),
-            api_token=os.getenv("NETBOX_API_TOKEN"),
-            username=os.getenv("NETBOX_USERNAME"),
-            password=os.getenv("NETBOX_PASSWORD"),
-            verify_ssl=os.getenv("NETBOX_VERIFY_SSL", "true").lower() not in {"false", "0"},
-            timeout_seconds=float(os.getenv("NETBOX_TIMEOUT_SECONDS", "30")),
-            max_retries=int(os.getenv("NETBOX_MAX_RETRIES", "3")),
-        ),
-        description="NetBox IPAM/DCIM configuration",
-    )
-    ansible: ServiceEndpointSettings = Field(
-        default_factory=lambda: ServiceEndpointSettings(
-            url=os.getenv("AWX_URL", "http://localhost:80"),
-            username=os.getenv("AWX_USERNAME"),
-            password=os.getenv("AWX_PASSWORD"),
-            api_token=os.getenv("AWX_TOKEN"),
-            verify_ssl=os.getenv("AWX_VERIFY_SSL", "true").lower() not in {"false", "0"},
-            timeout_seconds=float(os.getenv("AWX_TIMEOUT_SECONDS", "30")),
-            max_retries=int(os.getenv("AWX_MAX_RETRIES", "2")),
-        ),
-        description="Ansible AWX automation configuration",
-    )
     prometheus: ServiceEndpointSettings = Field(
         default_factory=lambda: ServiceEndpointSettings(
             url=os.getenv("PROMETHEUS_URL", "http://localhost:9090"),
@@ -204,146 +156,9 @@ class OSSSettings(BaseModel):  # BaseModel resolves to Any in isolation
             verify_ssl=os.getenv("PROMETHEUS_VERIFY_SSL", "true").lower() not in {"false", "0"},
             timeout_seconds=float(os.getenv("PROMETHEUS_TIMEOUT_SECONDS", "15")),
             max_retries=int(os.getenv("PROMETHEUS_MAX_RETRIES", "2")),
-            extras={
-                "traffic_queries": {
-                    "rx_rate": os.getenv(
-                        "PROMETHEUS_RX_RATE_QUERY",
-                        'sum(rate(node_network_receive_bytes_total{instance="<<device_id>>"}[5m]))',
-                    ),
-                    "tx_rate": os.getenv(
-                        "PROMETHEUS_TX_RATE_QUERY",
-                        'sum(rate(node_network_transmit_bytes_total{instance="<<device_id>>"}[5m]))',
-                    ),
-                    "rx_bytes": os.getenv(
-                        "PROMETHEUS_RX_BYTES_QUERY",
-                        'sum(increase(node_network_receive_bytes_total{instance="<<device_id>>"}[1h]))',
-                    ),
-                    "tx_bytes": os.getenv(
-                        "PROMETHEUS_TX_BYTES_QUERY",
-                        'sum(increase(node_network_transmit_bytes_total{instance="<<device_id>>"}[1h]))',
-                    ),
-                    "rx_packets": os.getenv(
-                        "PROMETHEUS_RX_PACKETS_QUERY",
-                        'sum(increase(node_network_receive_packets_total{instance="<<device_id>>"}[1h]))',
-                    ),
-                    "tx_packets": os.getenv(
-                        "PROMETHEUS_TX_PACKETS_QUERY",
-                        'sum(increase(node_network_transmit_packets_total{instance="<<device_id>>"}[1h]))',
-                    ),
-                },
-                "device_placeholder": os.getenv(
-                    "PROMETHEUS_DEVICE_PLACEHOLDER",
-                    "<<device_id>>",
-                ),
-            },
         ),
         description="Prometheus metrics API configuration",
     )
-
-
-class RADIUSSettings(BaseModel):  # BaseModel resolves to Any in isolation
-    """RADIUS server configuration for CoA/DM operations."""
-
-    model_config = ConfigDict()
-
-    # Server connection
-    server_host: str = Field("localhost", description="RADIUS server hostname or IP address")
-    coa_port: int = Field(3799, description="CoA port (RFC 5176 default: 3799)")
-
-    # Authentication (LOAD FROM VAULT IN PRODUCTION)
-    shared_secret: str = Field(
-        "", description="RADIUS shared secret (MUST load from Vault in production)"
-    )
-
-    # Dictionary files (NOT secrets - static configuration)
-    dictionary_path: str = Field(
-        "/etc/raddb/dictionary",
-        description="Path to RADIUS dictionary file",
-    )
-    dictionary_coa_path: str | None = Field(
-        "/etc/raddb/dictionary.rfc5176",
-        description="Path to CoA dictionary file (RFC 5176)",
-    )
-
-    # Connection settings
-    timeout_seconds: int = Field(5, description="RADIUS request timeout in seconds")
-    max_retries: int = Field(2, description="Maximum retry attempts for failed requests")
-
-    # HTTP API fallback (optional alternative to native RADIUS)
-    use_http_api: bool = Field(False, description="Use HTTP API instead of native RADIUS protocol")
-    http_api_url: str | None = Field(None, description="HTTP API endpoint URL for CoA operations")
-    http_api_key: str = Field(
-        "", description="HTTP API authentication key (load from Vault in production)"
-    )
-
-    # Multi-vendor support
-    default_vendor: str = Field(
-        "mikrotik",
-        description="Default NAS vendor for new deployments (mikrotik, cisco, huawei, juniper, generic)",
-    )
-    vendor_aware: bool = Field(
-        True, description="Enable vendor-specific attribute generation and CoA handling"
-    )
-
-    def __init__(self, **data: Any):
-        """Initialize with environment variable overrides."""
-        # Load from environment if not explicitly provided
-        if "server_host" not in data:
-            data["server_host"] = os.getenv("RADIUS_SERVER_HOST", "localhost")
-        if "coa_port" not in data:
-            data["coa_port"] = int(os.getenv("RADIUS_COA_PORT", "3799"))
-        if "shared_secret" not in data:
-            data["shared_secret"] = os.getenv("RADIUS_SECRET", "")
-        if "timeout_seconds" not in data:
-            data["timeout_seconds"] = int(os.getenv("RADIUS_TIMEOUT", "5"))
-        if "max_retries" not in data:
-            data["max_retries"] = int(os.getenv("RADIUS_MAX_RETRIES", "2"))
-        if "use_http_api" not in data:
-            data["use_http_api"] = os.getenv("RADIUS_USE_HTTP_API", "false").lower() in {
-                "true",
-                "1",
-            }
-        if "http_api_url" not in data:
-            data["http_api_url"] = os.getenv("RADIUS_HTTP_API_URL")
-        if "http_api_key" not in data:
-            data["http_api_key"] = os.getenv("RADIUS_HTTP_API_KEY", "")
-        if "default_vendor" not in data:
-            data["default_vendor"] = os.getenv("RADIUS_DEFAULT_VENDOR", "mikrotik")
-        if "vendor_aware" not in data:
-            data["vendor_aware"] = os.getenv("RADIUS_VENDOR_AWARE", "true").lower() in {
-                "true",
-                "1",
-            }
-
-        # Dictionary paths - try bundled first, then environment, then system
-        if "dictionary_path" not in data:
-            bundled_dict = os.path.join(
-                os.path.dirname(__file__), "../../../config/radius/dictionary"
-            )
-            data["dictionary_path"] = (
-                bundled_dict
-                if os.path.exists(bundled_dict)
-                else os.getenv("RADIUS_DICTIONARY_PATH", "/etc/raddb/dictionary")
-            )
-        if "dictionary_coa_path" not in data:
-            bundled_coa = os.path.join(
-                os.path.dirname(__file__), "../../../config/radius/dictionary.rfc5176"
-            )
-            data["dictionary_coa_path"] = (
-                bundled_coa
-                if os.path.exists(bundled_coa)
-                else os.getenv("RADIUS_DICTIONARY_COA_PATH", "/etc/raddb/dictionary.rfc5176")
-            )
-
-        super().__init__(**data)
-
-    @property
-    def dictionary_paths(self) -> list[str]:
-        """Return list of dictionary paths for pyrad initialization."""
-        paths = [self.dictionary_path]
-        if self.dictionary_coa_path:
-            paths.append(self.dictionary_coa_path)
-        return paths
 
 
 def _default_session_redis_url() -> str:
@@ -455,26 +270,8 @@ class ExternalServicesSettings(BaseModel):  # BaseModel resolves to Any in isola
     model_config = ConfigDict()
 
     # ============================================================
-    # OSS/BSS Service URLs
+    # Automation Services
     # ============================================================
-
-    # GenieACS (TR-069 ACS)
-    genieacs_url: str = Field(
-        default_factory=lambda: os.getenv("GENIEACS_URL", "http://localhost:7557"),
-        description="GenieACS TR-069 ACS server URL",
-    )
-
-    # NetBox (IPAM/DCIM)
-    netbox_url: str = Field(
-        default_factory=lambda: os.getenv("NETBOX_URL", "http://localhost:8080"),
-        description="NetBox IPAM/DCIM server URL",
-    )
-
-    # VOLTHA (OLT Management)
-    voltha_url: str = Field(
-        default_factory=lambda: os.getenv("VOLTHA_URL", "http://localhost:8881"),
-        description="VOLTHA OLT management server URL",
-    )
 
     # Ansible/AWX (Automation)
     awx_url: str = Field(
@@ -512,16 +309,6 @@ class ExternalServicesSettings(BaseModel):  # BaseModel resolves to Any in isola
     frontend_admin_url: str = Field(
         default_factory=lambda: os.getenv("FRONTEND_ADMIN_URL", "http://localhost:3001"),
         description="Admin portal URL for internal users",
-    )
-
-    # ============================================================
-    # RADIUS CoA
-    # ============================================================
-
-    # RADIUS CoA API (if different from RADIUS server)
-    radius_coa_api_url: str = Field(
-        default_factory=lambda: os.getenv("RADIUS_COA_API_URL", "http://localhost:8080/coa"),
-        description="RADIUS CoA API endpoint (if using HTTP API instead of UDP)",
     )
 
     def __init__(self, **data: Any):
@@ -1020,10 +807,6 @@ class Settings(BaseSettings):
                         "Path: storage/secret_key. Run migration script to populate Vault."
                     )
 
-            # RADIUS secret must be loaded (if RADIUS is used)
-            # Note: Only validate if RADIUS service is actually initialized
-            # This is checked in radius/service.py to avoid false positives
-
             # Trusted hosts must be configured
             if not self.trusted_hosts or self.trusted_hosts == ["*"]:
                 raise ValueError(
@@ -1169,19 +952,10 @@ class Settings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=_default_observability_settings)
 
     # ============================================================
-    # OSS / External Integrations
+    # External Integrations
     # ============================================================
 
-    oss: OSSSettings = Field(default_factory=OSSSettings)
-
-    # ============================================================
-    # RADIUS Configuration
-    # ============================================================
-
-    radius: RADIUSSettings = Field(
-        default_factory=RADIUSSettings,
-        description="RADIUS server configuration for CoA/DM operations",
-    )
+    integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
     # ============================================================
     # Authentication & Authorization (Centralized)
@@ -1413,13 +1187,6 @@ class Settings(BaseSettings):
         timeout_seconds: int = Field(30, description="Webhook request timeout")
 
     webhooks: WebhookSettings = WebhookSettings()  # type: ignore[call-arg]
-
-    # ============================================================
-    # RADIUS Server
-    # ============================================================
-
-    # RADIUS configuration moved to top-level RADIUSSettings class (line 152)
-    # Old minimal configuration removed - use settings.radius.* instead
 
     # ============================================================
     # Search & Indexing

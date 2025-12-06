@@ -29,10 +29,10 @@ class NotificationType(str, Enum):
     """Types of notifications."""
 
     # Service lifecycle
-    SUBSCRIBER_PROVISIONED = "subscriber_provisioned"
-    SUBSCRIBER_DEPROVISIONED = "subscriber_deprovisioned"
-    SUBSCRIBER_SUSPENDED = "subscriber_suspended"
-    SUBSCRIBER_REACTIVATED = "subscriber_reactivated"
+    CUSTOMER_ACTIVATED = "customer_activated"
+    CUSTOMER_DEACTIVATED = "customer_deactivated"
+    CUSTOMER_SUSPENDED = "customer_suspended"
+    CUSTOMER_REACTIVATED = "customer_reactivated"
     SERVICE_ACTIVATED = "service_activated"
     SERVICE_FAILED = "service_failed"
 

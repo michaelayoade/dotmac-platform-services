@@ -113,10 +113,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         self.optional_tenant_paths = {
             "/api/v1/audit/frontend-logs",  # Frontend logs can be unauthenticated
             "/api/v1/realtime/alerts",  # SSE endpoints work with optional auth
-            "/api/v1/realtime/onu-status",
             "/api/v1/realtime/tickets",
-            "/api/v1/realtime/subscribers",
-            "/api/v1/realtime/radius-sessions",
         }
         # Override config's require_tenant if explicitly provided
         if require_tenant is not None:

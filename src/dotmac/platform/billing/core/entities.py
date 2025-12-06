@@ -566,7 +566,8 @@ class ServiceEntity(Base, TenantMixin, TimestampMixin, AuditMixin, SoftDeleteMix
 
     # References
     customer_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    subscriber_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    # Legacy field - kept for backwards compatibility
+    subscriber_id: Mapped[str | None] = mapped_column(String(255), index=True, comment="Deprecated: use customer_id")
     subscription_id: Mapped[str | None] = mapped_column(String(255), index=True)
     plan_id: Mapped[str | None] = mapped_column(String(255), index=True)
 

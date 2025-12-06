@@ -43,22 +43,17 @@ PUBLIC_FEATURE_FLAGS: tuple[str, ...] = (
     "file_processing_office",
     # Background tasks
     "celery_enabled",
-    # OSS/BSS Domain Features
+    # Platform Domain Features
     "graphql_enabled",
     "analytics_enabled",
     "banking_enabled",
     "payments_enabled",
-    "radius_enabled",
-    "network_enabled",
     "automation_enabled",
-    "wireless_enabled",
-    "fiber_enabled",
     "orchestration_enabled",
     "dunning_enabled",
     "ticketing_enabled",
     "crm_enabled",
     "notification_enabled",
-    "pon_alarm_actions_enabled",
 )
 
 PRIVATE_FEATURE_FLAGS: tuple[str, ...] = (

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 class ManagedTenantMetrics(BaseModel):
     """Metrics for a managed tenant."""
 
-    total_subscribers: int = Field(description="Total active subscribers")
+    total_customers: int = Field(description="Total active customers")
     total_revenue_mtd: Decimal = Field(description="Month-to-date revenue")
     accounts_receivable: Decimal = Field(description="Outstanding AR")
     overdue_invoices_count: int = Field(description="Number of overdue invoices")

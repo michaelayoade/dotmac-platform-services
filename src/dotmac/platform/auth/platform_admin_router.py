@@ -584,7 +584,7 @@ async def _execute_cross_tenant_search(
                 indices_to_search.append(entity_type)
         else:
             # Search all resource types
-            indices_to_search = ["customers", "subscribers", "invoices", "tickets", "users"]
+            indices_to_search = ["customers", "invoices", "tickets", "users"]
 
         # Aggregate results from all indices
         all_results = []

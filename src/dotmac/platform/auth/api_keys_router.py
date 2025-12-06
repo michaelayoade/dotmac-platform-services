@@ -596,48 +596,6 @@ async def get_available_scopes(
             "name": "Manage Contacts",
             "description": "Create and manage contacts",
         },
-        # Subscribers & RADIUS
-        "subscribers:read": {
-            "name": "Read Subscribers",
-            "description": "View subscriber information",
-        },
-        "subscribers:write": {
-            "name": "Manage Subscribers",
-            "description": "Create and manage subscribers",
-        },
-        "radius:sessions:read": {
-            "name": "Read RADIUS Sessions",
-            "description": "View active RADIUS sessions",
-        },
-        "radius:sessions:manage": {
-            "name": "Manage RADIUS Sessions",
-            "description": "Disconnect or modify sessions",
-        },
-        "radius:nas:read": {
-            "name": "Read NAS Devices",
-            "description": "View Network Access Servers",
-        },
-        "radius:nas:write": {"name": "Manage NAS Devices", "description": "Configure NAS devices"},
-        # Network & Infrastructure
-        "network:read": {
-            "name": "Read Network",
-            "description": "View network inventory and topology",
-        },
-        "network:write": {"name": "Manage Network", "description": "Modify network configuration"},
-        "ipam:read": {"name": "Read IPAM", "description": "View IP address management"},
-        "ipam:write": {"name": "Manage IPAM", "description": "Allocate and manage IP addresses"},
-        "fiber:read": {"name": "Read Fiber Network", "description": "View fiber infrastructure"},
-        "fiber:write": {
-            "name": "Manage Fiber",
-            "description": "Manage fiber cables and infrastructure",
-        },
-        "pon:read": {"name": "Read PON", "description": "View PON/OLT/ONU information"},
-        "pon:write": {"name": "Manage PON", "description": "Configure PON devices"},
-        "wireless:read": {"name": "Read Wireless", "description": "View wireless access points"},
-        "wireless:write": {
-            "name": "Manage Wireless",
-            "description": "Configure wireless infrastructure",
-        },
         # Billing & Revenue
         "billing:read": {"name": "Read Billing", "description": "View invoices and billing data"},
         "billing:write": {

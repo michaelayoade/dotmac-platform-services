@@ -35,9 +35,9 @@ def require_module(
     Decorator to enforce feature module entitlement.
 
     Usage:
-        @router.get("/radius/auth")
-        @require_module("radius_aaa", "radius_authentication")
-        async def authenticate(tenant: Tenant = Depends(get_current_tenant)) -> Any:
+        @router.get("/billing/invoices")
+        @require_module("billing", "invoices_view")
+        async def list_invoices(tenant: Tenant = Depends(get_current_tenant)) -> Any:
             ...
     """
 
@@ -310,8 +310,8 @@ class FeatureEntitlementMiddleware:
     Configure route -> module mapping in your application:
 
         ROUTE_MODULE_MAP = {
-            "/api/v1/radius": ("radius_aaa", None),
-            "/api/v1/wireless": ("wireless_management", None),
+            "/api/v1/billing": ("billing", None),
+            "/api/v1/subscriptions": ("subscriptions", None),
             "/api/v1/billing/analytics": ("analytics", "billing_reports"),
         }
 
@@ -400,11 +400,11 @@ async def require_module_dependency(
     Usage:
         from fastapi import Depends
 
-        @router.get("/radius/auth")
-        async def authenticate(
+        @router.get("/billing/invoices")
+        async def list_invoices(
             _: None = Depends(
                 lambda t=Depends(get_current_tenant), db=Depends(get_async_session) -> None:
-                    require_module_dependency("radius_aaa", "radius_authentication", t, db)
+                    require_module_dependency("billing", "invoices_view", t, db)
             ),
             tenant: Tenant = Depends(get_current_tenant)
         ) -> Any:

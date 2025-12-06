@@ -6,7 +6,6 @@ Verifies that required services are available and healthy.
 
 import logging
 import os
-import socket
 from contextlib import contextmanager
 from enum import Enum
 from typing import Any

@@ -105,7 +105,7 @@ async def list_managed_tenants(
             # TODO: Implement metrics calculation
             # For now, return None or basic metrics
             metrics = ManagedTenantMetrics(
-                total_subscribers=0,
+                total_customers=0,
                 total_revenue_mtd=0,
                 accounts_receivable=0,
                 overdue_invoices_count=0,
@@ -203,7 +203,7 @@ async def get_managed_tenant_detail(
     if include_metrics:
         # TODO: Implement actual metrics calculation
         metrics = ManagedTenantMetrics(
-            total_subscribers=0,
+            total_customers=0,
             total_revenue_mtd=0,
             accounts_receivable=0,
             overdue_invoices_count=0,

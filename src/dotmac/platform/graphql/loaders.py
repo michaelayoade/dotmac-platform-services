@@ -16,90 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = structlog.get_logger(__name__)
 
 
-class SessionLoader:
-    """Batch load RADIUS sessions by username."""
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self._cache: dict[tuple[str | None, str], list[Any]] = {}
-
-    async def load(self, username: str, *, tenant_id: str | None = None) -> list[Any]:
-        """Load sessions for a single username (with cache)."""
-        cache_key = (tenant_id, username)
-        if cache_key in self._cache:
-            return list(self._cache[cache_key])
-
-        # Import here to avoid circular imports
-        from dotmac.platform.radius.models import RadAcct
-
-        # Query for this specific username
-        stmt = (
-            select(RadAcct)
-            .where(RadAcct.username == username)
-            .where(RadAcct.acctstoptime.is_(None))  # Only active sessions
-            .order_by(RadAcct.acctstarttime.desc())
-            .limit(20)
-        )
-        if tenant_id is not None:
-            stmt = stmt.where(RadAcct.tenant_id == tenant_id)
-
-        result = await self.db.execute(stmt)
-        sessions = result.scalars().all()
-
-        # Cache result
-        self._cache[cache_key] = list(sessions)
-        return list(sessions)
-
-    async def load_many(
-        self,
-        usernames: list[str],
-        *,
-        tenant_id: str | None = None,
-    ) -> list[list[Any]]:
-        """Batch load sessions for multiple usernames."""
-        if not usernames:
-            return []
-
-        def cache_key(name):
-            return (tenant_id, name)
-
-        uncached_usernames = [
-            username for username in usernames if cache_key(username) not in self._cache
-        ]
-
-        if uncached_usernames:
-            # Import here to avoid circular imports
-            from dotmac.platform.radius.models import RadAcct
-
-            # Query all uncached sessions at once
-            stmt = (
-                select(RadAcct)
-                .where(RadAcct.username.in_(uncached_usernames))
-                .where(RadAcct.acctstoptime.is_(None))  # Only active sessions
-                .order_by(RadAcct.username, RadAcct.acctstarttime.desc())
-            )
-            if tenant_id is not None:
-                stmt = stmt.where(RadAcct.tenant_id == tenant_id)
-
-            result = await self.db.execute(stmt)
-            all_sessions = result.scalars().all()
-
-            # Group sessions by username
-            grouped: dict[str, list[Any]] = defaultdict(list)
-            for session in all_sessions:
-                username_value = str(session.username)
-                grouped[username_value].append(session)
-
-            # Limit each user to 20 sessions and cache
-            for username in uncached_usernames:
-                sessions = grouped.get(username, [])
-                limited_sessions = sessions[:20]
-                self._cache[cache_key(username)] = list(limited_sessions)
-
-        # Return in same order as input usernames
-        return [list(self._cache.get(cache_key(username), [])) for username in usernames]
-
-
 class CustomerActivityLoader:
     """Batch load customer activities by customer_id."""
 
@@ -773,12 +689,6 @@ class DataLoaderRegistry:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._loaders: dict[str, Any] = {}
-
-    def get_session_loader(self) -> SessionLoader:
-        """Get or create SessionLoader for this request."""
-        if "session" not in self._loaders:
-            self._loaders["session"] = SessionLoader(self.db)
-        return cast(SessionLoader, self._loaders["session"])
 
     def get_customer_activity_loader(self) -> CustomerActivityLoader:
         """Get or create CustomerActivityLoader for this request."""

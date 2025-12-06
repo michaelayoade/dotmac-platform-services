@@ -14,7 +14,6 @@ class SearchableEntity(str, Enum):
     """Entities that can be indexed for search."""
 
     CUSTOMER = "customer"
-    SUBSCRIBER = "subscriber"
     INVOICE = "invoice"
     TICKET = "ticket"
     ORDER = "order"
@@ -66,24 +65,6 @@ CUSTOMER_INDEX_MAPPING = {
         "created_at": {"type": "date"},
         "updated_at": {"type": "date"},
         # Full-text search fields
-        "search_text": {"type": "text", "analyzer": "standard"},
-    }
-}
-
-SUBSCRIBER_INDEX_MAPPING = {
-    "properties": {
-        "tenant_id": {"type": "keyword"},
-        "subscriber_id": {"type": "keyword"},
-        "customer_id": {"type": "keyword"},
-        "username": {"type": "keyword"},
-        "email": {"type": "keyword"},
-        "phone": {"type": "keyword"},
-        "status": {"type": "keyword"},
-        "service_type": {"type": "keyword"},
-        "ip_address": {"type": "ip"},
-        "mac_address": {"type": "keyword"},
-        "installed_at": {"type": "date"},
-        "created_at": {"type": "date"},
         "search_text": {"type": "text", "analyzer": "standard"},
     }
 }
@@ -191,7 +172,6 @@ AUDIT_LOG_INDEX_MAPPING = {
 # Index mapping registry
 INDEX_MAPPINGS = {
     SearchableEntity.CUSTOMER: CUSTOMER_INDEX_MAPPING,
-    SearchableEntity.SUBSCRIBER: SUBSCRIBER_INDEX_MAPPING,
     SearchableEntity.INVOICE: INVOICE_INDEX_MAPPING,
     SearchableEntity.TICKET: TICKET_INDEX_MAPPING,
     SearchableEntity.PRODUCT: PRODUCT_INDEX_MAPPING,

@@ -358,14 +358,6 @@ ROUTER_CONFIGS = [
         description="Customer relationship management",
     ),
     RouterConfig(
-        module_path="dotmac.platform.customer_portal.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Customer Portal"],
-        description="Customer self-service portal (usage, billing, invoices)",
-        requires_auth=True,
-    ),
-    RouterConfig(
         module_path="dotmac.platform.contacts.router",
         router_name="router",
         prefix="/api/v1",
@@ -479,14 +471,6 @@ ROUTER_CONFIGS = [
         prefix="/api/v1",
         tags=["Analytics Activity"],
         description="Analytics activity stats (events, user activity, API usage)",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.metrics.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Metrics"],
-        description="Platform metrics and KPIs with caching",
         requires_auth=True,
     ),
     # ===========================================

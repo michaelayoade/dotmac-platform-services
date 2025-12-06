@@ -26,7 +26,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import AuditMixin, SoftDeleteMixin, TimestampMixin
 from ..db import Base as BaseRuntime
