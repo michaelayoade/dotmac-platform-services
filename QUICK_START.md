@@ -12,7 +12,6 @@
 cd frontend
 pnpm install
 pnpm build:admin  # ✅ Platform Admin: 175 pages, 0 warnings
-pnpm build:isp    # ✅ ISP Ops: 138 pages, 0 warnings
 
 # Docker Compose - Platform (Admin + Backend)
 cd ..
@@ -26,12 +25,9 @@ cd ..
 docker compose -f docker-compose.base.yml up -d
 # Platform backend: http://localhost:8001
 # Platform frontend: http://localhost:3002
-
-# Docker Compose - ISP Operations
-docker compose -f docker-compose.isp.yml up -d
-# ISP backend: http://localhost:8000
-# ISP frontend: http://localhost:3001
 ```
+
+> Note: An ISP-specific Docker Compose stack is not included in this repository; the supported Compose path is the platform stack above.
 
 > ⚠️ **External Dependencies Required**: The simplified compose files assume PostgreSQL (5432), Redis (6379), MinIO (9000), Vault (8200), and OTLP (4317) are reachable at `host.docker.internal`.
 >
@@ -68,15 +64,14 @@ cd frontend && pnpm dev:backend   # delegates to scripts/quick-backend-start.sh
 ## 📚 Documentation Map
 
 ### Start Here
-1. **FINAL_IMPLEMENTATION_SUMMARY.md** - Complete overview (READ THIS FIRST)
-2. **DEPLOYMENT_DOCUMENTATION_SUMMARY.md** - Deployment decision tree
-3. **LOCAL_DEVELOPMENT.md** - Running backend on host (dev mode)
+1. `docs/INDEX.md` - documentation index
+2. `docs/BACKEND_PRODUCTION_GUIDE.md` - production deployment paths
+3. `LOCAL_DEVELOPMENT.md` - running backend on host (dev mode)
 
 ### Key Guides
-- **Frontend**: frontend/PRODUCTION_GUIDE.md
-- **Docker**: DOCKER_COMPOSE_PORTABILITY_FIXES.md
-- **Backend**: BACKEND_DEPLOYMENT_REMEDIATION.md
-- **Networking**: INGRESS_AND_REVERSE_PROXY.md
+- **Infrastructure**: `docs/architecture/INFRASTRUCTURE.md`
+- **Compose orchestration**: `scripts/infra.sh`
+- **Testing helpers**: `scripts/README.md` and `tests/TESTING_GUIDE.md`
 
 ---
 
@@ -85,7 +80,6 @@ cd frontend && pnpm dev:backend   # delegates to scripts/quick-backend-start.sh
 | Component | Build Status | Warnings | Production Ready |
 |-----------|--------------|----------|------------------|
 | Platform Admin | ✅ Success | 0 | ✅ Yes |
-| ISP Ops | ✅ Success | 0 | ✅ Yes |
 | Docker Compose | ✅ Ready | N/A | ✅ Yes |
 | Multi-Arch Images | ✅ Ready | N/A | ✅ Yes |
 | CI/CD | ✅ Configured | N/A | ✅ Yes |

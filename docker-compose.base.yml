@@ -25,10 +25,10 @@ services:
       STORAGE__BUCKET: ${STORAGE__BUCKET:-dotmac}
       STORAGE__USE_SSL: ${STORAGE__USE_SSL:-false}
       VAULT__ENABLED: ${VAULT__ENABLED:-false}
-      VAULT__URL: ${VAULT__URL:-http://dotmac-vault:8200}
+      VAULT__URL: ${VAULT__URL:-http://dotmac-openbao:8200}
       VAULT__TOKEN: ${VAULT__TOKEN:-dev-token-12345}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-me-min-32-chars}
-      AUTH__JWT_SECRET_KEY: ${JWT_SECRET:-dev-jwt-secret-key-change-me-min-32-chars}
+      AUTH__JWT_SECRET_KEY: ${AUTH__JWT_SECRET_KEY:-dev-jwt-secret-key-change-me-min-32-chars}
       CELERY__BROKER_URL: ${CELERY__BROKER_URL:-redis://dotmac-redis:6379/2}
       CELERY__RESULT_BACKEND: ${CELERY__RESULT_BACKEND:-redis://dotmac-redis:6379/3}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://dotmac-jaeger:4317}
@@ -86,7 +86,7 @@ services:
       NEXT_PUBLIC_APP_TYPE: ${PLATFORM_NEXT_PUBLIC_APP_TYPE:-platform-admin}
       NEXT_PUBLIC_PORTAL_TYPE: ${PLATFORM_NEXT_PUBLIC_PORTAL_TYPE:-admin}
       DATABASE_URL: ${DATABASE_URL:-postgresql://dotmac_user:dev_local_pg_password_123@dotmac-postgres:5432/dotmac}
-      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-key-change-me-min-32-chars}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-nextauth-secret-change-me-min-32-chars}
     ports:
       - "${PLATFORM_FRONTEND_PORT:-3002}:3000"
     depends_on:
@@ -100,4 +100,3 @@ volumes:
 networks:
   default:
     name: dotmac-network
-    external: true

@@ -128,6 +128,11 @@ docker compose up -d
 docker build -t dotmac-platform-services .
 ```
 
+## Documentation
+- `docs/INDEX.md` - documentation map and entry points
+- `docs/BACKEND_PRODUCTION_GUIDE.md` - canonical backend production deployment guide
+- `docs/architecture/INFRASTRUCTURE.md` - reference for the shared infrastructure stack
+
 ## API Documentation
 
 Once running, access the API documentation at:

@@ -26,7 +26,7 @@ services:
       STORAGE__SECRET_KEY: ${STORAGE__SECRET_KEY:-dev_local_minio_root_pw}
       STORAGE__BUCKET: ${STORAGE__BUCKET:-dotmac}
       VAULT__ENABLED: ${VAULT__ENABLED:-false}
-      VAULT__URL: ${VAULT__URL:-http://dotmac-vault:8200}
+      VAULT__URL: ${VAULT__URL:-http://dotmac-openbao:8200}
       VAULT__TOKEN: ${VAULT__TOKEN:-dev-token-12345}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://dotmac-jaeger:4317}
@@ -46,4 +46,3 @@ services:
 networks:
   default:
     name: dotmac-network
-    external: true

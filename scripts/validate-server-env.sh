@@ -55,7 +55,7 @@ check_env_file() {
     echo -e "${CYAN}Checking .env file...${NC}"
     if [[ ! -f .env ]]; then
         error ".env file not found"
-        info "Create it from .env.server: cp .env.server .env"
+        info "Create it from .env.production.example: cp .env.production.example .env"
         return 1
     fi
     success ".env file exists"
@@ -195,47 +195,15 @@ check_secret_strength() {
     echo ""
 }
 
-# Check ISP backend configuration
-check_isp_backend_config() {
-    echo -e "${CYAN}Checking ISP backend configuration...${NC}"
-
-    # Check if ISP-specific vars exist
-    if grep -q "^ISP_DATABASE__HOST=" .env; then
-        success "ISP backend database config found"
-
-        # Verify it also uses container names
-        if grep -q "^ISP_DATABASE__HOST=dotmac-postgres" .env; then
-            success "ISP backend uses correct database host"
-        else
-            error "ISP backend database host should be: dotmac-postgres"
-        fi
-    else
-        warning "ISP backend specific config not found (may inherit from platform)"
-    fi
-
-    echo ""
-}
-
 # Check port conflicts
 check_port_config() {
     echo -e "${CYAN}Checking port configuration...${NC}"
 
     local platform_backend_port=$(grep "^PLATFORM_BACKEND_PORT=" .env | cut -d'=' -f2)
-    local isp_backend_port=$(grep "^ISP_BACKEND_PORT=" .env | cut -d'=' -f2)
     local platform_frontend_port=$(grep "^PLATFORM_FRONTEND_PORT=" .env | cut -d'=' -f2)
-    local isp_frontend_port=$(grep "^ISP_FRONTEND_PORT=" .env | cut -d'=' -f2)
 
-    if [[ "$platform_backend_port" == "$isp_backend_port" ]]; then
-        error "Port conflict: Platform and ISP backend use same port: $platform_backend_port"
-    else
-        success "Backend ports are different (Platform: ${platform_backend_port:-8001}, ISP: ${isp_backend_port:-8000})"
-    fi
-
-    if [[ "$platform_frontend_port" == "$isp_frontend_port" ]]; then
-        error "Port conflict: Platform and ISP frontend use same port: $platform_frontend_port"
-    else
-        success "Frontend ports are different (Platform: ${platform_frontend_port:-3002}, ISP: ${isp_frontend_port:-3001})"
-    fi
+    success "Platform backend port: ${platform_backend_port:-8001}"
+    success "Platform frontend port: ${platform_frontend_port:-3002}"
 
     echo ""
 }
@@ -256,10 +224,10 @@ check_compose_files() {
         success "docker-compose.base.yml exists"
     fi
 
-    if [[ ! -f docker-compose.isp.yml ]]; then
-        error "docker-compose.isp.yml not found"
+    if [[ ! -f docker-compose.prod.yml ]]; then
+        warning "docker-compose.prod.yml not found (worker stack optional)"
     else
-        success "docker-compose.isp.yml exists"
+        success "docker-compose.prod.yml exists"
     fi
 
     echo ""
@@ -280,7 +248,7 @@ print_summary() {
         echo -e "${CYAN}Next steps:${NC}"
         echo "  1. make start-all"
         echo "  2. Wait for services to become healthy"
-        echo "  3. Access the platform at http://localhost:3002 and http://localhost:3001"
+        echo "  3. Access the platform at http://localhost:3002"
         return 0
     elif [[ $ERRORS -eq 0 ]]; then
         echo -e "${YELLOW}⚠ Validation completed with $WARNINGS warning(s)${NC}"
@@ -294,8 +262,8 @@ print_summary() {
         echo -e "${RED}Fix errors above before deploying.${NC}"
         echo ""
         echo -e "${CYAN}Common fixes:${NC}"
-        echo "  1. Copy server config: cp .env.server .env"
-        echo "  2. Review and update passwords"
+        echo "  1. Copy server config: cp .env.production.example .env"
+        echo "  2. Review and update passwords/secrets"
         echo "  3. Run this script again: ./scripts/validate-server-env.sh"
         return 1
     fi
@@ -311,7 +279,6 @@ main() {
     check_localhost_usage
     check_password_matching
     check_secret_strength
-    check_isp_backend_config
     check_port_config
 
     print_summary
