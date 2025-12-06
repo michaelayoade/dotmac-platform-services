@@ -5,6 +5,7 @@ All routes except /health, /ready, and /metrics require authentication.
 """
 
 import importlib
+import os
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -19,6 +20,15 @@ from dotmac.platform.graphql.context import Context
 from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
+
+
+def _is_truthy_env(value: str | None) -> bool:
+    return (value or "").lower() in {"1", "true", "yes", "on"}
+
+
+_SKIP_BILLING: bool = _is_truthy_env(
+    os.getenv("DOTMAC_SKIP_BILLING_MODELS") or os.getenv("DOTMAC_SKIP_PLATFORM_MODELS")
+)
 
 # Security scheme for Swagger UI (documentation only - NOT for actual auth)
 # IMPORTANT: This only validates Bearer token format, not JWT validity
@@ -776,9 +786,18 @@ def register_routers(app: FastAPI) -> None:
     """
     registered_count = 0
     failed_count = 0
+    skipped_count = 0
 
     # Register all configured routers
     for config in ROUTER_CONFIGS:
+        if _SKIP_BILLING and "billing" in config.module_path:
+            logger.info(
+                "Skipping billing router due to DOTMAC_SKIP_BILLING_MODELS/DOTMAC_SKIP_PLATFORM_MODELS",
+                module=config.module_path,
+            )
+            skipped_count += 1
+            continue
+
         if _register_router(app, config):
             registered_count += 1
         else:
@@ -819,7 +838,8 @@ def register_routers(app: FastAPI) -> None:
         f"\n{'=' * 60}\n"
         f"🚀 Router Registration Complete\n"
         f"   ✅ Registered: {registered_count} routers\n"
-        f"   ⚠️  Skipped: {failed_count} routers\n"
+        f"   ⚠️  Skipped: {skipped_count} routers\n"
+        f"   ❌ Failed: {failed_count} routers\n"
         f"{'=' * 60}"
     )
 

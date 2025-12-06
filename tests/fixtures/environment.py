@@ -598,6 +598,10 @@ except (ImportError, ValueError):
 def _import_base_and_models():
     """Import SQLAlchemy ``Base`` and register all ORM models."""
     from dotmac.platform.db import Base
+    skip_billing = os.getenv("DOTMAC_SKIP_BILLING_MODELS") or os.getenv("DOTMAC_SKIP_PLATFORM_MODELS")
+
+    def _skip_billing_models() -> bool:
+        return (skip_billing or "").lower() in {"1", "true", "yes", "on"}
 
     def _safe_import(path: str) -> None:
         try:
@@ -611,9 +615,6 @@ def _import_base_and_models():
         "dotmac.platform.data_transfer.db_models",
         "dotmac.platform.communications.models",
         "dotmac.platform.partner_management.models",
-        "dotmac.platform.billing.models",
-        "dotmac.platform.billing.bank_accounts.entities",
-        "dotmac.platform.billing.core.entities",
         "dotmac.platform.tenant.models",
         "dotmac.platform.audit.models",
         "dotmac.platform.user_management.models",
@@ -622,6 +623,15 @@ def _import_base_and_models():
         "dotmac.platform.deployment.models",
         "dotmac.platform.webhooks.models",
     ]
+
+    if not _skip_billing_models():
+        model_modules.extend(
+            [
+                "dotmac.platform.billing.models",
+                "dotmac.platform.billing.bank_accounts.entities",
+                "dotmac.platform.billing.core.entities",
+            ]
+        )
 
     for module_path in model_modules:
         _safe_import(module_path)

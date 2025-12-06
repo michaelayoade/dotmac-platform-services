@@ -12,7 +12,7 @@ from fastapi import status as http_status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.core import UserInfo, get_current_user
+from dotmac.platform.auth.core import UserInfo, ensure_uuid, get_current_user
 from dotmac.platform.auth.rbac_dependencies import PartnerPermissionChecker
 from dotmac.platform.db import get_async_session
 from dotmac.platform.partner_management.models import PartnerTenantLink
@@ -69,11 +69,13 @@ async def list_managed_tenants(
             detail="User is not associated with a partner",
         )
 
+    partner_id = ensure_uuid(current_user.partner_id)
+
     # Build query for partner's tenant links
     query = (
         select(PartnerTenantLink, Tenant)
         .join(Tenant, PartnerTenantLink.managed_tenant_id == Tenant.id)
-        .where(PartnerTenantLink.partner_id == current_user.partner_id)
+        .where(PartnerTenantLink.partner_id == partner_id)
     )
 
     # Apply filters
@@ -129,7 +131,7 @@ async def list_managed_tenants(
 
     logger.info(
         "Partner listed managed tenants",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         count=len(tenants_list),
         total=total,
     )
@@ -168,6 +170,8 @@ async def get_managed_tenant_detail(
             detail="User is not associated with a partner",
         )
 
+    partner_id = ensure_uuid(current_user.partner_id)
+
     # Validate access to this tenant
     if tenant_id not in current_user.managed_tenant_ids:
         raise HTTPException(
@@ -181,7 +185,7 @@ async def get_managed_tenant_detail(
         .join(Tenant, PartnerTenantLink.managed_tenant_id == Tenant.id)
         .where(
             and_(
-                PartnerTenantLink.partner_id == current_user.partner_id,
+                PartnerTenantLink.partner_id == partner_id,
                 PartnerTenantLink.managed_tenant_id == tenant_id,
             )
         )
