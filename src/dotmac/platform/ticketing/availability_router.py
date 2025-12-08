@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,8 +39,7 @@ class AgentAvailabilityRead(BaseModel):
     last_activity_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get(
@@ -83,12 +82,12 @@ async def get_my_availability(
 
     if not availability:
         # Create default availability record
-        availability = AgentAvailability(
-            user_id=current_user.user_id,
-            tenant_id=tenant_id,
-            status=AgentStatus.AVAILABLE,
-            last_activity_at=datetime.utcnow(),
-        )
+            availability = AgentAvailability(
+                user_id=current_user.user_id,
+                tenant_id=tenant_id,
+                status=AgentStatus.AVAILABLE,
+                last_activity_at=datetime.now(timezone.utc),
+            )
         session.add(availability)
         await session.commit()
         await session.refresh(availability)

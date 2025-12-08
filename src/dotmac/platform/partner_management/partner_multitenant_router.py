@@ -226,7 +226,7 @@ async def get_managed_tenant_detail(
 
     logger.info(
         "Partner viewed managed tenant detail",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         tenant_id=tenant_id,
     )
 
@@ -285,13 +285,20 @@ async def get_consolidated_billing_summary(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # TODO: Implement actual billing calculation
     # For now, return placeholder data
     from decimal import Decimal
 
     logger.info(
         "Partner requested consolidated billing summary",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         managed_tenants_count=len(current_user.managed_tenant_ids),
     )
 
@@ -333,6 +340,13 @@ async def list_invoices(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_id if provided
     if tenant_id and tenant_id not in current_user.managed_tenant_ids:
         raise HTTPException(
@@ -344,7 +358,7 @@ async def list_invoices(
     # For now, return empty list
     logger.info(
         "Partner listed invoices",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         filters={"tenant_id": tenant_id, "status": status},
     )
 
@@ -384,6 +398,13 @@ async def export_invoices(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_ids if provided
     if request.tenant_ids:
         unauthorized = set(request.tenant_ids) - set(current_user.managed_tenant_ids)
@@ -400,7 +421,7 @@ async def export_invoices(
 
     logger.info(
         "Partner requested invoice export",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         export_id=export_id,
         format=request.format,
     )
@@ -445,6 +466,13 @@ async def list_tickets(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_id if provided
     if tenant_id and tenant_id not in current_user.managed_tenant_ids:
         raise HTTPException(
@@ -455,7 +483,7 @@ async def list_tickets(
     # TODO: Implement actual ticket querying
     logger.info(
         "Partner listed tickets",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         filters={"tenant_id": tenant_id, "status": status, "priority": priority},
     )
 
@@ -492,6 +520,13 @@ async def create_ticket(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Require cross-tenant context
     if not current_user.is_cross_tenant_access:
         raise HTTPException(
@@ -506,7 +541,7 @@ async def create_ticket(
 
     logger.info(
         "Partner created ticket for managed tenant",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         tenant_id=current_user.active_managed_tenant_id,
         ticket_id=ticket_id,
         subject=request.subject,
@@ -543,10 +578,17 @@ async def update_ticket(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # TODO: Implement actual ticket update
     logger.info(
         "Partner updated ticket",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         ticket_id=ticket_id,
         updates=request.dict(exclude_none=True),
     )
@@ -588,6 +630,13 @@ async def get_usage_report(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_ids if provided
     if tenant_ids:
         unauthorized = set(tenant_ids) - set(current_user.managed_tenant_ids)
@@ -602,7 +651,7 @@ async def get_usage_report(
 
     logger.info(
         "Partner requested usage report",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         period_start=from_date,
         period_end=to_date,
     )
@@ -645,6 +694,13 @@ async def get_sla_report(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_ids if provided
     if tenant_ids:
         unauthorized = set(tenant_ids) - set(current_user.managed_tenant_ids)
@@ -659,7 +715,7 @@ async def get_sla_report(
 
     logger.info(
         "Partner requested SLA report",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         period_start=from_date,
         period_end=to_date,
     )
@@ -700,6 +756,13 @@ async def get_sla_alerts(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_id if provided
     if tenant_id and tenant_id not in current_user.managed_tenant_ids:
         raise HTTPException(
@@ -710,7 +773,7 @@ async def get_sla_alerts(
     # TODO: Implement actual SLA alert querying
     logger.info(
         "Partner requested SLA alerts",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         filters={"tenant_id": tenant_id, "acknowledged": acknowledged},
     )
 
@@ -744,6 +807,13 @@ async def get_billing_alerts(
             detail="User is not associated with a partner",
         )
 
+    partner_id = current_user.partner_uuid
+    if not partner_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Invalid partner identifier",
+        )
+
     # Validate tenant_id if provided
     if tenant_id and tenant_id not in current_user.managed_tenant_ids:
         raise HTTPException(
@@ -754,7 +824,7 @@ async def get_billing_alerts(
     # TODO: Implement actual billing alert querying
     logger.info(
         "Partner requested billing alerts",
-        partner_id=current_user.partner_id,
+        partner_id=partner_id,
         filters={"tenant_id": tenant_id, "acknowledged": acknowledged},
     )
 

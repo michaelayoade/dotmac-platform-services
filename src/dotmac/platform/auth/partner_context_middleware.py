@@ -7,7 +7,7 @@ from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.core import UserInfo, ensure_uuid
 
 logger = structlog.get_logger(__name__)
 
@@ -60,12 +60,24 @@ class PartnerTenantContextMiddleware(BaseHTTPMiddleware):
                 detail="Cross-tenant access requires partner account",
             )
 
+        partner_uuid = user_info.partner_uuid
+        if not partner_uuid:
+            logger.warning(
+                "Invalid partner identifier on context switch",
+                user_id=user_info.user_id,
+                partner_id=user_info.partner_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid partner identifier",
+            )
+
         # Validate tenant is in managed list
         if active_tenant_id not in user_info.managed_tenant_ids:
             logger.warning(
                 "Partner attempted access to unauthorized tenant",
                 user_id=user_info.user_id,
-                partner_id=user_info.partner_id,
+                partner_id=partner_uuid,
                 requested_tenant=active_tenant_id,
                 managed_tenants=user_info.managed_tenant_ids,
             )
@@ -95,7 +107,7 @@ class PartnerTenantContextMiddleware(BaseHTTPMiddleware):
         logger.info(
             "Partner context switched to managed tenant",
             user_id=enriched_user_info.user_id,
-            partner_id=enriched_user_info.partner_id,
+            partner_id=partner_uuid,
             home_tenant=enriched_user_info.tenant_id,
             active_tenant=active_tenant_id,
             is_cross_tenant=enriched_user_info.is_cross_tenant_access,
@@ -136,10 +148,20 @@ async def validate_partner_tenant_link(
             logger.error("Invalid database session type for partner link validation")
             return False
 
+        try:
+            partner_uuid = ensure_uuid(partner_id)
+        except Exception:
+            logger.warning(
+                "Invalid partner_id provided to validate_partner_tenant_link",
+                partner_id=partner_id,
+                managed_tenant_id=managed_tenant_id,
+            )
+            return False
+
         # Query for active link
         result = await db_session.execute(
             select(PartnerTenantLink).where(
-                PartnerTenantLink.partner_id == partner_id,
+                PartnerTenantLink.partner_id == partner_uuid,
                 PartnerTenantLink.managed_tenant_id == managed_tenant_id,
                 PartnerTenantLink.is_active == True,  # noqa: E712
             )

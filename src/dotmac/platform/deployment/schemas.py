@@ -7,7 +7,7 @@ Pydantic schemas for deployment API requests and responses.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .models import DeploymentBackend, DeploymentState, DeploymentType
 
@@ -108,8 +108,7 @@ class DeploymentTemplateResponse(DeploymentTemplateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -183,8 +182,7 @@ class DeploymentInstanceResponse(DeploymentInstanceBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -231,8 +229,7 @@ class DeploymentExecutionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -269,8 +266,7 @@ class DeploymentHealthResponse(DeploymentHealthCreate):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================

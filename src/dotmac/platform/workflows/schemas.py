@@ -7,7 +7,7 @@ Pydantic schemas for API request/response validation.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .models import StepStatus, WorkflowStatus
 
@@ -46,8 +46,7 @@ class WorkflowResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowListResponse(BaseModel):
@@ -90,8 +89,7 @@ class WorkflowStepResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowExecutionResponse(BaseModel):
@@ -112,8 +110,7 @@ class WorkflowExecutionResponse(BaseModel):
     updated_at: datetime
     steps: list[WorkflowStepResponse] | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowExecutionListResponse(BaseModel):

@@ -7,7 +7,7 @@ Request/response schemas for licensing API endpoints.
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .models import (
     ActivationStatus,
@@ -123,8 +123,7 @@ class LicenseResponse(LicenseBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LicenseRenewal(BaseModel):
@@ -182,8 +181,7 @@ class ActivationResponse(ActivationBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ActivationValidation(BaseModel):
@@ -321,8 +319,7 @@ class LicenseTemplateResponse(LicenseTemplateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # License Order Schemas
@@ -363,8 +360,7 @@ class LicenseOrderResponse(LicenseOrderBase):
     fulfilled_at: datetime | None
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderApproval(BaseModel):
@@ -432,8 +428,7 @@ class ComplianceAuditResponse(ComplianceAuditBase):
     completed_at: datetime | None
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuditFindingsSubmission(BaseModel):
@@ -472,8 +467,7 @@ class ComplianceViolationResponse(ComplianceViolationBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ViolationResolution(BaseModel):

@@ -213,7 +213,7 @@ class PartnerPermissionChecker(PermissionChecker):
             logger.warning(
                 "Partner-tenant link is expired",
                 user_id=current_user.user_id,
-                partner_id=current_user.partner_id,
+                partner_id=partner_id,
                 managed_tenant_id=current_user.active_managed_tenant_id,
                 end_date=link.end_date,
             )
@@ -230,7 +230,7 @@ class PartnerPermissionChecker(PermissionChecker):
                     logger.warning(
                         "Permission denied by custom override",
                         user_id=current_user.user_id,
-                        partner_id=current_user.partner_id,
+                        partner_id=partner_id,
                         permission=perm,
                         managed_tenant_id=current_user.active_managed_tenant_id,
                     )
