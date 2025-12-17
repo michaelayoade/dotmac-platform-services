@@ -183,6 +183,18 @@ try:
 except ImportError:
     pass
 
+# Platform Products
+try:
+    from dotmac.platform.platform_products.models import *  # noqa: F401,F403,E402
+except ImportError:
+    pass
+
+# Deployment (for FK reference)
+try:
+    from dotmac.platform.deployment.models import *  # noqa: F401,F403,E402
+except ImportError:
+    pass
+
 # Use Base.metadata for autogeneration
 target_metadata = Base.metadata
 

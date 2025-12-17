@@ -121,6 +121,14 @@ PLATFORM_ROUTER_CONFIGS = [
         "tags": ["Platform - Deployments"],
         "description": "Multi-tenant deployment orchestration",
     },
+    # Platform Products (admin)
+    {
+        "module_path": "dotmac.platform.platform_products.router",
+        "router_name": "router",
+        "prefix": "",  # Module has /products prefix
+        "tags": ["Platform - Products"],
+        "description": "Platform product catalog management",
+    },
 ]
 
 

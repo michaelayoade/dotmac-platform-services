@@ -723,6 +723,17 @@ ROUTER_CONFIGS = [
         description="Multi-tenant deployment provisioning and lifecycle management",
         requires_auth=True,
     ),
+    # ===========================================
+    # Public Catalog (No Auth Required)
+    # ===========================================
+    RouterConfig(
+        module_path="dotmac.platform.platform_products.catalog_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Public Catalog"],
+        requires_auth=False,
+        description="Public product catalog for marketing and signup pages",
+    ),
 ]
 
 
