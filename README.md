@@ -22,6 +22,7 @@ A **backend microservices platform** that provides the foundational services nee
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                  DotMac Platform Services                        │
+│            (Control Plane for Multi-Tenant SaaS)                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
@@ -32,16 +33,17 @@ A **backend microservices platform** that provides the foundational services nee
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Licensing  │  │   Comms     │  │  Analytics  │             │
-│  │  - Features │  │  - Email    │  │  - Metrics  │             │
-│  │  - Plans    │  │  - SMS      │  │  - Audit    │             │
-│  │  - Enforce  │  │  - Templates│  │  - Traces   │             │
+│  │  Products   │  │ Deployment  │  │  Licensing  │             │
+│  │  - Catalog  │  │  - Templates│  │  - Features │             │
+│  │  - Modules  │  │  - Provision│  │  - Plans    │             │
+│  │  - Versions │  │  - Scale    │  │  - Enforce  │             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Jobs      │  │  Workflows  │  │  Webhooks   │             │
-│  │  - Async    │  │  - Orchestr │  │  - Events   │             │
-│  │  - Schedule │  │  - Automate │  │  - Notify   │             │
+│  │   Comms     │  │  Analytics  │  │   Jobs      │             │
+│  │  - Email    │  │  - Metrics  │  │  - Async    │             │
+│  │  - SMS      │  │  - Audit    │  │  - Schedule │             │
+│  │  - Templates│  │  - Traces   │  │  - Workflows│             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -76,6 +78,14 @@ A **backend microservices platform** that provides the foundational services nee
 - License activation and validation
 - Plan-based feature enforcement
 - Usage-based billing support
+
+### Platform Products & Deployment
+- **Product Catalog** - Define deployable SaaS products (e.g., Insights, Connect, Radius)
+- **Public Catalog API** - Unauthenticated product listing for marketing/signup
+- **Deployment Templates** - Kubernetes, Docker Compose, AWX/Ansible configurations
+- **Instance Provisioning** - Automated tenant instance deployment
+- **Scaling & Lifecycle** - Upgrade, suspend, resume, destroy operations
+- **Health Monitoring** - Instance health checks and status tracking
 
 ### Communications
 - Email templates and sending
@@ -175,17 +185,19 @@ This platform is designed to be consumed by other applications. Integration is d
 
 ```
 src/dotmac/platform/
-├── auth/           # Authentication & RBAC
-├── tenant/         # Multi-tenancy
-├── billing/        # Billing & payments
-├── licensing/      # License management
-├── communications/ # Email, SMS, notifications
-├── analytics/      # Usage analytics
-├── audit/          # Audit trails
-├── jobs/           # Async job processing
-├── workflows/      # Workflow orchestration
-├── webhooks/       # Webhook management
-├── monitoring/     # Observability
+├── auth/              # Authentication & RBAC
+├── tenant/            # Multi-tenancy
+├── billing/           # Billing & payments
+├── licensing/         # License management
+├── platform_products/ # Platform product catalog (global)
+├── deployment/        # Deployment orchestration
+├── communications/    # Email, SMS, notifications
+├── analytics/         # Usage analytics
+├── audit/             # Audit trails
+├── jobs/              # Async job processing
+├── workflows/         # Workflow orchestration
+├── webhooks/          # Webhook management
+├── monitoring/        # Observability
 └── ...
 ```
 
