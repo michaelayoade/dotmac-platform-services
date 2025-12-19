@@ -119,27 +119,53 @@ def upgrade() -> None:
     )
 
     # Create indexes
-    op.create_index(
-        "ix_platform_products_slug",
-        "platform_products",
-        ["slug"],
-        unique=True,
-    )
-    op.create_index(
-        "ix_platform_products_is_active",
-        "platform_products",
-        ["is_active"],
-    )
-    op.create_index(
-        "ix_platform_products_is_public",
-        "platform_products",
-        ["is_public"],
-    )
-    op.create_index(
-        "ix_platform_products_template_id",
-        "platform_products",
-        ["template_id"],
-    )
+    # NOTE: the slug column is declared with unique=True and index=True above which may
+    # result in the table creation step already creating the underlying unique index.
+    # To avoid DuplicateTable errors when running migrations against a DB that may
+    # already have the index, only create the slug index if it does not already exist.
+    # Guard index creation with an existence check to avoid aborting the transaction
+    conn = op.get_bind()
+    exists = conn.execute(
+        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+        {"name": "ix_platform_products_slug"},
+    ).first()
+    if not exists:
+        op.create_index(
+            "ix_platform_products_slug",
+            "platform_products",
+            ["slug"],
+            unique=True,
+        )
+    exists = conn.execute(
+        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+        {"name": "ix_platform_products_is_active"},
+    ).first()
+    if not exists:
+        op.create_index(
+            "ix_platform_products_is_active",
+            "platform_products",
+            ["is_active"],
+        )
+    exists = conn.execute(
+        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+        {"name": "ix_platform_products_is_public"},
+    ).first()
+    if not exists:
+        op.create_index(
+            "ix_platform_products_is_public",
+            "platform_products",
+            ["is_public"],
+        )
+    exists = conn.execute(
+        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+        {"name": "ix_platform_products_template_id"},
+    ).first()
+    if not exists:
+        op.create_index(
+            "ix_platform_products_template_id",
+            "platform_products",
+            ["template_id"],
+        )
 
 
 def downgrade() -> None:
