@@ -19,6 +19,7 @@ import {
 import { Button } from "@/lib/dotmac/core";
 
 import { getTenants, type Tenant } from "@/lib/api/tenants";
+import { safeApi } from "@/lib/api/safe-api";
 import { cn } from "@/lib/utils";
 
 export const metadata = {
@@ -32,7 +33,15 @@ export default async function TenantsPage({
   searchParams: { view?: string; status?: string };
 }) {
   const view = searchParams.view || "grid";
-  const { tenants, stats } = await getTenants();
+  const { tenants, stats } = await safeApi(
+    getTenants,
+    {
+      tenants: [],
+      stats: { total: 0, totalChange: 0, active: 0, trial: 0, suspended: 0 },
+      totalCount: 0,
+      pageCount: 1,
+    }
+  );
 
   return (
     <div className="space-y-6">

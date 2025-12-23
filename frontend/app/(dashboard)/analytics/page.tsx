@@ -24,6 +24,7 @@ import {
 import { Button } from "@/lib/dotmac/core";
 
 import { cn } from "@/lib/utils";
+import { safeApi } from "@/lib/api/safe-api";
 import {
   getPerformanceMetrics,
   getUserAnalytics,
@@ -35,6 +36,42 @@ export const metadata = {
   description: "Platform usage metrics and insights",
 };
 
+const fallbackPerformanceMetrics = {
+  responseTime: { p50: 0, p95: 0, p99: 0, average: 0 },
+  errorRate: 0,
+  requestsPerSecond: 0,
+  byEndpoint: [],
+  byTime: [],
+};
+
+const fallbackUserAnalytics = {
+  totalUsers: 0,
+  activeUsers: 0,
+  newUsersThisMonth: 0,
+  userGrowth: 0,
+  usersByRole: [],
+  usersByTenant: [],
+  loginActivity: [],
+};
+
+const fallbackUsageMetrics = {
+  apiCalls: {
+    total: 0,
+    byEndpoint: [],
+    byDay: [],
+  },
+  storage: {
+    used: 0,
+    limit: 0,
+    byTenant: [],
+  },
+  bandwidth: {
+    used: 0,
+    limit: 0,
+    byDay: [],
+  },
+};
+
 export default async function AnalyticsPage({
   searchParams,
 }: {
@@ -44,9 +81,9 @@ export default async function AnalyticsPage({
   const perfPeriod = period === "24h" ? "24h" : period === "7d" ? "7d" : "7d";
 
   const [performanceData, userAnalytics, usageData] = await Promise.all([
-    getPerformanceMetrics(perfPeriod),
-    getUserAnalytics(),
-    getUsageMetrics(period === "90d" ? "90d" : "30d"),
+    safeApi(() => getPerformanceMetrics(perfPeriod), fallbackPerformanceMetrics),
+    safeApi(getUserAnalytics, fallbackUserAnalytics),
+    safeApi(() => getUsageMetrics(period === "90d" ? "90d" : "30d"), fallbackUsageMetrics),
   ]);
 
   const metrics = {
@@ -262,7 +299,10 @@ function formatLargeNumber(num: number): string {
 // Chart Components
 
 async function TrafficChart() {
-  const performanceData = await getPerformanceMetrics("24h");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("24h"),
+    fallbackPerformanceMetrics
+  );
   const data = performanceData.byTime.slice(-24).map((item) => {
     const date = new Date(item.timestamp);
     return {
@@ -284,7 +324,10 @@ async function TrafficChart() {
 }
 
 async function LatencyChart() {
-  const performanceData = await getPerformanceMetrics("24h");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("24h"),
+    fallbackPerformanceMetrics
+  );
   const data = performanceData.byTime
     .filter((_, i) => i % 4 === 0) // Sample every 4 hours
     .slice(-6)
@@ -308,7 +351,7 @@ async function LatencyChart() {
 }
 
 async function DAUChart() {
-  const userAnalytics = await getUserAnalytics();
+  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
   const data = userAnalytics.loginActivity.slice(-30).map((item, index) => ({
     day: `Day ${index + 1}`,
     users: item.logins,
@@ -327,7 +370,7 @@ async function DAUChart() {
 }
 
 async function RetentionChart() {
-  const userAnalytics = await getUserAnalytics();
+  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
   // Use login activity trend to simulate retention
   const weeklyData = userAnalytics.loginActivity.slice(-4);
   const maxLogins = Math.max(...weeklyData.map((d) => d.logins));
@@ -342,7 +385,7 @@ async function RetentionChart() {
 }
 
 async function UserDistributionChart() {
-  const userAnalytics = await getUserAnalytics();
+  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
   const data = userAnalytics.usersByRole.map((item) => ({
     role: item.role,
     count: item.count,
@@ -352,7 +395,10 @@ async function UserDistributionChart() {
 }
 
 async function ErrorRateChart() {
-  const performanceData = await getPerformanceMetrics("7d");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("7d"),
+    fallbackPerformanceMetrics
+  );
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const data = performanceData.byTime.slice(-7).map((item) => {
     const date = new Date(item.timestamp);
@@ -370,7 +416,10 @@ async function ErrorRateChart() {
 async function ErrorDistributionChart() {
   // Error distribution would need a separate API endpoint
   // For now, return placeholder data based on overall error rate
-  const performanceData = await getPerformanceMetrics("24h");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("24h"),
+    fallbackPerformanceMetrics
+  );
   const totalErrors = Math.round(performanceData.errorRate * 100);
   const data = [
     { type: "500", count: Math.round(totalErrors * 0.4) },
@@ -384,7 +433,7 @@ async function ErrorDistributionChart() {
 }
 
 async function TopRegions() {
-  const usageData = await getUsageMetrics("30d");
+  const usageData = await safeApi(() => getUsageMetrics("30d"), fallbackUsageMetrics);
   const totalRequests = usageData.apiCalls.total;
 
   // Map tenant data to region-like format (would need geographic API for real data)
@@ -422,7 +471,10 @@ async function TopRegions() {
 }
 
 async function TopEndpoints() {
-  const performanceData = await getPerformanceMetrics("24h");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("24h"),
+    fallbackPerformanceMetrics
+  );
   const endpoints = performanceData.byEndpoint.slice(0, 5).map((item) => ({
     path: item.endpoint,
     requests: item.requestCount,

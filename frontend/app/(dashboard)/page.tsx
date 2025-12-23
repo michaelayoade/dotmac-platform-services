@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
+import { safeApi } from "@/lib/api/safe-api";
 import { getDashboardMetrics } from "@/lib/api/dashboard";
 import {
   getRevenueData,
@@ -36,8 +37,55 @@ export const metadata = {
   title: "Dashboard",
 };
 
+const fallbackMetrics = {
+  users: { total: 0, active: 0, change: 0 },
+  tenants: { total: 0, trial: 0, change: 0 },
+  revenue: { current: 0, change: 0, trend: [] },
+  deployments: { active: 0, pending: 0, change: 0 },
+};
+
+const fallbackUserAnalytics = {
+  totalUsers: 0,
+  activeUsers: 0,
+  newUsersThisMonth: 0,
+  userGrowth: 0,
+  usersByRole: [],
+  usersByTenant: [],
+  loginActivity: [],
+};
+
+const fallbackTenantAnalytics = {
+  totalTenants: 0,
+  activeTenants: 0,
+  trialTenants: 0,
+  tenantGrowth: 0,
+  tenantsByPlan: [],
+  topTenants: [],
+  conversionRate: 0,
+  churnRate: 0,
+};
+
+const fallbackPerformanceMetrics = {
+  responseTime: { p50: 0, p95: 0, p99: 0, average: 0 },
+  errorRate: 0,
+  requestsPerSecond: 0,
+  byEndpoint: [],
+  byTime: [],
+};
+
+const buildEmptyRevenueData = (months: number) => {
+  const now = new Date();
+  return Array.from({ length: months }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
+    return {
+      month: date.toLocaleString("en-US", { month: "short" }),
+      revenue: 0,
+    };
+  });
+};
+
 export default async function DashboardPage() {
-  const metrics = await getDashboardMetrics();
+  const metrics = await safeApi(getDashboardMetrics, fallbackMetrics);
 
   return (
     <div className="space-y-8">
@@ -181,7 +229,7 @@ export default async function DashboardPage() {
 // Async chart components that fetch their own data
 
 async function RevenueChart() {
-  const revenueData = await getRevenueData("12m");
+  const revenueData = await safeApi(() => getRevenueData("12m"), buildEmptyRevenueData(12));
   const data = revenueData.map((item) => ({
     month: item.month,
     revenue: item.revenue / 100, // Convert cents to dollars
@@ -200,7 +248,7 @@ async function RevenueChart() {
 }
 
 async function UserGrowthChart() {
-  const userAnalytics = await getUserAnalytics();
+  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
   // Use login activity as a proxy for user growth
   const data = userAnalytics.loginActivity.slice(-8).map((item, index) => ({
     week: `W${index + 1}`,
@@ -219,7 +267,7 @@ async function UserGrowthChart() {
 }
 
 async function TenantDistributionChart() {
-  const tenantAnalytics = await getTenantAnalytics();
+  const tenantAnalytics = await safeApi(getTenantAnalytics, fallbackTenantAnalytics);
   const data = tenantAnalytics.tenantsByPlan.map((item) => ({
     name: item.plan,
     value: item.count,
@@ -229,7 +277,10 @@ async function TenantDistributionChart() {
 }
 
 async function APITrafficChart() {
-  const performanceData = await getPerformanceMetrics("24h");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("24h"),
+    fallbackPerformanceMetrics
+  );
   const data = performanceData.byTime.slice(-24).map((item) => {
     const date = new Date(item.timestamp);
     return {
@@ -250,7 +301,10 @@ async function APITrafficChart() {
 }
 
 async function ErrorRateChart() {
-  const performanceData = await getPerformanceMetrics("7d");
+  const performanceData = await safeApi(
+    () => getPerformanceMetrics("7d"),
+    fallbackPerformanceMetrics
+  );
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const data = performanceData.byTime.slice(-7).map((item) => {
     const date = new Date(item.timestamp);

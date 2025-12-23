@@ -5,6 +5,7 @@ import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 import { Button } from "@/lib/dotmac/core";
 
 import { getUsers, type User } from "@/lib/api/users";
+import { safeApi } from "@/lib/api/safe-api";
 import { UsersTableClient } from "./users-table-client";
 
 export const metadata = {
@@ -21,12 +22,16 @@ export default async function UsersPage({
   const search = searchParams.search || "";
   const status = searchParams.status || "";
 
-  const { users, totalCount, pageCount } = await getUsers({
-    page,
-    search,
-    status,
-    pageSize: 20,
-  });
+  const { users, totalCount, pageCount } = await safeApi(
+    () =>
+      getUsers({
+        page,
+        search,
+        status,
+        pageSize: 20,
+      }),
+    { users: [], totalCount: 0, pageCount: 1 }
+  );
 
   return (
     <div className="space-y-6">

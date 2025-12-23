@@ -28,6 +28,7 @@ import {
   getDeployments as fetchDeployments,
   type Deployment as APIDeployment,
 } from "@/lib/api/deployments";
+import { safeApi } from "@/lib/api/safe-api";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,10 @@ function mapDeploymentToDisplay(deployment: APIDeployment): DeploymentDisplay {
 }
 
 export default async function DeploymentsPage() {
-  const { deployments: apiDeployments } = await fetchDeployments({ pageSize: 50 });
+  const { deployments: apiDeployments } = await safeApi(
+    () => fetchDeployments({ pageSize: 50 }),
+    { deployments: [], totalCount: 0, pageCount: 1 }
+  );
   const deployments = apiDeployments.map(mapDeploymentToDisplay);
   const stats = {
     total: deployments.length,

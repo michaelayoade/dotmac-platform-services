@@ -30,6 +30,7 @@ import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 
 import { getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/billing";
 import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
+import { safeApi } from "@/lib/api/safe-api";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +40,47 @@ export const metadata = {
   description: "Revenue, invoices, and payment management",
 };
 
+const fallbackBillingMetrics = {
+  mrr: 0,
+  mrrChange: 0,
+  arr: 0,
+  arrChange: 0,
+  outstanding: 0,
+  overdueCount: 0,
+  collectionRate: 0,
+  collectionRateChange: 0,
+  activeSubscriptions: 0,
+  subscriptionChange: 0,
+  churnedThisMonth: 0,
+  upgradesThisMonth: 0,
+};
+
+const fallbackRevenueBreakdown = {
+  byPlan: [],
+  byRegion: [],
+  mrr: 0,
+  arr: 0,
+  mrrGrowth: 0,
+  netRevenue: 0,
+  churn: 0,
+  expansion: 0,
+};
+
+const buildEmptyRevenueData = (months: number) => {
+  const now = new Date();
+  return Array.from({ length: months }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
+    return {
+      month: date.toLocaleString("en-US", { month: "short" }),
+      revenue: 0,
+    };
+  });
+};
+
 export default async function BillingPage() {
   const [metrics, recentInvoices] = await Promise.all([
-    getBillingMetrics(),
-    getRecentInvoices(),
+    safeApi(getBillingMetrics, fallbackBillingMetrics),
+    safeApi(() => getRecentInvoices(), [] as Invoice[]),
   ]);
 
   return (
@@ -332,7 +370,7 @@ function SubscriptionCard({
 
 // Chart Components
 async function RevenueChart() {
-  const revenueData = await getRevenueData("12m");
+  const revenueData = await safeApi(() => getRevenueData("12m"), buildEmptyRevenueData(12));
   const data = revenueData.map((item) => ({
     month: item.month,
     revenue: item.revenue / 100, // Convert cents to dollars
@@ -350,7 +388,7 @@ async function RevenueChart() {
 }
 
 async function PaymentMethodChart() {
-  const breakdown = await getRevenueBreakdown();
+  const breakdown = await safeApi(getRevenueBreakdown, fallbackRevenueBreakdown);
   const data = breakdown.byPlan.map((item) => ({
     method: item.plan,
     amount: item.revenue / 100, // Convert cents to dollars

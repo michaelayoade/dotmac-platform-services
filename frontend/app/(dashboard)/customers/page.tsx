@@ -24,6 +24,7 @@ import {
   getCustomers as fetchCustomers,
   type Customer as APICustomer,
 } from "@/lib/api/customers";
+import { safeApi } from "@/lib/api/safe-api";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,10 @@ function mapCustomerToDisplay(customer: APICustomer): CustomerDisplay {
 }
 
 export default async function CustomersPage() {
-  const { customers: apiCustomers } = await fetchCustomers({ pageSize: 50 });
+  const { customers: apiCustomers } = await safeApi(
+    () => fetchCustomers({ pageSize: 50 }),
+    { customers: [], totalCount: 0, pageCount: 1 }
+  );
   const customers = apiCustomers.map(mapCustomerToDisplay);
   const stats = {
     total: customers.length,
