@@ -16,6 +16,7 @@ from dotmac.platform.events.exceptions import (
 )
 from dotmac.platform.events.models import Event, EventPriority, EventStatus
 from dotmac.platform.events.storage import EventStorage
+from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
 
 logger = structlog.get_logger(__name__)
 
@@ -207,6 +208,15 @@ class EventBus:
         """
         event.mark_processing()
 
+        previous_tenant: str | None = None
+        tenant_id = event.metadata.tenant_id
+        if not tenant_id and isinstance(event.payload, dict):
+            tenant_id = event.payload.get("tenant_id")
+
+        if tenant_id:
+            previous_tenant = get_current_tenant_id()
+            set_current_tenant_id(str(tenant_id))
+
         try:
             await handler(event)
             event.mark_completed()
@@ -243,6 +253,9 @@ class EventBus:
                 logger.info("Retrying event", event_id=event.event_id)
                 await asyncio.sleep(2**event.retry_count)  # Exponential backoff
                 await self._execute_handler(handler, event)
+        finally:
+            if tenant_id:
+                set_current_tenant_id(previous_tenant)
 
     def subscribe(
         self,

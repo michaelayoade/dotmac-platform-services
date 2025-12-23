@@ -323,6 +323,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             from dotmac.platform.auth.platform_admin import is_platform_admin
 
             claims = jwt_service.verify_token(token, TokenType.ACCESS)
+            try:
+                request.state.jwt_claims = claims
+            except Exception:
+                pass
             user_info = UserInfo(
                 user_id=claims.get("sub", ""),
                 email=claims.get("email"),
@@ -374,13 +378,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if jwt_token:
             claims = self._verify_jwt_claims(jwt_token)
             if claims:
+                try:
+                    request.state.jwt_claims = claims
+                except Exception:
+                    pass
                 tenant_from_claims = self._tenant_from_claims(request, claims)
                 if tenant_from_claims:
-                    # Cache claims for downstream middleware if needed
-                    try:
-                        request.state.jwt_claims = claims
-                    except Exception:
-                        pass
                     return tenant_from_claims
 
         # Try API keys (used by service automation)

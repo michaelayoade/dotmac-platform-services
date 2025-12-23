@@ -1,0 +1,441 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   DotMac Platform Dashboard - Global Styles
+   Aesthetic: "Precision Control Room"
+   ============================================================================ */
+
+@layer base {
+  :root {
+    /* Typography */
+    --font-display: "Instrument Sans", system-ui, sans-serif;
+
+    /* Spacing rhythm */
+    --spacing-unit: 4px;
+
+    /* Transition defaults */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Accent colors - shared between themes */
+    --color-accent: 185 85% 50%;
+    --color-accent-hover: 185 85% 60%;
+    --color-highlight: 45 95% 55%;
+
+    /* Status colors - shared between themes */
+    --color-status-success: 145 72% 45%;
+    --color-status-warning: 38 95% 55%;
+    --color-status-error: 0 75% 55%;
+    --color-status-info: 210 100% 60%;
+  }
+
+  /* ========================================
+     Dark Theme (Default)
+     "Precision Control Room" aesthetic
+     ======================================== */
+  .dark {
+    /* Surface colors */
+    --color-surface: 220 20% 6%;
+    --color-surface-elevated: 220 18% 9%;
+    --color-surface-overlay: 220 16% 12%;
+    --color-surface-subtle: 220 14% 15%;
+
+    /* Border colors */
+    --color-border: 220 15% 18%;
+    --color-border-subtle: 220 12% 14%;
+    --color-border-strong: 220 15% 25%;
+
+    /* Text colors */
+    --color-text-primary: 220 15% 95%;
+    --color-text-secondary: 220 12% 70%;
+    --color-text-muted: 220 10% 50%;
+    --color-text-inverse: 220 20% 6%;
+
+    /* Shadow colors */
+    --shadow-color: 220 20% 4%;
+
+    /* Accent adjustments for dark mode */
+    --color-accent-subtle: 185 85% 50% / 0.15;
+    --color-accent-muted: 185 50% 35%;
+  }
+
+  /* ========================================
+     Light Theme
+     Clean, professional variant
+     ======================================== */
+  .light {
+    /* Surface colors */
+    --color-surface: 0 0% 100%;
+    --color-surface-elevated: 220 20% 98%;
+    --color-surface-overlay: 220 15% 95%;
+    --color-surface-subtle: 220 15% 92%;
+
+    /* Border colors */
+    --color-border: 220 15% 88%;
+    --color-border-subtle: 220 12% 92%;
+    --color-border-strong: 220 15% 80%;
+
+    /* Text colors */
+    --color-text-primary: 220 20% 10%;
+    --color-text-secondary: 220 12% 35%;
+    --color-text-muted: 220 10% 50%;
+    --color-text-inverse: 220 15% 95%;
+
+    /* Shadow colors */
+    --shadow-color: 220 20% 80%;
+
+    /* Accent adjustments for light mode - slightly deeper for contrast */
+    --color-accent: 185 85% 40%;
+    --color-accent-hover: 185 85% 35%;
+    --color-accent-subtle: 185 85% 50% / 0.12;
+    --color-accent-muted: 185 50% 45%;
+
+    /* Highlight adjustment */
+    --color-highlight: 45 95% 45%;
+
+    /* Status adjustments for light mode - darker for readability */
+    --color-status-success: 145 72% 35%;
+    --color-status-warning: 38 95% 45%;
+    --color-status-error: 0 75% 45%;
+    --color-status-info: 210 100% 45%;
+  }
+
+  /* Base HTML styles */
+  html {
+    @apply antialiased;
+    font-feature-settings:
+      "cv02",
+      "cv03",
+      "cv04",
+      "cv11";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Theme transition - smooth color changes */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease !important;
+    transition-delay: 0s !important;
+  }
+
+  body {
+    @apply bg-surface text-text-primary;
+    @apply min-h-screen;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Selection styling */
+  ::selection {
+    @apply bg-accent/30 text-text-primary;
+  }
+
+  /* Scrollbar styling - sleek and minimal */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+    @apply hover:bg-border-strong;
+  }
+
+  ::-webkit-scrollbar-corner {
+    @apply bg-transparent;
+  }
+
+  /* Focus visible - accessible and on-brand */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  /* ========================================
+     Dashboard Shell Components
+     ======================================== */
+
+  /* Sidebar navigation item */
+  .nav-item {
+    @apply relative flex items-center gap-3 px-3 py-2.5 rounded-md;
+    @apply text-text-secondary text-sm font-medium;
+    @apply transition-all duration-150;
+    @apply hover:bg-surface-overlay hover:text-text-primary;
+  }
+
+  .nav-item.active {
+    @apply bg-accent-subtle text-accent;
+  }
+
+  .nav-item.active::before {
+    content: "";
+    @apply absolute left-0 top-1/2 -translate-y-1/2;
+    @apply w-0.5 h-5 bg-accent rounded-r;
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full;
+    @apply text-2xs font-semibold uppercase tracking-wider;
+  }
+
+  .status-badge--success {
+    @apply bg-status-success/15 text-status-success;
+  }
+
+  .status-badge--warning {
+    @apply bg-status-warning/15 text-status-warning;
+  }
+
+  .status-badge--error {
+    @apply bg-status-error/15 text-status-error;
+  }
+
+  .status-badge--info {
+    @apply bg-status-info/15 text-status-info;
+  }
+
+  /* Metric display - prominent numbers */
+  .metric-value {
+    @apply text-4xl font-semibold tracking-tight text-text-primary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-label {
+    @apply text-xs font-medium uppercase tracking-wider text-text-muted;
+  }
+
+  .metric-change {
+    @apply inline-flex items-center gap-1 text-sm font-medium;
+  }
+
+  .metric-change--positive {
+    @apply text-status-success;
+  }
+
+  .metric-change--negative {
+    @apply text-status-error;
+  }
+
+  /* Card variants */
+  .card {
+    @apply bg-surface-elevated border border-border rounded-lg;
+    @apply shadow-card;
+    @apply transition-shadow duration-200;
+  }
+
+  .card:hover {
+    @apply shadow-card-hover;
+  }
+
+  .card--interactive {
+    @apply cursor-pointer;
+    @apply hover:border-border-strong;
+  }
+
+  .card--glow {
+    @apply hover:shadow-glow hover:border-accent/30;
+  }
+
+  /* Table styling overrides */
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply px-4 py-3 text-left;
+    @apply text-xs font-semibold uppercase tracking-wider text-text-muted;
+    @apply bg-surface-overlay border-b border-border;
+  }
+
+  .data-table td {
+    @apply px-4 py-3;
+    @apply border-b border-border-subtle;
+  }
+
+  .data-table tr:hover td {
+    @apply bg-surface-overlay/50;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply flex items-center justify-between;
+    @apply pb-6 mb-6 border-b border-border;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-text-primary;
+  }
+
+  .page-description {
+    @apply text-sm text-text-secondary mt-1;
+  }
+
+  /* Section styling */
+  .section {
+    @apply space-y-4;
+  }
+
+  .section-header {
+    @apply flex items-center justify-between mb-4;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-text-primary;
+  }
+
+  /* Command palette trigger */
+  .command-trigger {
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-md;
+    @apply bg-surface-overlay border border-border;
+    @apply text-sm text-text-muted;
+    @apply hover:border-border-strong hover:text-text-secondary;
+    @apply transition-colors duration-150;
+  }
+
+  .command-trigger kbd {
+    @apply px-1.5 py-0.5 rounded bg-surface text-2xs font-mono;
+    @apply border border-border;
+  }
+
+  /* Live indicator */
+  .live-indicator {
+    @apply relative flex items-center gap-2;
+  }
+
+  .live-indicator::before {
+    content: "";
+    @apply w-2 h-2 rounded-full bg-status-success;
+    @apply animate-status-blink;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-surface-overlay rounded animate-pulse;
+  }
+
+  /* Quick stats row */
+  .quick-stats {
+    @apply grid grid-cols-2 md:grid-cols-4 gap-4;
+  }
+
+  .quick-stat {
+    @apply p-4 rounded-lg bg-surface-elevated border border-border;
+  }
+}
+
+@layer utilities {
+  /* Animation delays for staggered reveals */
+  .delay-75 {
+    animation-delay: 75ms;
+  }
+  .delay-150 {
+    animation-delay: 150ms;
+  }
+  .delay-225 {
+    animation-delay: 225ms;
+  }
+  .delay-300 {
+    animation-delay: 300ms;
+  }
+  .delay-375 {
+    animation-delay: 375ms;
+  }
+  .delay-450 {
+    animation-delay: 450ms;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent to-highlight bg-clip-text text-transparent;
+  }
+
+  /* Glow effect on text */
+  .text-glow {
+    text-shadow: 0 0 20px hsl(185 85% 50% / 0.5);
+  }
+
+  /* Border glow */
+  .border-glow {
+    box-shadow:
+      0 0 0 1px hsl(185 85% 50% / 0.3),
+      0 0 20px -5px hsl(185 85% 50% / 0.3);
+  }
+
+  /* Subtle noise texture */
+  .noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+  }
+
+  /* Grid background pattern */
+  .bg-grid {
+    background-image: linear-gradient(
+        hsl(220 15% 15%) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, hsl(220 15% 15%) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Tabular numbers for data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ========================================
+   Component Library Overrides
+   Ensure consistency with platform theme
+   ======================================== */
+
+/* DataTable from @dotmac/data-table */
+[data-dotmac-datatable] {
+  @apply bg-surface-elevated rounded-lg border border-border overflow-hidden;
+}
+
+[data-dotmac-datatable] table {
+  @apply w-full;
+}
+
+[data-dotmac-datatable] thead {
+  @apply bg-surface-overlay;
+}
+
+[data-dotmac-datatable] th {
+  @apply text-xs font-semibold uppercase tracking-wider text-text-muted;
+  @apply px-4 py-3 text-left border-b border-border;
+}
+
+[data-dotmac-datatable] td {
+  @apply px-4 py-3 text-sm text-text-primary;
+  @apply border-b border-border-subtle;
+}
+
+[data-dotmac-datatable] tr:hover td {
+  @apply bg-surface-overlay/50;
+}
+
+/* Charts from @dotmac/charts */
+[data-dotmac-chart] {
+  @apply text-text-secondary;
+}
+
+/* KPI Tiles from @dotmac/dashboards */
+[data-dotmac-kpi] {
+  @apply bg-surface-elevated border border-border rounded-lg p-5;
+}
+
+/* Form inputs from @dotmac/forms */
+[data-dotmac-input] {
+  @apply bg-surface-overlay border-border;
+  @apply focus:border-accent focus:ring-accent;
+}

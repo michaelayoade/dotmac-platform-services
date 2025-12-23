@@ -13,7 +13,8 @@ from strawberry.fastapi import BaseContext
 from strawberry.types import Info
 
 from dotmac.platform.auth.core import TokenType, UserInfo, jwt_service
-from dotmac.platform.db import AsyncSessionLocal
+from dotmac.platform.db import AsyncSessionLocal, set_session_rls_context
+from dotmac.platform.graphql.loaders import DataLoaderRegistry
 
 
 @strawberry.type
@@ -43,7 +44,7 @@ class Context(BaseContext):
         self.request = request
         self.db = db
         self.current_user = current_user
-        self.loaders = {}
+        self.loaders = DataLoaderRegistry(db)
         self._background_tasks: BackgroundTasks | None = None
         self._close_registered = False
         self._session_closed = False
@@ -200,6 +201,23 @@ class Context(BaseContext):
             raise
 
         try:
+            rls_tenant_id = getattr(request.state, "rls_tenant_id", None)
+            if rls_tenant_id is None and current_user.tenant_id is not None:
+                rls_tenant_id = str(current_user.tenant_id)
+
+            rls_is_superuser = bool(getattr(request.state, "rls_is_superuser", False))
+            if not rls_is_superuser and current_user.is_platform_admin:
+                rls_is_superuser = True
+
+            rls_bypass = bool(getattr(request.state, "rls_bypass", False))
+
+            if rls_tenant_id or rls_is_superuser or rls_bypass:
+                set_session_rls_context(
+                    db_session,
+                    tenant_id=rls_tenant_id,
+                    is_superuser=rls_is_superuser,
+                    bypass_rls=rls_bypass,
+                )
             return Context(request=request, db=db_session, current_user=current_user)
         except Exception:
             await db_session.close()

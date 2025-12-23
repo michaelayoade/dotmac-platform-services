@@ -17,7 +17,8 @@ from urllib.parse import quote_plus
 from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy import CHAR, Boolean, DateTime, String, TypeDecorator, create_engine
+from fastapi import Request
+from sqlalchemy import CHAR, Boolean, DateTime, String, TypeDecorator, create_engine, event, text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -329,6 +330,95 @@ _async_session_maker: sessionmaker[Any] = AsyncSessionLocal
 async_session_maker: sessionmaker[Any] = _async_session_maker
 
 
+def _get_session_info(session: Any) -> dict[str, Any] | None:
+    info = getattr(session, "info", None)
+    if isinstance(info, dict):
+        return info
+    sync_session = getattr(session, "sync_session", None)
+    if sync_session is not None:
+        sync_info = getattr(sync_session, "info", None)
+        if isinstance(sync_info, dict):
+            return sync_info
+    return None
+
+
+def _set_session_rls_context(
+    session: Any,
+    tenant_id: str | None,
+    is_superuser: bool = False,
+    bypass_rls: bool = False,
+) -> None:
+    info = _get_session_info(session)
+    if info is None:
+        return
+    info["rls_tenant_id"] = tenant_id
+    info["rls_is_superuser"] = bool(is_superuser)
+    info["rls_bypass"] = bool(bypass_rls)
+    info["rls_context_configured"] = True
+
+
+def set_session_rls_context(
+    session: Any,
+    tenant_id: str | None,
+    is_superuser: bool = False,
+    bypass_rls: bool = False,
+) -> None:
+    """Configure RLS context for a session (non-request workflows)."""
+    _set_session_rls_context(
+        session,
+        tenant_id=tenant_id,
+        is_superuser=is_superuser,
+        bypass_rls=bypass_rls,
+    )
+
+
+def _get_rls_context_from_info(info: dict[str, Any] | None) -> tuple[str | None, bool, bool, bool]:
+    if not isinstance(info, dict):
+        return None, False, False, False
+    tenant_id = info.get("rls_tenant_id")
+    is_superuser = bool(info.get("rls_is_superuser", False))
+    bypass_rls = bool(info.get("rls_bypass", False))
+    configured = bool(info.get("rls_context_configured", False))
+    return tenant_id, is_superuser, bypass_rls, configured
+
+
+@event.listens_for(Session, "after_begin")
+def _apply_rls_context(
+    session: Session, transaction: Any, connection: Any
+) -> None:
+    tenant_id, is_superuser, bypass_rls, configured = _get_rls_context_from_info(
+        session.info
+    )
+    if not configured:
+        try:
+            from dotmac.platform.tenant import get_current_tenant_id
+
+            tenant_id = get_current_tenant_id()
+        except Exception:
+            tenant_id = None
+        if tenant_id:
+            is_superuser = False
+            bypass_rls = False
+            configured = True
+    if not configured:
+        return
+    if connection.dialect.name != "postgresql":
+        return
+    if tenant_id:
+        connection.execute(
+            text("SET LOCAL app.current_tenant_id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
+    connection.execute(
+        text("SET LOCAL app.is_superuser = :is_superuser"),
+        {"is_superuser": str(is_superuser).lower()},
+    )
+    connection.execute(
+        text("SET LOCAL app.bypass_rls = :bypass_rls"),
+        {"bypass_rls": str(bypass_rls).lower()},
+    )
+
+
 @dataclass(frozen=True)
 class DatabaseState:
     """Serializable snapshot of database wiring for temporary overrides."""
@@ -408,11 +498,32 @@ def configure_database_for_testing(
 # ==========================================
 
 
+def _apply_request_rls_context(session: Any, request: Request | None) -> None:
+    if request is None or not hasattr(request, "state"):
+        return
+    state = request.state
+    if not any(
+        hasattr(state, attr)
+        for attr in ("rls_tenant_id", "rls_is_superuser", "rls_bypass")
+    ):
+        return
+    tenant_id = getattr(state, "rls_tenant_id", None)
+    is_superuser = getattr(state, "rls_is_superuser", False)
+    bypass_rls = getattr(state, "rls_bypass", False)
+    _set_session_rls_context(
+        session,
+        tenant_id=tenant_id,
+        is_superuser=bool(is_superuser),
+        bypass_rls=bool(bypass_rls),
+    )
+
+
 @contextmanager
-def get_db() -> Iterator[Session]:
+def get_db(request: Request = None) -> Iterator[Session]:
     """Get a synchronous database session."""
     session = SyncSessionLocal()
     try:
+        _apply_request_rls_context(session, request)
         yield session
         session.commit()
     except Exception:
@@ -423,10 +534,11 @@ def get_db() -> Iterator[Session]:
 
 
 @asynccontextmanager
-async def get_async_db() -> AsyncIterator[AsyncSession]:
+async def get_async_db(request: Request = None) -> AsyncIterator[AsyncSession]:
     """Get an asynchronous database session."""
     async with AsyncSessionLocal() as session:
         try:
+            _apply_request_rls_context(session, request)
             yield session
             await session.commit()
         except Exception:
@@ -437,10 +549,13 @@ async def get_async_db() -> AsyncIterator[AsyncSession]:
 
 
 @asynccontextmanager
-async def get_async_session_context() -> AsyncIterator[AsyncSession]:
+async def get_async_session_context(
+    request: Request = None,
+) -> AsyncIterator[AsyncSession]:
     """Context manager alias for acquiring an async session (legacy helper)."""
     async with _async_session_maker() as session:
         try:
+            _apply_request_rls_context(session, request)
             yield session
             await session.commit()
         except Exception:
@@ -450,10 +565,11 @@ async def get_async_session_context() -> AsyncIterator[AsyncSession]:
             await session.close()
 
 
-async def get_async_session() -> AsyncIterator[AsyncSession]:
+async def get_async_session(request: Request = None) -> AsyncIterator[AsyncSession]:
     """FastAPI dependency for getting an async database session."""
     async with _async_session_maker() as session:
         try:
+            _apply_request_rls_context(session, request)
             yield session
         except Exception:
             await session.rollback()
@@ -462,61 +578,18 @@ async def get_async_session() -> AsyncIterator[AsyncSession]:
             await session.close()
 
 
-async def get_rls_session(request: Any = None) -> AsyncIterator[AsyncSession]:
-    """
-    FastAPI dependency for getting an RLS-aware async database session.
-
-    This dependency automatically sets PostgreSQL session variables for
-    Row-Level Security based on the context stored in request.state by
-    the RLS middleware.
-
-    Args:
-        request: FastAPI Request object (injected automatically)
-
-    Yields:
-        AsyncSession with RLS context applied
-    """
-    from sqlalchemy import text
-
-    async with _async_session_maker() as session:
-        try:
-            # Set RLS context from request state if available
-            if request and hasattr(request, "state"):
-                tenant_id = getattr(request.state, "rls_tenant_id", None)
-                is_superuser = getattr(request.state, "rls_is_superuser", False)
-                bypass_rls = getattr(request.state, "rls_bypass", False)
-
-                # Set PostgreSQL session variables
-                if tenant_id:
-                    await session.execute(
-                        text("SET LOCAL app.current_tenant_id = :tenant_id"),
-                        {"tenant_id": tenant_id},
-                    )
-
-                await session.execute(
-                    text("SET LOCAL app.is_superuser = :is_superuser"),
-                    {"is_superuser": str(is_superuser).lower()},
-                )
-
-                await session.execute(
-                    text("SET LOCAL app.bypass_rls = :bypass_rls"),
-                    {"bypass_rls": str(bypass_rls).lower()},
-                )
-
-                await session.commit()
-
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+async def get_rls_session(request: Request = None) -> AsyncIterator[AsyncSession]:
+    """Compatibility wrapper for an RLS-aware async database session."""
+    async for session in get_async_session(request=request):
+        yield session
 
 
-async def get_session_dependency() -> AsyncIterator[AsyncSession]:
+async def get_session_dependency(
+    request: Request = None,
+) -> AsyncIterator[AsyncSession]:
     """Compatibility wrapper that yields a session and remains easy to patch in tests."""
 
-    session_source: Any = get_async_session()
+    session_source: Any = get_async_session(request=request)
 
     if isinstance(session_source, AsyncMock):
         # When get_async_session() returns an AsyncMock directly, use it
@@ -713,6 +786,7 @@ __all__ = [
     "get_async_db",
     "get_async_session_context",
     "get_async_session",  # FastAPI dependency
+    "set_session_rls_context",
     "get_database_session",  # Legacy alias
     "get_db_session",  # Legacy alias
     "get_async_db_session",  # Legacy alias

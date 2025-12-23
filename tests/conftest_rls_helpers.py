@@ -6,7 +6,6 @@ Import these fixtures in your test conftest.py files.
 """
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.core.rls_middleware import RLSContextManager
@@ -44,14 +43,8 @@ async def bypass_rls_for_tests(db_session: AsyncSession):
         yield
         return
 
-    await db_session.execute(text("SET LOCAL app.bypass_rls = true"))
-    await db_session.commit()
-
-    yield
-
-    # Reset after test
-    await db_session.execute(text("RESET app.bypass_rls"))
-    await db_session.commit()
+    async with RLSContextManager(db_session, bypass_rls=True):
+        yield
 
 
 @pytest.fixture
@@ -140,17 +133,8 @@ async def auto_bypass_rls_for_all_tests(request):
         return
 
     # Bypass RLS for all other tests
-    try:
-        await db_session.execute(text("SET LOCAL app.bypass_rls = true"))
-        await db_session.commit()
+    async with RLSContextManager(db_session, bypass_rls=True):
         yield
-    finally:
-        try:
-            await db_session.execute(text("RESET app.bypass_rls"))
-            await db_session.commit()
-        except Exception:
-            # Ignore errors during cleanup - session might already be closed
-            pass
 
 
 # Custom pytest markers

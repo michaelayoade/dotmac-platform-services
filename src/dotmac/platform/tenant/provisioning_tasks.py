@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from dotmac.platform.ansible.client import AWXClient
 from dotmac.platform.ansible.service import AWXService
 from dotmac.platform.celery_app import celery_app
-from dotmac.platform.db import async_session_maker
+from dotmac.platform.db import async_session_maker, set_session_rls_context
 from dotmac.platform.settings import settings
 
 from .models import (
@@ -85,6 +85,7 @@ def execute_tenant_provisioning(self: Task, job_id: str) -> None:
 
 async def _execute_tenant_provisioning(job_id: str, task: Task | None = None) -> None:
     async with async_session_maker() as session:
+        set_session_rls_context(session, tenant_id=None, bypass_rls=True)
         job = await _load_job(session, job_id)
         if not job:
             logger.warning("tenant_provisioning.job_missing", job_id=job_id)
@@ -158,6 +159,7 @@ def monitor_tenant_provisioning(self: Task, job_id: str) -> None:
 
 async def _monitor_tenant_provisioning(job_id: str, task: Task | None = None) -> None:
     async with async_session_maker() as session:
+        set_session_rls_context(session, tenant_id=None, bypass_rls=True)
         job = await _load_job(session, job_id)
         if not job:
             logger.warning("tenant_provisioning.job_missing", job_id=job_id)
