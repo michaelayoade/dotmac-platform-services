@@ -30,6 +30,8 @@ import { RecentActivityFeed } from "@/components/features/dashboard/recent-activ
 import { SystemHealthWidget } from "@/components/features/dashboard/system-health";
 import { QuickActions } from "@/components/features/dashboard/quick-actions";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Dashboard",
 };

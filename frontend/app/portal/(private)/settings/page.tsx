@@ -426,7 +426,7 @@ function ApiKeysSection() {
                 Save your API key now
               </p>
               <p className="text-sm text-text-muted mb-3">
-                This is the only time you'll see this key. Copy it to a secure location.
+                This is the only time you&apos;ll see this key. Copy it to a secure location.
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-3 py-2 rounded-md bg-surface border border-border text-sm font-mono">
@@ -453,7 +453,7 @@ function ApiKeysSection() {
                 onClick={() => setNewKeySecret(null)}
                 className="mt-3 text-sm text-accent hover:text-accent-hover"
               >
-                I've saved this key
+                I&apos;ve saved this key
               </button>
             </div>
           </div>

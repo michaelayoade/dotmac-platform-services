@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   Globe,
   Plus,
@@ -106,6 +107,7 @@ export default function IntegrationsPage() {
       toast({ title: "Failed to sync", variant: "error" });
     }
   };
+  const iconLoader = ({ src }: { src: string }) => src;
 
   if (isLoading) {
     return <IntegrationsSkeleton />;
@@ -170,7 +172,15 @@ export default function IntegrationsPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-lg bg-surface-overlay flex items-center justify-center">
                     {iconUrl ? (
-                      <img src={iconUrl} alt="" className="w-8 h-8" />
+                      <Image
+                        src={iconUrl}
+                        alt={`${integration.name} logo`}
+                        width={32}
+                        height={32}
+                        className="w-8 h-8"
+                        loader={iconLoader}
+                        unoptimized
+                      />
                     ) : (
                       <Globe className="w-6 h-6 text-text-muted" />
                     )}
@@ -281,7 +291,15 @@ export default function IntegrationsPage() {
               >
                 <div className="w-12 h-12 rounded-lg bg-surface-overlay flex items-center justify-center">
                   {integration.iconUrl ? (
-                    <img src={integration.iconUrl} alt="" className="w-8 h-8" />
+                    <Image
+                      src={integration.iconUrl}
+                      alt={`${integration.name} logo`}
+                      width={32}
+                      height={32}
+                      className="w-8 h-8"
+                      loader={iconLoader}
+                      unoptimized
+                    />
                   ) : (
                     <Globe className="w-6 h-6 text-text-muted" />
                   )}

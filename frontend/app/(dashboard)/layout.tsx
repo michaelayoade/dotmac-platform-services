@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import type { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
+
 import { authOptions } from "@/lib/auth/config";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 

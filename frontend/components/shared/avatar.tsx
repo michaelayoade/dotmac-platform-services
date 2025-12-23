@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { cn } from "@/lib/utils";
 
 interface AvatarProps {
@@ -31,6 +33,14 @@ const statusColors = {
   offline: "bg-text-muted",
   away: "bg-status-warning",
   busy: "bg-status-error",
+};
+
+const sizePx = {
+  xs: 24,
+  sm: 32,
+  md: 40,
+  lg: 48,
+  xl: 64,
 };
 
 function getInitials(name: string): string {
@@ -69,17 +79,22 @@ export function Avatar({
 }: AvatarProps) {
   const initials = getInitials(name);
   const gradientClass = getColorFromName(name);
+  const imageLoader = ({ src: imageSrc }: { src: string }) => imageSrc;
 
   return (
     <div className={cn("relative inline-block", className)}>
       {src ? (
-        <img
+        <Image
           src={src}
           alt={name}
+          width={sizePx[size]}
+          height={sizePx[size]}
           className={cn(
             "rounded-full object-cover bg-surface-overlay",
             sizeClasses[size]
           )}
+          loader={imageLoader}
+          unoptimized
         />
       ) : (
         <div

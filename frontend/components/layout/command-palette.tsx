@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type ElementType, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -40,7 +40,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const commands: CommandItem[] = [
+  const commands = useMemo<CommandItem[]>(() => [
     // Recent
     {
       id: "recent-1",
@@ -148,28 +148,40 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       keywords: ["bill", "charge"],
       section: "actions",
     },
-  ];
+  ], [router]);
 
   // Filter commands based on query
-  const filteredCommands = query
-    ? commands.filter((cmd) => {
-        const searchStr = [cmd.label, cmd.description, ...(cmd.keywords || [])].join(" ").toLowerCase();
-        return searchStr.includes(query.toLowerCase());
-      })
-    : commands;
+  const filteredCommands = useMemo(() => {
+    if (!query) {
+      return commands;
+    }
+    const normalizedQuery = query.toLowerCase();
+    return commands.filter((cmd) => {
+      const searchStr = [cmd.label, cmd.description, ...(cmd.keywords || [])]
+        .join(" ")
+        .toLowerCase();
+      return searchStr.includes(normalizedQuery);
+    });
+  }, [commands, query]);
 
   // Group by section
-  const groupedCommands = {
-    recent: filteredCommands.filter((c) => c.section === "recent"),
-    actions: filteredCommands.filter((c) => c.section === "actions"),
-    navigation: filteredCommands.filter((c) => c.section === "navigation"),
-  };
+  const groupedCommands = useMemo(
+    () => ({
+      recent: filteredCommands.filter((c) => c.section === "recent"),
+      actions: filteredCommands.filter((c) => c.section === "actions"),
+      navigation: filteredCommands.filter((c) => c.section === "navigation"),
+    }),
+    [filteredCommands]
+  );
 
-  const flatCommands = [
-    ...groupedCommands.recent,
-    ...groupedCommands.actions,
-    ...groupedCommands.navigation,
-  ];
+  const flatCommands = useMemo(
+    () => [
+      ...groupedCommands.recent,
+      ...groupedCommands.actions,
+      ...groupedCommands.navigation,
+    ],
+    [groupedCommands]
+  );
 
   // Reset selection when query changes
   useEffect(() => {
@@ -177,40 +189,37 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }, [query]);
 
   // Keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (flatCommands.length === 0) {
-        if (e.key === "Escape") {
-          e.preventDefault();
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (flatCommands.length === 0) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex((i) => (i + 1) % flatCommands.length);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex((i) => (i - 1 + flatCommands.length) % flatCommands.length);
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (flatCommands[selectedIndex]) {
+          flatCommands[selectedIndex].action();
           onClose();
         }
-        return;
-      }
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setSelectedIndex((i) => (i + 1) % flatCommands.length);
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setSelectedIndex((i) => (i - 1 + flatCommands.length) % flatCommands.length);
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (flatCommands[selectedIndex]) {
-            flatCommands[selectedIndex].action();
-            onClose();
-          }
-          break;
-        case "Escape":
-          e.preventDefault();
-          onClose();
-          break;
-      }
-    },
-    [flatCommands, selectedIndex, onClose]
-  );
+        break;
+      case "Escape":
+        e.preventDefault();
+        onClose();
+        break;
+    }
+  };
 
   // Reset state when closing
   useEffect(() => {
@@ -249,7 +258,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         <div className="max-h-80 overflow-y-auto py-2">
           {flatCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-text-muted">
-              <p>No results found for "{query}"</p>
+              <p>No results found for &quot;{query}&quot;</p>
             </div>
           ) : (
             <>

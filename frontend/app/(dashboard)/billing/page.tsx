@@ -32,6 +32,8 @@ import { getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/bi
 import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
 import { cn } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Billing",
   description: "Revenue, invoices, and payment management",

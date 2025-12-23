@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, Camera, Check } from "lucide-react";
@@ -106,10 +107,13 @@ export default function ProfileSettingsPage() {
           <div className="relative group">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-2xl font-semibold text-text-inverse overflow-hidden">
               {avatarPreview ? (
-                <img
+                <Image
                   src={avatarPreview}
                   alt="Avatar preview"
+                  width={80}
+                  height={80}
                   className="w-full h-full object-cover"
+                  unoptimized
                 />
               ) : (
                 session?.user?.name?.charAt(0).toUpperCase() || "U"

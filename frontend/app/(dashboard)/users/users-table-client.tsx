@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback, useMemo, type ElementType } from "react";
+import { useState, useCallback, type ElementType } from "react";
 import {
   DataTable,
   type BulkAction,
@@ -66,9 +66,26 @@ export function UsersTableClient({
     [router, searchParams]
   );
 
+  // Handle user actions
+  const handleUserAction = useCallback(
+    (action: string, user: User) => {
+      switch (action) {
+        case "view":
+          router.push(`/users/${user.id}`);
+          break;
+        case "edit":
+          router.push(`/users/${user.id}/edit`);
+          break;
+        case "delete":
+          // Handle delete
+          break;
+      }
+    },
+    [router]
+  );
+
   // Column definitions
-  const columns: ColumnDef<User>[] = useMemo(
-    () => [
+  const columns: ColumnDef<User>[] = [
       {
         accessorKey: "name",
         header: "User",
@@ -203,9 +220,7 @@ export function UsersTableClient({
         ),
         size: 50,
       },
-    ],
-    []
-  );
+  ];
 
   // Bulk actions
   const bulkActions: BulkAction<User>[] = [
@@ -316,21 +331,6 @@ export function UsersTableClient({
       ],
     },
   ];
-
-  // Handle user actions
-  const handleUserAction = (action: string, user: User) => {
-    switch (action) {
-      case "view":
-        router.push(`/users/${user.id}`);
-        break;
-      case "edit":
-        router.push(`/users/${user.id}/edit`);
-        break;
-      case "delete":
-        // Handle delete
-        break;
-    }
-  };
 
   // Confirmation adapter for bulk actions
   const confirmAdapter = async (options: {

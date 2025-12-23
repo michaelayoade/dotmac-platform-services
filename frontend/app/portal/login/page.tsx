@@ -219,7 +219,7 @@ function TenantLoginContent() {
           {/* Sign up link */}
           <div className="text-center space-y-2">
             <p className="text-sm text-text-muted">
-              Don't have an organization?{" "}
+              Don&apos;t have an organization?{" "}
               <Link href="/signup" className="text-accent hover:text-accent-hover font-medium">
                 Create one
               </Link>

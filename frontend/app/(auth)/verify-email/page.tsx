@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -30,22 +30,7 @@ function VerifyEmailContent() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
 
-  // Verify token if present
-  useEffect(() => {
-    if (token) {
-      verifyToken(token);
-    }
-  }, [token]);
-
-  // Resend cooldown timer
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendCooldown]);
-
-  const verifyToken = async (verificationToken: string) => {
+  const verifyToken = useCallback(async (verificationToken: string) => {
     setState("verifying");
     setError(null);
 
@@ -69,7 +54,22 @@ function VerifyEmailContent() {
           : "Failed to verify email. The link may have expired."
       );
     }
-  };
+  }, [router]);
+
+  // Verify token if present
+  useEffect(() => {
+    if (token) {
+      void verifyToken(token);
+    }
+  }, [token, verifyToken]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const handleResendEmail = async () => {
     if (!email || resendCooldown > 0) return;
@@ -119,7 +119,7 @@ function VerifyEmailContent() {
                   Check your email
                 </h1>
                 <p className="text-text-secondary">
-                  We've sent a verification link to{" "}
+                  We&apos;ve sent a verification link to{" "}
                   {email ? (
                     <span className="font-medium text-text-primary">{email}</span>
                   ) : (
@@ -262,7 +262,7 @@ function VerifyEmailContent() {
 
         {/* Help text */}
         <p className="text-center text-sm text-text-muted">
-          Didn't receive the email? Check your spam folder or{" "}
+          Didn&apos;t receive the email? Check your spam folder or{" "}
           <a
             href="mailto:support@dotmac.com"
             className="text-accent hover:underline"

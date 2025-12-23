@@ -25,6 +25,8 @@ import {
   type Customer as APICustomer,
 } from "@/lib/api/customers";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Customers",
   description: "Customer relationship management",

@@ -29,6 +29,8 @@ import {
   type Deployment as APIDeployment,
 } from "@/lib/api/deployments";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Deployments",
   description: "Infrastructure and deployment management",
