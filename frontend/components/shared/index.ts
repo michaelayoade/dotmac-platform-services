@@ -21,3 +21,4 @@ export {
   QueryErrorFallback,
   InlineError,
 } from "./error-boundary";
+export { StepIndicator, type Step } from "./step-indicator";

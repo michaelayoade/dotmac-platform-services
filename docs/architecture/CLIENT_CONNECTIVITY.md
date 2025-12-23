@@ -1,6 +1,6 @@
 # Client Connectivity Guide
 
-> **Last Updated:** December 2024
+> **Last Updated:** 2025-12-23
 
 This document describes how clients connect to DotMac Platform Services, including authentication methods, request flow, headers, and error handling.
 
@@ -11,7 +11,7 @@ This document describes how clients connect to DotMac Platform Services, includi
 | Protocol | Path | Purpose | Auth Required |
 |----------|------|---------|---------------|
 | **REST API** | `/api/v1/*` | Primary client interface | Yes |
-| **GraphQL** | `/api/v1/graphql` | Analytics queries | Yes |
+| **Public Onboarding** | `/api/v1/tenants/onboarding/public` | Tenant signup entry point | No |
 | **WebSocket** | `/realtime/ws` | Real-time updates | Yes |
 | **Health** | `/health/*` | Liveness/readiness probes | No |
 | **Metrics** | `/metrics/` | Prometheus scraping | No |
@@ -53,6 +53,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - `POST /api/v1/auth/login` - Obtain tokens
 - `POST /api/v1/auth/refresh` - Refresh access token
 - `POST /api/v1/auth/logout` - Revoke tokens
+- `POST /api/v1/auth/verify-email/confirm` - Confirm email verification (public)
+- `POST /api/v1/auth/verify-email/resend` - Resend verification email (public)
 
 ### 2. API Keys (Service-to-Service)
 
@@ -103,6 +105,8 @@ For authentication via third-party providers.
 | `Authorization` | Authenticated endpoints | `Bearer eyJhbG...` |
 | `X-Tenant-ID` | Multi-tenant requests | `550e8400-e29b-41d4-a716-446655440000` |
 | `X-API-Key` | Service auth (alternative to JWT) | `sk_live_abc123...` |
+
+Public onboarding and verification endpoints do not require `X-Tenant-ID`; tenant context is forced to `public`.
 
 ### Optional Headers
 
@@ -155,7 +159,8 @@ Client Request
 ├─────────────────────────────────────────────┤
 │ 6. TenantMiddleware                         │
 │    Resolves X-Tenant-ID header              │
-│    Exempts: /health, /auth/*, /docs         │
+│    Exempts: /health*, /docs, /api/v1/auth/*, │
+│             /api/v1/tenants/onboarding/public │
 ├─────────────────────────────────────────────┤
 │ 7. RLSMiddleware                            │
 │    Enforces Row-Level Security              │
@@ -185,6 +190,8 @@ Response + Headers
 | `/api/platform/*` | Platform admin only | `platform:*` scope |
 | `/api/tenant/*` | Tenant context required | Valid X-Tenant-ID |
 | `/api/v1/*` | Both platform and tenant | Scope-based filtering |
+| `/api/v1/partners/portal/*` | Partner portal | Partner association, optional X-Active-Tenant-Id |
+| `/api/v1/tenants/onboarding/public` | Public | No authentication |
 | `/health`, `/docs` | Public | No authentication |
 
 ---
@@ -198,8 +205,10 @@ Response + Headers
 | Authentication | `/api/v1/auth/*` | 6 |
 | Billing | `/api/v1/billing/*` | 12 |
 | Tenants | `/api/v1/tenants/*` | 4 |
+| Tenant Portal | `/api/v1/tenants/portal/*` | 1 |
 | Users/Teams | `/api/v1/users`, `/api/v1/teams` | 2 |
 | Partners | `/api/v1/partners/*` | 4 |
+| Partner Portal | `/api/v1/partners/portal/*` | 1 |
 | Customers | `/api/v1/customers/*` | 2 |
 | Monitoring | `/api/v1/monitoring/*` | 4 |
 | Analytics | `/api/v1/analytics/*` | 2 |

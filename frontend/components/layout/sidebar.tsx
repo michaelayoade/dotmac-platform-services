@@ -20,6 +20,16 @@ import {
   Bell,
   HelpCircle,
   LogOut,
+  MessageSquare,
+  Layers,
+  GitBranch,
+  Activity,
+  Contact,
+  Handshake,
+  Mail,
+  Key,
+  Puzzle,
+  Package,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -85,16 +95,86 @@ const navigation: NavSection[] = [
         permission: "billing:read",
       },
       {
+        label: "Product Catalog",
+        href: "/catalog",
+        icon: Package,
+        permission: "billing:catalog:read",
+      },
+      {
         label: "Deployments",
         href: "/deployments",
         icon: Server,
         permission: "deployments:read",
+      },
+      {
+        label: "Tickets",
+        href: "/tickets",
+        icon: MessageSquare,
+        permission: "tickets:read",
+      },
+      {
+        label: "Jobs",
+        href: "/jobs",
+        icon: Layers,
+        permission: "jobs:read",
+      },
+      {
+        label: "Workflows",
+        href: "/workflows",
+        icon: GitBranch,
+        permission: "workflows:read",
+      },
+    ],
+  },
+  {
+    title: "Monitoring",
+    items: [
+      {
+        label: "Overview",
+        href: "/monitoring",
+        icon: Activity,
+        permission: "monitoring:read",
+      },
+    ],
+  },
+  {
+    title: "CRM",
+    items: [
+      {
+        label: "Contacts",
+        href: "/contacts",
+        icon: Contact,
+        permission: "contacts:read",
+      },
+      {
+        label: "Partners",
+        href: "/partners",
+        icon: Handshake,
+        permission: "partners:read",
+      },
+      {
+        label: "Communications",
+        href: "/communications",
+        icon: Mail,
+        permission: "communications:read",
       },
     ],
   },
   {
     title: "System",
     items: [
+      {
+        label: "Licensing",
+        href: "/licensing",
+        icon: Key,
+        permission: "licensing:read",
+      },
+      {
+        label: "Plugins",
+        href: "/plugins",
+        icon: Puzzle,
+        permission: "plugins:read",
+      },
       {
         label: "Security",
         href: "/security",

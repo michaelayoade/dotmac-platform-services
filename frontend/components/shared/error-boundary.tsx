@@ -3,7 +3,7 @@
 import { Component, type ReactNode, type ErrorInfo } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@dotmac/core";
-import { ApiClientError } from "@/lib/api/client";
+import { ApiClientError } from "@/lib/api/errors";
 
 interface ErrorBoundaryProps {
   children: ReactNode;

@@ -16,9 +16,8 @@ eggs/
 .eggs/
 # Python virtualenv lib (but not frontend lib directories)
 lib/
-!frontend/apps/*/lib/
-!frontend/shared/lib/
-!frontend/shared/packages/*/src/lib/
+!frontend/lib/
+!frontend/lib/**
 lib64/
 parts/
 sdist/
@@ -92,8 +91,6 @@ ipython_config.py
 Pipfile.lock
 
 # poetry
-# Exclude poetry.lock; remove this rule if the lockfile should be versioned.
-poetry.lock
 
 # pdm
 .pdm.toml
@@ -243,6 +240,10 @@ test-reports/
 mutmut-results/
 frontend/e2e/.auth/
 frontend/e2e/.server-state.json
+
+# Frontend build artifacts
+frontend/.next/
+frontend/out/
 
 # Database files
 *.db

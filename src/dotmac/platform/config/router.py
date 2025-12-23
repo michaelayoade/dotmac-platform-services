@@ -44,7 +44,6 @@ PUBLIC_FEATURE_FLAGS: tuple[str, ...] = (
     # Background tasks
     "celery_enabled",
     # Platform Domain Features
-    "graphql_enabled",
     "analytics_enabled",
     "banking_enabled",
     "payments_enabled",
@@ -147,15 +146,14 @@ async def get_runtime_frontend_config(
     api_base = _sanitize_base_url(settings.frontend_api_base_url)
     api_prefix = _DEFAULT_API_PREFIX
     rest_url = _join_url(api_base, api_prefix) if api_base else api_prefix
-    graphql_url = settings.tenant_graphql_url or _join_url(rest_url, "/graphql")
     realtime_ws = ""
     if api_base:
         realtime_ws = _join_url(_as_websocket_url(api_base), "/realtime/ws")
     if not realtime_ws:
-        base_from_graphql = (
-            graphql_url.rsplit("/graphql", 1)[0] if "/graphql" in graphql_url else ""
+        base_from_rest = (
+            rest_url.rsplit(api_prefix, 1)[0] if api_prefix and api_prefix in rest_url else ""
         )
-        websocket_base = _as_websocket_url(base_from_graphql or api_base)
+        websocket_base = _as_websocket_url(base_from_rest or api_base)
         realtime_ws = _join_url(websocket_base, "/realtime/ws")
 
     tenant_slug = settings.tenant_slug or settings.tenant.default_tenant_id
@@ -176,7 +174,6 @@ async def get_runtime_frontend_config(
             "base_url": api_base,
             "rest_path": api_prefix,
             "rest_url": rest_url,
-            "graphql_url": graphql_url,
             "websocket_url": realtime_ws,
         },
         "realtime": {
@@ -231,7 +228,6 @@ async def get_platform_config(
         "features": features_payload,
         "api": {
             "rest_url": "/api/v1",
-            "graphql_url": "/api/v1/graphql",
             "realtime_sse_url": "/api/v1/realtime",
             "realtime_ws_url": "/api/v1/realtime/ws",
         },

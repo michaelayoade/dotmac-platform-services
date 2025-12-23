@@ -5,27 +5,43 @@ Tenant onboarding automation API router.
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo, get_current_user
+from dotmac.platform.auth.email_verification import send_verification_email
+from dotmac.platform.core.rate_limiting import rate_limit
+from dotmac.platform.core.rls_middleware import RLSContextManager
 from dotmac.platform.database import get_async_session
 from dotmac.platform.user_management.service import UserService
 
 from .dependencies import get_tenant_service
 from .models import TenantStatus
 from .onboarding_schemas import (
+    OnboardingAdminUserCreate,
+    PublicTenantOnboardingRequest,
+    PublicTenantOnboardingResponse,
     TenantOnboardingRequest,
+    TenantOnboardingOptions,
     TenantOnboardingResponse,
     TenantOnboardingStatusResponse,
 )
 from .onboarding_service import TenantOnboardingService
-from .schemas import TenantInvitationResponse, TenantResponse
+from .schemas import TenantCreate, TenantInvitationResponse, TenantResponse
 from .service import TenantAlreadyExistsError, TenantNotFoundError, TenantService
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/tenants", tags=["Tenant Onboarding"])
+
+
+def _build_public_admin_username(payload: PublicTenantOnboardingRequest) -> str:
+    raw_username = payload.admin_user.username or payload.admin_user.email.split("@")[0]
+    candidate = "".join(ch for ch in raw_username if ch.isalnum() or ch in ("-", "_", "."))
+    if len(candidate) < 3:
+        fallback = payload.tenant.slug
+        candidate = f"{fallback}-admin"
+    return candidate[:50]
 
 
 async def get_user_service_dependency(
@@ -123,6 +139,90 @@ async def automate_tenant_onboarding(
         feature_flags_updated=bool(result.get("feature_flags_updated")),
         warnings=list(result.get("warnings", [])),
         logs=list(result.get("logs", [])),
+    )
+
+
+@router.post(
+    "/onboarding/public",
+    response_model=PublicTenantOnboardingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@rate_limit("3/minute")  # type: ignore[misc]  # SlowAPI decorator is untyped
+async def public_tenant_onboarding(
+    request: Request,
+    payload: PublicTenantOnboardingRequest,
+    onboarding_service: TenantOnboardingService = Depends(get_onboarding_service),
+) -> PublicTenantOnboardingResponse:
+    """
+    Public self-signup endpoint for tenant onboarding.
+    """
+    session = onboarding_service.tenant_service.db
+    admin_username = _build_public_admin_username(payload)
+
+    onboarding_payload = TenantOnboardingRequest(
+        tenant=TenantCreate(
+            name=payload.tenant.name,
+            slug=payload.tenant.slug,
+            plan_type=payload.tenant.plan_type,
+            company_size=payload.tenant.company_size,
+            industry=payload.tenant.industry,
+            country=payload.tenant.country,
+            email=payload.admin_user.email,
+        ),
+        admin_user=OnboardingAdminUserCreate(
+            username=admin_username,
+            email=payload.admin_user.email,
+            password=payload.admin_user.password,
+            full_name=payload.admin_user.full_name,
+            roles=["tenant_admin"],
+            send_activation_email=True,
+        ),
+        options=TenantOnboardingOptions(
+            apply_default_settings=True,
+            mark_onboarding_complete=False,
+            activate_tenant=False,
+            allow_existing_tenant=False,
+        ),
+    )
+
+    try:
+        async with RLSContextManager(session, bypass_rls=True):
+            result = await onboarding_service.run_onboarding(onboarding_payload, initiated_by=None)
+
+            verification_sent = False
+            admin_user_id = result.get("admin_user_id")
+            if admin_user_id and onboarding_service.user_service:
+                user = await onboarding_service.user_service.get_user_by_id(admin_user_id)
+                if user:
+                    verification_sent = await send_verification_email(
+                        session=session,
+                        user=user,
+                        email=user.email,
+                        include_email_in_link=True,
+                    )
+
+    except TenantAlreadyExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except TenantNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except RuntimeError as exc:
+        logger.exception("tenant.onboarding.public_error", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to complete tenant signup.",
+        ) from exc
+
+    tenant = result["tenant"]
+    message = "Signup successful. Please verify your email to continue."
+
+    return PublicTenantOnboardingResponse(
+        tenant_id=str(getattr(tenant, "id", "")),
+        tenant_slug=str(getattr(tenant, "slug", "")),
+        admin_user_id=admin_user_id,
+        verification_sent=verification_sent,
+        message=message,
     )
 
 

@@ -82,12 +82,12 @@ async def get_my_availability(
 
     if not availability:
         # Create default availability record
-            availability = AgentAvailability(
-                user_id=current_user.user_id,
-                tenant_id=tenant_id,
-                status=AgentStatus.AVAILABLE,
-                last_activity_at=datetime.now(timezone.utc),
-            )
+        availability = AgentAvailability(
+            user_id=current_user.user_id,
+            tenant_id=tenant_id,
+            status=AgentStatus.AVAILABLE,
+            last_activity_at=datetime.now(timezone.utc),
+        )
         session.add(availability)
         await session.commit()
         await session.refresh(availability)

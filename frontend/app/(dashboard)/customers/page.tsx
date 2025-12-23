@@ -16,17 +16,22 @@ import {
   Star,
   TrendingUp,
 } from "lucide-react";
-import { DataTable, type ColumnDef } from "@dotmac/data-table";
-import { Button } from "@dotmac/core";
+import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
+import { Button } from "@/lib/dotmac/core";
 
 import { cn } from "@/lib/utils";
+import {
+  getCustomers as fetchCustomers,
+  type Customer as APICustomer,
+} from "@/lib/api/customers";
 
 export const metadata = {
   title: "Customers",
   description: "Customer relationship management",
 };
 
-interface Customer {
+// Display interface for CustomerCard component
+interface CustomerDisplay {
   id: string;
   name: string;
   email: string;
@@ -41,8 +46,42 @@ interface Customer {
   tags: string[];
 }
 
+// Map API customer to display format
+function mapCustomerToDisplay(customer: APICustomer): CustomerDisplay {
+  const typeToTier: Record<string, CustomerDisplay["tier"]> = {
+    enterprise: "enterprise",
+    business: "professional",
+    individual: "starter",
+  };
+
+  const statusMap: Record<string, CustomerDisplay["status"]> = {
+    active: "active",
+    inactive: "prospect",
+    churned: "churned",
+    lead: "lead",
+  };
+
+  return {
+    id: customer.id,
+    name: customer.name,
+    email: customer.email,
+    company: customer.company || "",
+    phone: customer.phone,
+    location: customer.billingAddress
+      ? `${customer.billingAddress.city}, ${customer.billingAddress.state}`
+      : undefined,
+    status: statusMap[customer.status] || "prospect",
+    tier: typeToTier[customer.type] || "starter",
+    totalRevenue: 0, // Would need separate metrics call for real revenue
+    lastContact: customer.updatedAt,
+    createdAt: customer.createdAt,
+    tags: customer.tags || [],
+  };
+}
+
 export default async function CustomersPage() {
-  const customers = await getCustomers();
+  const { customers: apiCustomers } = await fetchCustomers({ pageSize: 50 });
+  const customers = apiCustomers.map(mapCustomerToDisplay);
   const stats = {
     total: customers.length,
     active: customers.filter((c) => c.status === "active").length,
@@ -106,7 +145,7 @@ export default async function CustomersPage() {
   );
 }
 
-function CustomerCard({ customer, index }: { customer: Customer; index: number }) {
+function CustomerCard({ customer, index }: { customer: CustomerDisplay; index: number }) {
   const statusConfig = {
     active: { class: "status-badge--success", label: "Active" },
     churned: { class: "status-badge--error", label: "Churned" },
@@ -205,90 +244,4 @@ function CustomerCard({ customer, index }: { customer: Customer; index: number }
       </div>
     </div>
   );
-}
-
-async function getCustomers(): Promise<Customer[]> {
-  return [
-    {
-      id: "cust-1",
-      name: "John Smith",
-      email: "john.smith@acmecorp.com",
-      company: "Acme Corporation",
-      phone: "+1 (555) 123-4567",
-      location: "San Francisco, CA",
-      status: "active",
-      tier: "enterprise",
-      totalRevenue: 1250000,
-      lastContact: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["VIP", "Annual Contract", "Tech"],
-    },
-    {
-      id: "cust-2",
-      name: "Sarah Johnson",
-      email: "sarah@techstart.io",
-      company: "TechStart Inc",
-      phone: "+1 (555) 234-5678",
-      location: "Austin, TX",
-      status: "active",
-      tier: "professional",
-      totalRevenue: 450000,
-      lastContact: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["Startup", "Fast Growing"],
-    },
-    {
-      id: "cust-3",
-      name: "Michael Chen",
-      email: "m.chen@globalind.com",
-      company: "Global Industries",
-      location: "New York, NY",
-      status: "active",
-      tier: "enterprise",
-      totalRevenue: 2100000,
-      lastContact: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["VIP", "Multi-year", "Enterprise"],
-    },
-    {
-      id: "cust-4",
-      name: "Emily Davis",
-      email: "emily@startupxyz.com",
-      company: "StartupXYZ",
-      phone: "+1 (555) 345-6789",
-      status: "prospect",
-      tier: "starter",
-      totalRevenue: 0,
-      lastContact: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["Trial", "Demo Scheduled"],
-    },
-    {
-      id: "cust-5",
-      name: "David Wilson",
-      email: "david@creativeagency.co",
-      company: "Creative Agency",
-      location: "Los Angeles, CA",
-      status: "active",
-      tier: "professional",
-      totalRevenue: 320000,
-      lastContact: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["Marketing", "Agency"],
-    },
-    {
-      id: "cust-6",
-      name: "Lisa Anderson",
-      email: "lisa@healthcareplus.org",
-      company: "HealthCare Plus",
-      phone: "+1 (555) 456-7890",
-      location: "Chicago, IL",
-      status: "lead",
-      tier: "enterprise",
-      totalRevenue: 0,
-      lastContact: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      tags: ["Healthcare", "High Priority"],
-    },
-  ];
 }

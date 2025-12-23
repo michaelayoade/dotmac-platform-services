@@ -16,6 +16,7 @@ A **backend microservices platform** that provides the foundational services nee
 - **Licensing** - Feature flags, license management, plan enforcement
 - **Communications** - Email, SMS, templates, notifications
 - **Analytics & Monitoring** - Usage metrics, audit trails, observability
+- **Portals & Onboarding** - Public tenant signup, partner portal, tenant portal
 
 ## Architecture
 
@@ -98,7 +99,12 @@ A **backend microservices platform** that provides the foundational services nee
 - Usage analytics and metrics
 - Audit trail logging
 - Distributed tracing (OpenTelemetry)
-- Real-time dashboards (GraphQL)
+- Real-time dashboards (REST + SSE)
+
+### Portals & Onboarding
+- Public tenant signup with email verification
+- Partner portal for referrals, commissions, statements
+- Tenant portal for usage, billing, team, settings
 
 ## Quick Start
 
@@ -179,7 +185,6 @@ This platform is designed to be consumed by other applications. Integration is d
 1. **REST API** - Standard HTTP endpoints with JWT auth
 2. **API Keys** - For service-to-service communication
 3. **Webhooks** - Event notifications to external systems
-4. **GraphQL** - For analytics and dashboard queries
 
 ## Project Structure
 
@@ -188,16 +193,23 @@ src/dotmac/platform/
 ├── auth/              # Authentication & RBAC
 ├── tenant/            # Multi-tenancy
 ├── billing/           # Billing & payments
+├── partner_management/ # Partner program + portal APIs
+├── customer_management/ # Customer CRM workflows
+├── user_management/   # User/team management
 ├── licensing/         # License management
 ├── platform_products/ # Platform product catalog (global)
 ├── deployment/        # Deployment orchestration
 ├── communications/    # Email, SMS, notifications
+├── notifications/     # Notification channels/workflows
 ├── analytics/         # Usage analytics
 ├── audit/             # Audit trails
 ├── jobs/              # Async job processing
 ├── workflows/         # Workflow orchestration
+├── data_import/       # Data import pipelines
+├── data_transfer/     # Data export pipelines
 ├── webhooks/          # Webhook management
 ├── monitoring/        # Observability
+├── resilience/        # Circuit breakers, service mesh
 └── ...
 ```
 

@@ -5,6 +5,7 @@ Celery tasks orchestrating tenant provisioning via AWX/Ansible.
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Coroutine
 from concurrent.futures import Future
 from datetime import UTC, datetime
@@ -54,15 +55,11 @@ def _run_async[T](coro: Coroutine[Any, Any, T]) -> T:
 
 def _create_awx_service() -> AWXService:
     """Instantiate AWX service using platform OSS settings."""
-    config = settings.oss.ansible
+    base_url = settings.external_services.awx_url
+    token = os.getenv("AWX_TOKEN") or os.getenv("AWX_API_TOKEN")
     client = AWXClient(
-        base_url=config.url,
-        username=config.username,
-        password=config.password,
-        token=config.api_token,
-        verify_ssl=config.verify_ssl,
-        timeout_seconds=config.timeout_seconds,
-        max_retries=config.max_retries,
+        base_url=base_url,
+        token=token,
     )
     return AWXService(client=client)
 

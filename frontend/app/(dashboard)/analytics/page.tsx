@@ -7,8 +7,8 @@ import {
   ChartCard,
   FilterBar,
   type FilterConfig,
-} from "@dotmac/dashboards";
-import { LineChart, BarChart, AreaChart, PieChart } from "@dotmac/charts";
+} from "@/lib/dotmac/dashboards";
+import { LineChart, BarChart, AreaChart, PieChart } from "@/lib/dotmac/charts";
 import {
   TrendingUp,
   TrendingDown,
@@ -21,9 +21,14 @@ import {
   Download,
   Calendar,
 } from "lucide-react";
-import { Button } from "@dotmac/core";
+import { Button } from "@/lib/dotmac/core";
 
 import { cn } from "@/lib/utils";
+import {
+  getPerformanceMetrics,
+  getUserAnalytics,
+  getUsageMetrics,
+} from "@/lib/api/analytics";
 
 export const metadata = {
   title: "Analytics",
@@ -36,17 +41,23 @@ export default async function AnalyticsPage({
   searchParams: { period?: string };
 }) {
   const period = searchParams.period || "30d";
+  const perfPeriod = period === "24h" ? "24h" : period === "7d" ? "7d" : "7d";
 
-  // Mock metrics data
+  const [performanceData, userAnalytics, usageData] = await Promise.all([
+    getPerformanceMetrics(perfPeriod),
+    getUserAnalytics(),
+    getUsageMetrics(period === "90d" ? "90d" : "30d"),
+  ]);
+
   const metrics = {
-    totalRequests: 12450000,
-    requestsChange: 18.5,
-    activeUsers: 8923,
-    activeUsersChange: 12.3,
-    avgResponseTime: 145,
-    responseTimeChange: -8.2,
-    errorRate: 0.12,
-    errorRateChange: -15.3,
+    totalRequests: usageData.apiCalls.total,
+    requestsChange: 18.5, // Would need historical comparison
+    activeUsers: userAnalytics.activeUsers,
+    activeUsersChange: userAnalytics.userGrowth,
+    avgResponseTime: performanceData.responseTime.average,
+    responseTimeChange: -8.2, // Would need historical comparison
+    errorRate: performanceData.errorRate * 100,
+    errorRateChange: -15.3, // Would need historical comparison
   };
 
   return (
@@ -251,10 +262,14 @@ function formatLargeNumber(num: number): string {
 // Chart Components
 
 async function TrafficChart() {
-  const data = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${i}:00`,
-    requests: Math.floor(Math.random() * 50000) + 10000,
-  }));
+  const performanceData = await getPerformanceMetrics("24h");
+  const data = performanceData.byTime.slice(-24).map((item) => {
+    const date = new Date(item.timestamp);
+    return {
+      hour: `${date.getHours()}:00`,
+      requests: item.requests,
+    };
+  });
 
   return (
     <AreaChart
@@ -269,14 +284,17 @@ async function TrafficChart() {
 }
 
 async function LatencyChart() {
-  const data = [
-    { time: "00:00", p50: 45, p95: 120, p99: 250 },
-    { time: "04:00", p50: 42, p95: 115, p99: 230 },
-    { time: "08:00", p50: 55, p95: 145, p99: 320 },
-    { time: "12:00", p50: 68, p95: 180, p99: 380 },
-    { time: "16:00", p50: 72, p95: 190, p99: 400 },
-    { time: "20:00", p50: 58, p95: 155, p99: 340 },
-  ];
+  const performanceData = await getPerformanceMetrics("24h");
+  const data = performanceData.byTime
+    .filter((_, i) => i % 4 === 0) // Sample every 4 hours
+    .slice(-6)
+    .map((item) => {
+      const date = new Date(item.timestamp);
+      return {
+        time: `${date.getHours().toString().padStart(2, "0")}:00`,
+        p95: item.responseTime,
+      };
+    });
 
   return (
     <LineChart
@@ -290,9 +308,10 @@ async function LatencyChart() {
 }
 
 async function DAUChart() {
-  const data = Array.from({ length: 30 }, (_, i) => ({
-    day: `Day ${i + 1}`,
-    users: Math.floor(Math.random() * 2000) + 6000,
+  const userAnalytics = await getUserAnalytics();
+  const data = userAnalytics.loginActivity.slice(-30).map((item, index) => ({
+    day: `Day ${index + 1}`,
+    users: item.logins,
   }));
 
   return (
@@ -308,12 +327,14 @@ async function DAUChart() {
 }
 
 async function RetentionChart() {
-  const data = [
-    { week: "Week 1", retention: 100 },
-    { week: "Week 2", retention: 72 },
-    { week: "Week 3", retention: 58 },
-    { week: "Week 4", retention: 48 },
-  ];
+  const userAnalytics = await getUserAnalytics();
+  // Use login activity trend to simulate retention
+  const weeklyData = userAnalytics.loginActivity.slice(-4);
+  const maxLogins = Math.max(...weeklyData.map((d) => d.logins));
+  const data = weeklyData.map((item, index) => ({
+    week: `Week ${index + 1}`,
+    retention: Math.round((item.logins / maxLogins) * 100),
+  }));
 
   return (
     <BarChart data={data} dataKey="retention" xAxisKey="week" height={200} color="hsl(185, 85%, 50%)" />
@@ -321,20 +342,25 @@ async function RetentionChart() {
 }
 
 async function UserDistributionChart() {
-  const data = [
-    { role: "Members", count: 65 },
-    { role: "Admins", count: 20 },
-    { role: "Viewers", count: 15 },
-  ];
+  const userAnalytics = await getUserAnalytics();
+  const data = userAnalytics.usersByRole.map((item) => ({
+    role: item.role,
+    count: item.count,
+  }));
 
   return <BarChart data={data} dataKey="count" xAxisKey="role" height={200} color="hsl(45, 95%, 55%)" />;
 }
 
 async function ErrorRateChart() {
-  const data = Array.from({ length: 7 }, (_, i) => ({
-    day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
-    rate: Math.random() * 0.3 + 0.05,
-  }));
+  const performanceData = await getPerformanceMetrics("7d");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const data = performanceData.byTime.slice(-7).map((item) => {
+    const date = new Date(item.timestamp);
+    return {
+      day: days[date.getDay()],
+      rate: item.errorRate * 100,
+    };
+  });
 
   return (
     <LineChart data={data} dataKey="rate" xAxisKey="day" height={280} color="hsl(0, 75%, 55%)" />
@@ -342,25 +368,31 @@ async function ErrorRateChart() {
 }
 
 async function ErrorDistributionChart() {
+  // Error distribution would need a separate API endpoint
+  // For now, return placeholder data based on overall error rate
+  const performanceData = await getPerformanceMetrics("24h");
+  const totalErrors = Math.round(performanceData.errorRate * 100);
   const data = [
-    { type: "500", count: 45 },
-    { type: "502", count: 23 },
-    { type: "503", count: 18 },
-    { type: "504", count: 12 },
-    { type: "Other", count: 8 },
+    { type: "500", count: Math.round(totalErrors * 0.4) },
+    { type: "502", count: Math.round(totalErrors * 0.25) },
+    { type: "503", count: Math.round(totalErrors * 0.2) },
+    { type: "504", count: Math.round(totalErrors * 0.1) },
+    { type: "Other", count: Math.round(totalErrors * 0.05) },
   ];
 
   return <BarChart data={data} dataKey="count" xAxisKey="type" height={280} color="hsl(0, 75%, 55%)" />;
 }
 
 async function TopRegions() {
-  const regions = [
-    { name: "United States", requests: 4250000, percentage: 34.1 },
-    { name: "Germany", requests: 1850000, percentage: 14.9 },
-    { name: "United Kingdom", requests: 1420000, percentage: 11.4 },
-    { name: "Japan", requests: 980000, percentage: 7.9 },
-    { name: "France", requests: 720000, percentage: 5.8 },
-  ];
+  const usageData = await getUsageMetrics("30d");
+  const totalRequests = usageData.apiCalls.total;
+
+  // Map tenant data to region-like format (would need geographic API for real data)
+  const regions = usageData.storage.byTenant.slice(0, 5).map((tenant) => ({
+    name: tenant.tenantName,
+    requests: Math.round(totalRequests * (tenant.used / usageData.storage.used)),
+    percentage: (tenant.used / usageData.storage.used) * 100,
+  }));
 
   return (
     <div className="space-y-3">
@@ -371,13 +403,15 @@ async function TopRegions() {
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-text-primary">{region.name}</span>
               <span className="text-sm text-text-secondary tabular-nums">
-                {(region.requests / 1e6).toFixed(1)}M
+                {region.requests >= 1e6
+                  ? (region.requests / 1e6).toFixed(1) + "M"
+                  : (region.requests / 1e3).toFixed(0) + "K"}
               </span>
             </div>
             <div className="h-1.5 bg-surface-overlay rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent rounded-full transition-all"
-                style={{ width: `${region.percentage}%` }}
+                style={{ width: `${Math.min(region.percentage, 100)}%` }}
               />
             </div>
           </div>
@@ -388,13 +422,12 @@ async function TopRegions() {
 }
 
 async function TopEndpoints() {
-  const endpoints = [
-    { path: "/api/v1/users", requests: 2100000, avgTime: 45 },
-    { path: "/api/v1/auth/token", requests: 1850000, avgTime: 120 },
-    { path: "/api/v1/tenants", requests: 980000, avgTime: 65 },
-    { path: "/api/v1/billing/invoices", requests: 520000, avgTime: 180 },
-    { path: "/api/v1/deployments", requests: 340000, avgTime: 250 },
-  ];
+  const performanceData = await getPerformanceMetrics("24h");
+  const endpoints = performanceData.byEndpoint.slice(0, 5).map((item) => ({
+    path: item.endpoint,
+    requests: item.requestCount,
+    avgTime: Math.round(item.averageTime),
+  }));
 
   return (
     <div className="space-y-3">
@@ -409,7 +442,9 @@ async function TopEndpoints() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-text-secondary tabular-nums">
-              {(endpoint.requests / 1e6).toFixed(1)}M
+              {endpoint.requests >= 1e6
+                ? (endpoint.requests / 1e6).toFixed(1) + "M"
+                : (endpoint.requests / 1e3).toFixed(1) + "K"}
             </span>
             <span className="text-xs text-text-muted tabular-nums w-16 text-right">
               {endpoint.avgTime}ms avg

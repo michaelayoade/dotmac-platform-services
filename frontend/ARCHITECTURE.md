@@ -6,18 +6,33 @@
 - **Styling**: Tailwind CSS + @dotmac/design-tokens
 - **Components**: @dotmac/component-library (core, forms, data-table, charts, dashboards)
 - **State**: TanStack Query (server state) + Zustand (client state)
-- **Auth**: NextAuth.js with JWT from backend
-- **API**: REST (/api/v1/*) + GraphQL (/api/v1/graphql)
+- **Auth**: NextAuth.js (App Router handler at `/app/api/auth/[...nextauth]`) with JWT from backend
+- **API**: REST (/api/v1/*)
 
 ## Directory Structure
 
 ```
 frontend/
 ├── app/                          # Next.js App Router
-│   ├── (auth)/                   # Auth routes (login, forgot-password)
+│   ├── (auth)/                   # Auth routes (login, signup, verify-email)
 │   │   ├── login/
 │   │   ├── forgot-password/
+│   │   ├── signup/
+│   │   ├── verify-email/
 │   │   └── layout.tsx
+│   ├── (partner)/                # Partner portal routes
+│   │   ├── page.tsx              # Partner dashboard
+│   │   ├── referrals/
+│   │   ├── customers/
+│   │   ├── commissions/
+│   │   ├── statements/
+│   │   └── settings/
+│   ├── (tenant)/                 # Tenant portal routes
+│   │   ├── page.tsx              # Tenant dashboard
+│   │   ├── team/
+│   │   ├── billing/
+│   │   ├── usage/
+│   │   └── settings/
 │   ├── (dashboard)/              # Protected dashboard routes
 │   │   ├── layout.tsx            # Dashboard shell with sidebar
 │   │   ├── page.tsx              # Home/Overview dashboard
@@ -29,6 +44,8 @@ frontend/
 │   │   ├── deployments/          # Deployment management
 │   │   └── settings/             # Configuration
 │   ├── api/                      # API routes (BFF pattern)
+│   │   └── auth/                 # NextAuth route handler
+│   │       └── [...nextauth]/    # NextAuth App Router endpoint
 │   ├── layout.tsx                # Root layout
 │   └── globals.css
 ├── components/
@@ -60,8 +77,8 @@ The frontend extends @dotmac/design-tokens with platform-specific theming:
 ## Key Patterns
 
 ### 1. Server Components by Default
-- All pages are server components
-- Client components only where interactivity is needed
+- Pages default to server components
+- Client components are used for interactive flows (signup wizard, partner/tenant portals)
 - Streaming with Suspense for progressive loading
 
 ### 2. API Integration
@@ -70,11 +87,11 @@ The frontend extends @dotmac/design-tokens with platform-specific theming:
 - Real-time updates via WebSockets where needed
 
 ### 3. Role-Based Access
-- Middleware checks JWT & permissions
-- Server components verify access before rendering
-- Client-side permission hooks for UI adaptation
+- Route-group layouts guard authenticated access with NextAuth sessions
+- API enforces role/tenant access control for portal data
+- Client-side permission hooks adapt UI where available
 
 ### 4. Multi-Tenancy
 - Tenant context from auth token
-- All API calls include tenant scope
+- API calls include tenant scope; partner portal can set `X-Active-Tenant-Id`
 - UI adapts to tenant configuration

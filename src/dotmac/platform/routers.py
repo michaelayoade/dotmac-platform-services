@@ -6,18 +6,16 @@ All routes except /health, /ready, and /metrics require authentication.
 
 import importlib
 import os
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from fastapi import Depends, FastAPI
 from fastapi.security import HTTPBearer
 
 from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.graphql.context import Context
-from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -204,6 +202,14 @@ ROUTER_CONFIGS = [
         prefix="/api/v1/tenants",
         tags=["Tenant Usage Billing"],
         description="Usage tracking and billing integration",
+        requires_auth=True,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.tenant.portal_router",
+        router_name="router",
+        prefix="/api/v1/tenants",
+        tags=["Tenant Portal"],
+        description="Tenant self-service portal",
         requires_auth=True,
     ),
     # ===========================================
@@ -792,7 +798,6 @@ def register_routers(app: FastAPI) -> None:
 
     Structure:
     - /api/v1/* - REST API endpoints (auth required except /auth)
-    - /api/v1/graphql - GraphQL endpoint for analytics and metrics
     - /health, /ready, /metrics - Public health endpoints
     """
     registered_count = 0
@@ -813,36 +818,6 @@ def register_routers(app: FastAPI) -> None:
             registered_count += 1
         else:
             failed_count += 1
-
-    # Register GraphQL endpoint for analytics and dashboards
-    try:
-        from strawberry.fastapi import GraphQLRouter
-
-        from dotmac.platform.graphql.schema import schema
-
-        # GraphQLRouter with explicit path
-        # Using default context (will be available via info.context.request)
-        graphql_context_getter = cast(
-            Callable[..., Awaitable[Context] | Context | None],
-            Context.get_context,
-        )
-        graphql_app = GraphQLRouter(
-            schema,
-            path="/api/v1/graphql",
-            context_getter=graphql_context_getter,
-        )
-
-        # Add router directly without prefix
-        app.include_router(graphql_app)
-
-        logger.info("✅ GraphQL endpoint registered at /api/v1/graphql")
-        registered_count += 1
-    except ImportError as e:
-        logger.warning(f"⚠️  GraphQL endpoint not available: {e}")
-        failed_count += 1
-    except Exception as e:
-        logger.error(f"❌ Failed to register GraphQL endpoint: {e}")
-        failed_count += 1
 
     # Log summary
     logger.info(
@@ -896,8 +871,6 @@ def get_api_info() -> dict[str, Any]:
         "version": "v1",
         "base_path": "/api/v1",
         "endpoints": endpoints,
-        "graphql_endpoint": "/api/v1/graphql",
-        "graphql_playground": "/api/v1/graphql" if not settings.is_production else None,
         "public_endpoints": [
             "/health",
             "/ready",
@@ -910,8 +883,7 @@ def get_api_info() -> dict[str, Any]:
         ],
         "authenticated_endpoints": [
             config.prefix for config in ROUTER_CONFIGS if config.requires_auth
-        ]
-        + ["/api/v1/graphql"],
+        ],
     }
 
 

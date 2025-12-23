@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Plus, Download, Filter, MoreHorizontal, Mail, Shield, Trash2 } from "lucide-react";
-import { DataTable, type ColumnDef } from "@dotmac/data-table";
-import { Button } from "@dotmac/core";
+import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
+import { Button } from "@/lib/dotmac/core";
 
 import { getUsers, type User } from "@/lib/api/users";
 import { UsersTableClient } from "./users-table-client";
@@ -59,19 +59,19 @@ export default async function UsersPage({
           <p className="metric-value text-2xl">{totalCount.toLocaleString()}</p>
         </div>
         <div className="quick-stat">
-          <p className="metric-label">Active</p>
+          <p className="metric-label">Active (page)</p>
           <p className="metric-value text-2xl text-status-success">
             {users.filter((u) => u.status === "active").length}
           </p>
         </div>
         <div className="quick-stat">
-          <p className="metric-label">Pending</p>
+          <p className="metric-label">Pending (page)</p>
           <p className="metric-value text-2xl text-status-warning">
             {users.filter((u) => u.status === "pending").length}
           </p>
         </div>
         <div className="quick-stat">
-          <p className="metric-label">Suspended</p>
+          <p className="metric-label">Suspended (page)</p>
           <p className="metric-value text-2xl text-status-error">
             {users.filter((u) => u.status === "suspended").length}
           </p>

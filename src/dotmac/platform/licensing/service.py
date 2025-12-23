@@ -14,6 +14,8 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.billing.models import BillingProductTable
+
 from .models import (
     Activation,
     ActivationStatus,
@@ -55,10 +57,23 @@ class LicensingService:
         """Check if we are working with a real AsyncSession (vs. a mocked session in tests)."""
         return isinstance(self.session, AsyncSession)
 
+    async def _ensure_product_exists(self, product_id: str) -> None:
+        """Validate the product exists for the current tenant."""
+        result = await self.session.execute(
+            select(BillingProductTable).where(
+                BillingProductTable.product_id == product_id,
+                BillingProductTable.tenant_id == self.tenant_id,
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise ValueError("Product not found for tenant")
+
     # ==================== License Management ====================
 
     async def create_license(self, data: LicenseCreate) -> License:
         """Create a new software license."""
+        await self._ensure_product_exists(data.product_id)
+
         # Generate unique license key
         license_key = self._generate_license_key()
 
@@ -143,15 +158,20 @@ class LicensingService:
         update_data = data.model_dump(exclude_unset=True)
 
         # Handle features and restrictions
-        if "features" in update_data and update_data["features"]:
+        if "features" in update_data:
+            features_value = update_data["features"] or []
             update_data["features"] = {
-                "features": [f.model_dump() for f in update_data["features"]]
+                "features": [f.model_dump() for f in features_value]
             }
 
-        if "restrictions" in update_data and update_data["restrictions"]:
+        if "restrictions" in update_data:
+            restrictions_value = update_data["restrictions"] or []
             update_data["restrictions"] = {
-                "restrictions": [r.model_dump() for r in update_data["restrictions"]]
+                "restrictions": [r.model_dump() for r in restrictions_value]
             }
+
+        if "metadata" in update_data:
+            update_data["extra_data"] = update_data.pop("metadata") or {}
 
         for key, value in update_data.items():
             setattr(license_obj, key, value)
@@ -321,12 +341,77 @@ class LicensingService:
 
         return license_obj
 
+    async def delete_license(self, license_id: str) -> None:
+        """Permanently delete a license and all its activations."""
+        license_obj = await self.get_license(license_id)
+        if not license_obj:
+            raise ValueError(f"License {license_id} not found")
+
+        # Deactivate all activations first
+        await self._deactivate_all_activations(license_id, "License deleted")
+
+        # Log event before deletion
+        await self._log_event(
+            event_type="license.deleted",
+            license_id=license_id,
+            event_data={"deleted_at": datetime.now(UTC).isoformat()},
+        )
+
+        # Delete the license
+        await self.session.delete(license_obj)
+        await self.session.flush()
+
+        logger.info(
+            "License deleted",
+            license_id=license_id,
+            tenant_id=self.tenant_id,
+        )
+
+    async def reactivate_license(self, license_id: str) -> License:
+        """Reactivate a suspended license."""
+        license_obj = await self.get_license(license_id)
+        if not license_obj:
+            raise ValueError(f"License {license_id} not found")
+
+        if license_obj.status != LicenseStatus.SUSPENDED:
+            raise ValueError(f"License {license_id} is not suspended (status: {license_obj.status.value})")
+
+        license_obj.status = LicenseStatus.ACTIVE
+        license_obj.extra_data["reactivated_at"] = datetime.now(UTC).isoformat()
+        license_obj.extra_data.pop("suspension_reason", None)
+        license_obj.extra_data.pop("suspended_at", None)
+
+        await self.session.flush()
+
+        # Log event
+        await self._log_event(
+            event_type="license.reactivated",
+            license_id=license_id,
+            event_data={},
+        )
+
+        logger.info(
+            "License reactivated",
+            license_id=license_id,
+            tenant_id=self.tenant_id,
+        )
+
+        return license_obj
+
     # ==================== Activation Management ====================
 
     async def activate_license(self, data: ActivationCreate) -> Activation:
         """Activate a license on a device."""
-        # Get license
-        license_obj = await self.get_license_by_key(data.license_key)
+        # Get and lock license to prevent concurrent activation races
+        result = await self.session.execute(
+            select(License)
+            .where(
+                License.license_key == data.license_key,
+                License.tenant_id == self.tenant_id,
+            )
+            .with_for_update()
+        )
+        license_obj = result.scalar_one_or_none()
         if not license_obj:
             raise ValueError("Invalid license key")
 
@@ -418,6 +503,8 @@ class LicensingService:
         if not activation:
             raise ValueError(f"Activation {activation_id} not found")
 
+        was_active = activation.status == ActivationStatus.ACTIVE
+
         # Update activation
         activation.status = ActivationStatus.DEACTIVATED
         activation.deactivated_at = datetime.now(UTC)
@@ -425,7 +512,7 @@ class LicensingService:
 
         # Update license activation count
         license_obj = await self.get_license(activation.license_id)
-        if license_obj and license_obj.current_activations > 0:
+        if license_obj and was_active and license_obj.current_activations > 0:
             license_obj.current_activations -= 1
 
         await self.session.flush()
@@ -640,6 +727,8 @@ class LicensingService:
         return result.scalar_one_or_none()
 
     async def create_template(self, data: LicenseTemplateCreate) -> LicenseTemplate:
+        await self._ensure_product_exists(data.product_id)
+
         features_dict = {"features": [f.model_dump() for f in data.features]}
         restrictions_dict = {"restrictions": [r.model_dump() for r in data.restrictions]}
         pricing_dict = data.pricing.model_dump()
@@ -716,6 +805,57 @@ class LicensingService:
 
         await self.session.flush()
         return template
+
+    async def create_license_from_template(
+        self,
+        template_id: str,
+        customer_id: str | None = None,
+        seats: int | None = None,
+        expires_at: datetime | None = None,
+    ) -> License:
+        """Create a new license based on a template."""
+        template = await self.get_template(template_id)
+        if not template:
+            raise ValueError(f"Template {template_id} not found")
+
+        # Calculate expiration from template default_duration if not provided
+        if expires_at is None and template.default_duration:
+            expires_at = datetime.now(UTC) + timedelta(days=template.default_duration)
+
+        # Build license data from template
+        license_data = LicenseCreate(
+            product_id=template.product_id,
+            product_name=template.template_name,
+            license_type=template.license_type,
+            license_model=template.license_model,
+            customer_id=customer_id,
+            issued_to=f"Created from template: {template.template_name}",
+            max_activations=seats or template.max_activations,
+            features=[],  # Will be set from template
+            restrictions=[],  # Will be set from template
+            expiry_date=expires_at,
+            auto_renewal=template.auto_renewal_enabled,
+            trial_period_days=template.trial_duration_days if template.trial_allowed else None,
+            grace_period_days=template.grace_period_days,
+            metadata={"created_from_template": template_id},
+        )
+
+        license_obj = await self.create_license(license_data)
+
+        # Copy features and restrictions from template
+        license_obj.features = template.features
+        license_obj.restrictions = template.restrictions
+
+        await self.session.flush()
+
+        logger.info(
+            "License created from template",
+            license_id=license_obj.id,
+            template_id=template_id,
+            tenant_id=self.tenant_id,
+        )
+
+        return license_obj
 
     # ==================== Order Management ====================
 

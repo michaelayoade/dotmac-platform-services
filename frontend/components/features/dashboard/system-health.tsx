@@ -1,8 +1,9 @@
 "use client";
 
-import { CheckCircle, AlertTriangle, XCircle, ExternalLink } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, ExternalLink, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useSystemHealth, type SystemHealthService } from "@/lib/hooks/api";
 
 interface HealthCheck {
   name: string;
@@ -12,16 +13,46 @@ interface HealthCheck {
   url?: string;
 }
 
+// Map API service status to display status
+function mapServiceStatus(apiStatus: SystemHealthService["status"]): HealthCheck["status"] {
+  const statusMap: Record<string, HealthCheck["status"]> = {
+    operational: "healthy",
+    degraded: "degraded",
+    partial_outage: "degraded",
+    major_outage: "down",
+  };
+  return statusMap[apiStatus] || "degraded";
+}
+
+function mapServiceToHealthCheck(service: SystemHealthService): HealthCheck {
+  return {
+    name: service.name,
+    status: mapServiceStatus(service.status),
+    latency: service.latency,
+    message: service.errorRate > 0.01 ? `Error rate: ${(service.errorRate * 100).toFixed(1)}%` : undefined,
+  };
+}
+
 export function SystemHealthWidget() {
-  // In production, this would fetch from /health endpoint
-  const healthChecks: HealthCheck[] = [
-    { name: "API Gateway", status: "healthy", latency: 45 },
-    { name: "Database", status: "healthy", latency: 12 },
-    { name: "Redis Cache", status: "healthy", latency: 3 },
-    { name: "Celery Workers", status: "healthy", latency: 8 },
-    { name: "Storage (MinIO)", status: "healthy", latency: 23 },
-    { name: "Email Service", status: "degraded", latency: 450, message: "High latency" },
-  ];
+  const { data: health, isLoading, error } = useSystemHealth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 text-accent animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-text-muted">
+        <p className="text-sm">Failed to load system health</p>
+      </div>
+    );
+  }
+
+  const healthChecks: HealthCheck[] = health?.services.map(mapServiceToHealthCheck) || [];
 
   const statusConfig = {
     healthy: {

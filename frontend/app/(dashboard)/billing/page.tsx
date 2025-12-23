@@ -23,12 +23,13 @@ import {
   ChartCard,
   FilterBar,
   type FilterConfig as DashboardFilterConfig,
-} from "@dotmac/dashboards";
-import { LineChart, BarChart } from "@dotmac/charts";
-import { Button } from "@dotmac/core";
-import { DataTable, type ColumnDef } from "@dotmac/data-table";
+} from "@/lib/dotmac/dashboards";
+import { LineChart, BarChart } from "@/lib/dotmac/charts";
+import { Button } from "@/lib/dotmac/core";
+import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 
 import { getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/billing";
+import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
 import { cn } from "@/lib/utils";
 
 export const metadata = {
@@ -329,20 +330,11 @@ function SubscriptionCard({
 
 // Chart Components
 async function RevenueChart() {
-  const data = [
-    { month: "Jan", revenue: 85000 },
-    { month: "Feb", revenue: 92000 },
-    { month: "Mar", revenue: 88000 },
-    { month: "Apr", revenue: 101000 },
-    { month: "May", revenue: 95000 },
-    { month: "Jun", revenue: 107000 },
-    { month: "Jul", revenue: 112000 },
-    { month: "Aug", revenue: 118000 },
-    { month: "Sep", revenue: 122000 },
-    { month: "Oct", revenue: 129000 },
-    { month: "Nov", revenue: 134000 },
-    { month: "Dec", revenue: 142000 },
-  ];
+  const revenueData = await getRevenueData("12m");
+  const data = revenueData.map((item) => ({
+    month: item.month,
+    revenue: item.revenue / 100, // Convert cents to dollars
+  }));
 
   return (
     <LineChart
@@ -356,12 +348,11 @@ async function RevenueChart() {
 }
 
 async function PaymentMethodChart() {
-  const data = [
-    { method: "Card", amount: 78000 },
-    { method: "ACH", amount: 35000 },
-    { method: "Wire", amount: 22000 },
-    { method: "Other", amount: 7000 },
-  ];
+  const breakdown = await getRevenueBreakdown();
+  const data = breakdown.byPlan.map((item) => ({
+    method: item.plan,
+    amount: item.revenue / 100, // Convert cents to dollars
+  }));
 
   return (
     <BarChart

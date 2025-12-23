@@ -6,6 +6,11 @@
 - [Client Connectivity](architecture/CLIENT_CONNECTIVITY.md) - how clients connect, authenticate, and interact with the API
 - [Infrastructure Reference](architecture/INFRASTRUCTURE.md) - services provided by the shared infra stack
 
+## Frontend & Portals
+
+- [Frontend Architecture](../frontend/ARCHITECTURE.md) - Next.js app structure, portal shells, and UI patterns
+- [Frontend Implementation Plan](../frontend/IMPLEMENTATION_PLAN.md) - feature coverage and phased delivery status
+
 ## Deployment & Operations
 
 - [Backend Production Guide](BACKEND_PRODUCTION_GUIDE.md) - canonical path for deploying the backend by tenant (Compose or Kubernetes/Helm)

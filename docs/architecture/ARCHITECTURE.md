@@ -1,6 +1,6 @@
 # DotMac Platform Services - Architecture Overview
 
-> **Last Updated:** December 2024
+> **Last Updated:** 2025-12-23
 > **Codebase Size:** 184K+ LOC
 > **Architecture Grade:** A- (87/100)
 
@@ -38,20 +38,27 @@ DotMac Platform Services is a production-grade multi-tenant SaaS backend platfor
 src/dotmac/platform/
 ├── auth/              # Authentication & RBAC (28 files)
 ├── billing/           # Billing system (53 files, 10+ submodules)
-├── tenant/            # Multi-tenancy (5 files)
+├── tenant/            # Multi-tenancy (21 files)
+├── partner_management/ # Partner program + portal APIs (15 files)
+├── customer_management/ # Customer CRM workflows (7 files)
+├── user_management/   # User/team management (7 files)
 ├── core/              # Shared infrastructure (22 files)
 ├── api/               # API gateway & middleware (6 files)
 ├── communications/    # Email, SMS, notifications (15 files)
+├── notifications/     # Notification channels/workflows (16 files)
 ├── analytics/         # Usage metrics & observability (11 files)
 ├── jobs/              # Async job processing (12 files)
+├── workflows/         # Workflow orchestration (13 files)
 ├── webhooks/          # Event notifications (5 files)
 ├── audit/             # Audit trails (6 files)
 ├── platform_products/ # Global product catalog (7 files)
 ├── deployment/        # Infrastructure orchestration
-├── graphql/           # GraphQL API (11 files)
 ├── monitoring/        # Health checks & metrics (18 files)
 ├── secrets/           # Vault integration (11 files)
 ├── feature_flags/     # Feature management (6 files)
+├── data_import/       # Import pipelines (6 files)
+├── data_transfer/     # Export pipelines (11 files)
+├── resilience/        # Circuit breakers/service mesh (5 files)
 └── [additional modules...]
 ```
 
@@ -227,6 +234,19 @@ billing/
 - **Multi-tenant:** One database, multiple tenants (RLS)
 - **Single-tenant:** Dedicated database per tenant
 - **Hybrid:** Configurable per tenant
+
+### Partner Management (`partner_management/`)
+
+**Capabilities:**
+- Partner lifecycle management (tiers, commission models)
+- Referral tracking, commissions, payouts
+- Self-service portal endpoints under `/api/v1/partners/portal/*`
+
+### Customer Management (`customer_management/`)
+
+**Capabilities:**
+- Customer lifecycle workflows and CRM-style automation
+- Integrates with billing, tenant provisioning, and audit trails
 
 ### Observability (`analytics/`, `monitoring/`)
 

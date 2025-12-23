@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the complete frontend implementation plan for the DotMac Platform Services admin dashboard. The frontend is built with Next.js 14+ App Router and leverages the centralized `@dotmac/component-library` for consistent UI.
+This document outlines the frontend implementation plan for the DotMac Platform Services admin dashboard, public signup flow, and partner/tenant portals. The frontend is built with Next.js 14+ App Router and leverages the centralized `@dotmac/component-library` for consistent UI.
 
 ---
 
@@ -51,7 +51,22 @@ frontend/
 │   ├── (auth)/                 # Auth routes (unauthenticated)
 │   │   ├── login/
 │   │   ├── forgot-password/
+│   │   ├── signup/
+│   │   ├── verify-email/
 │   │   └── layout.tsx
+│   ├── (partner)/              # Partner portal routes
+│   │   ├── page.tsx            # Partner dashboard
+│   │   ├── referrals/
+│   │   ├── customers/
+│   │   ├── commissions/
+│   │   ├── statements/
+│   │   └── settings/
+│   ├── (tenant)/               # Tenant portal routes
+│   │   ├── page.tsx            # Tenant dashboard
+│   │   ├── team/
+│   │   ├── billing/
+│   │   ├── usage/
+│   │   └── settings/
 │   ├── (dashboard)/            # Protected dashboard routes
 │   │   ├── layout.tsx          # Dashboard shell
 │   │   ├── page.tsx            # Overview dashboard
@@ -127,13 +142,33 @@ frontend/
 - **Team**: Role management
 - **Billing**: Payment methods, invoices
 
+### 8. Public Signup (`/signup`, `/verify-email`)
+- **Signup Wizard**: Multi-step account and organization capture
+- **Plan Selection**: Free, Starter, Professional tiers
+- **Email Verification**: Confirm + resend flows
+
+### 9. Partner Portal (`/partner/*`)
+- **Dashboard**: KPIs, revenue/commission trends, activity feed
+- **Referrals**: Create and track referral status
+- **Customers**: Assigned customers with revenue stats
+- **Commissions**: Commission history and summary
+- **Statements**: Monthly statements and downloads
+- **Settings**: Partner profile, tier, notifications
+
+### 10. Tenant Portal (`/tenant/*`)
+- **Dashboard**: Usage gauges, quick actions, activity feed
+- **Team**: Member management and invitations
+- **Billing**: Subscription status, payment methods, invoices
+- **Usage**: Feature usage breakdown and analytics
+- **Settings**: Organization profile and security
+
 ---
 
 ## API Integration
 
 ### Backend Endpoints
 - **REST API**: `/api/v1/*` for CRUD operations
-- **GraphQL**: `/api/v1/graphql` for analytics
+- **Analytics**: REST endpoints under `/api/v1/*`
 - **Health**: `/health` for system status
 - **Auth**: `/api/v1/auth/*` for authentication
 
@@ -158,10 +193,11 @@ const { data, isLoading } = useQuery({
 ## Authentication Flow
 
 1. **Login**: Email/password via NextAuth CredentialsProvider
-2. **JWT Storage**: Access token in session, refresh token in HTTP-only cookie
-3. **Session Sync**: Automatic token refresh every 5 minutes
-4. **RBAC**: Permission checks via `usePermission` hook
-5. **Multi-Tenancy**: Tenant context from auth token
+2. **Auth Routes**: NextAuth handler served via App Router at `/api/auth/[...nextauth]`
+3. **JWT Storage**: Access token in session, refresh token in HTTP-only cookie
+4. **Session Sync**: Automatic token refresh every 5 minutes
+5. **RBAC**: Permission checks via `usePermission` hook
+6. **Multi-Tenancy**: Tenant context from auth token
 
 ---
 
@@ -200,13 +236,13 @@ const { data, isLoading } = useQuery({
 - [x] Dashboard overview page
 - [x] Users management
 - [x] Billing dashboard
-- [ ] Tenant management
-- [ ] Analytics dashboards
+- [x] Tenant management
+- [x] Analytics dashboards
 
 ### Phase 3: Secondary Features
-- [ ] Customer CRM
-- [ ] Deployment management
-- [ ] Settings pages
+- [x] Customer CRM
+- [x] Deployment management
+- [x] Settings pages
 - [ ] Notifications
 
 ### Phase 4: Polish
@@ -215,6 +251,11 @@ const { data, isLoading } = useQuery({
 - [ ] Performance optimization
 - [ ] E2E testing with Playwright
 - [ ] Documentation
+
+### Phase 5: Portals & Onboarding
+- [x] Public signup and email verification
+- [x] Partner portal
+- [x] Tenant portal
 
 ---
 
@@ -251,6 +292,9 @@ NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key
 
 # Optional: SSO Providers
+SSO buttons render only when the corresponding `NEXT_PUBLIC_*_SSO_ENABLED` flag is set to `true`.
+NEXT_PUBLIC_GOOGLE_SSO_ENABLED=false
+NEXT_PUBLIC_AZURE_AD_SSO_ENABLED=false
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 AZURE_AD_CLIENT_ID=

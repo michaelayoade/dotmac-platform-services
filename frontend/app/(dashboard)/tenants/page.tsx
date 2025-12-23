@@ -16,7 +16,7 @@ import {
   AlertTriangle,
   XCircle,
 } from "lucide-react";
-import { Button } from "@dotmac/core";
+import { Button } from "@/lib/dotmac/core";
 
 import { getTenants, type Tenant } from "@/lib/api/tenants";
 import { cn } from "@/lib/utils";

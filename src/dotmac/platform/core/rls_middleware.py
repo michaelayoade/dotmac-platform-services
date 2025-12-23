@@ -191,7 +191,10 @@ class RLSMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/refresh",
             "/api/v1/auth/password-reset",
             "/api/v1/auth/password-reset/confirm",
+            "/api/v1/auth/verify-email/confirm",
+            "/api/v1/auth/verify-email/resend",
             "/api/v1/auth/me",
+            "/api/v1/tenants/onboarding/public",
         ]
 
         path = request.url.path

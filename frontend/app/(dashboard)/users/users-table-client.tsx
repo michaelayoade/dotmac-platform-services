@@ -2,12 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useMemo, type ElementType } from "react";
-import { type ColumnDef } from "@tanstack/react-table";
 import {
   DataTable,
   type BulkAction,
   type QuickFilter,
   type FilterConfig,
+  type ColumnDef,
 } from "@dotmac/data-table";
 import { useToast } from "@dotmac/core";
 import {
@@ -406,7 +406,7 @@ function UserActionsMenu({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative" onClick={(event) => event.stopPropagation()}>
       <button
         onClick={(e) => {
           e.stopPropagation();

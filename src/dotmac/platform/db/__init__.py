@@ -11,7 +11,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     SyncSessionLocal: Any
     AsyncSessionLocal: Any
     async_session_maker: Any
+    set_session_rls_context: Any
     DatabaseState: Any
     snapshot_database_state: Any
     restore_database_state: Any
@@ -98,3 +99,8 @@ __all__ = _exported
 
 # Ensure exported types module is reachable via package attribute
 types = sys.modules[__name__ + ".types"]
+
+
+def __getattr__(name: str) -> Any:
+    """Expose legacy db.py attributes for type checkers and runtime access."""
+    return getattr(_legacy_module, name)

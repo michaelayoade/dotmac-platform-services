@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.db import Base, get_async_session as get_db_async_session
 
 
-async def get_async_session(request: Request = None) -> AsyncIterator[AsyncSession]:
+async def get_async_session(request: Request | None = None) -> AsyncIterator[AsyncSession]:
     """Get async database session for dependency injection."""
     async for session in get_db_async_session(request=request):
         yield session

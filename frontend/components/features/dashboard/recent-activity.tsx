@@ -9,13 +9,18 @@ import {
   AlertTriangle,
   Settings,
   Building2,
+  Loader2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useActivityFeed, type ActivityItem as APIActivityItem } from "@/lib/hooks/api";
 
-interface ActivityItem {
+// Display types
+type ActivityType = "user_created" | "payment_received" | "deployment_started" | "alert" | "tenant_created" | "settings_changed";
+
+interface ActivityDisplay {
   id: string;
-  type: "user_created" | "payment_received" | "deployment_started" | "alert" | "tenant_created" | "settings_changed";
+  type: ActivityType;
   title: string;
   description: string;
   timestamp: string;
@@ -23,10 +28,32 @@ interface ActivityItem {
     name: string;
     email: string;
   };
-  metadata?: Record<string, unknown>;
 }
 
-const activityIcons: Record<ActivityItem["type"], ElementType> = {
+// Map API activity types to display types
+function mapActivityType(apiType: APIActivityItem["type"]): ActivityType {
+  const typeMap: Record<string, ActivityType> = {
+    user_action: "user_created",
+    system_event: "settings_changed",
+    deployment: "deployment_started",
+    billing: "payment_received",
+    security: "alert",
+  };
+  return typeMap[apiType] || "settings_changed";
+}
+
+function mapActivityToDisplay(activity: APIActivityItem): ActivityDisplay {
+  return {
+    id: activity.id,
+    type: mapActivityType(activity.type),
+    title: activity.action,
+    description: activity.target ? `${activity.target.name}` : "",
+    timestamp: activity.timestamp,
+    actor: activity.actor ? { name: activity.actor.name, email: "" } : undefined,
+  };
+}
+
+const activityIcons: Record<ActivityType, ElementType> = {
   user_created: UserPlus,
   payment_received: CreditCard,
   deployment_started: Server,
@@ -35,7 +62,7 @@ const activityIcons: Record<ActivityItem["type"], ElementType> = {
   settings_changed: Settings,
 };
 
-const activityColors: Record<ActivityItem["type"], string> = {
+const activityColors: Record<ActivityType, string> = {
   user_created: "bg-status-info/15 text-status-info",
   payment_received: "bg-status-success/15 text-status-success",
   deployment_started: "bg-accent-subtle text-accent",
@@ -45,56 +72,32 @@ const activityColors: Record<ActivityItem["type"], string> = {
 };
 
 export function RecentActivityFeed() {
-  // In a real app, this would be fetched on the server or via React Query
-  const activities: ActivityItem[] = [
-    {
-      id: "1",
-      type: "user_created",
-      title: "New user registered",
-      description: "john.doe@acme.com joined Acme Corp",
-      timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-      actor: { name: "System", email: "system@dotmac.io" },
-    },
-    {
-      id: "2",
-      type: "payment_received",
-      title: "Payment received",
-      description: "$2,500.00 from TechStart Inc",
-      timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-      actor: { name: "Stripe", email: "payments@stripe.com" },
-    },
-    {
-      id: "3",
-      type: "deployment_started",
-      title: "Deployment started",
-      description: "Production environment for Global Corp",
-      timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-      actor: { name: "Mike Chen", email: "mike@globalcorp.com" },
-    },
-    {
-      id: "4",
-      type: "alert",
-      title: "High API latency detected",
-      description: "Response times above threshold in us-east-1",
-      timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    },
-    {
-      id: "5",
-      type: "tenant_created",
-      title: "New tenant onboarded",
-      description: "StartupXYZ signed up for Professional plan",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-      actor: { name: "Sales Team", email: "sales@dotmac.io" },
-    },
-    {
-      id: "6",
-      type: "settings_changed",
-      title: "Security settings updated",
-      description: "MFA enforcement enabled for admin users",
-      timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-      actor: { name: "Admin", email: "admin@dotmac.io" },
-    },
-  ];
+  const { data: apiActivities, isLoading, error } = useActivityFeed({ limit: 6 });
+  const activities = apiActivities?.map(mapActivityToDisplay) || [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 text-accent animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-text-muted">
+        <p className="text-sm">Failed to load activity feed</p>
+      </div>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <div className="text-center py-8 text-text-muted">
+        <p className="text-sm">No recent activity</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-1">

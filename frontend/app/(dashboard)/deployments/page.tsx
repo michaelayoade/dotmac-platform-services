@@ -21,16 +21,21 @@ import {
   Pause,
   Play,
 } from "lucide-react";
-import { Button } from "@dotmac/core";
+import { Button } from "@/lib/dotmac/core";
 
 import { cn } from "@/lib/utils";
+import {
+  getDeployments as fetchDeployments,
+  type Deployment as APIDeployment,
+} from "@/lib/api/deployments";
 
 export const metadata = {
   title: "Deployments",
   description: "Infrastructure and deployment management",
 };
 
-interface Deployment {
+// Display interface for DeploymentCard component
+interface DeploymentDisplay {
   id: string;
   name: string;
   tenant: {
@@ -56,8 +61,55 @@ interface Deployment {
   createdAt: string;
 }
 
+// Map API deployment to display format
+function mapDeploymentToDisplay(deployment: APIDeployment): DeploymentDisplay {
+  const statusMap: Record<string, DeploymentDisplay["status"]> = {
+    running: "running",
+    pending: "pending",
+    stopped: "stopped",
+    failed: "failed",
+    provisioning: "deploying",
+    scaling: "deploying",
+  };
+
+  // Parse resource strings like "2" or "2 vCPU" to numbers
+  const parseResource = (value: string | undefined, defaultVal: number): number => {
+    if (!value) return defaultVal;
+    const match = value.match(/[\d.]+/);
+    return match ? parseFloat(match[0]) : defaultVal;
+  };
+
+  return {
+    id: deployment.id,
+    name: deployment.name,
+    tenant: {
+      id: deployment.tenantId,
+      name: deployment.tenantId, // Would need tenant lookup for actual name
+    },
+    environment: deployment.environment,
+    status: statusMap[deployment.status] || "pending",
+    region: deployment.region,
+    version: deployment.version,
+    resources: {
+      cpu: parseResource(deployment.resources.cpu, 2),
+      memory: parseResource(deployment.resources.memory, 8),
+      storage: parseResource(deployment.resources.storage, 50),
+    },
+    metrics: {
+      // Metrics would need separate API call for real values
+      cpuUsage: deployment.health?.status === "healthy" ? 45 : 0,
+      memoryUsage: deployment.health?.status === "healthy" ? 55 : 0,
+      requestsPerSec: deployment.health?.status === "healthy" ? 100 : 0,
+      errorRate: deployment.health?.status === "unhealthy" ? 5 : 0.1,
+    },
+    lastDeployed: deployment.lastDeployedAt || deployment.updatedAt,
+    createdAt: deployment.createdAt,
+  };
+}
+
 export default async function DeploymentsPage() {
-  const deployments = await getDeployments();
+  const { deployments: apiDeployments } = await fetchDeployments({ pageSize: 50 });
+  const deployments = apiDeployments.map(mapDeploymentToDisplay);
   const stats = {
     total: deployments.length,
     running: deployments.filter((d) => d.status === "running").length,
@@ -145,13 +197,16 @@ function StatCard({
   );
 }
 
-function DeploymentCard({ deployment, index }: { deployment: Deployment; index: number }) {
-  const statusConfig = {
-    running: { class: "status-badge--success", label: "Running", icon: CheckCircle },
+function DeploymentCard({ deployment, index }: { deployment: DeploymentDisplay; index: number }) {
+  const statusConfig: Record<
+    DeploymentDisplay["status"],
+    { class: string; label: string; icon: ElementType; animate: boolean }
+  > = {
+    running: { class: "status-badge--success", label: "Running", icon: CheckCircle, animate: false },
     deploying: { class: "status-badge--info", label: "Deploying", icon: RefreshCw, animate: true },
-    stopped: { class: "bg-surface-overlay text-text-muted", label: "Stopped", icon: Pause },
-    failed: { class: "status-badge--error", label: "Failed", icon: XCircle },
-    pending: { class: "status-badge--warning", label: "Pending", icon: Clock },
+    stopped: { class: "bg-surface-overlay text-text-muted", label: "Stopped", icon: Pause, animate: false },
+    failed: { class: "status-badge--error", label: "Failed", icon: XCircle, animate: false },
+    pending: { class: "status-badge--warning", label: "Pending", icon: Clock, animate: false },
   };
 
   const envConfig = {
@@ -334,74 +389,4 @@ function ResourceMetric({
       <p className="text-2xs text-text-muted mt-1 uppercase tracking-wider">{label}</p>
     </div>
   );
-}
-
-async function getDeployments(): Promise<Deployment[]> {
-  return [
-    {
-      id: "dep-1",
-      name: "acme-prod-us-east",
-      tenant: { id: "tenant-1", name: "Acme Corp" },
-      environment: "production",
-      status: "running",
-      region: "us-east-1",
-      version: "2.4.1",
-      resources: { cpu: 4, memory: 16, storage: 100 },
-      metrics: { cpuUsage: 45, memoryUsage: 62, requestsPerSec: 1250, errorRate: 0.12 },
-      lastDeployed: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "dep-2",
-      name: "techstart-prod",
-      tenant: { id: "tenant-2", name: "TechStart" },
-      environment: "production",
-      status: "running",
-      region: "us-west-2",
-      version: "2.4.0",
-      resources: { cpu: 2, memory: 8, storage: 50 },
-      metrics: { cpuUsage: 32, memoryUsage: 48, requestsPerSec: 420, errorRate: 0.08 },
-      lastDeployed: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "dep-3",
-      name: "global-staging",
-      tenant: { id: "tenant-3", name: "Global Industries" },
-      environment: "staging",
-      status: "deploying",
-      region: "eu-west-1",
-      version: "2.5.0-beta",
-      resources: { cpu: 2, memory: 8, storage: 50 },
-      metrics: { cpuUsage: 15, memoryUsage: 28, requestsPerSec: 45, errorRate: 0 },
-      lastDeployed: new Date().toISOString(),
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "dep-4",
-      name: "acme-staging",
-      tenant: { id: "tenant-1", name: "Acme Corp" },
-      environment: "staging",
-      status: "running",
-      region: "us-east-1",
-      version: "2.5.0-beta",
-      resources: { cpu: 2, memory: 8, storage: 50 },
-      metrics: { cpuUsage: 22, memoryUsage: 35, requestsPerSec: 120, errorRate: 0.45 },
-      lastDeployed: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "dep-5",
-      name: "startup-trial",
-      tenant: { id: "tenant-4", name: "StartupXYZ" },
-      environment: "development",
-      status: "failed",
-      region: "us-east-1",
-      version: "2.4.1",
-      resources: { cpu: 1, memory: 4, storage: 20 },
-      metrics: { cpuUsage: 0, memoryUsage: 0, requestsPerSec: 0, errorRate: 100 },
-      lastDeployed: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
 }

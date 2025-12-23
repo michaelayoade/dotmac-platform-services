@@ -1,7 +1,9 @@
 // Domain Model Types
 // Core business entities used across the platform
 
-import { UserRole, Permission } from "./auth";
+import type { UserRole, Permission } from "./auth";
+
+export type { UserRole, Permission } from "./auth";
 
 /**
  * Base entity with common fields
@@ -83,6 +85,7 @@ export interface Customer extends BaseEntity {
   tags: string[];
   notes?: string;
   address?: Address;
+  billingAddress?: Address; // Alias for address
   revenue: number;
   lifetimeValue: number;
   firstPurchase?: string;
@@ -186,21 +189,23 @@ export interface Deployment extends BaseEntity {
   status: DeploymentStatus;
   version: string;
   image: string;
+  region?: string;
   replicas: number;
   resources: DeploymentResources;
   endpoints: DeploymentEndpoint[];
   healthCheck?: HealthCheck;
   lastDeployedAt?: string;
   lastDeployedBy?: string;
+  envVars?: Record<string, string>;
 }
 
 export type DeploymentEnvironment = "production" | "staging" | "development" | "preview";
 export type DeploymentStatus = "running" | "stopped" | "deploying" | "failed" | "pending" | "scaling";
 
 export interface DeploymentResources {
-  cpu: number; // millicores
-  memory: number; // MB
-  storage: number; // GB
+  cpu: string; // millicores
+  memory: string; // MB
+  storage?: string; // GB
 }
 
 export interface DeploymentEndpoint {
@@ -220,8 +225,12 @@ export interface HealthCheck {
 export interface DeploymentMetrics {
   cpu: number; // percentage
   memory: number; // percentage
+  storage?: number; // percentage
+  requestsPerMinute?: number;
   requests: number;
   errors: number;
+  errorRate?: number; // percentage
+  averageLatency?: number; // ms
   latencyP50: number; // ms
   latencyP95: number; // ms
   latencyP99: number; // ms

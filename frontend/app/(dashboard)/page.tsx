@@ -6,8 +6,8 @@ import {
   KPIGrid,
   ChartGrid,
   ChartCard,
-} from "@dotmac/dashboards";
-import { LineChart, BarChart, AreaChart } from "@dotmac/charts";
+} from "@/lib/dotmac/dashboards";
+import { LineChart, BarChart, AreaChart } from "@/lib/dotmac/charts";
 import {
   TrendingUp,
   TrendingDown,
@@ -20,6 +20,12 @@ import {
 } from "lucide-react";
 
 import { getDashboardMetrics } from "@/lib/api/dashboard";
+import {
+  getRevenueData,
+  getUserAnalytics,
+  getTenantAnalytics,
+  getPerformanceMetrics,
+} from "@/lib/api/analytics";
 import { RecentActivityFeed } from "@/components/features/dashboard/recent-activity";
 import { SystemHealthWidget } from "@/components/features/dashboard/system-health";
 import { QuickActions } from "@/components/features/dashboard/quick-actions";
@@ -70,7 +76,6 @@ export default async function DashboardPage() {
             changeType={metrics.revenue.change >= 0 ? "increase" : "decrease"}
             icon={<CreditCard className="w-5 h-5" />}
             description="vs. last month"
-            trend={metrics.revenue.trend}
           />
           <KPITile
             title="Active Deployments"
@@ -174,21 +179,11 @@ export default async function DashboardPage() {
 // Async chart components that fetch their own data
 
 async function RevenueChart() {
-  // In production, this would fetch from API
-  const data = [
-    { month: "Jan", revenue: 45000 },
-    { month: "Feb", revenue: 52000 },
-    { month: "Mar", revenue: 48000 },
-    { month: "Apr", revenue: 61000 },
-    { month: "May", revenue: 55000 },
-    { month: "Jun", revenue: 67000 },
-    { month: "Jul", revenue: 72000 },
-    { month: "Aug", revenue: 78000 },
-    { month: "Sep", revenue: 82000 },
-    { month: "Oct", revenue: 89000 },
-    { month: "Nov", revenue: 94000 },
-    { month: "Dec", revenue: 102000 },
-  ];
+  const revenueData = await getRevenueData("12m");
+  const data = revenueData.map((item) => ({
+    month: item.month,
+    revenue: item.revenue / 100, // Convert cents to dollars
+  }));
 
   return (
     <AreaChart
@@ -203,16 +198,12 @@ async function RevenueChart() {
 }
 
 async function UserGrowthChart() {
-  const data = [
-    { week: "W1", users: 120 },
-    { week: "W2", users: 145 },
-    { week: "W3", users: 132 },
-    { week: "W4", users: 168 },
-    { week: "W5", users: 189 },
-    { week: "W6", users: 203 },
-    { week: "W7", users: 215 },
-    { week: "W8", users: 248 },
-  ];
+  const userAnalytics = await getUserAnalytics();
+  // Use login activity as a proxy for user growth
+  const data = userAnalytics.loginActivity.slice(-8).map((item, index) => ({
+    week: `W${index + 1}`,
+    users: item.logins,
+  }));
 
   return (
     <BarChart
@@ -226,22 +217,24 @@ async function UserGrowthChart() {
 }
 
 async function TenantDistributionChart() {
-  const data = [
-    { name: "Enterprise", value: 35, color: "hsl(185, 85%, 50%)" },
-    { name: "Professional", value: 45, color: "hsl(185, 85%, 65%)" },
-    { name: "Starter", value: 15, color: "hsl(185, 50%, 45%)" },
-    { name: "Trial", value: 5, color: "hsl(220, 15%, 40%)" },
-  ];
+  const tenantAnalytics = await getTenantAnalytics();
+  const data = tenantAnalytics.tenantsByPlan.map((item) => ({
+    name: item.plan,
+    value: item.count,
+  }));
 
   return <BarChart data={data} dataKey="value" xAxisKey="name" height={200} />;
 }
 
 async function APITrafficChart() {
-  // Generate 24 hours of data
-  const data = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${i}:00`,
-    requests: Math.floor(Math.random() * 5000) + 1000,
-  }));
+  const performanceData = await getPerformanceMetrics("24h");
+  const data = performanceData.byTime.slice(-24).map((item) => {
+    const date = new Date(item.timestamp);
+    return {
+      hour: `${date.getHours()}:00`,
+      requests: item.requests,
+    };
+  });
 
   return (
     <LineChart
@@ -255,15 +248,15 @@ async function APITrafficChart() {
 }
 
 async function ErrorRateChart() {
-  const data = [
-    { day: "Mon", rate: 0.8 },
-    { day: "Tue", rate: 1.2 },
-    { day: "Wed", rate: 0.5 },
-    { day: "Thu", rate: 0.9 },
-    { day: "Fri", rate: 1.5 },
-    { day: "Sat", rate: 0.3 },
-    { day: "Sun", rate: 0.4 },
-  ];
+  const performanceData = await getPerformanceMetrics("7d");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const data = performanceData.byTime.slice(-7).map((item) => {
+    const date = new Date(item.timestamp);
+    return {
+      day: days[date.getDay()],
+      rate: item.errorRate * 100, // Convert to percentage
+    };
+  });
 
   return (
     <LineChart
