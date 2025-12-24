@@ -345,6 +345,9 @@ class TemplateRequest(BaseModel):  # BaseModel resolves to Any in isolation
     model_config = ConfigDict()
 
     name: str | None = Field(None, min_length=1, description="Template name")
+    template_key: str | None = Field(
+        None, description="Standardized template key (e.g., email.auth.welcome)"
+    )
     description: str | None = Field(None, description="Template description")
     # Back-compat fields (frontend uses subject/body_html/body_text)
     subject_template: str | None = Field(None, description="Subject template")
@@ -366,6 +369,7 @@ class TemplateResponse(BaseModel):  # BaseModel resolves to Any in isolation
 
     id: str
     name: str
+    template_key: str | None = None
     description: str | None = None
     channel: str | None = None
     subject: str | None = None
@@ -406,6 +410,7 @@ async def create_template_endpoint(
         subject_template = request.subject_template or request.subject or ""
         text_template = request.text_template or request.body_text
         html_template = request.html_template or request.body_html
+        template_key = request.template_key or request.name
         tenant_id = getattr(current_user, "tenant_id", None)
 
         # Try DB-backed creation first
@@ -413,6 +418,7 @@ async def create_template_endpoint(
             async with get_async_session_context() as db:
                 obj = CommunicationTemplate(
                     name=request.name,
+                    template_key=template_key,
                     description=request.description,
                     type=CommunicationType.EMAIL,
                     subject_template=subject_template,
@@ -431,6 +437,7 @@ async def create_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel="email",
                     subject=obj.subject_template,
@@ -460,6 +467,7 @@ async def create_template_endpoint(
         return TemplateResponse(
             id=template.id,
             name=template.name,
+            template_key=template_key,
             description=request.description,
             channel=request.channel or "email",
             subject=template.subject_template,
@@ -534,6 +542,7 @@ async def list_templates_endpoint(
                 TemplateResponse(
                     id=str(tpl.id),
                     name=tpl.name,
+                    template_key=tpl.template_key,
                     description=tpl.description,
                     channel=tpl.type.value if hasattr(tpl, "type") else "email",
                     subject=tpl.subject_template,
@@ -585,6 +594,7 @@ async def list_templates_endpoint(
             TemplateResponse(
                 id=template.id,
                 name=template.name,
+                template_key=template.name,
                 description=None,
                 channel="email",
                 subject=template.subject_template,
@@ -632,6 +642,7 @@ async def get_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel=obj.type.value if hasattr(obj, "type") else "email",
                     subject=obj.subject_template,
@@ -662,6 +673,7 @@ async def get_template_endpoint(
     return TemplateResponse(
         id=template.id,
         name=template.name,
+        template_key=template.name,
         description=None,
         channel="email",
         subject=template.subject_template,
@@ -691,6 +703,7 @@ async def update_template_endpoint(
     subject_template = request.subject_template or request.subject
     text_template = request.text_template or request.body_text
     html_template = request.html_template or request.body_html
+    template_key = request.template_key
 
     # Try DB-backed update first
     try:
@@ -706,8 +719,13 @@ async def update_template_endpoint(
             result = await db.execute(stmt)
             obj = result.scalar_one_or_none()
             if obj:
+                original_name = obj.name
                 if request.name:
                     obj.name = request.name
+                if template_key is not None:
+                    obj.template_key = template_key
+                elif request.name and (obj.template_key is None or obj.template_key == original_name):
+                    obj.template_key = obj.name
                 if request.description is not None:
                     obj.description = request.description
                 if subject_template is not None:
@@ -729,6 +747,7 @@ async def update_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel=obj.type.value if hasattr(obj, "type") else "email",
                     subject=obj.subject_template,
@@ -763,6 +782,7 @@ async def update_template_endpoint(
     return TemplateResponse(
         id=updated.id,
         name=updated.name,
+        template_key=template_key or updated.name,
         description=request.description,
         channel=request.channel or "email",
         subject=updated.subject_template,

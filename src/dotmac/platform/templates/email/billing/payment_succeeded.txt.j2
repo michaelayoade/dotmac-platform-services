@@ -1,0 +1,15 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Payment Successful
+
+Thank you! Your payment has been processed successfully.
+
+Payment Details:
+- Amount: {{ amount_formatted }}
+- Payment Date: {{ payment_date | format_date }}
+- Payment Method: {{ payment_method }}
+- Invoice Number: {{ invoice_number }}
+
+Download Invoice: {{ invoice_url }}
+{% endblock %}

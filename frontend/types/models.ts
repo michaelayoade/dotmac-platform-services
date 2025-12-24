@@ -138,6 +138,12 @@ export interface PaymentMethod extends BaseEntity {
   tenantId: string;
   type: "card" | "bank_account" | "paypal";
   isDefault: boolean;
+  // Flat card properties for convenience
+  brand?: string;
+  last4?: string;
+  expMonth?: number;
+  expYear?: number;
+  // Nested structures for full details
   card?: {
     brand: string;
     last4: string;
@@ -153,7 +159,9 @@ export interface PaymentMethod extends BaseEntity {
 
 export interface Subscription extends BaseEntity {
   tenantId: string;
-  plan: SubscriptionPlan;
+  customerId: string;
+  customer?: Customer;
+  plan?: SubscriptionPlan;
   status: SubscriptionStatus;
   currentPeriodStart: string;
   currentPeriodEnd: string;
@@ -162,7 +170,30 @@ export interface Subscription extends BaseEntity {
   paymentMethodId?: string;
 }
 
-export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing" | "incomplete";
+export type SubscriptionStatus = "active" | "canceled" | "past_due" | "trialing" | "paused";
+
+/**
+ * Receipt entity (payment confirmation)
+ */
+export interface Receipt extends BaseEntity {
+  tenantId: string;
+  customerId: string;
+  customer?: Customer;
+  invoiceId?: string;
+  invoice?: Invoice;
+  number: string;
+  amount: number;
+  tax: number;
+  total: number;
+  currency: string;
+  paymentMethod?: PaymentMethod;
+  paymentDate: string;
+  status: ReceiptStatus;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type ReceiptStatus = "completed" | "pending" | "failed" | "refunded";
 
 export interface SubscriptionPlan {
   id: string;

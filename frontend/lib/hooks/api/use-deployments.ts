@@ -306,3 +306,75 @@ export function useDeploymentLogs(
     enabled: !!id,
   });
 }
+
+// ============================================
+// Deployment Configuration API and Hooks
+// ============================================
+
+export interface DeploymentConfig {
+  envVars: Record<string, string>;
+  resources: DeploymentResources;
+  scaling: {
+    minReplicas: number;
+    maxReplicas: number;
+    targetCpuUtilization: number;
+  };
+  healthCheck: {
+    enabled: boolean;
+    path: string;
+    interval: number;
+    timeout: number;
+    healthyThreshold: number;
+    unhealthyThreshold: number;
+  };
+  network: {
+    port: number;
+    protocol: "http" | "https" | "grpc";
+    publicAccess: boolean;
+    customDomain?: string;
+  };
+}
+
+export interface UpdateConfigData {
+  envVars?: Record<string, string>;
+  resources?: DeploymentResources;
+  scaling?: Partial<DeploymentConfig["scaling"]>;
+  healthCheck?: Partial<DeploymentConfig["healthCheck"]>;
+  network?: Partial<DeploymentConfig["network"]>;
+}
+
+async function getDeploymentConfig(id: string): Promise<DeploymentConfig> {
+  return api.get<DeploymentConfig>(`/api/v1/deployments/${id}/config`);
+}
+
+async function updateDeploymentConfig({
+  id,
+  data,
+}: {
+  id: string;
+  data: UpdateConfigData;
+}): Promise<DeploymentConfig> {
+  return api.patch<DeploymentConfig>(`/api/v1/deployments/${id}/config`, data);
+}
+
+export function useDeploymentConfig(id: string) {
+  return useQuery({
+    queryKey: [...queryKeys.deployments.detail(id), "config"],
+    queryFn: () => getDeploymentConfig(id),
+    enabled: !!id,
+  });
+}
+
+export function useUpdateDeploymentConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateDeploymentConfig,
+    onSuccess: (data, { id }) => {
+      queryClient.setQueryData(
+        [...queryKeys.deployments.detail(id), "config"],
+        data
+      );
+    },
+  });
+}

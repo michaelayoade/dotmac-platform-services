@@ -1,0 +1,34 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">Add-on Activated</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">Great choice! Your {{ addon_name }} add-on has been activated.</p>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Add-on Details:</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Name:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ addon_name }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Price:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ price_formatted }} / {{ billing_cycle }}</td>
+    </tr>
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Quantity:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ quantity }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Total:</td>
+        <td style="padding: 12px; text-align: right; color: #111827; font-weight: 600;">{{ total_formatted }} / {{ billing_cycle }}</td>
+    </tr>
+</table>
+
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    This add-on will be included in your next invoice on {{ next_billing_date | format_date }}.
+</p>
+
+<p style="text-align: center; margin: 0;">
+    <a href="{{ addon_url }}" class="button">Manage Add-ons</a>
+</p>
+{% endblock %}

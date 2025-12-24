@@ -1,0 +1,19 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Welcome to {{ plan_name }}!
+
+Thank you for subscribing to our {{ plan_name }} plan.
+
+Subscription Details:
+- Plan: {{ plan_name }}
+- Price: {{ price_formatted }} / {{ billing_cycle }}
+- Start Date: {{ start_date | format_date }}
+- Next Billing: {{ next_billing_date | format_date }}
+
+{% if has_trial and trial_end %}
+Trial Period: Your trial ends on {{ trial_end | format_date }}
+
+{% endif %}
+You can manage your subscription anytime in your billing dashboard: {{ dashboard_url }}
+{% endblock %}

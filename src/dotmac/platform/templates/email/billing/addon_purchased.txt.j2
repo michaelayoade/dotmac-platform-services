@@ -1,0 +1,17 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Add-on Activated
+
+Great choice! Your {{ addon_name }} add-on has been activated.
+
+Add-on Details:
+- Name: {{ addon_name }}
+- Price: {{ price_formatted }} / {{ billing_cycle }}
+- Quantity: {{ quantity }}
+- Total: {{ total_formatted }} / {{ billing_cycle }}
+
+This add-on will be included in your next invoice on {{ next_billing_date | format_date }}.
+
+Manage Add-ons: {{ addon_url }}
+{% endblock %}

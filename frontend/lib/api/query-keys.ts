@@ -10,6 +10,24 @@ export const queryKeys = {
     all: ["auth"] as const,
     me: () => [...queryKeys.auth.all, "me"] as const,
     sessions: () => [...queryKeys.auth.all, "sessions"] as const,
+    loginHistory: (params?: { page?: number; pageSize?: number; status?: string }) =>
+      [...queryKeys.auth.all, "login-history", params] as const,
+  },
+
+  // RBAC module
+  rbac: {
+    all: ["rbac"] as const,
+    roles: {
+      all: () => [...queryKeys.rbac.all, "roles"] as const,
+      list: () => [...queryKeys.rbac.roles.all(), "list"] as const,
+      detail: (id: string) => [...queryKeys.rbac.roles.all(), "detail", id] as const,
+    },
+    permissions: {
+      all: () => [...queryKeys.rbac.all, "permissions"] as const,
+      list: () => [...queryKeys.rbac.permissions.all(), "list"] as const,
+    },
+    userRoles: (userId: string) => [...queryKeys.rbac.all, "user-roles", userId] as const,
+    userPermissions: (userId: string) => [...queryKeys.rbac.all, "user-permissions", userId] as const,
   },
 
   // Users module
@@ -34,6 +52,10 @@ export const queryKeys = {
     stats: (id: string) => [...queryKeys.tenants.detail(id), "stats"] as const,
     settings: (id: string) =>
       [...queryKeys.tenants.detail(id), "settings"] as const,
+    domainStatus: (id: string) =>
+      [...queryKeys.tenants.detail(id), "domain-status"] as const,
+    branding: (id: string) =>
+      [...queryKeys.tenants.detail(id), "branding"] as const,
   },
 
   // Billing module

@@ -1,0 +1,15 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Plan Upgrade Confirmed
+
+Your subscription has been successfully upgraded!
+
+Upgrade Summary:
+- Previous Plan ({{ old_plan_name }}): -{{ prorated_credit_formatted }}
+- New Plan ({{ new_plan_name }}): {{ prorated_charge_formatted }}
+- Amount Charged Today: {{ total_charged_formatted }}
+
+Next Billing Date: {{ next_billing_date | format_date }}
+New Billing Amount: {{ new_price_formatted }} / {{ billing_cycle }}
+{% endblock %}

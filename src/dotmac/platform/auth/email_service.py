@@ -1,4 +1,8 @@
-"""Simplified auth email utilities using communications module directly."""
+"""Auth email utilities using Jinja2 templates.
+
+This module provides auth-related email sending functionality.
+Templates are rendered using the TenantAwareTemplateService with Jinja2.
+"""
 
 from __future__ import annotations
 
@@ -8,18 +12,28 @@ import structlog
 
 from dotmac.platform.core.caching import get_redis
 
+from ..communications.template_context import TemplateContextBuilder
+from ..communications.template_service import (
+    BrandingConfig,
+    get_tenant_template_service,
+)
 from ..settings import settings
 
 logger = structlog.get_logger(__name__)
 
 
-async def send_welcome_email(email: str, user_name: str) -> bool:
+async def send_welcome_email(
+    email: str,
+    user_name: str,
+    branding: BrandingConfig | None = None,
+) -> bool:
     """
-    Send welcome email to new user using communications module.
+    Send welcome email to new user using Jinja2 templates.
 
     Args:
         email: User email address
         user_name: User's display name
+        branding: Optional branding configuration for customization
 
     Returns:
         True if sent successfully, False otherwise
@@ -28,35 +42,26 @@ async def send_welcome_email(email: str, user_name: str) -> bool:
         from ..communications.email_service import EmailMessage, get_email_service
 
         app_name = getattr(settings, "app_name", "DotMac Platform")
-        subject = f"Welcome to {app_name}!"
 
-        content = f"""
-Hi {user_name},
-
-Welcome to {app_name}! Your account has been successfully created.
-
-Your registered email: {email}
-
-To get started:
-1. Complete your profile
-2. Explore our features
-3. Configure your settings
-
-If you didn't create this account, please contact support immediately.
-
-Best regards,
-The {app_name} Team
-""".strip()
-
-        # Create message
-        message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace("\n", "<br>"),
+        template_service = get_tenant_template_service()
+        context = TemplateContextBuilder.welcome(
+            user_name=user_name,
+            email=email,
+            app_name=app_name,
+        )
+        rendered = await template_service.render_email(
+            template_key="email.auth.welcome",
+            context=context,
+            branding=branding,
         )
 
-        # Send using async communications service
+        message = EmailMessage(
+            to=[email],
+            subject=rendered.subject,
+            text_body=rendered.text_body,
+            html_body=rendered.html_body,
+        )
+
         service = get_email_service()
         response = await service.send_email(message)
         return response.status == "sent"
@@ -66,13 +71,18 @@ The {app_name} Team
         return False
 
 
-async def send_password_reset_email(email: str, user_name: str) -> tuple[bool, str | None]:
+async def send_password_reset_email(
+    email: str,
+    user_name: str,
+    branding: BrandingConfig | None = None,
+) -> tuple[bool, str | None]:
     """
-    Send password reset email using communications module.
+    Send password reset email using Jinja2 templates.
 
     Args:
         email: User email address
         user_name: User's display name
+        branding: Optional branding configuration for customization
 
     Returns:
         Tuple of (success, reset_token)
@@ -91,44 +101,36 @@ async def send_password_reset_email(email: str, user_name: str) -> tuple[bool, s
             return False, None
         redis_client.setex(token_key, 3600, email)  # 1 hour expiry
 
-        # Create reset link using centralized frontend URL (Phase 2 implementation)
+        # Create reset link using centralized frontend URL
         frontend_url = getattr(
             getattr(settings, "external_services", None),
             "frontend_admin_url",
             "https://localhost:3001",
         )
-
         reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-
-        subject = f"Reset Your Password - {app_name}"
-
-        content = f"""
-Hi {user_name},
-
-We received a request to reset your password for your {app_name} account.
-
-Click the link below to reset your password:
-{reset_link}
-
-This link will expire in 1 hour.
-
-If you didn't request a password reset, you can safely ignore this email.
-
-Best regards,
-The {app_name} Team
-""".strip()
 
         from ..communications.email_service import EmailMessage, get_email_service
 
-        # Create message
-        message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace("\n", "<br>"),
+        template_service = get_tenant_template_service()
+        context = TemplateContextBuilder.password_reset(
+            user_name=user_name,
+            reset_link=reset_link,
+            expiry_hours=1,
+            app_name=app_name,
+        )
+        rendered = await template_service.render_email(
+            template_key="email.auth.password_reset",
+            context=context,
+            branding=branding,
         )
 
-        # Send using async communications service
+        message = EmailMessage(
+            to=[email],
+            subject=rendered.subject,
+            text_body=rendered.text_body,
+            html_body=rendered.html_body,
+        )
+
         service = get_email_service()
         response = await service.send_email(message)
         success = response.status == "sent"
@@ -170,60 +172,49 @@ def verify_reset_token(token: str) -> str | None:
         return None
 
 
-async def send_verification_email(email: str, user_name: str, verification_url: str) -> bool:
+async def send_verification_email(
+    email: str,
+    user_name: str,
+    verification_url: str,
+    branding: BrandingConfig | None = None,
+) -> bool:
     """
-    Send email verification link using communications module.
+    Send email verification link using Jinja2 templates.
 
     Args:
         email: User email address
         user_name: User's display name
         verification_url: URL containing verification token
+        branding: Optional branding configuration for customization
 
     Returns:
         True if sent successfully, False otherwise
     """
     try:
         app_name = getattr(settings, "app_name", "DotMac Platform")
-        subject = f"Verify Your Email - {app_name}"
-
-        content = f"""
-Hi {user_name},
-
-Please verify your email address to complete your account setup.
-
-Click the link below to verify your email:
-{verification_url}
-
-This link will expire in 24 hours.
-
-If you didn't request this verification, you can safely ignore this email.
-
-Best regards,
-The {app_name} Team
-""".strip()
 
         from ..communications.email_service import EmailMessage, get_email_service
 
-        # Create message with HTML version
-        html_content = f"""
-<p>Hi {user_name},</p>
-<p>Please verify your email address to complete your account setup.</p>
-<p><a href="{verification_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a></p>
-<p>Or copy and paste this URL into your browser:</p>
-<p>{verification_url}</p>
-<p>This link will expire in 24 hours.</p>
-<p>If you didn't request this verification, you can safely ignore this email.</p>
-<p>Best regards,<br>The {app_name} Team</p>
-""".strip()
+        template_service = get_tenant_template_service()
+        context = TemplateContextBuilder.verification(
+            user_name=user_name,
+            verification_url=verification_url,
+            expiry_hours=24,
+            app_name=app_name,
+        )
+        rendered = await template_service.render_email(
+            template_key="email.auth.verification",
+            context=context,
+            branding=branding,
+        )
 
         message = EmailMessage(
             to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=html_content,
+            subject=rendered.subject,
+            text_body=rendered.text_body,
+            html_body=rendered.html_body,
         )
 
-        # Send using async communications service
         service = get_email_service()
         response = await service.send_email(message)
         return response.status == "sent"
@@ -233,48 +224,45 @@ The {app_name} Team
         return False
 
 
-async def send_password_reset_success_email(email: str, user_name: str) -> bool:
+async def send_password_reset_success_email(
+    email: str,
+    user_name: str,
+    branding: BrandingConfig | None = None,
+) -> bool:
     """
-    Send password reset success confirmation email using communications module.
+    Send password reset success confirmation email using Jinja2 templates.
 
     Args:
         email: User email address
         user_name: User's display name
+        branding: Optional branding configuration for customization
 
     Returns:
         True if sent successfully, False otherwise
     """
     try:
         app_name = getattr(settings, "app_name", "DotMac Platform")
-        subject = f"Your Password Has Been Reset - {app_name}"
-
-        content = f"""
-Hi {user_name},
-
-Your password has been successfully reset.
-
-If you didn't make this change, please contact our support team immediately.
-
-For security reasons, we recommend:
-- Using a strong, unique password
-- Enabling two-factor authentication
-- Regularly reviewing your account activity
-
-Best regards,
-The {app_name} Team
-""".strip()
 
         from ..communications.email_service import EmailMessage, get_email_service
 
-        # Create message
-        message = EmailMessage(
-            to=[email],
-            subject=subject,
-            text_body=content,
-            html_body=content.replace("\n", "<br>"),
+        template_service = get_tenant_template_service()
+        context = TemplateContextBuilder.password_reset_success(
+            user_name=user_name,
+            app_name=app_name,
+        )
+        rendered = await template_service.render_email(
+            template_key="email.auth.password_reset_success",
+            context=context,
+            branding=branding,
         )
 
-        # Send using async communications service
+        message = EmailMessage(
+            to=[email],
+            subject=rendered.subject,
+            text_body=rendered.text_body,
+            html_body=rendered.html_body,
+        )
+
         service = get_email_service()
         response = await service.send_email(message)
         return response.status == "sent"

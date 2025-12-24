@@ -118,9 +118,17 @@ class CommunicationLog(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
 
 
 class CommunicationTemplate(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
-    """Email and SMS templates for communications."""
+    """Email and SMS templates for communications.
+
+    Templates support tenant-specific overrides. The same template name can exist
+    for different tenants, with a composite unique constraint on (tenant_id, name).
+    """
 
     __tablename__ = "communication_templates"
+    __table_args__ = (
+        # Composite unique constraint for tenant-specific templates
+        {"extend_existing": True},
+    )
 
     # Primary key
     id: Mapped[uuid.UUID] = mapped_column(
@@ -128,7 +136,11 @@ class CommunicationTemplate(Base, TimestampMixin, TenantMixin):  # type: ignore[
     )
 
     # Template identification
-    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    template_key: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True,
+        comment="Standardized template key (e.g., email.auth.welcome)"
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[CommunicationType] = mapped_column(
         SQLEnum(CommunicationType), default=CommunicationType.EMAIL, nullable=False
@@ -164,6 +176,7 @@ class CommunicationTemplate(Base, TimestampMixin, TenantMixin):  # type: ignore[
         return {
             "id": str(self.id),
             "name": self.name,
+            "template_key": self.template_key,
             "description": self.description,
             "type": self.type.value if self.type else None,
             "subject_template": self.subject_template,
@@ -177,6 +190,7 @@ class CommunicationTemplate(Base, TimestampMixin, TenantMixin):  # type: ignore[
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "tenant_id": self.tenant_id,
         }
 
 

@@ -1,0 +1,20 @@
+{% block content %}{% endblock %}
+
+---
+{% block footer %}
+{% if branding.support_email %}
+Need help? Contact {{ branding.support_email }}
+{% endif %}
+
+{% if branding.support_portal_url %}
+Support Portal: {{ branding.support_portal_url }}
+{% endif %}
+{% if branding.docs_url %}
+Documentation: {{ branding.docs_url }}
+{% endif %}
+
+(c) {{ current_year | default(now().year) }} {{ branding.company_name | default(branding.product_name) | default('DotMac Platform') }}. All rights reserved.
+{% if branding.address %}
+{{ branding.address }}
+{% endif %}
+{% endblock %}

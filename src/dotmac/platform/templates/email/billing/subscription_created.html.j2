@@ -1,0 +1,42 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">Welcome to {{ plan_name }}!</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">Thank you for subscribing to our {{ plan_name }} plan.</p>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Subscription Details:</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Plan:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ plan_name }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Price:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ price_formatted }} / {{ billing_cycle }}</td>
+    </tr>
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Start Date:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ start_date | format_date }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Next Billing:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ next_billing_date | format_date }}</td>
+    </tr>
+</table>
+
+{% if has_trial and trial_end %}
+<div style="background-color: #ecfdf5; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+    <p style="margin: 0; color: #065f46; font-weight: 500;">
+        <strong>Trial Period:</strong> Your trial ends on {{ trial_end | format_date }}
+    </p>
+</div>
+{% endif %}
+
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    You can manage your subscription anytime in your billing dashboard.
+</p>
+
+<p style="text-align: center; margin: 0;">
+    <a href="{{ dashboard_url }}" class="button">View Dashboard</a>
+</p>
+{% endblock %}

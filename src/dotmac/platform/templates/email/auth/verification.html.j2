@@ -1,0 +1,32 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">Verify Your Email</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    Hi {{ user_name }},
+</p>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    Please verify your email address to complete your account setup.
+</p>
+
+<p style="text-align: center; margin: 0 0 24px;">
+    <a href="{{ verification_url }}" class="button">Verify Email</a>
+</p>
+
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 16px;">
+    Or copy and paste this link into your browser:
+</p>
+<p style="background-color: #f9fafb; padding: 12px; border-radius: 6px; word-break: break-all; font-size: 13px; color: #4b5563; margin: 0 0 24px;">
+    {{ verification_url }}
+</p>
+
+<div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+    <p style="margin: 0; color: #92400e; font-size: 14px;">
+        This link will expire in {{ expiry_hours }} hours.
+    </p>
+</div>
+
+<p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">
+    If you didn't request this verification, you can safely ignore this email.
+</p>
+{% endblock %}
