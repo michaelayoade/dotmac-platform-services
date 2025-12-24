@@ -116,7 +116,7 @@ export default async function BillingPage() {
             change={metrics.mrrChange}
             changeType={metrics.mrrChange >= 0 ? "increase" : "decrease"}
             icon={<DollarSign className="w-5 h-5" />}
-            description="Monthly Recurring Revenue"
+            changeLabel="Monthly Recurring Revenue"
           />
           <KPITile
             title="Annual Revenue"
@@ -124,13 +124,13 @@ export default async function BillingPage() {
             change={metrics.arrChange}
             changeType={metrics.arrChange >= 0 ? "increase" : "decrease"}
             icon={<TrendingUp className="w-5 h-5" />}
-            description="Annual Recurring Revenue"
+            changeLabel="Annual Recurring Revenue"
           />
           <KPITile
             title="Outstanding"
             value={`$${(metrics.outstanding / 100).toLocaleString()}`}
             icon={<Clock className="w-5 h-5" />}
-            description={`${metrics.overdueCount} invoices overdue`}
+            changeLabel={`${metrics.overdueCount} invoices overdue`}
             className={metrics.overdueCount > 0 ? "border-status-warning/30" : ""}
           />
           <KPITile
@@ -139,7 +139,7 @@ export default async function BillingPage() {
             change={metrics.collectionRateChange}
             changeType={metrics.collectionRateChange >= 0 ? "increase" : "decrease"}
             icon={<Receipt className="w-5 h-5" />}
-            description="30-day collection rate"
+            changeLabel="30-day collection rate"
           />
         </KPIGrid>
       </section>
@@ -149,8 +149,8 @@ export default async function BillingPage() {
         <ChartGrid columns={2}>
           <ChartCard
             title="Revenue Trend"
-            description="Monthly revenue over the past 12 months"
-            action={
+            subtitle="Monthly revenue over the past 12 months"
+            actions={
               <Link
                 href="/billing/analytics"
                 className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1"
@@ -166,7 +166,7 @@ export default async function BillingPage() {
 
           <ChartCard
             title="Payment Methods"
-            description="Revenue by payment method"
+            subtitle="Revenue by payment method"
           >
             <Suspense fallback={<ChartSkeleton />}>
               <PaymentMethodChart />

@@ -1,0 +1,90 @@
+# Docker Compose for Platform Services Development
+# Connects to existing dotmac-insights infrastructure
+
+services:
+  platform-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dotmac-platform-backend
+    command: uvicorn dotmac.platform.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: debug
+      DEBUG: "true"
+      # Database - connect to insights postgres
+      DATABASE__HOST: dotmac_db
+      DATABASE__PORT: 5432
+      DATABASE__DATABASE: dotmac_platform
+      DATABASE__USERNAME: dotmac
+      DATABASE__PASSWORD: dotmac_dev_password
+      DATABASE_URL: postgresql://dotmac:dotmac_dev_password@dotmac_db:5432/dotmac_platform
+      # Redis - connect to insights redis
+      REDIS__HOST: dotmac_redis
+      REDIS__PORT: 6379
+      REDIS__DB: 5
+      REDIS__PASSWORD: ""
+      REDIS_URL: redis://dotmac_redis:6379/5
+      SESSION_REDIS_URL: redis://dotmac_redis:6379/6
+      REQUIRE_REDIS_SESSIONS: "false"
+      # Celery
+      CELERY__BROKER_URL: redis://dotmac_redis:6379/7
+      CELERY__RESULT_BACKEND: redis://dotmac_redis:6379/8
+      # Secrets
+      SECRET_KEY: dev-secret-key-change-me-min-32-chars
+      AUTH__JWT_SECRET_KEY: dev-jwt-secret-key-change-me-min-32-chars
+      # Storage - disabled for dev
+      STORAGE__ENABLED: "false"
+      VAULT__ENABLED: "false"
+      # CORS
+      CORS__ENABLED: "true"
+      CORS__ORIGINS: '["http://localhost:3000","http://localhost:3002","http://localhost:8000","http://localhost:8001"]'
+      CORS__CREDENTIALS: "true"
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./src:/app/src:ro
+      - platform_storage:/var/lib/dotmac
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dotmac-insights_default
+
+  platform-frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.simple
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8001
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8001
+        NEXT_PUBLIC_WS_URL: ws://localhost:8001
+        NEXTAUTH_SECRET: dev-nextauth-secret-change-me
+        NEXTAUTH_URL: http://localhost:3002
+    container_name: dotmac-platform-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8001
+      INTERNAL_API_URL: http://platform-backend:8000
+      NEXTAUTH_SECRET: dev-nextauth-secret-change-me
+      NEXTAUTH_URL: http://localhost:3002
+    ports:
+      - "3002:3000"
+    depends_on:
+      platform-backend:
+        condition: service_started
+    networks:
+      - dotmac-insights_default
+
+volumes:
+  platform_storage:
+
+networks:
+  dotmac-insights_default:
+    external: true

@@ -125,7 +125,7 @@ export default async function AnalyticsPage({
             change={metrics.requestsChange}
             changeType="increase"
             icon={<Zap className="w-5 h-5" />}
-            description="Total API calls this period"
+            changeLabel="Total API calls this period"
           />
           <KPITile
             title="Active Users"
@@ -133,7 +133,7 @@ export default async function AnalyticsPage({
             change={metrics.activeUsersChange}
             changeType="increase"
             icon={<Users className="w-5 h-5" />}
-            description="Unique users this period"
+            changeLabel="Unique users this period"
           />
           <KPITile
             title="Avg Response Time"
@@ -141,7 +141,7 @@ export default async function AnalyticsPage({
             change={metrics.responseTimeChange}
             changeType="decrease"
             icon={<Clock className="w-5 h-5" />}
-            description="P95 latency"
+            changeLabel="P95 latency"
           />
           <KPITile
             title="Error Rate"
@@ -149,7 +149,7 @@ export default async function AnalyticsPage({
             change={metrics.errorRateChange}
             changeType="decrease"
             icon={<Activity className="w-5 h-5" />}
-            description="5xx errors"
+            changeLabel="5xx errors"
           />
         </KPIGrid>
       </section>
@@ -159,8 +159,8 @@ export default async function AnalyticsPage({
         <ChartGrid columns={2}>
           <ChartCard
             title="API Traffic"
-            description="Requests per hour over the selected period"
-            action={
+            subtitle="Requests per hour over the selected period"
+            actions={
               <button className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1">
                 View Details <ArrowUpRight className="w-3 h-3" />
               </button>
@@ -173,7 +173,7 @@ export default async function AnalyticsPage({
 
           <ChartCard
             title="Response Time Distribution"
-            description="P50, P95, and P99 latencies"
+            subtitle="P50, P95, and P99 latencies"
           >
             <Suspense fallback={<ChartSkeleton />}>
               <LatencyChart />
@@ -188,19 +188,19 @@ export default async function AnalyticsPage({
           <h2 className="section-title">User Analytics</h2>
         </div>
         <ChartGrid columns={3}>
-          <ChartCard title="Daily Active Users" description="DAU over 30 days">
+          <ChartCard title="Daily Active Users" subtitle="DAU over 30 days">
             <Suspense fallback={<ChartSkeleton height={200} />}>
               <DAUChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="User Retention" description="30-day cohort retention">
+          <ChartCard title="User Retention" subtitle="30-day cohort retention">
             <Suspense fallback={<ChartSkeleton height={200} />}>
               <RetentionChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="User Distribution" description="By role">
+          <ChartCard title="User Distribution" subtitle="By role">
             <Suspense fallback={<ChartSkeleton height={200} />}>
               <UserDistributionChart />
             </Suspense>
@@ -242,13 +242,13 @@ export default async function AnalyticsPage({
       {/* Error Analytics */}
       <section className="animate-fade-up delay-600">
         <ChartGrid columns={2}>
-          <ChartCard title="Error Rate Trend" description="5xx errors over time">
+          <ChartCard title="Error Rate Trend" subtitle="5xx errors over time">
             <Suspense fallback={<ChartSkeleton />}>
               <ErrorRateChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="Error Distribution" description="By error type">
+          <ChartCard title="Error Distribution" subtitle="By error type">
             <Suspense fallback={<ChartSkeleton />}>
               <ErrorDistributionChart />
             </Suspense>

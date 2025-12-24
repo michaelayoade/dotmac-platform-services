@@ -47,6 +47,17 @@ class ResetResponse(BaseModel):
     service: str | None = None
 
 
+class ResilienceHealthCheckResponse(BaseModel):
+    """Response for resilience health checks."""
+
+    healthy: bool
+    total_breakers: int
+    open_breakers: list[str]
+    half_open_breakers: list[str]
+    degraded_services: list[str]
+    status: str
+
+
 @router.get(
     "/circuit-breakers",
     response_model=CircuitBreakerSummary,
@@ -196,13 +207,13 @@ async def reset_all_circuit_breakers(
 
 @router.get(
     "/health-check",
-    response_model=dict[str, Any],
+    response_model=ResilienceHealthCheckResponse,
     summary="Resilience health check",
     description="Check health of resilience system and external service connectivity",
 )
 async def resilience_health_check(
     current_user: User = Depends(get_current_active_user),
-) -> dict[str, Any]:
+) -> ResilienceHealthCheckResponse:
     """
     Health check for resilience system.
 
@@ -224,11 +235,11 @@ async def resilience_health_check(
     # System is healthy if no breakers are open
     is_healthy = len(open_breakers) == 0
 
-    return {
-        "healthy": is_healthy,
-        "total_breakers": len(states),
-        "open_breakers": open_breakers,
-        "half_open_breakers": half_open_breakers,
-        "degraded_services": open_breakers + half_open_breakers,
-        "status": "healthy" if is_healthy else "degraded",
-    }
+    return ResilienceHealthCheckResponse(
+        healthy=is_healthy,
+        total_breakers=len(states),
+        open_breakers=open_breakers,
+        half_open_breakers=half_open_breakers,
+        degraded_services=open_breakers + half_open_breakers,
+        status="healthy" if is_healthy else "degraded",
+    )

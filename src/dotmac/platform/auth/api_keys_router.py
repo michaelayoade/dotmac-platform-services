@@ -8,11 +8,24 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from .core import UserInfo, api_key_service, get_current_user
 
 router = APIRouter(prefix="/auth/api-keys", tags=["API Keys"])
+
+
+class ScopeDetail(BaseModel):  # BaseModel resolves to Any in isolation
+    """API key scope detail."""
+
+    model_config = ConfigDict()
+
+    name: str
+    description: str
+
+
+class AvailableScopesResponse(RootModel[dict[str, ScopeDetail]]):
+    """Root response for available API key scopes."""
 
 
 # ============================================
@@ -572,10 +585,10 @@ async def revoke_api_key(
 # ============================================
 
 
-@router.get("/scopes/available", response_model=dict)
+@router.get("/scopes/available", response_model=AvailableScopesResponse)
 async def get_available_scopes(
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> AvailableScopesResponse:
     """Get available API key scopes."""
     # Define available scopes based on your application's permissions
     scopes = {

@@ -26,7 +26,7 @@ RUN useradd --create-home --shell /bin/bash appuser
 COPY --chown=appuser:appuser pyproject.toml poetry.lock ./
 
 # Install Poetry and dependencies
-RUN pip install --no-cache-dir "poetry==1.8.3" && \
+RUN pip install --no-cache-dir "poetry==2.2.1" && \
     poetry config virtualenvs.create false && \
     poetry install --only=main --no-root --no-interaction --no-ansi
 

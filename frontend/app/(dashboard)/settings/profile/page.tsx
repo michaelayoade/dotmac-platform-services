@@ -5,9 +5,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, Camera, Check } from "lucide-react";
-import { Form, FormField, FormSubmitButton, FormResetButton, FormActions } from "@dotmac/forms";
+import {
+  Form,
+  FormField,
+  FormSubmitButton,
+  FormResetButton,
+  FormActions,
+  useForm,
+} from "@dotmac/forms";
 import { Input, Button, useToast } from "@dotmac/core";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 

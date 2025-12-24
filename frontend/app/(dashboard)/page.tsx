@@ -109,7 +109,7 @@ export default async function DashboardPage() {
             change={metrics.users.change}
             changeType={metrics.users.change >= 0 ? "increase" : "decrease"}
             icon={<Users className="w-5 h-5" />}
-            description={`${metrics.users.active} active this month`}
+            changeLabel={`${metrics.users.active} active this month`}
           />
           <KPITile
             title="Active Tenants"
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
             change={metrics.tenants.change}
             changeType={metrics.tenants.change >= 0 ? "increase" : "decrease"}
             icon={<Building2 className="w-5 h-5" />}
-            description={`${metrics.tenants.trial} in trial`}
+            changeLabel={`${metrics.tenants.trial} in trial`}
           />
           <KPITile
             title="Monthly Revenue"
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
             change={metrics.revenue.change}
             changeType={metrics.revenue.change >= 0 ? "increase" : "decrease"}
             icon={<CreditCard className="w-5 h-5" />}
-            description="vs. last month"
+            changeLabel="vs. last month"
           />
           <KPITile
             title="Active Deployments"
@@ -133,7 +133,7 @@ export default async function DashboardPage() {
             change={metrics.deployments.change}
             changeType={metrics.deployments.change >= 0 ? "increase" : "decrease"}
             icon={<Server className="w-5 h-5" />}
-            description={`${metrics.deployments.pending} pending`}
+            changeLabel={`${metrics.deployments.pending} pending`}
           />
         </KPIGrid>
       </section>
@@ -143,8 +143,8 @@ export default async function DashboardPage() {
         <ChartGrid columns={2}>
           <ChartCard
             title="Revenue Trend"
-            description="Monthly recurring revenue over time"
-            action={
+            subtitle="Monthly recurring revenue over time"
+            actions={
               <button className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1">
                 View Details <ArrowUpRight className="w-3 h-3" />
               </button>
@@ -157,8 +157,8 @@ export default async function DashboardPage() {
 
           <ChartCard
             title="User Growth"
-            description="New user registrations by week"
-            action={
+            subtitle="New user registrations by week"
+            actions={
               <button className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1">
                 View Details <ArrowUpRight className="w-3 h-3" />
               </button>
@@ -203,19 +203,19 @@ export default async function DashboardPage() {
       {/* Tenant Distribution Chart */}
       <section className="animate-fade-up delay-450">
         <ChartGrid columns={3}>
-          <ChartCard title="Tenant Distribution" description="By subscription plan">
+          <ChartCard title="Tenant Distribution" subtitle="By subscription plan">
             <Suspense fallback={<ChartSkeleton />}>
               <TenantDistributionChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="API Traffic" description="Requests per hour (24h)">
+          <ChartCard title="API Traffic" subtitle="Requests per hour (24h)">
             <Suspense fallback={<ChartSkeleton />}>
               <APITrafficChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="Error Rate" description="Last 7 days">
+          <ChartCard title="Error Rate" subtitle="Last 7 days">
             <Suspense fallback={<ChartSkeleton />}>
               <ErrorRateChart />
             </Suspense>

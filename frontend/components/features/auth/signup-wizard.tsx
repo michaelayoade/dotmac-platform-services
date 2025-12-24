@@ -12,10 +12,9 @@ import {
   ArrowLeft,
   Loader2,
 } from "lucide-react";
-import { Form, FormField, FormSubmitButton } from "@dotmac/forms";
+import { Form, FormField, FormSubmitButton, useForm } from "@dotmac/forms";
 import { Input, Button } from "@dotmac/core";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { cn } from "@/lib/utils";

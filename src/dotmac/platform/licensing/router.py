@@ -62,6 +62,42 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/licensing", tags=["Licensing"])
 
 
+class LicenseListResponse(PydanticBaseModel):
+    """Paginated list of licenses."""
+
+    data: list[LicenseResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ActivationListResponse(PydanticBaseModel):
+    """Paginated list of activations."""
+
+    data: list[ActivationResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class LicenseTemplateListResponse(PydanticBaseModel):
+    """Paginated list of license templates."""
+
+    data: list[LicenseTemplateResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class LicenseOrderListResponse(PydanticBaseModel):
+    """Paginated list of license orders."""
+
+    data: list[LicenseOrderResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 def _serialize_template(template: LicenseTemplate) -> LicenseTemplateResponse:
     features_raw = getattr(template, "features", None)
     if isinstance(features_raw, dict):
@@ -217,7 +253,7 @@ def get_licensing_service(
 # ==================== License Management ====================
 
 
-@router.get("/licenses", response_model=dict[str, Any])
+@router.get("/licenses", response_model=LicenseListResponse)
 async def get_licenses(
     service: Annotated[LicensingService, Depends(get_licensing_service)],
     customer_id: str | None = None,
@@ -226,7 +262,7 @@ async def get_licenses(
     license_type: str | None = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-) -> Any:
+) -> LicenseListResponse:
     """Get paginated list of licenses."""
     query = select(License).where(License.tenant_id == service.tenant_id)
 
@@ -249,12 +285,12 @@ async def get_licenses(
     result = await service.session.execute(query)
     licenses = result.scalars().all()
 
-    return {
-        "data": [_serialize_license(lic) for lic in licenses],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    }
+    return LicenseListResponse(
+        data=[_serialize_license(lic) for lic in licenses],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/licenses/{license_id}", response_model=dict[str, LicenseResponse])
@@ -460,7 +496,7 @@ async def activate_license(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/activations", response_model=dict[str, Any])
+@router.get("/activations", response_model=ActivationListResponse)
 async def get_activations(
     service: Annotated[LicensingService, Depends(get_licensing_service)],
     license_id: str | None = None,
@@ -468,7 +504,7 @@ async def get_activations(
     device_fingerprint: str | None = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-) -> Any:
+) -> ActivationListResponse:
     """Get paginated list of activations."""
     query = select(Activation).where(Activation.tenant_id == service.tenant_id)
 
@@ -489,12 +525,12 @@ async def get_activations(
     result = await service.session.execute(query)
     activations = result.scalars().all()
 
-    return {
-        "data": [ActivationResponse.model_validate(act) for act in activations],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    }
+    return ActivationListResponse(
+        data=[ActivationResponse.model_validate(act) for act in activations],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/activations/{activation_id}", response_model=dict[str, ActivationResponse])
@@ -614,24 +650,24 @@ async def process_offline_activation(
 # ==================== License Templates ====================
 
 
-@router.get("/templates", response_model=dict[str, Any])
+@router.get("/templates", response_model=LicenseTemplateListResponse)
 async def get_templates(
     service: Annotated[LicensingService, Depends(get_licensing_service)],
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-) -> Any:
+) -> LicenseTemplateListResponse:
     """Get paginated list of license templates."""
     query = select(LicenseTemplate).where(LicenseTemplate.tenant_id == service.tenant_id)
     query = query.limit(limit).offset(offset)
     result = await service.session.execute(query)
     templates = result.scalars().all()
 
-    return {
-        "data": [_serialize_template(tpl) for tpl in templates],
-        "total": len(templates),
-        "limit": limit,
-        "offset": offset,
-    }
+    return LicenseTemplateListResponse(
+        data=[_serialize_template(tpl) for tpl in templates],
+        total=len(templates),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/templates/{template_id}", response_model=dict[str, LicenseTemplateResponse])
@@ -733,24 +769,24 @@ async def create_license_from_template(
 # ==================== License Orders ====================
 
 
-@router.get("/orders", response_model=dict[str, Any])
+@router.get("/orders", response_model=LicenseOrderListResponse)
 async def get_orders(
     service: Annotated[LicensingService, Depends(get_licensing_service)],
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-) -> Any:
+) -> LicenseOrderListResponse:
     """Get paginated list of license orders."""
     query = select(LicenseOrder).where(LicenseOrder.tenant_id == service.tenant_id)
     query = query.limit(limit).offset(offset)
     result = await service.session.execute(query)
     orders = result.scalars().all()
 
-    return {
-        "data": [_serialize_order(order) for order in orders],
-        "total": len(orders),
-        "limit": limit,
-        "offset": offset,
-    }
+    return LicenseOrderListResponse(
+        data=[_serialize_order(order) for order in orders],
+        total=len(orders),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/orders/{order_id}", response_model=dict[str, LicenseOrderResponse])

@@ -11,6 +11,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +41,15 @@ from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
+
+
+class SegmentRecalculateResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for recalculating a customer segment."""
+
+    model_config = ConfigDict()
+
+    segment_id: str
+    member_count: int
 
 router = APIRouter(prefix="", tags=["Customer Management"])
 
@@ -843,19 +853,25 @@ async def create_segment(
         ) from exc
 
 
-@router.post("/segments/{segment_id}/recalculate", response_model=dict)
+@router.post(
+    "/segments/{segment_id}/recalculate",
+    response_model=SegmentRecalculateResponse,
+)
 async def recalculate_segment(
     segment_id: UUID,
     service: Annotated[CustomerService, Depends(get_customer_service)],
     current_user: Annotated[UserInfo, Depends(get_current_user)],
-) -> dict[str, Any]:
+) -> SegmentRecalculateResponse:
     """
     Recalculate dynamic segment membership.
 
     Requires authentication.
     """
     member_count = await service.recalculate_segment(segment_id)
-    return {"segment_id": str(segment_id), "member_count": member_count}
+    return SegmentRecalculateResponse(
+        segment_id=str(segment_id),
+        member_count=member_count,
+    )
 
 
 @router.get("/metrics/overview", response_model=CustomerMetrics)

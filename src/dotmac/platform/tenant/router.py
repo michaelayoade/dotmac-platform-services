@@ -12,6 +12,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, ConfigDict
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,6 +80,25 @@ async def get_tenant_provisioning_service(
 
 TENANT_READ_PERMISSION = "platform:tenants:read"
 TENANT_WRITE_PERMISSION = "platform:tenants:write"
+
+
+class TenantBulkStatusResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for bulk tenant status updates."""
+
+    model_config = ConfigDict()
+
+    updated_count: int
+    tenant_ids: list[str]
+
+
+class TenantBulkDeleteResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for bulk tenant deletion."""
+
+    model_config = ConfigDict()
+
+    deleted_count: int
+    tenant_ids: list[str]
+    permanent: bool
 
 
 def _can_view_sensitive_tenant_data(user: UserInfo) -> bool:
@@ -700,12 +720,12 @@ async def update_tenant_metadata(
 
 
 # Bulk Operations
-@router.post("/bulk/status", response_model=dict[str, Any])
+@router.post("/bulk/status", response_model=TenantBulkStatusResponse)
 async def bulk_update_status(
     update_data: TenantBulkStatusUpdate,
     current_user: UserInfo = Depends(require_tenant_permission(TENANT_WRITE_PERMISSION)),
     service: TenantService = Depends(get_tenant_service),
-) -> dict[str, Any]:
+) -> TenantBulkStatusResponse:
     """
     Bulk update tenant status.
 
@@ -715,15 +735,18 @@ async def bulk_update_status(
         update_data.tenant_ids, update_data.status, updated_by=current_user.user_id
     )
 
-    return {"updated_count": updated_count, "tenant_ids": update_data.tenant_ids}
+    return TenantBulkStatusResponse(
+        updated_count=updated_count,
+        tenant_ids=update_data.tenant_ids,
+    )
 
 
-@router.post("/bulk/delete", response_model=dict[str, Any])
+@router.post("/bulk/delete", response_model=TenantBulkDeleteResponse)
 async def bulk_delete_tenants(
     delete_data: TenantBulkDeleteRequest,
     current_user: UserInfo = Depends(require_tenant_permission(TENANT_WRITE_PERMISSION)),
     service: TenantService = Depends(get_tenant_service),
-) -> dict[str, Any]:
+) -> TenantBulkDeleteResponse:
     """
     Bulk delete tenants.
 
@@ -733,11 +756,11 @@ async def bulk_delete_tenants(
         delete_data.tenant_ids, permanent=delete_data.permanent, deleted_by=current_user.user_id
     )
 
-    return {
-        "deleted_count": deleted_count,
-        "tenant_ids": delete_data.tenant_ids,
-        "permanent": delete_data.permanent,
-    }
+    return TenantBulkDeleteResponse(
+        deleted_count=deleted_count,
+        tenant_ids=delete_data.tenant_ids,
+        permanent=delete_data.permanent,
+    )
 
 
 @router.post(

@@ -114,6 +114,10 @@ all = [
 ]
 
 [tool.poetry]
+name = "dotmac-platform-services"
+version = "1.0.0"
+description = "DotMac Platform Services - Multi-tenant SaaS platform microservices (Auth, Billing, Tenancy, etc.)"
+authors = ["DotMac Team <dev@dotmac.com>"]
 packages = [{include = "dotmac", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]

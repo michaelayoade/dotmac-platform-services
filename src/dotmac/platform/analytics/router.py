@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.api_keys_metrics_router import _get_api_key_metrics_cached
@@ -46,6 +47,46 @@ from .models import (
 )
 
 logger = structlog.get_logger(__name__)
+
+
+class PeriodWindow(BaseModel):  # BaseModel resolves to Any in isolation
+    """Time window with start/end timestamps."""
+
+    model_config = ConfigDict()
+
+    start: str
+    end: str
+
+
+class AnalyticsEventsResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Analytics events query response."""
+
+    model_config = ConfigDict()
+
+    events: list[Any]
+    total: int
+    period: PeriodWindow
+
+
+class AnalyticsCustomQueryResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Custom analytics query response."""
+
+    model_config = ConfigDict()
+
+    query_type: str
+    result: Any
+    total: int
+
+
+class AnalyticsDashboardResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Dashboard analytics response."""
+
+    model_config = ConfigDict()
+
+    period: str
+    data: Any
+    generated_at: str
+    window: PeriodWindow
 
 if TYPE_CHECKING:
     from dotmac.platform.analytics.service import AnalyticsService
@@ -561,7 +602,7 @@ async def record_metric(
         )
 
 
-@analytics_router.get("/events", response_model=dict)
+@analytics_router.get("/events", response_model=AnalyticsEventsResponse)
 async def get_events(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
@@ -570,7 +611,7 @@ async def get_events(
     event_type: str | None = Query(None, description="Event type filter"),
     user_id: str | None = Query(None, description="User ID filter"),
     limit: int = Query(100, ge=1, le=1000, description="Result limit"),
-) -> dict[str, Any]:
+) -> AnalyticsEventsResponse:
     """
     Query analytics events.
 
@@ -596,11 +637,14 @@ async def get_events(
             limit=limit,
         )
 
-        return {
-            "events": events,
-            "total": len(events),
-            "period": {"start": _isoformat(start_date), "end": _isoformat(end_date)},
-        }
+        return AnalyticsEventsResponse(
+            events=events,
+            total=len(events),
+            period=PeriodWindow(
+                start=_isoformat(start_date),
+                end=_isoformat(end_date),
+            ),
+        )
     except Exception as e:
         logger.error(f"Error querying events: {e}")
         raise HTTPException(
@@ -759,12 +803,12 @@ async def get_metrics(
         )
 
 
-@analytics_router.post("/query", response_model=dict)
+@analytics_router.post("/query", response_model=AnalyticsCustomQueryResponse)
 async def custom_query(
     query_request: AnalyticsQueryRequest,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> AnalyticsCustomQueryResponse:
     """
     Execute a custom analytics query.
 
@@ -788,11 +832,11 @@ async def custom_query(
         else:
             raise ValueError(f"Unknown query type: {query_request.query_type}")
 
-        return {
-            "query_type": query_request.query_type,
-            "result": result,
-            "total": len(result) if isinstance(result, list) else 1,
-        }
+        return AnalyticsCustomQueryResponse(
+            query_type=query_request.query_type,
+            result=result,
+            total=len(result) if isinstance(result, list) else 1,
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -872,12 +916,12 @@ async def generate_report(
         )
 
 
-@analytics_router.get("/dashboard", response_model=dict)
+@analytics_router.get("/dashboard", response_model=AnalyticsDashboardResponse)
 async def get_dashboard_data(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     period: str = Query("day", description="Dashboard period (hour, day, week, month)"),
-) -> dict[str, Any]:
+) -> AnalyticsDashboardResponse:
     """
     Get dashboard analytics data.
 
@@ -906,12 +950,15 @@ async def get_dashboard_data(
             start_date=start_date, end_date=end_date, user_id=current_user.user_id
         )
 
-        return {
-            "period": period,
-            "data": dashboard,
-            "generated_at": _isoformat(None),
-            "window": {"start": _isoformat(start_date), "end": _isoformat(end_date)},
-        }
+        return AnalyticsDashboardResponse(
+            period=period,
+            data=dashboard,
+            generated_at=_isoformat(None),
+            window=PeriodWindow(
+                start=_isoformat(start_date),
+                end=_isoformat(end_date),
+            ),
+        )
     except Exception as e:
         logger.error(f"Error getting dashboard data: {e}")
         raise HTTPException(

@@ -8,6 +8,7 @@ from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, ConfigDict
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,15 @@ from .service import SubscriptionService
 # Note: This router is included by the parent billing router which already has /billing prefix
 # So we only need /subscriptions here to avoid /billing/billing/subscriptions
 router = APIRouter(prefix="/subscriptions", tags=["Billing - Subscriptions"])
+
+
+class SubscriptionPlanChangeResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for subscription plan changes."""
+
+    model_config = ConfigDict()
+
+    message: str
+    proration: ProrationResult | None = None
 
 
 # Subscription Plans Management
@@ -406,7 +416,7 @@ async def reactivate_subscription(
 
 @router.post(
     "/{subscription_id}/change-plan",
-    response_model=dict,
+    response_model=SubscriptionPlanChangeResponse,
     dependencies=[Depends(require_permission("billing:subscriptions:write"))],
 )
 async def change_subscription_plan(
@@ -415,7 +425,7 @@ async def change_subscription_plan(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
     tenant_id: str = Depends(get_current_tenant_id),
-) -> dict[str, str | dict[str, str]]:
+) -> SubscriptionPlanChangeResponse:
     """Change subscription plan with proration calculation. Requires billing:subscriptions:write permission."""
     service = SubscriptionService(db_session)
     try:
@@ -428,14 +438,10 @@ async def change_subscription_plan(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
             )
 
-        response: dict[str, str | dict[str, str]] = {
-            "message": "Plan change completed successfully",
-        }
-
-        if proration_result:
-            response["proration"] = proration_result.model_dump()
-
-        return response
+        return SubscriptionPlanChangeResponse(
+            message="Plan change completed successfully",
+            proration=proration_result,
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo, ensure_uuid, get_current_user
@@ -27,6 +28,29 @@ from dotmac.platform.notifications.schemas import (
 from dotmac.platform.notifications.service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+class NotificationPriorityCounts(BaseModel):  # BaseModel resolves to Any in isolation
+    """Counts of notifications by priority."""
+
+    model_config = ConfigDict()
+
+    low: int
+    medium: int
+    high: int
+    urgent: int
+
+
+class NotificationStatsResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Notification statistics response."""
+
+    model_config = ConfigDict()
+
+    total: int
+    unread: int
+    read: int
+    by_priority: NotificationPriorityCounts
+    top_types: dict[str, int]
 
 
 def _ensure_tenant_id(user: UserInfo) -> str:
@@ -296,11 +320,11 @@ async def update_notification_preferences(
 
 
 # Statistics Endpoint
-@router.get("/stats", response_model=dict[str, Any])
+@router.get("/stats", response_model=NotificationStatsResponse)
 async def get_notification_stats(
     db: AsyncSession = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> NotificationStatsResponse:
     """
     Get notification statistics for current user.
 
@@ -343,13 +367,13 @@ async def get_notification_stats(
 
     top_types = sorted(type_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
-    return {
-        "total": len(all_notifications),
-        "unread": unread_count,
-        "read": len(all_notifications) - unread_count,
-        "by_priority": priority_counts,
-        "top_types": dict(top_types),
-    }
+    return NotificationStatsResponse(
+        total=len(all_notifications),
+        unread=unread_count,
+        read=len(all_notifications) - unread_count,
+        by_priority=NotificationPriorityCounts(**priority_counts),
+        top_types=dict(top_types),
+    )
 
 
 # Team Notification Endpoint

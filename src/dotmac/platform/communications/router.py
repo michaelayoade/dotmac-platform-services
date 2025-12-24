@@ -817,6 +817,39 @@ class RenderVariablesRequest(BaseModel):  # BaseModel resolves to Any in isolati
     variables: dict[str, Any] = Field(default_factory=dict, description="Template variables")
 
 
+class RenderedTemplateCompatResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Compatibility response for template rendering."""
+
+    model_config = ConfigDict()
+
+    subject: str
+    text: str
+    html: str
+    variables: list[Any]
+
+
+class CommunicationStatsResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Communication stats response."""
+
+    model_config = ConfigDict()
+
+    sent: int
+    delivered: int
+    failed: int
+    pending: int
+    total_sent: int
+    total_delivered: int
+    total_failed: int
+    total_opened: int
+    total_clicked: int
+    delivery_rate: float
+    open_rate: float
+    click_rate: float
+    by_channel: dict[str, Any]
+    by_status: dict[str, Any]
+    recent_activity: list[Any]
+
+
 @router.post("/templates/render", response_model=RenderedTemplate)
 async def render_template_endpoint(
     request: RenderRequest, current_user: UserInfo = Depends(get_current_user)
@@ -865,12 +898,12 @@ async def render_template_endpoint(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/templates/{template_id}/render", response_model=dict)
+@router.post("/templates/{template_id}/render", response_model=RenderedTemplateCompatResponse)
 async def render_template_by_id(
     template_id: str,
     request: RenderVariablesRequest,
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> RenderedTemplateCompatResponse:
     """Compatibility endpoint: render template by ID with variables key."""
     try:
         tenant_id = getattr(current_user, "tenant_id", None)
@@ -893,22 +926,22 @@ async def render_template_by_id(
                         html_body=obj.html_template,
                         data=request.variables,
                     )
-                    return {
-                        "subject": rendered["subject"],
-                        "text": rendered.get("text_body", ""),
-                        "html": rendered.get("html_body", ""),
-                        "variables": [],
-                    }
+                    return RenderedTemplateCompatResponse(
+                        subject=rendered["subject"],
+                        text=rendered.get("text_body", ""),
+                        html=rendered.get("html_body", ""),
+                        variables=[],
+                    )
         except Exception:
             logger.warning("DB render failed, fallback to in-memory")
 
         result = render_template(template_id, request.variables)
-        return {
-            "subject": result.subject,
-            "text": result.text_body,
-            "html": result.html_body,
-            "variables": result.variables_used,
-        }
+        return RenderedTemplateCompatResponse(
+            subject=result.subject,
+            text=result.text_body,
+            html=result.html_body,
+            variables=result.variables_used,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (TemplateSyntaxError, UndefinedError) as exc:
@@ -1429,13 +1462,13 @@ class MetricsResponse(BaseModel):  # BaseModel resolves to Any in isolation
     cached_at: str
 
 
-@router.get("/stats", response_model=dict)
+@router.get("/stats", response_model=CommunicationStatsResponse)
 async def get_communication_stats(
     date_from: str | None = None,
     date_to: str | None = None,
     channel: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> CommunicationStatsResponse:
     """Get communication statistics."""
     user_id, tenant_id = _safe_user_context(current_user)
     stats_data: dict[str, Any] = {}
@@ -1465,23 +1498,23 @@ async def get_communication_stats(
     open_rate = (total_opened / total_sent) if total_sent else 0
     click_rate = (total_clicked / total_sent) if total_sent else 0
 
-    return {
-        "sent": total_sent,
-        "delivered": total_delivered,
-        "failed": total_failed,
-        "pending": pending,
-        "total_sent": total_sent,
-        "total_delivered": total_delivered,
-        "total_failed": total_failed,
-        "total_opened": total_opened,
-        "total_clicked": total_clicked,
-        "delivery_rate": delivery_rate,
-        "open_rate": open_rate,
-        "click_rate": click_rate,
-        "by_channel": stats_data.get("by_channel", {"email": total_sent}),
-        "by_status": stats_data.get("by_status", {}),
-        "recent_activity": stats_data.get("recent_activity", []),
-    }
+    return CommunicationStatsResponse(
+        sent=total_sent,
+        delivered=total_delivered,
+        failed=total_failed,
+        pending=pending,
+        total_sent=total_sent,
+        total_delivered=total_delivered,
+        total_failed=total_failed,
+        total_opened=total_opened,
+        total_clicked=total_clicked,
+        delivery_rate=delivery_rate,
+        open_rate=open_rate,
+        click_rate=click_rate,
+        by_channel=stats_data.get("by_channel", {"email": total_sent}),
+        by_status=stats_data.get("by_status", {}),
+        recent_activity=stats_data.get("recent_activity", []),
+    )
 
 
 @router.get("/metrics", response_model=MetricsResponse)
