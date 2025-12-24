@@ -16,7 +16,7 @@ from celery import Task
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.celery_app import celery_app
-from dotmac.platform.db import async_session_maker
+from dotmac.platform.db import async_session_maker, set_session_rls_context
 from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
 
 from .models import DunningActionType, DunningExecution, DunningExecutionStatus
@@ -111,6 +111,7 @@ def execute_dunning_action_task(
     execution_id: str,
     action_config: dict[str, Any],
     step_number: int,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Execute a single dunning action for an execution.
@@ -136,6 +137,7 @@ def execute_dunning_action_task(
                 execution_id=UUID(execution_id),
                 action_config=action_config,
                 step_number=step_number,
+                tenant_id=tenant_id,
             )
         )
         logger.info(
@@ -173,6 +175,7 @@ async def _process_pending_actions() -> dict[str, Any]:
     results = []
 
     async with async_session_maker() as session:
+        set_session_rls_context(session, tenant_id=None, bypass_rls=True)
         service = DunningService(session)
 
         # Get all tenants with pending actions (we'll iterate through all)
@@ -209,6 +212,7 @@ async def _process_pending_actions() -> dict[str, Any]:
                     execution_id=execution.id,
                     action_config=action_config,
                     step_number=execution.current_step,
+                    tenant_id=execution.tenant_id,
                 )
 
                 results.append(result)
@@ -237,6 +241,7 @@ async def _execute_action(
     execution_id: UUID,
     action_config: dict[str, Any],
     step_number: int,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Execute a specific dunning action.
@@ -269,82 +274,93 @@ async def _execute_action(
 
     try:
         async with async_session_maker() as session:
+            if tenant_id:
+                set_session_rls_context(session, tenant_id=tenant_id)
+            else:
+                set_session_rls_context(session, tenant_id=None, bypass_rls=True)
             service = DunningService(session)
 
             # Get execution details
-            execution = await service.get_execution(
-                execution_id=execution_id,
-                tenant_id="",  # Will be filtered in service
-            )
+            if tenant_id:
+                execution = await service.get_execution(
+                    execution_id=execution_id,
+                    tenant_id=tenant_id,
+                )
+            else:
+                execution = await session.get(DunningExecution, execution_id)
 
             if not execution:
                 result["status"] = "failed"
                 result["error"] = "Execution not found"
                 return result
 
-            # Route to appropriate action handler
-            if action_type == DunningActionType.EMAIL:
-                result = await _send_dunning_email(execution, action_config)
-            elif action_type == DunningActionType.SMS:
-                result = await _send_dunning_sms(execution, action_config)
-            elif action_type == DunningActionType.SUSPEND_SERVICE:
-                result = await _suspend_service(execution, action_config)
-            elif action_type == DunningActionType.TERMINATE_SERVICE:
-                result = await _terminate_service(execution, action_config)
-            elif action_type == DunningActionType.WEBHOOK:
-                result = await _trigger_webhook(execution, action_config)
-            elif action_type == DunningActionType.CUSTOM:
-                result = await _execute_custom_action(execution, action_config)
-            else:
-                result["status"] = "failed"  # type: ignore[unreachable]  # Fallback for unknown action types
-                result["error"] = f"Unknown action type: {action_type}"
+            previous_tenant = _set_tenant_context(execution.tenant_id)
+            try:
+                # Route to appropriate action handler
+                if action_type == DunningActionType.EMAIL:
+                    result = await _send_dunning_email(execution, action_config)
+                elif action_type == DunningActionType.SMS:
+                    result = await _send_dunning_sms(execution, action_config)
+                elif action_type == DunningActionType.SUSPEND_SERVICE:
+                    result = await _suspend_service(execution, action_config)
+                elif action_type == DunningActionType.TERMINATE_SERVICE:
+                    result = await _terminate_service(execution, action_config)
+                elif action_type == DunningActionType.WEBHOOK:
+                    result = await _trigger_webhook(execution, action_config)
+                elif action_type == DunningActionType.CUSTOM:
+                    result = await _execute_custom_action(execution, action_config)
+                else:
+                    result["status"] = "failed"  # type: ignore[unreachable]  # Fallback for unknown action types
+                    result["error"] = f"Unknown action type: {action_type}"
 
-            # Log the action execution
-            from .models import DunningActionLog
+                # Log the action execution
+                from .models import DunningActionLog
 
-            action_log = DunningActionLog(
-                execution_id=execution_id,
-                action_type=action_type,
-                action_config=action_config,
-                step_number=step_number,
-                attempted_at=executed_at,
-                completed_at=datetime.now(UTC),
-                success=result.get("status") == "success",
-                response_data=result.get("details", {}),
-                error_message=result.get("error"),
-                external_id=result.get("external_id"),
-            )
-            session.add(action_log)
+                action_log = DunningActionLog(
+                    execution_id=execution_id,
+                    action_type=action_type,
+                    action_config=action_config,
+                    step_number=step_number,
+                    attempted_at=executed_at,
+                    completed_at=datetime.now(UTC),
+                    success=result.get("status") == "success",
+                    response_data=result.get("details", {}),
+                    error_message=result.get("error"),
+                    external_id=result.get("external_id"),
+                )
+                session.add(action_log)
 
-            # Update execution progress
-            execution.current_step = step_number + 1
-            execution.execution_log.append(
-                {
-                    "step": step_number,
-                    "action": action_type.value,
-                    "status": result["status"],
-                    "timestamp": executed_at.isoformat(),
-                }
-            )
+                # Update execution progress
+                execution.current_step = step_number + 1
+                execution.execution_log.append(
+                    {
+                        "step": step_number,
+                        "action": action_type.value,
+                        "status": result["status"],
+                        "timestamp": executed_at.isoformat(),
+                    }
+                )
 
-            # Calculate next action time if there are more steps
-            campaign = await service.get_campaign(
-                campaign_id=execution.campaign_id,
-                tenant_id=execution.tenant_id,
-            )
+                # Calculate next action time if there are more steps
+                campaign = await service.get_campaign(
+                    campaign_id=execution.campaign_id,
+                    tenant_id=execution.tenant_id,
+                )
 
-            if execution.current_step < len(campaign.actions):
-                next_action = campaign.actions[execution.current_step]
-                delay_days = next_action.get("delay_days", 0)
-                from datetime import timedelta
+                if execution.current_step < len(campaign.actions):
+                    next_action = campaign.actions[execution.current_step]
+                    delay_days = next_action.get("delay_days", 0)
+                    from datetime import timedelta
 
-                execution.next_action_at = datetime.now(UTC) + timedelta(days=delay_days)
-                execution.status = DunningExecutionStatus.IN_PROGRESS
-            else:
-                # All actions completed
-                await _complete_execution(session, execution)
+                    execution.next_action_at = datetime.now(UTC) + timedelta(days=delay_days)
+                    execution.status = DunningExecutionStatus.IN_PROGRESS
+                else:
+                    # All actions completed
+                    await _complete_execution(session, execution)
 
-            await session.commit()
+                await session.commit()
+            finally:
+                set_current_tenant_id(previous_tenant)
 
     except Exception as e:
         logger.error(
@@ -387,6 +403,7 @@ async def _send_dunning_email(
 
         # Get customer email - would need to query customer service
         async with async_session_maker() as session:
+            set_session_rls_context(session, tenant_id=execution.tenant_id)
             from dotmac.platform.customer_management.service import CustomerService
 
             customer_service = CustomerService(session)
@@ -467,6 +484,7 @@ async def _send_dunning_sms(
     try:
         # Get customer phone number
         async with async_session_maker() as session:
+            set_session_rls_context(session, tenant_id=execution.tenant_id)
             from dotmac.platform.customer_management.service import CustomerService
 
             customer_service = CustomerService(session)
@@ -561,6 +579,7 @@ async def _suspend_service(
             from dotmac.platform.services.lifecycle.service import LifecycleOrchestrationService
 
             async with async_session_maker() as session:
+                set_session_rls_context(session, tenant_id=execution.tenant_id)
                 lifecycle_service = LifecycleOrchestrationService(session)
 
                 try:
@@ -597,6 +616,7 @@ async def _suspend_service(
             from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
             async with async_session_maker() as session:
+                set_session_rls_context(session, tenant_id=execution.tenant_id)
                 subscription_service = SubscriptionService(session)
 
                 await subscription_service.cancel_subscription(
@@ -661,6 +681,7 @@ async def _terminate_service(
             from dotmac.platform.services.lifecycle.service import LifecycleOrchestrationService
 
             async with async_session_maker() as session:
+                set_session_rls_context(session, tenant_id=execution.tenant_id)
                 lifecycle_service = LifecycleOrchestrationService(session)
 
                 try:
@@ -698,6 +719,7 @@ async def _terminate_service(
             from dotmac.platform.billing.subscriptions.service import SubscriptionService
 
             async with async_session_maker() as session:
+                set_session_rls_context(session, tenant_id=execution.tenant_id)
                 subscription_service = SubscriptionService(session)
 
                 # Cancel subscription (simplified fallback)

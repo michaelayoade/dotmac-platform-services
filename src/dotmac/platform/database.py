@@ -4,14 +4,15 @@ Database session dependencies for FastAPI
 
 from collections.abc import AsyncIterator
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.db import AsyncSessionLocal, Base
+from dotmac.platform.db import Base, get_async_session as get_db_async_session
 
 
-async def get_async_session() -> AsyncIterator[AsyncSession]:
-    """Get async database session for dependency injection"""
-    async with AsyncSessionLocal() as session:
+async def get_async_session(request: Request | None = None) -> AsyncIterator[AsyncSession]:
+    """Get async database session for dependency injection."""
+    async for session in get_db_async_session(request=request):
         yield session
 
 

@@ -99,6 +99,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 "/api/v1/auth/register",
                 "/api/v1/auth/password-reset",
                 "/api/v1/auth/password-reset/confirm",
+                "/api/v1/auth/verify-email/confirm",
+                "/api/v1/auth/verify-email/resend",
                 "/api/v1/auth/me",  # Allow authenticated users to fetch their profile with tenant_id
                 "/api/v1/auth/rbac/my-permissions",  # Allow authenticated users to fetch their permissions
                 "/api/v1/secrets/health",  # Vault health check is public
@@ -107,6 +109,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 "/api/v1/platform/config",
                 "/api/v1/platform/health",
                 "/api/v1/monitoring/alerts/webhook",  # Alertmanager webhook doesn't provide tenant context
+                "/api/v1/tenants/onboarding/public",
             }
         )
         # Paths where tenant is optional (middleware runs but doesn't require tenant)
@@ -114,6 +117,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/api/v1/audit/frontend-logs",  # Frontend logs can be unauthenticated
             "/api/v1/realtime/alerts",  # SSE endpoints work with optional auth
             "/api/v1/realtime/tickets",
+            "/api/v1/tenants/onboarding/public",
         }
         # Override config's require_tenant if explicitly provided
         if require_tenant is not None:
@@ -323,6 +327,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             from dotmac.platform.auth.platform_admin import is_platform_admin
 
             claims = jwt_service.verify_token(token, TokenType.ACCESS)
+            try:
+                request.state.jwt_claims = claims
+            except Exception:
+                pass
             user_info = UserInfo(
                 user_id=claims.get("sub", ""),
                 email=claims.get("email"),
@@ -374,13 +382,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if jwt_token:
             claims = self._verify_jwt_claims(jwt_token)
             if claims:
+                try:
+                    request.state.jwt_claims = claims
+                except Exception:
+                    pass
                 tenant_from_claims = self._tenant_from_claims(request, claims)
                 if tenant_from_claims:
-                    # Cache claims for downstream middleware if needed
-                    try:
-                        request.state.jwt_claims = claims
-                    except Exception:
-                        pass
                     return tenant_from_claims
 
         # Try API keys (used by service automation)

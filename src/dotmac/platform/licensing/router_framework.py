@@ -148,6 +148,7 @@ async def create_feature_module(
 async def list_feature_modules(
     category: str | None = Query(None),
     is_active: bool = Query(True),
+    current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """List all available feature modules."""
@@ -155,8 +156,11 @@ async def list_feature_modules(
 
     if category:
         query = query.where(FeatureModule.category == category)
-    if is_active is not None:
-        query = query.where(FeatureModule.is_active == is_active)
+    if current_user.is_platform_admin:
+        if is_active is not None:
+            query = query.where(FeatureModule.is_active == is_active)
+    else:
+        query = query.where(FeatureModule.is_active.is_(True), FeatureModule.is_public.is_(True))
 
     query = query.order_by(FeatureModule.category, FeatureModule.module_name)
 
@@ -172,6 +176,7 @@ async def list_feature_modules(
 )
 async def get_feature_module(
     module_id: UUID,
+    current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """Get feature module by ID."""
@@ -182,7 +187,9 @@ async def get_feature_module(
     )
     module = result.scalar_one_or_none()
 
-    if not module:
+    if not module or (
+        not current_user.is_platform_admin and (not module.is_public or not module.is_active)
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
 
     return FeatureModuleResponse.model_validate(module)
@@ -287,6 +294,7 @@ async def create_quota_definition(
 @router.get(
     "/quotas",
     response_model=list[QuotaDefinitionResponse],
+    dependencies=[Depends(require_platform_admin)],
 )
 async def list_quota_definitions(
     is_metered: bool | None = Query(None),
@@ -312,6 +320,7 @@ async def list_quota_definitions(
 @router.get(
     "/quotas/{quota_id}",
     response_model=QuotaDefinitionResponse,
+    dependencies=[Depends(require_platform_admin)],
 )
 async def get_quota_definition(
     quota_id: UUID,
@@ -418,6 +427,7 @@ async def list_service_plans(
     is_template: bool | None = Query(None),
     is_public: bool | None = Query(None),
     is_active: bool = Query(True),
+    current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """List all service plans."""
@@ -426,12 +436,15 @@ async def list_service_plans(
         selectinload(ServicePlan.included_quotas).selectinload(PlanQuotaAllocation.quota),
     )
 
-    if is_template is not None:
-        query = query.where(ServicePlan.is_template == is_template)
-    if is_public is not None:
-        query = query.where(ServicePlan.is_public == is_public)
-    if is_active is not None:
-        query = query.where(ServicePlan.is_active == is_active)
+    if current_user.is_platform_admin:
+        if is_template is not None:
+            query = query.where(ServicePlan.is_template == is_template)
+        if is_public is not None:
+            query = query.where(ServicePlan.is_public == is_public)
+        if is_active is not None:
+            query = query.where(ServicePlan.is_active == is_active)
+    else:
+        query = query.where(ServicePlan.is_public.is_(True), ServicePlan.is_active.is_(True))
 
     query = query.order_by(ServicePlan.plan_name)
 
@@ -447,6 +460,7 @@ async def list_service_plans(
 )
 async def get_service_plan(
     plan_id: UUID,
+    current_user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """Get service plan by ID."""
@@ -460,7 +474,9 @@ async def get_service_plan(
     )
     plan = result.scalar_one_or_none()
 
-    if not plan:
+    if not plan or (
+        not current_user.is_platform_admin and (not plan.is_public or not plan.is_active)
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
 
     return ServicePlanResponse.model_validate(plan)
@@ -786,7 +802,7 @@ async def remove_addon_from_current_subscription(
                 selectinload(TenantSubscription.active_modules).selectinload(
                     SubscriptionModule.module
                 ),
-                selectinload(TenantSubscription.quotas),
+                selectinload(TenantSubscription.quota_usage),
             )
             .where(TenantSubscription.id == subscription.id)
         )

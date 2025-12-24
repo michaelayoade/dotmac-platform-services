@@ -106,7 +106,6 @@ class FeatureCategory(str, Enum):
 
     # Advanced Features
     AUTOMATION = "AUTOMATION"  # Workflow automation
-    GRAPHQL = "GRAPHQL"  # GraphQL API
     WHITE_LABEL = "WHITE_LABEL"  # White-label branding
     MULTI_CURRENCY = "MULTI_CURRENCY"  # Multi-currency support
 

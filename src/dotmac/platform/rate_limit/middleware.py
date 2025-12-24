@@ -40,7 +40,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         try:
             # Check rate limit
-            async for db in get_async_session():
+            async for db in get_async_session(request=request):
                 service = RateLimitService(db)
 
                 is_allowed, rule_applied, current_count = await service.check_rate_limit(

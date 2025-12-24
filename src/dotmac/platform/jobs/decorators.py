@@ -13,7 +13,9 @@ from uuid import uuid4
 
 import structlog
 
+from dotmac.platform.db import set_session_rls_context
 from dotmac.platform.jobs.models import JobPriority, JobStatus
+from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
 
 # Python 3.9/3.10 compatibility: UTC was added in 3.11
 UTC = UTC
@@ -70,92 +72,105 @@ def background_job(
             tenant_id = kwargs.get("tenant_id")
             user_id = kwargs.get("created_by") or kwargs.get("user_id")
 
-            # Create job record if tracking enabled
-            job_id = str(uuid4())
-            if track_progress and tenant_id:
-                from dotmac.platform.database import get_async_session
-                from dotmac.platform.jobs.models import Job
-
-                async for session in get_async_session():
-                    job = Job(
-                        id=job_id,
-                        tenant_id=tenant_id,
-                        job_type=func.__name__,
-                        status=JobStatus.PENDING.value,
-                        title=f"{func.__name__}",
-                        description=func.__doc__ or "",
-                        priority=priority.value,
-                        max_retries=max_retries,
-                        retry_delay_seconds=retry_delay_seconds,
-                        timeout_seconds=timeout_seconds,
-                        parameters={"args": args, "kwargs": kwargs},
-                        created_by=user_id or "system",
-                    )
-                    session.add(job)
-                    await session.commit()
-                    logger.info(
-                        "background_job.created",
-                        job_id=job_id,
-                        function=func.__name__,
-                        tenant_id=tenant_id,
-                    )
-                    break
+            previous_tenant = None
+            if tenant_id:
+                previous_tenant = get_current_tenant_id()
+                set_current_tenant_id(tenant_id)
 
             try:
-                # Execute the function
+                # Create job record if tracking enabled
+                job_id = str(uuid4())
                 if track_progress and tenant_id:
-                    # Update status to running
-                    async for session in get_async_session():
-                        from dotmac.platform.jobs.models import Job
+                    from dotmac.platform.database import get_async_session
+                    from dotmac.platform.jobs.models import Job
 
-                        job_record = cast(Job | None, await session.get(Job, job_id))
-                        if job_record:
-                            job_record.status = JobStatus.RUNNING.value
-                            job_record.started_at = datetime.now(UTC)
-                            await session.commit()
+                    async for session in get_async_session():
+                        set_session_rls_context(session, tenant_id=tenant_id)
+                        job = Job(
+                            id=job_id,
+                            tenant_id=tenant_id,
+                            job_type=func.__name__,
+                            status=JobStatus.PENDING.value,
+                            title=f"{func.__name__}",
+                            description=func.__doc__ or "",
+                            priority=priority.value,
+                            max_retries=max_retries,
+                            retry_delay_seconds=retry_delay_seconds,
+                            timeout_seconds=timeout_seconds,
+                            parameters={"args": args, "kwargs": kwargs},
+                            created_by=user_id or "system",
+                        )
+                        session.add(job)
+                        await session.commit()
+                        logger.info(
+                            "background_job.created",
+                            job_id=job_id,
+                            function=func.__name__,
+                            tenant_id=tenant_id,
+                        )
                         break
 
-                result = await func(*args, **kwargs)
+                try:
+                    # Execute the function
+                    if track_progress and tenant_id:
+                        # Update status to running
+                        async for session in get_async_session():
+                            set_session_rls_context(session, tenant_id=tenant_id)
+                            from dotmac.platform.jobs.models import Job
 
-                # Mark as completed
-                if track_progress and tenant_id:
-                    async for session in get_async_session():
-                        from dotmac.platform.jobs.models import Job
+                            job_record = cast(Job | None, await session.get(Job, job_id))
+                            if job_record:
+                                job_record.status = JobStatus.RUNNING.value
+                                job_record.started_at = datetime.now(UTC)
+                                await session.commit()
+                            break
 
-                        job_record = cast(Job | None, await session.get(Job, job_id))
-                        if job_record:
-                            job_record.status = JobStatus.COMPLETED.value
-                            job_record.completed_at = datetime.now(UTC)
-                            job_record.result = {"success": True, "data": result}
-                            await session.commit()
-                        break
+                    result = await func(*args, **kwargs)
 
-                return result
+                    # Mark as completed
+                    if track_progress and tenant_id:
+                        async for session in get_async_session():
+                            set_session_rls_context(session, tenant_id=tenant_id)
+                            from dotmac.platform.jobs.models import Job
 
-            except Exception as e:
-                # Mark as failed
-                if track_progress and tenant_id:
-                    async for session in get_async_session():
-                        import traceback
+                            job_record = cast(Job | None, await session.get(Job, job_id))
+                            if job_record:
+                                job_record.status = JobStatus.COMPLETED.value
+                                job_record.completed_at = datetime.now(UTC)
+                                job_record.result = {"success": True, "data": result}
+                                await session.commit()
+                            break
 
-                        from dotmac.platform.jobs.models import Job
+                    return result
 
-                        job_record = cast(Job | None, await session.get(Job, job_id))
-                        if job_record:
-                            job_record.status = JobStatus.FAILED.value
-                            job_record.error_message = str(e)
-                            job_record.error_traceback = traceback.format_exc()
-                            job_record.completed_at = datetime.now(UTC)
-                            await session.commit()
-                        break
+                except Exception as e:
+                    # Mark as failed
+                    if track_progress and tenant_id:
+                        async for session in get_async_session():
+                            set_session_rls_context(session, tenant_id=tenant_id)
+                            import traceback
 
-                logger.error(
-                    "background_job.failed",
-                    job_id=job_id,
-                    function=func.__name__,
-                    error=str(e),
-                )
-                raise
+                            from dotmac.platform.jobs.models import Job
+
+                            job_record = cast(Job | None, await session.get(Job, job_id))
+                            if job_record:
+                                job_record.status = JobStatus.FAILED.value
+                                job_record.error_message = str(e)
+                                job_record.error_traceback = traceback.format_exc()
+                                job_record.completed_at = datetime.now(UTC)
+                                await session.commit()
+                            break
+
+                    logger.error(
+                        "background_job.failed",
+                        job_id=job_id,
+                        function=func.__name__,
+                        error=str(e),
+                    )
+                    raise
+            finally:
+                if tenant_id:
+                    set_current_tenant_id(previous_tenant)
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:

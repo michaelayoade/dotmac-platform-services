@@ -4,6 +4,7 @@ AWX Service for Ansible automation.
 Provides high-level service for tenant provisioning automation via AWX.
 """
 
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -27,6 +28,18 @@ class AWXService:
             client: AWX client instance
         """
         self.client = client or AWXClient()
+
+    @dataclass(frozen=True)
+    class JobLaunchResult:
+        status: str
+        job_id: int | None = None
+        reason: str | None = None
+
+    @dataclass(frozen=True)
+    class JobStatus:
+        status: str
+        job_id: int | None = None
+        reason: str | None = None
 
     @property
     def is_available(self) -> bool:
@@ -97,6 +110,27 @@ class AWXService:
             "status": "pending",
             "tenant_id": tenant_id,
         }
+
+    async def launch_job(
+        self,
+        template_id: int,
+        extra_vars: dict[str, Any] | None = None,
+    ) -> "AWXService.JobLaunchResult":
+        """Launch a generic AWX job template."""
+        result = await self.client.launch_job_template(template_id, extra_vars)
+        status = str(result.get("status", "unknown"))
+        job_id = result.get("job_id")
+        reason = result.get("reason")
+        return self.JobLaunchResult(status=status, job_id=job_id, reason=reason)
+
+    async def get_job(self, job_id: int) -> "AWXService.JobStatus | None":
+        """Get AWX job status by ID."""
+        if not self.is_available:
+            return None
+        result = await self.client.get_job_status(job_id)
+        status = str(result.get("status", "unknown"))
+        reason = result.get("reason")
+        return self.JobStatus(status=status, job_id=job_id, reason=reason)
 
     async def health_check(self) -> dict[str, Any]:
         """Check AWX service health."""

@@ -16,6 +16,7 @@ from typing import Any, Protocol, TypeVar, cast, overload
 import structlog
 
 from dotmac.platform.core.events import DomainEvent
+from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
 
 logger = structlog.get_logger(__name__)
 
@@ -267,6 +268,8 @@ class DomainEventDispatcher:
         Raises:
             Exception: If handler fails
         """
+        previous_tenant = get_current_tenant_id()
+        set_current_tenant_id(event.tenant_id)
         try:
             await handler(event)
 
@@ -287,6 +290,8 @@ class DomainEventDispatcher:
                 exc_info=True,
             )
             raise
+        finally:
+            set_current_tenant_id(previous_tenant)
 
     def clear(self) -> None:
         """Clear all registered handlers (useful for testing)."""

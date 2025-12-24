@@ -30,7 +30,7 @@ from dotmac.platform.auth.partner_permissions import ensure_partner_rbac
 from dotmac.platform.core.exception_handlers import register_exception_handlers
 from dotmac.platform.core.rate_limiting import get_limiter
 from dotmac.platform.core.request_context import RequestContextMiddleware, configure_context_logging
-from dotmac.platform.core.rls_middleware import RLSMiddleware
+from dotmac.platform.core.rls_middleware import RLSContextManager, RLSMiddleware
 from dotmac.platform.db import AsyncSessionLocal, init_db
 from dotmac.platform.infrastructure_health import run_startup_health_checks
 from dotmac.platform.monitoring.error_middleware import (
@@ -219,10 +219,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Seed RBAC permissions/roles after database init
     try:
         async with AsyncSessionLocal() as session:
-            await ensure_billing_rbac(session)
-            logger.info("rbac.billing_permissions.seeded", emoji="✅")
-            await ensure_partner_rbac(session)
-            logger.info("rbac.partner_permissions.seeded", emoji="✅")
+            async with RLSContextManager(session, bypass_rls=True):
+                await ensure_billing_rbac(session)
+                logger.info("rbac.billing_permissions.seeded", emoji="✅")
+                await ensure_partner_rbac(session)
+                logger.info("rbac.partner_permissions.seeded", emoji="✅")
     except Exception as e:
         logger.error("rbac.permissions.failed", error=str(e), emoji="❌")
         if settings.is_production:

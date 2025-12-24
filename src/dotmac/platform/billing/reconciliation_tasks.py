@@ -16,7 +16,7 @@ from celery import Task
 
 from dotmac.platform.billing._typing_helpers import idempotent_task, shared_task
 from dotmac.platform.billing.reconciliation_service import ReconciliationService
-from dotmac.platform.db import AsyncSessionLocal
+from dotmac.platform.db import AsyncSessionLocal, set_session_rls_context
 
 # Compatibility alias for tests that patch this symbol
 async_session_factory = AsyncSessionLocal
@@ -71,6 +71,7 @@ async def _auto_reconcile_impl(
 ) -> dict[str, Any]:
     """Implementation of auto-reconciliation."""
     async with AsyncSessionLocal() as db:
+        set_session_rls_context(db, tenant_id=tenant_id)
         ReconciliationService(db)
 
         # Calculate date range
@@ -178,6 +179,7 @@ def retry_failed_payments_batch(
 async def _retry_failed_payments_impl(tenant_id: str, max_payments: int) -> dict[str, Any]:
     """Implementation of batch payment retry."""
     async with AsyncSessionLocal() as db:
+        set_session_rls_context(db, tenant_id=tenant_id)
         service = ReconciliationService(db)
 
         # Find failed payments
@@ -280,6 +282,7 @@ def generate_daily_reconciliation_report(self: Task, tenant_id: str) -> dict[str
 async def _generate_report_impl(tenant_id: str) -> dict[str, Any]:
     """Implementation of report generation."""
     async with AsyncSessionLocal() as db:
+        set_session_rls_context(db, tenant_id=tenant_id)
         service = ReconciliationService(db)
 
         # Get today's reconciliation summary
@@ -360,6 +363,7 @@ def monitor_circuit_breaker_health(self: Task) -> dict[str, Any]:
 async def _monitor_circuit_breaker_impl() -> dict[str, Any]:
     """Implementation of circuit breaker monitoring."""
     async with AsyncSessionLocal() as db:
+        set_session_rls_context(db, tenant_id=None, bypass_rls=True)
         service = ReconciliationService(db)
 
         # Check circuit breaker state
@@ -430,6 +434,7 @@ async def _schedule_reconciliation_impl(
 ) -> str:
     """Implementation of reconciliation scheduling."""
     async with AsyncSessionLocal() as db:
+        set_session_rls_context(db, tenant_id=tenant_id)
         service = ReconciliationService(db)
 
         # Calculate period

@@ -15,6 +15,7 @@ from celery import Task
 
 from dotmac.platform.core.tasks import app
 from dotmac.platform.database import get_async_session as get_db
+from dotmac.platform.db import set_session_rls_context
 from dotmac.platform.webhooks.events import get_event_bus
 from dotmac.platform.webhooks.models import WebhookEvent
 
@@ -28,11 +29,16 @@ logger = structlog.get_logger(__name__)
 async def _update_job_status(
     job_id: str,
     status: TransferStatus,
+    tenant_id: str | None,
     **kwargs: Any,
 ) -> None:
     """Update job status in database."""
     db = await anext(get_db())
     try:
+        if tenant_id:
+            set_session_rls_context(db, tenant_id=tenant_id)
+        else:
+            set_session_rls_context(db, tenant_id=None, bypass_rls=True)
         repo = TransferJobRepository(db)
         await repo.update_job_status(
             UUID(job_id),
@@ -78,6 +84,7 @@ def process_export_job(
         _update_job_status(
             job_id,
             TransferStatus.RUNNING,
+            tenant_id,
             started_at=datetime.now(UTC),
             celery_task_id=self.request.id,
         )
@@ -108,6 +115,7 @@ def process_export_job(
             _update_job_status(
                 job_id,
                 TransferStatus.COMPLETED,
+                tenant_id,
                 completed_at=datetime.now(UTC),
                 records_processed=result["records_processed"],
             )
@@ -145,6 +153,7 @@ def process_export_job(
             _update_job_status(
                 job_id,
                 TransferStatus.FAILED,
+                tenant_id,
                 completed_at=datetime.now(UTC),
                 error_message=str(e),
             )
@@ -201,6 +210,7 @@ def process_import_job(
         _update_job_status(
             job_id,
             TransferStatus.RUNNING,
+            tenant_id,
             started_at=datetime.now(UTC),
             celery_task_id=self.request.id,
         )
@@ -231,6 +241,7 @@ def process_import_job(
             _update_job_status(
                 job_id,
                 TransferStatus.COMPLETED,
+                tenant_id,
                 completed_at=datetime.now(UTC),
                 records_processed=result["records_processed"],
                 records_failed=result.get("records_failed", 0),
@@ -269,6 +280,7 @@ def process_import_job(
             _update_job_status(
                 job_id,
                 TransferStatus.FAILED,
+                tenant_id,
                 completed_at=datetime.now(UTC),
                 error_message=str(e),
             )
@@ -332,6 +344,7 @@ async def _perform_export(
         await _update_job_status(
             job_id,
             TransferStatus.RUNNING,
+            tenant_id,
             progress_percentage=progress,
             processed_records=records_processed,
         )
@@ -395,6 +408,7 @@ async def _perform_import(
         await _update_job_status(
             job_id,
             TransferStatus.RUNNING,
+            tenant_id,
             progress_percentage=progress,
             processed_records=records_processed,
             failed_records=records_failed,
@@ -427,6 +441,8 @@ async def _publish_export_webhook(
     db = await anext(get_db())
 
     try:
+        if tenant_id:
+            set_session_rls_context(db, tenant_id=tenant_id)
         event_type = WebhookEvent.EXPORT_COMPLETED if success else WebhookEvent.EXPORT_FAILED
 
         event_data = {
@@ -492,6 +508,8 @@ async def _publish_import_webhook(
     db = await anext(get_db())
 
     try:
+        if tenant_id:
+            set_session_rls_context(db, tenant_id=tenant_id)
         event_type = WebhookEvent.IMPORT_COMPLETED if success else WebhookEvent.IMPORT_FAILED
 
         event_data = {

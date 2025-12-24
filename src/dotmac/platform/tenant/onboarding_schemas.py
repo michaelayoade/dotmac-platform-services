@@ -7,8 +7,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
+from .models import TenantPlanType
 from .schemas import (
     TenantCreate,
     TenantInvitationCreate,
@@ -171,3 +172,71 @@ class TenantOnboardingStatusResponse(BaseModel):  # BaseModel resolves to Any in
     updated_at: datetime | None = Field(
         default=None, description="Timestamp of the last tenant update."
     )
+
+
+class PublicTenantCreate(BaseModel):  # BaseModel resolves to Any in isolation
+    """Tenant attributes accepted for public self-signup."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    name: str = Field(min_length=1, max_length=255, description="Tenant organization name")
+    slug: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[a-z0-9-]+$",
+        description="Unique URL-friendly identifier",
+    )
+    plan_type: TenantPlanType = Field(
+        default=TenantPlanType.FREE, description="Initial subscription plan"
+    )
+    company_size: str | None = Field(None, max_length=50, description="Company size range")
+    industry: str | None = Field(None, max_length=100, description="Industry sector")
+    country: str | None = Field(None, max_length=100, description="Country")
+
+    @field_validator("plan_type", mode="before")
+    @classmethod
+    def normalize_plan_type(cls, value: str | TenantPlanType) -> str | TenantPlanType:
+        if isinstance(value, str):
+            return value.lower()
+        return value
+
+
+class PublicAdminUserCreate(BaseModel):  # BaseModel resolves to Any in isolation
+    """Admin user payload accepted for public self-signup."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    email: EmailStr = Field(description="Email address for the admin user")
+    password: str = Field(min_length=8, description="Password for the admin user")
+    full_name: str | None = Field(default=None, description="Full name of the admin user")
+    username: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=50,
+        description="Optional username for the admin user",
+    )
+
+
+class PublicTenantOnboardingRequest(BaseModel):  # BaseModel resolves to Any in isolation
+    """Request body for public self-signup onboarding."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    tenant: PublicTenantCreate = Field(description="Tenant attributes for the new account")
+    admin_user: PublicAdminUserCreate = Field(description="Administrator account to provision")
+
+
+class PublicTenantOnboardingResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response payload for public self-signup onboarding."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    tenant_id: str = Field(description="Identifier of the newly created tenant")
+    tenant_slug: str = Field(description="Slug for the newly created tenant")
+    admin_user_id: str | None = Field(
+        default=None, description="Identifier for the admin user that was created"
+    )
+    verification_sent: bool = Field(
+        default=False, description="Whether a verification email was sent"
+    )
+    message: str = Field(description="Friendly status message for the signup flow")

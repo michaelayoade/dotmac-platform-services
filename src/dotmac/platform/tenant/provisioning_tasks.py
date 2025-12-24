@@ -5,6 +5,7 @@ Celery tasks orchestrating tenant provisioning via AWX/Ansible.
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Coroutine
 from concurrent.futures import Future
 from datetime import UTC, datetime
@@ -19,7 +20,7 @@ from sqlalchemy.orm import selectinload
 from dotmac.platform.ansible.client import AWXClient
 from dotmac.platform.ansible.service import AWXService
 from dotmac.platform.celery_app import celery_app
-from dotmac.platform.db import async_session_maker
+from dotmac.platform.db import async_session_maker, set_session_rls_context
 from dotmac.platform.settings import settings
 
 from .models import (
@@ -54,15 +55,11 @@ def _run_async[T](coro: Coroutine[Any, Any, T]) -> T:
 
 def _create_awx_service() -> AWXService:
     """Instantiate AWX service using platform OSS settings."""
-    config = settings.oss.ansible
+    base_url = settings.external_services.awx_url
+    token = os.getenv("AWX_TOKEN") or os.getenv("AWX_API_TOKEN")
     client = AWXClient(
-        base_url=config.url,
-        username=config.username,
-        password=config.password,
-        token=config.api_token,
-        verify_ssl=config.verify_ssl,
-        timeout_seconds=config.timeout_seconds,
-        max_retries=config.max_retries,
+        base_url=base_url,
+        token=token,
     )
     return AWXService(client=client)
 
@@ -85,6 +82,7 @@ def execute_tenant_provisioning(self: Task, job_id: str) -> None:
 
 async def _execute_tenant_provisioning(job_id: str, task: Task | None = None) -> None:
     async with async_session_maker() as session:
+        set_session_rls_context(session, tenant_id=None, bypass_rls=True)
         job = await _load_job(session, job_id)
         if not job:
             logger.warning("tenant_provisioning.job_missing", job_id=job_id)
@@ -158,6 +156,7 @@ def monitor_tenant_provisioning(self: Task, job_id: str) -> None:
 
 async def _monitor_tenant_provisioning(job_id: str, task: Task | None = None) -> None:
     async with async_session_maker() as session:
+        set_session_rls_context(session, tenant_id=None, bypass_rls=True)
         job = await _load_job(session, job_id)
         if not job:
             logger.warning("tenant_provisioning.job_missing", job_id=job_id)

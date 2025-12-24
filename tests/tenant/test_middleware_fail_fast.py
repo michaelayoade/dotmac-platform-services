@@ -278,7 +278,7 @@ class TestTenantMiddlewareOptionalMode:
         )
 
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/graphql"
+        mock_request.url.path = "/api/v1/customers"
         mock_request.method = "POST"
         mock_request.headers = {"Authorization": "Bearer jwt-token"}
         mock_request.query_params = {}
@@ -308,7 +308,7 @@ class TestTenantMiddlewareOptionalMode:
         )
 
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/graphql"
+        mock_request.url.path = "/api/v1/customers"
         mock_request.method = "POST"
         mock_request.headers = {
             "Authorization": "Bearer jwt-token",

@@ -33,12 +33,18 @@ from dotmac.platform.auth.core import (
     DEFAULT_USER_ROLE,
     UserInfo,
     get_current_user,
+    get_current_user_optional,
     hash_password,
     jwt_service,
     session_manager,
     verify_password,
 )
 from dotmac.platform.auth.email_service import get_auth_email_service
+from dotmac.platform.auth.email_verification import (
+    DEFAULT_VERIFICATION_TTL_HOURS,
+    invalidate_verification_tokens,
+    send_verification_email as send_email_verification,
+)
 from dotmac.platform.auth.exceptions import AuthError, get_http_status
 from dotmac.platform.auth.mfa_service import mfa_service
 from dotmac.platform.communications.models import (
@@ -47,6 +53,7 @@ from dotmac.platform.communications.models import (
     CommunicationType,
 )
 from dotmac.platform.core.rate_limiting import rate_limit
+from dotmac.platform.core.rls_middleware import RLSContextManager
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.integrations import IntegrationStatus, get_integration_async
 from dotmac.platform.settings import settings
@@ -2450,13 +2457,6 @@ async def send_verification_email(
     The token expires after 24 hours.
     """
     try:
-        import hashlib
-        import secrets
-        import uuid as uuid_module
-        from datetime import datetime, timedelta
-
-        from dotmac.platform.user_management.models import EmailVerificationToken
-
         user_service = UserService(session)
         user = await user_service.get_user_by_id(
             user_info.user_id, **_tenant_scope_kwargs(user_info)
@@ -2468,67 +2468,12 @@ async def send_verification_email(
                 detail="User not found",
             )
 
-        # Generate secure token
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-
-        # Create verification token record
-        verification_token = EmailVerificationToken(
-            id=uuid_module.uuid4(),
-            user_id=user.id,
-            token_hash=token_hash,
+        await send_email_verification(
+            session=session,
+            user=user,
             email=email_request.email,
-            expires_at=datetime.now(UTC) + timedelta(hours=24),
-            used=False,
-            tenant_id=user.tenant_id,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            include_email_in_link=True,
         )
-
-        session.add(verification_token)
-        await session.commit()
-
-        # Send verification email
-        try:
-            _email_service = get_auth_email_service()
-            # Use centralized frontend URL (Phase 2 implementation)
-            try:
-                frontend_url = settings.external_services.frontend_url
-            except AttributeError:
-                # Fallback for backwards compatibility
-                frontend_url = getattr(settings, "frontend_url", "http://localhost:3000")
-
-            verification_url = f"{frontend_url}/verify-email?token={token}"
-
-            # Send verification email using communications service
-            user_name = user.username or user.email
-            success = await _email_service.send_verification_email(
-                email=email_request.email,
-                user_name=user_name,
-                verification_url=verification_url,
-            )
-
-            if success:
-                logger.info(
-                    "Email verification sent successfully",
-                    user_id=str(user.id),
-                    email=email_request.email,
-                )
-            else:
-                logger.warning(
-                    "Failed to send verification email",
-                    user_id=str(user.id),
-                    email=email_request.email,
-                )
-        except Exception as e:
-            logger.warning(
-                "Failed to send verification email",
-                user_id=str(user.id),
-                email=email_request.email,
-                error=str(e),
-            )
-            # Don't fail the endpoint if email sending fails
-            # The token is still valid and can be used
 
         await log_user_activity(
             user_id=str(user.id),
@@ -2544,7 +2489,7 @@ async def send_verification_email(
         return {
             "message": "Verification email sent successfully",
             "email": email_request.email,
-            "expires_in_hours": 24,
+            "expires_in_hours": DEFAULT_VERIFICATION_TTL_HOURS,
         }
 
     except HTTPException:
@@ -2562,7 +2507,7 @@ async def send_verification_email(
 async def confirm_email_verification(
     request: Request,
     confirm_request: ConfirmEmailRequest,
-    user_info: UserInfo = Depends(get_current_user),
+    user_info: UserInfo | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_auth_session),
 ) -> dict[str, Any]:
     """
@@ -2578,76 +2523,91 @@ async def confirm_email_verification(
 
         from dotmac.platform.user_management.models import EmailVerificationToken
 
-        # Hash the provided token
-        token_hash = hashlib.sha256(confirm_request.token.encode()).hexdigest()
+        async def _confirm_with_session() -> dict[str, Any]:
+            # Hash the provided token
+            token_hash = hashlib.sha256(confirm_request.token.encode()).hexdigest()
 
-        # Find the verification token
-        stmt = (
-            select(EmailVerificationToken)
-            .where(EmailVerificationToken.token_hash == token_hash)
-            .where(EmailVerificationToken.user_id == user_info.user_id)
-            .where(EmailVerificationToken.used.is_(False))
-        )
-        result = await session.execute(stmt)
-        verification_token = result.scalar_one_or_none()
+            # Find the verification token
+            stmt = (
+                select(EmailVerificationToken)
+                .where(EmailVerificationToken.token_hash == token_hash)
+                .where(EmailVerificationToken.used.is_(False))
+            )
+            if user_info:
+                stmt = stmt.where(EmailVerificationToken.user_id == user_info.user_id)
 
-        if not verification_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or already used verification token",
+            result = await session.execute(stmt)
+            verification_token = result.scalar_one_or_none()
+
+            if not verification_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or already used verification token",
+                )
+
+            # Check if token is expired
+            if verification_token.is_expired():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Verification token has expired",
+                )
+
+            # Mark token as used
+            verification_token.used = True
+            verification_token.used_at = datetime.now(UTC)
+            verification_token.used_ip = request.client.host if request.client else None
+
+            # Update user's email and mark as verified
+            user_service = UserService(session)
+            target_user_id = user_info.user_id if user_info else verification_token.user_id
+            user = await user_service.get_user_by_id(
+                target_user_id, **_tenant_scope_kwargs(user_info)
             )
 
-        # Check if token is expired
-        if verification_token.is_expired():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Verification token has expired",
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            # Update email if it matches the verification token
+            if user.email != verification_token.email:
+                user.email = verification_token.email
+
+            user.is_verified = True
+
+            await session.commit()
+
+            await log_user_activity(
+                user_id=str(user.id),
+                activity_type=ActivityType.USER_UPDATED,
+                action="email_verified",
+                description=f"User verified email: {verification_token.email}",
+                severity=ActivitySeverity.MEDIUM,
+                details={
+                    "email": verification_token.email,
+                    "ip_address": verification_token.used_ip,
+                },
+                tenant_id=user.tenant_id,
+                session=session,
             )
 
-        # Mark token as used
-        verification_token.used = True
-        verification_token.used_at = datetime.now(UTC)
-        verification_token.used_ip = request.client.host if request.client else None
-
-        # Update user's email and mark as verified
-        user_service = UserService(session)
-        user = await user_service.get_user_by_id(
-            user_info.user_id, **_tenant_scope_kwargs(user_info)
-        )
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
-
-        # Update email if it matches the verification token
-        if user.email != verification_token.email:
-            user.email = verification_token.email
-
-        user.is_verified = True
-
-        await session.commit()
-
-        await log_user_activity(
-            user_id=str(user.id),
-            activity_type=ActivityType.USER_UPDATED,
-            action="email_verified",
-            description=f"User verified email: {verification_token.email}",
-            severity=ActivitySeverity.MEDIUM,
-            details={
+            return {
+                "message": "Email verified successfully",
                 "email": verification_token.email,
-                "ip_address": verification_token.used_ip,
-            },
-            tenant_id=user.tenant_id,
-            session=session,
-        )
+                "is_verified": True,
+            }
 
-        return {
-            "message": "Email verified successfully",
-            "email": verification_token.email,
-            "is_verified": True,
-        }
+        if user_info is None:
+            async with RLSContextManager(session, bypass_rls=True):
+                return await _confirm_with_session()
+
+        async with RLSContextManager(
+            session,
+            tenant_id=user_info.tenant_id,
+            is_superuser=user_info.is_platform_admin,
+        ):
+            return await _confirm_with_session()
 
     except HTTPException:
         raise
@@ -2664,7 +2624,7 @@ async def confirm_email_verification(
 async def resend_verification_email(
     request: Request,
     email_request: SendVerificationEmailRequest,
-    user_info: UserInfo = Depends(get_current_user),
+    user_info: UserInfo | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_auth_session),
 ) -> dict[str, Any]:
     """
@@ -2673,25 +2633,51 @@ async def resend_verification_email(
     This endpoint invalidates any existing tokens for the email and sends a new one.
     """
     try:
-        from datetime import datetime
+        if user_info is None:
+            async with RLSContextManager(session, bypass_rls=True):
+                user_service = UserService(session)
+                user = await user_service.get_user_by_email(email_request.email)
 
-        from sqlalchemy import update
+                if user and not user.is_verified:
+                    await invalidate_verification_tokens(
+                        session=session,
+                        user_id=str(user.id),
+                        email=email_request.email,
+                    )
+                    await send_email_verification(
+                        session=session,
+                        user=user,
+                        email=email_request.email,
+                        include_email_in_link=True,
+                    )
 
-        from dotmac.platform.user_management.models import EmailVerificationToken
+                    await log_user_activity(
+                        user_id=str(user.id),
+                        activity_type=ActivityType.USER_UPDATED,
+                        action="verification_email_sent",
+                        description=f"Verification email sent to {email_request.email}",
+                        severity=ActivitySeverity.LOW,
+                        details={"email": email_request.email},
+                        tenant_id=user.tenant_id,
+                        session=session,
+                    )
 
-        # Invalidate existing tokens for this email
-        stmt = (
-            update(EmailVerificationToken)
-            .where(EmailVerificationToken.user_id == user_info.user_id)
-            .where(EmailVerificationToken.email == email_request.email)
-            .where(EmailVerificationToken.used.is_(False))
-            .values(used=True, used_at=datetime.now(UTC))
-        )
-        await session.execute(stmt)
-        await session.commit()
+                return {
+                    "message": "If an account exists, a verification email has been sent.",
+                }
 
-        # Send new verification email using the existing endpoint logic
-        return await send_verification_email(request, email_request, user_info, session)
+        async with RLSContextManager(
+            session,
+            tenant_id=user_info.tenant_id,
+            is_superuser=user_info.is_platform_admin,
+        ):
+            await invalidate_verification_tokens(
+                session=session,
+                user_id=user_info.user_id,
+                email=email_request.email,
+            )
+
+            return await send_verification_email(request, email_request, user_info, session)
 
     except HTTPException:
         raise

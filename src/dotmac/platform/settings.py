@@ -372,11 +372,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("TENANT_DISPLAY_NAME", "NEXT_PUBLIC_TENANT_NAME"),
         description="Human-readable tenant/brand name for runtime config",
     )
-    tenant_graphql_url: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("TENANT_GRAPHQL_URL", "NEXT_PUBLIC_GRAPHQL_URL"),
-        description="Absolute GraphQL endpoint exposed to frontends",
-    )
     frontend_api_base_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices(
@@ -1442,7 +1437,6 @@ class Settings(BaseSettings):
         db_sqlite: bool = Field(True, description="Enable SQLite support for dev/test")
 
         # Platform Features
-        graphql_enabled: bool = Field(True, description="Enable GraphQL API")
         analytics_enabled: bool = Field(True, description="Enable analytics features")
         banking_enabled: bool = Field(True, description="Enable banking integrations")
         payments_enabled: bool = Field(True, description="Enable payment processing")

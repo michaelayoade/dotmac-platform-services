@@ -20,7 +20,8 @@ from dotmac.platform.core.tasks import app, idempotent_task
 from dotmac.platform.customer_management.mappers import CustomerImportSchema, CustomerMapper
 from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
-from dotmac.platform.db import get_async_database_url
+from dotmac.platform.db import get_async_database_url, set_session_rls_context
+from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
 
 logger = structlog.get_logger(__name__)
 
@@ -29,14 +30,21 @@ DEFAULT_CHUNK_SIZE = 500
 MAX_CHUNK_SIZE = 5000
 
 
-def get_async_session() -> AsyncSession:
+def get_async_session(
+    tenant_id: str | None = None,
+    *,
+    bypass_rls: bool = False,
+) -> AsyncSession:
     """Create async database session for Celery tasks."""
     engine = create_async_engine(
         get_async_database_url(),
         echo=False,
     )
     async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    return async_session_maker()
+    session = async_session_maker()
+    if tenant_id or bypass_rls:
+        set_session_rls_context(session, tenant_id=tenant_id, bypass_rls=bypass_rls)
+    return session
 
 
 @app.task(bind=True, max_retries=3)  # type: ignore[misc]
@@ -68,7 +76,7 @@ def process_import_job(
     logger.info(f"Starting import job {job_id} for {job_type}")
 
     # Update task ID in job
-    asyncio.run(_update_job_task_id(job_id, self.request.id))
+    asyncio.run(_update_job_task_id(job_id, self.request.id, tenant_id))
 
     try:
         # Process based on job type
@@ -96,7 +104,7 @@ def process_import_job(
 
     except Exception as e:
         logger.error(f"Import job {job_id} failed: {e}")
-        asyncio.run(_mark_job_failed(job_id, str(e)))
+        asyncio.run(_mark_job_failed(job_id, str(e), tenant_id))
         raise self.retry(exc=e, countdown=60)
 
 
@@ -159,18 +167,18 @@ def process_import_chunk(
         raise
 
 
-async def _update_job_task_id(job_id: str, task_id: str) -> None:
+async def _update_job_task_id(job_id: str, task_id: str, tenant_id: str) -> None:
     """Update the Celery task ID in the import job."""
-    async with get_async_session() as session:
+    async with get_async_session(tenant_id) as session:
         job = await session.get(ImportJob, UUID(job_id))
         if job:
             job.celery_task_id = task_id
             await session.commit()
 
 
-async def _mark_job_failed(job_id: str, error_message: str) -> None:
+async def _mark_job_failed(job_id: str, error_message: str, tenant_id: str) -> None:
     """Mark an import job as failed."""
-    async with get_async_session() as session:
+    async with get_async_session(tenant_id) as session:
         job = await session.get(ImportJob, UUID(job_id))
         if job:
             job.status = ImportJobStatus.FAILED
@@ -187,54 +195,71 @@ async def _process_customer_import(
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Process customer import job."""
-    async with get_async_session() as session:
-        # Get the job
-        job = await session.get(ImportJob, UUID(job_id))
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+    previous_tenant = get_current_tenant_id()
+    set_current_tenant_id(tenant_id)
+    try:
+        async with get_async_session(tenant_id) as session:
+            # Get the job
+            job = await session.get(ImportJob, UUID(job_id))
+            if not job:
+                raise ValueError(f"Job {job_id} not found")
 
-        # Update status
-        job.status = ImportJobStatus.IN_PROGRESS
-        job.started_at = datetime.now(UTC)
-        await session.commit()
-
-        # Read file and process
-        file_ext = Path(file_path).suffix.lower()
-        chunk_size = (config or {}).get("chunk_size", DEFAULT_CHUNK_SIZE)
-
-        try:
-            if file_ext == ".csv":
-                result = await _process_csv_in_chunks(
-                    session, job, file_path, tenant_id, user_id, ImportJobType.CUSTOMERS, chunk_size
-                )
-            elif file_ext == ".json":
-                result = await _process_json_in_chunks(
-                    session, job, file_path, tenant_id, user_id, ImportJobType.CUSTOMERS, chunk_size
-                )
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}")
-
-            # Update job status
-            if result["failed_records"] == 0:
-                job.status = ImportJobStatus.COMPLETED
-            else:
-                job.status = ImportJobStatus.PARTIALLY_COMPLETED
-
-            job.completed_at = datetime.now(UTC)
-            job.successful_records = result["successful_records"]
-            job.failed_records = result["failed_records"]
-            job.processed_records = result["total_records"]
-            job.summary = result
-
+            # Update status
+            job.status = ImportJobStatus.IN_PROGRESS
+            job.started_at = datetime.now(UTC)
             await session.commit()
-            return result
 
-        except Exception as e:
-            job.status = ImportJobStatus.FAILED
-            job.error_message = str(e)
-            job.completed_at = datetime.now(UTC)
-            await session.commit()
-            raise
+            # Read file and process
+            file_ext = Path(file_path).suffix.lower()
+            chunk_size = (config or {}).get("chunk_size", DEFAULT_CHUNK_SIZE)
+
+            try:
+                if file_ext == ".csv":
+                    result = await _process_csv_in_chunks(
+                        session,
+                        job,
+                        file_path,
+                        tenant_id,
+                        user_id,
+                        ImportJobType.CUSTOMERS,
+                        chunk_size,
+                    )
+                elif file_ext == ".json":
+                    result = await _process_json_in_chunks(
+                        session,
+                        job,
+                        file_path,
+                        tenant_id,
+                        user_id,
+                        ImportJobType.CUSTOMERS,
+                        chunk_size,
+                    )
+                else:
+                    raise ValueError(f"Unsupported file format: {file_ext}")
+
+                # Update job status
+                if result["failed_records"] == 0:
+                    job.status = ImportJobStatus.COMPLETED
+                else:
+                    job.status = ImportJobStatus.PARTIALLY_COMPLETED
+
+                job.completed_at = datetime.now(UTC)
+                job.successful_records = result["successful_records"]
+                job.failed_records = result["failed_records"]
+                job.processed_records = result["total_records"]
+                job.summary = result
+
+                await session.commit()
+                return result
+
+            except Exception as e:
+                job.status = ImportJobStatus.FAILED
+                job.error_message = str(e)
+                job.completed_at = datetime.now(UTC)
+                await session.commit()
+                raise
+    finally:
+        set_current_tenant_id(previous_tenant)
 
 
 async def _process_csv_in_chunks(
@@ -563,33 +588,36 @@ async def _process_invoice_import(
     - purchase_order: string (optional)
     - notes: text (optional)
     """
-    from ..db import AsyncSessionLocal
+    previous_tenant = get_current_tenant_id()
+    set_current_tenant_id(tenant_id)
+    try:
+        async with get_async_session(tenant_id) as session:
+            # Get job
+            job = await session.get(ImportJob, job_id)
+            if not job:
+                raise ValueError(f"Job {job_id} not found")
 
-    async with AsyncSessionLocal() as session:
-        # Get job
-        job = await session.get(ImportJob, job_id)
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+            # Get file format
+            file_format = "csv"
+            if file_path.endswith(".json"):
+                file_format = "json"
 
-        # Get file format
-        file_format = "csv"
-        if file_path.endswith(".json"):
-            file_format = "json"
+            # Get chunk size from config
+            chunk_size = (config or {}).get("chunk_size", 100)
 
-        # Get chunk size from config
-        chunk_size = (config or {}).get("chunk_size", 100)
+            # Process based on file format
+            if file_format == "csv":
+                result = await _process_csv_in_chunks(
+                    session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
+                )
+            else:
+                result = await _process_json_in_chunks(
+                    session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
+                )
 
-        # Process based on file format
-        if file_format == "csv":
-            result = await _process_csv_in_chunks(
-                session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
-            )
-        else:
-            result = await _process_json_in_chunks(
-                session, job, file_path, tenant_id, user_id, ImportJobType.INVOICES, chunk_size
-            )
-
-        return result
+            return result
+    finally:
+        set_current_tenant_id(previous_tenant)
 
 
 async def _process_subscription_import(
@@ -714,15 +742,20 @@ async def _process_chunk_data(
     config: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Process a chunk of data for any job type."""
-    async with get_async_session() as session:
-        job = await session.get(ImportJob, UUID(job_id))
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+    previous_tenant = get_current_tenant_id()
+    set_current_tenant_id(tenant_id)
+    try:
+        async with get_async_session(tenant_id) as session:
+            job = await session.get(ImportJob, UUID(job_id))
+            if not job:
+                raise ValueError(f"Job {job_id} not found")
 
-        job_type_enum = ImportJobType(job_type)
-        result = await _process_data_chunk(session, job, chunk_data, job_type_enum, tenant_id)
+            job_type_enum = ImportJobType(job_type)
+            result = await _process_data_chunk(session, job, chunk_data, job_type_enum, tenant_id)
 
-        return result
+            return result
+    finally:
+        set_current_tenant_id(previous_tenant)
 
 
 @app.task  # type: ignore[misc]  # Celery decorator is untyped
@@ -736,7 +769,7 @@ def check_import_health() -> dict[str, Any]:
     import asyncio
 
     async def _check_health() -> Any:
-        async with get_async_session() as session:
+        async with get_async_session(bypass_rls=True) as session:
             from sqlalchemy import func, select
 
             # Count jobs by status

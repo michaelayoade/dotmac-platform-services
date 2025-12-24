@@ -8,6 +8,7 @@ from typing import cast
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.core.rls_middleware import RLSContextManager
 from dotmac.platform.db import AsyncSessionLocal
 from dotmac.platform.settings import settings
 from dotmac.platform.user_management.service import UserService
@@ -30,27 +31,28 @@ async def ensure_default_admin_user(session_factory: SessionFactory | None = Non
     factory: SessionFactory = cast(SessionFactory, session_factory or AsyncSessionLocal)
 
     async with factory() as session:
-        service = UserService(session)
+        async with RLSContextManager(session, bypass_rls=True):
+            service = UserService(session)
 
-        existing = await service.get_user_by_username(username)
-        if existing:
-            return
+            existing = await service.get_user_by_username(username)
+            if existing:
+                return
 
-        try:
-            user = await service.create_user(
-                username=username,
-                email=email,
-                password=password,
-                full_name="Development Administrator",
-                roles=["platform_admin"],
-                tenant_id=None,
-            )
-        except ValueError:
-            return
+            try:
+                user = await service.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    full_name="Development Administrator",
+                    roles=["platform_admin"],
+                    tenant_id=None,
+                )
+            except ValueError:
+                return
 
-        user.is_superuser = True
-        user.is_platform_admin = True
-        user.is_verified = True
+            user.is_superuser = True
+            user.is_platform_admin = True
+            user.is_verified = True
 
-        await session.commit()
-        logger.info("auth.default_admin.created", username=username, email=email)
+            await session.commit()
+            logger.info("auth.default_admin.created", username=username, email=email)

@@ -225,8 +225,7 @@ async def create_tenant(
 
         if oss_overrides:
             for service_name, overrides in oss_overrides.items():
-                service_enum = OSSService(service_name)
-                await update_service_config(session, tenant.id, service_enum, overrides)
+                await update_service_config(tenant.id, service_name, overrides)
 
         return _build_tenant_response(tenant, include_sensitive=True)
     except TenantAlreadyExistsError as e:

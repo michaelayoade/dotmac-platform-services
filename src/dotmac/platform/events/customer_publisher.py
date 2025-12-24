@@ -1,7 +1,7 @@
 """
 Customer Event Publisher for Real-Time Updates.
 
-Publishes customer-related events to Redis pub/sub for GraphQL subscriptions.
+Publishes customer-related events to Redis pub/sub for real-time subscribers.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 
 class CustomerEventPublisher:
     """
-    Publishes customer-related events to Redis for real-time GraphQL subscriptions.
+    Publishes customer-related events to Redis for real-time subscribers.
 
     Uses Redis pub/sub to broadcast events to all connected WebSocket clients
     subscribed to specific customer channels.

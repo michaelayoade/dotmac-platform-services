@@ -9,7 +9,7 @@ Provides business logic for:
 - Quota usage tracking and overage billing
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -490,7 +490,7 @@ class LicensingFrameworkService:
         pricing = await self.calculate_plan_price(plan_id, billing_cycle, addon_module_ids)
 
         # Determine trial dates
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         if start_trial and plan.trial_days > 0:
             trial_start = now
             trial_end = now + timedelta(days=plan.trial_days)
@@ -809,7 +809,7 @@ class LicensingFrameworkService:
             return False
 
         # Check if expired (trial or promotional)
-        if sub_module.expires_at and sub_module.expires_at < datetime.utcnow():
+        if sub_module.expires_at and sub_module.expires_at < datetime.now(UTC):
             return False
 
         # If checking specific capability
@@ -856,7 +856,7 @@ class LicensingFrameworkService:
         if not subscription:
             return {}
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         capabilities = {}
 
         for sub_module in subscription.active_modules:
@@ -963,8 +963,8 @@ class LicensingFrameworkService:
                 id=uuid4(),
                 subscription_id=subscription.id,
                 quota_id=quota.id,
-                period_start=datetime.utcnow(),
-                period_end=self._calculate_quota_period_end(datetime.utcnow(), quota.reset_period),
+                period_start=datetime.now(UTC),
+                period_end=self._calculate_quota_period_end(datetime.now(UTC), quota.reset_period),
                 allocated_quantity=allocation.included_quantity,
                 current_usage=0,
                 overage_quantity=0,
@@ -976,7 +976,7 @@ class LicensingFrameworkService:
         assert usage is not None
 
         # Check if quota period needs reset
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         if usage.period_end and usage.period_end < now:
             # Reset usage for new period
             usage.period_start = now
@@ -1037,15 +1037,7 @@ class LicensingFrameworkService:
                 "overage_charge": float,
             }
         """
-        # Check quota first
-        check = await self.check_quota(tenant_id, quota_code, quantity)
-        if not check["allowed"]:
-            raise QuotaExceededError(
-                f"Quota {quota_code} exceeded. Allocated: {check['allocated']}, "
-                f"Current: {check['current']}, Requested: {quantity}"
-            )
-
-        # Get subscription and usage
+        # Get subscription and usage with row-level locking to prevent races
         result = await self.db.execute(
             select(TenantSubscription)
             .where(
@@ -1073,26 +1065,73 @@ class LicensingFrameworkService:
             raise ValueError(f"Quota definition for '{quota_code}' not found")
 
         result = await self.db.execute(
-            select(SubscriptionQuotaUsage).where(
+            select(PlanQuotaAllocation).where(
+                and_(
+                    PlanQuotaAllocation.plan_id == subscription.plan_id,
+                    PlanQuotaAllocation.quota_id == quota.id,
+                )
+            )
+        )
+        allocation = result.scalar_one_or_none()
+        if not allocation:
+            raise QuotaExceededError(
+                f"Quota {quota_code} exceeded. Allocated: 0, Current: 0, Requested: {quantity}"
+            )
+
+        result = await self.db.execute(
+            select(SubscriptionQuotaUsage)
+            .where(
                 and_(
                     SubscriptionQuotaUsage.subscription_id == subscription.id,
                     SubscriptionQuotaUsage.quota_id == quota.id,
                 )
             )
+            .with_for_update()
         )
         usage = cast(SubscriptionQuotaUsage | None, result.scalar_one_or_none())
-        if usage is None:
-            raise ValueError(f"Quota usage for '{quota_code}' not found")
+        if not usage:
+            usage = SubscriptionQuotaUsage(
+                id=uuid4(),
+                subscription_id=subscription.id,
+                quota_id=quota.id,
+                period_start=datetime.now(UTC),
+                period_end=self._calculate_quota_period_end(datetime.now(UTC), quota.reset_period),
+                allocated_quantity=allocation.included_quantity,
+                current_usage=0,
+                overage_quantity=0,
+                overage_charges=0.0,
+            )
+            self.db.add(usage)
+            await self.db.flush()
+
+        now = datetime.now(UTC)
+        if usage.period_end and usage.period_end < now:
+            usage.period_start = now
+            usage.period_end = self._calculate_quota_period_end(now, quota.reset_period)
+            usage.current_usage = 0
+            usage.overage_quantity = 0
+            usage.overage_charges = 0.0
+            await self.db.flush()
+
+        allocated = allocation.included_quantity
+        if allocated != -1:
+            available = allocated - usage.current_usage
+            if available < quantity and not allocation.allow_overage:
+                raise QuotaExceededError(
+                    f"Quota {quota_code} exceeded. Allocated: {allocated}, "
+                    f"Current: {usage.current_usage}, Requested: {quantity}"
+                )
 
         # Update usage
         usage.current_usage += quantity
         overage = 0
         overage_charge = 0.0
 
-        if check["allocated"] != -1 and usage.current_usage > check["allocated"]:
-            overage = usage.current_usage - check["allocated"]
+        if allocated != -1 and usage.current_usage > allocated:
+            overage = usage.current_usage - allocated
             usage.overage_quantity = overage
-            overage_charge = overage * check["overage_rate"]
+            overage_rate = allocation.overage_rate_override or quota.overage_rate
+            overage_charge = overage * (overage_rate or 0.0)
             usage.overage_charges += overage_charge
 
         # Log usage

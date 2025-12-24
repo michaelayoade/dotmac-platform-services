@@ -4,12 +4,14 @@ Licensing API Router.
 REST API endpoints for software licensing, activation, and compliance.
 """
 
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Annotated, Any
+
+from pydantic import BaseModel as PydanticBaseModel
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.core import UserInfo
@@ -20,6 +22,7 @@ from .models import (
     License,
     LicenseOrder,
     LicenseTemplate,
+    LicenseStatus,
 )
 from .schemas import (
     ActivationCreate,
@@ -108,6 +111,54 @@ def _serialize_template(template: LicenseTemplate) -> LicenseTemplateResponse:
     return LicenseTemplateResponse.model_validate(payload)
 
 
+def _serialize_license(license_obj: License) -> LicenseResponse:
+    features_raw = getattr(license_obj, "features", None)
+    if isinstance(features_raw, dict):
+        features_raw = features_raw.get("features", [])
+    if features_raw is None:
+        features_raw = []
+
+    restrictions_raw = getattr(license_obj, "restrictions", None)
+    if isinstance(restrictions_raw, dict):
+        restrictions_raw = restrictions_raw.get("restrictions", [])
+    if restrictions_raw is None:
+        restrictions_raw = []
+
+    metadata_raw = getattr(license_obj, "extra_data", None)
+    if metadata_raw is None:
+        metadata_raw = getattr(license_obj, "metadata", {}) or {}
+
+    payload = {
+        "id": license_obj.id,
+        "license_key": license_obj.license_key,
+        "product_id": license_obj.product_id,
+        "product_name": license_obj.product_name,
+        "product_version": license_obj.product_version,
+        "license_type": license_obj.license_type,
+        "license_model": license_obj.license_model,
+        "customer_id": str(license_obj.customer_id) if license_obj.customer_id else None,
+        "reseller_id": license_obj.reseller_id,
+        "issued_to": license_obj.issued_to,
+        "max_activations": license_obj.max_activations,
+        "current_activations": license_obj.current_activations,
+        "features": features_raw,
+        "restrictions": restrictions_raw,
+        "expiry_date": license_obj.expiry_date,
+        "maintenance_expiry": license_obj.maintenance_expiry,
+        "auto_renewal": license_obj.auto_renewal,
+        "trial_period_days": license_obj.trial_period_days,
+        "grace_period_days": license_obj.grace_period_days,
+        "metadata": metadata_raw,
+        "status": license_obj.status,
+        "issued_date": license_obj.issued_date,
+        "activation_date": license_obj.activation_date,
+        "created_at": license_obj.created_at,
+        "updated_at": license_obj.updated_at,
+    }
+
+    return LicenseResponse.model_validate(payload)
+
+
 def _serialize_order(order: LicenseOrder) -> LicenseOrderResponse:
     features_raw = order.custom_features
     if isinstance(features_raw, dict):
@@ -189,8 +240,9 @@ async def get_licenses(
         query = query.where(License.license_type == license_type)
 
     # Get total count
-    count_query = select(License).where(License.tenant_id == service.tenant_id)
-    total = len((await service.session.execute(count_query)).scalars().all())
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await service.session.execute(count_query)
+    total = total_result.scalar() or 0
 
     # Apply pagination
     query = query.limit(limit).offset(offset)
@@ -198,7 +250,7 @@ async def get_licenses(
     licenses = result.scalars().all()
 
     return {
-        "data": [LicenseResponse.model_validate(lic) for lic in licenses],
+        "data": [_serialize_license(lic) for lic in licenses],
         "total": total,
         "limit": limit,
         "offset": offset,
@@ -215,7 +267,7 @@ async def get_license(
     if not license_obj:
         raise HTTPException(status_code=404, detail="License not found")
 
-    return {"data": LicenseResponse.model_validate(license_obj)}
+    return {"data": _serialize_license(license_obj)}
 
 
 @router.get("/licenses/by-key/{license_key}", response_model=dict[str, LicenseResponse])
@@ -228,7 +280,7 @@ async def get_license_by_key(
     if not license_obj:
         raise HTTPException(status_code=404, detail="License not found")
 
-    return {"data": LicenseResponse.model_validate(license_obj)}
+    return {"data": _serialize_license(license_obj)}
 
 
 @router.post(
@@ -242,7 +294,7 @@ async def create_license(
     try:
         license_obj = await service.create_license(data)
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except Exception as e:
         await service.session.rollback()
         logger.error("Failed to create license", error=str(e))
@@ -259,7 +311,7 @@ async def update_license(
     try:
         license_obj = await service.update_license(license_id, data)
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -278,7 +330,7 @@ async def renew_license(
     try:
         license_obj = await service.renew_license(license_id, data)
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -299,7 +351,7 @@ async def suspend_license(
             license_id, data.get("reason", "No reason provided")
         )
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -320,7 +372,7 @@ async def revoke_license(
             license_id, data.get("reason", "No reason provided")
         )
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -339,12 +391,47 @@ async def transfer_license(
     try:
         license_obj = await service.transfer_license(license_id, data)
         await service.session.commit()
-        return {"data": LicenseResponse.model_validate(license_obj)}
+        return {"data": _serialize_license(license_obj)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         await service.session.rollback()
         logger.error("Failed to transfer license", error=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/licenses/{license_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_license(
+    license_id: str,
+    service: Annotated[LicensingService, Depends(get_licensing_service)],
+) -> None:
+    """Permanently delete a license and all its activations."""
+    try:
+        await service.delete_license(license_id)
+        await service.session.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        await service.session.rollback()
+        logger.error("Failed to delete license", error=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/licenses/{license_id}/reactivate", response_model=dict[str, LicenseResponse])
+async def reactivate_license(
+    license_id: str,
+    service: Annotated[LicensingService, Depends(get_licensing_service)],
+) -> Any:
+    """Reactivate a suspended license."""
+    try:
+        license_obj = await service.reactivate_license(license_id)
+        await service.session.commit()
+        return {"data": _serialize_license(license_obj)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        await service.session.rollback()
+        logger.error("Failed to reactivate license", error=str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -392,6 +479,11 @@ async def get_activations(
     if device_fingerprint:
         query = query.where(Activation.device_fingerprint == device_fingerprint)
 
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await service.session.execute(count_query)
+    total = total_result.scalar() or 0
+
     # Apply pagination
     query = query.limit(limit).offset(offset)
     result = await service.session.execute(query)
@@ -399,7 +491,7 @@ async def get_activations(
 
     return {
         "data": [ActivationResponse.model_validate(act) for act in activations],
-        "total": len(activations),
+        "total": total,
         "limit": limit,
         "offset": offset,
     }
@@ -436,7 +528,7 @@ async def validate_activation(
     response = ActivationValidationResponse(
         valid=valid,
         activation=ActivationResponse.model_validate(activation) if activation else None,
-        license=LicenseResponse.model_validate(license_obj) if license_obj else None,
+        license=_serialize_license(license_obj) if license_obj else None,
     )
 
     return {"data": response}
@@ -602,6 +694,42 @@ async def update_template(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+class CreateFromTemplateRequest(PydanticBaseModel):
+    """Request body for creating a license from a template."""
+
+    customer_id: str | None = None
+    seats: int | None = None
+    expires_at: datetime | None = None
+
+
+@router.post(
+    "/templates/{template_id}/create",
+    response_model=dict[str, LicenseResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_license_from_template(
+    template_id: str,
+    data: CreateFromTemplateRequest,
+    service: Annotated[LicensingService, Depends(get_licensing_service)],
+) -> Any:
+    """Create a new license from a template."""
+    try:
+        license_obj = await service.create_license_from_template(
+            template_id=template_id,
+            customer_id=data.customer_id,
+            seats=data.seats,
+            expires_at=data.expires_at,
+        )
+        await service.session.commit()
+        return {"data": _serialize_license(license_obj)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        await service.session.rollback()
+        logger.error("Failed to create license from template", error=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ==================== License Orders ====================
 
 
@@ -745,13 +873,18 @@ async def validate_license_key(
             )
         }
 
-    is_valid = license_obj.status == "ACTIVE"
+    status_value = (
+        license_obj.status.value
+        if isinstance(license_obj.status, LicenseStatus)
+        else str(license_obj.status)
+    )
+    is_valid = status_value == LicenseStatus.ACTIVE.value
 
     return {
         "data": LicenseValidationResponse(
             valid=is_valid,
-            license=LicenseResponse.model_validate(license_obj) if is_valid else None,
-            validation_details={"status": license_obj.status.value},
+            license=_serialize_license(license_obj) if is_valid else None,
+            validation_details={"status": status_value},
         )
     }
 
