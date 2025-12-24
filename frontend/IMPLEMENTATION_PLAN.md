@@ -243,19 +243,31 @@ const { data, isLoading } = useQuery({
 - [x] Customer CRM
 - [x] Deployment management
 - [x] Settings pages
-- [ ] Notifications
+- [x] Notifications
 
-### Phase 4: Polish
+### Phase 4: Extended Features
+- [x] RBAC roles & permissions management
+- [x] Domain verification UI
+- [x] Branding customization
+- [x] API key management
+- [x] Team invitation modal
+- [x] Full billing suite (subscriptions, payment methods, receipts, usage)
+- [x] Deployment configuration and logs
+- [x] MFA setup/management
+- [x] Session management
+- [x] Password change
+- [x] Forgot/reset password flows
+
+### Phase 5: Portals & Onboarding
+- [x] Public signup and email verification
+- [x] Partner portal (dashboard, referrals, commissions, statements, profile)
+- [x] Tenant portal (dashboard, team, billing, usage, settings)
+
+### Phase 6: Polish
 - [ ] Error boundaries and loading states
 - [ ] Accessibility audit
 - [ ] Performance optimization
 - [ ] E2E testing with Playwright
-- [ ] Documentation
-
-### Phase 5: Portals & Onboarding
-- [x] Public signup and email verification
-- [x] Partner portal
-- [x] Tenant portal
 
 ---
 
