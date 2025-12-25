@@ -89,7 +89,6 @@ except ImportError:
 
 # Customer and contacts
 from dotmac.platform.contacts.models import *  # noqa: F401,F403,E402
-from dotmac.platform.customer_management.models import *  # noqa: F401,F403,E402
 from dotmac.platform.partner_management.models import *  # noqa: F401,F403,E402
 
 # Analytics and audit
@@ -131,12 +130,7 @@ try:
 except ImportError:
     pass
 
-# Orchestration and Workflows
-try:
-    from dotmac.platform.orchestration.models import *  # noqa: F401,F403,E402
-except ImportError:
-    pass
-
+# Workflows
 try:
     from dotmac.platform.workflows.models import *  # noqa: F401,F403,E402
 except ImportError:
@@ -148,20 +142,9 @@ try:
 except ImportError:
     pass
 
-try:
-    from dotmac.platform.fault_management.models import *  # noqa: F401,F403,E402
-except ImportError:
-    pass
-
 # Jobs
 try:
     from dotmac.platform.jobs.models import *  # noqa: F401,F403,E402
-except ImportError:
-    pass
-
-# CRM
-try:
-    from dotmac.platform.crm.models import *  # noqa: F401,F403,E402
 except ImportError:
     pass
 

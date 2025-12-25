@@ -41,26 +41,24 @@ class WorkflowDeploymentService:
 
     async def provision_tenant(
         self,
-        customer_id: int | str,
+        tenant_id: int | str,
         license_key: str,
         deployment_type: str,
-        tenant_id: int,
         environment: str = "production",
         region: str | None = None,
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Provision a new tenant instance for a customer.
+        Provision a new tenant instance.
 
         This method provisions a complete tenant environment using the deployment
         orchestration system. It creates infrastructure, deploys services, and
         configures endpoints based on the specified deployment template.
 
         Args:
-            customer_id: Customer ID (UUID or integer)
             license_key: License key for the tenant
             deployment_type: Type of deployment (e.g., "kubernetes", "docker_compose")
-            tenant_id: Tenant ID (integer)
+            tenant_id: Tenant ID (integer or string)
             environment: Environment name (default: "production")
             region: Geographic region (e.g., "us-east-1", "eu-west-1")
             config: Custom configuration overrides
@@ -94,12 +92,9 @@ class WorkflowDeploymentService:
             RuntimeError: If provisioning fails
         """
         logger.info(
-            f"Provisioning tenant for customer {customer_id}, "
-            f"type {deployment_type}, tenant_id {tenant_id}"
+            f"Provisioning tenant {tenant_id}, type {deployment_type}"
         )
 
-        # Convert customer_id and tenant_id to integers
-        customer_id_int = int(customer_id) if isinstance(customer_id, str) else customer_id
         tenant_id_int = int(tenant_id) if isinstance(tenant_id, str) else tenant_id
 
         # Map deployment_type string to DeploymentBackend enum
@@ -146,8 +141,8 @@ class WorkflowDeploymentService:
         provision_config = config or {}
         provision_config.update(
             {
-                "customer_id": customer_id_int,
                 "license_key": license_key,
+                "tenant_id": tenant_id_int,
                 "tenant_name": f"tenant-{tenant_id_int}",
                 "tenant_subdomain": f"tenant-{tenant_id_int}",
             }
@@ -169,11 +164,11 @@ class WorkflowDeploymentService:
             allocated_memory_gb=template.memory_gb,
             allocated_storage_gb=template.storage_gb,
             tags={
-                "customer_id": str(customer_id_int),
+                "tenant_id": str(tenant_id_int),
                 "license_key": license_key,
                 "provisioned_by": "workflow",
             },
-            notes=f"Provisioned for customer {customer_id_int} via workflow",
+            notes=f"Provisioned tenant {tenant_id_int} via workflow",
         )
 
         # Execute provisioning via DeploymentService
@@ -248,7 +243,7 @@ class WorkflowDeploymentService:
     async def schedule_deployment(
         self,
         order_id: int | str,
-        customer_id: int | str,
+        tenant_id: int | str,
         priority: str,
         scheduled_date: str | None = None,
     ) -> dict[str, Any]:
@@ -261,7 +256,7 @@ class WorkflowDeploymentService:
 
         Args:
             order_id: Order ID
-            customer_id: Customer ID
+            tenant_id: Tenant ID
             priority: Priority level ("high", "normal", "low")
             scheduled_date: ISO format date/time for deployment (optional, defaults to immediate)
 
@@ -278,7 +273,7 @@ class WorkflowDeploymentService:
             "Scheduling deployment for order",
             extra={
                 "order_id": order_id,
-                "customer_id": customer_id,
+                "tenant_id": tenant_id,
                 "priority": priority,
                 "scheduled_date": scheduled_date,
             },
@@ -304,19 +299,10 @@ class WorkflowDeploymentService:
             if scheduled_at <= datetime.utcnow():
                 raise ValueError("scheduled_date must be in the future")
 
-            # Retrieve customer to get tenant_id
-            from dotmac.platform.customer_management.service import CustomerService
-
-            customer_service = CustomerService(self.db)
-            customer = await customer_service.get_customer(int(customer_id))
-            if customer is None:
-                raise ValueError(f"Customer {customer_id} not found")
-            tenant_id = customer.tenant_id
-
             # Create deployment schedule using DeploymentService
             # We'll use the 'provision' operation as default for order deployments
             schedule_result = await self.deployment_service.schedule_deployment(
-                tenant_id=tenant_id,
+                tenant_id=str(tenant_id),
                 operation="provision",
                 scheduled_at=scheduled_at,
                 provision_request=None,  # Will be populated from order details when executed
@@ -324,7 +310,7 @@ class WorkflowDeploymentService:
                 triggered_by=None,  # System-triggered
                 metadata={
                     "order_id": str(order_id),
-                    "customer_id": str(customer_id),
+                    "tenant_id": str(tenant_id),
                     "priority": priority,
                     "workflow": "deployment_workflow",
                 },
@@ -342,7 +328,7 @@ class WorkflowDeploymentService:
             return {
                 "deployment_schedule_id": schedule_result["schedule_id"],
                 "order_id": str(order_id),
-                "customer_id": str(customer_id),
+                "tenant_id": str(tenant_id),
                 "priority": priority,
                 "scheduled_date": scheduled_at.isoformat(),
                 "status": "scheduled",
@@ -357,7 +343,7 @@ class WorkflowDeploymentService:
                 "Failed to schedule deployment",
                 extra={
                     "order_id": order_id,
-                    "customer_id": customer_id,
+                    "tenant_id": tenant_id,
                     "error": str(e),
                 },
             )
@@ -365,24 +351,24 @@ class WorkflowDeploymentService:
 
     async def provision_partner_tenant(
         self,
-        customer_id: int | str,
+        tenant_id: int | str,
         partner_id: int | str,
         license_key: str,
         deployment_type: str,
         white_label_config: dict[str, Any] | None = None,
-        tenant_id: int | None = None,
+        partner_tenant_id: int | None = None,
         environment: str = "production",
         region: str | None = None,
     ) -> dict[str, Any]:
         """
-        Provision a white-labeled tenant for a partner's customer.
+        Provision a white-labeled tenant for a partner's tenant.
 
         This method provisions a tenant instance with partner-specific
         white-label branding and configuration. The deployment uses the
         standard provisioning flow but applies partner branding and settings.
 
         Args:
-            customer_id: Customer ID (UUID or string)
+            tenant_id: Tenant ID (UUID or string)
             partner_id: Partner ID (UUID or string)
             license_key: License key for the tenant
             deployment_type: Deployment backend type (kubernetes, docker_compose, etc)
@@ -394,7 +380,7 @@ class WorkflowDeploymentService:
                 - custom_domain: Custom domain (optional)
                 - support_email: Partner support email
                 - support_phone: Partner support phone
-            tenant_id: Tenant ID (integer)
+            partner_tenant_id: Tenant ID (integer)
             environment: Environment (production, staging, development)
             region: Deployment region (optional)
 
@@ -414,13 +400,13 @@ class WorkflowDeploymentService:
             }
 
         Raises:
-            ValueError: If partner/customer not found or invalid configuration
+            ValueError: If partner/tenant not found or invalid configuration
             RuntimeError: If provisioning fails
         """
         from uuid import UUID
 
         logger.info(
-            f"Provisioning partner tenant for customer {customer_id}, "
+            f"Provisioning partner tenant for tenant {tenant_id}, "
             f"partner {partner_id}, deployment_type {deployment_type}"
         )
 
@@ -429,8 +415,8 @@ class WorkflowDeploymentService:
             partner_uuid = (
                 UUID(partner_id) if isinstance(partner_id, str) else UUID(str(partner_id))
             )
-            customer_uuid = (
-                UUID(customer_id) if isinstance(customer_id, str) else UUID(str(customer_id))
+            tenant_uuid = (
+                UUID(tenant_id) if isinstance(tenant_id, str) else UUID(str(tenant_id))
             )
         except (ValueError, AttributeError) as e:
             raise ValueError(f"Invalid ID format: {e}") from e
@@ -457,11 +443,11 @@ class WorkflowDeploymentService:
                     f"Partner {partner_id} is not active (status: {partner.status.value})"
                 )
 
-            # Verify customer belongs to partner
+            # Verify tenant belongs to partner
             account_result = await self.db.execute(
                 select(PartnerAccount).where(
                     PartnerAccount.partner_id == partner_uuid,
-                    PartnerAccount.customer_id == customer_uuid,
+                    PartnerAccount.customer_id == tenant_uuid,
                     PartnerAccount.is_active == True,  # noqa: E712
                 )
             )
@@ -470,12 +456,12 @@ class WorkflowDeploymentService:
             if not partner_account:
                 raise ValueError(
                     f"No active partner account found linking partner {partner_id} "
-                    f"to customer {customer_id}"
+                    f"to tenant {tenant_id}"
                 )
 
             # Use tenant_id from partner if not provided
-            if not tenant_id:
-                tenant_id = int(partner.tenant_id) if partner.tenant_id.isdigit() else None
+            if not partner_tenant_id:
+                partner_tenant_id = int(partner.tenant_id) if partner.tenant_id.isdigit() else None
 
             # Build white-label configuration
             white_label = white_label_config or {}
@@ -502,10 +488,9 @@ class WorkflowDeploymentService:
 
             # Use standard provisioning with partner configuration
             tenant_info = await self.provision_tenant(
-                customer_id=customer_uuid,
                 license_key=license_key,
                 deployment_type=deployment_type,
-                tenant_id=tenant_id,
+                tenant_id=partner_tenant_id or tenant_id,
                 environment=environment,
                 region=region,
                 config=partner_config,
@@ -517,12 +502,12 @@ class WorkflowDeploymentService:
                 tenant_url = f"https://{custom_domain}"
             else:
                 # Generate subdomain based on partner and customer
-                subdomain = f"{partner.partner_number.lower()}-{customer_uuid.hex[:8]}"
+                subdomain = f"{partner.partner_number.lower()}-{tenant_uuid.hex[:8]}"
                 tenant_url = _format_url(
                     settings.urls.partner_subdomain_template,
                     subdomain=subdomain,
                     partner_number=partner.partner_number,
-                    customer_hash=customer_uuid.hex[:8],
+                    tenant_hash=tenant_uuid.hex[:8],
                 )
 
             # Update tenant_info with partner-specific details
@@ -544,7 +529,7 @@ class WorkflowDeploymentService:
 
             logger.info(
                 f"Partner tenant provisioned successfully: tenant={tenant_info['tenant_id']}, "
-                f"partner={partner_id}, customer={customer_id}, "
+                f"partner={partner_id}, tenant={tenant_id}, "
                 f"white_label={bool(white_label)}"
             )
 

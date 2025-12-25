@@ -347,7 +347,7 @@ class TemplateContextBuilder:
     def invoice_generated(
         invoice_number: str,
         issue_date: datetime,
-        due_date: datetime,
+        due_date: datetime | None,
         amount: int,
         payment_method: str,
         invoice_url: str,
@@ -374,6 +374,42 @@ class TemplateContextBuilder:
             "amount_formatted": _format_currency(amount, currency),
             "payment_method": payment_method,
             "invoice_url": invoice_url,
+            "currency": currency,
+        })
+        return context
+
+    @staticmethod
+    def payment_reminder(
+        invoice_number: str,
+        due_date: datetime | None,
+        amount_due: int,
+        invoice_url: str,
+        status: str,
+        custom_message: str | None = None,
+        currency: str = "USD",
+    ) -> dict[str, Any]:
+        """
+        Build context for payment reminder email.
+
+        Args:
+            invoice_number: Invoice reference number
+            due_date: Payment due date
+            amount_due: Amount due in cents
+            invoice_url: URL to view/download invoice
+            status: Invoice status
+            custom_message: Optional custom message
+            currency: Currency code
+        """
+        context = TemplateContextBuilder.base_context()
+        context.update({
+            "invoice_number": invoice_number,
+            "due_date": due_date,
+            "amount_due": amount_due,
+            "amount_due_formatted": _format_currency(amount_due, currency),
+            "invoice_url": invoice_url,
+            "status": status,
+            "custom_message": custom_message,
+            "has_custom_message": bool(custom_message),
             "currency": currency,
         })
         return context

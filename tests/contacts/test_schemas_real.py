@@ -435,14 +435,12 @@ class TestContactSearchSchemas:
     def test_search_request_with_filters(self):
         """Test ContactSearchRequest with filters."""
         owner_id = uuid4()
-        customer_id = uuid4()
         label_ids = [uuid4(), uuid4()]
 
         search = ContactSearchRequest(
             query="john",
-            customer_id=customer_id,
             status=ContactStatus.ACTIVE,
-            stage=ContactStage.CUSTOMER,
+            stage=ContactStage.ACCOUNT,
             owner_id=owner_id,
             tags=["vip"],
             label_ids=label_ids,

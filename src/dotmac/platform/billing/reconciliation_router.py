@@ -25,6 +25,7 @@ from dotmac.platform.billing.reconciliation_schemas import (
     ReconciliationStart,
     ReconciliationSummary,
 )
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.billing.reconciliation_service import ReconciliationService
 from dotmac.platform.db import get_async_session
 
@@ -48,6 +49,7 @@ async def start_reconciliation(
     reconciliation_data: ReconciliationStart,
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.create"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ReconciliationResponse:
     """
     Start a new reconciliation session.
@@ -55,8 +57,9 @@ async def start_reconciliation(
     Requires: billing.reconciliation.create permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         reconciliation = await service.start_reconciliation_session(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             bank_account_id=reconciliation_data.bank_account_id,
             period_start=reconciliation_data.period_start,
             period_end=reconciliation_data.period_end,
@@ -82,6 +85,7 @@ async def start_reconciliation(
 async def list_reconciliations(
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.read"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
     bank_account_id: int | None = Query(None, description="Filter by bank account"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
     start_date: datetime | None = Query(None, description="Filter by start date"),
@@ -95,8 +99,9 @@ async def list_reconciliations(
     Requires: billing.reconciliation.read permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         result = await service.list_reconciliations(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             bank_account_id=bank_account_id,
             status=status_filter,
             start_date=start_date,
@@ -128,6 +133,7 @@ async def list_reconciliations(
 async def get_reconciliation_summary(
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.read"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
     bank_account_id: int | None = Query(None, description="Filter by bank account"),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
 ) -> ReconciliationSummary:
@@ -137,8 +143,9 @@ async def get_reconciliation_summary(
     Requires: billing.reconciliation.read permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         summary = await service.get_reconciliation_summary(
-            tenant_id=current_user.tenant_id, bank_account_id=bank_account_id, days=days
+            tenant_id=tenant_id, bank_account_id=bank_account_id, days=days
         )
         return ReconciliationSummary(**summary)
     except Exception as e:
@@ -156,6 +163,7 @@ async def get_reconciliation(
     reconciliation_id: int,
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.read"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ReconciliationResponse:
     """
     Get a specific reconciliation session.
@@ -163,8 +171,9 @@ async def get_reconciliation(
     Requires: billing.reconciliation.read permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         reconciliation = await service._get_reconciliation(
-            tenant_id=current_user.tenant_id, reconciliation_id=reconciliation_id
+            tenant_id=tenant_id, reconciliation_id=reconciliation_id
         )
         return ReconciliationResponse.model_validate(reconciliation)
     except ValueError as e:
@@ -191,6 +200,7 @@ async def add_reconciled_payment(
     payment_data: ReconcilePaymentRequest,
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.update"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ReconciliationResponse:
     """
     Add a payment to reconciliation session.
@@ -198,8 +208,9 @@ async def add_reconciled_payment(
     Requires: billing.reconciliation.update permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         reconciliation = await service.add_reconciled_payment(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             reconciliation_id=reconciliation_id,
             payment_id=payment_data.payment_id,
             user_id=current_user.user_id,
@@ -227,6 +238,7 @@ async def complete_reconciliation(
     completion_data: ReconciliationComplete,
     current_user: Annotated[UserInfo, Depends(require_permission("billing.reconciliation.update"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ReconciliationResponse:
     """
     Complete reconciliation session and calculate discrepancies.
@@ -234,8 +246,9 @@ async def complete_reconciliation(
     Requires: billing.reconciliation.update permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         reconciliation = await service.complete_reconciliation(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             reconciliation_id=reconciliation_id,
             user_id=current_user.user_id,
             notes=completion_data.notes,
@@ -264,6 +277,7 @@ async def approve_reconciliation(
         UserInfo, Depends(require_permission("billing.reconciliation.approve"))
     ],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> ReconciliationResponse:
     """
     Approve completed reconciliation (finance team only).
@@ -271,8 +285,9 @@ async def approve_reconciliation(
     Requires: billing.reconciliation.approve permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         reconciliation = await service.approve_reconciliation(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             reconciliation_id=reconciliation_id,
             user_id=current_user.user_id,
             notes=approval_data.notes,
@@ -301,6 +316,7 @@ async def retry_failed_payment(
     retry_request: PaymentRetryRequest,
     current_user: Annotated[UserInfo, Depends(require_permission("billing.payment.retry"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> PaymentRetryResponse:
     """
     Retry a failed payment with circuit breaker and recovery.
@@ -308,8 +324,9 @@ async def retry_failed_payment(
     Requires: billing.payment.retry permission
     """
     try:
+        enforce_tenant_access(tenant_id, current_user)
         result = await service.retry_failed_payment_with_recovery(
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             payment_id=retry_request.payment_id,
             user_id=current_user.user_id,
             max_attempts=retry_request.max_attempts,
@@ -334,12 +351,14 @@ async def retry_failed_payment(
 async def get_circuit_breaker_status(
     current_user: Annotated[UserInfo, Depends(require_permission("billing.admin"))],
     service: Annotated[ReconciliationService, Depends(get_reconciliation_service)],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> dict[str, Any]:
     """
     Get circuit breaker status.
 
     Requires: billing.admin permission
     """
+    enforce_tenant_access(tenant_id, current_user)
     return {
         "state": service.circuit_breaker.state,
         "failure_count": service.circuit_breaker.failure_count,

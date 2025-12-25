@@ -1,7 +1,5 @@
 // Authentication & Authorization Types
 
-import { DefaultSession, DefaultUser } from "next-auth";
-
 /**
  * User roles available in the system
  */
@@ -57,58 +55,31 @@ export type Permission =
   | "api_keys.revoke";
 
 /**
- * Permission configuration for a role
- */
-export interface RolePermissions {
-  role: UserRole;
-  permissions: Permission[];
-  inherits?: UserRole[];
-}
-
-/**
  * Extended user type with platform-specific fields
  */
-export interface PlatformUser extends DefaultUser {
+export interface PlatformUser {
   id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  role: UserRole;
-  permissions: Permission[];
-  tenantId: string;
-  tenantName: string;
-  tenantSlug: string;
-  status: "active" | "inactive" | "pending" | "suspended";
-  mfaEnabled: boolean;
-  lastLogin?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Extended session type
- */
-export interface PlatformSession extends DefaultSession {
-  user: PlatformUser;
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  tenantId: string;
-}
-
-/**
- * JWT token payload
- */
-export interface TokenPayload {
-  sub: string; // User ID
-  email: string;
-  name: string;
-  role: UserRole;
-  permissions: Permission[];
-  tenantId: string;
-  iat: number;
-  exp: number;
-  jti: string;
+  username?: string | null;
+  email?: string | null;
+  fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarUrl?: string | null;
+  roles: string[];
+  permissions: string[];
+  isPlatformAdmin: boolean;
+  tenantId?: string | null;
+  partnerId?: string | null;
+  managedTenantIds?: string[] | null;
+  mfaEnabled?: boolean;
+  mfaBackupCodesRemaining?: number;
+  activeOrganization?: {
+    id: string;
+    name: string;
+    slug?: string | null;
+    role?: string | null;
+    permissions?: string[];
+  } | null;
 }
 
 /**

@@ -129,6 +129,18 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         path="/",
     )
 
+    # Set CSRF token cookie (non-HttpOnly so JS can echo it in headers)
+    csrf_token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        max_age=7 * 24 * 60 * 60,
+        httponly=False,
+        secure=secure,
+        samesite=samesite,
+        path="/",
+    )
+
 
 def clear_auth_cookies(response: Response) -> None:
     """
@@ -139,6 +151,7 @@ def clear_auth_cookies(response: Response) -> None:
     """
     response.delete_cookie(key="access_token", path="/")
     response.delete_cookie(key="refresh_token", path="/")
+    response.delete_cookie(key="csrf_token", path="/")
 
 
 def get_token_from_cookie(request: Request, cookie_name: str) -> str | None:
@@ -1359,6 +1372,8 @@ async def logout(
             # Fall back to cookie
             token = get_token_from_cookie(request, "access_token")
 
+        refresh_token_value = get_token_from_cookie(request, "refresh_token")
+
         if token:
             # Get user info from token
             try:
@@ -1370,6 +1385,11 @@ async def logout(
                 return {"message": "Logout completed"}
         else:
             # No token found, just clear cookies
+            if refresh_token_value:
+                try:
+                    await jwt_service.revoke_token(refresh_token_value)
+                except Exception:
+                    logger.warning("Failed to revoke refresh token on logout", exc_info=True)
             clear_auth_cookies(response)
             return {"message": "Logout completed"}
 
@@ -1388,6 +1408,11 @@ async def logout(
                 await jwt_service.revoke_user_tokens(user_id)
             except Exception:
                 logger.warning("Failed to revoke user refresh tokens", exc_info=True)
+        elif refresh_token_value:
+            try:
+                await jwt_service.revoke_token(refresh_token_value)
+            except Exception:
+                logger.warning("Failed to revoke refresh token on logout", exc_info=True)
 
             logger.info(
                 "User logged out successfully", user_id=user_id, sessions_deleted=deleted_sessions
@@ -1519,6 +1544,18 @@ async def revoke_session(
                 detail="Cannot revoke current session. Use /logout instead.",
             )
 
+        # Revoke access token tied to the session (if present)
+        session_data = await session_manager.get_session(session_id)
+        if session_data and session_data.get("access_token"):
+            try:
+                await jwt_service.revoke_token(session_data["access_token"])
+            except Exception:
+                logger.warning(
+                    "Failed to revoke access token for session",
+                    session_id=session_id,
+                    user_id=user_info.user_id,
+                )
+
         # Delete the session
         deleted = await session_manager.delete_session(session_id)
 
@@ -1597,6 +1634,16 @@ async def revoke_all_sessions(
             )
 
             if session_id != current_session_id:
+                access_token = session_data.get("access_token")
+                if access_token:
+                    try:
+                        await jwt_service.revoke_token(access_token)
+                    except Exception:
+                        logger.warning(
+                            "Failed to revoke access token for session",
+                            session_id=session_id,
+                            user_id=user_info.user_id,
+                        )
                 deleted = await session_manager.delete_session(session_id)
                 if deleted:
                     revoked_count += 1

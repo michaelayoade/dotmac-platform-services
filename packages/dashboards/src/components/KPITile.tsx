@@ -20,6 +20,8 @@ export interface KPITileProps {
   title: string;
   /** KPI value */
   value: string | number;
+  /** KPI description/subtitle */
+  description?: string;
   /** Previous value for comparison */
   previousValue?: number;
   /** Current value as number (for change calculation) */
@@ -53,6 +55,7 @@ export interface KPITileProps {
 export function KPITile({
   title,
   value,
+  description,
   previousValue,
   currentValue,
   change: providedChange,
@@ -68,19 +71,26 @@ export function KPITile({
   let changeType = providedChangeType;
 
   if (change === undefined && previousValue !== undefined && currentValue !== undefined) {
-    change = ((currentValue - previousValue) / previousValue) * 100;
+    if (previousValue === 0) {
+      change = currentValue === 0 ? 0 : undefined;
+    } else {
+      change = ((currentValue - previousValue) / previousValue) * 100;
+    }
   }
 
-  if (changeType === undefined && change !== undefined) {
+  const hasValidChange = typeof change === "number" && Number.isFinite(change);
+  const changeText = hasValidChange ? Math.abs(change!).toFixed(1) : "";
+
+  if (changeType === undefined && hasValidChange && change !== undefined) {
     if (change > 0) changeType = "increase";
     else if (change < 0) changeType = "decrease";
     else changeType = "neutral";
   }
 
   const changeColors = {
-    increase: "text-green-600 bg-green-50",
-    decrease: "text-red-600 bg-red-50",
-    neutral: "text-gray-600 bg-gray-50",
+    increase: "text-success bg-success/10",
+    decrease: "text-destructive bg-destructive/10",
+    neutral: "text-muted-foreground bg-muted",
   };
 
   const ChangeIcon = {
@@ -93,15 +103,15 @@ export function KPITile({
     return (
       <div
         className={cn(
-          "bg-white rounded-lg border border-gray-200 p-4",
+          "bg-card rounded-lg border border-border",
           compact ? "p-3" : "p-4",
           className
         )}
       >
         <div className="animate-pulse">
-          <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
-          <div className="h-8 w-32 bg-gray-200 rounded mb-2" />
-          <div className="h-4 w-20 bg-gray-200 rounded" />
+          <div className="h-4 w-24 bg-muted rounded mb-2" />
+          <div className="h-8 w-32 bg-muted rounded mb-2" />
+          <div className="h-4 w-20 bg-muted rounded" />
         </div>
       </div>
     );
@@ -110,41 +120,47 @@ export function KPITile({
   return (
     <div
       className={cn(
-        "bg-white rounded-lg border border-gray-200 shadow-sm",
+        "bg-card rounded-lg border border-border shadow-sm",
         compact ? "p-3" : "p-4",
         className
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-500">{title}</span>
+        <div>
+          <span className="text-sm font-medium text-muted-foreground">{title}</span>
+          {description && (
+            <p className="text-xs text-muted-foreground/70 mt-0.5">{description}</p>
+          )}
+        </div>
         {icon && (
-          <div className="p-2 rounded-lg bg-blue-50 text-blue-600">{icon}</div>
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">{icon}</div>
         )}
       </div>
 
       {/* Value */}
-      <div className={cn("font-bold text-gray-900", compact ? "text-xl" : "text-2xl")}>
+      <div className={cn("font-bold text-foreground", compact ? "text-xl" : "text-2xl")}>
         {value}
       </div>
 
       {/* Change Indicator */}
-      {change !== undefined && changeType && (
+      {hasValidChange && changeType && (
         <div className="flex items-center gap-2 mt-2">
           <span
             className={cn(
               "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
               changeColors[changeType]
             )}
+            aria-label={`${changeType === "increase" ? "Increased" : changeType === "decrease" ? "Decreased" : "No change"} by ${changeText} percent`}
           >
             {(() => {
               const Icon = ChangeIcon[changeType];
-              return <Icon className="h-3 w-3" />;
+              return <Icon className="h-3 w-3" aria-hidden="true" />;
             })()}
-            {Math.abs(change).toFixed(1)}%
+            {changeText}%
           </span>
           {changeLabel && (
-            <span className="text-xs text-gray-500">{changeLabel}</span>
+            <span className="text-xs text-muted-foreground">{changeLabel}</span>
           )}
         </div>
       )}

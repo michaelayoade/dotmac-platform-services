@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import type { ReactNode } from "react";
 
-import { authOptions } from "@/lib/auth/config";
 import { PortalShell } from "@/components/layout/portal-shell";
 import { tenantPortalConfig } from "@/lib/config/tenant-portal";
+import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 const TENANT_ROLES = new Set([
   "tenant_admin",
@@ -20,28 +19,28 @@ export default async function TenantPrivateLayout({
 }: {
   children: ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUserFromRequest();
 
-  if (!session) {
+  if (!user) {
     redirect("/portal/login");
   }
 
-  const roles = session.user?.roles ?? [];
+  const roles = user.roles ?? [];
   const hasTenantRole =
     roles.some((role) => TENANT_ROLES.has(role)) ||
-    (session.user?.role ? TENANT_ROLES.has(session.user.role) : false);
+    (user.roles?.[0] ? TENANT_ROLES.has(user.roles[0]) : false);
   const isAdminRole =
     roles.some((role) => ADMIN_ROLES.has(role)) ||
-    (session.user?.role ? ADMIN_ROLES.has(session.user.role) : false);
-  const hasTenantContext = Boolean(session.user?.tenantId);
-  const isPlatformAdmin = Boolean(session.user?.isPlatformAdmin) || isAdminRole;
+    (user.roles?.[0] ? ADMIN_ROLES.has(user.roles[0]) : false);
+  const hasTenantContext = Boolean(user.tenantId);
+  const isPlatformAdmin = Boolean(user.isPlatformAdmin) || isAdminRole;
 
   if (!isPlatformAdmin && !hasTenantContext && !hasTenantRole) {
     redirect("/portal/login?error=unauthorized");
   }
 
   return (
-    <PortalShell session={session} config={tenantPortalConfig}>
+    <PortalShell user={user} config={tenantPortalConfig}>
       {children}
     </PortalShell>
   );

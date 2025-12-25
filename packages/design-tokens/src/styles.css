@@ -21,10 +21,39 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 40% 98%;
+    --warning: 20.5 90.2% 48.2%;
+    --warning-foreground: 210 40% 98%;
+    --info: 221.2 83.2% 53.3%;
+    --info-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* Platform-specific tokens (used by tailwind config) */
+    --color-surface: 0 0% 100%;
+    --color-surface-elevated: 0 0% 98%;
+    --color-surface-overlay: 0 0% 96%;
+    --color-surface-subtle: 210 40% 98%;
+    --color-border: 214.3 31.8% 91.4%;
+    --color-border-subtle: 214.3 31.8% 94%;
+    --color-border-strong: 214.3 31.8% 85%;
+    --color-text-primary: 222.2 84% 4.9%;
+    --color-text-secondary: 215.4 16.3% 36.9%;
+    --color-text-muted: 215.4 16.3% 56.9%;
+    --color-text-inverse: 210 40% 98%;
+    --color-status-success: 142.1 76.2% 36.3%;
+    --color-status-warning: 20.5 90.2% 48.2%;
+    --color-status-error: 0 84.2% 60.2%;
+    --color-status-info: 221.2 83.2% 53.3%;
+    --color-accent: 199 89% 48%;
+    --color-accent-subtle: hsla(199, 89%, 48%, 0.1);
+    --color-accent-hover: 199 89% 40%;
+    --color-accent-muted: 199 89% 70%;
+    --color-highlight: 38 92% 50%;
+    --shadow-color: 0 0% 0%;
 
     /* Primary color palette */
     --color-primary-50: #eff6ff;
@@ -100,9 +129,38 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 210 40% 98%;
+    --warning: 24.6 95% 53.1%;
+    --warning-foreground: 210 40% 98%;
+    --info: 217.2 91.2% 59.8%;
+    --info-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
+
+    /* Platform-specific tokens (dark mode) */
+    --color-surface: 222.2 84% 4.9%;
+    --color-surface-elevated: 217.2 32.6% 12%;
+    --color-surface-overlay: 217.2 32.6% 17.5%;
+    --color-surface-subtle: 217.2 32.6% 10%;
+    --color-border: 217.2 32.6% 17.5%;
+    --color-border-subtle: 217.2 32.6% 14%;
+    --color-border-strong: 217.2 32.6% 25%;
+    --color-text-primary: 210 40% 98%;
+    --color-text-secondary: 215 20.2% 75.1%;
+    --color-text-muted: 215 20.2% 55.1%;
+    --color-text-inverse: 222.2 84% 4.9%;
+    --color-status-success: 142.1 70.6% 45.3%;
+    --color-status-warning: 24.6 95% 53.1%;
+    --color-status-error: 0 62.8% 50.6%;
+    --color-status-info: 217.2 91.2% 59.8%;
+    --color-accent: 199 89% 55%;
+    --color-accent-subtle: hsla(199, 89%, 55%, 0.15);
+    --color-accent-hover: 199 89% 65%;
+    --color-accent-muted: 199 60% 40%;
+    --color-highlight: 38 92% 55%;
+    --shadow-color: 0 0% 0%;
   }
 }
 

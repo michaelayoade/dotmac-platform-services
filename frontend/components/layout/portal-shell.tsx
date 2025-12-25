@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { Session } from "next-auth";
 
 import { PortalSidebar, type PortalConfig } from "./portal-sidebar";
 import { cn } from "@/lib/utils";
+import type { PlatformUser } from "@/types/auth";
 
 interface PortalShellProps {
   children: ReactNode;
-  session: Session;
+  user: PlatformUser;
   config: PortalConfig;
 }
 
-export function PortalShell({ children, session, config }: PortalShellProps) {
+export function PortalShell({ children, user, config }: PortalShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
@@ -21,7 +21,7 @@ export function PortalShell({ children, session, config }: PortalShellProps) {
       <PortalSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        session={session}
+        user={user}
         config={config}
       />
 

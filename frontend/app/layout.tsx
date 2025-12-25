@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { ThemeProvider } from "@/lib/dotmac/design-tokens";
-import { ToastProvider, ToastViewport } from "@/lib/dotmac/core";
+import { ThemeProvider, ToastProvider, ToastViewport } from "@/lib/dotmac/core";
 
 import { QueryProvider } from "@/lib/providers/query-provider";
 import { AuthProvider } from "@/lib/providers/auth-provider";

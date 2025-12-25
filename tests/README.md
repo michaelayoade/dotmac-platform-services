@@ -4,7 +4,7 @@
 
 Comprehensive test suite for the DotMac Platform, covering unit, integration, and end-to-end testing across all features.
 
-**Test Status:** 90%+ passing (9,000+ tests)
+**Test Status:** Running (update based on current pytest output)
 
 ---
 
@@ -63,7 +63,7 @@ tests/
 ├── QUICK_REFERENCE.md               # Cheat sheet
 │
 # GLOBAL FIXTURES
-├── conftest.py                      # Global fixtures (2250 lines)
+├── conftest.py                      # Global fixtures (modularized)
 │
 # FEATURE TESTS (95% of tests)
 ├── billing/                         # Billing feature tests
@@ -72,7 +72,6 @@ tests/
 │   └── ...
 ├── auth/                            # Authentication tests
 ├── tenant/                          # Tenant management tests
-├── customer_management/             # Customer tests
 └── ...                              # 60+ feature directories
 │
 # SPECIAL TEST TYPES (5% of tests)

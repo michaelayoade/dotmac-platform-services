@@ -1199,77 +1199,6 @@ class Settings(BaseSettings):
     search: SearchSettings = SearchSettings()  # type: ignore[call-arg]
 
     # ============================================================
-    # Fault Management & Archival
-    # ============================================================
-
-    class FaultManagementSettings(BaseModel):  # BaseModel resolves to Any in isolation
-        """Fault management and alarm archival configuration."""
-
-        model_config = ConfigDict()
-
-        # Alarm archival settings
-        alarm_retention_days: int = Field(
-            90,
-            ge=1,
-            description="Number of days to retain cleared alarms before archival (default: 90)",
-        )
-        archive_time_hour: int = Field(
-            2,
-            ge=0,
-            le=23,
-            description="Hour of day (0-23) to run alarm archival (default: 2 AM)",
-        )
-        archive_time_minute: int = Field(
-            0,
-            ge=0,
-            le=59,
-            description="Minute of hour to run alarm archival (default: 0)",
-        )
-        archive_batch_size: int = Field(
-            1000,
-            ge=1,
-            description="Maximum number of alarms to archive in one batch",
-        )
-        archive_compression_level: int = Field(
-            9,
-            ge=1,
-            le=9,
-            description="Gzip compression level (1-9, where 9 is maximum compression)",
-        )
-
-        # Alarm correlation settings
-        correlation_window_seconds: int = Field(
-            300,
-            ge=1,
-            description="Time window for alarm correlation (default: 5 minutes)",
-        )
-        max_occurrence_count: int = Field(
-            100,
-            ge=1,
-            description="Maximum occurrence count before marking as flapping",
-        )
-
-        # SLA tracking settings
-        sla_check_interval_seconds: int = Field(
-            60,
-            ge=1,
-            description="Interval for checking SLA compliance (default: 1 minute)",
-        )
-
-        # Notification settings
-        critical_alarm_auto_notify: bool = Field(
-            True,
-            description="Automatically send notifications for critical alarms",
-        )
-        escalation_timeout_minutes: int = Field(
-            30,
-            ge=1,
-            description="Minutes before escalating unacknowledged critical alarms",
-        )
-
-    fault_management: FaultManagementSettings = FaultManagementSettings()  # type: ignore[call-arg]
-
-    # ============================================================
     # Notifications & Channels
     # ============================================================
 
@@ -1441,7 +1370,6 @@ class Settings(BaseSettings):
         banking_enabled: bool = Field(True, description="Enable banking integrations")
         payments_enabled: bool = Field(True, description="Enable payment processing")
         automation_enabled: bool = Field(True, description="Enable automation workflows")
-        orchestration_enabled: bool = Field(True, description="Enable service orchestration")
         dunning_enabled: bool = Field(True, description="Enable dunning workflows")
         ticketing_enabled: bool = Field(True, description="Enable ticketing system")
         notification_enabled: bool = Field(True, description="Enable notification center")

@@ -53,10 +53,6 @@ def async_db_engine():
     except ImportError:
         pass
     try:
-        from dotmac.platform.customer_management import models as customer_models  # noqa: F401
-    except ImportError:
-        pass
-    try:
         from dotmac.platform.billing import models as billing_models  # noqa: F401
     except ImportError:
         pass

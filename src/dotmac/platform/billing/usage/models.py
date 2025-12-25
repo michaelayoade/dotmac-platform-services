@@ -11,7 +11,6 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -66,12 +65,11 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         index=True,
         comment="Related subscription",
     )
-    customer_id: Mapped[UUID] = mapped_column(
+    customer_id: Mapped[UUID | None] = mapped_column(
         GUID,
-        ForeignKey("customers.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
-        comment="Customer who incurred usage",
+        comment="Legacy billing account reference (tenant-scoped)",
     )
 
     # Usage details

@@ -96,6 +96,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 "/redoc",
                 "/openapi.json",
                 "/api/v1/auth/login",  # Auth endpoints don't need tenant
+                "/api/v1/auth/login/cookie",
+                "/api/v1/auth/login/verify-2fa",
                 "/api/v1/auth/register",
                 "/api/v1/auth/password-reset",
                 "/api/v1/auth/password-reset/confirm",
@@ -212,6 +214,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         resolved_id = tenant_id_param
                 except Exception:
                     pass
+
+            if resolved_id and not is_platform_admin_request:
+                if not await self._validate_tenant_override(request, resolved_id):
+                    logger.warning(
+                        "tenant_override_rejected",
+                        path=request.url.path,
+                        method=request.method,
+                        tenant_id=resolved_id,
+                    )
+                    resolved_id = None
 
         # Attempt to derive tenant from authenticated context when header/query missing
         if not resolved_id:
@@ -421,9 +433,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
     def _verify_jwt_claims(self, token: str) -> dict[str, Any] | None:
         """Verify JWT token and return claims without raising upstream errors."""
         try:
-            from dotmac.platform.auth.core import jwt_service
+            from dotmac.platform.auth.core import TokenType, jwt_service
 
-            return jwt_service.verify_token(token)
+            return jwt_service.verify_token(token, TokenType.ACCESS)
         except Exception as exc:
             logger.debug("tenant_jwt_verification_failed", error=str(exc))
             return None
@@ -480,3 +492,29 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 return tenant_id
 
         return None
+
+    async def _validate_tenant_override(self, request: Request, tenant_id: str) -> bool:
+        """Validate tenant overrides against authenticated context."""
+        jwt_token = self._extract_jwt_token(request)
+        if jwt_token:
+            claims = self._verify_jwt_claims(jwt_token)
+            if isinstance(claims, dict):
+                if claims.get("is_platform_admin", False):
+                    return True
+
+                tenant_claim = claims.get("tenant_id")
+                if isinstance(tenant_claim, str) and tenant_claim == tenant_id:
+                    return True
+
+                managed_tenants = claims.get("managed_tenant_ids") or []
+                if isinstance(managed_tenants, list) and tenant_id in managed_tenants:
+                    return True
+
+                return False
+
+        api_key = request.headers.get("X-API-Key")
+        if isinstance(api_key, str) and api_key.strip():
+            tenant_from_key = await self._tenant_from_api_key(api_key.strip())
+            return tenant_from_key == tenant_id
+
+        return False

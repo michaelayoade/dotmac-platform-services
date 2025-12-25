@@ -14,6 +14,7 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 
@@ -205,6 +206,7 @@ export function ThemeProvider({
     density: defaultDensity,
     brand,
   });
+  const customCssRef = useRef<HTMLStyleElement | null>(null);
 
   // Track the resolved color scheme (light/dark) when system is selected
   const [resolvedColorScheme, setResolvedColorScheme] = useState<"light" | "dark">("light");
@@ -368,23 +370,43 @@ export function ThemeProvider({
       root.style.setProperty(property, value);
     });
 
-    // Apply custom CSS if provided
-    if (config.brand?.customCss) {
-      let styleEl = document.getElementById("dotmac-theme-css");
-      if (!styleEl) {
-        styleEl = document.createElement("style");
-        styleEl.id = "dotmac-theme-css";
-        document.head.appendChild(styleEl);
-      }
-      styleEl.textContent = config.brand.customCss;
-    }
-
     return () => {
+      // Clean up CSS variables
       Object.keys(vars).forEach((property) => {
         root.style.removeProperty(property);
       });
     };
-  }, [getCSSVariables, config.brand?.customCss]);
+  }, [getCSSVariables]);
+
+  const customCss = config.brand?.customCss;
+
+  useEffect(() => {
+    if (!customCss) {
+      if (customCssRef.current) {
+        customCssRef.current.remove();
+        customCssRef.current = null;
+      }
+      return;
+    }
+
+    if (!customCssRef.current) {
+      const styleEl = document.createElement("style");
+      styleEl.setAttribute("data-dotmac-theme", "custom");
+      document.head.appendChild(styleEl);
+      customCssRef.current = styleEl;
+    }
+
+    customCssRef.current.textContent = customCss;
+  }, [customCss]);
+
+  useEffect(() => {
+    return () => {
+      if (customCssRef.current) {
+        customCssRef.current.remove();
+        customCssRef.current = null;
+      }
+    };
+  }, []);
 
   const isDarkMode = resolvedColorScheme === "dark";
 

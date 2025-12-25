@@ -274,4 +274,52 @@ describe("ThemeProvider", () => {
     // Admin accent color should be present
     expect(screen.getByTestId("accent").textContent).toBeTruthy();
   });
+
+  it("should inject and clean up custom CSS", () => {
+    const customCss = ".theme-custom { color: red; }";
+    const { unmount } = render(
+      <ThemeProvider brand={{ name: "Test", primaryColor: "#000000", customCss }}>
+        <div>Test</div>
+      </ThemeProvider>
+    );
+
+    const styleEl = document.head.querySelector("style[data-dotmac-theme='custom']");
+    expect(styleEl).toBeTruthy();
+    expect(styleEl?.textContent).toContain(customCss);
+
+    unmount();
+
+    const removed = document.head.querySelector("style[data-dotmac-theme='custom']");
+    expect(removed).toBeNull();
+  });
+
+  it("should keep sibling custom CSS when one provider unmounts", () => {
+    const Wrapper = ({ showSecond }: { showSecond: boolean }) => (
+      <>
+        <ThemeProvider brand={{ name: "Primary", primaryColor: "#000000", customCss: ".primary-theme {}" }}>
+          <div>Primary</div>
+        </ThemeProvider>
+        {showSecond && (
+          <ThemeProvider brand={{ name: "Secondary", primaryColor: "#000000", customCss: ".secondary-theme {}" }}>
+            <div>Secondary</div>
+          </ThemeProvider>
+        )}
+      </>
+    );
+
+    const { rerender } = render(<Wrapper showSecond />);
+    expect(document.head.querySelectorAll("style[data-dotmac-theme='custom']")).toHaveLength(2);
+
+    rerender(<Wrapper showSecond={false} />);
+
+    const remaining = Array.from(
+      document.head.querySelectorAll("style[data-dotmac-theme='custom']")
+    )
+      .map((style) => style.textContent ?? "")
+      .join("\n");
+
+    expect(document.head.querySelectorAll("style[data-dotmac-theme='custom']")).toHaveLength(1);
+    expect(remaining).toContain(".primary-theme");
+    expect(remaining).not.toContain(".secondary-theme");
+  });
 });

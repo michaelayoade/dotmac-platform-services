@@ -14,8 +14,8 @@ from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
 from dotmac.platform.auth.core import UserInfo
-from src.dotmac.platform.tenant.models import Tenant, TenantPlanType, TenantStatus
-from src.dotmac.platform.tenant.service import TenantService
+from dotmac.platform.tenant.models import Tenant, TenantPlanType, TenantStatus
+from dotmac.platform.tenant.service import TenantService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 

@@ -86,7 +86,7 @@ class TestContactSearch:
         mock_db.scalar = AsyncMock(return_value=1)
 
         contacts, total = await service.search_contacts(
-            tenant_id=tenant_id, stage=ContactStage.CUSTOMER
+            tenant_id=tenant_id, stage=ContactStage.ACCOUNT
         )
 
         assert len(contacts) == 1

@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import type { ReactNode } from "react";
 
-import { authOptions } from "@/lib/auth/config";
 import { PortalShell } from "@/components/layout/portal-shell";
 import { partnerPortalConfig } from "@/lib/config/partner-portal";
+import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 const ADMIN_ROLES = new Set(["admin", "platform_admin", "super_admin"]);
 
@@ -13,32 +12,32 @@ export default async function PartnerPrivateLayout({
 }: {
   children: ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUserFromRequest();
 
-  if (!session) {
+  if (!user) {
     redirect("/partner/login");
   }
 
-  const roles = session.user?.roles ?? [];
-  const permissions = session.user?.permissions ?? [];
+  const roles = user.roles ?? [];
+  const permissions = user.permissions ?? [];
   const hasPartnerRole =
     roles.some((role) => role.startsWith("partner_")) ||
-    (session.user?.role ? session.user.role.startsWith("partner_") : false);
+    (user.roles?.[0] ? user.roles[0].startsWith("partner_") : false);
   const isAdminRole =
     roles.some((role) => ADMIN_ROLES.has(role)) ||
-    (session.user?.role ? ADMIN_ROLES.has(session.user.role) : false);
+    (user.roles?.[0] ? ADMIN_ROLES.has(user.roles[0]) : false);
   const hasPartnerPermission = permissions.some((permission) =>
     permission.startsWith("partner.")
   );
-  const hasPartnerContext = Boolean(session.user?.partnerId);
-  const isPlatformAdmin = Boolean(session.user?.isPlatformAdmin) || isAdminRole;
+  const hasPartnerContext = Boolean(user.partnerId);
+  const isPlatformAdmin = Boolean(user.isPlatformAdmin) || isAdminRole;
 
   if (!isPlatformAdmin && !hasPartnerContext && !hasPartnerRole && !hasPartnerPermission) {
     redirect("/partner/login?error=unauthorized");
   }
 
   return (
-    <PortalShell session={session} config={partnerPortalConfig}>
+    <PortalShell user={user} config={partnerPortalConfig}>
       {children}
     </PortalShell>
   );

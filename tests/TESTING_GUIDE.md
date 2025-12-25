@@ -36,20 +36,20 @@ class TestMyRouter(RouterTestBase):
 ```python
 from tests.helpers.router_base import RouterWithServiceTestBase
 
-class TestCustomerRouter(RouterWithServiceTestBase):
-    router_module = "dotmac.platform.customer_management.router"
+class TestTenantRouter(RouterWithServiceTestBase):
+    router_module = "dotmac.platform.tenant.router"
     router_name = "router"
-    router_prefix = "/customers"
-    service_module = "dotmac.platform.customer_management.router"
-    service_dependency_name = "get_customer_service"
+    router_prefix = "/tenants"
+    service_module = "dotmac.platform.tenant.router"
+    service_dependency_name = "get_tenant_service"
 
-    def test_list_customers(self, client, mock_service):
+    def test_list_tenants(self, client, mock_service):
         # Configure mock
         mock_service.list.return_value = [
-            {"id": "1", "name": "Test Customer"}
+            {"id": "tenant-1", "name": "Test Tenant"}
         ]
 
-        response = client.get("/api/v1/customers")
+        response = client.get("/api/v1/tenants")
         data = self.assert_success(response)
         assert len(data) == 1
 ```
@@ -221,22 +221,21 @@ def test_user() -> UserInfo:
 
 ```python
 # 1. Read actual schema definition
-from dotmac.platform.customer_management.schemas import CustomerCreate
+from dotmac.platform.tenant.schemas import TenantCreate
 
-# CustomerCreate schema has:
+# TenantCreate schema has:
 # - name: str
+# - slug: str
+# - plan_type: TenantPlanType
 # - email: str | None
-# - phone: str | None
-# - status: CustomerStatus
-# - billing_address: AddressCreate | None
 
 # 2. Create mock data that matches EXACTLY
-mock_service.create_customer = AsyncMock(
-    return_value=CustomerCreate(
-        name="Acme Corp",           # ✅ Required field
-        email="contact@acme.com",   # ✅ Optional but correct type
-        phone="+1234567890",        # ✅ Optional but correct type
-        status=CustomerStatus.ACTIVE,  # ✅ Required field with correct enum
+mock_service.create_tenant = AsyncMock(
+    return_value=TenantCreate(
+        name="Acme Corp",              # ✅ Required field
+        slug="acme-corp",              # ✅ Required field
+        plan_type=TenantPlanType.FREE, # ✅ Required field with correct enum
+        email="contact@acme.com",      # ✅ Optional but correct type
         # ❌ DON'T add fields that don't exist:
         # company_size=100,  # Not in schema!
         # revenue=1000000,  # Not in schema!
@@ -254,20 +253,20 @@ from tests.helpers.contract_testing import (
 )
 
 # Option 1: Validate manually created mock data
-validator = SchemaValidator(CustomerCreate)
+validator = SchemaValidator(TenantCreate)
 mock_data = {
     "name": "Acme Corp",
-    "email": "contact@acme.com",
-    "status": "active",
+    "slug": "acme-corp",
+    "plan_type": "free",
 }
 validator.validate(mock_data)  # Raises SchemaValidationError if invalid
 
 # Option 2: Generate valid mock data automatically
-mock_data = MockDataFactory.create(CustomerCreate, name="Test Customer")
+mock_data = MockDataFactory.create(TenantCreate, name="Test Tenant")
 # Automatically includes all required fields with sensible defaults
 
 # Option 3: Quick validation check
-is_valid, error = validate_mock_against_schema(mock_data, CustomerCreate)
+is_valid, error = validate_mock_against_schema(mock_data, TenantCreate)
 if not is_valid:
     print(f"Mock data invalid: {error}")
 ```
@@ -278,16 +277,16 @@ if not is_valid:
 
 ```python
 # ❌ WRONG
-CustomerResponse(
-    customer_name="Acme",    # Schema has name, not customer_name
+TenantResponse(
+    tenant_name="Acme",      # Schema has name, not tenant_name
     active=True,             # Schema has status enum, not active bool
     company="Acme Corp",     # Schema doesn't have company field
 )
 
 # ✅ CORRECT - Read schema first!
-CustomerResponse(
+TenantResponse(
     name="Acme",             # Actual field name
-    status=CustomerStatus.ACTIVE,  # Actual field with correct type
+    status=TenantStatus.ACTIVE,  # Actual field with correct type
     # Don't include fields that don't exist
 )
 ```
@@ -296,13 +295,13 @@ CustomerResponse(
 
 ```python
 # ❌ WRONG
-CustomerResponse(
+TenantResponse(
     status="active",         # Schema expects enum, not string
 )
 
 # ✅ CORRECT
-CustomerResponse(
-    status=CustomerStatus.ACTIVE,  # Correct enum type
+TenantResponse(
+    status=TenantStatus.ACTIVE,  # Correct enum type
 )
 ```
 
@@ -311,13 +310,13 @@ CustomerResponse(
 ```python
 # ❌ WRONG - Missing required fields
 InvoiceCreate(
-    customer_id="cust-123",
+    tenant_id="tenant-123",
     # Missing: invoice_date, due_date, line_items, currency
 )
 
 # ✅ CORRECT - Include all required fields
 InvoiceCreate(
-    customer_id="cust-123",
+    tenant_id="tenant-123",
     invoice_date=date.today(),
     due_date=date.today() + timedelta(days=30),
     currency="USD",
@@ -330,15 +329,15 @@ InvoiceCreate(
 #### Mistake 4: Data in Wrong Location
 
 ```python
-# ❌ WRONG - CustomerResponse puts extra data as direct field
-CustomerResponse(
+# ❌ WRONG - TenantResponse puts extra data as direct field
+TenantResponse(
     id="1",
     name="Acme",
     company_size=100,  # ❌ Not a direct field!
 )
 
 # ✅ CORRECT - Extra data goes in metadata
-CustomerResponse(
+TenantResponse(
     id="1",
     name="Acme",
     metadata={"company_size": 100, "industry": "Tech"},  # ✅ Correct
@@ -521,17 +520,17 @@ Generates valid mock data from schemas:
 from tests.helpers.contract_testing import MockDataFactory
 
 # Generate with defaults
-mock_data = MockDataFactory.create(CustomerCreate)
+mock_data = MockDataFactory.create(TenantCreate)
 
 # Override specific fields
 mock_data = MockDataFactory.create(
-    CustomerCreate,
-    name="Test Customer",
-    email="test@example.com"
+    TenantCreate,
+    name="Test Tenant",
+    slug="test-tenant",
 )
 
 # Create actual instance
-instance = MockDataFactory.create_instance(CustomerCreate, name="test")
+instance = MockDataFactory.create_instance(TenantCreate, name="test")
 ```
 
 ---
@@ -590,26 +589,26 @@ from tests.helpers.contract_testing import (
     MockDataFactory,
     ContractTestCase
 )
-from myapp.schemas import CustomerSchema
+from myapp.schemas import TenantSchema
 
-class TestCustomerRouter(RouterTestBase, ContractTestCase):
-    router_module = "dotmac.platform.customers.router"
-    router_prefix = "/customers"
+class TestTenantRouter(RouterTestBase, ContractTestCase):
+    router_module = "dotmac.platform.tenant.router"
+    router_prefix = "/tenants"
 
-    def test_list_customers(self, client, mock_service):
+    def test_list_tenants(self, client, mock_service):
         # Generate valid mock data
-        customer1 = MockDataFactory.create(CustomerSchema, name="Alice")
-        customer2 = MockDataFactory.create(CustomerSchema, name="Bob")
+        tenant1 = MockDataFactory.create(TenantSchema, name="Alpha")
+        tenant2 = MockDataFactory.create(TenantSchema, name="Beta")
 
-        mock_service.list.return_value = [customer1, customer2]
+        mock_service.list.return_value = [tenant1, tenant2]
 
-        response = client.get("/api/v1/customers")
+        response = client.get("/api/v1/tenants")
 
         # Validate response matches schema
-        customers = self.assert_response_schema(response, list[CustomerSchema])
+        tenants = self.assert_response_schema(response, list[TenantSchema])
 
-        assert len(customers) == 2
-        assert customers[0].name == "Alice"
+        assert len(tenants) == 2
+        assert tenants[0].name == "Alpha"
 ```
 
 ### Example 4: Testing Error Cases

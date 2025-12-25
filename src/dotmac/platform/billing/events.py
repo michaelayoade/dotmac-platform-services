@@ -5,7 +5,7 @@ This module defines all billing-related events and provides
 helper functions for emitting them through the event bus.
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -75,7 +75,7 @@ async def emit_invoice_created(
     currency: str,
     tenant_id: str | None = None,
     user_id: str | None = None,
-    event_bus: Optional["EventBus | None"] = None,
+    event_bus: "EventBus | None" = None,
     **extra_data: Any,
 ) -> None:
     """
@@ -125,7 +125,7 @@ async def emit_invoice_paid(
     amount: float,
     payment_id: str,
     tenant_id: str | None = None,
-    event_bus: Optional["EventBus | None"] = None,
+    event_bus: "EventBus | None" = None,
     **extra_data: Any,
 ) -> None:
     """
@@ -173,7 +173,7 @@ async def emit_payment_failed(
     amount: float,
     error_message: str,
     tenant_id: str | None = None,
-    event_bus: Optional["EventBus | None"] = None,
+    event_bus: "EventBus | None" = None,
     **extra_data: Any,
 ) -> None:
     """
@@ -223,7 +223,7 @@ async def emit_subscription_created(
     plan_id: str,
     tenant_id: str | None = None,
     user_id: str | None = None,
-    event_bus: Optional["EventBus | None"] = None,
+    event_bus: "EventBus | None" = None,
     **extra_data: Any,
 ) -> None:
     """
@@ -269,7 +269,7 @@ async def emit_subscription_cancelled(
     customer_id: str,
     reason: str | None = None,
     tenant_id: str | None = None,
-    event_bus: Optional["EventBus | None"] = None,
+    event_bus: "EventBus | None" = None,
     **extra_data: Any,
 ) -> None:
     """

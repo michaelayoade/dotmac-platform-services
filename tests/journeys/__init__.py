@@ -1,1 +1,1 @@
-"""Tests for customer journey workflows."""
+"""Tests for tenant journey workflows."""

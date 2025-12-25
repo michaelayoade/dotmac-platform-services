@@ -10,4 +10,5 @@ from tests.billing.factories import (  # noqa: F401
     payment_method_factory,
     subscription_factory,
     subscription_plan_factory,
+    tenant_factory,
 )

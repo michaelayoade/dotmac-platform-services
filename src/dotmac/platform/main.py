@@ -22,6 +22,7 @@ from dotmac.platform.api.app_boundary_middleware import (
     AppBoundaryMiddleware,
     SingleTenantMiddleware,
 )
+from dotmac.platform.auth.csrf import CSRFMiddleware
 from dotmac.platform.audit import AuditContextMiddleware
 from dotmac.platform.auth.billing_permissions import ensure_billing_rbac
 from dotmac.platform.auth.bootstrap import ensure_default_admin_user
@@ -303,6 +304,9 @@ def create_application() -> FastAPI:
     # Add tenant middleware BEFORE other middleware
     # This ensures tenant context is set before boundary checks
     app.add_middleware(TenantMiddleware)
+
+    # Add CSRF protection for cookie-authenticated requests
+    app.add_middleware(CSRFMiddleware)
 
     # Add Row-Level Security middleware RIGHT AFTER tenant context is set
     # This enforces tenant data isolation at the database level

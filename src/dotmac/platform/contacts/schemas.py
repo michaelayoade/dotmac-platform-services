@@ -149,7 +149,6 @@ class ContactBase(BaseModel):  # BaseModel resolves to Any in isolation
 class ContactCreate(ContactBase):  # ContactBase resolves to Any in isolation
     """Schema for creating contact."""
 
-    customer_id: UUID | None = None
     contact_methods: list[ContactMethodCreate] | None = None
     label_ids: list[UUID] | None = None
 
@@ -237,7 +236,6 @@ class ContactResponse(ContactBase):  # ContactBase resolves to Any in isolation
 
     id: UUID
     tenant_id: UUID
-    customer_id: UUID | None = None
     is_verified: bool
     created_at: datetime
     updated_at: datetime
@@ -456,7 +454,6 @@ class ContactSearchRequest(BaseModel):  # BaseModel resolves to Any in isolation
     model_config = ConfigDict()
 
     query: str | None = None
-    customer_id: UUID | None = None
     status: ContactStatus | None = None
     stage: ContactStage | None = None
     owner_id: UUID | None = None

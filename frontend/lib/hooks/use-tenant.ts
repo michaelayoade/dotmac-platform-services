@@ -8,8 +8,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useSession } from "next-auth/react";
 import { useCallback, useEffect } from "react";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 interface Tenant {
   id: string;
@@ -48,21 +48,42 @@ interface UseTenantReturn {
 }
 
 export function useTenant(): UseTenantReturn {
-  const { data: session, status } = useSession();
+  const { data: user, isLoading } = useCurrentUser();
   const { currentTenantId, tenants, setCurrentTenantId, setTenants } =
     useTenantStore();
 
-  // Sync tenants from session
+  // Sync tenant context from current user
   useEffect(() => {
-    if (session?.user?.tenants) {
-      setTenants(session.user.tenants as Tenant[]);
+    const activeOrg = user?.activeOrganization;
+    if (activeOrg?.id && activeOrg?.name) {
+      const derivedTenant: Tenant = {
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug ?? activeOrg.id,
+        status: "active",
+        plan: "standard",
+      };
+      setTenants([derivedTenant]);
+      if (!currentTenantId) {
+        setCurrentTenantId(derivedTenant.id);
+      }
+      return;
+    }
 
-      // Set default tenant if none selected
-      if (!currentTenantId && session.user.tenants.length > 0) {
-        setCurrentTenantId((session.user.tenants[0] as Tenant).id);
+    if (user?.tenantId) {
+      const fallbackTenant: Tenant = {
+        id: user.tenantId,
+        name: "Tenant",
+        slug: user.tenantId,
+        status: "active",
+        plan: "standard",
+      };
+      setTenants([fallbackTenant]);
+      if (!currentTenantId) {
+        setCurrentTenantId(fallbackTenant.id);
       }
     }
-  }, [session?.user?.tenants, currentTenantId, setTenants, setCurrentTenantId]);
+  }, [user, currentTenantId, setTenants, setCurrentTenantId]);
 
   const currentTenant =
     tenants.find((t) => t.id === currentTenantId) || null;
@@ -83,7 +104,7 @@ export function useTenant(): UseTenantReturn {
     currentTenant,
     tenants,
     switchTenant,
-    isLoading: status === "loading",
+    isLoading,
   };
 }
 

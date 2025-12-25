@@ -611,7 +611,6 @@ def _import_base_and_models():
 
     model_modules = [
         "dotmac.platform.contacts.models",
-        "dotmac.platform.customer_management.models",
         "dotmac.platform.data_transfer.db_models",
         "dotmac.platform.communications.models",
         "dotmac.platform.partner_management.models",

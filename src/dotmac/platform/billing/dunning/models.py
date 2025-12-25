@@ -195,11 +195,11 @@ class DunningExecution(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: 
         index=True,
         comment="Billing subscription ID",
     )
-    customer_id: Mapped[UUID] = mapped_column(
+    customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
+        comment="Legacy billing account reference (tenant-scoped)",
     )
     invoice_id: Mapped[str | None] = mapped_column(
         String(50),

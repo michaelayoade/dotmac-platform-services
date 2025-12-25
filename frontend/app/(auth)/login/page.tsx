@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { Zap, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { Zap, Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Form, FormField, FormSubmitButton, useForm } from "@dotmac/forms";
-import { Input, Button } from "@dotmac/core";
+import { Input } from "@dotmac/core";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -17,51 +16,17 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const [error, setError] = useState<string | null>(null);
-  const ssoProviders = [
-    {
-      id: "google",
-      label: "Google",
-      enabled: process.env.NEXT_PUBLIC_GOOGLE_SSO_ENABLED === "true",
-      icon: (
-        <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-          />
-          <path
-            fill="currentColor"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="currentColor"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="currentColor"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: "azure-ad",
-      label: "Microsoft",
-      enabled: process.env.NEXT_PUBLIC_AZURE_AD_SSO_ENABLED === "true",
-      icon: (
-        <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M11.4 24H0V12.6L11.4 0z" />
-          <path fill="currentColor" d="M24 24H12.6V12.6L24 0z" opacity="0.8" />
-          <path fill="currentColor" d="M11.4 24V12.6H0z" opacity="0.6" />
-          <path fill="currentColor" d="M24 24V12.6H12.6z" opacity="0.6" />
-        </svg>
-      ),
-    },
-  ].filter((provider) => provider.enabled);
+  const [pending2faUserId, setPending2faUserId] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [isBackupCode, setIsBackupCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -73,19 +38,69 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);
+    setPending2faUserId(null);
 
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/v1/auth/login/cookie`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: data.email, password: data.password }),
+      });
 
-    if (result?.error) {
-      setError("Invalid email or password. Please try again.");
+      if (
+        response.status === 403 &&
+        response.headers.get("X-2FA-Required") === "true"
+      ) {
+        const userId = response.headers.get("X-User-ID");
+        if (!userId) {
+          setError("2FA required, but no user context was provided.");
+          return;
+        }
+        setPending2faUserId(userId);
+        return;
+      }
+
+      if (!response.ok) {
+        setError("Invalid email or password. Please try again.");
+        return;
+      }
+
+      router.push(callbackUrl);
+    } catch (err) {
+      setError("Unable to sign in. Please try again.");
+    }
+  };
+
+  const onVerify2fa = async () => {
+    if (!pending2faUserId || !twoFactorCode.trim()) {
+      setError("Enter your verification code to continue.");
       return;
     }
 
-    router.push(callbackUrl);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/auth/login/verify-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          user_id: pending2faUserId,
+          code: twoFactorCode.trim(),
+          is_backup_code: isBackupCode,
+        }),
+      });
+
+      if (!response.ok) {
+        setError("Invalid verification code. Please try again.");
+        return;
+      }
+
+      router.push(callbackUrl);
+    } catch (err) {
+      setError("Unable to verify your code. Please try again.");
+    }
   };
 
   return (
@@ -122,99 +137,105 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Login Form */}
-          <Form
-            form={form}
-            onSubmit={onSubmit}
-            className="space-y-6"
-          >
-            <FormField name="email" label="Email address" required>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-                <Input
-                  {...form.register("email")}
-                  type="email"
-                  placeholder="you@company.com"
-                  className="pl-10"
-                  autoComplete="email"
-                  autoFocus
-                />
-              </div>
-            </FormField>
-
-            <FormField name="password" label="Password" required>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-                <Input
-                  {...form.register("password")}
-                  type="password"
-                  placeholder="••••••••"
-                  className="pl-10"
-                  autoComplete="current-password"
-                />
-              </div>
-            </FormField>
-
-            {/* Remember me & Forgot password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-border bg-surface-overlay text-accent focus:ring-accent"
-                />
-                <span className="text-sm text-text-secondary">Remember me</span>
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-sm text-accent hover:text-accent-hover"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            {/* Submit button */}
-            <FormSubmitButton
-              className="w-full shadow-glow-sm hover:shadow-glow"
-              loadingText="Signing in..."
-            >
-              Sign in
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </FormSubmitButton>
-          </Form>
-
-          {ssoProviders.length > 0 && (
-            <>
-              {/* Divider */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
+          {!pending2faUserId ? (
+            <Form form={form} onSubmit={onSubmit} className="space-y-6">
+              <FormField name="email" label="Email address" required>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                  <Input
+                    {...form.register("email")}
+                    type="email"
+                    placeholder="you@company.com"
+                    className="pl-10"
+                    autoComplete="email"
+                    autoFocus
+                  />
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-surface text-text-muted">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
+              </FormField>
 
-              {/* SSO Options */}
-              <div
-                className={`grid gap-4 ${
-                  ssoProviders.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                }`}
-              >
-                {ssoProviders.map((provider) => (
-                  <Button
-                    key={provider.id}
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => signIn(provider.id, { callbackUrl })}
+              <FormField name="password" label="Password" required>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                  <Input
+                    {...form.register("password")}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {provider.icon}
-                    {provider.label}
-                  </Button>
-                ))}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </FormField>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-border bg-surface-overlay text-accent focus:ring-accent"
+                  />
+                  <span className="text-sm text-text-secondary">Remember me</span>
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-accent hover:text-accent-hover"
+                >
+                  Forgot password?
+                </Link>
               </div>
-            </>
+
+              <FormSubmitButton
+                className="w-full bg-accent text-white shadow-glow-sm hover:shadow-glow"
+                loadingText="Signing in..."
+              >
+                Sign in
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </FormSubmitButton>
+            </Form>
+          ) : (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold text-text-primary">
+                  Two-factor verification
+                </h2>
+                <p className="text-sm text-text-secondary">
+                  Enter the code from your authenticator app or a backup code.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  value={twoFactorCode}
+                  onChange={(event) => setTwoFactorCode(event.target.value)}
+                  placeholder="123456 or XXXX-XXXX"
+                  autoComplete="one-time-code"
+                />
+
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={isBackupCode}
+                    onChange={(event) => setIsBackupCode(event.target.checked)}
+                    className="w-4 h-4 rounded border-border bg-surface-overlay text-accent focus:ring-accent"
+                  />
+                  Use a backup code
+                </label>
+              </div>
+
+              <button
+                onClick={onVerify2fa}
+                className="w-full shadow-glow-sm hover:shadow-glow inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-white"
+              >
+                Verify and continue
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </button>
+            </div>
           )}
 
           {/* Sign up link */}

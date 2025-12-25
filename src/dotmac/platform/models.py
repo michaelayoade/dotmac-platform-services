@@ -73,7 +73,6 @@ if not _SKIP_BILLING_MODELS:
 from dotmac.platform.contacts.models import Contact  # noqa: F401,E402
 
 # Customer and user management
-from dotmac.platform.customer_management.models import Customer  # noqa: F401,E402
 
 # Jobs
 from dotmac.platform.jobs.models import Job, JobChain  # noqa: F401,E402
@@ -90,7 +89,6 @@ from dotmac.platform.user_management.models import User  # noqa: F401,E402
 # All models are now registered with SQLAlchemy Base
 __all__ = [
     "Tenant",
-    "Customer",
     "User",
     "Invoice",
     "Payment",

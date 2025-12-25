@@ -8,6 +8,7 @@ including tenant context resolution and database session management.
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.database import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -146,3 +147,15 @@ def get_tenant_id_from_request(request: Request) -> str:
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Tenant ID is required. Provide via X-Tenant-ID header or tenant_id query param.",
     )
+
+
+def enforce_tenant_access(tenant_id: str, current_user: UserInfo) -> None:
+    """Ensure the authenticated user is allowed to access the tenant."""
+    user_tenant = current_user.tenant_id
+    if user_tenant and user_tenant != tenant_id and not getattr(
+        current_user, "is_platform_admin", False
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to tenant is forbidden.",
+        )

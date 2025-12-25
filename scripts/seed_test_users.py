@@ -31,7 +31,6 @@ from dotmac.platform.user_management.models import User
 
 # Import all models to ensure relationships are registered
 try:
-    from dotmac.platform.customer_management.models import Customer  # noqa: F401
     from dotmac.platform.crm.models import Lead, Opportunity, Contact  # noqa: F401
 except ImportError:
     pass  # Some models may not be available

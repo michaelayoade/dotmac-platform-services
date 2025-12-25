@@ -48,7 +48,6 @@ PUBLIC_FEATURE_FLAGS: tuple[str, ...] = (
     "banking_enabled",
     "payments_enabled",
     "automation_enabled",
-    "orchestration_enabled",
     "dunning_enabled",
     "ticketing_enabled",
     "crm_enabled",
@@ -146,20 +145,9 @@ async def get_runtime_frontend_config(
     api_base = _sanitize_base_url(settings.frontend_api_base_url)
     api_prefix = _DEFAULT_API_PREFIX
     rest_url = _join_url(api_base, api_prefix) if api_base else api_prefix
-    realtime_ws = ""
-    if api_base:
-        realtime_ws = _join_url(_as_websocket_url(api_base), "/realtime/ws")
-    if not realtime_ws:
-        base_from_rest = (
-            rest_url.rsplit(api_prefix, 1)[0] if api_prefix and api_prefix in rest_url else ""
-        )
-        websocket_base = _as_websocket_url(base_from_rest or api_base)
-        realtime_ws = _join_url(websocket_base, "/realtime/ws")
 
     tenant_slug = settings.tenant_slug or settings.tenant.default_tenant_id
     tenant_name = settings.tenant_display_name or settings.brand.product_name
-
-    sse_url = _join_url(rest_url, "/realtime/events")
 
     runtime_payload = {
         "version": settings.app_version,
@@ -174,12 +162,6 @@ async def get_runtime_frontend_config(
             "base_url": api_base,
             "rest_path": api_prefix,
             "rest_url": rest_url,
-            "websocket_url": realtime_ws,
-        },
-        "realtime": {
-            "ws_url": realtime_ws,
-            "sse_url": sse_url,
-            "alerts_channel": f"tenant-{tenant_slug or 'global'}",
         },
         "deployment": {
             "mode": settings.DEPLOYMENT_MODE,
@@ -228,8 +210,6 @@ async def get_platform_config(
         "features": features_payload,
         "api": {
             "rest_url": "/api/v1",
-            "realtime_sse_url": "/api/v1/realtime",
-            "realtime_ws_url": "/api/v1/realtime/ws",
         },
         "auth": {
             "cookie_based": True,  # Using HttpOnly cookies for auth

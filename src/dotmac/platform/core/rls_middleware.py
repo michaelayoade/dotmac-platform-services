@@ -186,6 +186,8 @@ class RLSMiddleware(BaseHTTPMiddleware):
             # Auth endpoints need to work before tenant selection. They rely on strict user/role checks
             # rather than tenant-scoped queries, so we can safely skip RLS to avoid noisy warnings.
             "/api/v1/auth/login",
+            "/api/v1/auth/login/cookie",
+            "/api/v1/auth/login/verify-2fa",
             "/api/v1/auth/logout",
             "/api/v1/auth/register",
             "/api/v1/auth/refresh",
@@ -232,12 +234,24 @@ class RLSMiddleware(BaseHTTPMiddleware):
         except Exception:
             pass
 
-        # Try to get from header (for admin operations)
+        # Try to get from header (platform admin operations only)
         tenant_header = request.headers.get("X-Tenant-ID")
-        if tenant_header:
+        if tenant_header and self._allow_header_tenant(request):
             return tenant_header
 
         return None
+
+    def _allow_header_tenant(self, request: Request) -> bool:
+        """Allow header-based tenant selection only for platform admins."""
+        user = getattr(request.state, "user", None)
+        if user and getattr(user, "is_platform_admin", False):
+            return True
+
+        claims = getattr(request.state, "jwt_claims", None)
+        if isinstance(claims, dict):
+            return bool(claims.get("is_platform_admin", False))
+
+        return False
 
     async def _is_superuser(self, request: Request) -> bool:
         """
@@ -360,7 +374,7 @@ class RLSContextManager:
     Usage:
         async with RLSContextManager(db, tenant_id="tenant-123"):
             # All queries in this block are filtered by tenant_id
-            customers = await db.execute(select(Customer))
+            tenants = await db.execute(select(Tenant))
     """
 
     def __init__(

@@ -298,6 +298,7 @@ class JWTService:
         self.header = {"alg": self.algorithm}
         self.redis_url = redis_url or REDIS_URL
         self._redis: Any | None = None
+        self._redis_sync: Any | None = None
 
     def create_access_token(
         self,
@@ -383,6 +384,12 @@ class JWTService:
             if jti and self.is_token_revoked_sync(jti):
                 raise JoseError("Token has been revoked")
 
+            user_id = claims.get("sub")
+            if user_id:
+                revoked_at = self._get_user_revoked_at_sync(user_id)
+                if revoked_at is not None and self._is_token_revoked_by_user(claims, revoked_at):
+                    raise JoseError("Token has been revoked")
+
             return claims
         except JoseError as e:
             raise HTTPException(
@@ -398,6 +405,19 @@ class JWTService:
         if self._redis is None and redis_async is not None:
             self._redis = redis_async.from_url(self.redis_url, decode_responses=True)
         return self._redis
+
+    def _get_redis_sync(self) -> Any | None:
+        """Get Redis connection (sync)."""
+        if self._redis_sync is not None:
+            return self._redis_sync
+        try:
+            import redis
+
+            self._redis_sync = redis.Redis.from_url(self.redis_url, decode_responses=True)
+            return self._redis_sync
+        except Exception:
+            self._redis_sync = None
+            return None
 
     async def revoke_token(self, token: str) -> bool:
         """Revoke a token by adding its JTI to blacklist."""
@@ -429,9 +449,11 @@ class JWTService:
     def is_token_revoked_sync(self, jti: str) -> bool:
         """Check if token is revoked (sync version)."""
         try:
-            from dotmac.platform.core.caching import get_redis
+            redis_client = self._get_redis_sync()
+            if not redis_client:
+                from dotmac.platform.core.caching import get_redis
 
-            redis_client = get_redis()
+                redis_client = get_redis()
             if not redis_client:
                 return False
             return bool(redis_client.exists(f"blacklist:{jti}"))
@@ -482,6 +504,12 @@ class JWTService:
             if jti and await self.is_token_revoked(jti):
                 raise JoseError("Token has been revoked")
 
+            user_id = claims.get("sub")
+            if user_id:
+                revoked_at = await self._get_user_revoked_at(user_id)
+                if revoked_at is not None and self._is_token_revoked_by_user(claims, revoked_at):
+                    raise JoseError("Token has been revoked")
+
             return claims
         except JoseError as e:
             raise HTTPException(
@@ -491,29 +519,58 @@ class JWTService:
             )
 
     async def revoke_user_tokens(self, user_id: str) -> int:
-        """Revoke all tokens associated with a user by removing any active JTIs.
-
-        This scans the redis blacklist/current tokens namespace for keys tagged with
-        the user ID and deletes them. Returns the count of revoked tokens.
-        """
+        """Revoke all tokens associated with a user by setting a user-wide revocation marker."""
         redis_client = await self._get_redis()
         if not redis_client:
             logger.warning("Redis not available, cannot revoke user tokens")
             return 0
 
-        revoked = 0
         try:
-            pattern = f"tokens:{user_id}:*"
-            async for key in redis_client.scan_iter(match=pattern):
-                jti = await redis_client.get(key)
-                if jti:
-                    await redis_client.delete(f"blacklist:{jti}")
-                await redis_client.delete(key)
-                revoked += 1
+            revoked_at = int(datetime.now(UTC).timestamp())
+            ttl = int(REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
+            await redis_client.setex(self._user_revoked_key(user_id), ttl, revoked_at)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to revoke user tokens", user_id=user_id, error=str(exc))
 
-        return revoked
+        return 1
+
+    def _user_revoked_key(self, user_id: str) -> str:
+        return f"user_revoked:{user_id}"
+
+    def _normalize_timestamp(self, value: Any) -> int | None:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, datetime):
+            return int(value.timestamp())
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return None
+
+    def _is_token_revoked_by_user(self, claims: dict[str, Any], revoked_at: int) -> bool:
+        iat = self._normalize_timestamp(claims.get("iat"))
+        if iat is None:
+            return True
+        return iat <= revoked_at
+
+    async def _get_user_revoked_at(self, user_id: str) -> int | None:
+        redis_client = await self._get_redis()
+        if not redis_client:
+            return None
+        try:
+            value = await redis_client.get(self._user_revoked_key(user_id))
+            return self._normalize_timestamp(value)
+        except Exception:
+            return None
+
+    def _get_user_revoked_at_sync(self, user_id: str) -> int | None:
+        redis_client = self._get_redis_sync()
+        if not redis_client:
+            return None
+        try:
+            value = redis_client.get(self._user_revoked_key(user_id))
+            return self._normalize_timestamp(value)
+        except Exception:
+            return None
 
 
 # ============================================
@@ -1065,6 +1122,7 @@ async def get_current_user(
     if credentials and credentials.credentials:
         try:
             claims = await _verify_token_with_fallback(credentials.credentials, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1073,6 +1131,7 @@ async def get_current_user(
     if token:
         try:
             claims = await _verify_token_with_fallback(token, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1082,6 +1141,7 @@ async def get_current_user(
     if access_token:
         try:
             claims = await _verify_token_with_fallback(access_token, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1141,6 +1201,20 @@ def _claims_to_user_with_context(request: Request, claims: dict[str, Any]) -> Us
     user_info = _claims_to_user_info(claims)
     _apply_active_tenant_context(request, user_info)
     return user_info
+
+
+async def _ensure_session_active(claims: dict[str, Any]) -> None:
+    """Reject tokens tied to a server-side session that no longer exists."""
+    session_id = claims.get("session_id")
+    if not session_id:
+        return
+    session = await session_manager.get_session(session_id)
+    if not session or session.get("user_id") != claims.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def _apply_active_tenant_context(request: Request, user_info: UserInfo) -> None:

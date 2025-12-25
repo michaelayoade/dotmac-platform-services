@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { Session } from "next-auth";
 
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CommandPalette } from "./command-palette";
+import type { PlatformUser } from "@/types/auth";
 
 interface DashboardShellProps {
   children: ReactNode;
-  session: Session;
+  user: PlatformUser;
 }
 
-export function DashboardShell({ children, session }: DashboardShellProps) {
+export function DashboardShell({ children, user }: DashboardShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
@@ -22,7 +22,7 @@ export function DashboardShell({ children, session }: DashboardShellProps) {
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        session={session}
+        user={user}
       />
 
       {/* Main content area */}
@@ -33,7 +33,7 @@ export function DashboardShell({ children, session }: DashboardShellProps) {
       >
         {/* Header */}
         <Header
-          session={session}
+          user={user}
           onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
         />
 

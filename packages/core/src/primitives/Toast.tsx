@@ -19,18 +19,22 @@ import { cn } from "../utils/cn";
 
 const toastVariants = cva(
   [
-    "relative flex w-[360px] max-w-full items-start gap-3 overflow-hidden rounded-lg border bg-white p-4 shadow-lg",
+    "relative flex w-[360px] max-w-full items-start gap-3 overflow-hidden rounded-lg border p-4 shadow-lg",
+    "bg-card text-card-foreground",
     "data-[state=open]:animate-in data-[state=closed]:animate-out",
     "data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
   ],
   {
     variants: {
       variant: {
-        default: "border-gray-200 text-gray-900",
-        success: "border-emerald-200 bg-emerald-50 text-emerald-900",
-        warning: "border-amber-200 bg-amber-50 text-amber-900",
-        error: "border-red-200 bg-red-50 text-red-900",
-        info: "border-blue-200 bg-blue-50 text-blue-900",
+        default: "border-border text-foreground",
+        success:
+          "border-success/30 bg-success/10 text-success",
+        warning:
+          "border-warning/30 bg-warning/10 text-warning",
+        error:
+          "border-destructive/30 bg-destructive/10 text-destructive",
+        info: "border-info/30 bg-info/10 text-info",
       },
     },
     defaultVariants: {
@@ -101,11 +105,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </div>
             <div className="space-y-1 pr-6 text-sm">
               {t.title && <div className="font-semibold leading-none">{t.title}</div>}
-              {t.description && <div className="text-gray-600 text-xs leading-snug">{t.description}</div>}
+              {t.description && <div className="text-muted-foreground text-xs leading-snug">{t.description}</div>}
               {t.actionLabel && t.onAction && (
                 <button
                   onClick={() => t.onAction?.()}
-                  className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                  className="text-xs font-semibold text-primary hover:text-primary/80"
                 >
                   {t.actionLabel}
                 </button>
@@ -114,7 +118,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <ToastPrimitive.Close asChild>
               <button
                 aria-label="Close"
-                className="absolute right-2 top-2 rounded p-1 text-gray-500 transition hover:bg-gray-100"
+                className="absolute right-2 top-2 rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 onClick={() => t.id && dismiss(t.id)}
               >
                 <X className="h-4 w-4" />

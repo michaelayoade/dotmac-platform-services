@@ -6,8 +6,8 @@
 
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useMemo, type ReactNode } from "react";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 interface UsePermissionReturn {
   hasPermission: (permission: string) => boolean;
@@ -19,14 +19,14 @@ interface UsePermissionReturn {
 }
 
 export function usePermission(): UsePermissionReturn {
-  const { data: session, status } = useSession();
+  const { data: user, isLoading } = useCurrentUser();
 
   const permissions = useMemo(() => {
-    if (!session?.user?.permissions) return [];
-    return session.user.permissions as string[];
-  }, [session?.user?.permissions]);
+    if (!user?.permissions) return [];
+    return user.permissions as string[];
+  }, [user?.permissions]);
 
-  const role = session?.user?.role as string | null;
+  const role = (user?.roles?.[0] ?? null) as string | null;
 
   const hasPermission = (permission: string): boolean => {
     // Admins have all permissions
@@ -57,7 +57,7 @@ export function usePermission(): UsePermissionReturn {
     hasAllPermissions,
     permissions,
     role,
-    isLoading: status === "loading",
+    isLoading,
   };
 }
 

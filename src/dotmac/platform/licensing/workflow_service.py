@@ -143,27 +143,25 @@ class LicenseService(WorkflowServiceBase):
             if not template.active:
                 raise ValueError(f"License template {license_template_id} is inactive")
 
-            # Get customer details if issued_to not provided
+            # Get tenant details if issued_to not provided
             if not issued_to:
-                # Try to get customer from database with retry
-                async def fetch_customer() -> Any:
-                    from ..customer_management.models import Customer
+                # Try to get tenant from database with retry
+                async def fetch_tenant() -> Any:
+                    from dotmac.platform.tenant.models import Tenant
 
-                    customer_result = await self.db.execute(
-                        select(Customer).where(
-                            Customer.id == customer_id_str,
-                            Customer.tenant_id == tenant_id,
+                    tenant_result = await self.db.execute(
+                        select(Tenant).where(
+                            Tenant.id == tenant_id,
+                            Tenant.deleted_at.is_(None),
                         )
                     )
-                    return customer_result.scalar_one_or_none()
+                    return tenant_result.scalar_one_or_none()
 
-                customer = await self.with_retry(fetch_customer)
-                if customer:
-                    issued_to = (
-                        f"{customer.first_name} {customer.last_name}".strip() or customer.email
-                    )
+                tenant = await self.with_retry(fetch_tenant)
+                if tenant:
+                    issued_to = tenant.name or tenant.billing_email or tenant.email or tenant_id
                 else:
-                    issued_to = f"Customer {customer_id_str}"
+                    issued_to = f"Tenant {tenant_id}"
 
             # Calculate expiry date based on template
             issued_date = datetime.now(UTC)

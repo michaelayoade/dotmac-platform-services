@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import require_scopes
 from dotmac.platform.billing._typing_helpers import rate_limit
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.billing.exceptions import PaymentMethodError
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
@@ -26,6 +27,10 @@ from .service import PaymentMethodService
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/tenant/payment-methods", tags=["Tenant - Payment Methods"])
+
+
+def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
+    enforce_tenant_access(tenant_id, current_user)
 
 
 # ============================================================================
@@ -50,6 +55,7 @@ async def list_payment_methods(
 
     **Permissions**: Requires billing.payment_methods.view permission
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:
@@ -111,6 +117,7 @@ async def add_payment_method(
     **Permissions**: Requires billing.payment_methods.manage permission (TENANT_ADMIN or TENANT_BILLING_MANAGER)
     **Rate Limit**: 10 additions per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:
@@ -223,6 +230,7 @@ async def update_payment_method(
     **Permissions**: Requires billing.payment_methods.manage permission (TENANT_ADMIN or TENANT_BILLING_MANAGER)
     **Rate Limit**: 10 updates per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:
@@ -295,6 +303,7 @@ async def set_default_payment_method(
     **Permissions**: Requires billing.payment_methods.manage permission (TENANT_ADMIN or TENANT_BILLING_MANAGER)
     **Rate Limit**: 10 requests per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:
@@ -370,6 +379,7 @@ async def remove_payment_method(
     **Permissions**: Requires billing.payment_methods.manage permission (TENANT_ADMIN or TENANT_BILLING_MANAGER)
     **Rate Limit**: 10 removals per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:
@@ -447,6 +457,7 @@ async def verify_payment_method(
     **Permissions**: Requires billing.payment_methods.manage permission (TENANT_ADMIN or TENANT_BILLING_MANAGER)
     **Rate Limit**: 5 verification attempts per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = PaymentMethodService(db_session)
 
     try:

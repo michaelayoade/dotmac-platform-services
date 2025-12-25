@@ -30,7 +30,6 @@ def mock_contact_service():
         "stage": ContactStage.LEAD.value,
         "tenant_id": str(uuid4()),
         "owner_id": str(uuid4()),
-        "customer_id": None,
         "is_verified": True,
         "created_at": "2024-01-01T00:00:00Z",
         "updated_at": "2024-01-01T00:00:00Z",

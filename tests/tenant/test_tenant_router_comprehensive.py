@@ -11,8 +11,8 @@ import pytest_asyncio
 from fastapi import status
 from httpx import AsyncClient
 
-from src.dotmac.platform.auth.platform_admin import create_platform_admin_token
-from src.dotmac.platform.tenant.models import TenantPlanType
+from dotmac.platform.auth.platform_admin import create_platform_admin_token
+from dotmac.platform.tenant.models import TenantPlanType
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +38,7 @@ def auth_headers():
 @pytest_asyncio.fixture
 async def sample_tenant_id(async_client, auth_headers, tenant_service):
     """Create a sample tenant and return its ID."""
-    from src.dotmac.platform.tenant.schemas import TenantCreate
+    from dotmac.platform.tenant.schemas import TenantCreate
 
     tenant_data = TenantCreate(
         name="Test Organization",
@@ -266,7 +266,7 @@ class TestTenantSettingsEndpoints:
         self, async_client: AsyncClient, auth_headers, sample_tenant_id, tenant_service
     ):
         """Test GET /api/v1/tenants/{id}/settings/{key} - Get setting."""
-        from src.dotmac.platform.tenant.schemas import TenantSettingCreate
+        from dotmac.platform.tenant.schemas import TenantSettingCreate
 
         # Create a setting first
         await tenant_service.set_tenant_setting(
@@ -288,7 +288,7 @@ class TestTenantSettingsEndpoints:
         self, async_client: AsyncClient, auth_headers, sample_tenant_id, tenant_service
     ):
         """Test DELETE /api/v1/tenants/{id}/settings/{key} - Delete setting."""
-        from src.dotmac.platform.tenant.schemas import TenantSettingCreate
+        from dotmac.platform.tenant.schemas import TenantSettingCreate
 
         await tenant_service.set_tenant_setting(
             sample_tenant_id,
@@ -398,7 +398,7 @@ class TestTenantInvitationEndpoints:
         self, async_client: AsyncClient, sample_tenant_id, tenant_service
     ):
         """Test POST /api/v1/tenants/invitations/accept - Accept invitation."""
-        from src.dotmac.platform.tenant.schemas import TenantInvitationCreate
+        from dotmac.platform.tenant.schemas import TenantInvitationCreate
 
         # Create invitation
         invitation = await tenant_service.create_invitation(
@@ -420,7 +420,7 @@ class TestTenantInvitationEndpoints:
         self, async_client: AsyncClient, auth_headers, sample_tenant_id, tenant_service
     ):
         """Test POST /api/v1/tenants/{id}/invitations/{inv_id}/revoke - Revoke."""
-        from src.dotmac.platform.tenant.schemas import TenantInvitationCreate
+        from dotmac.platform.tenant.schemas import TenantInvitationCreate
 
         invitation = await tenant_service.create_invitation(
             sample_tenant_id,
@@ -485,7 +485,7 @@ class TestTenantBulkEndpoints:
         self, async_client: AsyncClient, auth_headers, tenant_service
     ):
         """Test POST /api/v1/tenants/bulk/status - Bulk status update."""
-        from src.dotmac.platform.tenant.schemas import TenantCreate
+        from dotmac.platform.tenant.schemas import TenantCreate
 
         # Create test tenants
         tenant_ids = []
@@ -512,7 +512,7 @@ class TestTenantBulkEndpoints:
 
     async def test_bulk_delete(self, async_client: AsyncClient, auth_headers, tenant_service):
         """Test POST /api/v1/tenants/bulk/delete - Bulk delete."""
-        from src.dotmac.platform.tenant.schemas import TenantCreate
+        from dotmac.platform.tenant.schemas import TenantCreate
 
         # Create test tenants
         tenant_ids = []

@@ -177,9 +177,9 @@ class License(BaseModel):
         SQLEnum(LicenseModel), nullable=False, index=True
     )
 
-    # Customer/Reseller relationships
+    # Customer/Reseller relationships (no FK - customer_management removed)
     customer_id: Mapped[UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("customers.id"), nullable=True, index=True
+        SQLUUID(as_uuid=True), nullable=True, index=True
     )
     reseller_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     tenant_id: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -415,9 +415,9 @@ class LicenseOrder(BaseModel):
     # Order number (auto-generated)
     order_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
 
-    # Customer/Reseller
+    # Customer/Reseller (no FK - customer_management removed)
     customer_id: Mapped[UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("customers.id"), nullable=True, index=True
+        SQLUUID(as_uuid=True), nullable=True, index=True
     )
     reseller_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     tenant_id: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -496,8 +496,9 @@ class ComplianceAudit(BaseModel):
 
     # Audit classification
     audit_type: Mapped[AuditType] = mapped_column(SQLEnum(AuditType), nullable=False, index=True)
+    # No FK - customer_management removed
     customer_id: Mapped[UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("customers.id"), nullable=True, index=True
+        SQLUUID(as_uuid=True), nullable=True, index=True
     )
     product_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     audit_scope: Mapped[AuditScope] = mapped_column(SQLEnum(AuditScope), nullable=False)

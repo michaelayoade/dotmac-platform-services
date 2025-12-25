@@ -1,7 +1,7 @@
 """
 Data import module for bulk data migration and loading.
 
-Provides services for importing customers, billing data, and other entities
+Provides services for importing billing data and other entities
 from CSV, JSON, and other formats.
 """
 

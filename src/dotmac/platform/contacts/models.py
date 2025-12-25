@@ -75,7 +75,7 @@ class ContactStage(str, Enum):
     PROSPECT = "prospect"
     LEAD = "lead"
     OPPORTUNITY = "opportunity"
-    CUSTOMER = "customer"
+    ACCOUNT = "account"
     PARTNER = "partner"
     VENDOR = "vendor"
     OTHER = "other"
@@ -127,14 +127,6 @@ class Contact(BaseModel):  # type: ignore[misc]
     tenant_id: Mapped[str] = mapped_column(
         String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Legacy customer_id FK - use customer_links for new code
-    customer_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="CASCADE"),
-        nullable=True,
-        comment="Legacy FK - use customer_links join table for new relationships",
-    )
-
     # Name fields
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     middle_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -185,7 +177,7 @@ class Contact(BaseModel):  # type: ignore[misc]
     # Flags
     is_primary: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
-    )  # Primary contact for customer
+    )  # Primary contact for tenant account
     is_decision_maker: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_billing_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_technical_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -223,15 +215,12 @@ class Contact(BaseModel):  # type: ignore[misc]
         "ContactLabelDefinition", secondary=contact_to_labels, back_populates="contacts"
     )
     # New normalized many-to-many relationship via join table
-    # Note: Commented to avoid circular import with customer_management module
+    # Note: Commented to avoid circular import with legacy account linking module
     # customer_links = relationship("CustomerContactLink", back_populates="contact", lazy="dynamic")
-    # Legacy direct relationship - kept for backward compatibility
-    customer = relationship("Customer", foreign_keys=[customer_id], viewonly=True)
     owner = relationship("User", foreign_keys=[owner_id])
 
     __table_args__ = (
         # Note: tenant_id index created automatically via index=True in column definition
-        Index("ix_contacts_customer_id", "customer_id"),
         Index("ix_contacts_display_name", "display_name"),
         Index("ix_contacts_company", "company"),
         Index("ix_contacts_status", "status"),

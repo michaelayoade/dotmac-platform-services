@@ -48,7 +48,7 @@ router = APIRouter(prefix="/portal", tags=["Tenant Portal"])
 class TenantDashboardStats(BaseModel):
     """Dashboard statistics for tenant portal."""
 
-    model_config = ConfigDict()
+    model_config = ConfigDict(populate_by_name=True)
 
     # Usage metrics
     active_users: int = Field(default=0, alias="activeUsers")
@@ -75,9 +75,6 @@ class TenantDashboardStats(BaseModel):
     # Counts
     pending_invitations: int = Field(default=0, alias="pendingInvitations")
     total_team_members: int = Field(default=0, alias="totalTeamMembers")
-
-    class Config:
-        populate_by_name = True
 
 
 class TeamMember(BaseModel):

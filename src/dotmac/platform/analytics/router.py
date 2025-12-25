@@ -21,10 +21,7 @@ from dotmac.platform.auth.dependencies import (
 )
 from dotmac.platform.auth.metrics_router import _get_auth_metrics_cached
 from dotmac.platform.auth.rbac_dependencies import require_any_permission
-from dotmac.platform.billing.metrics_router import (
-    _get_billing_metrics_cached,
-    _get_customer_metrics_cached,
-)
+from dotmac.platform.billing.metrics_router import _get_billing_metrics_cached
 from dotmac.platform.communications.metrics_router import _get_communication_stats_cached
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.file_storage.metrics_router import _get_file_stats_cached
@@ -312,12 +309,7 @@ async def get_operations_metrics(
 
     storage_service = get_storage_service()
 
-    customer_data, comms_data, file_data, monitoring_data = await asyncio.gather(
-        _get_customer_metrics_cached(
-            period_days=period_days,
-            tenant_id=tenant_id,
-            session=session,
-        ),
+    comms_data, file_data, monitoring_data = await asyncio.gather(
         _get_communication_stats_cached(
             period_days=period_days,
             tenant_id=tenant_id,
@@ -339,7 +331,7 @@ async def get_operations_metrics(
     def _safe(data: Any) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
 
-    customers = _safe(customer_data)
+    customers: dict[str, Any] = {}
     comms = _safe(comms_data)
     files = _safe(file_data)
     monitoring = _safe(monitoring_data)

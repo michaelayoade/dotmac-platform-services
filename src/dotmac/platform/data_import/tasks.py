@@ -17,8 +17,6 @@ from celery.schedules import crontab
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from dotmac.platform.core.tasks import app, idempotent_task
-from dotmac.platform.customer_management.mappers import CustomerImportSchema, CustomerMapper
-from dotmac.platform.customer_management.service import CustomerService
 from dotmac.platform.data_import.models import ImportJob, ImportJobStatus, ImportJobType
 from dotmac.platform.db import get_async_database_url, set_session_rls_context
 from dotmac.platform.tenant import get_current_tenant_id, set_current_tenant_id
@@ -80,11 +78,7 @@ def process_import_job(
 
     try:
         # Process based on job type
-        if job_type == ImportJobType.CUSTOMERS.value:
-            result = asyncio.run(
-                _process_customer_import(job_id, file_path, tenant_id, user_id, config)
-            )
-        elif job_type == ImportJobType.INVOICES.value:
+        if job_type == ImportJobType.INVOICES.value:
             result = asyncio.run(
                 _process_invoice_import(job_id, file_path, tenant_id, user_id, config)
             )
@@ -185,81 +179,6 @@ async def _mark_job_failed(job_id: str, error_message: str, tenant_id: str) -> N
             job.error_message = error_message
             job.completed_at = datetime.now(UTC)
             await session.commit()
-
-
-async def _process_customer_import(
-    job_id: str,
-    file_path: str,
-    tenant_id: str,
-    user_id: str | None,
-    config: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Process customer import job."""
-    previous_tenant = get_current_tenant_id()
-    set_current_tenant_id(tenant_id)
-    try:
-        async with get_async_session(tenant_id) as session:
-            # Get the job
-            job = await session.get(ImportJob, UUID(job_id))
-            if not job:
-                raise ValueError(f"Job {job_id} not found")
-
-            # Update status
-            job.status = ImportJobStatus.IN_PROGRESS
-            job.started_at = datetime.now(UTC)
-            await session.commit()
-
-            # Read file and process
-            file_ext = Path(file_path).suffix.lower()
-            chunk_size = (config or {}).get("chunk_size", DEFAULT_CHUNK_SIZE)
-
-            try:
-                if file_ext == ".csv":
-                    result = await _process_csv_in_chunks(
-                        session,
-                        job,
-                        file_path,
-                        tenant_id,
-                        user_id,
-                        ImportJobType.CUSTOMERS,
-                        chunk_size,
-                    )
-                elif file_ext == ".json":
-                    result = await _process_json_in_chunks(
-                        session,
-                        job,
-                        file_path,
-                        tenant_id,
-                        user_id,
-                        ImportJobType.CUSTOMERS,
-                        chunk_size,
-                    )
-                else:
-                    raise ValueError(f"Unsupported file format: {file_ext}")
-
-                # Update job status
-                if result["failed_records"] == 0:
-                    job.status = ImportJobStatus.COMPLETED
-                else:
-                    job.status = ImportJobStatus.PARTIALLY_COMPLETED
-
-                job.completed_at = datetime.now(UTC)
-                job.successful_records = result["successful_records"]
-                job.failed_records = result["failed_records"]
-                job.processed_records = result["total_records"]
-                job.summary = result
-
-                await session.commit()
-                return result
-
-            except Exception as e:
-                job.status = ImportJobStatus.FAILED
-                job.error_message = str(e)
-                job.completed_at = datetime.now(UTC)
-                await session.commit()
-                raise
-    finally:
-        set_current_tenant_id(previous_tenant)
 
 
 async def _process_csv_in_chunks(
@@ -416,13 +335,6 @@ async def _process_data_chunk(
 ) -> dict[str, Any]:
     """Process a chunk of data records."""
 
-    if job_type == ImportJobType.CUSTOMERS:
-        return await _process_customer_chunk(
-            session=session,
-            job=job,
-            chunk_data=chunk_data,
-            tenant_id=tenant_id,
-        )
     if job_type == ImportJobType.INVOICES:
         return await _process_invoice_chunk(
             session=session,
@@ -433,56 +345,6 @@ async def _process_data_chunk(
 
     # Add other job types as needed
     raise ValueError(f"Unsupported job type: {job_type}")
-
-
-async def _process_customer_chunk(
-    *,
-    session: AsyncSession,
-    job: ImportJob,
-    chunk_data: list[dict[str, Any]],
-    tenant_id: str,
-) -> dict[str, Any]:
-    """Process customer import records."""
-
-    service = CustomerService(session)
-    successful = 0
-    failed = 0
-    errors: list[dict[str, Any]] = []
-
-    for item in chunk_data:
-        row_number = item["row_number"]
-        row_data = item["data"]
-
-        try:
-            validated_data = CustomerMapper.validate_import_row(row_data, row_number)
-
-            if isinstance(validated_data, CustomerImportSchema):
-                model_data = CustomerMapper.from_import_to_model(
-                    validated_data, tenant_id, generate_customer_number=True
-                )
-                await service.create_customer(**model_data)
-                successful += 1
-            else:
-                failed += 1
-                errors.append(validated_data)
-                await _record_failure(
-                    session,
-                    job,
-                    row_number,
-                    "validation",
-                    validated_data.get("error", "Validation failed"),
-                    row_data,
-                    tenant_id,
-                )
-        except Exception as e:
-            failed += 1
-            error_msg = str(e)
-            errors.append({"row_number": row_number, "error": error_msg, "data": row_data})
-            await _record_failure(
-                session, job, row_number, "creation", error_msg, row_data, tenant_id
-            )
-
-    return {"successful": successful, "failed": failed, "errors": errors}
 
 
 async def _process_invoice_chunk(
@@ -637,7 +499,7 @@ async def _process_subscription_import(
     When implementing, follow the customer import pattern:
 
     1. Create SubscriptionImportSchema in billing/subscriptions/mappers.py
-       - Required fields: customer_id, plan_id
+       - Required fields: tenant_id, plan_id
        - Optional fields: status, billing_cycle, start_date, end_date, trial_end_date, quantity
 
     2. Create SubscriptionMapper with methods:
@@ -656,7 +518,7 @@ async def _process_subscription_import(
     4. Add tests in tests/billing/subscriptions/test_subscription_import.py
 
     Expected CSV/JSON format:
-        customer_id: UUID or customer_number (required)
+        tenant_id: UUID (required)
         plan_id: UUID or plan code (required)
         status: active|trialing|past_due|cancelled|paused (default: active)
         billing_cycle: monthly|quarterly|yearly|custom (default: monthly)
@@ -667,13 +529,13 @@ async def _process_subscription_import(
         amount: decimal (optional, uses plan amount if not provided)
 
     Example CSV:
-        customer_id,plan_id,status,billing_cycle,quantity,start_date
+        tenant_id,plan_id,status,billing_cycle,quantity,start_date
         123e4567-e89b-12d3-a456-426614174000,plan_basic_monthly,active,monthly,1,2025-01-01
         987fcdeb-51a2-43d1-b234-567890abcdef,plan_pro_yearly,trialing,yearly,1,2025-01-15
     """
     raise NotImplementedError(
         "Subscription import requires implementing _process_subscription_import(). "
-        "Follow the customer import pattern in customer_management/mappers.py"
+        "Follow the tenant import pattern in the billing mappers."
     )
 
 
@@ -694,7 +556,7 @@ async def _process_payment_import(
     When implementing, follow the customer import pattern:
 
     1. Create PaymentImportSchema in billing/payments/mappers.py
-       - Required fields: customer_id, amount, currency, payment_method
+       - Required fields: tenant_id, amount, currency, payment_method
        - Optional fields: invoice_id, status, payment_date, transaction_id, reference
 
     2. Create PaymentMapper with methods:
@@ -713,7 +575,7 @@ async def _process_payment_import(
     4. Add tests in tests/billing/payments/test_payment_import.py
 
     Expected CSV/JSON format:
-        customer_id: UUID or customer_number (required)
+        tenant_id: UUID (required)
         amount: decimal (required)
         currency: 3-letter code (default: USD)
         payment_method: card|bank_transfer|cash|check (required)
@@ -721,16 +583,16 @@ async def _process_payment_import(
         status: pending|completed|failed|refunded (default: completed)
         payment_date: ISO date string (optional, defaults to now)
         transaction_id: string (optional, external payment system ID)
-        reference: string (optional, customer reference number)
+        reference: string (optional, external reference)
 
     Example CSV:
-        customer_id,amount,currency,payment_method,status,payment_date,transaction_id
+        tenant_id,amount,currency,payment_method,status,payment_date,transaction_id
         123e4567-e89b-12d3-a456-426614174000,99.99,USD,card,completed,2025-01-15,txn_abc123
         987fcdeb-51a2-43d1-b234-567890abcdef,249.00,USD,bank_transfer,completed,2025-01-16,txn_xyz789
     """
     raise NotImplementedError(
         "Payment import requires implementing _process_payment_import(). "
-        "Follow the customer import pattern in customer_management/mappers.py"
+        "Follow the tenant import pattern in the billing mappers."
     )
 
 

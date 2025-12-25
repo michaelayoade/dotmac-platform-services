@@ -119,7 +119,7 @@ async def create_template(
     if existing:
         raise HTTPException(status_code=400, detail=f"Template '{template.name}' already exists")
 
-    new_template = DeploymentTemplate(**template.dict())
+    new_template = DeploymentTemplate(**template.model_dump())
     return registry.create_template(new_template)
 
 
@@ -146,7 +146,7 @@ async def update_template(
 ) -> DeploymentTemplate:
     """Update deployment template"""
     registry = DeploymentRegistry(db)
-    template = registry.update_template(template_id, **updates.dict(exclude_unset=True))
+    template = registry.update_template(template_id, **updates.model_dump(exclude_unset=True))
     if not template:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     return template

@@ -68,13 +68,6 @@ class TestDefaultGenerator:
         assert isinstance(default_reportlab_generator, ReportLabInvoiceGenerator)
 
 
-# TODO: Restore comprehensive tests from archive
-# The archived test suite (test_pdf_generator_comprehensive.py.disabled) needs:
-# 1. Update Money() → MoneyField.from_money(Money(...))
-# 2. Replace MoneyLineItem → MoneyInvoiceLineItem
-# 3. Add required fields: tenant_id, discount_amount, remaining_balance, tax_rate, discount_percentage
-# 4. Remove net_amount_due field (no longer exists in MoneyInvoice)
-#
 # Coverage from integration tests:
 # - PDF generation tested in tests/billing/test_subscription_invoice_integration.py
 # - Invoice rendering verified via actual subscription workflows

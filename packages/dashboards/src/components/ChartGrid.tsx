@@ -26,10 +26,14 @@ export interface ChartCardProps {
   title?: string;
   /** Chart subtitle */
   subtitle?: string;
+  /** Chart description (alias for subtitle) */
+  description?: string;
   /** Chart content */
   children: ReactNode;
   /** Card actions */
   actions?: ReactNode;
+  /** Card action (alias for actions) */
+  action?: ReactNode;
   /** Card spans full width */
   fullWidth?: boolean;
   /** Card height */
@@ -78,13 +82,18 @@ export function ChartGrid({
 export function ChartCard({
   title,
   subtitle,
+  description,
   children,
   actions,
+  action,
   fullWidth = false,
   height = 300,
   loading = false,
   className,
 }: ChartCardProps) {
+  // Support alias props
+  const displaySubtitle = subtitle ?? description;
+  const displayActions = actions ?? action;
   return (
     <div
       className={cn(
@@ -94,17 +103,17 @@ export function ChartCard({
       )}
     >
       {/* Header */}
-      {(title || actions) && (
+      {(title || displayActions) && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div>
             {title && (
               <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
             )}
-            {subtitle && (
-              <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+            {displaySubtitle && (
+              <p className="text-xs text-gray-500 mt-0.5">{displaySubtitle}</p>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {displayActions && <div className="flex items-center gap-2">{displayActions}</div>}
         </div>
       )}
 

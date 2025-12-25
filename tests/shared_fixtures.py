@@ -39,12 +39,6 @@ try:
 except ImportError:
     HAS_USER_MODELS = False
 
-try:
-    from dotmac.platform.customer_management.models import Customer, CustomerCreate
-
-    HAS_CUSTOMER_MODELS = True
-except ImportError:
-    HAS_CUSTOMER_MODELS = False
 
 try:
     from dotmac.platform.data_transfer.core import ExportOptions, ImportOptions, TransferConfig
@@ -144,18 +138,6 @@ def mock_user_service() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_customer_service() -> AsyncMock:
-    """Mock customer service with common methods."""
-    service = AsyncMock()
-    service.get_customer = AsyncMock()
-    service.create_customer = AsyncMock()
-    service.update_customer = AsyncMock()
-    service.delete_customer = AsyncMock()
-    service.list_customers = AsyncMock()
-    return service
-
-
-@pytest.fixture
 def mock_auth_service() -> AsyncMock:
     """Mock authentication service."""
     service = AsyncMock()
@@ -205,30 +187,6 @@ def mock_file_storage() -> AsyncMock:
     storage.list_files = AsyncMock()
     storage.get_url = AsyncMock()
     return storage
-
-
-# ============================================================================
-# Model Fixtures
-# ============================================================================
-
-if HAS_CUSTOMER_MODELS:
-
-    @pytest.fixture
-    def sample_customer() -> Customer:
-        """Sample customer for testing."""
-        return Customer(
-            id=str(uuid4()),
-            name="Test Customer",
-            email="customer@example.com",
-            tenant_id="tenant-123",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        )
-
-    @pytest.fixture
-    def customer_create_request() -> CustomerCreate:
-        """Customer creation request."""
-        return CustomerCreate(name="New Customer", email="new@example.com", phone="+1234567890")
 
 
 if HAS_USER_MODELS:
@@ -463,7 +421,6 @@ _all_fixtures = [
     "mock_async_service",
     "mock_sync_service",
     "mock_user_service",
-    "mock_customer_service",
     "mock_auth_service",
     # Database and storage
     "mock_database_manager",
@@ -486,10 +443,6 @@ _all_fixtures = [
     "create_mock_service",
     "create_test_data",
 ]
-
-# Add conditional fixtures if they exist
-if HAS_CUSTOMER_MODELS:
-    _all_fixtures.extend(["sample_customer", "customer_create_request"])
 
 if HAS_USER_MODELS:
     _all_fixtures.extend(["sample_user"])

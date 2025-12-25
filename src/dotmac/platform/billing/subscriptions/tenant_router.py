@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user, require_scopes
 from dotmac.platform.billing._typing_helpers import rate_limit
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -30,6 +31,10 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/tenant/subscription", tags=["Tenant - Subscriptions"])
 
 
+def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
+    enforce_tenant_access(tenant_id, current_user)
+
+
 # ============================================================================
 # Tenant Subscription Management
 # ============================================================================
@@ -39,7 +44,7 @@ router = APIRouter(prefix="/tenant/subscription", tags=["Tenant - Subscriptions"
 async def get_current_tenant_subscription(
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_scopes("billing.subscription.view")),
 ) -> SubscriptionResponse:
     """
     Get current tenant's active subscription with full details.
@@ -52,6 +57,7 @@ async def get_current_tenant_subscription(
 
     **Permissions**: Requires authenticated tenant user
     """
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:
@@ -96,7 +102,7 @@ async def get_current_tenant_subscription(
 async def get_available_plans_for_tenant(
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_scopes("billing.subscription.view")),
 ) -> list[SubscriptionPlanResponse]:
     """
     Get all subscription plans available for tenant upgrade/downgrade.
@@ -109,6 +115,7 @@ async def get_available_plans_for_tenant(
 
     **Permissions**: Requires authenticated tenant user
     """
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:
@@ -147,7 +154,7 @@ async def preview_plan_change(
     request: PlanChangeRequest,
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_scopes("billing.subscription.view")),
 ) -> ProrationPreview:
     """
     Preview cost/credits for changing subscription plan.
@@ -167,6 +174,7 @@ async def preview_plan_change(
     **Permissions**: Requires authenticated tenant user
     **Rate Limit**: 10 requests per minute
     """
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:
@@ -251,6 +259,7 @@ async def change_subscription_plan(
     **Rate Limit**: 5 plan changes per minute
     """
 
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:
@@ -341,6 +350,7 @@ async def cancel_tenant_subscription(
     **Rate Limit**: 3 cancellation requests per minute
     """
 
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:
@@ -414,6 +424,7 @@ async def reactivate_tenant_subscription(
     **Rate Limit**: 5 requests per minute
     """
 
+    _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
 
     try:

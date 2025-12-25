@@ -120,14 +120,13 @@ async def seed_multi_tenant_data(e2e_db_engine):
     Seed database with multiple tenants for testing platform admin features.
 
     Creates:
-    - 3 tenants with users and customers
+    - 3 tenants with users
     - Platform admin user
 
     Note: Uses e2e_db_engine directly to avoid circular dependency with platform_admin_client fixture.
     """
     from datetime import datetime, timedelta
 
-    from dotmac.platform.customer_management.models import Customer
     from dotmac.platform.tenant.models import BillingCycle, Tenant, TenantPlanType, TenantStatus
     from dotmac.platform.user_management.models import User
 
@@ -146,21 +145,18 @@ async def seed_multi_tenant_data(e2e_db_engine):
                 "name": "Alpha Corporation",
                 "slug": "alpha-corp",
                 "users": 5,
-                "customers": 10,
             },
             {
                 "tenant_id": "tenant-beta",
                 "name": "Beta Industries",
                 "slug": "beta-ind",
                 "users": 3,
-                "customers": 7,
             },
             {
                 "tenant_id": "tenant-gamma",
                 "name": "Gamma Solutions",
                 "slug": "gamma-sol",
                 "users": 8,
-                "customers": 15,
             },
         ]
 
@@ -196,18 +192,6 @@ async def seed_multi_tenant_data(e2e_db_engine):
                 )
                 db_session.add(user)
 
-            # Create customers for this tenant
-            for i in range(tenant_data["customers"]):
-                customer = Customer(
-                    customer_number=f"{tenant_data['tenant_id']}-CUST-{i:04d}",
-                    first_name=f"Customer{i}",
-                    last_name="Test",
-                    email=f"customer{i}@{tenant_data['slug']}.com",
-                    tenant_id=tenant_data["tenant_id"],
-                    created_at=datetime.now(UTC),
-                )
-                db_session.add(customer)
-
         # Create platform admin tenant
         admin_tenant = Tenant(
             id="platform-admin-tenant",
@@ -237,7 +221,7 @@ async def seed_multi_tenant_data(e2e_db_engine):
     return {
         "tenants": tenants_data,
         "total_users": sum(t["users"] for t in tenants_data) + 1,  # +1 for admin
-        "total_customers": sum(t["customers"] for t in tenants_data),
+        "total_customers": 0,
     }
 
 
@@ -394,7 +378,7 @@ class TestTenantListing:
 
         # Verify aggregated metrics
         assert data["total_users"] == 5
-        assert data["total_customers"] == 10
+        assert data["total_customers"] == 0
 
         # Verify timestamps exist
         assert "created_at" in data
@@ -470,7 +454,7 @@ class TestPlatformStats:
         assert data["total_tenants"] == 4  # 3 seeded + 1 admin tenant
         assert data["active_tenants"] == 4
         assert data["total_users"] == seed_multi_tenant_data["total_users"]
-        assert data["total_resources"] == seed_multi_tenant_data["total_customers"]
+        assert data["total_resources"] == 0
         assert data["system_health"] == "healthy"
 
     @pytest.mark.asyncio
@@ -584,8 +568,8 @@ class TestCrossTenantSearch:
     ):
         """Test searching across all tenants."""
         search_request = {
-            "query": "customer",
-            "resource_type": "customer",
+            "query": "user",
+            "resource_type": "user",
             "limit": 20,
         }
 
@@ -602,7 +586,7 @@ class TestCrossTenantSearch:
         assert "results" in data
         assert "total" in data
         assert "query" in data
-        assert data["query"] == "customer"
+        assert data["query"] == "user"
 
     @pytest.mark.asyncio
     async def test_cross_tenant_search_with_tenant_filter(

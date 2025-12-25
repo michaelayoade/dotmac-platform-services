@@ -1,15 +1,41 @@
 /**
  * @dotmac/data-table - DataTable
  *
- * Advanced data table component with:
- * - Server-side pagination
- * - Row selection with bulk actions
- * - Column configuration (visibility, ordering, pinning)
- * - Search and filtering
- * - Sorting
- * - Export to CSV
- * - Virtualization for large datasets
- * - Responsive mobile cards
+ * A feature-rich, accessible data table component built on TanStack Table.
+ *
+ * @description
+ * Advanced data table component providing enterprise-grade features for
+ * displaying and interacting with tabular data.
+ *
+ * ## Features
+ * - **Server-side pagination** - Full support for paginated API responses
+ * - **Row selection** - Single and bulk selection with customizable actions
+ * - **Column management** - Show/hide columns, reorder, and pin
+ * - **Search & filtering** - Global search, column filters, and quick filters
+ * - **Sorting** - Client and server-side sorting support
+ * - **Export** - CSV export with selection support
+ * - **Responsive** - Mobile card view for small screens
+ * - **Accessible** - ARIA labels and keyboard navigation
+ *
+ * @example
+ * ```tsx
+ * import { DataTable } from '@dotmac/data-table';
+ *
+ * const columns = [
+ *   { accessorKey: 'name', header: 'Name' },
+ *   { accessorKey: 'email', header: 'Email' },
+ * ];
+ *
+ * <DataTable
+ *   data={users}
+ *   columns={columns}
+ *   searchable
+ *   pagination
+ *   selectable
+ * />
+ * ```
+ *
+ * @see {@link DataTableProps} for full prop documentation
  */
 
 "use client";
@@ -113,66 +139,109 @@ const DEFAULT_TRANSLATIONS: DataTableTranslations = {
   sortDescending: "Sort descending",
 };
 
+/**
+ * Props for the DataTable component.
+ *
+ * @template TData - The type of data in each row
+ * @template TValue - The type of cell values (usually inferred)
+ */
 export interface DataTableProps<TData, TValue> {
   // Required
+  /** Column definitions using TanStack Table's ColumnDef format */
   columns: ColumnDef<TData, TValue>[];
+  /** Array of data objects to display in the table */
   data: TData[];
 
   // Pagination
+  /** Enable client-side pagination. Default: true */
   pagination?: boolean;
+  /** Configuration for server-side pagination. Overrides client-side pagination when provided */
   serverSidePagination?: ServerSidePagination;
+  /** Available page size options. Default: [10, 20, 50, 100] */
   pageSizeOptions?: number[];
+  /** Initial page size. Default: 10 */
   defaultPageSize?: number;
 
   // Selection
+  /** Enable row selection with checkboxes. Default: false */
   selectable?: boolean;
+  /** Callback fired when selection changes */
   onSelectionChange?: (selectedRows: TData[]) => void;
+  /** Actions available when rows are selected */
   bulkActions?: BulkAction<TData>[];
 
   // Search & Filtering
+  /** Enable global search input. Default: true */
   searchable?: boolean;
+  /** Placeholder text for search input */
   searchPlaceholder?: string;
+  /** Limit search to specific column keys */
   searchableColumns?: string[];
+  /** Controlled global filter value */
   globalFilter?: string;
+  /** Callback for controlled global filter */
   onGlobalFilterChange?: (value: string) => void;
+  /** Advanced filter configurations for column-specific filtering */
   filters?: FilterConfig[];
+  /** Quick filter presets that can be toggled on/off */
   quickFilters?: QuickFilter<TData>[];
 
   // Sorting
+  /** Enable column sorting. Default: true */
   sortable?: boolean;
+  /** Initial sorting state */
   defaultSorting?: SortingState;
+  /** Controlled sorting callback */
   onSortingChange?: OnChangeFn<SortingState>;
 
   // Column Management
+  /** Enable column visibility toggle menu. Default: true */
   columnVisibility?: boolean;
+  /** Initial column visibility state */
   defaultColumnVisibility?: VisibilityState;
+  /** Controlled column visibility callback */
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
 
   // Export
+  /** Enable CSV export button. Default: false */
   exportable?: boolean;
+  /** Filename for exported CSV (without extension) */
   exportFilename?: string;
+  /** Columns to include in export. Defaults to all columns */
   exportColumns?: (keyof TData)[];
 
   // State
+  /** Show loading skeleton. Default: false */
   loading?: boolean;
+  /** Error message to display */
   error?: string;
 
   // Callbacks
+  /** Callback when a row is clicked */
   onRowClick?: (row: TData) => void;
+  /** Custom row ID generator for selection tracking */
   getRowId?: (row: TData, index: number) => string;
 
   // Responsive
+  /** Enable mobile card view below breakpoint. Default: false */
   enableResponsiveCards?: boolean;
+  /** Custom render function for mobile cards */
   renderMobileCard?: (row: Row<TData>) => React.ReactNode;
+  /** Breakpoint (px) for switching to mobile view. Default: 768 */
   responsiveBreakpoint?: number;
 
   // Styling
+  /** Additional CSS class for the container */
   className?: string;
+  /** Hide the toolbar (search, filters, actions). Default: false */
   hideToolbar?: boolean;
+  /** Custom actions to render in the toolbar */
   toolbarActions?: React.ReactNode;
+  /** Custom translations for UI text */
   translations?: Partial<DataTableTranslations>;
 
   // Adapters (for optional features)
+  /** Adapter for confirmation dialogs (used by bulk actions with confirm) */
   confirmAdapter?: (options: {
     title: string;
     description: string;

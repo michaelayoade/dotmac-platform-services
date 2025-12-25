@@ -288,14 +288,6 @@ ROUTER_CONFIGS = [
         requires_auth=True,
     ),
     RouterConfig(
-        module_path="dotmac.platform.billing.invoicing.money_router",
-        router_name="router",
-        prefix="/api/v1/billing/invoices",
-        tags=["Billing - Invoices (Money)"],
-        description="Money-based invoice operations with PDF generation",
-        requires_auth=True,
-    ),
-    RouterConfig(
         module_path="dotmac.platform.billing.payments.router",
         router_name="router",
         prefix="/api/v1/billing",
@@ -335,14 +327,6 @@ ROUTER_CONFIGS = [
         description="Billing overview metrics (MRR, ARR, invoices, payments)",
         requires_auth=True,
     ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.metrics_router",
-        router_name="customer_metrics_router",
-        prefix="/api/v1",
-        tags=["Customer Metrics"],
-        description="Customer metrics with growth and churn analysis",
-        requires_auth=True,
-    ),
     # ===========================================
     # Licensing
     # ===========================================
@@ -365,14 +349,6 @@ ROUTER_CONFIGS = [
     # ===========================================
     # Customer Management
     # ===========================================
-    RouterConfig(
-        module_path="dotmac.platform.customer_management.router",
-        router_name="router",
-        prefix="/api/v1/customers",
-        tags=["Customer Management"],
-        requires_auth=True,
-        description="Customer relationship management",
-    ),
     RouterConfig(
         module_path="dotmac.platform.contacts.router",
         router_name="router",

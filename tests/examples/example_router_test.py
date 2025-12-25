@@ -370,26 +370,7 @@ class TestRealFixtureIntegration(RouterTestBase):
     router_name = "router"
     router_prefix = "/access"
 
-    def test_health_check(self, client, mock_service):
-        """Example with real router."""
-        from dotmac.platform.voltha.schemas import VOLTHAHealthResponse
-
-        # Mock the service
-        mock_service.health = AsyncMock(
-            return_value=VOLTHAHealthResponse(
-                healthy=True,
-                state="HEALTHY",
-                message="OK",
-                total_devices=5,
-            )
-        )
-
-        response = client.get("/api/v1/access/health")
-        data = self.assert_success(response)
-
-        # Validate against real schema
-        health = VOLTHAHealthResponse(**data)
-        assert health.healthy is True
+    # Example omitted: access health check depended on VOLTHA schemas.
 
 
 # ======================================================================

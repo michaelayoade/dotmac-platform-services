@@ -1,18 +1,17 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import type { ReactNode } from "react";
 
-import { authOptions } from "@/lib/auth/config";
+import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 export default async function AuthLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUserFromRequest();
 
   // Redirect to dashboard if already logged in
-  if (session) {
+  if (user) {
     redirect("/");
   }
 

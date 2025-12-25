@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -28,6 +30,10 @@ from .service import PricingEngine as PricingService
 router = APIRouter(prefix="/billing/pricing", tags=["Billing - Pricing"])
 
 
+def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
+    enforce_tenant_access(tenant_id, current_user)
+
+
 # Pricing Rules Management
 
 
@@ -38,13 +44,14 @@ router = APIRouter(prefix="/billing/pricing", tags=["Billing - Pricing"])
 )
 async def create_pricing_rule(
     rule_data: PricingRuleCreateRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> PricingRuleResponse:
     """Create a new pricing rule."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         rule = await service.create_pricing_rule(rule_data, tenant_id)
         rule_response: PricingRuleResponse = PricingRuleResponse.model_validate(rule.model_dump())
         return rule_response
@@ -54,7 +61,7 @@ async def create_pricing_rule(
 
 @router.get("/rules", response_model=list[PricingRuleResponse])
 async def list_pricing_rules(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
     product_id: str | None = Query(None, description="Filter by product ID"),
@@ -63,6 +70,7 @@ async def list_pricing_rules(
 ) -> list[PricingRuleResponse]:
     """List pricing rules."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     rules = await service.list_pricing_rules(
         tenant_id,
         product_id=product_id,
@@ -75,12 +83,13 @@ async def list_pricing_rules(
 @router.get("/rules/{rule_id}", response_model=PricingRuleResponse)
 async def get_pricing_rule(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> PricingRuleResponse:
     """Get a specific pricing rule."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     rule = await service.get_pricing_rule(rule_id, tenant_id)
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
@@ -92,13 +101,14 @@ async def get_pricing_rule(
 async def update_pricing_rule(
     rule_id: str,
     rule_data: PricingRuleUpdateRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> PricingRuleResponse:
     """Update a pricing rule."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         rule = await service.update_pricing_rule(rule_id, rule_data, tenant_id)
         if not rule:
             raise HTTPException(
@@ -113,12 +123,13 @@ async def update_pricing_rule(
 @router.delete("/rules/{rule_id}")
 async def delete_pricing_rule(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> JSONResponse:
     """Delete a pricing rule (deactivates it)."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     success = await service.deactivate_rule(rule_id, tenant_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
@@ -130,12 +141,13 @@ async def delete_pricing_rule(
 @router.post("/rules/{rule_id}/activate")
 async def activate_pricing_rule(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> JSONResponse:
     """Activate a pricing rule."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     success = await service.activate_rule(rule_id, tenant_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
@@ -147,12 +159,13 @@ async def activate_pricing_rule(
 @router.post("/rules/{rule_id}/deactivate")
 async def deactivate_pricing_rule(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> JSONResponse:
     """Deactivate a pricing rule."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     success = await service.deactivate_rule(rule_id, tenant_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
@@ -167,13 +180,14 @@ async def deactivate_pricing_rule(
 @router.post("/calculate", response_model=PriceCalculationResult)
 async def calculate_price(
     calculation_request: PriceCalculationRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> PriceCalculationResult:
     """Calculate price for a product with applicable discounts."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         result: PriceCalculationResult = await service.calculate_price(
             calculation_request, tenant_id
         )
@@ -188,13 +202,14 @@ async def calculate_price_simple(
     customer_id: str = Query(..., description="Customer ID for pricing"),
     quantity: int = Query(1, description="Quantity", ge=1),
     customer_segments: list[str] = Query([], description="Customer segments for rule matching"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> PriceCalculationResult:
     """Calculate price using query parameters (alternative endpoint)."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         request = PriceCalculationRequest(
             product_id=product_id,
             customer_id=customer_id,
@@ -214,13 +229,14 @@ async def calculate_price_simple(
 @router.get("/rules/{rule_id}/usage")
 async def get_pricing_rule_usage(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Get usage statistics for a pricing rule."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         usage_stats = await service.get_rule_usage_stats(rule_id, tenant_id)
         if not usage_stats:
             raise HTTPException(
@@ -234,12 +250,13 @@ async def get_pricing_rule_usage(
 @router.post("/rules/{rule_id}/reset-usage")
 async def reset_pricing_rule_usage(
     rule_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> JSONResponse:
     """Reset usage counter for a pricing rule."""
     service = PricingService(db_session)
+    _require_tenant(current_user, tenant_id)
     success = await service.reset_rule_usage(rule_id, tenant_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
@@ -254,13 +271,14 @@ async def reset_pricing_rule_usage(
 @router.post("/rules/test")
 async def test_pricing_rules(
     test_request: PriceCalculationRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Test which pricing rules would apply for given conditions."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         applicable_rules = await service.get_applicable_rules(test_request, tenant_id)
         return {
             "product_id": test_request.product_id,
@@ -284,13 +302,14 @@ async def test_pricing_rules(
 
 @router.get("/rules/conflicts")
 async def detect_rule_conflicts(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.view")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Detect potential conflicts between pricing rules."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         conflicts = await service.detect_rule_conflicts(tenant_id)
         return {
             "conflicts_found": len(conflicts) > 0,
@@ -307,13 +326,14 @@ async def detect_rule_conflicts(
 @router.post("/rules/bulk-activate")
 async def bulk_activate_rules(
     rule_ids: list[str] = Body(...),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Activate multiple pricing rules at once."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         results = await service.bulk_activate_rules(rule_ids, tenant_id)
         return {
             "total_rules": len(rule_ids),
@@ -328,13 +348,14 @@ async def bulk_activate_rules(
 @router.post("/rules/bulk-deactivate")
 async def bulk_deactivate_rules(
     rule_ids: list[str] = Body(...),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.pricing.manage")),
     tenant_id: str = Depends(get_current_tenant_id),
     db_session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Deactivate multiple pricing rules at once."""
     service = PricingService(db_session)
     try:
+        _require_tenant(current_user, tenant_id)
         results = await service.bulk_deactivate_rules(rule_ids, tenant_id)
         return {
             "total_rules": len(rule_ids),

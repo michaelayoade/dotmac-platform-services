@@ -456,6 +456,7 @@ class BillingService:
         from datetime import timedelta
 
         from sqlalchemy import select, update
+        from dotmac.platform.tenant.models import Tenant
 
         logger.info(f"Extending subscription {subscription_id} by {extension_period} months")
 
@@ -753,14 +754,14 @@ class BillingService:
         activation_notes: str | None = None,
     ) -> dict[str, Any]:
         """
-        Activate a service for a customer.
+        Activate a service for a tenant.
 
         This method activates a previously provisioned service, updating
         the customer's service status and associated subscription to active.
         It triggers billing to begin and marks the service as operational.
 
         Args:
-            customer_id: Customer ID
+            customer_id: Tenant identifier (legacy name retained for workflows)
             service_id: Service ID (from network allocation)
             tenant_id: Tenant ID for multi-tenant isolation
             activation_notes: Optional notes about the activation
@@ -778,55 +779,31 @@ class BillingService:
             }
 
         Raises:
-            ValueError: If customer or service not found
+            ValueError: If tenant or service not found
         """
 
         from sqlalchemy import select, update
 
-        logger.info(f"Activating service {service_id} for customer {customer_id}")
+        effective_tenant_id = tenant_id or str(customer_id)
+        logger.info(
+            "Activating service",
+            extra={"service_id": service_id, "tenant_id": effective_tenant_id},
+        )
 
         customer_id_str = str(customer_id)
         service_id_str = str(service_id)
 
-        # Get customer details
-        from ..customer_management.models import Customer
+        if not effective_tenant_id:
+            raise ValueError("Tenant ID is required to activate service")
 
-        stmt = select(Customer).where(Customer.id == customer_id_str)
-        if tenant_id:
-            stmt = stmt.where(Customer.tenant_id == tenant_id)
-
-        result = await self.db.execute(stmt)
-        customer = result.scalar_one_or_none()
-
-        if not customer:
-            raise ValueError(
-                f"Customer {customer_id} not found"
-                + (f" in tenant {tenant_id}" if tenant_id else "")
-            )
-
-        tenant_id = customer.tenant_id
-
-        # Update customer service-specific fields to mark service as active
-        try:
-            from ..customer_management.models import InstallationStatus
-
-            update_stmt = (
-                update(Customer)
-                .where(Customer.id == customer_id_str)
-                .values(
-                    installation_status=InstallationStatus.COMPLETED,
-                    installation_completed_at=datetime.now(UTC),
-                    connection_status="active",
-                )
-            )
-            await self.db.execute(update_stmt)
-            await self.db.flush()
-
-            logger.info(f"Updated customer {customer_id} installation status to COMPLETED")
-
-        except (ImportError, AttributeError):
-            # Service fields not available, skip this step
-            logger.warning("Customer service fields not available, skipping installation status update")
+        result = await self.db.execute(
+            select(Tenant)
+            .where(Tenant.id == effective_tenant_id, Tenant.deleted_at.is_(None))
+            .limit(1)
+        )
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise ValueError(f"Tenant {effective_tenant_id} not found")
 
         # Activate associated subscriptions
         subscription_activated = False
@@ -836,7 +813,7 @@ class BillingService:
             # Find active or trial subscriptions for this customer
             sub_stmt = select(BillingSubscriptionTable).where(
                 BillingSubscriptionTable.customer_id == customer_id_str,
-                BillingSubscriptionTable.tenant_id == tenant_id,
+                BillingSubscriptionTable.tenant_id == effective_tenant_id,
                 BillingSubscriptionTable.status.in_(
                     [
                         SubscriptionStatus.TRIAL,
@@ -869,7 +846,11 @@ class BillingService:
                 subscription_activated = True
 
                 logger.info(
-                    f"Activated {len(subscriptions)} subscription(s) for customer {customer_id}"
+                    "Activated subscriptions",
+                    extra={
+                        "tenant_id": effective_tenant_id,
+                        "count": len(subscriptions),
+                    },
                 )
 
         except (ImportError, AttributeError) as e:
@@ -882,7 +863,7 @@ class BillingService:
         # - Usage tracking activation
         billing_started = subscription_activated
 
-        # Store activation metadata in customer context
+        # Store activation metadata in tenant context
         try:
             activation_metadata = {
                 "service_activation": {
@@ -893,13 +874,13 @@ class BillingService:
                 }
             }
 
-            # Update customer context/metadata
+            # Update tenant context/metadata
             update_stmt = (
-                update(Customer)
-                .where(Customer.id == customer_id_str)
+                update(Tenant)
+                .where(Tenant.id == effective_tenant_id)
                 .values(
-                    metadata={
-                        **(customer.metadata or {}),
+                    custom_metadata={
+                        **(tenant.custom_metadata or {}),
                         **activation_metadata,
                     }
                 )
@@ -915,14 +896,18 @@ class BillingService:
         activated_at = datetime.now(UTC)
 
         logger.info(
-            f"Service activated successfully: service_id={service_id}, "
-            f"customer={customer_id}, subscription_activated={subscription_activated}"
+            "Service activated successfully",
+            extra={
+                "service_id": service_id,
+                "tenant_id": effective_tenant_id,
+                "subscription_activated": subscription_activated,
+            },
         )
 
         return {
             "service_id": service_id_str,
-            "customer_id": customer_id_str,
-            "customer_email": customer.email,
+            "tenant_id": effective_tenant_id,
+            "billing_email": tenant.billing_email or tenant.email,
             "status": "active",
             "activated_at": activated_at.isoformat(),
             "subscription_activated": subscription_activated,

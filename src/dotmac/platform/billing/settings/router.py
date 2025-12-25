@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.billing.settings.models import (
     BillingSettings,
     CompanyInfo,
@@ -25,14 +27,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["Billing - Settings"])
 
 
+def _require_tenant(current_user: UserInfo) -> str:
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required",
+        )
+    enforce_tenant_access(tenant_id, current_user)
+    return tenant_id
+
+
 @router.get("", response_model=BillingSettings)
 async def get_billing_settings(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.view")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Get billing settings for the current tenant"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         settings = await service.get_settings(tenant_id)
@@ -48,12 +61,12 @@ async def get_billing_settings(
 @router.put("", response_model=BillingSettings)
 async def update_billing_settings(
     settings: BillingSettings,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update complete billing settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_settings(tenant_id, settings)
@@ -71,12 +84,12 @@ async def update_billing_settings(
 @router.put("/company", response_model=BillingSettings)
 async def update_company_info(
     company_info: CompanyInfo,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update company information settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_company_info(tenant_id, company_info)
@@ -92,12 +105,12 @@ async def update_company_info(
 @router.put("/tax", response_model=BillingSettings)
 async def update_tax_settings(
     tax_settings: TaxSettings,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update tax settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_tax_settings(tenant_id, tax_settings)
@@ -113,12 +126,12 @@ async def update_tax_settings(
 @router.put("/payment", response_model=BillingSettings)
 async def update_payment_settings(
     payment_settings: PaymentSettings,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update payment settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_payment_settings(tenant_id, payment_settings)
@@ -134,12 +147,12 @@ async def update_payment_settings(
 @router.put("/invoice", response_model=BillingSettings)
 async def update_invoice_settings(
     invoice_settings: InvoiceSettings,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update invoice settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_invoice_settings(tenant_id, invoice_settings)
@@ -155,12 +168,12 @@ async def update_invoice_settings(
 @router.put("/notifications", response_model=BillingSettings)
 async def update_notification_settings(
     notification_settings: NotificationSettings,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update notification settings"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_notification_settings(
@@ -178,12 +191,12 @@ async def update_notification_settings(
 @router.put("/features", response_model=BillingSettings)
 async def update_feature_flags(
     features: dict[str, bool],
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Update feature flags"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         updated_settings = await service.update_feature_flags(tenant_id, features)
@@ -198,12 +211,12 @@ async def update_feature_flags(
 
 @router.post("/reset", response_model=BillingSettings)
 async def reset_to_defaults(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> BillingSettings:
     """Reset billing settings to defaults"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         settings = await service.reset_to_defaults(tenant_id)
@@ -218,12 +231,12 @@ async def reset_to_defaults(
 
 @router.get("/validate")
 async def validate_settings(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.settings.view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Validate current billing settings and return validation report"""
     service = BillingSettingsService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         validation_report: dict[str, Any] = await service.validate_settings_for_tenant(tenant_id)

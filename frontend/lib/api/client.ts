@@ -5,8 +5,6 @@
  * Handles authentication, error handling, correlation IDs, and response parsing
  */
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/config";
 import type { PaginatedResponse } from "@/types/api";
 import { ApiClientError, type BackendError } from "./errors";
 
@@ -15,7 +13,9 @@ export { ApiClientError } from "./errors";
 export type { BackendError } from "./errors";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  (typeof window === "undefined"
+    ? process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL
+    : process.env.NEXT_PUBLIC_API_URL) || "http://localhost:8000";
 
 
 interface RequestOptions extends RequestInit {
@@ -225,20 +225,60 @@ export function normalizePaginatedResponse<T>(
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  // Server-side: get session from NextAuth
+  return {};
+}
+
+function isUnsafeMethod(method: string): boolean {
+  return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
+}
+
+function getBrowserCookie(name: string): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const cookieString = document.cookie || "";
+  const parts = cookieString.split("; ").map((part) => part.split("="));
+  for (const [key, value] of parts) {
+    if (key === name) {
+      return decodeURIComponent(value ?? "");
+    }
+  }
+  return null;
+}
+
+async function getCookieHeaders(method: string): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+
   if (typeof window === "undefined") {
     try {
-      const session = await getServerSession(authOptions);
-      if (session?.accessToken) {
-        return { Authorization: `Bearer ${session.accessToken}` };
+      const { cookies } = await import("next/headers");
+      const cookieStore = cookies();
+      const allCookies = cookieStore.getAll();
+      if (allCookies.length > 0) {
+        headers["Cookie"] = allCookies
+          .map((cookie) => `${cookie.name}=${cookie.value}`)
+          .join("; ");
+      }
+      if (isUnsafeMethod(method)) {
+        const csrfToken = cookieStore.get("csrf_token")?.value;
+        if (csrfToken) {
+          headers["X-CSRF-Token"] = csrfToken;
+        }
       }
     } catch {
-      // Session not available, proceed without auth
+      // Server cookies not available, proceed without auth headers
+    }
+    return headers;
+  }
+
+  if (isUnsafeMethod(method)) {
+    const csrfToken = getBrowserCookie("csrf_token");
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
     }
   }
 
-  // Client-side: token is handled via cookies/session
-  return {};
+  return headers;
 }
 
 async function request<T>(
@@ -257,6 +297,7 @@ async function request<T>(
     transformResponse = true,
     ...fetchOptions
   } = options;
+  const method = (fetchOptions.method ?? "GET").toUpperCase();
 
   // Build URL with query params
   const url = new URL(`${API_BASE_URL}${endpoint}`);
@@ -286,7 +327,14 @@ async function request<T>(
 
   if (requiresAuth) {
     const authHeaders = await getAuthHeaders();
+    const cookieHeaders = await getCookieHeaders(method);
     Object.assign(headers, authHeaders);
+    if (!headers["Cookie"] && cookieHeaders["Cookie"]) {
+      headers["Cookie"] = cookieHeaders["Cookie"];
+    }
+    if (cookieHeaders["X-CSRF-Token"]) {
+      headers["X-CSRF-Token"] = cookieHeaders["X-CSRF-Token"];
+    }
   }
 
   if (json !== undefined) {
@@ -306,6 +354,7 @@ async function request<T>(
       const response = await fetch(url.toString(), {
         ...fetchOptions,
         headers,
+        credentials: fetchOptions.credentials ?? "include",
         signal: controller.signal,
         next: { revalidate: 0 }, // Disable caching for dynamic data
       });

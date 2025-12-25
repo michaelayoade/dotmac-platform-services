@@ -103,7 +103,6 @@ class TenantDetailResponse(BaseModel):
 
     # Metrics (aggregated from related data)
     total_users: int = 0
-    total_customers: int = 0
     total_active_subscriptions: int = 0
     total_invoices: int = 0
     total_revenue: float = 0.0
@@ -267,7 +266,6 @@ async def list_all_tenants(
         details={"page": page, "page_size": page_size},
     )
 
-    from dotmac.platform.customer_management.models import Customer
     from dotmac.platform.tenant.models import Tenant
     from dotmac.platform.user_management.models import User
 
@@ -295,11 +293,6 @@ async def list_all_tenants(
         user_count_result = await db.execute(user_count_query)
         user_count = user_count_result.scalar() or 0
 
-        # Count resources (customers) for this tenant
-        resource_query = select(func.count(Customer.id)).where(Customer.tenant_id == tenant.id)
-        resource_result = await db.execute(resource_query)
-        resource_count = resource_result.scalar() or 0
-
         tenants.append(
             TenantInfo(
                 tenant_id=tenant.id,
@@ -307,7 +300,7 @@ async def list_all_tenants(
                 created_at=tenant.created_at.isoformat(),
                 is_active=(tenant.status.value in ["active", "trial"] if tenant.status else False),
                 user_count=user_count,
-                resource_count=resource_count,
+                resource_count=0,
             )
         )
 
@@ -340,7 +333,6 @@ async def get_tenant_detail(
 
     from fastapi import HTTPException
 
-    from dotmac.platform.customer_management.models import Customer
     from dotmac.platform.tenant.models import Tenant
     from dotmac.platform.user_management.models import User
 
@@ -358,11 +350,6 @@ async def get_tenant_detail(
     user_count_query = select(func.count(User.id)).where(User.tenant_id == tenant_id)
     user_count_result = await db.execute(user_count_query)
     total_users = user_count_result.scalar() or 0
-
-    # Count total customers for this tenant
-    customer_count_query = select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id)
-    customer_count_result = await db.execute(customer_count_query)
-    total_customers = customer_count_result.scalar() or 0
 
     # Count active subscriptions (if billing module exists)
     total_active_subscriptions = 0
@@ -448,7 +435,6 @@ async def get_tenant_detail(
         updated_at=tenant.updated_at.isoformat() if tenant.updated_at else None,
         # Aggregated metrics
         total_users=total_users,
-        total_customers=total_customers,
         total_active_subscriptions=total_active_subscriptions,
         total_invoices=total_invoices,
         total_revenue=total_revenue,
@@ -471,7 +457,6 @@ async def get_platform_stats(
         action="view_platform_stats",
     )
 
-    from dotmac.platform.customer_management.models import Customer
     from dotmac.platform.user_management.models import User
 
     # Get total and active tenants
@@ -484,10 +469,7 @@ async def get_platform_stats(
     user_count_result = await db.execute(user_count_query)
     total_users = user_count_result.scalar() or 0
 
-    # Get total resources (customers)
-    resource_count_query = select(func.count(Customer.id))
-    resource_count_result = await db.execute(resource_count_query)
-    total_resources = resource_count_result.scalar() or 0
+    total_resources = 0
 
     # For now, consider all tenants active (could add status check)
     active_tenants = total_tenants

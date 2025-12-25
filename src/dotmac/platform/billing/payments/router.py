@@ -3,15 +3,17 @@
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing.core.entities import PaymentEntity
 from dotmac.platform.billing.core.models import PaymentStatus
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
@@ -33,7 +35,7 @@ class FailedPaymentsSummary(BaseModel):
 @router.get("/failed", response_model=FailedPaymentsSummary)
 async def get_failed_payments(
     session: AsyncSession = Depends(get_session_dependency),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.view")),
 ) -> FailedPaymentsSummary:
     """
     Get summary of failed payments for monitoring.
@@ -43,14 +45,12 @@ async def get_failed_payments(
     try:
         # Guard against missing tenant_id (should not happen with proper auth)
         if not current_user.tenant_id:
-            logger.error(
-                "Failed payments query attempted without tenant_id",
-                user_id=current_user.user_id,
+            raise HTTPException(
+                status_code=400,
+                detail="Tenant context is required",
             )
-            return FailedPaymentsSummary(
-                count=0,
-                total_amount=0.0,
-            )
+
+        enforce_tenant_access(current_user.tenant_id, current_user)
 
         # Query failed payments from last 30 days for current tenant only
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)

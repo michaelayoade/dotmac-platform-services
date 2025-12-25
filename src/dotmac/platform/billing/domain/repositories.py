@@ -22,10 +22,8 @@ from dotmac.platform.billing.core.exceptions import (
     PaymentNotFoundError,
 )
 from dotmac.platform.core import get_domain_event_dispatcher
-from dotmac.platform.customer_management.models import Customer as CustomerEntity
-
-from .aggregates import Customer, Invoice, Payment
-from .mappers import CustomerMapper, InvoiceMapper, PaymentMapper
+from .aggregates import Invoice, Payment
+from .mappers import InvoiceMapper, PaymentMapper
 
 logger = structlog.get_logger(__name__)
 
@@ -60,18 +58,6 @@ class PaymentRepository(Protocol):
 
     async def save(self, payment: Payment) -> None:
         """Save payment aggregate and publish domain events."""
-        ...
-
-
-class CustomerRepository(Protocol):
-    """Protocol for customer aggregate repository."""
-
-    async def get(self, customer_id: str, tenant_id: str) -> Customer:
-        """Get customer aggregate by ID."""
-        ...
-
-    async def save(self, customer: Customer) -> None:
-        """Save customer aggregate and publish domain events."""
         ...
 
 
@@ -264,84 +250,3 @@ class SQLAlchemyPaymentRepository:
             events_published=len(events),
         )
 
-
-class SQLAlchemyCustomerRepository:
-    """SQLAlchemy-based repository for Customer aggregates."""
-
-    def __init__(self, db: AsyncSession) -> None:
-        """
-        Initialize repository.
-
-        Args:
-            db: Database session
-        """
-        self._db = db
-        self._event_dispatcher = get_domain_event_dispatcher()
-
-    async def get(self, customer_id: str, tenant_id: str) -> Customer:
-        """
-        Load customer aggregate from database.
-
-        Args:
-            customer_id: Customer identifier
-            tenant_id: Tenant identifier for isolation
-
-        Returns:
-            Customer aggregate
-
-        Raises:
-            Exception: If customer not found
-        """
-        stmt = select(CustomerEntity).where(
-            CustomerEntity.customer_number == customer_id,
-            CustomerEntity.tenant_id == tenant_id,
-        )
-        result = await self._db.execute(stmt)
-        entity = result.scalar_one_or_none()
-
-        if not entity:
-            logger.warning(
-                "Customer not found",
-                customer_id=customer_id,
-                tenant_id=tenant_id,
-            )
-            raise ValueError(f"Customer {customer_id} not found")
-
-        # Convert entity to aggregate
-        aggregate = CustomerMapper.to_aggregate(entity)
-
-        logger.debug(
-            "Customer loaded from database",
-            customer_id=customer_id,
-            status=aggregate.status,
-        )
-
-        return aggregate
-
-    async def save(self, customer: Customer) -> None:
-        """
-        Save customer aggregate to database and publish domain events.
-
-        Args:
-            customer: Customer aggregate to save
-        """
-        merged_entity = await self._db.merge(CustomerMapper.to_entity(customer))
-        self._db.add(merged_entity)
-
-        # Flush to ensure constraints are validated
-        await self._db.flush()
-
-        # Dispatch domain events
-        events = customer.get_domain_events()
-        for event in events:
-            await self._event_dispatcher.dispatch(event)
-
-        # Clear events after publishing
-        customer.clear_domain_events()
-
-        logger.info(
-            "Customer saved to database",
-            customer_id=customer.id,
-            status=customer.status,
-            events_published=len(events),
-        )

@@ -23,6 +23,7 @@ from dotmac.platform.auth.core import (
 )
 from dotmac.platform.billing._typing_helpers import rate_limit
 from dotmac.platform.billing.exceptions import AddonNotFoundError
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.db import get_async_db
 from dotmac.platform.tenant import get_current_tenant_id
 
@@ -258,6 +259,9 @@ async def get_available_addons(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
+    _require_scope(current_user, "billing.addons.view")
+
     service = AddonService(db_session)
 
     try:
@@ -336,6 +340,9 @@ async def get_active_tenant_addons(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
+    _require_scope(current_user, "billing.addons.view")
+
     service = AddonService(db_session)
 
     try:
@@ -377,6 +384,16 @@ async def get_addon_by_id(
     db_session: AsyncSession = Depends(get_async_db),
 ) -> AddonResponse:
     """Retrieve details for a single add-on."""
+
+    effective_tenant_id = tenant_id or getattr(current_user, "tenant_id", None)
+    if not effective_tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required",
+        )
+
+    enforce_tenant_access(effective_tenant_id, current_user)
+    _require_scope(current_user, "billing.addons.view")
 
     service = AddonService(db_session)
 
@@ -430,6 +447,7 @@ async def purchase_addon(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
     _require_scope(current_user, "billing.addons.purchase")
 
     service = AddonService(db_session)
@@ -520,6 +538,7 @@ async def update_addon_quantity(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
     _require_scope(current_user, "billing.addons.purchase")
 
     service = AddonService(db_session)
@@ -616,6 +635,7 @@ async def cancel_addon(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
     _require_scope(current_user, "billing.addons.purchase")
 
     service = AddonService(db_session)
@@ -708,6 +728,7 @@ async def reactivate_addon(
             detail="Tenant context is required",
         )
 
+    enforce_tenant_access(effective_tenant_id, current_user)
     _require_scope(current_user, "billing.addons.purchase")
 
     service = AddonService(db_session)

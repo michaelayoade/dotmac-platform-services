@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing.bank_accounts.cash_register_service import (
     CashRegisterService,
 )
@@ -33,6 +34,7 @@ from dotmac.platform.billing.bank_accounts.service import (
     BankAccountService,
     ManualPaymentService,
 )
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.file_storage.service import FileStorageService
 
@@ -44,6 +46,17 @@ logger = logging.getLogger(__name__)
 #   /api/v1/billing/payments/* (manual payments recorded against bank accounts)
 router = APIRouter(prefix="", tags=["Billing - Bank Accounts"])
 
+
+def _require_tenant(current_user: UserInfo) -> str:
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required",
+        )
+    enforce_tenant_access(tenant_id, current_user)
+    return tenant_id
+
 # ============================================================================
 # Company Bank Account Endpoints
 # ============================================================================
@@ -52,12 +65,12 @@ router = APIRouter(prefix="", tags=["Billing - Bank Accounts"])
 @router.post("/bank-accounts", response_model=CompanyBankAccountResponse)
 async def create_bank_account(
     account_data: CompanyBankAccountCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CompanyBankAccountResponse:
     """Create a new company bank account"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -76,12 +89,12 @@ async def create_bank_account(
 @router.get("/bank-accounts", response_model=list[CompanyBankAccountResponse])
 async def list_bank_accounts(
     include_inactive: bool = Query(False, description="Include inactive accounts"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> list[CompanyBankAccountResponse]:
     """List all company bank accounts"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         accounts: list[CompanyBankAccountResponse] = await service.get_bank_accounts(
@@ -98,12 +111,12 @@ async def list_bank_accounts(
 @router.get("/bank-accounts/{account_id}", response_model=CompanyBankAccountResponse)
 async def get_bank_account(
     account_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CompanyBankAccountResponse:
     """Get a specific bank account"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     account = await service.get_bank_account(tenant_id, account_id)
     if not account:
@@ -117,12 +130,12 @@ async def get_bank_account(
 @router.get("/bank-accounts/{account_id}/summary", response_model=BankAccountSummary)
 async def get_bank_account_summary(
     account_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> BankAccountSummary:
     """Get bank account with summary statistics"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         summary = await service.get_bank_account_summary(tenant_id, account_id)
@@ -139,12 +152,12 @@ async def get_bank_account_summary(
 async def update_bank_account(
     account_id: int,
     update_data: CompanyBankAccountUpdate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CompanyBankAccountResponse:
     """Update a bank account"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -164,12 +177,12 @@ async def update_bank_account(
 async def verify_bank_account(
     account_id: int,
     notes: str | None = None,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CompanyBankAccountResponse:
     """Verify a bank account"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -188,12 +201,12 @@ async def verify_bank_account(
 @router.delete("/bank-accounts/{account_id}", response_model=CompanyBankAccountResponse)
 async def deactivate_bank_account(
     account_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CompanyBankAccountResponse:
     """Deactivate a bank account"""
     service = BankAccountService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -217,12 +230,12 @@ async def deactivate_bank_account(
 @router.post("/payments/cash", response_model=ManualPaymentResponse)
 async def record_cash_payment(
     payment_data: CashPaymentCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ManualPaymentResponse:
     """Record a cash payment"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -241,12 +254,12 @@ async def record_cash_payment(
 @router.post("/payments/check", response_model=ManualPaymentResponse)
 async def record_check_payment(
     payment_data: CheckPaymentCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ManualPaymentResponse:
     """Record a check payment"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -265,12 +278,12 @@ async def record_check_payment(
 @router.post("/payments/bank-transfer", response_model=ManualPaymentResponse)
 async def record_bank_transfer(
     payment_data: BankTransferCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ManualPaymentResponse:
     """Record a bank transfer"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -289,12 +302,12 @@ async def record_bank_transfer(
 @router.post("/payments/mobile-money", response_model=ManualPaymentResponse)
 async def record_mobile_money(
     payment_data: MobileMoneyCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ManualPaymentResponse:
     """Record a mobile money payment"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -315,12 +328,12 @@ async def search_manual_payments(
     filters: PaymentSearchFilters,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> list[ManualPaymentResponse]:
     """Search manual payments with filters"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         payments: list[ManualPaymentResponse] = await service.search_payments(
@@ -338,12 +351,12 @@ async def search_manual_payments(
 async def verify_payment(
     payment_id: int,
     notes: str | None = None,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> ManualPaymentResponse:
     """Verify a manual payment"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -361,12 +374,12 @@ async def verify_payment(
 @router.post("/payments/reconcile", response_model=list[ManualPaymentResponse])
 async def reconcile_payments(
     request: ReconcilePaymentRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> list[ManualPaymentResponse]:
     """Reconcile multiple payments"""
     service = ManualPaymentService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -388,11 +401,11 @@ async def reconcile_payments(
 async def upload_payment_attachment(
     payment_id: int,
     file: UploadFile = File(...),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> dict[str, Any]:
     """Upload an attachment for a payment (receipt, check image, etc.)"""
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -477,12 +490,12 @@ async def upload_payment_attachment(
 @router.post("/cash-registers", response_model=CashRegisterResponse)
 async def create_cash_register(
     register_data: CashRegisterCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CashRegisterResponse:
     """Create a new cash register/point"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -501,12 +514,12 @@ async def create_cash_register(
 @router.get("/cash-registers", response_model=list[CashRegisterResponse])
 async def list_cash_registers(
     include_inactive: bool = Query(False, description="Include inactive registers"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> list[CashRegisterResponse]:
     """List all cash registers"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     try:
         registers: list[CashRegisterResponse] = await service.get_cash_registers(
@@ -524,12 +537,12 @@ async def list_cash_registers(
 @router.get("/cash-registers/{register_id}", response_model=CashRegisterResponse)
 async def get_cash_register(
     register_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.view")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CashRegisterResponse:
     """Get a specific cash register"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
 
     register = await service.get_cash_register(tenant_id, register_id)
     if not register:
@@ -544,12 +557,12 @@ async def get_cash_register(
 async def reconcile_cash_register(
     register_id: str,
     data: CashRegisterReconciliationCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CashRegisterReconciliationResponse:
     """Reconcile a cash register"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -570,12 +583,12 @@ async def update_cash_float(
     register_id: str,
     new_float: float = Query(..., description="New float amount"),
     reason: str = Query(..., description="Reason for float change"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CashRegisterResponse:
     """Update cash register float"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:
@@ -597,12 +610,12 @@ async def update_cash_float(
 @router.delete("/cash-registers/{register_id}", response_model=CashRegisterResponse)
 async def deactivate_cash_register(
     register_id: str,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.bank_accounts.manage")),
     db: AsyncSession = Depends(get_session_dependency),
 ) -> CashRegisterResponse:
     """Deactivate a cash register"""
     service = CashRegisterService(db)
-    tenant_id = current_user.tenant_id or "default"
+    tenant_id = _require_tenant(current_user)
     user_id = current_user.user_id
 
     try:

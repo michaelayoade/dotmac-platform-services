@@ -194,7 +194,6 @@ src/dotmac/platform/
 ├── tenant/            # Multi-tenancy
 ├── billing/           # Billing & payments
 ├── partner_management/ # Partner program + portal APIs
-├── customer_management/ # Customer CRM workflows
 ├── user_management/   # User/team management
 ├── licensing/         # License management
 ├── platform_products/ # Platform product catalog (global)

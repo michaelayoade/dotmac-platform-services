@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Session } from "next-auth";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Bell,
@@ -16,13 +15,16 @@ import {
 import { cn } from "@/lib/utils";
 import { useTenant } from "@/lib/hooks/use-tenant";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { api } from "@/lib/api/client";
+import type { PlatformUser } from "@/types/auth";
 
 interface HeaderProps {
-  session: Session;
+  user: PlatformUser;
   onCommandPaletteOpen: () => void;
 }
 
-export function Header({ session, onCommandPaletteOpen }: HeaderProps) {
+export function Header({ user, onCommandPaletteOpen }: HeaderProps) {
+  const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { currentTenant, tenants, switchTenant } = useTenant();
@@ -166,7 +168,9 @@ export function Header({ session, onCommandPaletteOpen }: HeaderProps) {
               )}
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-                {session.user?.name?.charAt(0).toUpperCase() || "U"}
+                {user.fullName?.charAt(0).toUpperCase() ||
+                  user.username?.charAt(0).toUpperCase() ||
+                  "U"}
               </div>
               <ChevronDown
                 className={cn(
@@ -185,10 +189,10 @@ export function Header({ session, onCommandPaletteOpen }: HeaderProps) {
                 {/* User info */}
                 <div className="px-4 py-3 border-b border-border">
                   <p className="text-sm font-medium text-text-primary">
-                    {session.user?.name}
+                    {user.fullName || user.username}
                   </p>
                   <p className="text-xs text-text-muted truncate">
-                    {session.user?.email}
+                    {user.email}
                   </p>
                 </div>
 
@@ -211,7 +215,13 @@ export function Header({ session, onCommandPaletteOpen }: HeaderProps) {
                 {/* Sign out */}
                 <div className="border-t border-border py-1">
                   <button
-                    onClick={() => signOut()}
+                    onClick={async () => {
+                      try {
+                        await api.post("/api/v1/auth/logout");
+                      } finally {
+                        router.push("/login");
+                      }
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-status-error hover:bg-status-error/10"
                   >
                     <LogOut className="w-4 h-4" />

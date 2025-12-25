@@ -352,9 +352,9 @@ class PartnerAccount(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
         index=True,
     )
 
+    # No FK - customer_management removed
     customer_id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -495,9 +495,9 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):  # type: ignore
         index=True,
         comment="Invoice that triggered this commission",
     )
+    # No FK - customer_management removed
     customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -702,10 +702,9 @@ class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type:
         index=True,
     )
 
-    # Conversion tracking
+    # Conversion tracking (no FK - customer_management removed)
     converted_customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
         comment="Customer ID if converted",
     )

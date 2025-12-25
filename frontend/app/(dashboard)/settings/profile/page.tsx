@@ -3,7 +3,7 @@
 import { useState, type ChangeEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useEffect } from "react";
 import { ArrowLeft, Camera, Check } from "lucide-react";
 import {
   Form,
@@ -18,6 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -49,21 +50,35 @@ const languages = [
 ];
 
 export default function ProfileSettingsPage() {
-  const { data: session } = useSession();
+  const { data: user } = useCurrentUser();
   const { toast } = useToast();
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: session?.user?.name || "",
-      email: session?.user?.email || "",
+      name: user?.fullName || user?.username || "",
+      email: user?.email || "",
       phone: "",
       timezone: "America/New_York",
       language: "en",
       bio: "",
     },
   });
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    form.reset({
+      name: user.fullName || user.username || "",
+      email: user.email || "",
+      phone: "",
+      timezone: "America/New_York",
+      language: "en",
+      bio: "",
+    });
+  }, [user, form]);
 
   const onSubmit = async (data: ProfileFormData) => {
     // Simulate API call

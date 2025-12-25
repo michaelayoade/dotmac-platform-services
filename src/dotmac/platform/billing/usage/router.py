@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.billing.settings.service import BillingSettingsService
 from dotmac.platform.billing.usage.service import UsageBillingService
 from dotmac.platform.core.exceptions import EntityNotFoundError, ValidationError
@@ -42,26 +44,6 @@ logger = structlog.get_logger(__name__)
 OVERRIDE_CURRENCY_HEADERS = ("X-Currency", "X-Currency-Code")
 OVERRIDE_CURRENCY_QUERY_PARAM = "currency"
 OVERRIDE_CURRENCY_STATE_ATTRS = ("currency", "currency_code")
-
-
-def get_tenant_id_from_request(request: Request) -> str:
-    """Extract tenant ID from request."""
-    if hasattr(request.state, "tenant_id"):
-        tenant_id: str = request.state.tenant_id
-        return tenant_id
-
-    tenant_id_header = request.headers.get("X-Tenant-ID")
-    if tenant_id_header:
-        return tenant_id_header
-
-    tenant_id_query = request.query_params.get("tenant_id")
-    if tenant_id_query:
-        return tenant_id_query
-
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Tenant ID is required. Provide via X-Tenant-ID header or tenant_id query param.",
-    )
 
 
 def _get_currency_override(request: Request) -> str | None:
@@ -166,7 +148,8 @@ async def create_usage_record(
     record_data: UsageRecordCreate,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageRecordResponse:
     """
     Create a new usage record for metered billing.
@@ -174,7 +157,7 @@ async def create_usage_record(
     Records usage for services like data transfer, voice minutes,
     equipment rentals, and other pay-as-you-go charges.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -216,14 +199,15 @@ async def bulk_create_usage_records(
     bulk_data: BulkCreateRequest,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> BulkCreateResponse:
     """
     Bulk create usage records (up to 1000 records).
 
     Useful for batch imports from CDRs or other usage tracking systems.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -274,7 +258,8 @@ async def list_usage_records(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageRecordListResponse:
     """
     List usage records with optional filtering.
@@ -282,7 +267,7 @@ async def list_usage_records(
     Supports filtering by customer, subscription, usage type, status,
     and time period for flexible reporting and analysis.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -319,10 +304,11 @@ async def get_usage_record(
     record_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageRecordResponse:
     """Get a specific usage record by ID."""
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -341,7 +327,8 @@ async def update_usage_record(
     update_data: UsageRecordUpdate,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageRecordResponse:
     """
     Update a usage record.
@@ -349,7 +336,7 @@ async def update_usage_record(
     Allows updating quantity, unit price, billing status,
     invoice association, and description.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -386,7 +373,8 @@ async def delete_usage_record(
     record_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> None:
     """
     Delete a usage record.
@@ -394,7 +382,7 @@ async def delete_usage_record(
     Only pending or excluded records can be deleted.
     Billed records cannot be deleted to maintain audit trail.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -432,14 +420,15 @@ async def get_usage_statistics(
     customer_id: UUID | None = Query(None, description="Filter by customer"),
     subscription_id: str | None = Query(None, description="Filter by subscription"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageStats:
     """
     Get usage statistics for a time period.
 
     Returns total records, amounts by status, and breakdown by usage type.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = UsageBillingService(db)
 
     try:
@@ -472,7 +461,8 @@ async def list_usage_aggregates(
     period_start: datetime | None = Query(None, description="Start of period"),
     period_end: datetime | None = Query(None, description="End of period"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.usage.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> UsageAggregateListResponse:
     """
     Get pre-aggregated usage data for reporting.
@@ -480,7 +470,7 @@ async def list_usage_aggregates(
     Aggregates are computed hourly/daily/monthly to improve
     query performance for dashboards and reports.
     """
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
 
     try:
         query = select(UsageAggregate).where(UsageAggregate.tenant_id == tenant_id)

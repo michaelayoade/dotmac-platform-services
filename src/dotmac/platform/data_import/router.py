@@ -50,7 +50,7 @@ async def upload_import_file(
     Upload a file for import.
 
     Args:
-        entity_type: Type of entities to import (customers, invoices, etc.)
+        entity_type: Type of entities to import (invoices, subscriptions, etc.)
         file: CSV or JSON file to import
         batch_size: Number of records to process at once
         dry_run: If true, validate without persisting
@@ -91,28 +91,7 @@ async def upload_import_file(
 
     try:
         # Process based on entity type and file format
-        if job_type == ImportJobType.CUSTOMERS:
-            if file_ext == "csv":
-                result = await service.import_customers_csv(
-                    file_content=file_content,
-                    tenant_id=tenant_id,
-                    user_id=str(current_user.user_id),
-                    batch_size=batch_size,
-                    dry_run=dry_run,
-                    use_celery=use_async,
-                )
-            else:  # JSON
-                json_data = json.loads(content.decode("utf-8"))
-                result = await service.import_customers_json(
-                    json_data=json_data,
-                    tenant_id=tenant_id,
-                    user_id=str(current_user.user_id),
-                    batch_size=batch_size,
-                    dry_run=dry_run,
-                    use_celery=use_async,
-                )
-
-        elif job_type == ImportJobType.INVOICES:
+        if job_type == ImportJobType.INVOICES:
             if file_ext == "csv":
                 result = await service.import_invoices_csv(
                     file_content=file_content,

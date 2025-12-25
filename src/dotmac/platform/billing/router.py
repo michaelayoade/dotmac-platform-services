@@ -9,7 +9,6 @@ from .bank_accounts.router import router as bank_accounts_router
 from .catalog.router import router as catalog_router
 from .credit_notes.router import router as credit_note_router
 from .dunning.router import router as dunning_router
-from .invoicing.money_router import router as money_invoice_router
 from .invoicing.router import router as invoice_router
 from .payment_methods.router import router as payment_methods_router
 from .payments.router import router as payments_router
@@ -24,7 +23,6 @@ router = APIRouter(prefix="/billing", tags=["Billing"])
 
 # Include sub-routers with hierarchical tags for better API docs organization
 router.include_router(invoice_router, prefix="", tags=["Billing - Invoices"])
-router.include_router(money_invoice_router, prefix="", tags=["Billing - Money Invoices"])
 router.include_router(webhook_router, prefix="", tags=["Billing - Webhooks"])
 router.include_router(credit_note_router, prefix="", tags=["Billing - Credit Notes"])
 router.include_router(settings_router, prefix="", tags=["Billing - Settings"])

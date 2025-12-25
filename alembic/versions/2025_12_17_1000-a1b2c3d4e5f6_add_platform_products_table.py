@@ -8,11 +8,10 @@ Create Date: 2025-12-17 10:00:00.000000
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "a1b2c3d4e5f6"
-down_revision = None
+down_revision = "9f8e7d6c5b4a"
 branch_labels = None
 depends_on = None
 
@@ -118,34 +117,49 @@ def upgrade() -> None:
         ),
     )
 
-    # Create indexes
-    op.create_index(
-        "ix_platform_products_slug",
-        "platform_products",
-        ["slug"],
-        unique=True,
-    )
-    op.create_index(
-        "ix_platform_products_is_active",
-        "platform_products",
-        ["is_active"],
-    )
-    op.create_index(
-        "ix_platform_products_is_public",
-        "platform_products",
-        ["is_public"],
-    )
-    op.create_index(
-        "ix_platform_products_template_id",
-        "platform_products",
-        ["template_id"],
-    )
+    # Create indexes (skip if they already exist)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_indexes = {
+        index["name"] for index in inspector.get_indexes("platform_products")
+    }
+
+    if "ix_platform_products_is_active" not in existing_indexes:
+        op.create_index(
+            "ix_platform_products_is_active",
+            "platform_products",
+            ["is_active"],
+        )
+    if "ix_platform_products_is_public" not in existing_indexes:
+        op.create_index(
+            "ix_platform_products_is_public",
+            "platform_products",
+            ["is_public"],
+        )
+    if "ix_platform_products_template_id" not in existing_indexes:
+        op.create_index(
+            "ix_platform_products_template_id",
+            "platform_products",
+            ["template_id"],
+        )
 
 
 def downgrade() -> None:
     """Drop platform_products table."""
-    op.drop_index("ix_platform_products_template_id", table_name="platform_products")
-    op.drop_index("ix_platform_products_is_public", table_name="platform_products")
-    op.drop_index("ix_platform_products_is_active", table_name="platform_products")
-    op.drop_index("ix_platform_products_slug", table_name="platform_products")
+    try:
+        op.drop_index("ix_platform_products_template_id", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_is_public", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_is_active", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_slug", table_name="platform_products")
+    except Exception:
+        pass
     op.drop_table("platform_products")

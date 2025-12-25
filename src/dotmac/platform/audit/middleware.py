@@ -81,12 +81,12 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
 
             if jwt_token or api_key:
                 # Import here to avoid circular dependency
-                from ..auth.core import api_key_service, jwt_service
+                from ..auth.core import TokenType, api_key_service, jwt_service
 
                 # Extract user info from JWT token (header or cookie)
                 if jwt_token:
                     try:
-                        claims = jwt_service.verify_token(jwt_token)
+                        claims = jwt_service.verify_token(jwt_token, TokenType.ACCESS)
                         user_id = claims.get("sub")
                         username = claims.get("username")
                         email = claims.get("email")

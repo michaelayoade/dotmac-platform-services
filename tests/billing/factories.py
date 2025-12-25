@@ -21,6 +21,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest_asyncio
+from dataclasses import dataclass
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # ============================================================================
@@ -28,10 +30,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # ============================================================================
 
 
+@dataclass
+class TestCustomer:
+    """Lightweight customer object for billing tests."""
+
+    id: str
+    tenant_id: str
+    customer_number: str
+    email: str
+    first_name: str
+    last_name: str
+
+
 @pytest_asyncio.fixture
-async def customer_factory(async_db_session: AsyncSession, tenant_id: str):
+async def customer_factory(tenant_id: str):
     """
-    Factory for creating test customers.
+    Factory for creating lightweight test customers.
 
     Example:
         customer = await customer_factory(
@@ -39,7 +53,6 @@ async def customer_factory(async_db_session: AsyncSession, tenant_id: str):
             first_name="John"
         )
     """
-    from dotmac.platform.customer_management.models import Customer
 
     async def _create(
         customer_id: str | None = None,
@@ -49,32 +62,66 @@ async def customer_factory(async_db_session: AsyncSession, tenant_id: str):
         _commit: bool = False,
         **kwargs,
     ):
-        # Generate proper UUID for customer_id
-        customer_id = customer_id or uuid4()
+        customer_id = customer_id or str(uuid4())
         email = email or f"customer-{str(uuid4())[:8]}@test.example.com"
-
-        customer = Customer(
+        return TestCustomer(
             id=customer_id,
             tenant_id=tenant_id,
             customer_number=f"CUST-{str(uuid4())[:8].upper()}",
             email=email,
             first_name=first_name,
             last_name=last_name,
+        )
+
+    yield _create
+
+
+# ============================================================================
+# Tenant Factories
+# ============================================================================
+
+
+@pytest_asyncio.fixture
+async def tenant_factory(async_db_session: AsyncSession):
+    """
+    Factory for creating test tenants.
+
+    Example:
+        tenant = await tenant_factory(name="Test Org")
+    """
+    from dotmac.platform.tenant.models import BillingCycle, Tenant, TenantPlanType, TenantStatus
+
+    async def _create(
+        tenant_id: str | None = None,
+        name: str = "Test Tenant",
+        slug: str | None = None,
+        _commit: bool = False,
+        **kwargs,
+    ):
+        tenant_id = tenant_id or str(uuid4())
+        slug = slug or f"tenant-{str(uuid4())[:8]}"
+
+        tenant = Tenant(
+            id=tenant_id,
+            name=name,
+            slug=slug,
+            status=TenantStatus.ACTIVE,
+            plan_type=TenantPlanType.FREE,
+            billing_cycle=BillingCycle.MONTHLY,
             **kwargs,
         )
-        async_db_session.add(customer)
+        async_db_session.add(tenant)
 
         if _commit:
             await async_db_session.commit()
-            await async_db_session.refresh(customer)
+            await async_db_session.refresh(tenant)
         else:
             await async_db_session.flush()
-            await async_db_session.refresh(customer)
+            await async_db_session.refresh(tenant)
 
-        return customer
+        return tenant
 
     yield _create
-    # No cleanup needed - async_db_session rolls back automatically
 
 
 # ============================================================================

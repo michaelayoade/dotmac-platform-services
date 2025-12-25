@@ -209,7 +209,6 @@ Response + Headers
 | Users/Teams | `/api/v1/users`, `/api/v1/teams` | 2 |
 | Partners | `/api/v1/partners/*` | 4 |
 | Partner Portal | `/api/v1/partners/portal/*` | 1 |
-| Customers | `/api/v1/customers/*` | 2 |
 | Monitoring | `/api/v1/monitoring/*` | 4 |
 | Analytics | `/api/v1/analytics/*` | 2 |
 | Workflows/Jobs | `/api/v1/workflows`, `/api/v1/jobs` | 3 |
