@@ -88,9 +88,9 @@ export function KPITile({
   }
 
   const changeColors = {
-    increase: "text-success bg-success/10",
-    decrease: "text-destructive bg-destructive/10",
-    neutral: "text-muted-foreground bg-muted",
+    increase: "text-status-success bg-status-success/15 border border-status-success/30",
+    decrease: "text-destructive bg-destructive/15 border border-destructive/30",
+    neutral: "text-muted-foreground bg-muted border border-border",
   };
 
   const ChangeIcon = {
@@ -134,7 +134,7 @@ export function KPITile({
           )}
         </div>
         {icon && (
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">{icon}</div>
+          <div className="p-2 rounded-lg bg-primary/15 text-primary border border-primary/30">{icon}</div>
         )}
       </div>
 

@@ -57,7 +57,7 @@ export const Basic: Story = {
   render: () => (
     <DashboardLayout title="Dashboard" subtitle="Overview of your business metrics">
       <DashboardSection>
-        <p className="text-gray-600">Dashboard content goes here...</p>
+        <p className="text-text-muted">Dashboard content goes here...</p>
       </DashboardSection>
     </DashboardLayout>
   ),
@@ -84,7 +84,7 @@ export const WithFilters: Story = {
           }
         >
           <DashboardSection>
-            <p className="text-gray-600">Dashboard content with filters...</p>
+            <p className="text-text-muted">Dashboard content with filters...</p>
           </DashboardSection>
         </DashboardLayout>
       );
@@ -106,7 +106,7 @@ export const WithKPIs: Story = {
           changeLabel="from last month"
         />
         <KPITile
-          title="New Customers"
+          title="New Tenants"
           value="+2,350"
           change={18.2}
           changeType="increase"
@@ -142,18 +142,18 @@ export const WithCharts: Story = {
 
       <ChartGrid columns={2}>
         <ChartCard title="Revenue Over Time" subtitle="Monthly revenue for 2024">
-          <div className="h-full flex items-center justify-center bg-gray-50 rounded">
-            <span className="text-gray-400">[Line Chart]</span>
+          <div className="h-full flex items-center justify-center bg-surface-overlay rounded">
+            <span className="text-text-muted">[Line Chart]</span>
           </div>
         </ChartCard>
         <ChartCard title="Traffic Sources" subtitle="Breakdown by channel">
-          <div className="h-full flex items-center justify-center bg-gray-50 rounded">
-            <span className="text-gray-400">[Pie Chart]</span>
+          <div className="h-full flex items-center justify-center bg-surface-overlay rounded">
+            <span className="text-text-muted">[Pie Chart]</span>
           </div>
         </ChartCard>
         <ChartCard title="User Growth" subtitle="New vs returning users" fullWidth>
-          <div className="h-full flex items-center justify-center bg-gray-50 rounded">
-            <span className="text-gray-400">[Area Chart]</span>
+          <div className="h-full flex items-center justify-center bg-surface-overlay rounded">
+            <span className="text-text-muted">[Area Chart]</span>
           </div>
         </ChartCard>
       </ChartGrid>
@@ -174,12 +174,12 @@ export const WithSections: Story = {
       </DashboardSection>
 
       <DashboardSection title="Recent Activity" description="Latest system events">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <ul className="divide-y divide-gray-100">
+        <div className="bg-surface rounded-lg border border-border p-4">
+          <ul className="divide-y divide-border-subtle">
             {[1, 2, 3, 4, 5].map((i) => (
               <li key={i} className="py-3 flex justify-between">
-                <span className="text-gray-700">Event {i}</span>
-                <span className="text-gray-400 text-sm">2 min ago</span>
+                <span className="text-text-secondary">Event {i}</span>
+                <span className="text-text-muted text-sm">2 min ago</span>
               </li>
             ))}
           </ul>
@@ -196,17 +196,17 @@ export const WithHeaderActions: Story = {
       subtitle="Manage your team's performance"
       headerActions={
         <div className="flex gap-2">
-          <button className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+          <button className="px-4 py-2 text-text-secondary bg-surface border border-border rounded-md hover:bg-surface-overlay">
             Export
           </button>
-          <button className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700">
+          <button className="px-4 py-2 text-white bg-accent rounded-md hover:bg-accent-hover">
             Add Member
           </button>
         </div>
       }
     >
       <DashboardSection>
-        <p className="text-gray-600">Team content...</p>
+        <p className="text-text-muted">Team content...</p>
       </DashboardSection>
     </DashboardLayout>
   ),
@@ -230,7 +230,7 @@ export const FullExample: Story = {
               searchValue={searchValue}
               onSearchChange={setSearchValue}
               actions={
-                <button className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800">
+                <button className="px-3 py-1.5 text-sm text-accent hover:text-accent/80">
                   Save View
                 </button>
               }
@@ -238,10 +238,10 @@ export const FullExample: Story = {
           }
           headerActions={
             <div className="flex gap-2">
-              <button className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm">
+              <button className="px-4 py-2 text-text-secondary bg-surface border border-border rounded-md hover:bg-surface-overlay text-sm">
                 Export PDF
               </button>
-              <button className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 text-sm">
+              <button className="px-4 py-2 text-white bg-accent rounded-md hover:bg-accent-hover text-sm">
                 Schedule Report
               </button>
             </div>
@@ -257,7 +257,7 @@ export const FullExample: Story = {
               changeLabel="vs last month"
             />
             <KPITile
-              title="Active Customers"
+              title="Active Tenants"
               value="8,234"
               change={12.3}
               changeType="increase"
@@ -283,13 +283,13 @@ export const FullExample: Story = {
           <DashboardSection title="Performance Trends" className="mb-6">
             <ChartGrid columns={2}>
               <ChartCard title="Revenue Trend" subtitle="Last 12 months">
-                <div className="h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 rounded">
-                  <span className="text-blue-400">[Revenue Line Chart]</span>
+                <div className="h-full flex items-center justify-center bg-accent/5 rounded">
+                  <span className="text-accent/60">[Revenue Line Chart]</span>
                 </div>
               </ChartCard>
-              <ChartCard title="Customer Acquisition" subtitle="By channel">
-                <div className="h-full flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 rounded">
-                  <span className="text-green-400">[Acquisition Bar Chart]</span>
+              <ChartCard title="Tenant Acquisition" subtitle="By channel">
+                <div className="h-full flex items-center justify-center bg-status-success/5 rounded">
+                  <span className="text-status-success/60">[Acquisition Bar Chart]</span>
                 </div>
               </ChartCard>
             </ChartGrid>
@@ -299,42 +299,42 @@ export const FullExample: Story = {
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2">
               <DashboardSection title="Recent Orders">
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <div className="bg-surface rounded-lg border border-border overflow-hidden">
+                  <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-surface-overlay">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase">
                           Order
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                          Customer
+                        <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase">
+                          Tenant
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase">
                           Amount
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase">
                           Status
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-border">
                       {[
-                        { id: "#1234", customer: "John Doe", amount: "$250.00", status: "Completed" },
-                        { id: "#1235", customer: "Jane Smith", amount: "$120.00", status: "Processing" },
-                        { id: "#1236", customer: "Bob Wilson", amount: "$450.00", status: "Completed" },
+                        { id: "#1234", tenant: "Acme Corp", amount: "$250.00", status: "Completed" },
+                        { id: "#1235", tenant: "Nova Labs", amount: "$120.00", status: "Processing" },
+                        { id: "#1236", tenant: "Silverline", amount: "$450.00", status: "Completed" },
                       ].map((order) => (
                         <tr key={order.id}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">
                             {order.id}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{order.customer}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{order.amount}</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary">{order.tenant}</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary">{order.amount}</td>
                           <td className="px-4 py-3 text-sm">
                             <span
                               className={`px-2 py-1 rounded-full text-xs ${
                                 order.status === "Completed"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-yellow-100 text-yellow-800"
+                                  ? "bg-status-success/10 text-status-success"
+                                  : "bg-status-warning/10 text-status-warning"
                               }`}
                             >
                               {order.status}
@@ -350,15 +350,15 @@ export const FullExample: Story = {
             <div>
               <DashboardSection title="Quick Stats">
                 <div className="space-y-4">
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <h4 className="text-sm font-medium text-gray-500">Top Product</h4>
-                    <p className="text-lg font-semibold text-gray-900">Premium Plan</p>
-                    <p className="text-sm text-gray-500">$12,450 revenue</p>
+                  <div className="bg-surface rounded-lg border border-border p-4">
+                    <h4 className="text-sm font-medium text-text-muted">Top Product</h4>
+                    <p className="text-lg font-semibold text-text-primary">Premium Plan</p>
+                    <p className="text-sm text-text-muted">$12,450 revenue</p>
                   </div>
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <h4 className="text-sm font-medium text-gray-500">Top Region</h4>
-                    <p className="text-lg font-semibold text-gray-900">North America</p>
-                    <p className="text-sm text-gray-500">42% of total sales</p>
+                  <div className="bg-surface rounded-lg border border-border p-4">
+                    <h4 className="text-sm font-medium text-text-muted">Top Region</h4>
+                    <p className="text-lg font-semibold text-text-primary">North America</p>
+                    <p className="text-sm text-text-muted">42% of total sales</p>
                   </div>
                 </div>
               </DashboardSection>

@@ -170,7 +170,7 @@ class PartnerResponse(PartnerBase):  # PartnerBase resolves to Any in isolation
     updated_at: datetime
 
     # Metrics
-    total_customers: int
+    total_tenants: int
     total_revenue_generated: Decimal
     total_commissions_earned: Decimal
     total_commissions_paid: Decimal
@@ -273,7 +273,7 @@ class PartnerAccountBase(BaseModel):  # BaseModel resolves to Any in isolation
     )
 
     partner_id: UUID
-    customer_id: UUID
+    tenant_id: UUID
     engagement_type: str = Field(min_length=1, max_length=50)
     custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
     notes: str | None = None
@@ -315,7 +315,7 @@ class PartnerAccountResponse(PartnerAccountBase):  # PartnerAccountBase resolves
 
 
 class PartnerAccountListResponse(BaseModel):  # BaseModel resolves to Any in isolation
-    """List response for partner customer accounts."""
+    """List response for partner tenant accounts."""
 
     model_config = ConfigDict()
 
@@ -353,7 +353,7 @@ class PartnerCommissionEventCreate(
     """Schema for creating commission event."""
 
     invoice_id: UUID | None = None
-    customer_id: UUID | None = None
+    tenant_id: UUID | None = None
     base_amount: Decimal | None = Field(None, ge=Decimal("0"))
     commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
     notes: str | None = None
@@ -381,7 +381,7 @@ class PartnerCommissionEventResponse(
 
     id: UUID
     invoice_id: UUID | None = None
-    customer_id: UUID | None = None
+    tenant_id: UUID | None = None
     base_amount: Decimal | None = None
     commission_rate: Decimal | None = None
     status: CommissionStatus
@@ -438,9 +438,9 @@ class PartnerCommissionRuleBase(BaseModel):  # BaseModel resolves to Any in isol
         None,
         description="List of product IDs this rule applies to (empty = all products)",
     )
-    applies_to_customers: list[str] | None = Field(
+    applies_to_tenants: list[str] | None = Field(
         None,
-        description="List of customer IDs this rule applies to (empty = all customers)",
+        description="List of tenant IDs this rule applies to (empty = all tenants)",
     )
     effective_from: datetime
     effective_to: datetime | None = None
@@ -476,7 +476,7 @@ class PartnerCommissionRuleUpdate(BaseModel):  # BaseModel resolves to Any in is
     flat_fee_amount: Decimal | None = Field(None, ge=Decimal("0"))
     tier_config: dict[str, Any] | None = None
     applies_to_products: list[str] | None = None
-    applies_to_customers: list[str] | None = None
+    applies_to_tenants: list[str] | None = None
     effective_from: datetime | None = None
     effective_to: datetime | None = None
     is_active: bool | None = None
@@ -558,7 +558,7 @@ class ReferralLeadUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     estimated_value: Decimal | None = Field(None, ge=Decimal("0"))
     status: ReferralStatus | None = None
     notes: str | None = None
-    converted_customer_id: UUID | None = None
+    converted_tenant_id: UUID | None = None
     conversion_date: datetime | None = None
     actual_value: Decimal | None = Field(None, ge=Decimal("0"))
     first_contact_date: datetime | None = None
@@ -572,7 +572,7 @@ class ReferralLeadResponse(ReferralLeadBase):  # ReferralLeadBase resolves to An
     id: UUID
     status: ReferralStatus
     submitted_date: datetime
-    converted_customer_id: UUID | None = None
+    converted_tenant_id: UUID | None = None
     conversion_date: datetime | None = None
     actual_value: Decimal | None = None
     first_contact_date: datetime | None = None
@@ -610,7 +610,7 @@ class PartnerSummary(BaseModel):  # BaseModel resolves to Any in isolation
     tier: PartnerTier
 
     # Counts
-    active_customers: int
+    active_tenants: int
     total_referrals: int
     converted_referrals: int
 
@@ -740,8 +740,8 @@ class PartnerRevenueDashboard(BaseModel):  # BaseModel resolves to Any in isolat
     active_referrals: int = 0
 
     # Customers
-    total_customers: int = 0
-    active_customers: int = 0
+    total_tenants: int = 0
+    active_tenants: int = 0
 
     # Activity
     recent_commissions: list[PartnerCommissionEventResponse] = Field(default_factory=lambda: [])

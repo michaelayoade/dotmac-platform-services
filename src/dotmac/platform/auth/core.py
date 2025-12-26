@@ -346,9 +346,11 @@ class JWTService:
         to_encode = data.copy()
         expire = datetime.now(UTC) + expires_delta
 
-        to_encode.update(
-            {"exp": expire, "iat": datetime.now(UTC), "jti": secrets.token_urlsafe(16)}
-        )
+        to_encode["exp"] = expire
+        if "iat" not in to_encode:
+            to_encode["iat"] = datetime.now(UTC)
+        if "jti" not in to_encode:
+            to_encode["jti"] = secrets.token_urlsafe(16)
 
         token = jwt.encode(self.header, to_encode, self.secret)
         return token.decode("utf-8") if isinstance(token, bytes) else token
@@ -449,11 +451,15 @@ class JWTService:
     def is_token_revoked_sync(self, jti: str) -> bool:
         """Check if token is revoked (sync version)."""
         try:
-            redis_client = self._get_redis_sync()
-            if not redis_client:
+            redis_client = None
+            try:
                 from dotmac.platform.core.caching import get_redis
 
                 redis_client = get_redis()
+            except Exception:
+                redis_client = None
+            if not redis_client:
+                redis_client = self._get_redis_sync()
             if not redis_client:
                 return False
             return bool(redis_client.exists(f"blacklist:{jti}"))
@@ -1244,7 +1250,7 @@ def _apply_active_tenant_context(request: Request, user_info: UserInfo) -> None:
         return
 
     managed_ids = user_info.managed_tenant_ids or []
-    if managed_ids and active_tenant not in managed_ids:
+    if not managed_ids or active_tenant not in managed_ids:
         return
 
     user_info.active_managed_tenant_id = active_tenant

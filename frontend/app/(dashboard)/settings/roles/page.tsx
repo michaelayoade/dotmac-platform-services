@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button, useToast } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useRoles,
   useRole,
@@ -27,6 +28,7 @@ import type { Role, Permission, CreateRoleData, UpdateRoleData } from "@/lib/api
 
 export default function RolesSettingsPage() {
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -145,9 +147,13 @@ export default function RolesSettingsPage() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete the role "${selectedRole.name}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete Role",
+      description: `Are you sure you want to delete the role "${selectedRole.name}"? This action cannot be undone and will remove this role from all users.`,
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
 
     try {
       await deleteRole.mutateAsync(selectedRoleId);
@@ -185,6 +191,9 @@ export default function RolesSettingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Confirm Dialog */}
+      {dialog}
+
       {/* Back link */}
       <Link
         href="/settings"

@@ -176,7 +176,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
 
       {/* Error message */}
       {error && (
-        <div className="mb-6 flex items-center gap-3 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error">
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error">
           <p className="text-sm">{error}</p>
         </div>
       )}

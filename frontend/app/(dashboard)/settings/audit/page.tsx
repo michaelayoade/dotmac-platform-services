@@ -221,7 +221,7 @@ export default function AuditPage() {
       {/* Audit Log Table */}
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="data-table">
             <thead>
               <tr className="border-b border-border-subtle">
                 <th className="text-left text-sm font-medium text-text-muted px-4 py-3 w-8"></th>

@@ -23,7 +23,7 @@ import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { useCreateInvoice } from "@/lib/hooks/api/use-billing";
-import { useCustomers } from "@/lib/hooks/api/use-customers";
+import { useTenants } from "@/lib/hooks/api/use-tenants";
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -32,7 +32,7 @@ const lineItemSchema = z.object({
 });
 
 const createInvoiceSchema = z.object({
-  customerId: z.string().min(1, "Customer is required"),
+  customerId: z.string().min(1, "Tenant is required"),
   lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
   dueDate: z.string().min(1, "Due date is required"),
   notes: z.string().optional(),
@@ -53,15 +53,15 @@ export default function NewInvoicePage() {
   const { toast } = useToast();
   const createInvoice = useCreateInvoice();
 
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [showTenantDropdown, setShowTenantDropdown] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [dueDateOption, setDueDateOption] = useState("30");
   const [customDueDate, setCustomDueDate] = useState("");
 
-  // Fetch customers for search
-  const { data: customersData } = useCustomers({ search: customerSearch, pageSize: 10 });
-  const customers = customersData?.items || [];
+  // Fetch tenants for search
+  const { data: tenantsData } = useTenants({ search: tenantSearch, pageSize: 10 });
+  const tenants = tenantsData?.items || [];
 
   const {
     register,
@@ -94,11 +94,11 @@ export default function NewInvoicePage() {
     return sum + qty * price;
   }, 0);
 
-  const handleSelectCustomer = (customer: { id: string; name: string; email: string }) => {
-    setSelectedCustomer(customer);
-    setValue("customerId", customer.id);
-    setShowCustomerDropdown(false);
-    setCustomerSearch("");
+  const handleSelectTenant = (tenant: { id: string; name: string; slug: string }) => {
+    setSelectedTenant(tenant);
+    setValue("customerId", tenant.id);
+    setShowTenantDropdown(false);
+    setTenantSearch("");
   };
 
   const handleDueDateChange = (value: string) => {
@@ -163,28 +163,28 @@ export default function NewInvoicePage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Customer Selection */}
+        {/* Tenant Selection */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center">
               <User className="w-5 h-5 text-accent" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-text-primary">Customer</h3>
-              <p className="text-sm text-text-muted">Select the customer for this invoice</p>
+              <h3 className="text-lg font-semibold text-text-primary">Tenant</h3>
+              <p className="text-sm text-text-muted">Select the tenant for this invoice</p>
             </div>
           </div>
 
           <div className="relative">
-            {selectedCustomer ? (
+            {selectedTenant ? (
               <div className="flex items-center justify-between p-4 bg-surface-overlay rounded-lg border border-border">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-highlight/20 flex items-center justify-center text-sm font-semibold text-accent">
-                    {selectedCustomer.name.charAt(0)}
+                    {selectedTenant.name.charAt(0)}
                   </div>
                   <div>
-                    <p className="font-medium text-text-primary">{selectedCustomer.name}</p>
-                    <p className="text-sm text-text-muted">{selectedCustomer.email}</p>
+                    <p className="font-medium text-text-primary">{selectedTenant.name}</p>
+                    <p className="text-sm text-text-muted">{selectedTenant.slug}</p>
                   </div>
                 </div>
                 <Button
@@ -192,7 +192,7 @@ export default function NewInvoicePage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setSelectedCustomer(null);
+                    setSelectedTenant(null);
                     setValue("customerId", "");
                   }}
                 >
@@ -204,41 +204,41 @@ export default function NewInvoicePage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                   <Input
-                    value={customerSearch}
+                    value={tenantSearch}
                     onChange={(e) => {
-                      setCustomerSearch(e.target.value);
-                      setShowCustomerDropdown(true);
+                      setTenantSearch(e.target.value);
+                      setShowTenantDropdown(true);
                     }}
-                    onFocus={() => setShowCustomerDropdown(true)}
-                    placeholder="Search customers by name or email..."
+                    onFocus={() => setShowTenantDropdown(true)}
+                    placeholder="Search tenants by name..."
                     className={cn("pl-10", errors.customerId && "border-status-error")}
                   />
                 </div>
 
-                {showCustomerDropdown && customers.length > 0 && (
+                {showTenantDropdown && tenants.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-surface-elevated border border-border rounded-lg shadow-lg max-h-64 overflow-auto">
-                    {customers.map((customer) => (
+                    {tenants.map((tenant) => (
                       <button
-                        key={customer.id}
+                        key={tenant.id}
                         type="button"
-                        onClick={() => handleSelectCustomer(customer)}
+                        onClick={() => handleSelectTenant(tenant)}
                         className="w-full flex items-center gap-3 p-3 hover:bg-surface-overlay transition-colors text-left"
                       >
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent/20 to-highlight/20 flex items-center justify-center text-xs font-semibold text-accent">
-                          {customer.name.charAt(0)}
+                          {tenant.name.charAt(0)}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-text-primary">{customer.name}</p>
-                          <p className="text-xs text-text-muted">{customer.email}</p>
+                          <p className="text-sm font-medium text-text-primary">{tenant.name}</p>
+                          <p className="text-xs text-text-muted">{tenant.slug}</p>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
 
-                {showCustomerDropdown && customerSearch && customers.length === 0 && (
+                {showTenantDropdown && tenantSearch && tenants.length === 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-surface-elevated border border-border rounded-lg shadow-lg p-4 text-center">
-                    <p className="text-sm text-text-muted">No customers found</p>
+                    <p className="text-sm text-text-muted">No tenants found</p>
                   </div>
                 )}
               </>

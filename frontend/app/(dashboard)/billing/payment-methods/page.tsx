@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button, useToast } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   usePaymentMethods,
   useSetDefaultPaymentMethod,
@@ -32,6 +33,7 @@ const cardBrandIcons: Record<string, string> = {
 
 export default function PaymentMethodsPage() {
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { data: paymentMethods = [], isLoading } = usePaymentMethods();
   const setDefaultPaymentMethod = useSetDefaultPaymentMethod();
   const deletePaymentMethod = useDeletePaymentMethod();
@@ -68,7 +70,14 @@ export default function PaymentMethodsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this payment method?")) return;
+    const method = paymentMethods.find((m: PaymentMethod) => m.id === id);
+    const confirmed = await confirm({
+      title: "Remove Payment Method",
+      description: `Are you sure you want to remove the card ending in ${method?.last4 || "****"}? Future charges will use the default payment method.`,
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
 
     setActioningId(id);
     try {
@@ -139,6 +148,9 @@ export default function PaymentMethodsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Confirm dialog */}
+      {dialog}
+
       {/* Page Header with Breadcrumbs */}
       <div>
         <div className="flex items-center gap-2 text-sm text-text-muted mb-4">
@@ -282,7 +294,7 @@ export default function PaymentMethodsPage() {
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-overlay/60 backdrop-blur-sm"
             onClick={() => {
               setShowAddModal(false);
               resetForm();

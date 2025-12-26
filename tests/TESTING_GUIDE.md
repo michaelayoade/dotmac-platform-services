@@ -418,7 +418,7 @@ assert data["memory_usage"] == 60.5
 ```python
 # ✅ Read schema definition first
 # Then assert only on fields that actually exist
-assert data["customer_id"] == "cust-123"
+assert data["tenant_id"] == "tenant-123"
 assert data["status"] == "active"
 ```
 

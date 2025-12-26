@@ -23,9 +23,8 @@ from dotmac.platform.auth.core import (
 )
 from dotmac.platform.billing._typing_helpers import rate_limit
 from dotmac.platform.billing.exceptions import AddonNotFoundError
-from dotmac.platform.billing.dependencies import enforce_tenant_access
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.db import get_async_db
-from dotmac.platform.tenant import get_current_tenant_id
 
 from .models import (
     Addon,
@@ -238,7 +237,7 @@ def _require_scope(user: UserInfo, scope: str) -> None:
 @router.get("", response_model=list[AddonResponse])
 async def get_available_addons(
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> list[AddonResponse]:
     """
@@ -266,28 +265,35 @@ async def get_available_addons(
 
     try:
         # Get tenant's current plan ID from their subscription
-        from sqlalchemy import select
-
-        from dotmac.platform.billing.models import BillingSubscriptionTable
-        from dotmac.platform.billing.subscriptions.models import SubscriptionStatus
-
         plan_id = None
-        stmt = (
-            select(BillingSubscriptionTable.plan_id)
-            .where(BillingSubscriptionTable.tenant_id == effective_tenant_id)
-            .where(
-                BillingSubscriptionTable.status.in_(
-                    [SubscriptionStatus.ACTIVE.value, SubscriptionStatus.TRIALING.value]
+        try:
+            from sqlalchemy import select
+
+            from dotmac.platform.billing.models import BillingSubscriptionTable
+            from dotmac.platform.billing.subscriptions.models import SubscriptionStatus
+
+            stmt = (
+                select(BillingSubscriptionTable.plan_id)
+                .where(BillingSubscriptionTable.tenant_id == effective_tenant_id)
+                .where(
+                    BillingSubscriptionTable.status.in_(
+                        [SubscriptionStatus.ACTIVE.value, SubscriptionStatus.TRIALING.value]
+                    )
                 )
+                .order_by(BillingSubscriptionTable.created_at.desc())
+                .limit(1)
             )
-            .order_by(BillingSubscriptionTable.created_at.desc())
-            .limit(1)
-        )
-        execution = db_session.execute(stmt)
-        result = await _resolve(execution)
-        plan_row = await _resolve(result.scalar_one_or_none())
-        if plan_row:
-            plan_id = plan_row
+            execution = db_session.execute(stmt)
+            result = await _resolve(execution)
+            plan_row = await _resolve(result.scalar_one_or_none())
+            if plan_row:
+                plan_id = plan_row
+        except Exception as exc:
+            logger.warning(
+                "Failed to resolve tenant plan, continuing without plan filter",
+                tenant_id=effective_tenant_id,
+                error=str(exc),
+            )
 
         addons = await service.get_available_addons(effective_tenant_id, plan_id)
 
@@ -322,7 +328,7 @@ async def get_available_addons(
 @router.get("/my-addons", response_model=list[TenantAddonResponse])
 async def get_active_tenant_addons(
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> list[TenantAddonResponse]:
     """
@@ -380,7 +386,7 @@ async def get_active_tenant_addons(
 async def get_addon_by_id(
     addon_id: str,
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> AddonResponse:
     """Retrieve details for a single add-on."""
@@ -418,7 +424,7 @@ async def purchase_addon(
     purchase_request: PurchaseAddonRequest,
     request: Request,
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> TenantAddonResponse:
     """
@@ -511,7 +517,7 @@ async def update_addon_quantity(
     update_request: UpdateAddonQuantityRequest,
     request: Request,
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> TenantAddonResponse:
     """
@@ -603,7 +609,7 @@ async def cancel_addon(
     cancel_request: CancelAddonRequest,
     request: Request,
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> TenantAddonResponse:
     """
@@ -701,7 +707,7 @@ async def reactivate_addon(
     tenant_addon_id: str,
     request: Request,
     current_user: UserInfo = Depends(_get_authenticated_user),
-    tenant_id: str | None = Depends(get_current_tenant_id),
+    tenant_id: str | None = Depends(get_tenant_id),
     db_session: AsyncSession = Depends(get_async_db),
 ) -> TenantAddonResponse:
     """

@@ -12,12 +12,14 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
 from dotmac.platform.billing.core.models import Invoice, Payment
+from dotmac.platform.billing.models import BillingSubscriptionPlanTable, BillingSubscriptionTable
+from dotmac.platform.billing.subscriptions.models import BillingCycle, SubscriptionStatus
 from dotmac.platform.database import get_async_session
 
 logger = structlog.get_logger(__name__)
@@ -99,7 +101,6 @@ class PlatformBillingSummary(BaseModel):
 async def list_all_invoices(
     tenant_id: str | None = Query(None, description="Optional tenant filter"),
     status: InvoiceStatus | None = Query(None, description="Filter by invoice status"),
-    customer_id: str | None = Query(None, description="Filter by customer ID"),
     limit: int = Query(100, ge=1, le=1000, description="Max results per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     session: AsyncSession = Depends(get_async_session),
@@ -113,7 +114,7 @@ async def list_all_invoices(
     **Filters:**
     - tenant_id: Drill down to specific tenant
     - status: Filter by invoice status
-    - customer_id: Filter by customer
+    - tenant_id: Filter by tenant
 
     **Returns:** Cross-tenant invoice list with tenant summaries
     """
@@ -126,9 +127,6 @@ async def list_all_invoices(
 
         if status:
             filters.append(Invoice.status == status)
-
-        if customer_id:
-            filters.append(Invoice.customer_id == customer_id)
 
         # Count total
         count_query = select(func.count(Invoice.id))
@@ -417,9 +415,41 @@ async def get_platform_billing_summary(
 
         by_tenant = [TenantInvoiceSummary(**data) for data in tenant_data.values()]
 
-        # TODO: Calculate MRR and ARR properly from subscription data
-        mrr = 0  # Placeholder
-        arr = 0  # Placeholder
+        active_statuses = [
+            SubscriptionStatus.ACTIVE.value,
+            SubscriptionStatus.TRIALING.value,
+            SubscriptionStatus.PAST_DUE.value,
+        ]
+        price_expression = func.coalesce(
+            BillingSubscriptionTable.custom_price,
+            BillingSubscriptionPlanTable.price,
+        )
+        mrr_query = select(
+            func.sum(
+                case(
+                    (BillingSubscriptionPlanTable.billing_cycle == BillingCycle.MONTHLY.value, price_expression),
+                    (
+                        BillingSubscriptionPlanTable.billing_cycle == BillingCycle.QUARTERLY.value,
+                        price_expression / 3,
+                    ),
+                    (
+                        BillingSubscriptionPlanTable.billing_cycle == BillingCycle.ANNUAL.value,
+                        price_expression / 12,
+                    ),
+                    else_=0,
+                )
+            ).label("mrr")
+        ).select_from(BillingSubscriptionTable).join(
+            BillingSubscriptionPlanTable,
+            and_(
+                BillingSubscriptionPlanTable.plan_id == BillingSubscriptionTable.plan_id,
+                BillingSubscriptionPlanTable.tenant_id == BillingSubscriptionTable.tenant_id,
+            ),
+        )
+        mrr_query = mrr_query.where(BillingSubscriptionTable.status.in_(active_statuses))
+        mrr_value = await session.scalar(mrr_query)
+        mrr = int(mrr_value or 0)
+        arr = int(mrr * 12)
 
         return PlatformBillingSummary(
             total_tenants=total_tenants,

@@ -21,7 +21,17 @@ import {
   type DefaultValues,
   type Resolver,
 } from "react-hook-form";
-import { createContext, useContext, forwardRef, type FormHTMLAttributes, type ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  createContext,
+  forwardRef,
+  isValidElement,
+  useContext,
+  type FormHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import { cn } from "./utils/cn";
 
@@ -155,6 +165,46 @@ export interface FormFieldProps {
   className?: string;
 }
 
+function prepareField(node: ReactNode, fallbackId: string) {
+  const state = { injected: false, resolvedId: fallbackId };
+
+  const walk = (child: ReactNode): ReactNode => {
+    if (!isValidElement(child)) {
+      return child;
+    }
+
+    if (!state.injected) {
+      const props = child.props ?? {};
+      if (typeof props.id === "string" && props.id.length > 0) {
+        state.resolvedId = props.id;
+      }
+      const hasName = typeof props.name === "string" && props.name.length > 0;
+      const shouldInject =
+        props.id === undefined &&
+        (props.name === fallbackId ||
+          (typeof child.type === "string" &&
+            ["input", "select", "textarea"].includes(child.type)) ||
+          hasName);
+
+      if (shouldInject) {
+        state.injected = true;
+        return cloneElement(child as ReactElement<{ id?: string }>, { id: fallbackId });
+      }
+    }
+
+    if (child.props?.children) {
+      const nextChildren = Children.map(child.props.children, walk);
+      if (nextChildren !== child.props.children) {
+        return cloneElement(child as ReactElement<{ children?: ReactNode }>, { children: nextChildren });
+      }
+    }
+
+    return child;
+  };
+
+  return { children: Children.map(node, walk), fieldId: state.resolvedId };
+}
+
 export function FormField({
   name,
   label,
@@ -165,24 +215,25 @@ export function FormField({
 }: FormFieldProps) {
   const { formState } = useFormContext();
   const error = formState.errors[name];
+  const { children: injectedChildren, fieldId } = prepareField(children, name);
 
   return (
     <div className={cn("space-y-2", className)}>
       {label && (
         <label
-          htmlFor={name}
-          className="text-sm font-medium text-gray-700"
+          htmlFor={fieldId}
+          className="text-sm font-medium text-foreground"
         >
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-destructive ml-1">*</span>}
         </label>
       )}
-      {children}
+      {injectedChildren}
       {description && !error && (
-        <p className="text-sm text-gray-500">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       )}
       {error && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error.message as string}
         </p>
       )}
@@ -239,8 +290,8 @@ export const FormSubmitButton = forwardRef<HTMLButtonElement, FormSubmitButtonPr
         className={cn(
           "inline-flex items-center justify-center",
           "h-10 px-4 rounded-md",
-          "bg-blue-600 text-white font-medium text-sm",
-          "hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+          "bg-primary text-primary-foreground font-medium text-sm",
+          "hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           "transition-colors",
           className
@@ -303,8 +354,8 @@ export const FormResetButton = forwardRef<HTMLButtonElement, FormResetButtonProp
         className={cn(
           "inline-flex items-center justify-center",
           "h-10 px-4 rounded-md",
-          "bg-gray-100 text-gray-700 font-medium text-sm",
-          "hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2",
+          "bg-muted text-muted-foreground font-medium text-sm",
+          "hover:bg-muted/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           "transition-colors",
           className

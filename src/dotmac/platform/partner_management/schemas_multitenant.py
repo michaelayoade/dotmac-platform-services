@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 class ManagedTenantMetrics(BaseModel):
     """Metrics for a managed tenant."""
 
-    total_customers: int = Field(description="Total active customers")
+    total_users: int = Field(description="Total active users")
     total_revenue_mtd: Decimal = Field(description="Month-to-date revenue")
     accounts_receivable: Decimal = Field(description="Outstanding AR")
     overdue_invoices_count: int = Field(description="Number of overdue invoices")
@@ -181,7 +181,7 @@ class TicketListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     assigned_to: str | None = None
-    customer_name: str | None = None
+    requester_name: str | None = None
 
 
 class TicketListResponse(BaseModel):
@@ -201,8 +201,9 @@ class CreateTicketRequest(BaseModel):
     description: str = Field(min_length=1)
     priority: str = Field(default="normal", description="low, normal, high, urgent")
     category: str | None = None
-    customer_id: str | None = Field(
-        default=None, description="Optional customer ID if ticket is for specific customer"
+    requester_user_id: str | None = Field(
+        default=None,
+        description="Optional requester user ID if the ticket is tied to a specific user",
     )
 
 

@@ -474,7 +474,7 @@ async def create_template_endpoint(
             subject_template=template.subject_template,
             body_text=template.text_template,
             body_html=template.html_template,
-            variables=request.variables or [],
+            variables=template.variables or request.variables or [],
             metadata=request.metadata or {},
             is_active=request.is_active if request.is_active is not None else True,
             usage_count=0,
@@ -1228,7 +1228,7 @@ async def get_bulk_email_status(
     job_id: str, current_user: UserInfo = Depends(get_current_user)
 ) -> Any:
     """Get bulk email job status."""
-    user_id, tenant_id = _safe_user_context(current_user)
+    _, tenant_id = _safe_user_context(current_user)
     try:
         task_service = get_task_service()
         status = task_service.get_task_status(job_id)
@@ -1248,7 +1248,7 @@ async def cancel_bulk_email_job(
     job_id: str, current_user: UserInfo = Depends(get_current_user)
 ) -> Any:
     """Cancel a bulk email job."""
-    user_id, tenant_id = _safe_user_context(current_user)
+    _, tenant_id = _safe_user_context(current_user)
     try:
         task_service = get_task_service()
         cancelled = task_service.cancel_task(job_id)
@@ -1478,15 +1478,11 @@ async def get_communication_stats(
             metrics_service = get_metrics_service(db)
             stats_data = await metrics_service.get_stats(tenant_id=tenant_id)
     except (SQLAlchemyError, RuntimeError) as db_error:
-        logger.warning("Database not available, returning mock stats", error=str(db_error))
-        stats_data = {
-            "sent": 1234,
-            "delivered": 1156,
-            "failed": 23,
-            "pending": 55,
-            "opened": 600,
-            "clicked": 200,
-        }
+        logger.warning("Database not available for communication stats", error=str(db_error))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication stats unavailable. Database connection required.",
+        ) from db_error
 
     total_sent = stats_data.get("sent", 0)
     total_delivered = stats_data.get("delivered", 0)
@@ -1697,32 +1693,11 @@ async def get_communications_metrics(
                 **({"bulk_jobs": bulk_summary} if bulk_summary else {}),
             )
     except Exception as exc:
-        logger.warning(
-            "Communications metrics unavailable; returning synthetic metrics.", error=str(exc)
-        )
-
-    stats_block = {
-        "total_sent": 100,
-        "total_delivered": 95,
-        "total_failed": 5,
-        "total_opened": 60,
-        "total_clicked": 20,
-        "delivery_rate": 0.95,
-        "open_rate": 0.6,
-        "click_rate": 0.2,
-        "by_channel": {"email": 100},
-        "by_status": {"sent": 80, "failed": 5, "pending": 15},
-        "recent_activity": [],
-    }
-
-    return MetricsResponse(
-        total_logs=100,
-        total_templates=5,
-        stats=stats_block,
-        top_templates=[],
-        recent_failures=[],
-        cached_at=now,
-    )
+        logger.warning("Communications metrics unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communications metrics unavailable. Database connection required.",
+        ) from exc
 
 
 @router.get("/activity", response_model=list[CommunicationActivity])
@@ -1773,68 +1748,11 @@ async def get_recent_activity(
             )
             return activities
     except (SQLAlchemyError, RuntimeError) as db_error:
-        logger.warning("Database not available, returning mock activity", error=str(db_error))
-
-    # Return mock data when database is not available
-    activities = [
-        CommunicationActivity(
-            id="act_1",
-            type="email",
-            recipient="user@example.com",
-            subject="Welcome to DotMac Platform",
-            status="delivered",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_2",
-            type="webhook",
-            recipient="https://api.example.com/webhook",
-            subject="User Registration Event",
-            status="sent",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_3",
-            type="email",
-            recipient="admin@example.com",
-            subject="Password Reset Request",
-            status="delivered",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_4",
-            type="sms",
-            recipient="+1234567890",
-            subject="Verification Code: 123456",
-            status="pending",
-            timestamp=datetime.now(UTC),
-        ),
-    ]
-
-    if type_filter:
-        activities = [a for a in activities if a.type == type_filter]
-
-    activities = activities[offset : offset + limit]
-
-    _points = [  # noqa: F841
-        ActivityPoint(
-            date=activity.timestamp.date().isoformat(),
-            sent=1,
-            delivered=1 if activity.status == "delivered" else 0,
-            failed=1 if activity.status == "failed" else 0,
-            opened=0,
-            clicked=0,
-        )
-        for activity in activities
-    ]
-
-    logger.info(
-        "Communication activity retrieved (mock data)",
-        count=len(activities),
-        user_id=user_id or "unknown",
-        tenant_id=tenant_id,
-    )
-    return activities
+        logger.warning("Database not available for communication activity", error=str(db_error))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication activity unavailable. Database connection required.",
+        ) from db_error
 
 
 class BulkJobListResponse(BaseModel):  # BaseModel resolves to Any in isolation
@@ -2041,29 +1959,6 @@ async def get_bulk_job(
         raise HTTPException(status_code=500, detail="Failed to retrieve bulk job")
 
 
-# === Logs Endpoints (compatibility) ===
-
-
-def _make_mock_log(idx: int = 1) -> CommunicationLogSchema:
-    now = datetime.now(UTC)
-    return CommunicationLogSchema(
-        id=f"log_{idx}",
-        tenant_id="default",
-        channel="email",
-        recipient_email=f"user{idx}@example.com",
-        recipient_name=f"User {idx}",
-        subject=f"Test Message {idx}",
-        body_text="Hello world",
-        body_html="<p>Hello world</p>",
-        template_id="template_1",
-        status="sent",
-        sent_at=now,
-        delivered_at=now,
-        created_at=now,
-        updated_at=now,
-    )
-
-
 @router.get("/logs")
 async def list_logs(
     channel: str | None = None,
@@ -2132,11 +2027,11 @@ async def list_logs(
                 "total": int(total),
             }
     except Exception as exc:
-        logger.warning("Falling back to synthetic logs", error=str(exc))
-
-    # Fallback synthetic
-    logs = [_make_mock_log(i) for i in range(1, 6)]
-    return {"logs": [log.model_dump() for log in logs], "total": len(logs)}
+        logger.warning("Communication logs unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication logs unavailable. Database connection required.",
+        ) from exc
 
 
 @router.get("/logs/{log_id}", response_model=CommunicationLogSchema)
@@ -2163,8 +2058,11 @@ async def get_log(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("Falling back to synthetic log", error=str(exc))
-    return _make_mock_log(1).model_copy(update={"id": log_id})
+        logger.warning("Communication log lookup failed", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication log unavailable. Database connection required.",
+        ) from exc
 
 
 @router.post("/logs/{log_id}/retry")

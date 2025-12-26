@@ -62,7 +62,7 @@ class InvoiceService:
         in_test_env = testing_flag in {"true", "1", "yes"}
         enable_multi_currency = getattr(settings.billing, "enable_multi_currency", False)
 
-        if not enable_multi_currency and not in_test_env:
+        if not enable_multi_currency:
             logger.info(
                 "currency.normalization.disabled",
                 enable_multi_currency=enable_multi_currency,
@@ -879,6 +879,7 @@ class InvoiceService:
                 amount=invoice.total_amount,
                 payment_method=str(payment_method),
                 invoice_url=_build_invoice_url(invoice.invoice_id or ""),
+                notes=invoice.notes,
                 currency=invoice.currency,
             )
             rendered = await template_service.render_email(
@@ -1321,6 +1322,7 @@ class InvoiceService:
                 amount=int(invoice.total_amount or 0),
                 payment_method=str(payment_method),
                 invoice_url=_build_invoice_url(invoice.invoice_id),
+                notes=invoice.notes,
                 currency=invoice.currency,
             )
             rendered = await template_service.render_email(

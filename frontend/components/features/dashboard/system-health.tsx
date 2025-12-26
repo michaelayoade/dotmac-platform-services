@@ -52,7 +52,7 @@ export function SystemHealthWidget() {
     );
   }
 
-  const healthChecks: HealthCheck[] = health?.services.map(mapServiceToHealthCheck) || [];
+  const healthChecks: HealthCheck[] = (health?.services ?? []).map(mapServiceToHealthCheck);
 
   const statusConfig = {
     healthy: {

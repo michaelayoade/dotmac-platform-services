@@ -29,40 +29,7 @@ import {
   useChangePlan,
   useProrationPreview,
 } from "@/lib/hooks/api/use-billing";
-import type { SubscriptionStatus } from "@/types/models";
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  interval: "month" | "year";
-  features: string[];
-}
-
-// Mock available plans for plan change
-const availablePlans: Plan[] = [
-  {
-    id: "plan_basic",
-    name: "Basic",
-    price: 2900,
-    interval: "month",
-    features: ["5 team members", "10GB storage", "Email support"],
-  },
-  {
-    id: "plan_pro",
-    name: "Professional",
-    price: 7900,
-    interval: "month",
-    features: ["25 team members", "100GB storage", "Priority support", "API access"],
-  },
-  {
-    id: "plan_enterprise",
-    name: "Enterprise",
-    price: 19900,
-    interval: "month",
-    features: ["Unlimited team members", "Unlimited storage", "24/7 support", "API access", "Custom integrations"],
-  },
-];
+import type { SubscriptionPlan, SubscriptionStatus } from "@/types/models";
 
 export default function SubscriptionDetailPage() {
   const params = useParams();
@@ -76,12 +43,15 @@ export default function SubscriptionDetailPage() {
   const cancelSubscription = useCancelSubscription();
   const changePlan = useChangePlan();
   const prorationPreview = useProrationPreview();
+  const availablePlans: SubscriptionPlan[] =
+    (subscription as { availablePlans?: SubscriptionPlan[] })?.availablePlans ?? [];
 
   const [showChangePlanModal, setShowChangePlanModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(true);
   const [isActioning, setIsActioning] = useState(false);
+  const hasPlanOptions = availablePlans.length > 0;
 
   // Get proration preview when plan is selected
   useEffect(() => {
@@ -264,7 +234,7 @@ export default function SubscriptionDetailPage() {
               </span>
             </div>
             <p className="text-text-muted mt-1">
-              {subscription.customer?.name || "Customer"} • {formatCurrency(currentPlan?.price || 0)}/
+              {subscription.customer?.name || "Tenant"} • {formatCurrency(currentPlan?.price || 0)}/
               {currentPlan?.interval === "month" ? "month" : "year"}
             </p>
           </div>
@@ -277,6 +247,7 @@ export default function SubscriptionDetailPage() {
               <Button
                 variant="outline"
                 onClick={() => setShowChangePlanModal(true)}
+                disabled={!hasPlanOptions}
               >
                 <ArrowUpRight className="w-4 h-4 mr-2" />
                 Change Plan
@@ -316,7 +287,7 @@ export default function SubscriptionDetailPage() {
 
       {/* Alert for cancellation pending */}
       {subscription.cancelAtPeriodEnd && (
-        <div className="flex items-start gap-3 p-4 bg-status-warning/10 border border-status-warning/30 rounded-lg">
+        <div className="flex items-start gap-3 p-4 bg-status-warning/15 border border-status-warning/30 rounded-lg">
           <AlertCircle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-text-primary">Cancellation scheduled</p>
@@ -413,11 +384,11 @@ export default function SubscriptionDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Customer Info */}
+          {/* Tenant Info */}
           <div className="card">
             <div className="p-4 border-b border-border">
               <h2 className="text-sm font-semibold text-text-primary">
-                Customer
+                Tenant
               </h2>
             </div>
             <div className="p-4 space-y-3">
@@ -429,7 +400,7 @@ export default function SubscriptionDetailPage() {
                   <p className="font-medium text-text-primary">
                     {subscription.customer?.name || "Unknown"}
                   </p>
-                  <p className="text-xs text-text-muted">Customer</p>
+                  <p className="text-xs text-text-muted">Tenant</p>
                 </div>
               </div>
               {subscription.customer?.email && (
@@ -445,10 +416,10 @@ export default function SubscriptionDetailPage() {
                 </div>
               )}
               <Link
-                href={`/customers/${subscription.customerId}`}
+                href={`/tenants/${subscription.customerId}`}
                 className="block text-sm text-accent hover:underline mt-2"
               >
-                View customer profile →
+                View tenant profile →
               </Link>
             </div>
           </div>
@@ -485,7 +456,7 @@ export default function SubscriptionDetailPage() {
       {showChangePlanModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-overlay/60 backdrop-blur-sm"
             onClick={() => {
               setShowChangePlanModal(false);
               setSelectedPlanId(null);
@@ -512,39 +483,45 @@ export default function SubscriptionDetailPage() {
                 Select a new plan for this subscription. Any price difference will be prorated.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {availablePlans.map((plan) => (
-                  <button
-                    key={plan.id}
-                    onClick={() => setSelectedPlanId(plan.id)}
-                    className={cn(
-                      "p-4 rounded-lg border text-left transition-all",
-                      selectedPlanId === plan.id
-                        ? "border-accent bg-accent-subtle"
-                        : "border-border hover:border-accent/50",
-                      currentPlan?.name === plan.name && "opacity-50"
-                    )}
-                    disabled={currentPlan?.name === plan.name}
-                  >
-                    <p className="font-semibold text-text-primary">{plan.name}</p>
-                    <p className="text-2xl font-bold text-text-primary mt-2">
-                      {formatCurrency(plan.price)}
-                      <span className="text-sm font-normal text-text-muted">/mo</span>
-                    </p>
-                    <ul className="mt-3 space-y-1">
-                      {plan.features.slice(0, 3).map((feature, idx) => (
-                        <li key={idx} className="text-xs text-text-muted flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3 text-status-success" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                    {currentPlan?.name === plan.name && (
-                      <p className="text-xs text-accent mt-2">Current plan</p>
-                    )}
-                  </button>
-                ))}
-              </div>
+              {hasPlanOptions ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {availablePlans.map((plan) => (
+                    <button
+                      key={plan.id}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className={cn(
+                        "p-4 rounded-lg border text-left transition-all",
+                        selectedPlanId === plan.id
+                          ? "border-accent bg-accent-subtle"
+                          : "border-border hover:border-accent/50",
+                        currentPlan?.name === plan.name && "opacity-50"
+                      )}
+                      disabled={currentPlan?.name === plan.name}
+                    >
+                      <p className="font-semibold text-text-primary">{plan.name}</p>
+                      <p className="text-2xl font-bold text-text-primary mt-2">
+                        {formatCurrency(plan.price)}
+                        <span className="text-sm font-normal text-text-muted">/mo</span>
+                      </p>
+                      <ul className="mt-3 space-y-1">
+                        {plan.features.slice(0, 3).map((feature, idx) => (
+                          <li key={idx} className="text-xs text-text-muted flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3 text-status-success" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      {currentPlan?.name === plan.name && (
+                        <p className="text-xs text-accent mt-2">Current plan</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg border border-dashed border-border text-sm text-text-muted">
+                  No alternate plans are available for this subscription.
+                </div>
+              )}
 
               {/* Proration Preview */}
               {selectedPlanId && prorationPreview.data && (
@@ -607,7 +584,7 @@ export default function SubscriptionDetailPage() {
       {showCancelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-overlay/60 backdrop-blur-sm"
             onClick={() => setShowCancelModal(false)}
           />
           <div className="relative w-full max-w-md mx-4 bg-surface border border-border rounded-xl shadow-2xl">
@@ -624,14 +601,14 @@ export default function SubscriptionDetailPage() {
             </div>
 
             <div className="p-4 space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-status-error/10 border border-status-error/30 rounded-lg">
+              <div className="flex items-start gap-3 p-3 bg-status-error/15 border border-status-error/30 rounded-lg">
                 <AlertCircle className="w-5 h-5 text-status-error flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-text-primary">
                     Are you sure you want to cancel?
                   </p>
                   <p className="text-text-muted mt-1">
-                    The customer will lose access to their subscription benefits.
+                    The tenant will lose access to their subscription benefits.
                   </p>
                 </div>
               </div>
@@ -650,7 +627,7 @@ export default function SubscriptionDetailPage() {
                       Cancel at end of period
                     </p>
                     <p className="text-xs text-text-muted">
-                      Customer keeps access until {formatDate(subscription.currentPeriodEnd)}
+                      Tenant keeps access until {formatDate(subscription.currentPeriodEnd)}
                     </p>
                   </div>
                 </label>

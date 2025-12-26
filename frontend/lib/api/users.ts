@@ -7,6 +7,63 @@
 
 import { api, normalizePaginatedResponse } from "./client";
 
+type BackendUser = {
+  id?: string;
+  userId?: string;
+  username?: string;
+  email?: string;
+  name?: string;
+  fullName?: string;
+  role?: User["role"];
+  roles?: string[];
+  status?: User["status"];
+  isActive?: boolean;
+  isVerified?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string;
+  mfaEnabled?: boolean;
+  avatarUrl?: string;
+  tenantId?: string;
+  tenant?: User["tenant"];
+};
+
+function resolveStatus(user: BackendUser): User["status"] {
+  if (user.status) {
+    return user.status;
+  }
+  if (user.isActive === false) {
+    return "inactive";
+  }
+  if (user.isVerified === false) {
+    return "pending";
+  }
+  return "active";
+}
+
+function mapUser(user: BackendUser): User {
+  const resolvedName =
+    user.name || user.fullName || user.username || user.email || "Unknown User";
+  const role =
+    (user.role as User["role"]) ||
+    (user.roles?.[0] as User["role"] | undefined) ||
+    "member";
+
+  return {
+    id: user.id || user.userId || "",
+    email: user.email || "",
+    name: resolvedName,
+    role,
+    status: resolveStatus(user),
+    tenant: user.tenant,
+    lastActive: user.lastLogin,
+    createdAt: user.createdAt || "",
+    updatedAt: user.updatedAt || "",
+    mfaEnabled: user.mfaEnabled,
+    avatarUrl: user.avatarUrl,
+  };
+}
+
 export interface User {
   id: string;
   email: string;
@@ -56,17 +113,19 @@ export async function getUsers(params: GetUsersParams = {}): Promise<GetUsersRes
       sort_order: sortOrder,
     },
   });
-  const normalized = normalizePaginatedResponse<User>(response);
+  const normalized = normalizePaginatedResponse<BackendUser>(response);
+  const users = normalized.items.map(mapUser);
 
   return {
-    users: normalized.items,
+    users,
     totalCount: normalized.total,
     pageCount: normalized.totalPages,
   };
 }
 
 export async function getUser(id: string): Promise<User> {
-  return api.get<User>(`/api/v1/users/${id}`);
+  const user = await api.get<BackendUser>(`/api/v1/users/${id}`);
+  return mapUser(user);
 }
 
 export interface CreateUserData {
@@ -78,13 +137,14 @@ export interface CreateUserData {
 }
 
 export async function createUser(data: CreateUserData): Promise<User> {
-  return api.post<User>("/api/v1/users", {
+  const user = await api.post<BackendUser>("/api/v1/users", {
     email: data.email,
     name: data.name,
     role: data.role,
     tenant_id: data.tenantId,
     send_invite: data.sendInvite,
   });
+  return mapUser(user);
 }
 
 export interface UpdateUserData {
@@ -94,7 +154,8 @@ export interface UpdateUserData {
 }
 
 export async function updateUser(id: string, data: UpdateUserData): Promise<User> {
-  return api.patch<User>(`/api/v1/users/${id}`, data);
+  const user = await api.patch<BackendUser>(`/api/v1/users/${id}`, data);
+  return mapUser(user);
 }
 
 export async function deleteUser(id: string): Promise<void> {
@@ -102,11 +163,13 @@ export async function deleteUser(id: string): Promise<void> {
 }
 
 export async function suspendUser(id: string): Promise<User> {
-  return api.post<User>(`/api/v1/users/${id}/suspend`);
+  const user = await api.post<BackendUser>(`/api/v1/users/${id}/suspend`);
+  return mapUser(user);
 }
 
 export async function activateUser(id: string): Promise<User> {
-  return api.post<User>(`/api/v1/users/${id}/activate`);
+  const user = await api.post<BackendUser>(`/api/v1/users/${id}/activate`);
+  return mapUser(user);
 }
 
 export async function resendInvite(id: string): Promise<void> {

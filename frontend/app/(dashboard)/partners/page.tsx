@@ -36,10 +36,10 @@ import type { PartnerStatus, PartnerTier } from "@/lib/api/partners";
 
 const tierConfig: Record<PartnerTier, { label: string; color: string }> = {
   bronze: { label: "Bronze", color: "bg-surface-overlay text-text-secondary" },
-  silver: { label: "Silver", color: "bg-gray-200 text-gray-700" },
-  gold: { label: "Gold", color: "bg-yellow-100 text-yellow-700" },
-  platinum: { label: "Platinum", color: "bg-purple-100 text-purple-700" },
-  direct: { label: "Direct", color: "bg-emerald-100 text-emerald-700" },
+  silver: { label: "Silver", color: "bg-surface-overlay text-text-secondary" },
+  gold: { label: "Gold", color: "bg-highlight/15 text-highlight" },
+  platinum: { label: "Platinum", color: "bg-status-info/15 text-status-info" },
+  direct: { label: "Direct", color: "bg-status-success/15 text-status-success" },
 };
 
 const statusConfig: Record<PartnerStatus, { label: string; color: string }> = {

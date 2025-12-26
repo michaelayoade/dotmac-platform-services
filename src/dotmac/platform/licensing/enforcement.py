@@ -9,6 +9,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from dotmac.platform.db import get_session
 from dotmac.platform.licensing.service_framework import (
@@ -303,7 +304,7 @@ def check_quota(
 # ========================================================================
 
 
-class FeatureEntitlementMiddleware:
+class FeatureEntitlementMiddleware(BaseHTTPMiddleware):
     """
     Middleware to automatically check feature entitlements based on route.
 
@@ -333,10 +334,10 @@ class FeatureEntitlementMiddleware:
             app: FastAPI application
             route_module_map: Dict mapping route prefixes to (module_code, capability_code)
         """
-        self.app = app
+        super().__init__(app)
         self.route_module_map = route_module_map
 
-    async def __call__(
+    async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Any]]
     ) -> Any:
         """Process request."""

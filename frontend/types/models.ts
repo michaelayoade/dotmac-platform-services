@@ -15,6 +15,11 @@ export interface BaseEntity {
 }
 
 /**
+ * Plan type - can be a string (from list endpoints) or full object (from detail endpoints)
+ */
+export type TenantPlanType = "Enterprise" | "Professional" | "Starter" | "Free";
+
+/**
  * Tenant entity
  */
 export interface Tenant extends BaseEntity {
@@ -23,12 +28,14 @@ export interface Tenant extends BaseEntity {
   domain?: string;
   logo?: string;
   status: TenantStatus;
-  plan: SubscriptionPlan;
-  settings: TenantSettings;
+  plan: TenantPlanType | SubscriptionPlan; // String from list, object from detail
+  settings?: TenantSettings;
   metadata?: Record<string, unknown>;
   userCount: number;
   storageUsed: number; // bytes
   storageLimit: number; // bytes
+  mrr?: number; // Monthly recurring revenue in cents
+  deploymentCount?: number;
 }
 
 export type TenantStatus = "active" | "inactive" | "suspended" | "trial" | "pending";
@@ -46,6 +53,8 @@ export interface TenantSettings {
     logo: string;
     favicon: string;
   };
+  features?: string[];
+  limits?: Record<string, number>;
 }
 
 /**
@@ -112,6 +121,11 @@ export interface Address {
 export interface Invoice extends BaseEntity {
   tenantId: string;
   customerId?: string;
+  customer?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   number: string;
   status: InvoiceStatus;
   amount: number;

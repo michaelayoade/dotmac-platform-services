@@ -137,11 +137,11 @@ export default function ProfileSettingsPage() {
                   unoptimized
                 />
               ) : (
-                session?.user?.name?.charAt(0).toUpperCase() || "U"
+                user?.fullName?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || "U"
               )}
             </div>
-            <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-              <Camera className="w-5 h-5 text-white" />
+            <label className="absolute inset-0 flex items-center justify-center bg-overlay/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+              <Camera className="w-5 h-5 text-text-inverse" />
               <input
                 type="file"
                 accept="image/*"

@@ -39,6 +39,9 @@ _migrations_applied = False
 
 logger = logging.getLogger(__name__)
 
+# Allow registration flows in tests unless explicitly disabled.
+os.environ.setdefault("ALLOW_SELF_REGISTRATION", "true")
+
 
 def _env_flag(name: str, default: bool = True) -> bool:
     value = os.getenv(name)

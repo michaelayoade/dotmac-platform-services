@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.rbac_dependencies import require_permission
-from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
+from dotmac.platform.billing.dependencies import (
+    enforce_tenant_access,
+    get_tenant_id,
+    get_tenant_id_from_request,
+)
 from dotmac.platform.billing.receipts.models import Receipt
 from dotmac.platform.billing.receipts.service import ReceiptService
 from dotmac.platform.database import get_async_session

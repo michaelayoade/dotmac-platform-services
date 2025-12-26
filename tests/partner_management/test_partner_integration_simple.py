@@ -72,7 +72,7 @@ def test_portal_router_import():
     assert any("profile" in r for r in routes)
     assert any("referrals" in r for r in routes)
     assert any("commissions" in r for r in routes)
-    assert any("customers" in r for r in routes)
+    assert any("tenants" in r for r in routes)
 
 
 def test_commission_calculation():
@@ -156,8 +156,8 @@ def test_dashboard_stats_schema():
     from dotmac.platform.partner_management.portal_router import PartnerDashboardStats
 
     stats = PartnerDashboardStats(
-        total_customers=10,
-        active_customers=8,
+        total_tenants=10,
+        active_tenants=8,
         total_revenue_generated=Decimal("50000.00"),
         total_commissions_earned=Decimal("7500.00"),
         total_commissions_paid=Decimal("5000.00"),
@@ -171,22 +171,22 @@ def test_dashboard_stats_schema():
         default_commission_rate=Decimal("0.15"),
     )
 
-    assert stats.total_customers == 10
+    assert stats.total_tenants == 10
     assert stats.pending_commissions == Decimal("2500.00")
     assert stats.conversion_rate == 25.0
 
 
-def test_partner_customer_response_schema():
-    """Test partner customer response schema."""
+def test_partner_tenant_response_schema():
+    """Test partner tenant response schema."""
     from datetime import datetime
     from uuid import uuid4
 
-    from dotmac.platform.partner_management.portal_router import PartnerCustomerResponse
+    from dotmac.platform.partner_management.portal_router import PartnerTenantResponse
 
-    response = PartnerCustomerResponse(
+    response = PartnerTenantResponse(
         id=uuid4(),
-        customer_id=uuid4(),
-        customer_name="Test Customer",
+        tenant_id=str(uuid4()),
+        tenant_name="Test Tenant",
         engagement_type="direct",
         total_revenue=Decimal("10000.00"),
         total_commissions=Decimal("1500.00"),
@@ -194,6 +194,6 @@ def test_partner_customer_response_schema():
         is_active=True,
     )
 
-    assert response.customer_name == "Test Customer"
+    assert response.tenant_name == "Test Tenant"
     assert response.engagement_type == "direct"
     assert response.is_active is True

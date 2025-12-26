@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button, useToast } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useSubscriptions,
   usePauseSubscription,
@@ -26,6 +27,7 @@ import type { Subscription, SubscriptionStatus } from "@/types/models";
 
 export default function SubscriptionsPage() {
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | undefined>();
   const { data, isLoading } = useSubscriptions({ status: statusFilter });
 
@@ -38,6 +40,15 @@ export default function SubscriptionsPage() {
   const subscriptions = data?.items || [];
 
   const handlePause = async (id: string) => {
+    const subscription = subscriptions.find((s: Subscription) => s.id === id);
+    const confirmed = await confirm({
+      title: "Pause Subscription",
+      description: `Are you sure you want to pause ${subscription?.customer?.name || "this"} subscription? Billing will be suspended until resumed for the tenant.`,
+      variant: "warning",
+    });
+
+    if (!confirmed) return;
+
     setActioningId(id);
     try {
       await pauseSubscription.mutateAsync(id);
@@ -58,6 +69,15 @@ export default function SubscriptionsPage() {
   };
 
   const handleResume = async (id: string) => {
+    const subscription = subscriptions.find((s: Subscription) => s.id === id);
+    const confirmed = await confirm({
+      title: "Resume Subscription",
+      description: `Are you sure you want to resume ${subscription?.customer?.name || "this"} subscription? Billing will resume immediately.`,
+      variant: "info",
+    });
+
+    if (!confirmed) return;
+
     setActioningId(id);
     try {
       await resumeSubscription.mutateAsync(id);
@@ -78,7 +98,14 @@ export default function SubscriptionsPage() {
   };
 
   const handleCancel = async (id: string) => {
-    if (!confirm("Are you sure you want to cancel this subscription?")) return;
+    const subscription = subscriptions.find((s: Subscription) => s.id === id);
+    const confirmed = await confirm({
+      title: "Cancel Subscription",
+      description: `Are you sure you want to cancel ${subscription?.customer?.name || "this"} subscription? The tenant will lose access at the end of the current billing period.`,
+      variant: "warning",
+    });
+
+    if (!confirmed) return;
 
     setActioningId(id);
     try {
@@ -124,6 +151,9 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Confirm dialog */}
+      {dialog}
+
       {/* Page Header with Breadcrumbs */}
       <div>
         <div className="flex items-center gap-2 text-sm text-text-muted mb-4">
@@ -138,7 +168,7 @@ export default function SubscriptionsPage() {
           <div>
             <h1 className="page-title">Subscriptions</h1>
             <p className="page-description">
-              Manage customer subscriptions and billing cycles
+              Manage tenant subscriptions and billing cycles
             </p>
           </div>
         </div>
@@ -192,7 +222,7 @@ export default function SubscriptionsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Customer</th>
+                  <th>Tenant</th>
                   <th>Plan</th>
                   <th>Amount</th>
                   <th>Status</th>
@@ -276,9 +306,9 @@ export default function SubscriptionsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handlePause(subscription.id)}
-                                  title="Pause"
+                                  aria-label={`Pause subscription for ${subscription.customer?.name || "this tenant"}`}
                                 >
-                                  <Pause className="w-3 h-3" />
+                                  <Pause className="w-3 h-3" aria-hidden="true" />
                                 </Button>
                               )}
                               {subscription.status === "paused" && (
@@ -286,9 +316,9 @@ export default function SubscriptionsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleResume(subscription.id)}
-                                  title="Resume"
+                                  aria-label={`Resume subscription for ${subscription.customer?.name || "this tenant"}`}
                                 >
-                                  <Play className="w-3 h-3" />
+                                  <Play className="w-3 h-3" aria-hidden="true" />
                                 </Button>
                               )}
                               {["active", "paused", "trialing"].includes(
@@ -298,10 +328,10 @@ export default function SubscriptionsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleCancel(subscription.id)}
-                                  title="Cancel"
+                                  aria-label={`Cancel subscription for ${subscription.customer?.name || "this tenant"}`}
                                   className="text-status-error hover:text-status-error"
                                 >
-                                  <XCircle className="w-3 h-3" />
+                                  <XCircle className="w-3 h-3" aria-hidden="true" />
                                 </Button>
                               )}
                               <Link href={`/billing/subscriptions/${subscription.id}`}>

@@ -4,12 +4,22 @@
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { TenantPlanType, SubscriptionPlan } from "@/types/models";
 
 /**
  * Merge Tailwind CSS classes with clsx
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/**
+ * Extract plan name from either string or SubscriptionPlan object
+ */
+export function getPlanName(plan: TenantPlanType | SubscriptionPlan | undefined): string {
+  if (!plan) return "Free";
+  if (typeof plan === "string") return plan;
+  return plan.name || "Free";
 }
 
 /**

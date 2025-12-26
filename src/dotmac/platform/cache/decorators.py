@@ -34,10 +34,10 @@ def cached(
     Decorator to cache function results.
 
     Usage:
-        @cached(ttl=3600, namespace=CacheNamespace.CUSTOMER)
-        async def get_customer(customer_id: UUID):
+        @cached(ttl=3600, namespace=CacheNamespace.TENANT)
+        async def get_tenant(tenant_id: UUID):
             # Expensive operation
-            return customer
+            return tenant
 
     Args:
         ttl: Time-to-live in seconds

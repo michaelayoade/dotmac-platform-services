@@ -84,7 +84,8 @@ export function PermissionGate({
   const { hasPermission, hasAnyPermission, hasAllPermissions, isLoading } =
     usePermission();
 
-  if (isLoading) return null;
+  // While loading, avoid rendering gated content until permissions resolve
+  if (isLoading) return <>{fallback ?? null}</>;
 
   let hasAccess = true;
 

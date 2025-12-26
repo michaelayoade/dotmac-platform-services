@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button, useToast } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useApiKeys,
   useCreateApiKey,
@@ -27,6 +28,7 @@ import type { ApiKey } from "@/types/tenant-portal";
 
 export default function ApiKeysSettingsPage() {
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { data: apiKeys = [], isLoading } = useApiKeys();
   const createApiKey = useCreateApiKey();
   const deleteApiKey = useDeleteApiKey();
@@ -73,9 +75,14 @@ export default function ApiKeysSettingsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to revoke this API key? This action cannot be undone.")) {
-      return;
-    }
+    const key = apiKeys.find((k: ApiKey) => k.id === id);
+    const confirmed = await confirm({
+      title: "Revoke API Key",
+      description: `Are you sure you want to revoke "${key?.name || "this key"}"? Any applications using this key will immediately lose access. This action cannot be undone.`,
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
 
     setDeletingId(id);
     try {
@@ -119,6 +126,9 @@ export default function ApiKeysSettingsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      {/* Confirm dialog */}
+      {dialog}
+
       {/* Back link */}
       <Link
         href="/settings"
@@ -148,7 +158,7 @@ export default function ApiKeysSettingsPage() {
       </div>
 
       {/* Security Warning */}
-      <div className="flex items-start gap-3 p-4 bg-status-warning/10 border border-status-warning/30 rounded-lg">
+      <div className="flex items-start gap-3 p-4 bg-status-warning/15 border border-status-warning/30 rounded-lg">
         <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
         <div className="text-sm">
           <p className="font-medium text-text-primary">Keep your API keys secure</p>
@@ -186,19 +196,21 @@ export default function ApiKeysSettingsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowSecret(!showSecret)}
+                  aria-label={showSecret ? "Hide secret key" : "Show secret key"}
                 >
                   {showSecret ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff className="w-4 h-4" aria-hidden="true" />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-4 h-4" aria-hidden="true" />
                   )}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => copyToClipboard(newSecretKey, "Secret key")}
+                  aria-label="Copy secret key to clipboard"
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-4 h-4" aria-hidden="true" />
                 </Button>
               </div>
             </div>

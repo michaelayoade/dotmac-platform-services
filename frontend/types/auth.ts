@@ -4,12 +4,17 @@
  * User roles available in the system
  */
 export type UserRole =
+  // Platform-level roles
   | "super_admin"
   | "tenant_admin"
   | "manager"
   | "operator"
   | "viewer"
-  | "api_user";
+  | "api_user"
+  // Tenant-level roles (within organization context)
+  | "owner"
+  | "admin"
+  | "member";
 
 /**
  * Available permissions in the system

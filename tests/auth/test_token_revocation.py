@@ -664,7 +664,7 @@ class TestUserWideRevocation:
 
         # Create token with iat in the past
         old_iat = int(time.time()) - 100  # 100 seconds ago
-        token = jwt_service.create_access_token(user_id)
+        token = jwt_service.create_access_token(user_id, additional_claims={"iat": old_iat})
 
         # Mock revocation that happened after the token was issued
         revoked_at = int(time.time()) - 50  # 50 seconds ago (after token creation)

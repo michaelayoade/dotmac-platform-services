@@ -45,7 +45,7 @@ class TestPartnerRouterIntegration:
         # Create partner account
         account_data = PartnerAccountCreate(
             partner_id=partner.id,
-            customer_id=uuid4(),
+            tenant_id=uuid4(),
             engagement_type="referral",
         )
         account = await service.create_partner_account(data=account_data)
@@ -222,7 +222,7 @@ class TestPartnerRouterIntegration:
         # Call router function to execute response mapping (lines 291-294)
         account_data = PartnerAccountCreate(
             partner_id=partner.id,
-            customer_id=uuid4(),
+            tenant_id=uuid4(),
             engagement_type="reseller",
         )
         mock_user = UserInfo(

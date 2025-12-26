@@ -226,6 +226,49 @@ class MockAsyncSessionFactory:
         return mock_session
 
 
+class AsyncSessionShim:
+    """AsyncSession-like wrapper around a sync SQLAlchemy session."""
+
+    def __init__(self, session: Any) -> None:
+        self._session = session
+
+    def add(self, obj: Any) -> None:
+        self._session.add(obj)
+
+    @property
+    def bind(self) -> Any:
+        if hasattr(self._session, "get_bind"):
+            return self._session.get_bind()
+        return getattr(self._session, "bind", None)
+
+    def get_bind(self) -> Any:
+        return self.bind
+
+    async def execute(self, *args: Any, **kwargs: Any) -> Any:
+        return self._session.execute(*args, **kwargs)
+
+    async def commit(self) -> None:
+        self._session.commit()
+
+    async def refresh(self, obj: Any) -> None:
+        self._session.refresh(obj)
+
+    async def rollback(self) -> None:
+        self._session.rollback()
+
+    async def delete(self, obj: Any) -> None:
+        self._session.delete(obj)
+
+    async def flush(self) -> None:
+        self._session.flush()
+
+    async def get(self, *args: Any, **kwargs: Any) -> Any:
+        return self._session.get(*args, **kwargs)
+
+    async def close(self) -> None:
+        self._session.close()
+
+
 @pytest.fixture
 def mock_async_session():
     """Fixture providing a basic mock async session."""

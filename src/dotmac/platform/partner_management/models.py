@@ -334,7 +334,7 @@ class PartnerUser(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type: 
 
 class PartnerAccount(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
     """
-    Join table linking partners to customers they manage.
+    Join table linking partners to tenant accounts they manage.
     """
 
     __tablename__ = "partner_accounts"
@@ -664,7 +664,7 @@ class PartnerPayout(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
 
 class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type: ignore[misc]
     """
-    Referral leads submitted by partners before customer conversion.
+    Referral leads submitted by partners before tenant conversion.
     """
 
     __tablename__ = "partner_referrals"
@@ -706,7 +706,7 @@ class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type:
     converted_customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         nullable=True,
-        comment="Customer ID if converted",
+        comment="Tenant ID if converted",
     )
     conversion_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_value: Mapped[Decimal | None] = mapped_column(
@@ -724,7 +724,7 @@ class ReferralLead(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type:
     )
     qualified_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     converted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="When referral was converted to customer"
+        DateTime(timezone=True), nullable=True, comment="When referral was converted to tenant"
     )
 
     # Metadata

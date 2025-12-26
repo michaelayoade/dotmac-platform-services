@@ -45,12 +45,12 @@ describe("ThemeProvider", () => {
     };
 
     render(
-      <ThemeProvider defaultVariant="customer">
+      <ThemeProvider defaultVariant="tenant">
         <TestComponent />
       </ThemeProvider>
     );
 
-    expect(screen.getByTestId("variant")).toHaveTextContent("customer");
+    expect(screen.getByTestId("variant")).toHaveTextContent("tenant");
   });
 
   it("should update variant via setVariant", () => {
@@ -200,13 +200,13 @@ describe("ThemeProvider", () => {
     };
 
     render(
-      <ThemeProvider defaultVariant="customer" defaultDensity="compact">
+      <ThemeProvider defaultVariant="tenant" defaultDensity="compact">
         <TestComponent />
       </ThemeProvider>
     );
 
     const classes = screen.getByTestId("classes").textContent;
-    expect(classes).toContain("theme-customer");
+    expect(classes).toContain("theme-tenant");
     expect(classes).toContain("density-compact");
     expect(classes).toContain("color-light");
   });

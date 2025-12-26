@@ -74,23 +74,6 @@ export {
   type PaymentData,
 } from "./use-billing";
 
-// Customers hooks
-export {
-  useCustomers,
-  useCustomer,
-  useCreateCustomer,
-  useUpdateCustomer,
-  useDeleteCustomer,
-  useCustomerMetrics,
-  useAddCustomerTag,
-  useRemoveCustomerTag,
-  useAssignCustomer,
-  type ListCustomersParams,
-  type CreateCustomerData,
-  type UpdateCustomerData,
-  type CustomerMetrics,
-} from "./use-customers";
-
 // Deployments hooks
 export {
   useDeployments,
@@ -590,7 +573,7 @@ export {
   useReferral,
   useCreateReferral as useCreatePortalReferral,
   useUpdateReferral,
-  usePartnerCustomers as usePartnerPortalCustomers,
+  usePartnerTenants as usePartnerPortalTenants,
   usePartnerCommissions as usePartnerPortalCommissions,
   usePartnerStatements,
   useStatement,

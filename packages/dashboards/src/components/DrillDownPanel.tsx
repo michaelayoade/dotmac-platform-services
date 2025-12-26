@@ -112,7 +112,7 @@ export function DrillDownPanel({
       {overlay && (
         <div
           className={cn(
-            "fixed inset-0 z-40 bg-black/50 transition-opacity",
+            "fixed inset-0 z-40 bg-overlay/50 dark:bg-overlay/70 transition-opacity",
             open ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
           onClick={onClose}
@@ -123,7 +123,7 @@ export function DrillDownPanel({
       {/* Panel */}
       <div
         className={cn(
-          "fixed inset-y-0 z-50 flex flex-col bg-white shadow-xl",
+          "fixed inset-y-0 z-50 flex flex-col bg-surface shadow-xl",
           "transition-transform duration-300 ease-in-out",
           widthClasses[width],
           positionClasses[position],
@@ -135,22 +135,22 @@ export function DrillDownPanel({
         aria-labelledby={title ? "panel-title" : undefined}
       >
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-gray-200">
+        <div className="flex-shrink-0 border-b border-border">
           {/* Breadcrumbs */}
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <div className="flex items-center gap-1 px-4 py-2 text-sm text-gray-500 border-b border-gray-100">
+            <div className="flex items-center gap-1 px-4 py-2 text-sm text-text-muted border-b border-border-subtle">
               {breadcrumbs.map((crumb, index) => (
                 <span key={index} className="flex items-center gap-1">
                   {index > 0 && <span>/</span>}
                   {crumb.onClick ? (
                     <button
                       onClick={crumb.onClick}
-                      className="hover:text-gray-900 hover:underline"
+                      className="hover:text-text-primary hover:underline"
                     >
                       {crumb.label}
                     </button>
                   ) : (
-                    <span className="text-gray-900 font-medium">{crumb.label}</span>
+                    <span className="text-text-primary font-medium">{crumb.label}</span>
                   )}
                 </span>
               ))}
@@ -162,7 +162,7 @@ export function DrillDownPanel({
             <div className="flex items-center gap-3">
               <button
                 onClick={onClose}
-                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                className="p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay"
                 aria-label="Close panel"
               >
                 {position === "right" ? (
@@ -173,12 +173,12 @@ export function DrillDownPanel({
               </button>
               <div>
                 {title && (
-                  <h2 id="panel-title" className="text-lg font-semibold text-gray-900">
+                  <h2 id="panel-title" className="text-lg font-semibold text-text-primary">
                     {title}
                   </h2>
                 )}
                 {subtitle && (
-                  <p className="text-sm text-gray-500">{subtitle}</p>
+                  <p className="text-sm text-text-muted">{subtitle}</p>
                 )}
               </div>
             </div>
@@ -189,7 +189,7 @@ export function DrillDownPanel({
                   href={externalLink.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                  className="inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80"
                 >
                   {externalLink.label}
                   <ExternalLink className="h-3 w-3" />
@@ -198,7 +198,7 @@ export function DrillDownPanel({
               {actions}
               <button
                 onClick={onClose}
-                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                className="p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay"
                 aria-label="Close panel"
               >
                 <X className="h-5 w-5" />
@@ -212,7 +212,7 @@ export function DrillDownPanel({
 
         {/* Footer */}
         {footer && (
-          <div className="flex-shrink-0 border-t border-gray-200 px-4 py-3">
+          <div className="flex-shrink-0 border-t border-border px-4 py-3">
             {footer}
           </div>
         )}

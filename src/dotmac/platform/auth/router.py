@@ -308,26 +308,21 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(..., min_length=8, description="New password")
 
 
-async def _authenticate_and_issue_tokens(
+async def _resolve_login_user(
     *,
     username: str,
     password: str,
     request: Request,
-    response: Response,
     session: AsyncSession,
-) -> TokenResponse:
-    """Shared login flow used by both JSON and OAuth2 password endpoints."""
+) -> User:
+    """Resolve and validate a login user with tenant-aware scoping."""
     from dotmac.platform.tenant import get_current_tenant_id, get_tenant_config
 
     user_service = UserService(session)
 
-    # Get current tenant from request context (set by TenantMiddleware)
     current_tenant_id = get_current_tenant_id()
 
-    # Fallback to request.state tenant when middleware populated but context not yet synced
     try:
-        from dotmac.platform.tenant import get_tenant_config
-
         tenant_config = get_tenant_config()
         header_tenant = request.headers.get(tenant_config.tenant_header_name)
         if isinstance(header_tenant, str):
@@ -347,18 +342,18 @@ async def _authenticate_and_issue_tokens(
                 current_tenant_id = tenant_config.default_tenant_id
 
         logger.debug(
-            "resolved registration tenant",
+            "resolved login tenant",
             context_tenant=current_tenant_id,
             header_tenant=header_tenant,
             state_tenant=getattr(request.state, "tenant_id", None),
         )
     except Exception:  # pragma: no cover - defensive fallback
         pass
+
     tenant_config = get_tenant_config()
     default_tenant_id = tenant_config.default_tenant_id if tenant_config else None
 
     # Try to find user by username or email within the current tenant
-    # This prevents multiple results if same username exists in different tenants
     user = await user_service.get_user_by_username(username, tenant_id=current_tenant_id)
     if not user:
         user = await user_service.get_user_by_email(username, tenant_id=current_tenant_id)
@@ -393,7 +388,6 @@ async def _authenticate_and_issue_tokens(
 
                 if len(matches) == 1:
                     user = candidate
-                    current_tenant_id = candidate.tenant_id
 
     if not user or not verify_password(password, user.password_hash):
         # Log failed login attempt
@@ -425,6 +419,25 @@ async def _authenticate_and_issue_tokens(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",
         )
+
+    return user
+
+
+async def _authenticate_and_issue_tokens(
+    *,
+    username: str,
+    password: str,
+    request: Request,
+    response: Response,
+    session: AsyncSession,
+) -> TokenResponse:
+    """Shared login flow used by both JSON and OAuth2 password endpoints."""
+    user = await _resolve_login_user(
+        username=username,
+        password=password,
+        request=request,
+        session=session,
+    )
 
     # Check if 2FA is enabled
     if user.mfa_enabled:
@@ -907,41 +920,12 @@ async def login_cookie_only(
 
     The username field accepts either username or email.
     """
-    from dotmac.platform.tenant import get_current_tenant_id
-
-    # Authenticate user
-    user_service = UserService(session)
-    current_tenant_id = get_current_tenant_id()
-
-    user = await user_service.authenticate(
-        username_or_email=login_request.username,
+    user = await _resolve_login_user(
+        username=login_request.username,
         password=login_request.password,
-        tenant_id=current_tenant_id,  # Enforce tenant isolation
+        request=request,
+        session=session,
     )
-
-    if not user:
-        # Log failed attempt
-        await log_user_activity(
-            user_id="unknown",
-            activity_type=ActivityType.USER_LOGIN,
-            action="login_failed",
-            description=f"Failed login attempt for: {login_request.username}",
-            severity=ActivitySeverity.MEDIUM,
-            details={"username": login_request.username, "reason": "invalid_credentials"},
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-            session=session,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is disabled",
-        )
 
     if user.mfa_enabled:
         # Mirror the JSON login behaviour by issuing a 2FA challenge
@@ -1291,6 +1275,13 @@ async def refresh_token(
             )
 
         session_id = payload.get("session_id") or secrets.token_urlsafe(32)
+        if payload.get("session_id"):
+            session_data = await session_manager.get_session(session_id)
+            if not session_data:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session has been revoked",
+                )
 
         # Revoke old refresh token
         try:
@@ -1408,6 +1399,12 @@ async def logout(
                 await jwt_service.revoke_user_tokens(user_id)
             except Exception:
                 logger.warning("Failed to revoke user refresh tokens", exc_info=True)
+            logger.info(
+                "User logged out successfully", user_id=user_id, sessions_deleted=deleted_sessions
+            )
+
+            clear_auth_cookies(response)
+            return {"message": "Logged out successfully", "sessions_deleted": deleted_sessions}
         elif refresh_token_value:
             try:
                 await jwt_service.revoke_token(refresh_token_value)
@@ -2487,7 +2484,7 @@ class ConfirmEmailRequest(BaseModel):
 
     model_config = ConfigDict()
 
-    token: str = Field(min_length=32, max_length=255, description="Verification token")
+    token: str = Field(min_length=32, max_length=2048, description="Verification token")
 
 
 @auth_router.post("/verify-email")

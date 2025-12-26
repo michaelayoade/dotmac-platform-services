@@ -581,7 +581,7 @@ class TestRouterIntegration:
                 "id": "doc-1",
                 "title": "Doc One",
                 "content": "First document",
-                "type": "customer",
+                "type": "tenant",
             },
         )
         client.post(

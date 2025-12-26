@@ -30,8 +30,11 @@ export interface CreateDeploymentData {
 
 export interface UpdateDeploymentData {
   name?: string;
+  environment?: "production" | "staging" | "development" | "preview";
+  version?: string;
   replicas?: number;
   resources?: DeploymentResources;
+  config?: Record<string, unknown>;
   envVars?: Record<string, string>;
 }
 

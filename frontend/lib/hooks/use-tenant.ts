@@ -8,7 +8,9 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 interface Tenant {
@@ -48,7 +50,24 @@ interface UseTenantReturn {
 }
 
 export function useTenant(): UseTenantReturn {
-  const { data: user, isLoading } = useCurrentUser();
+  const router = useRouter();
+  const pathname = usePathname();
+  const shouldFetchUser = useMemo(() => {
+    // Don't fetch user if pathname is not yet available (SSR/hydration)
+    if (!pathname) return false;
+    // Don't fetch user on auth pages
+    return !(
+      pathname === "/login" ||
+      pathname === "/signup" ||
+      pathname === "/forgot-password" ||
+      pathname === "/reset-password" ||
+      pathname === "/verify-email" ||
+      pathname === "/portal/login" ||
+      pathname === "/partner/login"
+    );
+  }, [pathname]);
+  const queryClient = useQueryClient();
+  const { data: user, isLoading } = useCurrentUser({ enabled: shouldFetchUser });
   const { currentTenantId, tenants, setCurrentTenantId, setTenants } =
     useTenantStore();
 
@@ -73,7 +92,7 @@ export function useTenant(): UseTenantReturn {
     if (user?.tenantId) {
       const fallbackTenant: Tenant = {
         id: user.tenantId,
-        name: "Tenant",
+        name: user.tenantId,
         slug: user.tenantId,
         status: "active",
         plan: "standard",
@@ -93,11 +112,13 @@ export function useTenant(): UseTenantReturn {
       const tenant = tenants.find((t) => t.id === tenantId);
       if (tenant) {
         setCurrentTenantId(tenantId);
-        // Optionally trigger a page refresh or data refetch
-        window.location.reload();
+        // Invalidate all queries to refetch with new tenant context
+        queryClient.invalidateQueries();
+        // Refresh server components
+        router.refresh();
       }
     },
-    [tenants, setCurrentTenantId]
+    [tenants, setCurrentTenantId, queryClient, router]
   );
 
   return {

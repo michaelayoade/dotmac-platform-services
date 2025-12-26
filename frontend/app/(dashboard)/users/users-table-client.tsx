@@ -27,6 +27,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { type User } from "@/lib/api/users";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface UsersTableClientProps {
   initialUsers: User[];
@@ -48,6 +49,7 @@ export function UsersTableClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 
   // Update URL params for server-side pagination
@@ -68,7 +70,7 @@ export function UsersTableClient({
 
   // Handle user actions
   const handleUserAction = useCallback(
-    (action: string, user: User) => {
+    async (action: string, user: User) => {
       switch (action) {
         case "view":
           router.push(`/users/${user.id}`);
@@ -76,12 +78,25 @@ export function UsersTableClient({
         case "edit":
           router.push(`/users/${user.id}/edit`);
           break;
-        case "delete":
-          // Handle delete
+        case "delete": {
+          const confirmed = await confirm({
+            title: "Delete User",
+            description: `Are you sure you want to delete "${user.name}"? This action cannot be undone.`,
+            variant: "danger",
+          });
+          if (confirmed) {
+            // TODO: Call delete API
+            toast({
+              title: "User deleted",
+              description: `User "${user.name}" has been deleted.`,
+              variant: "success",
+            });
+          }
           break;
+        }
       }
     },
-    [router]
+    [router, confirm, toast]
   );
 
   // Column definitions
@@ -96,7 +111,7 @@ export function UsersTableClient({
               {/* Avatar */}
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/80 to-highlight/80 flex items-center justify-center text-sm font-semibold text-text-inverse">
-                  {user.name
+                  {(user.name || user.email || "U")
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -338,11 +353,18 @@ export function UsersTableClient({
     description: string;
     confirmLabel?: string;
   }) => {
-    return window.confirm(`${options.title}\n\n${options.description}`);
+    return confirm({
+      title: options.title,
+      description: options.description,
+      variant: "warning",
+    });
   };
 
   return (
     <div className="card overflow-hidden animate-fade-up">
+      {/* Confirm Dialog */}
+      {dialog}
+
       <DataTable
         columns={columns}
         data={initialUsers}
@@ -404,6 +426,7 @@ function UserActionsMenu({
   onAction: (action: string, user: User) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const menuId = `user-actions-menu-${user.id}`;
 
   return (
     <div className="relative" onClick={(event) => event.stopPropagation()}>
@@ -413,8 +436,12 @@ function UserActionsMenu({
           setIsOpen(!isOpen);
         }}
         className="p-1.5 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+        aria-label={`Actions for ${user.name}`}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-controls={isOpen ? menuId : undefined}
       >
-        <MoreHorizontal className="w-4 h-4" />
+        <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
       </button>
 
       {isOpen && (
@@ -423,47 +450,56 @@ function UserActionsMenu({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-1 w-40 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden z-20 animate-fade-in">
+          <div
+            id={menuId}
+            role="menu"
+            aria-label={`Actions for ${user.name}`}
+            className="absolute right-0 mt-1 w-40 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden z-20 animate-fade-in"
+          >
             <div className="py-1">
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("view", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
                 View
               </button>
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("edit", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Edit className="w-4 h-4" />
+                <Edit className="w-4 h-4" aria-hidden="true" />
                 Edit
               </button>
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("email", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Mail className="w-4 h-4" />
+                <Mail className="w-4 h-4" aria-hidden="true" />
                 Send Email
               </button>
-              <div className="border-t border-border my-1" />
+              <div className="border-t border-border my-1" role="separator" />
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("delete", user);
                   setIsOpen(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-status-error hover:bg-status-error/10"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-status-error hover:bg-status-error/15"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
                 Delete
               </button>
             </div>

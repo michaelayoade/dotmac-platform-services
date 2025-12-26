@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { LineChart } from "./LineChart";
+import { chartColors } from "./theme";
 
 const meta: Meta<typeof LineChart> = {
   title: "Charts/LineChart",
@@ -43,8 +44,8 @@ export const MultipleSeries: Story = {
     data: monthlyData,
     xKey: "month",
     series: [
-      { dataKey: "revenue", name: "Revenue", color: "#3b82f6" },
-      { dataKey: "expenses", name: "Expenses", color: "#ef4444" },
+      { dataKey: "revenue", name: "Revenue", color: chartColors.primary },
+      { dataKey: "expenses", name: "Expenses", color: chartColors.error },
     ],
     height: 300,
   },
@@ -96,8 +97,8 @@ export const CustomColors: Story = {
     data: monthlyData,
     xKey: "month",
     series: [
-      { dataKey: "revenue", name: "Revenue", color: "#10b981" },
-      { dataKey: "expenses", name: "Expenses", color: "#f59e0b" },
+      { dataKey: "revenue", name: "Revenue", color: chartColors.success },
+      { dataKey: "expenses", name: "Expenses", color: chartColors.warning },
     ],
     height: 300,
     showLegend: true,
@@ -126,19 +127,19 @@ export const WithDots: Story = {
 
 export const FullFeatured: Story = {
   render: () => (
-    <div className="bg-white p-6 rounded-lg border border-gray-200">
+    <div className="bg-surface p-6 rounded-lg border border-border">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-text-primary">
           Revenue vs Expenses
         </h3>
-        <p className="text-sm text-gray-500">Monthly comparison for 2024</p>
+        <p className="text-sm text-text-muted">Monthly comparison for 2024</p>
       </div>
       <LineChart
         data={monthlyData}
         xKey="month"
         series={[
-          { dataKey: "revenue", name: "Revenue", color: "#3b82f6" },
-          { dataKey: "expenses", name: "Expenses", color: "#ef4444" },
+          { dataKey: "revenue", name: "Revenue", color: chartColors.primary },
+          { dataKey: "expenses", name: "Expenses", color: chartColors.error },
         ]}
         height={350}
         showGrid

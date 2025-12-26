@@ -20,6 +20,11 @@ def partner_management_test_environment(monkeypatch):
     monkeypatch.setenv("TESTING", "1")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
+@pytest.fixture(autouse=True)
+def _mark_rls_enabled(request):
+    """Skip global RLS auto-bypass to avoid fixture recursion in this suite."""
+    request.node.add_marker("rls_enabled")
+
 
 # Import partner management models to ensure they're registered
 

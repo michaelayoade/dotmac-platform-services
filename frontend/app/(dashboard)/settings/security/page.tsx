@@ -398,7 +398,7 @@ function TwoFactorSection({ mfaEnabled }: { mfaEnabled: boolean }) {
               <p className="text-sm text-text-secondary mb-4">
                 Scan this QR code with your authenticator app
               </p>
-              <div className="inline-block p-4 bg-white rounded-lg">
+              <div className="inline-block p-4 bg-surface rounded-lg">
                 <Image
                   src={qrData.qrCodeUrl}
                   alt="QR Code"
@@ -452,7 +452,7 @@ function TwoFactorSection({ mfaEnabled }: { mfaEnabled: boolean }) {
 
         {showBackupCodes && qrData?.backupCodes && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 p-4 bg-status-warning/10 border border-status-warning/20 rounded-lg">
+            <div className="flex items-center gap-2 p-4 bg-status-warning/15 border border-status-warning/20 rounded-lg">
               <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0" />
               <p className="text-sm text-text-secondary">
                 Save these backup codes in a safe place. You&apos;ll need them if you lose access to your authenticator app.

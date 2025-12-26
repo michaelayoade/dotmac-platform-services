@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import {
   DashboardLayout,
   KPITile,
@@ -10,8 +11,6 @@ import {
 } from "@/lib/dotmac/dashboards";
 import { LineChart, BarChart, AreaChart, PieChart } from "@/lib/dotmac/charts";
 import {
-  TrendingUp,
-  TrendingDown,
   Users,
   Activity,
   Zap,
@@ -19,12 +18,11 @@ import {
   Clock,
   ArrowUpRight,
   Download,
-  Calendar,
 } from "lucide-react";
 import { Button } from "@/lib/dotmac/core";
 
 import { cn } from "@/lib/utils";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import {
   getPerformanceMetrics,
   getUserAnalytics,
@@ -36,41 +34,16 @@ export const metadata = {
   description: "Platform usage metrics and insights",
 };
 
-const fallbackPerformanceMetrics = {
-  responseTime: { p50: 0, p95: 0, p99: 0, average: 0 },
-  errorRate: 0,
-  requestsPerSecond: 0,
-  byEndpoint: [],
-  byTime: [],
-};
-
-const fallbackUserAnalytics = {
-  totalUsers: 0,
-  activeUsers: 0,
-  newUsersThisMonth: 0,
-  userGrowth: 0,
-  usersByRole: [],
-  usersByTenant: [],
-  loginActivity: [],
-};
-
-const fallbackUsageMetrics = {
-  apiCalls: {
-    total: 0,
-    byEndpoint: [],
-    byDay: [],
-  },
-  storage: {
-    used: 0,
-    limit: 0,
-    byTenant: [],
-  },
-  bandwidth: {
-    used: 0,
-    limit: 0,
-    byDay: [],
-  },
-};
+function EmptyChart({ height = 200, message = "No data available" }: { height?: number; message?: string }) {
+  return (
+    <div
+      className="flex items-center justify-center text-sm text-text-muted"
+      style={{ height }}
+    >
+      {message}
+    </div>
+  );
+}
 
 export default async function AnalyticsPage({
   searchParams,
@@ -81,24 +54,29 @@ export default async function AnalyticsPage({
   const perfPeriod = period === "24h" ? "24h" : period === "7d" ? "7d" : "7d";
 
   const [performanceData, userAnalytics, usageData] = await Promise.all([
-    safeApi(() => getPerformanceMetrics(perfPeriod), fallbackPerformanceMetrics),
-    safeApi(getUserAnalytics, fallbackUserAnalytics),
-    safeApi(() => getUsageMetrics(period === "90d" ? "90d" : "30d"), fallbackUsageMetrics),
+    fetchOrNull(() => getPerformanceMetrics(perfPeriod)),
+    fetchOrNull(getUserAnalytics),
+    fetchOrNull(() => getUsageMetrics(period === "90d" ? "90d" : "30d")),
   ]);
 
   const metrics = {
-    totalRequests: usageData.apiCalls.total,
-    requestsChange: 18.5, // Would need historical comparison
-    activeUsers: userAnalytics.activeUsers,
-    activeUsersChange: userAnalytics.userGrowth,
-    avgResponseTime: performanceData.responseTime.average,
-    responseTimeChange: -8.2, // Would need historical comparison
-    errorRate: performanceData.errorRate * 100,
-    errorRateChange: -15.3, // Would need historical comparison
+    totalRequests: usageData?.apiCalls?.total ?? null,
+    activeUsers: userAnalytics?.activeUsers ?? null,
+    avgResponseTime: performanceData?.responseTime?.average ?? null,
+    errorRate: performanceData?.errorRate !== undefined ? performanceData.errorRate * 100 : null,
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-text-muted">
+        <Link href="/" className="hover:text-text-secondary">
+          Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-text-primary">Analytics</span>
+      </nav>
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -121,35 +99,27 @@ export default async function AnalyticsPage({
         <KPIGrid>
           <KPITile
             title="API Requests"
-            value={formatLargeNumber(metrics.totalRequests)}
-            change={metrics.requestsChange}
-            changeType="increase"
+            value={
+              metrics.totalRequests === null
+                ? "—"
+                : formatLargeNumber(metrics.totalRequests)
+            }
             icon={<Zap className="w-5 h-5" />}
-            changeLabel="Total API calls this period"
           />
           <KPITile
             title="Active Users"
-            value={metrics.activeUsers.toLocaleString()}
-            change={metrics.activeUsersChange}
-            changeType="increase"
+            value={metrics.activeUsers === null ? "—" : metrics.activeUsers.toLocaleString()}
             icon={<Users className="w-5 h-5" />}
-            changeLabel="Unique users this period"
           />
           <KPITile
             title="Avg Response Time"
-            value={`${metrics.avgResponseTime}ms`}
-            change={metrics.responseTimeChange}
-            changeType="decrease"
+            value={metrics.avgResponseTime === null ? "—" : `${metrics.avgResponseTime}ms`}
             icon={<Clock className="w-5 h-5" />}
-            changeLabel="P95 latency"
           />
           <KPITile
             title="Error Rate"
-            value={`${metrics.errorRate}%`}
-            change={metrics.errorRateChange}
-            changeType="decrease"
+            value={metrics.errorRate === null ? "—" : `${metrics.errorRate.toFixed(2)}%`}
             icon={<Activity className="w-5 h-5" />}
-            changeLabel="5xx errors"
           />
         </KPIGrid>
       </section>
@@ -289,7 +259,8 @@ function PeriodSelector({ currentPeriod }: { currentPeriod: string }) {
   );
 }
 
-function formatLargeNumber(num: number): string {
+function formatLargeNumber(num: number | null): string {
+  if (num === null) return "—";
   if (num >= 1e9) return (num / 1e9).toFixed(1) + "B";
   if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
   if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
@@ -299,11 +270,12 @@ function formatLargeNumber(num: number): string {
 // Chart Components
 
 async function TrafficChart() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("24h"),
-    fallbackPerformanceMetrics
-  );
-  const data = performanceData.byTime.slice(-24).map((item) => {
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("24h"));
+  const series = performanceData?.byTime ?? [];
+  if (series.length === 0) {
+    return <EmptyChart height={280} />;
+  }
+  const data = series.slice(-24).map((item) => {
     const date = new Date(item.timestamp);
     return {
       hour: `${date.getHours()}:00`,
@@ -317,18 +289,19 @@ async function TrafficChart() {
       dataKey="requests"
       xAxisKey="hour"
       height={280}
-      color="hsl(185, 85%, 50%)"
+      color="hsl(var(--color-accent))"
       gradient
     />
   );
 }
 
 async function LatencyChart() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("24h"),
-    fallbackPerformanceMetrics
-  );
-  const data = performanceData.byTime
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("24h"));
+  const series = performanceData?.byTime ?? [];
+  if (series.length === 0) {
+    return <EmptyChart height={280} />;
+  }
+  const data = series
     .filter((_, i) => i % 4 === 0) // Sample every 4 hours
     .slice(-6)
     .map((item) => {
@@ -345,14 +318,18 @@ async function LatencyChart() {
       dataKey="p95"
       xAxisKey="time"
       height={280}
-      color="hsl(45, 95%, 55%)"
+      color="hsl(var(--color-highlight))"
     />
   );
 }
 
 async function DAUChart() {
-  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
-  const data = userAnalytics.loginActivity.slice(-30).map((item, index) => ({
+  const userAnalytics = await fetchOrNull(getUserAnalytics);
+  const activity = userAnalytics?.loginActivity ?? [];
+  if (activity.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const data = activity.slice(-30).map((item, index) => ({
     day: `Day ${index + 1}`,
     users: item.logins,
   }));
@@ -363,44 +340,51 @@ async function DAUChart() {
       dataKey="users"
       xAxisKey="day"
       height={200}
-      color="hsl(145, 72%, 45%)"
+      color="hsl(var(--color-status-success))"
       gradient
     />
   );
 }
 
 async function RetentionChart() {
-  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
-  // Use login activity trend to simulate retention
-  const weeklyData = userAnalytics.loginActivity.slice(-4);
-  const maxLogins = Math.max(...weeklyData.map((d) => d.logins));
+  const userAnalytics = await fetchOrNull(getUserAnalytics);
+  const weeklyData = (userAnalytics?.loginActivity ?? []).slice(-4);
+  if (weeklyData.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const maxLogins = Math.max(...weeklyData.map((d) => d.logins || 0), 1);
   const data = weeklyData.map((item, index) => ({
     week: `Week ${index + 1}`,
     retention: Math.round((item.logins / maxLogins) * 100),
   }));
 
   return (
-    <BarChart data={data} dataKey="retention" xAxisKey="week" height={200} color="hsl(185, 85%, 50%)" />
+    <BarChart data={data} dataKey="retention" xAxisKey="week" height={200} color="hsl(var(--color-accent))" />
   );
 }
 
 async function UserDistributionChart() {
-  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
-  const data = userAnalytics.usersByRole.map((item) => ({
+  const userAnalytics = await fetchOrNull(getUserAnalytics);
+  const roles = userAnalytics?.usersByRole ?? [];
+  if (roles.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const data = roles.map((item) => ({
     role: item.role,
     count: item.count,
   }));
 
-  return <BarChart data={data} dataKey="count" xAxisKey="role" height={200} color="hsl(45, 95%, 55%)" />;
+  return <BarChart data={data} dataKey="count" xAxisKey="role" height={200} color="hsl(var(--color-highlight))" />;
 }
 
 async function ErrorRateChart() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("7d"),
-    fallbackPerformanceMetrics
-  );
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("7d"));
+  const series = performanceData?.byTime ?? [];
+  if (series.length === 0) {
+    return <EmptyChart height={280} />;
+  }
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const data = performanceData.byTime.slice(-7).map((item) => {
+  const data = series.slice(-7).map((item) => {
     const date = new Date(item.timestamp);
     return {
       day: days[date.getDay()],
@@ -409,38 +393,27 @@ async function ErrorRateChart() {
   });
 
   return (
-    <LineChart data={data} dataKey="rate" xAxisKey="day" height={280} color="hsl(0, 75%, 55%)" />
+    <LineChart data={data} dataKey="rate" xAxisKey="day" height={280} color="hsl(var(--color-status-error))" />
   );
 }
 
 async function ErrorDistributionChart() {
-  // Error distribution would need a separate API endpoint
-  // For now, return placeholder data based on overall error rate
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("24h"),
-    fallbackPerformanceMetrics
-  );
-  const totalErrors = Math.round(performanceData.errorRate * 100);
-  const data = [
-    { type: "500", count: Math.round(totalErrors * 0.4) },
-    { type: "502", count: Math.round(totalErrors * 0.25) },
-    { type: "503", count: Math.round(totalErrors * 0.2) },
-    { type: "504", count: Math.round(totalErrors * 0.1) },
-    { type: "Other", count: Math.round(totalErrors * 0.05) },
-  ];
-
-  return <BarChart data={data} dataKey="count" xAxisKey="type" height={280} color="hsl(0, 75%, 55%)" />;
+  return <EmptyChart height={280} message="Error distribution data not available." />;
 }
 
 async function TopRegions() {
-  const usageData = await safeApi(() => getUsageMetrics("30d"), fallbackUsageMetrics);
-  const totalRequests = usageData.apiCalls.total;
+  const usageData = await fetchOrNull(() => getUsageMetrics("30d"));
+  const totalRequests = usageData?.apiCalls?.total ?? 0;
+  const totalStorage = usageData?.storage?.used ?? 0;
+  const byTenant = usageData?.storage?.byTenant ?? [];
+  if (byTenant.length === 0 || totalStorage === 0) {
+    return <EmptyChart height={140} message="No region data available." />;
+  }
 
-  // Map tenant data to region-like format (would need geographic API for real data)
-  const regions = usageData.storage.byTenant.slice(0, 5).map((tenant) => ({
+  const regions = byTenant.slice(0, 5).map((tenant) => ({
     name: tenant.tenantName,
-    requests: Math.round(totalRequests * (tenant.used / usageData.storage.used)),
-    percentage: (tenant.used / usageData.storage.used) * 100,
+    requests: Math.round(totalRequests * (tenant.used / totalStorage)),
+    percentage: (tenant.used / totalStorage) * 100,
   }));
 
   return (
@@ -471,11 +444,12 @@ async function TopRegions() {
 }
 
 async function TopEndpoints() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("24h"),
-    fallbackPerformanceMetrics
-  );
-  const endpoints = performanceData.byEndpoint.slice(0, 5).map((item) => ({
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("24h"));
+  const endpointSeries = performanceData?.byEndpoint ?? [];
+  if (endpointSeries.length === 0) {
+    return <EmptyChart height={160} message="No endpoint data available." />;
+  }
+  const endpoints = endpointSeries.slice(0, 5).map((item) => ({
     path: item.endpoint,
     requests: item.requestCount,
     avgTime: Math.round(item.averageTime),

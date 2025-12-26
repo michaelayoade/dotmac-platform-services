@@ -108,6 +108,7 @@ export function normalizePaginatedResponse<T>(
     data.items ??
     data.users ??
     data.customers ??
+    data.tenants ??
     data.contacts ??
     data.partners ??
     data.templates ??
@@ -225,7 +226,34 @@ export function normalizePaginatedResponse<T>(
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  return {};
+  try {
+    if (typeof window === "undefined") {
+      const { getServerSession } = await import("next-auth");
+      const { authOptions } = await import("@/lib/auth/config");
+      const session = await getServerSession(authOptions);
+      const token = session?.accessToken;
+      const tenantId = session?.user?.tenantId ?? undefined;
+      return token
+        ? {
+            Authorization: `Bearer ${token}`,
+            ...(tenantId ? { "X-Tenant-ID": tenantId } : {}),
+          }
+        : {};
+    }
+
+    const { getSession } = await import("next-auth/react");
+    const session = await getSession();
+    const token = session?.accessToken;
+    const tenantId = session?.user?.tenantId ?? undefined;
+    return token
+      ? {
+          Authorization: `Bearer ${token}`,
+          ...(tenantId ? { "X-Tenant-ID": tenantId } : {}),
+        }
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 function isUnsafeMethod(method: string): boolean {

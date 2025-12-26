@@ -179,7 +179,7 @@ export const keyframes = {
 
 export type PortalMotionVariant =
   | "admin"
-  | "customer"
+  | "tenant"
   | "reseller"
   | "technician"
   | "management";
@@ -198,7 +198,7 @@ export const portalMotion: Record<PortalMotionVariant, PortalMotionConfig> = {
     defaultDuration: "fast",
     defaultEasing: "smooth",
   },
-  customer: {
+  tenant: {
     enabled: true,
     reducedMotion: false,
     defaultDuration: "normal",

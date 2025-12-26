@@ -1,7 +1,8 @@
 """Partner Portal Router - Self-service endpoints for partners."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -19,6 +20,7 @@ from dotmac.platform.partner_management.models import (
     ReferralLead,
     ReferralStatus,
 )
+from dotmac.platform.tenant.models import Tenant
 from dotmac.platform.partner_management.schemas import (
     PartnerCommissionEventResponse,
     PartnerPayoutResponse,
@@ -38,16 +40,45 @@ def _statement_download_url(statement_id: UUID) -> str:
     return f"/api/v1/partners/portal/statements/{statement_id}/download"
 
 
+def _normalize_datetime(value: datetime | str | int | float | None) -> datetime | None:
+    """Normalize sqlite/postgres datetime values for API responses."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, UTC)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _convert_referral_to_response(referral: ReferralLead) -> ReferralLeadResponse:
+    """Convert referral model to response schema."""
+    data: dict[str, Any] = {}
+    for key in ReferralLeadResponse.model_fields:
+        if key == "metadata":
+            data["metadata"] = referral.metadata_ if hasattr(referral, "metadata_") else {}
+        elif key == "converted_tenant_id":
+            data["converted_tenant_id"] = getattr(referral, "converted_customer_id", None)
+        elif hasattr(referral, key):
+            data[key] = getattr(referral, key)
+    return ReferralLeadResponse.model_validate(data)
+
+
 # Portal-specific schemas
 class PartnerDashboardStats(BaseModel):  # BaseModel resolves to Any in isolation
     """Dashboard statistics for partner portal."""
 
     model_config = ConfigDict()
 
-    total_customers: int = Field(default=0, description="Total customers assigned")
-    active_customers: int = Field(default=0, description="Currently active customers")
+    total_tenants: int = Field(default=0, description="Total tenants assigned")
+    active_tenants: int = Field(default=0, description="Currently active tenants")
     total_revenue_generated: Decimal = Field(
-        default=Decimal("0"), description="Total revenue from customers"
+        default=Decimal("0"), description="Total revenue from tenants"
     )
     total_commissions_earned: Decimal = Field(
         default=Decimal("0"), description="Total commissions earned"
@@ -67,14 +98,14 @@ class PartnerDashboardStats(BaseModel):  # BaseModel resolves to Any in isolatio
     default_commission_rate: Decimal = Field(description="Default commission rate")
 
 
-class PartnerCustomerResponse(BaseModel):  # BaseModel resolves to Any in isolation
-    """Partner customer information for portal."""
+class PartnerTenantResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Partner tenant information for portal."""
 
     model_config = ConfigDict()
 
     id: UUID
-    customer_id: UUID
-    customer_name: str
+    tenant_id: str
+    tenant_name: str
     engagement_type: str
     custom_commission_rate: Decimal | None = None
     total_revenue: Decimal
@@ -91,13 +122,13 @@ async def get_dashboard_stats(
 ) -> PartnerDashboardStats:
     """Get dashboard statistics for partner portal."""
 
-    # Count active customers
-    active_customers_result = await db.execute(
+    # Count active tenants
+    active_tenants_result = await db.execute(
         select(func.count(PartnerAccount.id))
         .where(PartnerAccount.partner_id == partner.id)
         .where(PartnerAccount.is_active)
     )
-    active_customers = active_customers_result.scalar() or 0
+    active_tenants = active_tenants_result.scalar() or 0
 
     # Count pending referrals
     pending_referrals_result = await db.execute(
@@ -120,8 +151,8 @@ async def get_dashboard_stats(
         conversion_rate = (partner.converted_referrals / partner.total_referrals) * 100
 
     return PartnerDashboardStats(
-        total_customers=partner.total_customers,
-        active_customers=active_customers,
+        total_tenants=partner.total_customers,
+        active_tenants=active_tenants,
         total_revenue_generated=partner.total_revenue_generated,
         total_commissions_earned=partner.total_commissions_earned,
         total_commissions_paid=partner.total_commissions_paid,
@@ -190,10 +221,7 @@ async def list_partner_referrals(
     )
 
     referrals = list(result.scalars().all())
-    # Set metadata attribute from metadata_ for Pydantic validation
-    for r in referrals:
-        r.metadata = r.metadata_
-    return [ReferralLeadResponse.model_validate(r, from_attributes=True) for r in referrals]
+    return [_convert_referral_to_response(r) for r in referrals]
 
 
 @router.post("/referrals", response_model=ReferralLeadResponse, status_code=status.HTTP_201_CREATED)
@@ -201,7 +229,7 @@ async def submit_referral(
     data: ReferralLeadCreate,
     partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
-) -> ReferralLead:
+ ) -> ReferralLeadResponse:
     """Submit a new referral."""
 
     referral = ReferralLead(
@@ -218,7 +246,7 @@ async def submit_referral(
     await db.commit()
     await db.refresh(referral)
 
-    return referral
+    return _convert_referral_to_response(referral)
 
 
 @router.get("/commissions", response_model=list[PartnerCommissionEventResponse])
@@ -239,17 +267,44 @@ async def list_partner_commissions(
     )
 
     events = list(result.scalars().all())
-    return [PartnerCommissionEventResponse.model_validate(e, from_attributes=True) for e in events]
+    responses: list[PartnerCommissionEventResponse] = []
+    for event in events:
+        responses.append(
+            PartnerCommissionEventResponse(
+                id=event.id,
+                partner_id=event.partner_id,
+                invoice_id=event.invoice_id,
+                tenant_id=event.customer_id,
+                base_amount=event.base_amount,
+                commission_rate=event.commission_rate,
+                commission_amount=event.commission_amount,
+                currency=event.currency,
+                status=event.status,
+                event_type=event.event_type,
+                event_date=_normalize_datetime(event.event_date) or datetime.now(UTC),
+                payout_id=event.payout_id,
+                paid_at=_normalize_datetime(event.paid_at),
+                notes=event.notes,
+                metadata_=(
+                    event.metadata_
+                    if hasattr(event, "metadata_") and isinstance(event.metadata_, dict)
+                    else {}
+                ),
+                created_at=_normalize_datetime(event.created_at) or datetime.now(UTC),
+                updated_at=_normalize_datetime(event.updated_at) or datetime.now(UTC),
+            )
+        )
+    return responses
 
 
-@router.get("/customers", response_model=list[PartnerCustomerResponse])
-async def list_partner_customers(
+@router.get("/tenants", response_model=list[PartnerTenantResponse])
+async def list_partner_tenants(
     partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
     limit: int = 100,
     offset: int = 0,
-) -> list[PartnerCustomerResponse]:
-    """List all customers assigned to partner."""
+) -> list[PartnerTenantResponse]:
+    """List all tenants assigned to partner."""
 
     result = await db.execute(
         select(PartnerAccount)
@@ -261,8 +316,15 @@ async def list_partner_customers(
 
     accounts = list(result.scalars().all())
 
+    tenant_ids = [str(account.customer_id) for account in accounts]
+    tenant_name_map: dict[str, str] = {}
+    if tenant_ids:
+        tenant_rows = await db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids)))
+        for tenant in tenant_rows.scalars().all():
+            tenant_name_map[tenant.id] = tenant.name
+
     # Transform to response format with aggregated financials
-    customer_responses: list[PartnerCustomerResponse] = []
+    tenant_responses: list[PartnerTenantResponse] = []
     for account in accounts:
         # Aggregate revenue and commissions from commission events
         commission_result = await db.execute(
@@ -275,11 +337,12 @@ async def list_partner_customers(
         )
         aggregates = commission_result.one()
 
-        customer_responses.append(
-            PartnerCustomerResponse(
+        tenant_id = str(account.customer_id)
+        tenant_responses.append(
+            PartnerTenantResponse(
                 id=account.id,
-                customer_id=account.customer_id,
-                customer_name=f"Customer {str(account.customer_id)[:8]}",  # Placeholder - in production join with customer table
+                tenant_id=tenant_id,
+                tenant_name=tenant_name_map.get(tenant_id, f"Tenant {tenant_id[:8]}"),
                 engagement_type=account.engagement_type or "direct",
                 custom_commission_rate=account.custom_commission_rate,
                 total_revenue=aggregates.total_revenue or Decimal("0.00"),
@@ -290,7 +353,7 @@ async def list_partner_customers(
             )
         )
 
-    return customer_responses
+    return tenant_responses
 
 
 @router.get("/statements", response_model=list[PartnerStatementResponse])
@@ -430,7 +493,7 @@ async def download_partner_statement(
         csv_lines.append(f"Payment Reference,{payout.payment_reference}")
 
     csv_lines.append("")  # Blank line before event details
-    csv_lines.append("Event ID,Customer ID,Base Amount,Commission Amount,Status,Event Date")
+    csv_lines.append("Event ID,Tenant ID,Base Amount,Commission Amount,Status,Event Date")
 
     for event in events:
         csv_lines.append(

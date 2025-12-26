@@ -98,7 +98,7 @@ async def partner_user(db_session: AsyncSession, partner: Partner, test_tenant: 
         id=uuid4(),
         username="partner_admin",
         email="admin@testmsp.com",
-        hashed_password="hashed",
+        password_hash="hashed",
         is_active=True,
         tenant_id=test_tenant.id,
     )
@@ -111,8 +111,11 @@ async def partner_user(db_session: AsyncSession, partner: Partner, test_tenant: 
         partner_id=partner.id,
         user_id=user.id,
         tenant_id=test_tenant.id,
+        first_name="Partner",
+        last_name="Admin",
+        email="admin@testmsp.com",
         role="admin",
-        is_primary=True,
+        is_primary_contact=True,
     )
     db_session.add(partner_user_link)
     await db_session.commit()
@@ -282,7 +285,7 @@ class TestTenantManagementEndpoints:
         self, authenticated_client: AsyncClient, partner_tenant_links: list[PartnerTenantLink]
     ):
         """Test listing managed tenants."""
-        response = await authenticated_client.get("/api/v1/partner/customers")
+        response = await authenticated_client.get("/api/v1/partner/tenants")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -297,7 +300,7 @@ class TestTenantManagementEndpoints:
 
     async def test_list_managed_tenants_with_filters(self, authenticated_client: AsyncClient):
         """Test listing managed tenants with status filter."""
-        response = await authenticated_client.get("/api/v1/partner/customers?status=active")
+        response = await authenticated_client.get("/api/v1/partner/tenants?status=active")
 
         assert response.status_code == status.HTTP_200_OK
 
@@ -306,7 +309,7 @@ class TestTenantManagementEndpoints:
     ):
         """Test getting detailed tenant information."""
         response = await authenticated_client.get(
-            f"/api/v1/partner/customers/{managed_tenant_1.id}"
+            f"/api/v1/partner/tenants/{managed_tenant_1.id}"
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -318,7 +321,7 @@ class TestTenantManagementEndpoints:
     async def test_get_unauthorized_tenant_detail(self, authenticated_client: AsyncClient):
         """Test accessing unauthorized tenant."""
         response = await authenticated_client.get(
-            "/api/v1/partner/customers/unauthorized-tenant-id"
+            "/api/v1/partner/tenants/unauthorized-tenant-id"
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -418,7 +421,8 @@ class TestReportingEndpoints:
         to_date = datetime.now(UTC).isoformat()
 
         response = await authenticated_client.get(
-            f"/api/v1/partner/reports/usage?from_date={from_date}&to_date={to_date}"
+            "/api/v1/partner/reports/usage",
+            params={"from_date": from_date, "to_date": to_date},
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -433,7 +437,8 @@ class TestReportingEndpoints:
         to_date = datetime.now(UTC).isoformat()
 
         response = await authenticated_client.get(
-            f"/api/v1/partner/reports/sla?from_date={from_date}&to_date={to_date}"
+            "/api/v1/partner/reports/sla",
+            params={"from_date": from_date, "to_date": to_date},
         )
 
         assert response.status_code == status.HTTP_200_OK

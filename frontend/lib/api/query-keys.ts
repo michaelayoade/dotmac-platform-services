@@ -83,18 +83,94 @@ export const queryKeys = {
       detail: (id: string) =>
         [...queryKeys.billing.payments.all(), "detail", id] as const,
     },
-  },
-
-  // Customers module
-  customers: {
-    all: ["customers"] as const,
-    lists: () => [...queryKeys.customers.all, "list"] as const,
-    list: (params?: ListQueryParams) =>
-      [...queryKeys.customers.lists(), params] as const,
-    details: () => [...queryKeys.customers.all, "detail"] as const,
-    detail: (id: string) => [...queryKeys.customers.details(), id] as const,
-    metrics: (id: string) =>
-      [...queryKeys.customers.detail(id), "metrics"] as const,
+    // Credit Notes
+    creditNotes: {
+      all: () => [...queryKeys.billing.all, "credit-notes"] as const,
+      list: (params?: ListQueryParams) =>
+        [...queryKeys.billing.creditNotes.all(), "list", params] as const,
+      detail: (id: string) =>
+        [...queryKeys.billing.creditNotes.all(), "detail", id] as const,
+    },
+    // Dunning
+    dunning: {
+      all: () => [...queryKeys.billing.all, "dunning"] as const,
+      campaigns: {
+        all: () => [...queryKeys.billing.dunning.all(), "campaigns"] as const,
+        list: (params?: ListQueryParams) =>
+          [...queryKeys.billing.dunning.campaigns.all(), "list", params] as const,
+        detail: (id: string) =>
+          [...queryKeys.billing.dunning.campaigns.all(), "detail", id] as const,
+      },
+      executions: {
+        all: () => [...queryKeys.billing.dunning.all(), "executions"] as const,
+        list: (params?: ListQueryParams) =>
+          [...queryKeys.billing.dunning.executions.all(), "list", params] as const,
+        detail: (id: string) =>
+          [...queryKeys.billing.dunning.executions.all(), "detail", id] as const,
+      },
+      analytics: (params?: unknown) =>
+        [...queryKeys.billing.dunning.all(), "analytics", params] as const,
+    },
+    // Pricing Rules
+    pricing: {
+      all: () => [...queryKeys.billing.all, "pricing"] as const,
+      rules: {
+        all: () => [...queryKeys.billing.pricing.all(), "rules"] as const,
+        list: (params?: ListQueryParams) =>
+          [...queryKeys.billing.pricing.rules.all(), "list", params] as const,
+        detail: (id: string) =>
+          [...queryKeys.billing.pricing.rules.all(), "detail", id] as const,
+      },
+      calculate: (params?: unknown) =>
+        [...queryKeys.billing.pricing.all(), "calculate", params] as const,
+      conflicts: () =>
+        [...queryKeys.billing.pricing.all(), "conflicts"] as const,
+      analytics: (params?: unknown) =>
+        [...queryKeys.billing.pricing.all(), "analytics", params] as const,
+    },
+    // Add-ons
+    addons: {
+      all: () => [...queryKeys.billing.all, "addons"] as const,
+      marketplace: (params?: ListQueryParams) =>
+        [...queryKeys.billing.addons.all(), "marketplace", params] as const,
+      active: () =>
+        [...queryKeys.billing.addons.all(), "active"] as const,
+      detail: (id: string) =>
+        [...queryKeys.billing.addons.all(), "detail", id] as const,
+      usage: (id: string) =>
+        [...queryKeys.billing.addons.all(), "usage", id] as const,
+    },
+    // Bank Accounts
+    bankAccounts: {
+      all: () => [...queryKeys.billing.all, "bank-accounts"] as const,
+      list: (params?: ListQueryParams) =>
+        [...queryKeys.billing.bankAccounts.all(), "list", params] as const,
+      detail: (id: string) =>
+        [...queryKeys.billing.bankAccounts.all(), "detail", id] as const,
+      transactions: (id: string, params?: ListQueryParams) =>
+        [...queryKeys.billing.bankAccounts.all(), "transactions", id, params] as const,
+      manualPayments: {
+        all: () => [...queryKeys.billing.bankAccounts.all(), "manual-payments"] as const,
+        list: (params?: ListQueryParams) =>
+          [...queryKeys.billing.bankAccounts.manualPayments.all(), "list", params] as const,
+      },
+      cashRegisters: {
+        all: () => [...queryKeys.billing.bankAccounts.all(), "cash-registers"] as const,
+        list: (params?: ListQueryParams) =>
+          [...queryKeys.billing.bankAccounts.cashRegisters.all(), "list", params] as const,
+        detail: (id: string) =>
+          [...queryKeys.billing.bankAccounts.cashRegisters.all(), "detail", id] as const,
+      },
+    },
+    // Settings
+    settings: {
+      all: () => [...queryKeys.billing.all, "settings"] as const,
+      company: () => [...queryKeys.billing.settings.all(), "company"] as const,
+      tax: () => [...queryKeys.billing.settings.all(), "tax"] as const,
+      payment: () => [...queryKeys.billing.settings.all(), "payment"] as const,
+      invoiceTemplates: () => [...queryKeys.billing.settings.all(), "invoice-templates"] as const,
+      notifications: () => [...queryKeys.billing.settings.all(), "notifications"] as const,
+    },
   },
 
   // Deployments module
@@ -505,10 +581,10 @@ export const queryKeys = {
       detail: (id: string) =>
         [...queryKeys.partnerPortal.referrals.all(), "detail", id] as const,
     },
-    customers: {
-      all: () => [...queryKeys.partnerPortal.all, "customers"] as const,
+    tenants: {
+      all: () => [...queryKeys.partnerPortal.all, "tenants"] as const,
       list: (params?: unknown) =>
-        [...queryKeys.partnerPortal.customers.all(), "list", params] as const,
+        [...queryKeys.partnerPortal.tenants.all(), "list", params] as const,
     },
     commissions: {
       all: () => [...queryKeys.partnerPortal.all, "commissions"] as const,
@@ -524,6 +600,21 @@ export const queryKeys = {
     },
     payouts: () => [...queryKeys.partnerPortal.all, "payouts"] as const,
     profile: () => [...queryKeys.partnerPortal.all, "profile"] as const,
+    // Partner Billing (multi-tenant)
+    billing: {
+      all: () => [...queryKeys.partnerPortal.all, "billing"] as const,
+      summary: () => [...queryKeys.partnerPortal.billing.all(), "summary"] as const,
+      invoices: {
+        all: () => [...queryKeys.partnerPortal.billing.all(), "invoices"] as const,
+        list: (params?: unknown) =>
+          [...queryKeys.partnerPortal.billing.invoices.all(), "list", params] as const,
+      },
+      exports: {
+        all: () => [...queryKeys.partnerPortal.billing.all(), "exports"] as const,
+        list: (params?: unknown) =>
+          [...queryKeys.partnerPortal.billing.exports.all(), "list", params] as const,
+      },
+    },
   },
 
   // Tenant Portal module (self-service)

@@ -235,7 +235,7 @@ export default function LicensingPage() {
               setSearchQuery(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by key or customer..."
+            placeholder="Search by key or tenant..."
             className="pl-10"
           />
         </div>
@@ -293,13 +293,13 @@ export default function LicensingPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table">
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">License Key</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Type</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Status</th>
-                  <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Customer</th>
+                  <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Tenant</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Seats</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Expires</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Actions</th>
@@ -339,7 +339,7 @@ export default function LicensingPage() {
                       </td>
                       <td className="px-4 py-3">
                         {license.customerName ? (
-                          <Link href={`/customers/${license.customerId}`} className="text-sm text-accent hover:underline">
+                          <Link href={`/tenants/${license.customerId}`} className="text-sm text-accent hover:underline">
                             {license.customerName}
                           </Link>
                         ) : (

@@ -89,8 +89,8 @@ export default function SignupPage() {
         <div className="absolute inset-0 bg-grid opacity-[0.03]" />
 
         {/* Gradient orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/15 rounded-full blur-3xl" />
 
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center p-16">

@@ -95,7 +95,7 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
   const handleMarkPaid = async () => {
     const confirmed = await confirm({
       title: "Mark as Paid",
-      description: "Are you sure you want to mark this invoice as paid? This will update the customer's account balance.",
+      description: "Are you sure you want to mark this invoice as paid? This will update the tenant's account balance.",
     });
 
     if (confirmed) {
@@ -116,10 +116,10 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
   };
 
   const handleSendInvoice = async () => {
-    const customerLabel = invoice?.customerId ? `customer ${invoice.customerId}` : "the customer";
+    const tenantLabel = invoice?.customerId ? `tenant ${invoice.customerId}` : "the tenant";
     const confirmed = await confirm({
       title: "Send Invoice",
-      description: `Send this invoice to ${customerLabel}? They will receive an email with payment instructions.`,
+      description: `Send this invoice to ${tenantLabel}? They will receive an email with payment instructions.`,
     });
 
     if (confirmed) {
@@ -127,7 +127,7 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
         await sendInvoice.mutateAsync(id);
         toast({
           title: "Invoice sent",
-          description: `Invoice sent to ${customerLabel}`,
+          description: `Invoice sent to ${tenantLabel}`,
         });
       } catch {
         toast({
@@ -273,23 +273,23 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
           <Card className="p-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
               <div>
-                <h3 className="text-lg font-semibold text-text-primary mb-4">Customer Details</h3>
+                <h3 className="text-lg font-semibold text-text-primary mb-4">Tenant Details</h3>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center">
                       <User className="w-5 h-5 text-accent" />
                     </div>
                     <div>
-                      <p className="text-xs text-text-muted">Customer</p>
+                      <p className="text-xs text-text-muted">Tenant</p>
                       {invoice.customerId ? (
                         <Link
-                          href={`/customers/${invoice.customerId}`}
+                          href={`/tenants/${invoice.customerId}`}
                           className="text-sm text-accent hover:text-accent-hover"
                         >
-                          Customer {invoice.customerId}
+                          Tenant {invoice.customerId}
                         </Link>
                       ) : (
-                        <p className="text-sm text-text-muted">Unknown customer</p>
+                        <p className="text-sm text-text-muted">Unknown tenant</p>
                       )}
                     </div>
                   </div>
@@ -474,7 +474,7 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
                   disabled={sendInvoice.isPending}
                 >
                   <Send className="w-4 h-4 mr-2" />
-                  Send to Customer
+                  Send to Tenant
                 </Button>
               )}
               {canVoid && (

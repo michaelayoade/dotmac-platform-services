@@ -423,52 +423,6 @@ class TestPartnerTenantLinkConstraints:
         with pytest.raises(IntegrityError):
             await db_session.commit()
 
-    @pytest.mark.skip(reason="SQLite does not enforce foreign key constraints by default")
-    async def test_foreign_key_partner_id(
-        self,
-        db_session: AsyncSession,
-        partner_tenant: Tenant,
-        managed_tenant: Tenant,
-    ):
-        """Test that invalid partner_id is rejected."""
-        link = PartnerTenantLink(
-            id=uuid4(),
-            partner_id=uuid4(),  # Non-existent partner
-            managed_tenant_id=managed_tenant.id,
-            partner_tenant_id=partner_tenant.id,
-            access_role=PartnerTenantAccessRole.MSP_FULL,
-            relationship_type="msp_managed",
-            start_date=datetime.now(UTC),
-            is_active=True,
-        )
-        db_session.add(link)
-
-        with pytest.raises(IntegrityError):
-            await db_session.commit()
-
-    @pytest.mark.skip(reason="SQLite does not enforce foreign key constraints by default")
-    async def test_foreign_key_managed_tenant_id(
-        self,
-        db_session: AsyncSession,
-        test_partner: Partner,
-        partner_tenant: Tenant,
-    ):
-        """Test that invalid managed_tenant_id is rejected."""
-        link = PartnerTenantLink(
-            id=uuid4(),
-            partner_id=test_partner.id,
-            managed_tenant_id="non-existent-tenant",  # Non-existent tenant
-            partner_tenant_id=partner_tenant.id,
-            access_role=PartnerTenantAccessRole.MSP_FULL,
-            relationship_type="msp_managed",
-            start_date=datetime.now(UTC),
-            is_active=True,
-        )
-        db_session.add(link)
-
-        with pytest.raises(IntegrityError):
-            await db_session.commit()
-
 
 class TestPartnerTenantLinkRelationships:
     """Test model relationships."""

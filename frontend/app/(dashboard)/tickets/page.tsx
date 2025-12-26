@@ -74,7 +74,7 @@ export default function TicketsPage() {
     <div className="space-y-8 animate-fade-up">
       <PageHeader
         title="Tickets"
-        description="Manage support tickets and customer inquiries"
+        description="Manage support tickets and tenant inquiries"
         actions={
           <Link href="/tickets/new">
             <Button>

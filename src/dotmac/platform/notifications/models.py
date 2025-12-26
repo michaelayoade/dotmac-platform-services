@@ -29,10 +29,6 @@ class NotificationType(str, Enum):
     """Types of notifications."""
 
     # Service lifecycle
-    CUSTOMER_ACTIVATED = "customer_activated"
-    CUSTOMER_DEACTIVATED = "customer_deactivated"
-    CUSTOMER_SUSPENDED = "customer_suspended"
-    CUSTOMER_REACTIVATED = "customer_reactivated"
     SERVICE_ACTIVATED = "service_activated"
     SERVICE_FAILED = "service_failed"
 
@@ -58,14 +54,6 @@ class NotificationType(str, Enum):
     DUNNING_REMINDER = "dunning_reminder"
     DUNNING_SUSPENSION_WARNING = "dunning_suspension_warning"
     DUNNING_FINAL_NOTICE = "dunning_final_notice"
-
-    # CRM events
-    LEAD_ASSIGNED = "lead_assigned"
-    QUOTE_SENT = "quote_sent"
-    QUOTE_ACCEPTED = "quote_accepted"
-    QUOTE_REJECTED = "quote_rejected"
-    SITE_SURVEY_SCHEDULED = "site_survey_scheduled"
-    SITE_SURVEY_COMPLETED = "site_survey_completed"
 
     # Ticketing events
     TICKET_CREATED = "ticket_created"

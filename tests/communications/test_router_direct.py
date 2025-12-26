@@ -160,8 +160,8 @@ class TestTemplateEndpointsDirect:
 
             result = await list_templates_endpoint()
 
-            assert len(result) == 1
-            assert result[0].id == "tpl_1"
+            assert len(result.templates) == 1
+            assert result.templates[0].id == "tpl_1"
 
     async def test_get_template_endpoint_success(self):
         """Test getting specific template."""
@@ -423,11 +423,11 @@ class TestStatsActivityEndpointsDirect:
 
                 result = await get_communication_stats(current_user=None)
 
-                assert result["total_sent"] == 100
-                assert result["total_delivered"] == 95
-                assert result["total_failed"] == 5
+                assert result.total_sent == 100
+                assert result.total_delivered == 95
+                assert result.total_failed == 5
                 # pending is not in the returned stats, it's in the mock input
-                assert "total_sent" in result
+                assert result.total_sent == 100
 
     @pytest.mark.integration  # Requires proper async context manager setup
     async def test_get_communication_stats_with_user(self):
@@ -458,7 +458,7 @@ class TestStatsActivityEndpointsDirect:
 
                 # Verify tenant_id was passed
                 mock_metrics.get_stats.assert_called_once_with(tenant_id="tenant_123")
-                assert result["total_sent"] == 50
+                assert result.total_sent == 50
 
     @pytest.mark.integration  # Requires proper async context manager setup
     async def test_get_recent_activity_from_db(self):
@@ -491,11 +491,7 @@ class TestStatsActivityEndpointsDirect:
                     limit=10, offset=0, type_filter=None, current_user=None
                 )
 
-                # Result is ActivityTimeline with activity list
-                assert len(result.activity) == 1
-                # activity is a list of ActivityPoint objects
-                assert result.start_date
-                assert result.end_date
+                assert len(result) == 1
 
     @pytest.mark.integration  # Requires proper async context manager setup
     async def test_get_recent_activity_with_filters(self):
@@ -525,6 +521,4 @@ class TestStatsActivityEndpointsDirect:
 
                     # Verify filters were passed
                     mock_metrics.get_recent_activity.assert_called_once()
-                    # Result is ActivityTimeline, not a list
-                    assert hasattr(result, "activity")
-                    assert isinstance(result.activity, list)
+                    assert isinstance(result, list)

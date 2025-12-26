@@ -67,9 +67,10 @@ class TestCampaignEndpoints:
         response = await async_client.post(
             "/api/v1/billing/dunning/campaigns",
             json={"name": "Test", "trigger_after_days": 7, "actions": []},
+            headers={"X-Tenant-ID": "test-tenant-001", "Authorization": ""},
         )
 
-        assert response.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_400_BAD_REQUEST}
+        assert response.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN}
 
     async def test_list_campaigns(self, async_client: AsyncClient, auth_headers, sample_campaign):
         """Test GET /campaigns - list all campaigns."""

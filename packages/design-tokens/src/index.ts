@@ -120,7 +120,19 @@ export {
   type ThemeConfig,
   type Theme,
   type BrandConfig,
-} from "./theme.js";
+} from "./theme";
+
+// ============================================================================
+// Theme Storage
+// ============================================================================
+
+export {
+  THEME_STORAGE_KEY,
+  generateThemeScript,
+  getStoredTheme,
+  resolveThemePreference,
+  type StoredThemeState,
+} from "./storage";
 
 // ============================================================================
 // Utilities

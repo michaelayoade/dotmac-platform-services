@@ -109,10 +109,10 @@ mock = {"cpu_usage": 45, "wrong_field": True}
 mock = MockDataFactory.create(MySchema)
 
 # ❌ DON'T: Use wrong field names
-CustomerResponse(customer_name="Acme", active=True)
+TenantResponse(tenant_name="Acme", plan="pro")
 
 # ✅ DO: Match exact schema fields
-CustomerResponse(name="Acme", status=CustomerStatus.ACTIVE)
+TenantResponse(name="Acme", status=TenantStatus.ACTIVE)
 ```
 
 ## Debugging Checklist

@@ -6,6 +6,7 @@ and tenant insights with caching and tenant isolation.
 """
 
 from datetime import UTC, datetime, timedelta
+from inspect import isawaitable
 from typing import Any
 
 import structlog
@@ -254,7 +255,12 @@ async def _get_expiring_subscriptions_cached(
     query = query.limit(limit)
 
     result = await session.execute(query)
-    subscriptions = result.scalars().all()
+    scalars_result = result.scalars()
+    if isawaitable(scalars_result):
+        scalars_result = await scalars_result
+    subscriptions = scalars_result.all()
+    if isawaitable(subscriptions):
+        subscriptions = await subscriptions
 
     subscription_items = []
     for sub in subscriptions:
@@ -262,7 +268,7 @@ async def _get_expiring_subscriptions_cached(
         subscription_items.append(
             {
                 "subscription_id": sub.subscription_id,
-                "tenant_id": sub.tenant_id,
+                "tenant_id": getattr(sub, "tenant_id", tenant_id),
                 "plan_id": sub.plan_id,
                 "current_period_end": sub.current_period_end,
                 "days_until_expiry": days_until_expiry,

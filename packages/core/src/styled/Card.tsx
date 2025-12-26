@@ -61,9 +61,9 @@ export interface MetricCardProps extends CardProps {
 export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
   ({ className, title, value, change, icon, trend, footer, ...props }, ref) => {
     const changeColors = {
-      increase: "text-green-600",
-      decrease: "text-red-600",
-      neutral: "text-gray-600",
+      increase: "text-status-success",
+      decrease: "text-destructive",
+      neutral: "text-muted-foreground",
     };
 
     return (
@@ -75,7 +75,7 @@ export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
               <p className="text-2xl font-bold">{value}</p>
             </div>
             {icon && (
-              <div className="rounded-full bg-primary/10 p-3 text-primary">
+              <div className="rounded-full bg-primary/15 p-3 text-primary border border-primary/30">
                 {icon}
               </div>
             )}
@@ -113,11 +113,11 @@ export interface StatusCardProps extends CardProps {
 }
 
 const statusConfig = {
-  online: { color: "bg-green-500", label: "Online" },
-  offline: { color: "bg-red-500", label: "Offline" },
-  degraded: { color: "bg-yellow-500", label: "Degraded" },
-  maintenance: { color: "bg-purple-500", label: "Maintenance" },
-  unknown: { color: "bg-gray-500", label: "Unknown" },
+  online: { color: "bg-status-success", label: "Online" },
+  offline: { color: "bg-destructive", label: "Offline" },
+  degraded: { color: "bg-status-warning", label: "Degraded" },
+  maintenance: { color: "bg-status-info", label: "Maintenance" },
+  unknown: { color: "bg-muted-foreground", label: "Unknown" },
 };
 
 export const StatusCard = forwardRef<HTMLDivElement, StatusCardProps>(

@@ -59,8 +59,8 @@ export function MfaVerification({
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when complete
-    if (digit && index === 5 && newCode.every((c) => c)) {
+    // Auto-submit when complete (guard against duplicate submissions)
+    if (digit && index === 5 && newCode.every((c) => c) && !isVerifying) {
       handleVerify(newCode.join(""));
     }
   };
@@ -79,6 +79,8 @@ export function MfaVerification({
 
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
+    if (isVerifying) return; // Guard against paste during verification
+
     const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
 
     if (pastedData.length > 0) {
@@ -88,12 +90,12 @@ export function MfaVerification({
       });
       setCode(newCode);
 
-      // Focus last filled input or the next empty one
-      const focusIndex = Math.min(pastedData.length, 5);
-      inputRefs.current[focusIndex]?.focus();
+      // Focus last filled input (not after it)
+      const focusIndex = Math.min(pastedData.length - 1, 5);
+      inputRefs.current[focusIndex >= 0 ? focusIndex : 0]?.focus();
 
-      // Auto-submit if complete
-      if (pastedData.length === 6) {
+      // Auto-submit if complete (guard against duplicate submissions)
+      if (pastedData.length === 6 && !isVerifying) {
         handleVerify(pastedData);
       }
     }
@@ -150,7 +152,7 @@ export function MfaVerification({
     <div className={cn("space-y-6", className)}>
       {/* Header */}
       <div className="text-center space-y-4">
-        <div className="w-16 h-16 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto bg-accent/15 rounded-full flex items-center justify-center">
           <Shield className="w-8 h-8 text-accent" />
         </div>
         <div className="space-y-2">
@@ -167,7 +169,7 @@ export function MfaVerification({
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error">
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           <p className="text-sm">{error}</p>
         </div>
@@ -186,7 +188,7 @@ export function MfaVerification({
                 setError(null);
               }}
               placeholder="XXXX-XXXX-XXXX"
-              className="w-full pl-10 pr-4 py-3 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted font-mono text-center tracking-wider focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted font-mono text-center tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:border-transparent"
               autoFocus
             />
           </div>
@@ -212,7 +214,7 @@ export function MfaVerification({
               className={cn(
                 "w-12 h-14 text-center text-xl font-semibold rounded-lg border",
                 "bg-surface-overlay text-text-primary",
-                "focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:border-transparent",
                 "transition-colors",
                 digit ? "border-accent" : "border-border"
               )}

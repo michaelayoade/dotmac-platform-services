@@ -104,6 +104,25 @@ export {
   StatusCard,
   type MetricCardProps,
   type StatusCardProps,
+
+  // EmptyState
+  EmptyState,
+  type EmptyStateProps,
+
+  // ErrorState
+  ErrorState,
+  type ErrorStateProps,
+
+  // StatusBadge
+  StatusBadge,
+  ActiveBadge,
+  InactiveBadge,
+  PendingBadge,
+  ErrorBadge,
+  type StatusBadgeProps,
+  type StatusVariant,
+  type StatusSize,
+  type PresetStatusBadgeProps,
 } from "./styled";
 
 // ============================================================================
@@ -111,6 +130,14 @@ export {
 // ============================================================================
 
 export { cn } from "./utils/cn";
+export {
+  focusRing,
+  focusRingInset,
+  focusWithinRing,
+  focusRingSubtle,
+  focusRingDestructive,
+  focusStyles,
+} from "./utils/focus-styles";
 
 // ============================================================================
 // Re-export design tokens for convenience
@@ -126,6 +153,11 @@ export {
   fontFamily,
   fontSize,
   shadows,
+  // Theme storage utilities
+  THEME_STORAGE_KEY,
+  generateThemeScript,
+  getStoredTheme,
+  resolveThemePreference,
 } from "@dotmac/design-tokens";
 
 // ============================================================================

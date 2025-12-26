@@ -4,6 +4,7 @@ Observability API router for traces and metrics.
 Provides REST endpoints for distributed tracing and metrics collection.
 """
 
+import os
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -13,6 +14,8 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
+from dotmac.platform.monitoring.prometheus_client import PrometheusQueryError
+from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -188,8 +191,74 @@ class ObservabilityService:
     """
 
     def __init__(self, jaeger_url: str = "http://localhost:16686") -> None:
-        self.logger = structlog.get_logger(__name__)
-        self.jaeger_url = jaeger_url
+        self.logger = structlog.get_logger(__name__).bind(component="observability_service")
+        self.jaeger_url = os.getenv("JAEGER_URL", jaeger_url)
+
+    def _get_prometheus_client(self) -> "PrometheusClient | None":
+        prometheus_config = settings.integrations.prometheus
+        if not prometheus_config.url:
+            return None
+
+        from dotmac.platform.monitoring.prometheus_client import PrometheusClient
+
+        return PrometheusClient(
+            base_url=prometheus_config.url,
+            api_token=prometheus_config.api_token,
+            username=prometheus_config.username,
+            password=prometheus_config.password,
+            verify_ssl=prometheus_config.verify_ssl,
+            timeout_seconds=prometheus_config.timeout_seconds,
+            max_retries=prometheus_config.max_retries,
+        )
+
+    @staticmethod
+    def _tags_to_attributes(tags: list[dict[str, Any]] | None) -> dict[str, Any]:
+        attributes: dict[str, Any] = {}
+        if not tags:
+            return attributes
+        for tag in tags:
+            key = tag.get("key")
+            if key is None:
+                continue
+            attributes[str(key)] = tag.get("value")
+        return attributes
+
+    def _parse_jaeger_trace(self, jaeger_trace: dict[str, Any]) -> TraceData | None:
+        if not jaeger_trace.get("spans"):
+            return None
+
+        root_span = jaeger_trace["spans"][0]
+        process = jaeger_trace["processes"].get(root_span["processID"], {})
+
+        span_times = [
+            (s["startTime"], s["startTime"] + s["duration"]) for s in jaeger_trace["spans"]
+        ]
+        trace_start = min(t[0] for t in span_times)
+        trace_end = max(t[1] for t in span_times)
+        duration_ms = (trace_end - trace_start) // 1000
+
+        trace_status = TraceStatus.SUCCESS
+        for span in jaeger_trace["spans"]:
+            for tag in span.get("tags", []):
+                if tag.get("key") == "error" and tag.get("value"):
+                    trace_status = TraceStatus.ERROR
+                    break
+                if tag.get("key") == "http.status_code" and tag.get("value", 0) >= 400:
+                    trace_status = TraceStatus.ERROR
+                    break
+            if trace_status == TraceStatus.ERROR:
+                break
+
+        return TraceData(
+            trace_id=jaeger_trace["traceID"],
+            service=process.get("serviceName", "unknown"),
+            operation=root_span.get("operationName", "unknown"),
+            duration=duration_ms,
+            status=trace_status,
+            timestamp=datetime.fromtimestamp(trace_start / 1_000_000, tz=UTC),
+            spans=len(jaeger_trace["spans"]),
+            span_details=[],
+        )
 
     async def get_traces(
         self,
@@ -229,43 +298,9 @@ class ObservabilityService:
             # Convert Jaeger traces to our format
             traces = []
             for jaeger_trace in jaeger_data.get("data", []):
-                if not jaeger_trace.get("spans"):
-                    continue
-
-                # Get root span for trace metadata
-                root_span = jaeger_trace["spans"][0]
-                process = jaeger_trace["processes"].get(root_span["processID"], {})
-
-                # Calculate trace duration (end - start of all spans)
-                span_times = [
-                    (s["startTime"], s["startTime"] + s["duration"]) for s in jaeger_trace["spans"]
-                ]
-                trace_start = min(t[0] for t in span_times)
-                trace_end = max(t[1] for t in span_times)
-                duration_ms = (trace_end - trace_start) // 1000  # Convert to ms
-
-                # Determine status from span tags
-                trace_status = TraceStatus.SUCCESS
-                for span in jaeger_trace["spans"]:
-                    for tag in span.get("tags", []):
-                        if tag["key"] == "error" and tag["value"]:
-                            trace_status = TraceStatus.ERROR
-                            break
-                        if tag["key"] == "http.status_code" and tag["value"] >= 400:
-                            trace_status = TraceStatus.ERROR
-                            break
-
-                trace = TraceData(
-                    trace_id=jaeger_trace["traceID"],
-                    service=process.get("serviceName", "unknown"),
-                    operation=root_span.get("operationName", "unknown"),
-                    duration=duration_ms,
-                    status=trace_status,
-                    timestamp=datetime.fromtimestamp(trace_start / 1_000_000, tz=UTC),
-                    spans=len(jaeger_trace["spans"]),
-                    span_details=[],  # Populated on demand
-                )
-                traces.append(trace)
+                trace = self._parse_jaeger_trace(jaeger_trace)
+                if trace:
+                    traces.append(trace)
 
             return TracesResponse(
                 traces=traces,
@@ -288,42 +323,44 @@ class ObservabilityService:
 
     async def get_trace_details(self, trace_id: str) -> TraceData | None:
         """Get detailed span information for a trace."""
-        import random
-        from uuid import uuid4
+        import httpx
 
-        # Generate mock trace with detailed spans
-        span_count = random.randint(3, 8)
-        spans = []
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{self.jaeger_url}/api/traces/{trace_id}")
+                response.raise_for_status()
+                jaeger_data = response.json()
 
-        parent_span_id = None
-        for i in range(span_count):
-            span_id = uuid4().hex[:16]
-            span = SpanData(
-                span_id=span_id,
-                parent_span_id=parent_span_id if i > 0 else None,
-                name=f"operation_{i}",
-                service=random.choice(["api-gateway", "auth-service", "database"]),
-                duration=random.randint(10, 200),
-                start_time=datetime.now(UTC),
-                attributes={
-                    "http.method": "GET",
-                    "http.status_code": 200,
-                    "db.query": "SELECT * FROM users" if i % 2 == 0 else None,
-                },
+            trace_payloads = jaeger_data.get("data", [])
+            if not trace_payloads:
+                return None
+
+            jaeger_trace = trace_payloads[0]
+            trace = self._parse_jaeger_trace(jaeger_trace)
+            if not trace:
+                return None
+
+            span_details: list[SpanData] = []
+            for span in jaeger_trace.get("spans", []):
+                process = jaeger_trace["processes"].get(span.get("processID"), {})
+                span_details.append(
+                    SpanData(
+                        span_id=span.get("spanID", ""),
+                        parent_span_id=span.get("parentSpanID") or None,
+                        name=span.get("operationName", "unknown"),
+                        service=process.get("serviceName", "unknown"),
+                        duration=int(span.get("duration", 0) / 1000),
+                        start_time=datetime.fromtimestamp(span.get("startTime", 0) / 1_000_000, tz=UTC),
+                        attributes=self._tags_to_attributes(span.get("tags")),
+                    )
+                )
+
+            return trace.model_copy(update={"span_details": span_details})
+        except Exception as e:
+            self.logger.error(
+                "Failed to fetch trace details from Jaeger", trace_id=trace_id, error=str(e)
             )
-            spans.append(span)
-            parent_span_id = span_id
-
-        return TraceData(
-            trace_id=trace_id,
-            service="api-gateway",
-            operation="GET /api/users",
-            duration=sum(s.duration for s in spans),
-            status=TraceStatus.SUCCESS,
-            timestamp=datetime.now(UTC),
-            spans=len(spans),
-            span_details=spans,
-        )
+            return None
 
     async def get_metrics(
         self,
@@ -332,8 +369,6 @@ class ObservabilityService:
         end_time: datetime | None = None,
     ) -> MetricsResponse:
         """Fetch metrics time series."""
-        import random
-
         if not start_time:
             start_time = datetime.now(UTC) - timedelta(hours=24)
         if not end_time:
@@ -342,33 +377,64 @@ class ObservabilityService:
         default_metrics = ["request_count", "error_count", "latency_ms"]
         metrics_to_fetch = metric_names or default_metrics
 
-        metric_series = []
-        for metric_name in metrics_to_fetch:
-            data_points = []
-            current_time = start_time
-
-            while current_time <= end_time:
-                data_points.append(
-                    MetricDataPoint(
-                        timestamp=current_time,
-                        value=(
-                            random.uniform(100, 1000)
-                            if "count" in metric_name
-                            else random.uniform(50, 200)
-                        ),
-                        labels={"service": "api-gateway"},
-                    )
-                )
-                current_time += timedelta(hours=1)
-
-            metric_series.append(
-                MetricSeries(
-                    name=metric_name,
-                    type=MetricType.COUNTER if "count" in metric_name else MetricType.GAUGE,
-                    data_points=data_points,
-                    unit="count" if "count" in metric_name else "ms",
-                )
+        metric_series: list[MetricSeries] = []
+        client = self._get_prometheus_client()
+        if not client:
+            return MetricsResponse(
+                metrics=[],
+                time_range={
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat(),
+                },
             )
+
+        range_seconds = max(0, int((end_time - start_time).total_seconds()))
+        step_seconds = max(60, int(range_seconds / 120) if range_seconds else 60)
+
+        for metric_name in metrics_to_fetch:
+            try:
+                payload = await client.request(
+                    "GET",
+                    "api/v1/query_range",
+                    params={
+                        "query": metric_name,
+                        "start": start_time.timestamp(),
+                        "end": end_time.timestamp(),
+                        "step": step_seconds,
+                    },
+                )
+                result_data = payload.get("data", {}).get("result", [])
+                if not result_data:
+                    metric_series.append(
+                        MetricSeries(
+                            name=metric_name,
+                            type=MetricType.COUNTER if "count" in metric_name else MetricType.GAUGE,
+                            data_points=[],
+                            unit="count" if "count" in metric_name else "ms",
+                        )
+                    )
+                    continue
+
+                for series in result_data:
+                    labels = series.get("metric", {})
+                    data_points = [
+                        MetricDataPoint(
+                            timestamp=datetime.fromtimestamp(float(ts), tz=UTC),
+                            value=float(value),
+                            labels=labels,
+                        )
+                        for ts, value in series.get("values", [])
+                    ]
+                    metric_series.append(
+                        MetricSeries(
+                            name=metric_name,
+                            type=MetricType.COUNTER if "count" in metric_name else MetricType.GAUGE,
+                            data_points=data_points,
+                            unit="count" if "count" in metric_name else "ms",
+                        )
+                    )
+            except (PrometheusQueryError, Exception) as e:
+                self.logger.error("Failed to query Prometheus", metric=metric_name, error=str(e))
 
         return MetricsResponse(
             metrics=metric_series,
@@ -380,80 +446,166 @@ class ObservabilityService:
 
     async def get_service_map(self) -> ServiceMapResponse:
         """Get service dependency map."""
-        import random
+        import httpx
 
-        services = [
-            "api-gateway",
-            "auth-service",
-            "user-service",
-            "database",
-            "cache",
-            "payment-service",
-        ]
+        end_ts = int(datetime.now(UTC).timestamp() * 1000)
+        lookback_ms = int(os.getenv("OBSERVABILITY_DEPENDENCY_LOOKBACK_MS", "3600000"))
 
-        dependencies = [
-            ServiceDependency(
-                from_service="api-gateway",
-                to_service="auth-service",
-                request_count=10000,
-                error_rate=0.02,
-                avg_latency=45.5,
-            ),
-            ServiceDependency(
-                from_service="api-gateway",
-                to_service="user-service",
-                request_count=8500,
-                error_rate=0.01,
-                avg_latency=62.3,
-            ),
-            ServiceDependency(
-                from_service="user-service",
-                to_service="database",
-                request_count=7200,
-                error_rate=0.005,
-                avg_latency=25.8,
-            ),
-            ServiceDependency(
-                from_service="auth-service",
-                to_service="cache",
-                request_count=9800,
-                error_rate=0.001,
-                avg_latency=8.2,
-            ),
-        ]
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.jaeger_url}/api/dependencies",
+                    params={
+                        "endTs": end_ts,
+                        "lookback": lookback_ms,
+                    },
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                payload = response.json()
 
-        health_scores = {service: random.uniform(85, 99) for service in services}
+            dependencies_data = payload.get("data", [])
+            services: set[str] = set()
+            dependencies: list[ServiceDependency] = []
+            error_rates: dict[str, list[float]] = {}
 
-        return ServiceMapResponse(
-            services=services,
-            dependencies=dependencies,
-            health_scores=health_scores,
-        )
+            for item in dependencies_data:
+                parent = item.get("parent")
+                child = item.get("child")
+                if not parent or not child:
+                    continue
+
+                call_count = int(item.get("callCount") or 0)
+                error_count = int(item.get("errorCount") or 0)
+                error_rate = (error_count / call_count) if call_count else 0.0
+
+                services.update([parent, child])
+                error_rates.setdefault(parent, []).append(error_rate)
+                error_rates.setdefault(child, []).append(error_rate)
+
+                dependencies.append(
+                    ServiceDependency(
+                        from_service=parent,
+                        to_service=child,
+                        request_count=call_count,
+                        error_rate=error_rate,
+                        avg_latency=float(item.get("avgDuration", 0.0) or 0.0),
+                    )
+                )
+
+            health_scores = {
+                service: max(0.0, 100.0 - (sum(rates) / len(rates)) * 100)
+                for service, rates in error_rates.items()
+            }
+
+            return ServiceMapResponse(
+                services=sorted(services),
+                dependencies=dependencies,
+                health_scores=health_scores,
+            )
+        except Exception as e:
+            self.logger.error("Failed to fetch service map from Jaeger", error=str(e))
+            return ServiceMapResponse(
+                services=[],
+                dependencies=[],
+                health_scores={},
+            )
 
     async def get_performance_metrics(self) -> PerformanceResponse:
         """Get performance percentiles and slow endpoints."""
-        percentiles_data = [
-            PerformanceMetrics(percentile="P50", value=45.2, target=50.0, within_sla=True),
-            PerformanceMetrics(percentile="P75", value=78.5, target=100.0, within_sla=True),
-            PerformanceMetrics(percentile="P90", value=145.3, target=200.0, within_sla=True),
-            PerformanceMetrics(percentile="P95", value=250.8, target=300.0, within_sla=True),
-            PerformanceMetrics(percentile="P99", value=450.2, target=500.0, within_sla=True),
-        ]
+        client = self._get_prometheus_client()
+        if not client:
+            return PerformanceResponse(
+                percentiles=[],
+                slowest_endpoints=[],
+                most_frequent_errors=[],
+            )
 
-        slowest_endpoints = [
-            {"endpoint": "/api/reports/generate", "avg_latency": 2500, "status_code": 200},
-            {"endpoint": "/api/analytics/aggregate", "avg_latency": 1800, "status_code": 200},
-            {"endpoint": "/api/search/fulltext", "avg_latency": 1200, "status_code": 200},
-        ]
+        histogram_metric = os.getenv(
+            "OBSERVABILITY_LATENCY_HISTOGRAM", "http_request_duration_seconds_bucket"
+        )
+        request_metric = os.getenv("OBSERVABILITY_REQUEST_COUNT", "http_requests_total")
+        route_label = os.getenv("OBSERVABILITY_ROUTE_LABEL", "path")
+        status_label = os.getenv("OBSERVABILITY_STATUS_LABEL", "status")
+        window = os.getenv("OBSERVABILITY_LATENCY_WINDOW", "5m")
 
-        most_frequent_errors = [
-            {"error_type": "Rate Limit Exceeded", "count": 142, "status_code": 429},
-            {"error_type": "Invalid Token", "count": 89, "status_code": 401},
-            {"error_type": "Resource Not Found", "count": 67, "status_code": 404},
-        ]
+        percentiles: list[PerformanceMetrics] = []
+        for percentile in (0.5, 0.75, 0.9, 0.95, 0.99):
+            query = (
+                f"histogram_quantile({percentile}, "
+                f"sum(rate({histogram_metric}[{window}])) by (le))"
+            )
+            try:
+                payload = await client.query(query)
+                result = payload.get("data", {}).get("result", [])
+                value = float(result[0]["value"][1]) * 1000 if result else 0.0
+            except (PrometheusQueryError, Exception) as e:
+                self.logger.error("Prometheus percentile query failed", error=str(e))
+                value = 0.0
+
+            percentiles.append(
+                PerformanceMetrics(
+                    percentile=f"P{int(percentile * 100)}",
+                    value=value,
+                    target=0.0,
+                    within_sla=False,
+                )
+            )
+
+        slow_query = os.getenv(
+            "OBSERVABILITY_SLOW_QUERY",
+            (
+                "topk(5, histogram_quantile(0.95, "
+                f"sum(rate({histogram_metric}[{window}])) by (le, {route_label})))"
+            ),
+        )
+        slowest_endpoints: list[dict[str, Any]] = []
+        try:
+            slow_payload = await client.query(slow_query)
+            slow_result = slow_payload.get("data", {}).get("result", [])
+            for row in slow_result:
+                labels = row.get("metric", {})
+                route = labels.get(route_label) or labels.get("route") or labels.get("handler")
+                value = float(row.get("value", [0, 0])[1]) * 1000
+                slowest_endpoints.append(
+                    {
+                        "endpoint": route or "unknown",
+                        "avg_latency": value,
+                        "status_code": labels.get(status_label),
+                    }
+                )
+        except (PrometheusQueryError, Exception) as e:
+            self.logger.error("Prometheus slow endpoints query failed", error=str(e))
+
+        error_query = os.getenv(
+            "OBSERVABILITY_ERROR_QUERY",
+            (
+                "topk(5, sum(rate("
+                f"{request_metric}{{{status_label}=~\"5..\"}}[{window}]))"
+                f" by ({status_label}, {route_label}))"
+            ),
+        )
+        most_frequent_errors: list[dict[str, Any]] = []
+        try:
+            error_payload = await client.query(error_query)
+            error_result = error_payload.get("data", {}).get("result", [])
+            for row in error_result:
+                labels = row.get("metric", {})
+                status_code = labels.get(status_label)
+                route = labels.get(route_label) or labels.get("route") or labels.get("handler")
+                count = float(row.get("value", [0, 0])[1])
+                most_frequent_errors.append(
+                    {
+                        "error_type": route or "unknown",
+                        "count": int(count),
+                        "status_code": status_code,
+                    }
+                )
+        except (PrometheusQueryError, Exception) as e:
+            self.logger.error("Prometheus error query failed", error=str(e))
 
         return PerformanceResponse(
-            percentiles=percentiles_data,
+            percentiles=percentiles,
             slowest_endpoints=slowest_endpoints,
             most_frequent_errors=most_frequent_errors,
         )
@@ -490,8 +642,6 @@ async def get_traces(
 ) -> TracesResponse:
     """
     Retrieve distributed traces with filtering.
-
-    **Note:** Currently returns mock data. Will integrate with Jaeger/Tempo in production.
     """
     logger.info(
         "traces.query",
@@ -540,8 +690,6 @@ async def get_metrics(
 ) -> MetricsResponse:
     """
     Retrieve time series metrics.
-
-    **Note:** Currently returns mock data. Will integrate with Prometheus in production.
     """
     metric_list = metrics.split(",") if metrics else None
 

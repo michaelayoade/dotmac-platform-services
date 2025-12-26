@@ -39,7 +39,7 @@ function KPITile({
   return (
     <div className="bg-surface-elevated rounded-lg border border-border p-6 hover:border-border-hover transition-colors">
       <div className="flex items-start justify-between">
-        <div className="p-2 rounded-lg bg-accent/10 text-accent">{icon}</div>
+        <div className="p-2 rounded-lg bg-accent/15 text-accent">{icon}</div>
         {change !== undefined && (
           <div
             className={cn(
@@ -119,10 +119,10 @@ function ActivityItem({ type, title, description, time }: ActivityItemProps) {
   };
 
   const colorMap = {
-    referral: "bg-blue-500/10 text-blue-500",
-    commission: "bg-green-500/10 text-green-500",
-    conversion: "bg-purple-500/10 text-purple-500",
-    payout: "bg-amber-500/10 text-amber-500",
+    referral: "bg-status-info/15 text-status-info border border-status-info/30",
+    commission: "bg-status-success/15 text-status-success border border-status-success/30",
+    conversion: "bg-highlight/15 text-highlight border border-highlight/30",
+    payout: "bg-status-warning/15 text-status-warning border border-status-warning/30",
   };
 
   return (
@@ -163,13 +163,33 @@ function DashboardContent() {
     return <DashboardSkeleton />;
   }
 
-  if (error) {
-    // Show demo data on error
-    return <DemoContent />;
-  }
-
-  if (!data) {
-    return <DemoContent />;
+  if (error || !data) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Partner metrics will appear here
+        </h2>
+        <p className="text-sm text-text-muted mt-2">
+          Referral activity and commissions will show up once your partner account is active.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/partner/referrals?action=new"
+            className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors inline-flex items-center gap-2"
+          >
+            Submit Referral
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/partner/commissions"
+            className="px-4 py-2 rounded-md border border-border text-text-primary hover:border-accent transition-colors inline-flex items-center gap-2"
+          >
+            View Commissions
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const { stats, revenueHistory, commissionHistory } = data;
@@ -180,23 +200,21 @@ function DashboardContent() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <KPITile
           title="Total Revenue Generated"
-          value={`$${stats.totalRevenue.toLocaleString()}`}
-          change={stats.revenueChange}
+          value={`$${stats.totalRevenueGenerated.toLocaleString()}`}
           icon={<DollarSign className="w-5 h-5" />}
-          description="From your referred customers"
+          description="From your referred tenants"
         />
         <KPITile
           title="Pending Commissions"
           value={`$${stats.pendingCommissions.toLocaleString()}`}
           icon={<TrendingUp className="w-5 h-5" />}
-          description={`$${stats.paidCommissions.toLocaleString()} paid to date`}
+          description={`$${stats.totalCommissionsPaid.toLocaleString()} paid to date`}
         />
         <KPITile
-          title="Active Customers"
-          value={stats.activeCustomers.toLocaleString()}
-          change={stats.customerChange}
+          title="Active Tenants"
+          value={stats.activeTenants.toLocaleString()}
           icon={<Users className="w-5 h-5" />}
-          description="Customers assigned to you"
+          description="Tenants assigned to you"
         />
         <KPITile
           title="Conversion Rate"
@@ -216,10 +234,10 @@ function DashboardContent() {
               <p className="text-sm text-text-muted">Monthly revenue generated</p>
             </div>
             <Link
-              href="/partner/customers"
+              href="/partner/tenants"
               className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1"
             >
-              View Customers <ArrowUpRight className="w-3 h-3" />
+              View Tenants <ArrowUpRight className="w-3 h-3" />
             </Link>
           </div>
           <SimpleBarChart
@@ -264,12 +282,12 @@ function DashboardContent() {
           className="bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-accent/10 text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+            <div className="p-3 rounded-lg bg-accent/15 text-accent group-hover:bg-accent group-hover:text-text-inverse transition-colors">
               <UserPlus className="w-6 h-6" />
             </div>
             <div>
               <h3 className="font-semibold text-text-primary">Submit Referral</h3>
-              <p className="text-sm text-text-muted">Add a new customer referral</p>
+              <p className="text-sm text-text-muted">Add a new tenant referral</p>
             </div>
           </div>
         </Link>
@@ -280,7 +298,7 @@ function DashboardContent() {
           className="bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-highlight/10 text-highlight group-hover:bg-highlight group-hover:text-white transition-colors">
+            <div className="p-3 rounded-lg bg-highlight/15 text-highlight group-hover:bg-highlight group-hover:text-text-inverse transition-colors">
               <FileText className="w-6 h-6" />
             </div>
             <div>
@@ -296,7 +314,7 @@ function DashboardContent() {
           className="bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-status-success/10 text-status-success group-hover:bg-status-success group-hover:text-white transition-colors">
+            <div className="p-3 rounded-lg bg-status-success/15 text-status-success group-hover:bg-status-success group-hover:text-text-inverse transition-colors">
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
@@ -310,197 +328,12 @@ function DashboardContent() {
   );
 }
 
-// Demo content when API is not available
-function DemoContent() {
-  return (
-    <div className="space-y-6">
-      {/* KPI Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <KPITile
-          title="Total Revenue Generated"
-          value="$124,500"
-          change={12.5}
-          icon={<DollarSign className="w-5 h-5" />}
-          description="From your referred customers"
-        />
-        <KPITile
-          title="Pending Commissions"
-          value="$3,250"
-          icon={<TrendingUp className="w-5 h-5" />}
-          description="$18,750 paid to date"
-        />
-        <KPITile
-          title="Active Customers"
-          value="23"
-          change={8.3}
-          icon={<Users className="w-5 h-5" />}
-          description="Customers assigned to you"
-        />
-        <KPITile
-          title="Conversion Rate"
-          value="34.5%"
-          icon={<TrendingUp className="w-5 h-5" />}
-          description="10 of 29 referrals"
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Revenue Trend */}
-        <div className="bg-surface-elevated rounded-lg border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-text-primary">Revenue Trend</h3>
-              <p className="text-sm text-text-muted">Monthly revenue generated</p>
-            </div>
-            <Link
-              href="/partner/customers"
-              className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1"
-            >
-              View Customers <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <SimpleBarChart
-            data={[
-              { label: "Jul", value: 18500 },
-              { label: "Aug", value: 21200 },
-              { label: "Sep", value: 19800 },
-              { label: "Oct", value: 24100 },
-              { label: "Nov", value: 22300 },
-              { label: "Dec", value: 18600 },
-            ]}
-          />
-        </div>
-
-        {/* Commission History */}
-        <div className="bg-surface-elevated rounded-lg border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-text-primary">
-                Commission History
-              </h3>
-              <p className="text-sm text-text-muted">Monthly commissions earned</p>
-            </div>
-            <Link
-              href="/partner/commissions"
-              className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1"
-            >
-              View All <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <SimpleBarChart
-            data={[
-              { label: "Jul", value: 2775 },
-              { label: "Aug", value: 3180 },
-              { label: "Sep", value: 2970 },
-              { label: "Oct", value: 3615 },
-              { label: "Nov", value: 3345 },
-              { label: "Dec", value: 2790 },
-            ]}
-            color="bg-status-success"
-          />
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 bg-surface-elevated rounded-lg border border-border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-text-primary">Recent Activity</h3>
-            <span className="text-xs text-text-muted">Last 7 days</span>
-          </div>
-          <div className="divide-y divide-border">
-            <ActivityItem
-              type="commission"
-              title="Commission Approved"
-              description="$450 from Acme Corp subscription"
-              time="2 hours ago"
-            />
-            <ActivityItem
-              type="referral"
-              title="New Referral Submitted"
-              description="TechStart Inc. - Enterprise inquiry"
-              time="5 hours ago"
-            />
-            <ActivityItem
-              type="conversion"
-              title="Referral Converted"
-              description="CloudNine Solutions signed up for Pro"
-              time="1 day ago"
-            />
-            <ActivityItem
-              type="payout"
-              title="Payout Processed"
-              description="$2,850 transferred to your account"
-              time="3 days ago"
-            />
-            <ActivityItem
-              type="referral"
-              title="New Referral Submitted"
-              description="DataFlow Systems - Professional tier"
-              time="5 days ago"
-            />
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="space-y-4">
-          <Link
-            href="/partner/referrals?action=new"
-            className="block bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-accent/10 text-accent group-hover:bg-accent group-hover:text-white transition-colors">
-                <UserPlus className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">Submit Referral</h3>
-                <p className="text-sm text-text-muted">Add a new lead</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/partner/statements"
-            className="block bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-highlight/10 text-highlight group-hover:bg-highlight group-hover:text-white transition-colors">
-                <FileText className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">View Statements</h3>
-                <p className="text-sm text-text-muted">Download reports</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/partner/commissions"
-            className="block bg-surface-elevated rounded-lg border border-border p-6 hover:border-accent transition-colors group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-status-success/10 text-status-success group-hover:bg-status-success group-hover:text-white transition-colors">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">Track Commissions</h3>
-                <p className="text-sm text-text-muted">View earnings</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PartnerDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
         title="Partner Dashboard"
-        description="Track your referrals, customers, and commissions"
+        description="Track your referrals, tenants, and commissions"
       />
       <DashboardContent />
     </div>

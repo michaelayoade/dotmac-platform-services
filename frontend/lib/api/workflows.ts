@@ -33,7 +33,7 @@ export interface WorkflowDefinition {
   steps: WorkflowStep[];
   triggers?: Array<{
     type: TriggerType;
-    config: Record<string, unknown>;
+    config?: Record<string, unknown>;
   }>;
   tags?: string[];
   isActive: boolean;
@@ -82,6 +82,133 @@ export interface ExecutionLog {
 }
 
 // ============================================================================
+// Backend API Response Types
+// ============================================================================
+
+interface WorkflowApiStep {
+  name: string;
+  type: string;
+  description?: string;
+  input?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  service?: string;
+  method?: string;
+  maxRetries?: number;
+}
+
+interface WorkflowApiResponse {
+  id: string;
+  name: string;
+  description?: string;
+  definition: {
+    steps?: WorkflowApiStep[];
+    metadata?: Record<string, unknown>;
+  };
+  isActive: boolean;
+  version: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkflowExecutionApiResponse {
+  id: string;
+  workflowId: string;
+  status: string;
+  context?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+  triggerType?: string;
+  triggerSource?: string;
+  tenantId?: string;
+  createdAt: string;
+  updatedAt: string;
+  steps?: Array<{
+    id: string;
+    stepName: string;
+    stepType: string;
+    status: string;
+    inputData?: Record<string, unknown>;
+    outputData?: Record<string, unknown>;
+    errorMessage?: string;
+    startedAt?: string;
+    completedAt?: string;
+    durationSeconds?: number;
+  }>;
+}
+
+// ============================================================================
+// Transformer Functions
+// ============================================================================
+
+function toWorkflowDefinition(api: WorkflowApiResponse): WorkflowDefinition {
+  const steps: WorkflowStep[] = (api.definition?.steps || []).map((step, index) => ({
+    id: `step-${index}`,
+    name: step.name,
+    type: step.type,
+    config: {
+      ...step.input,
+      ...step.params,
+      service: step.service,
+      method: step.method,
+      description: step.description,
+    },
+    retryPolicy: step.maxRetries
+      ? {
+          maxRetries: step.maxRetries,
+          backoffMultiplier: 2,
+        }
+      : undefined,
+  }));
+
+  return {
+    id: api.id,
+    name: api.name,
+    description: api.description,
+    version: api.version,
+    steps,
+    tags: api.tags,
+    isActive: api.isActive,
+    createdAt: api.createdAt,
+    updatedAt: api.updatedAt,
+  };
+}
+
+function toWorkflowExecution(api: WorkflowExecutionApiResponse): WorkflowExecution {
+  const statusMap: Record<string, WorkflowStatus> = {
+    pending: "pending",
+    running: "running",
+    completed: "completed",
+    failed: "failed",
+    cancelled: "cancelled",
+  };
+
+  return {
+    id: api.id,
+    workflowId: api.workflowId,
+    workflowName: "", // Backend doesn't include workflow name in execution response
+    status: statusMap[api.status?.toLowerCase()] || "pending",
+    triggerType: (api.triggerType as TriggerType) || "manual",
+    context: api.context,
+    result: api.result,
+    error: api.errorMessage,
+    startedAt: api.startedAt || api.createdAt,
+    completedAt: api.completedAt,
+    stepResults: api.steps?.map((step) => ({
+      stepId: step.id,
+      stepName: step.stepName,
+      status: statusMap[step.status?.toLowerCase()] || "pending",
+      result: step.outputData,
+      error: step.errorMessage,
+      startedAt: step.startedAt || "",
+      completedAt: step.completedAt,
+    })),
+  };
+}
+
+// ============================================================================
 // Workflow Template CRUD
 // ============================================================================
 
@@ -113,21 +240,23 @@ export async function getWorkflows(params: GetWorkflowsParams = {}): Promise<{
       sort_order: sortOrder,
     },
   });
-  const normalized = normalizePaginatedResponse<WorkflowDefinition>(response);
+  const normalized = normalizePaginatedResponse<WorkflowApiResponse>(response);
 
   return {
-    workflows: normalized.items,
+    workflows: normalized.items.map(toWorkflowDefinition),
     totalCount: normalized.total,
     pageCount: normalized.totalPages,
   };
 }
 
 export async function getWorkflow(id: string): Promise<WorkflowDefinition> {
-  return api.get<WorkflowDefinition>(`/api/v1/workflows/${id}`);
+  const response = await api.get<WorkflowApiResponse>(`/api/v1/workflows/${id}`);
+  return toWorkflowDefinition(response);
 }
 
 export async function getBuiltinWorkflows(): Promise<WorkflowDefinition[]> {
-  return api.get<WorkflowDefinition[]>("/api/v1/workflows/builtin");
+  const response = await api.get<WorkflowApiResponse[]>("/api/v1/workflows/builtin");
+  return response.map(toWorkflowDefinition);
 }
 
 export interface CreateWorkflowData {
@@ -259,40 +388,49 @@ export async function getWorkflowExecutions(params: GetExecutionsParams = {}): P
       sort_order: sortOrder,
     },
   });
-  const normalized = normalizePaginatedResponse<WorkflowExecution>(response);
+  const normalized = normalizePaginatedResponse<WorkflowExecutionApiResponse>(response);
 
   return {
-    executions: normalized.items,
+    executions: normalized.items.map(toWorkflowExecution),
     totalCount: normalized.total,
     pageCount: normalized.totalPages,
   };
 }
 
 export async function getWorkflowExecution(executionId: string): Promise<WorkflowExecution> {
-  return api.get<WorkflowExecution>(`/api/v1/workflows/executions/${executionId}`);
+  const response = await api.get<WorkflowExecutionApiResponse>(
+    `/api/v1/workflows/executions/${executionId}`
+  );
+  return toWorkflowExecution(response);
 }
 
 export async function executeWorkflow(
   workflowId: string,
   context?: Record<string, unknown>
 ): Promise<WorkflowExecution> {
-  return api.post<WorkflowExecution>(`/api/v1/workflows/${workflowId}/execute`, {
-    context,
-  });
+  const response = await api.post<WorkflowExecutionApiResponse>(
+    `/api/v1/workflows/${workflowId}/execute`,
+    { context }
+  );
+  return toWorkflowExecution(response);
 }
 
 export async function executeWorkflowByName(
   name: string,
   context?: Record<string, unknown>
 ): Promise<WorkflowExecution> {
-  return api.post<WorkflowExecution>("/api/v1/workflows/execute", {
+  const response = await api.post<WorkflowExecutionApiResponse>("/api/v1/workflows/execute", {
     name,
     context,
   });
+  return toWorkflowExecution(response);
 }
 
 export async function cancelWorkflowExecution(executionId: string): Promise<WorkflowExecution> {
-  return api.post<WorkflowExecution>(`/api/v1/workflows/executions/${executionId}/cancel`);
+  const response = await api.post<WorkflowExecutionApiResponse>(
+    `/api/v1/workflows/executions/${executionId}/cancel`
+  );
+  return toWorkflowExecution(response);
 }
 
 export async function cancelExecution(

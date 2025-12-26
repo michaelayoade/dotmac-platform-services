@@ -32,6 +32,7 @@ from dotmac.platform.partner_management.schemas_multitenant import (
     UpdateTicketRequest,
     UsageReportResponse,
 )
+from dotmac.platform.partner_management.multitenant_service import PartnerMultiTenantService
 from dotmac.platform.tenant.models import Tenant
 
 logger = structlog.get_logger(__name__)
@@ -45,7 +46,7 @@ router = APIRouter(prefix="/partner", tags=["Partner Multi-Tenant"])
 
 
 @router.get(
-    "/customers",
+    "/tenants",
     response_model=ManagedTenantListResponse,
     dependencies=[Depends(PartnerPermissionChecker(["partner.tenants.list"]))],
 )
@@ -109,14 +110,15 @@ async def list_managed_tenants(
     for link, tenant in rows:
         metrics = None
         if include_metrics:
-            # TODO: Implement metrics calculation
-            # For now, return None or basic metrics
+            service = PartnerMultiTenantService(db)
+            metrics_data = await service.get_managed_tenant_metrics(str(tenant.id))
             metrics = ManagedTenantMetrics(
-                total_customers=0,
-                total_revenue_mtd=0,
-                accounts_receivable=0,
-                overdue_invoices_count=0,
-                open_tickets_count=0,
+                total_users=metrics_data.get("total_users", 0),
+                total_revenue_mtd=metrics_data.get("total_revenue_mtd", 0),
+                accounts_receivable=metrics_data.get("accounts_receivable", 0),
+                overdue_invoices_count=metrics_data.get("overdue_invoices_count", 0),
+                open_tickets_count=metrics_data.get("open_tickets_count", 0),
+                sla_compliance_pct=metrics_data.get("sla_compliance_pct"),
             )
 
         tenant_summary = ManagedTenantSummary(
@@ -150,7 +152,7 @@ async def list_managed_tenants(
 
 
 @router.get(
-    "/customers/{tenant_id}",
+    "/tenants/{tenant_id}",
     response_model=ManagedTenantDetail,
     dependencies=[Depends(PartnerPermissionChecker(["partner.tenants.list"]))],
 )
@@ -215,13 +217,15 @@ async def get_managed_tenant_detail(
 
     metrics = None
     if include_metrics:
-        # TODO: Implement actual metrics calculation
+        service = PartnerMultiTenantService(db)
+        metrics_data = await service.get_managed_tenant_metrics(str(tenant.id))
         metrics = ManagedTenantMetrics(
-            total_customers=0,
-            total_revenue_mtd=0,
-            accounts_receivable=0,
-            overdue_invoices_count=0,
-            open_tickets_count=0,
+            total_users=metrics_data.get("total_users", 0),
+            total_revenue_mtd=metrics_data.get("total_revenue_mtd", 0),
+            accounts_receivable=metrics_data.get("accounts_receivable", 0),
+            overdue_invoices_count=metrics_data.get("overdue_invoices_count", 0),
+            open_tickets_count=metrics_data.get("open_tickets_count", 0),
+            sla_compliance_pct=metrics_data.get("sla_compliance_pct"),
         )
 
     logger.info(
@@ -292,9 +296,14 @@ async def get_consolidated_billing_summary(
             detail="Invalid partner identifier",
         )
 
-    # TODO: Implement actual billing calculation
-    # For now, return placeholder data
-    from decimal import Decimal
+    from dotmac.platform.partner_management.schemas_multitenant import BillingTenantSummary
+
+    service = PartnerMultiTenantService(db)
+    billing_data = await service.get_consolidated_billing_summary(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        from_date=from_date,
+        status=status,
+    )
 
     logger.info(
         "Partner requested consolidated billing summary",
@@ -302,14 +311,29 @@ async def get_consolidated_billing_summary(
         managed_tenants_count=len(current_user.managed_tenant_ids),
     )
 
+    # Convert tenant summaries to schema
+    tenant_summaries = [
+        BillingTenantSummary(
+            tenant_id=t["tenant_id"],
+            tenant_name=t["tenant_name"],
+            total_revenue=t["total_revenue"],
+            accounts_receivable=t["accounts_receivable"],
+            overdue_amount=t["overdue_amount"],
+            overdue_invoices_count=t["overdue_invoices_count"],
+            total_invoices_count=t["total_invoices_count"],
+            oldest_overdue_days=t.get("oldest_overdue_days"),
+        )
+        for t in billing_data.get("tenants", [])
+    ]
+
     return ConsolidatedBillingSummary(
-        total_revenue=Decimal("0.00"),
-        total_ar=Decimal("0.00"),
-        total_overdue=Decimal("0.00"),
-        overdue_invoices_count=0,
-        tenants_count=len(current_user.managed_tenant_ids),
-        tenants=[],
-        as_of_date=datetime.now(UTC),
+        total_revenue=billing_data["total_revenue"],
+        total_ar=billing_data["total_ar"],
+        total_overdue=billing_data["total_overdue"],
+        overdue_invoices_count=billing_data["overdue_invoices_count"],
+        tenants_count=billing_data["tenants_count"],
+        tenants=tenant_summaries,
+        as_of_date=billing_data["as_of_date"],
     )
 
 
@@ -354,17 +378,47 @@ async def list_invoices(
             detail="Partner does not have access to this tenant",
         )
 
-    # TODO: Implement actual invoice querying
-    # For now, return empty list
+    from dotmac.platform.partner_management.schemas_multitenant import InvoiceListItem
+
+    service = PartnerMultiTenantService(db)
+    invoice_data = await service.list_invoices(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        tenant_id=tenant_id,
+        status=status,
+        from_date=from_date,
+        to_date=to_date,
+        offset=offset,
+        limit=limit,
+    )
+
     logger.info(
         "Partner listed invoices",
         partner_id=partner_id,
         filters={"tenant_id": tenant_id, "status": status},
     )
 
+    # Convert to response schema
+    invoices = [
+        InvoiceListItem(
+            invoice_id=inv["invoice_id"],
+            tenant_id=inv["tenant_id"],
+            tenant_name=inv["tenant_name"],
+            invoice_number=inv["invoice_number"],
+            invoice_date=inv["invoice_date"],
+            due_date=inv["due_date"],
+            amount=inv["amount"],
+            paid_amount=inv["paid_amount"],
+            balance=inv["balance"],
+            status=inv["status"],
+            is_overdue=inv["is_overdue"],
+            days_overdue=inv.get("days_overdue"),
+        )
+        for inv in invoice_data.get("invoices", [])
+    ]
+
     return InvoiceListResponse(
-        invoices=[],
-        total=0,
+        invoices=invoices,
+        total=invoice_data.get("total", 0),
         offset=offset,
         limit=limit,
         filters_applied={
@@ -414,24 +468,156 @@ async def export_invoices(
                 detail=f"Partner does not have access to tenants: {unauthorized}",
             )
 
-    # TODO: Implement actual export job creation
-    import uuid
+    export_format = request.format.lower().strip()
+    if export_format not in {"csv", "pdf"}:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="Invalid export format. Use 'csv' or 'pdf'.",
+        )
 
-    export_id = str(uuid.uuid4())
+    service = PartnerMultiTenantService(db)
+    invoice_data = await service.list_invoices(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        tenant_id=request.tenant_ids[0] if request.tenant_ids and len(request.tenant_ids) == 1 else None,
+        status=request.status,
+        from_date=request.from_date,
+        to_date=request.to_date,
+        offset=0,
+        limit=10000,
+    )
+
+    invoices = invoice_data.get("invoices", [])
+    if request.tenant_ids and len(request.tenant_ids) > 1:
+        allowed = set(request.tenant_ids)
+        invoices = [inv for inv in invoices if inv.get("tenant_id") in allowed]
+    export_timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    export_id = f"{partner_id}-{export_timestamp}"
+
+    if export_format == "csv":
+        import csv
+        import io
+
+        buffer = io.StringIO()
+        fieldnames = [
+            "invoice_id",
+            "tenant_id",
+            "tenant_name",
+            "invoice_number",
+            "invoice_date",
+            "due_date",
+            "amount",
+            "paid_amount",
+            "balance",
+            "status",
+            "is_overdue",
+            "days_overdue",
+        ]
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for invoice in invoices:
+            row = {
+                **invoice,
+                "invoice_date": invoice.get("invoice_date").isoformat() if invoice.get("invoice_date") else None,
+                "due_date": invoice.get("due_date").isoformat() if invoice.get("due_date") else None,
+            }
+            writer.writerow(row)
+        file_bytes = buffer.getvalue().encode("utf-8")
+        file_name = f"invoices-{export_id}.csv"
+        content_type = "text/csv"
+    else:
+        from io import BytesIO
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        table_data = [
+            [
+                "Invoice #",
+                "Tenant",
+                "Date",
+                "Due",
+                "Amount",
+                "Paid",
+                "Balance",
+                "Status",
+            ]
+        ]
+        for invoice in invoices:
+            table_data.append(
+                [
+                    invoice.get("invoice_number", ""),
+                    invoice.get("tenant_name", ""),
+                    invoice.get("invoice_date").date().isoformat()
+                    if invoice.get("invoice_date")
+                    else "",
+                    invoice.get("due_date").date().isoformat()
+                    if invoice.get("due_date")
+                    else "",
+                    str(invoice.get("amount")),
+                    str(invoice.get("paid_amount")),
+                    str(invoice.get("balance")),
+                    invoice.get("status", ""),
+                ]
+            )
+
+        table = Table(table_data, repeatRows=1)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f4f6")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ]
+            )
+        )
+        doc.build([table])
+        file_bytes = buffer.getvalue()
+        file_name = f"invoices-{export_id}.pdf"
+        content_type = "application/pdf"
+
+    from dotmac.platform.file_storage.service import get_storage_service
+
+    storage_tenant_id = (
+        current_user.effective_tenant_id
+        or current_user.tenant_id
+        or current_user.active_managed_tenant_id
+    )
+    if not storage_tenant_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context required for invoice export storage.",
+        )
+    storage_service = get_storage_service()
+    file_id = await storage_service.store_file(
+        file_data=file_bytes,
+        file_name=file_name,
+        content_type=content_type,
+        path=f"exports/invoices/{partner_id}",
+        metadata={
+            "export_id": export_id,
+            "format": export_format,
+            "requested_by": current_user.user_id,
+        },
+        tenant_id=storage_tenant_id,
+    )
 
     logger.info(
         "Partner requested invoice export",
         partner_id=partner_id,
         export_id=export_id,
         format=request.format,
+        file_id=file_id,
     )
 
     return InvoiceExportResponse(
         export_id=export_id,
         status="pending",
-        download_url=None,
+        download_url=f"/api/v1/files/storage/{file_id}/download",
         expires_at=None,
-        estimated_completion=datetime.now(UTC),
+        estimated_completion=None,
     )
 
 
@@ -480,16 +666,45 @@ async def list_tickets(
             detail="Partner does not have access to this tenant",
         )
 
-    # TODO: Implement actual ticket querying
+    from dotmac.platform.partner_management.schemas_multitenant import TicketListItem
+
+    service = PartnerMultiTenantService(db)
+    ticket_data = await service.list_tickets(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        tenant_id=tenant_id,
+        status=status,
+        priority=priority,
+        offset=offset,
+        limit=limit,
+    )
+
     logger.info(
         "Partner listed tickets",
         partner_id=partner_id,
         filters={"tenant_id": tenant_id, "status": status, "priority": priority},
     )
 
+    # Convert to response schema
+    tickets = [
+        TicketListItem(
+            ticket_id=t["ticket_id"],
+            tenant_id=t["tenant_id"],
+            tenant_name=t["tenant_name"],
+            ticket_number=t["ticket_number"],
+            subject=t["subject"],
+            status=t["status"],
+            priority=t["priority"],
+            created_at=t["created_at"],
+            updated_at=t["updated_at"],
+            assigned_to=t.get("assigned_to"),
+            requester_name=t.get("requester_name"),
+        )
+        for t in ticket_data.get("tickets", [])
+    ]
+
     return TicketListResponse(
-        tickets=[],
-        total=0,
+        tickets=tickets,
+        total=ticket_data.get("total", 0),
         offset=offset,
         limit=limit,
         filters_applied={"tenant_id": tenant_id, "status": status, "priority": priority},
@@ -534,25 +749,37 @@ async def create_ticket(
             detail="X-Active-Tenant-Id header required to create ticket for managed tenant",
         )
 
-    # TODO: Implement actual ticket creation
-    import uuid
+    active_tenant_id = current_user.active_managed_tenant_id
+    if not active_tenant_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="Active tenant ID not found in context",
+        )
 
-    ticket_id = str(uuid.uuid4())
+    service = PartnerMultiTenantService(db)
+    ticket_data = await service.create_ticket(
+        tenant_id=active_tenant_id,
+        subject=request.subject,
+        description=request.description,
+        priority=request.priority,
+        created_by_user_id=current_user.user_id or str(partner_id),
+        category=request.category,
+    )
 
     logger.info(
         "Partner created ticket for managed tenant",
         partner_id=partner_id,
-        tenant_id=current_user.active_managed_tenant_id,
-        ticket_id=ticket_id,
+        tenant_id=active_tenant_id,
+        ticket_id=ticket_data["ticket_id"],
         subject=request.subject,
     )
 
     return CreateTicketResponse(
-        ticket_id=ticket_id,
-        ticket_number=f"TKT-{uuid.uuid4().hex[:8].upper()}",
-        tenant_id=current_user.active_managed_tenant_id or "",
-        status="open",
-        created_at=datetime.now(UTC),
+        ticket_id=ticket_data["ticket_id"],
+        ticket_number=ticket_data["ticket_number"],
+        tenant_id=ticket_data["tenant_id"],
+        status=ticket_data["status"],
+        created_at=ticket_data["created_at"],
     )
 
 
@@ -585,15 +812,30 @@ async def update_ticket(
             detail="Invalid partner identifier",
         )
 
-    # TODO: Implement actual ticket update
+    service = PartnerMultiTenantService(db)
+    try:
+        result = await service.update_ticket(
+            ticket_id=ticket_id,
+            status=request.status,
+            priority=request.priority,
+            assigned_to=request.assigned_to,
+            notes=request.notes,
+            updated_by=current_user.user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
     logger.info(
         "Partner updated ticket",
         partner_id=partner_id,
         ticket_id=ticket_id,
-        updates=request.dict(exclude_none=True),
+        updates=request.model_dump(exclude_none=True),
     )
 
-    return {"ticket_id": ticket_id, "status": "updated", "updated_at": datetime.now(UTC)}
+    return result
 
 
 # ============================================
@@ -646,8 +888,15 @@ async def get_usage_report(
                 detail=f"Partner does not have access to tenants: {unauthorized}",
             )
 
-    # TODO: Implement actual usage report generation
-    from decimal import Decimal
+    from dotmac.platform.partner_management.schemas_multitenant import UsageTenantSummary
+
+    service = PartnerMultiTenantService(db)
+    usage_data = await service.get_usage_report(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        from_date=from_date,
+        to_date=to_date,
+        tenant_ids=tenant_ids,
+    )
 
     logger.info(
         "Partner requested usage report",
@@ -656,12 +905,25 @@ async def get_usage_report(
         period_end=to_date,
     )
 
+    # Convert to response schema
+    tenant_summaries = [
+        UsageTenantSummary(
+            tenant_id=t["tenant_id"],
+            tenant_name=t["tenant_name"],
+            total_data_gb=t["total_data_gb"],
+            peak_concurrent_users=t["peak_concurrent_users"],
+            average_daily_users=t["average_daily_users"],
+            total_sessions=t["total_sessions"],
+        )
+        for t in usage_data.get("tenants", [])
+    ]
+
     return UsageReportResponse(
-        period_start=from_date,
-        period_end=to_date,
-        tenants=[],
-        total_data_gb=Decimal("0.00"),
-        total_sessions=0,
+        period_start=usage_data["period_start"],
+        period_end=usage_data["period_end"],
+        tenants=tenant_summaries,
+        total_data_gb=usage_data["total_data_gb"],
+        total_sessions=usage_data["total_sessions"],
     )
 
 
@@ -710,8 +972,16 @@ async def get_sla_report(
                 detail=f"Partner does not have access to tenants: {unauthorized}",
             )
 
-    # TODO: Implement actual SLA report generation
-    from decimal import Decimal
+    from dotmac.platform.partner_management.schemas_multitenant import SLATenantSummary
+
+    service = PartnerMultiTenantService(db)
+    sla_data = await service.get_sla_report(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        from_date=from_date,
+        to_date=to_date,
+        tenant_ids=tenant_ids,
+        partner_id=partner_id,
+    )
 
     logger.info(
         "Partner requested SLA report",
@@ -720,11 +990,26 @@ async def get_sla_report(
         period_end=to_date,
     )
 
+    # Convert to response schema
+    tenant_summaries = [
+        SLATenantSummary(
+            tenant_id=t["tenant_id"],
+            tenant_name=t["tenant_name"],
+            uptime_pct=t["uptime_pct"],
+            average_response_hours=t["average_response_hours"],
+            sla_target_uptime=t.get("sla_target_uptime"),
+            sla_target_response_hours=t.get("sla_target_response_hours"),
+            is_compliant=t["is_compliant"],
+            breach_count=t["breach_count"],
+        )
+        for t in sla_data.get("tenants", [])
+    ]
+
     return SLAReportResponse(
-        period_start=from_date,
-        period_end=to_date,
-        tenants=[],
-        overall_compliance_pct=Decimal("100.00"),
+        period_start=sla_data["period_start"],
+        period_end=sla_data["period_end"],
+        tenants=tenant_summaries,
+        overall_compliance_pct=sla_data["overall_compliance_pct"],
     )
 
 
@@ -770,17 +1055,41 @@ async def get_sla_alerts(
             detail="Partner does not have access to this tenant",
         )
 
-    # TODO: Implement actual SLA alert querying
+    from dotmac.platform.partner_management.schemas_multitenant import SLAAlert
+
+    service = PartnerMultiTenantService(db)
+    alert_data = await service.get_sla_alerts(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        tenant_id=tenant_id,
+        acknowledged=acknowledged,
+    )
+
     logger.info(
         "Partner requested SLA alerts",
         partner_id=partner_id,
         filters={"tenant_id": tenant_id, "acknowledged": acknowledged},
     )
 
+    # Convert to response schema
+    alerts = [
+        SLAAlert(
+            alert_id=a["alert_id"],
+            tenant_id=a["tenant_id"],
+            tenant_name=a["tenant_name"],
+            alert_type=a["alert_type"],
+            severity=a["severity"],
+            message=a["message"],
+            detected_at=a["detected_at"],
+            acknowledged=a["acknowledged"],
+            acknowledged_at=a.get("acknowledged_at"),
+        )
+        for a in alert_data.get("alerts", [])
+    ]
+
     return SLAAlertListResponse(
-        alerts=[],
-        total=0,
-        unacknowledged_count=0,
+        alerts=alerts,
+        total=alert_data.get("total", 0),
+        unacknowledged_count=alert_data.get("unacknowledged_count", 0),
     )
 
 
@@ -821,15 +1130,41 @@ async def get_billing_alerts(
             detail="Partner does not have access to this tenant",
         )
 
-    # TODO: Implement actual billing alert querying
+    from dotmac.platform.partner_management.schemas_multitenant import BillingAlert
+
+    service = PartnerMultiTenantService(db)
+    alert_data = await service.get_billing_alerts(
+        managed_tenant_ids=current_user.managed_tenant_ids,
+        tenant_id=tenant_id,
+        acknowledged=acknowledged,
+        partner_id=partner_id,
+    )
+
     logger.info(
         "Partner requested billing alerts",
         partner_id=partner_id,
         filters={"tenant_id": tenant_id, "acknowledged": acknowledged},
     )
 
+    # Convert to response schema
+    alerts = [
+        BillingAlert(
+            alert_id=a["alert_id"],
+            tenant_id=a["tenant_id"],
+            tenant_name=a["tenant_name"],
+            alert_type=a["alert_type"],
+            current_amount=a["current_amount"],
+            threshold_amount=a["threshold_amount"],
+            severity=a["severity"],
+            message=a["message"],
+            detected_at=a["detected_at"],
+            acknowledged=a["acknowledged"],
+        )
+        for a in alert_data.get("alerts", [])
+    ]
+
     return BillingAlertListResponse(
-        alerts=[],
-        total=0,
-        unacknowledged_count=0,
+        alerts=alerts,
+        total=alert_data.get("total", 0),
+        unacknowledged_count=alert_data.get("unacknowledged_count", 0),
     )

@@ -57,6 +57,14 @@ class TestTemplateServiceBasic:
         assert "now" in service.dict_env.globals
         assert "today" in service.dict_env.globals
 
+    def test_render_inline_template(self):
+        """Test rendering a single inline template string."""
+        service = TemplateService()
+
+        rendered = service.render_inline("Hello {{ name }}", {"name": "Ada"})
+
+        assert rendered == "Hello Ada"
+
 
 @pytest.mark.unit
 class TestTemplateCreation:

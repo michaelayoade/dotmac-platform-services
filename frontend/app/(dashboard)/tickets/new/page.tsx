@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
   MessageSquare,
@@ -16,6 +18,12 @@ import { useToast } from "@dotmac/core";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { useCreateTicket } from "@/lib/hooks/api/use-ticketing";
+import {
+  createTicketSchema,
+  ticketCategories,
+  ticketPriorities,
+  type CreateTicketData,
+} from "@/lib/schemas/tickets";
 import type { TicketCategory, TicketPriority } from "@/lib/api/ticketing";
 
 const categories: Array<{ value: TicketCategory; label: string }> = [
@@ -39,40 +47,47 @@ export default function NewTicketPage() {
   const { toast } = useToast();
   const createTicket = useCreateTicket();
 
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<TicketCategory>("support");
-  const [priority, setPriority] = useState<TicketPriority>("normal");
-  const [customerId, setCustomerId] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<CreateTicketData>({
+    resolver: zodResolver(createTicketSchema),
+    defaultValues: {
+      subject: "",
+      description: "",
+      category: "support",
+      priority: "normal",
+      customerId: "",
+      tags: [],
+    },
+  });
+
+  const tags = watch("tags") || [];
+  const priority = watch("priority");
   const [tagInput, setTagInput] = useState("");
 
   const handleAddTag = () => {
     if (!tagInput.trim() || tags.includes(tagInput.trim())) return;
-    setTags([...tags, tagInput.trim()]);
+    setValue("tags", [...tags, tagInput.trim()]);
     setTagInput("");
   };
 
   const handleRemoveTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
+    setValue("tags", tags.filter((t) => t !== tag));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!subject.trim() || !description.trim()) {
-      toast({ title: "Please fill in all required fields", variant: "error" });
-      return;
-    }
-
+  const onSubmit = async (data: CreateTicketData) => {
     try {
       const result = await createTicket.mutateAsync({
-        subject,
-        description,
-        category,
-        priority,
-        customerId: customerId || undefined,
-        tags: tags.length > 0 ? tags : undefined,
+        subject: data.subject,
+        description: data.description,
+        category: data.category,
+        priority: data.priority,
+        customerId: data.customerId || undefined,
+        tags: data.tags && data.tags.length > 0 ? data.tags : undefined,
       });
 
       toast({
@@ -106,7 +121,7 @@ export default function NewTicketPage() {
         }
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Subject */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
@@ -125,10 +140,13 @@ export default function NewTicketPage() {
                 Subject <span className="text-status-error">*</span>
               </label>
               <Input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                {...register("subject")}
                 placeholder="Brief summary of the issue"
+                aria-invalid={!!errors.subject}
               />
+              {errors.subject && (
+                <p className="text-xs text-status-error mt-1">{errors.subject.message}</p>
+              )}
             </div>
 
             <div>
@@ -136,11 +154,17 @@ export default function NewTicketPage() {
                 Description <span className="text-status-error">*</span>
               </label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                {...register("description")}
                 placeholder="Provide detailed information about the issue..."
-                className="w-full p-3 bg-surface-primary border border-border-subtle rounded-lg text-sm resize-none min-h-[150px]"
+                className={cn(
+                  "w-full p-3 bg-surface-primary border border-border-subtle rounded-lg text-sm resize-none min-h-[150px]",
+                  errors.description && "border-status-error"
+                )}
+                aria-invalid={!!errors.description}
               />
+              {errors.description && (
+                <p className="text-xs text-status-error mt-1">{errors.description.message}</p>
+              )}
             </div>
           </div>
         </Card>
@@ -161,8 +185,7 @@ export default function NewTicketPage() {
             <div>
               <label className="block text-sm font-medium text-text-primary mb-1.5">Category</label>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as TicketCategory)}
+                {...register("category")}
                 className="w-full px-3 py-2 bg-surface-primary border border-border-subtle rounded-md text-sm"
               >
                 {categories.map((cat) => (
@@ -176,8 +199,7 @@ export default function NewTicketPage() {
             <div>
               <label className="block text-sm font-medium text-text-primary mb-1.5">Priority</label>
               <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TicketPriority)}
+                {...register("priority")}
                 className="w-full px-3 py-2 bg-surface-primary border border-border-subtle rounded-md text-sm"
               >
                 {priorities.map((p) => (
@@ -209,7 +231,7 @@ export default function NewTicketPage() {
           </div>
         </Card>
 
-        {/* Customer & Tags */}
+        {/* Tenant & Tags */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-lg bg-highlight-subtle flex items-center justify-center">
@@ -217,20 +239,22 @@ export default function NewTicketPage() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-text-primary">Additional Info</h3>
-              <p className="text-sm text-text-muted">Optional customer and tag information</p>
+              <p className="text-sm text-text-muted">Optional tenant and tag information</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-text-primary mb-1.5">
-                Customer ID
+                Tenant ID
               </label>
               <Input
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                placeholder="Enter customer ID (optional)"
+                {...register("customerId")}
+                placeholder="Enter tenant ID (optional)"
               />
+              {errors.customerId && (
+                <p className="text-xs text-status-error mt-1">{errors.customerId.message}</p>
+              )}
             </div>
 
             <div>

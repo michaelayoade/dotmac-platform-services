@@ -351,6 +351,7 @@ class TemplateContextBuilder:
         amount: int,
         payment_method: str,
         invoice_url: str,
+        notes: str | None = None,
         currency: str = "USD",
     ) -> dict[str, Any]:
         """
@@ -375,6 +376,8 @@ class TemplateContextBuilder:
             "payment_method": payment_method,
             "invoice_url": invoice_url,
             "currency": currency,
+            "notes": notes,
+            "has_notes": bool(notes),
         })
         return context
 

@@ -110,7 +110,6 @@ class PermissionCategory(str, Enum):
     """Categories for organizing permissions"""
 
     USER = "user"
-    CUSTOMER = "customer"
     TICKET = "ticket"
     BILLING = "billing"
     SECURITY = "security"

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button, useToast } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useCurrentTenant,
   useDomainStatus,
@@ -27,6 +28,7 @@ import type { VerificationMethod, DomainStatus } from "@/lib/api/tenants";
 
 export default function OrganizationSettingsPage() {
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { data: tenant, isLoading: tenantLoading } = useCurrentTenant();
   const { data: domainData, isLoading: domainLoading } = useDomainStatus(
     tenant?.id || ""
@@ -99,9 +101,14 @@ export default function OrganizationSettingsPage() {
   const handleRemoveDomain = async () => {
     if (!tenant?.id) return;
 
-    if (!confirm("Are you sure you want to remove this domain?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Remove Custom Domain",
+      description:
+        "Are you sure you want to remove this custom domain? Users will need to use the default domain to access the application.",
+      variant: "warning",
+    });
+
+    if (!confirmed) return;
 
     try {
       await removeDomain.mutateAsync(tenant.id);
@@ -175,6 +182,9 @@ export default function OrganizationSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Confirm dialog */}
+      {dialog}
+
       {/* Back link */}
       <Link
         href="/settings"
@@ -269,7 +279,7 @@ export default function OrganizationSettingsPage() {
           </div>
         ) : currentStatus === "verified" ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-status-success/10 rounded-lg border border-status-success/30">
+            <div className="flex items-center justify-between p-4 bg-status-success/15 rounded-lg border border-status-success/30">
               <div className="flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-status-success" />
                 <div>
@@ -299,7 +309,7 @@ export default function OrganizationSettingsPage() {
         ) : currentStatus === "pending" && showInstructions ? (
           <div className="space-y-4">
             {/* Verification Instructions */}
-            <div className="p-4 bg-status-warning/10 rounded-lg border border-status-warning/30">
+            <div className="p-4 bg-status-warning/15 rounded-lg border border-status-warning/30">
               <h3 className="text-sm font-semibold text-text-primary mb-3">
                 Verification Instructions
               </h3>

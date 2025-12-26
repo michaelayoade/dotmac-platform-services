@@ -29,12 +29,12 @@ const toastVariants = cva(
       variant: {
         default: "border-border text-foreground",
         success:
-          "border-success/30 bg-success/10 text-success",
+          "border-status-success/30 bg-status-success/15 text-status-success",
         warning:
-          "border-warning/30 bg-warning/10 text-warning",
+          "border-status-warning/30 bg-status-warning/15 text-status-warning",
         error:
-          "border-destructive/30 bg-destructive/10 text-destructive",
-        info: "border-info/30 bg-info/10 text-info",
+          "border-destructive/30 bg-destructive/15 text-destructive",
+        info: "border-status-info/30 bg-status-info/15 text-status-info",
       },
     },
     defaultVariants: {

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class SearchableEntity(str, Enum):
     """Entities that can be indexed for search."""
 
-    CUSTOMER = "customer"
+    TENANT = "tenant"
     INVOICE = "invoice"
     TICKET = "ticket"
     ORDER = "order"
@@ -43,25 +43,17 @@ class SortOrder(str, Enum):
 # Index Mappings
 # =============================================================================
 
-CUSTOMER_INDEX_MAPPING = {
+TENANT_INDEX_MAPPING = {
     "properties": {
         "tenant_id": {"type": "keyword"},
-        "customer_id": {"type": "keyword"},
-        "email": {"type": "keyword"},
         "name": {
             "type": "text",
             "fields": {"keyword": {"type": "keyword"}},
             "analyzer": "standard",
         },
-        "phone": {"type": "keyword"},
-        "company": {
-            "type": "text",
-            "fields": {"keyword": {"type": "keyword"}},
-        },
+        "slug": {"type": "keyword"},
         "status": {"type": "keyword"},
-        "account_number": {"type": "keyword"},
-        "service_address": {"type": "text"},
-        "tags": {"type": "keyword"},
+        "primary_domain": {"type": "keyword"},
         "created_at": {"type": "date"},
         "updated_at": {"type": "date"},
         # Full-text search fields
@@ -171,7 +163,7 @@ AUDIT_LOG_INDEX_MAPPING = {
 
 # Index mapping registry
 INDEX_MAPPINGS = {
-    SearchableEntity.CUSTOMER: CUSTOMER_INDEX_MAPPING,
+    SearchableEntity.TENANT: TENANT_INDEX_MAPPING,
     SearchableEntity.INVOICE: INVOICE_INDEX_MAPPING,
     SearchableEntity.TICKET: TICKET_INDEX_MAPPING,
     SearchableEntity.PRODUCT: PRODUCT_INDEX_MAPPING,

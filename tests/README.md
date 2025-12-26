@@ -30,13 +30,10 @@ pytest --cov=src/dotmac/platform --cov-report=html
 
 ### Core Guides
 
-1. **[Fixture Organization Guide](FIXTURE_ORGANIZATION.md)** - How to organize and create fixtures
-2. **[Test Structure Guide](TEST_STRUCTURE_GUIDE.md)** - How to organize test files and directories
-3. **[Testing Patterns](TESTING_PATTERNS.md)** - Advanced testing patterns and techniques
-4. **[Migration Examples](MIGRATION_EXAMPLE.md)** - How to migrate tests to use base classes
-5. **[Cleanup Registry Integration](CLEANUP_REGISTRY_INTEGRATION.md)** - Using the cleanup registry pattern
-6. **[Quick Reference](QUICK_REFERENCE.md)** - One-page cheat sheet
-7. **[Phase 2 Progress](PHASE2_PROGRESS.md)** - Current testing framework deployment progress
+1. **[Testing Guide](TESTING_GUIDE.md)** - Running tests, markers, and common pitfalls
+2. **[Quick Reference](QUICK_REFERENCE.md)** - One-page cheat sheet
+3. **[Helpers Guide](helpers/README.md)** - Base classes and shared test utilities
+4. **[Archive Notes](archive/README.md)** - Legacy test notes and migrations
 
 ### Helper Modules
 
@@ -53,41 +50,27 @@ pytest --cov=src/dotmac/platform --cov-report=html
 ```
 tests/
 ├── README.md                        # This file
-│
-# CORE GUIDES
-├── FIXTURE_ORGANIZATION.md          # Fixture best practices
-├── TEST_STRUCTURE_GUIDE.md          # Test organization guide
-├── TESTING_PATTERNS.md              # Advanced patterns
-├── MIGRATION_EXAMPLE.md             # Migration guide
-├── CLEANUP_REGISTRY_INTEGRATION.md  # Cleanup patterns
+├── TESTING_GUIDE.md                 # Main testing guide
 ├── QUICK_REFERENCE.md               # Cheat sheet
 │
 # GLOBAL FIXTURES
 ├── conftest.py                      # Global fixtures (modularized)
 │
-# FEATURE TESTS (95% of tests)
+# FEATURE TESTS
 ├── billing/                         # Billing feature tests
-│   ├── conftest.py                  # Billing fixtures
-│   ├── test_invoice_service.py
-│   └── ...
 ├── auth/                            # Authentication tests
 ├── tenant/                          # Tenant management tests
-└── ...                              # 60+ feature directories
+├── partner_management/              # Partner tests
+└── ...                              # Additional feature directories
 │
-# SPECIAL TEST TYPES (5% of tests)
-├── integration/                     # Cross-module integration (10 files)
-├── e2e/                             # End-to-end workflows (8 files)
-├── journeys/                        # User journeys (5 files)
+# SPECIAL TEST TYPES
+├── integration/                     # Cross-module integration
+├── e2e/                             # End-to-end workflows
+├── journeys/                        # User journeys
 │
 # UTILITIES
 ├── helpers/                         # Test utilities
-│   ├── router_base.py               # Router test base classes
-│   ├── cleanup_registry.py          # Cleanup registry
-│   ├── contract_testing.py          # Schema validation
-│   └── fixture_factories.py         # Factory utilities
-│
 └── fixtures/                        # Shared fixtures
-    └── example_factories.py         # Example factory implementations
 ```
 
 ---
@@ -369,23 +352,23 @@ class TestResourceRouter(RouterWithServiceTestBase):
 
 ```python
 @pytest.mark.integration
-async def test_create_customer(async_db_session):
-    """Test customer creation in database."""
-    customer = Customer(
-        id="cust_test",
-        email="test@example.com",
-        name="Test Customer"
+async def test_create_tenant(async_db_session):
+    """Test tenant creation in database."""
+    tenant = Tenant(
+        id="tenant_test",
+        name="Test Tenant",
+        slug="test-tenant",
     )
 
-    async_db_session.add(customer)
+    async_db_session.add(tenant)
     await async_db_session.commit()
-    await async_db_session.refresh(customer)
+    await async_db_session.refresh(tenant)
 
     # Verify
-    assert customer.id == "cust_test"
+    assert tenant.id == "tenant_test"
 
     # Cleanup
-    await async_db_session.delete(customer)
+    await async_db_session.delete(tenant)
     await async_db_session.commit()
 ```
 

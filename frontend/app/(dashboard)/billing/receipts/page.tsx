@@ -93,7 +93,7 @@ export default function ReceiptsPage() {
       await emailReceipt.mutateAsync({ id: receipt.id });
       toast({
         title: "Receipt sent",
-        description: `Receipt ${receipt.number} has been emailed to the customer.`,
+        description: `Receipt ${receipt.number} has been emailed to the tenant.`,
         variant: "success",
       });
     } catch {
@@ -189,7 +189,7 @@ export default function ReceiptsPage() {
               <thead>
                 <tr>
                   <th>Receipt #</th>
-                  <th>Customer</th>
+                  <th>Tenant</th>
                   <th>Date</th>
                   <th>Amount</th>
                   <th>Status</th>

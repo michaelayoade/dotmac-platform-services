@@ -47,6 +47,51 @@ def authorized_user():
     )
 
 
+def assert_addon_payload(data: dict, expected: AddonResponse) -> None:
+    """Assert add-on payload shape matches AddonResponse."""
+    assert data["addon_id"] == expected.addon_id
+    assert data["name"] == expected.name
+    assert data["description"] == expected.description
+    assert data["addon_type"] == expected.addon_type.value
+    assert data["billing_type"] == expected.billing_type.value
+    assert data["price"] == str(expected.price)
+    assert data["currency"] == expected.currency
+    assert data["setup_fee"] == (str(expected.setup_fee) if expected.setup_fee is not None else None)
+    assert data["is_quantity_based"] == expected.is_quantity_based
+    assert data["min_quantity"] == expected.min_quantity
+    assert data["max_quantity"] == expected.max_quantity
+    assert data["metered_unit"] == expected.metered_unit
+    assert data["included_quantity"] == expected.included_quantity
+    assert data["is_active"] == expected.is_active
+    assert data["is_featured"] == expected.is_featured
+    assert data["compatible_with_all_plans"] == expected.compatible_with_all_plans
+    assert data["icon"] == expected.icon
+    assert data["features"] == expected.features
+
+
+def assert_tenant_addon_payload(data: dict, expected: TenantAddonResponse) -> None:
+    """Assert tenant add-on payload shape matches TenantAddonResponse."""
+    assert data["tenant_addon_id"] == expected.tenant_addon_id
+    assert data["tenant_id"] == expected.tenant_id
+    assert data["addon_id"] == expected.addon_id
+    assert data["subscription_id"] == expected.subscription_id
+    assert data["status"] == expected.status.value
+    assert data["quantity"] == expected.quantity
+    assert data["current_usage"] == expected.current_usage
+    assert "addon" in data
+    assert_addon_payload(data["addon"], expected.addon)
+
+
+@pytest.fixture
+def authorized_addon_user(authorized_user):
+    """Patch add-on router auth to return an authorized user."""
+    with patch(
+        "dotmac.platform.billing.addons.router.get_current_user",
+        return_value=authorized_user,
+    ):
+        yield
+
+
 @pytest.fixture
 def sample_addon_response():
     """Sample addon response."""
@@ -101,6 +146,7 @@ class TestGetAvailableAddons:
         mock_addon_service,
         sample_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful retrieval of available add-ons."""
         # Mock service response
@@ -110,7 +156,7 @@ class TestGetAvailableAddons:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.get(
+            response = client.get(
                 "/api/v1/billing/addons",
                 headers={
                     "Authorization": "Bearer test_token",
@@ -118,8 +164,11 @@ class TestGetAvailableAddons:
                 },
             )
 
-        # Assertions would depend on actual router implementation
-        # This is a placeholder for the structure
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert_addon_payload(data[0], sample_addon_response)
 
     def test_get_available_addons_unauthorized(self, client):
         """Test unauthorized access."""
@@ -128,8 +177,7 @@ class TestGetAvailableAddons:
             headers={"X-Tenant-ID": "test-tenant"},
         )
 
-        # Expect 401 or redirect depending on auth implementation
-        assert response.status_code in [400, 401, 403, 307]
+        assert response.status_code in [401, 403]
 
 
 class TestGetTenantAddons:
@@ -141,6 +189,7 @@ class TestGetTenantAddons:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful retrieval of tenant's add-ons."""
         mock_addon_service.get_active_addons.return_value = [sample_tenant_addon_response]
@@ -149,7 +198,7 @@ class TestGetTenantAddons:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.get(
+            response = client.get(
                 "/api/v1/billing/addons/my-addons",
                 headers={
                     "Authorization": "Bearer test_token",
@@ -157,7 +206,11 @@ class TestGetTenantAddons:
                 },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert_tenant_addon_payload(data[0], sample_tenant_addon_response)
 
 
 class TestPurchaseAddon:
@@ -169,6 +222,7 @@ class TestPurchaseAddon:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful add-on purchase."""
         mock_addon_service.purchase_addon.return_value = sample_tenant_addon_response
@@ -183,15 +237,22 @@ class TestPurchaseAddon:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.post(
+            response = client.post(
                 "/api/v1/billing/addons/purchase",
                 json=purchase_data,
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_tenant_addon_payload(data, sample_tenant_addon_response)
 
-    def test_purchase_addon_invalid_quantity(self, client, authorized_user):
+    def test_purchase_addon_invalid_quantity(
+        self, client, authorized_user, authorized_addon_user
+    ):
         """Test purchase with invalid quantity."""
         purchase_data = {
             "addon_id": "addon_test_123",
@@ -202,11 +263,13 @@ class TestPurchaseAddon:
         response = client.post(
             "/api/v1/billing/addons/purchase",
             json=purchase_data,
-            headers={"Authorization": "Bearer test_token"},
+            headers={
+                "Authorization": "Bearer test_token",
+                "X-Tenant-ID": authorized_user.tenant_id,
+            },
         )
 
-        # Expect validation error
-        assert response.status_code in [400, 422]
+        assert response.status_code == 422
 
 
 class TestUpdateAddonQuantity:
@@ -218,6 +281,7 @@ class TestUpdateAddonQuantity:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful quantity update."""
         mock_addon_service.update_addon_quantity.return_value = sample_tenant_addon_response
@@ -228,13 +292,18 @@ class TestUpdateAddonQuantity:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.put(
+            response = client.put(
                 "/api/v1/billing/addons/taddon_123/quantity",
                 json=update_data,
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_tenant_addon_payload(data, sample_tenant_addon_response)
 
 
 class TestCancelAddon:
@@ -246,6 +315,7 @@ class TestCancelAddon:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful add-on cancellation."""
         mock_addon_service.cancel_addon.return_value = sample_tenant_addon_response
@@ -256,13 +326,18 @@ class TestCancelAddon:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.post(
+            response = client.post(
                 "/api/v1/billing/addons/taddon_123/cancel",
                 json=cancel_data,
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_tenant_addon_payload(data, sample_tenant_addon_response)
 
     def test_cancel_addon_immediate(
         self,
@@ -270,6 +345,7 @@ class TestCancelAddon:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test immediate add-on cancellation."""
         mock_addon_service.cancel_addon.return_value = sample_tenant_addon_response
@@ -280,13 +356,18 @@ class TestCancelAddon:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.post(
+            response = client.post(
                 "/api/v1/billing/addons/taddon_123/cancel",
                 json=cancel_data,
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_tenant_addon_payload(data, sample_tenant_addon_response)
 
 
 class TestReactivateAddon:
@@ -298,6 +379,7 @@ class TestReactivateAddon:
         mock_addon_service,
         sample_tenant_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful add-on reactivation."""
         mock_addon_service.reactivate_addon.return_value = sample_tenant_addon_response
@@ -306,12 +388,17 @@ class TestReactivateAddon:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.post(
+            response = client.post(
                 "/api/v1/billing/addons/taddon_123/reactivate",
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_tenant_addon_payload(data, sample_tenant_addon_response)
 
 
 class TestGetAddonById:
@@ -323,6 +410,7 @@ class TestGetAddonById:
         mock_addon_service,
         sample_addon_response,
         authorized_user,
+        authorized_addon_user,
     ):
         """Test successful retrieval of specific add-on."""
         from dotmac.platform.billing.addons.models import Addon
@@ -348,7 +436,7 @@ class TestGetAddonById:
             compatible_plan_ids=[],
             metadata={},
             icon="test-icon",
-            features=["Feature 1"],
+            features=["Feature 1", "Feature 2"],
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
         )
@@ -359,14 +447,21 @@ class TestGetAddonById:
             "dotmac.platform.billing.addons.router.AddonService",
             return_value=mock_addon_service,
         ):
-            client.get(
+            response = client.get(
                 "/api/v1/billing/addons/addon_test_123",
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "X-Tenant-ID": authorized_user.tenant_id,
+                },
             )
 
-        # Assertions would depend on actual implementation
+        assert response.status_code == 200
+        data = response.json()
+        assert_addon_payload(data, sample_addon_response)
 
-    def test_get_addon_not_found(self, client, mock_addon_service, authorized_user):
+    def test_get_addon_not_found(
+        self, client, mock_addon_service, authorized_user, authorized_addon_user
+    ):
         """Test retrieval of non-existent add-on."""
         mock_addon_service.get_addon.return_value = None
 
@@ -382,8 +477,7 @@ class TestGetAddonById:
                 },
             )
 
-        # Expect not found when authenticated; unauthorized environments may return 401
-        assert response.status_code in {401, 404}
+        assert response.status_code == 404
 
 
 @pytest.mark.asyncio

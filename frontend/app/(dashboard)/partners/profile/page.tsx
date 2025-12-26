@@ -91,10 +91,10 @@ export default function PartnerProfilePage() {
   };
 
   const tierColors: Record<PartnerProfile["tier"], string> = {
-    BRONZE: "bg-amber-700/15 text-amber-600",
-    SILVER: "bg-gray-400/15 text-gray-400",
-    GOLD: "bg-yellow-500/15 text-yellow-500",
-    PLATINUM: "bg-purple-500/15 text-purple-400",
+    BRONZE: "bg-status-warning/15 text-status-warning",
+    SILVER: "bg-surface-overlay text-text-secondary",
+    GOLD: "bg-highlight/15 text-highlight",
+    PLATINUM: "bg-status-info/15 text-status-info",
   };
 
   if (isLoading) {

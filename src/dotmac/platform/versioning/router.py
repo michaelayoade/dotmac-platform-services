@@ -36,9 +36,9 @@ class VersionedAPIRouter(APIRouter):
         )
 
         # Register route for specific versions
-        @router.get("/customers"), versions=[APIVersion.V1, APIVersion.V2])  # type: ignore[misc]
-        async def list_customers():
-            return customers
+        @router.get("/tenants"), versions=[APIVersion.V1, APIVersion.V2])  # type: ignore[misc]
+        async def list_tenants():
+            return tenants
 
         # Register route with deprecation
         @router.get(

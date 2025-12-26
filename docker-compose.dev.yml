@@ -37,9 +37,24 @@ services:
       # Storage - disabled for dev
       STORAGE__ENABLED: "false"
       VAULT__ENABLED: "false"
-      # CORS
+      # Observability - Jaeger (tracing)
+      JAEGER_URL: http://dotmac-jaeger:16686
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://dotmac-jaeger:4317
+      # Observability - Prometheus (metrics)
+      PROMETHEUS_URL: http://dotmac-prometheus:9090
+      PROMETHEUS_USERNAME: ""
+      PROMETHEUS_PASSWORD: ""
+      PROMETHEUS_VERIFY_SSL: "false"
+      PROMETHEUS_TIMEOUT_SECONDS: "15"
+      # Observability - Query customization (adjust if your metrics have different names)
+      OBSERVABILITY_LATENCY_HISTOGRAM: http_request_duration_seconds_bucket
+      OBSERVABILITY_REQUEST_COUNT: http_requests_total
+      OBSERVABILITY_ROUTE_LABEL: path
+      OBSERVABILITY_STATUS_LABEL: status
+      OBSERVABILITY_LATENCY_WINDOW: 5m
+      # CORS - include server IP for remote access
       CORS__ENABLED: "true"
-      CORS__ORIGINS: '["http://localhost:3000","http://localhost:3002","http://localhost:8000","http://localhost:8001"]'
+      CORS__ORIGINS: '["http://localhost:3000","http://localhost:3002","http://localhost:8000","http://localhost:8001","http://149.102.158.144:3002","http://149.102.158.144:8001"]'
       CORS__CREDENTIALS: "true"
     ports:
       - "8001:8000"
@@ -80,12 +95,13 @@ services:
       - frontend_root_node_modules:/app/node_modules
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:8001
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8001
+      # Use server IP for browser-side requests (override with HOST_IP env var)
+      NEXT_PUBLIC_API_URL: http://${HOST_IP:-149.102.158.144}:8001
+      NEXT_PUBLIC_API_BASE_URL: http://${HOST_IP:-149.102.158.144}:8001
       INTERNAL_API_URL: http://platform-backend:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8001
+      NEXT_PUBLIC_WS_URL: ws://${HOST_IP:-149.102.158.144}:8001
       NEXTAUTH_SECRET: dev-nextauth-secret-change-me-min-32-chars
-      NEXTAUTH_URL: http://localhost:3002
+      NEXTAUTH_URL: http://${HOST_IP:-149.102.158.144}:3002
       # Enable polling for file watching in Docker
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"

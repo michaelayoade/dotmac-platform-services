@@ -17,84 +17,16 @@ import { cn } from "@/lib/utils";
 
 type Period = "7d" | "30d" | "90d" | "1y";
 
-// Demo data
-const demoUsage = {
-  apiCalls: {
-    current: 45230,
-    limit: 100000,
-    unit: "calls",
-    percentUsed: 45.23,
-    history: [
-      { date: "Dec 17", value: 6500 },
-      { date: "Dec 18", value: 7200 },
-      { date: "Dec 19", value: 5800 },
-      { date: "Dec 20", value: 8100 },
-      { date: "Dec 21", value: 6900 },
-      { date: "Dec 22", value: 5430 },
-      { date: "Dec 23", value: 5300 },
-    ],
-  },
-  storage: {
-    current: 2340,
-    limit: 5000,
-    unit: "MB",
-    percentUsed: 46.8,
-    history: [
-      { date: "Dec 17", value: 2100 },
-      { date: "Dec 18", value: 2150 },
-      { date: "Dec 19", value: 2200 },
-      { date: "Dec 20", value: 2250 },
-      { date: "Dec 21", value: 2290 },
-      { date: "Dec 22", value: 2320 },
-      { date: "Dec 23", value: 2340 },
-    ],
-  },
-  users: {
-    current: 8,
-    limit: 10,
-    unit: "users",
-    percentUsed: 80,
-    history: [
-      { date: "Dec 17", value: 6 },
-      { date: "Dec 18", value: 6 },
-      { date: "Dec 19", value: 7 },
-      { date: "Dec 20", value: 7 },
-      { date: "Dec 21", value: 8 },
-      { date: "Dec 22", value: 8 },
-      { date: "Dec 23", value: 8 },
-    ],
-  },
-  bandwidth: {
-    current: 12.5,
-    limit: 50,
-    unit: "GB",
-    percentUsed: 25,
-    history: [
-      { date: "Dec 17", value: 1.8 },
-      { date: "Dec 18", value: 2.1 },
-      { date: "Dec 19", value: 1.5 },
-      { date: "Dec 20", value: 2.3 },
-      { date: "Dec 21", value: 1.9 },
-      { date: "Dec 22", value: 1.6 },
-      { date: "Dec 23", value: 1.3 },
-    ],
-  },
-};
-
-const demoBreakdown = {
-  byFeature: [
-    { feature: "REST API", calls: 28500, percentage: 63 },
-    { feature: "File Storage", calls: 9800, percentage: 22 },
-    { feature: "Authentication", calls: 4500, percentage: 10 },
-    { feature: "Webhooks", calls: 2430, percentage: 5 },
-  ],
-  byUser: [
-    { userId: "u1", userName: "John Admin", apiCalls: 15200, storageUsed: 850 },
-    { userId: "u2", userName: "Sarah Johnson", apiCalls: 12800, storageUsed: 620 },
-    { userId: "u3", userName: "Michael Chen", apiCalls: 9500, storageUsed: 480 },
-    { userId: "u4", userName: "Emily Rodriguez", apiCalls: 7730, storageUsed: 390 },
-  ],
-};
+function EmptyUsageState() {
+  return (
+    <div className="bg-surface-elevated rounded-lg border border-border p-6">
+      <h2 className="text-lg font-semibold text-text-primary">No usage data yet</h2>
+      <p className="text-sm text-text-muted mt-2">
+        Usage metrics will appear after your organization generates activity.
+      </p>
+    </div>
+  );
+}
 
 // Usage Card Component
 interface UsageCardProps {
@@ -258,7 +190,7 @@ function UserUsageTable({
         <p className="text-sm text-text-muted">Resource usage per user</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="data-table">
           <thead>
             <tr className="border-b border-border bg-surface-overlay/50">
               <th className="px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -319,9 +251,8 @@ export default function UsagePage() {
   const { data: usageData, isLoading: usageLoading } = useTenantUsage({ period });
   const { data: breakdownData, isLoading: breakdownLoading } = useTenantUsageBreakdown({ period });
 
-  const usage = usageData || demoUsage;
-  const breakdown = breakdownData || demoBreakdown;
-
+  const usage = usageData ?? null;
+  const breakdown = breakdownData ?? null;
   const isLoading = usageLoading || breakdownLoading;
 
   return (
@@ -340,7 +271,7 @@ export default function UsagePage() {
             className={cn(
               "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
               period === p
-                ? "bg-accent text-white"
+                ? "bg-accent text-text-inverse"
                 : "bg-surface-overlay text-text-secondary hover:text-text-primary"
             )}
           >
@@ -357,6 +288,8 @@ export default function UsagePage() {
 
       {isLoading ? (
         <UsageSkeleton />
+      ) : !usage || !breakdown ? (
+        <EmptyUsageState />
       ) : (
         <>
           {/* Usage Cards */}
@@ -365,25 +298,25 @@ export default function UsagePage() {
               title="API Calls"
               {...usage.apiCalls}
               icon={<Activity className="w-5 h-5 text-accent" />}
-              color="bg-accent/10"
+              color="bg-accent/15"
             />
             <UsageCard
               title="Storage"
               {...usage.storage}
               icon={<HardDrive className="w-5 h-5 text-status-success" />}
-              color="bg-status-success/10"
+              color="bg-status-success/15"
             />
             <UsageCard
               title="Team Members"
               {...usage.users}
               icon={<Users className="w-5 h-5 text-highlight" />}
-              color="bg-highlight/10"
+              color="bg-highlight/15"
             />
             <UsageCard
               title="Bandwidth"
               {...usage.bandwidth}
-              icon={<Wifi className="w-5 h-5 text-purple-500" />}
-              color="bg-purple-500/10"
+              icon={<Wifi className="w-5 h-5 text-status-info" />}
+              color="bg-status-info/15"
             />
           </div>
 

@@ -51,11 +51,6 @@ class WebhookEvent(str, Enum):
     CREDIT_NOTE_VOIDED = "credit_note.voided"
     CREDIT_NOTE_APPLIED = "credit_note.applied"
 
-    # Customer events
-    CUSTOMER_CREATED = "customer.created"
-    CUSTOMER_UPDATED = "customer.updated"
-    CUSTOMER_DELETED = "customer.deleted"
-
     # User events
     USER_REGISTERED = "user.registered"
     USER_UPDATED = "user.updated"
@@ -210,7 +205,7 @@ class WebhookSubscriptionCreate(BaseModel):  # BaseModel resolves to Any in isol
     def validate_events(cls, v: list[str]) -> list[str]:
         """Validate event types.
 
-        Frontend may use custom event names (e.g. customer.created); accept any non-empty list.
+        Frontend may use custom event names; accept any non-empty list.
         """
         if not v:
             raise ValueError("At least one event type is required")

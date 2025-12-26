@@ -22,6 +22,7 @@ import {
   type TicketMessage,
   type TicketStatus,
   type CreateTicketData,
+  type UpdateTicketData,
   type TicketStats,
   type AgentPerformance,
 } from "@/lib/api/ticketing";
@@ -69,7 +70,7 @@ export function useUpdateTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreateTicketData> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateTicketData }) =>
       updateTicket(id, data),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.ticketing.tickets.detail(data.id), data);

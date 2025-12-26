@@ -154,6 +154,7 @@ export async function createTicket(data: CreateTicketData): Promise<Ticket> {
 
 export interface UpdateTicketData {
   subject?: string;
+  description?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
   category?: TicketCategory;
@@ -164,6 +165,7 @@ export interface UpdateTicketData {
 export async function updateTicket(id: string, data: UpdateTicketData): Promise<Ticket> {
   return api.patch<Ticket>(`/api/v1/tickets/${id}`, {
     subject: data.subject,
+    description: data.description,
     status: data.status,
     priority: data.priority,
     category: data.category,

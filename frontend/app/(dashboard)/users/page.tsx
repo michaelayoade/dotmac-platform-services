@@ -5,7 +5,7 @@ import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 import { Button } from "@/lib/dotmac/core";
 
 import { getUsers, type User } from "@/lib/api/users";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { UsersTableClient } from "./users-table-client";
 
 export const metadata = {
@@ -22,19 +22,29 @@ export default async function UsersPage({
   const search = searchParams.search || "";
   const status = searchParams.status || "";
 
-  const { users, totalCount, pageCount } = await safeApi(
-    () =>
-      getUsers({
-        page,
-        search,
-        status,
-        pageSize: 20,
-      }),
-    { users: [], totalCount: 0, pageCount: 1 }
+  const userResponse = await fetchOrNull(() =>
+    getUsers({
+      page,
+      search,
+      status,
+      pageSize: 20,
+    })
   );
+  const users = userResponse?.users ?? [];
+  const totalCount = userResponse?.totalCount ?? null;
+  const pageCount = userResponse?.pageCount ?? 1;
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-text-muted">
+        <Link href="/" className="hover:text-text-secondary">
+          Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-text-primary">Users</span>
+      </nav>
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -61,7 +71,9 @@ export default async function UsersPage({
       <div className="quick-stats">
         <div className="quick-stat">
           <p className="metric-label">Total Users</p>
-          <p className="metric-value text-2xl">{totalCount.toLocaleString()}</p>
+          <p className="metric-value text-2xl">
+            {totalCount === null ? "—" : totalCount.toLocaleString()}
+          </p>
         </div>
         <div className="quick-stat">
           <p className="metric-label">Active (page)</p>
@@ -88,7 +100,7 @@ export default async function UsersPage({
         <UsersTableClient
           initialUsers={users}
           pageCount={pageCount}
-          totalCount={totalCount}
+          totalCount={totalCount ?? 0}
           currentPage={page}
           currentSearch={search}
           currentStatus={status}

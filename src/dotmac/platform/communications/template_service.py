@@ -320,6 +320,23 @@ class TemplateService:
             logger.error("String template rendering failed", error=str(exc))
             raise ValueError(f"Template rendering error: {str(exc)}")
 
+    def render_inline(
+        self,
+        template_str: str,
+        data: Mapping[str, Any] | None = None,
+        *,
+        autoescape: bool = False,
+    ) -> str:
+        """Render a single template string."""
+        context = dict(data or {})
+        try:
+            env = self.dict_env_html if autoescape else self.dict_env
+            template = env.from_string(template_str)
+            return template.render(context)
+        except (TemplateSyntaxError, UndefinedError, TypeError) as exc:
+            logger.error("Inline template rendering failed", error=str(exc))
+            raise ValueError(f"Template rendering error: {str(exc)}")
+
     def load_file_template(self, filename: str) -> Template | None:
         """Load a template from file (if file loader is available)."""
         if not self.file_env:
@@ -491,6 +508,8 @@ class TenantAwareTemplateService:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        # Backwards compatibility alias for older tests and helpers.
+        self.string_env = self.string_env_text
 
         self._add_template_globals()
         self._add_custom_filters()

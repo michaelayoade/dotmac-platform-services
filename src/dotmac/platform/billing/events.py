@@ -48,11 +48,6 @@ class BillingEvents:
     SUBSCRIPTION_TRIAL_ENDING = "subscription.trial_ending"
     SUBSCRIPTION_TRIAL_ENDED = "subscription.trial_ended"
 
-    # Customer events
-    CUSTOMER_CREATED = "customer.created"
-    CUSTOMER_UPDATED = "customer.updated"
-    CUSTOMER_DELETED = "customer.deleted"
-
     # Product/Catalog events
     PRODUCT_CREATED = "product.created"
     PRODUCT_UPDATED = "product.updated"

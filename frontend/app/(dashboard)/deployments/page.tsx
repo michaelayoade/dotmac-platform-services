@@ -28,7 +28,7 @@ import {
   getDeployments as fetchDeployments,
   type Deployment as APIDeployment,
 } from "@/lib/api/deployments";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +55,10 @@ interface DeploymentDisplay {
     storage: number;
   };
   metrics: {
-    cpuUsage: number;
-    memoryUsage: number;
-    requestsPerSec: number;
-    errorRate: number;
+    cpuUsage: number | null;
+    memoryUsage: number | null;
+    requestsPerSec: number | null;
+    errorRate: number | null;
   };
   lastDeployed: string;
   createdAt: string;
@@ -99,11 +99,10 @@ function mapDeploymentToDisplay(deployment: APIDeployment): DeploymentDisplay {
       storage: parseResource(deployment.resources.storage, 50),
     },
     metrics: {
-      // Metrics would need separate API call for real values
-      cpuUsage: deployment.health?.status === "healthy" ? 45 : 0,
-      memoryUsage: deployment.health?.status === "healthy" ? 55 : 0,
-      requestsPerSec: deployment.health?.status === "healthy" ? 100 : 0,
-      errorRate: deployment.health?.status === "unhealthy" ? 5 : 0.1,
+      cpuUsage: null,
+      memoryUsage: null,
+      requestsPerSec: null,
+      errorRate: null,
     },
     lastDeployed: deployment.lastDeployedAt || deployment.updatedAt,
     createdAt: deployment.createdAt,
@@ -111,10 +110,10 @@ function mapDeploymentToDisplay(deployment: APIDeployment): DeploymentDisplay {
 }
 
 export default async function DeploymentsPage() {
-  const { deployments: apiDeployments } = await safeApi(
-    () => fetchDeployments({ pageSize: 50 }),
-    { deployments: [], totalCount: 0, pageCount: 1 }
+  const deploymentsResponse = await fetchOrNull(() =>
+    fetchDeployments({ pageSize: 50 })
   );
+  const apiDeployments = deploymentsResponse?.deployments ?? [];
   const deployments = apiDeployments.map(mapDeploymentToDisplay);
   const stats = {
     total: deployments.length,
@@ -125,6 +124,15 @@ export default async function DeploymentsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-text-muted">
+        <Link href="/" className="hover:text-text-secondary">
+          Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-text-primary">Deployments</span>
+      </nav>
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -300,21 +308,33 @@ function DeploymentCard({ deployment, index }: { deployment: DeploymentDisplay; 
             unit="%"
             icon={AlertTriangle}
             noProgress
-            alert={deployment.metrics.errorRate > 1}
+            alert={deployment.metrics.errorRate !== null && deployment.metrics.errorRate > 1}
           />
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2 lg:ml-4">
-          <button className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors">
-            <Terminal className="w-4 h-4" />
-          </button>
-          <button className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors">
-            <Settings className="w-4 h-4" />
-          </button>
-          <button className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          <Link
+            href={`/deployments/${deployment.id}/console`}
+            className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+            aria-label={`Open terminal for ${deployment.name}`}
+          >
+            <Terminal className="w-4 h-4" aria-hidden="true" />
+          </Link>
+          <Link
+            href={`/deployments/${deployment.id}/config`}
+            className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+            aria-label={`Settings for ${deployment.name}`}
+          >
+            <Settings className="w-4 h-4" aria-hidden="true" />
+          </Link>
+          <Link
+            href={`/deployments/${deployment.id}`}
+            className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+            aria-label={`More options for ${deployment.name}`}
+          >
+            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+          </Link>
         </div>
       </div>
 
@@ -344,14 +364,14 @@ function ResourceMetric({
   alert = false,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   max?: number;
   unit: string;
   icon: ElementType;
   noProgress?: boolean;
   alert?: boolean;
 }) {
-  const percentage = max ? (value / max) * 100 : 0;
+  const percentage = value !== null && max ? (value / max) * 100 : 0;
   const isHigh = percentage > 80;
 
   return (
@@ -377,11 +397,11 @@ function ResourceMetric({
               : "text-text-primary"
           )}
         >
-          {value.toFixed(value < 10 ? 1 : 0)}
-          <span className="text-xs text-text-muted">{unit}</span>
+          {value === null ? "—" : value.toFixed(value < 10 ? 1 : 0)}
+          {value !== null && <span className="text-xs text-text-muted">{unit}</span>}
         </span>
       </div>
-      {!noProgress && max && (
+      {!noProgress && max && value !== null && (
         <div className="h-1 bg-surface-overlay rounded-full overflow-hidden">
           <div
             className={cn(

@@ -13,7 +13,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.core import UserInfo, get_current_user
+from dotmac.platform.auth.core import UserInfo
+from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.exceptions import AuthorizationError
 from dotmac.platform.auth.rbac_service import RBACService
 from dotmac.platform.auth.token_with_rbac import get_current_user_with_rbac
@@ -68,6 +69,9 @@ class PermissionChecker:
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
             )
 
+        if self._permissions_satisfied_by_claims(current_user):
+            return current_user
+
         rbac_service = RBACService(db)
 
         if self.mode == PermissionMode.ALL:
@@ -87,6 +91,20 @@ class PermissionChecker:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=self.error_message)
 
         return current_user
+
+    def _permissions_satisfied_by_claims(self, current_user: UserInfo) -> bool:
+        """Allow short-circuit when token claims already include permissions."""
+        user_perms = set(current_user.permissions or [])
+        if not user_perms:
+            return False
+
+        if "*" in user_perms:
+            return True
+
+        if self.mode == PermissionMode.ALL:
+            return all(perm in user_perms for perm in self.permissions)
+
+        return any(perm in user_perms for perm in self.permissions)
 
 
 class RoleChecker:
@@ -115,6 +133,9 @@ class RoleChecker:
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
             )
 
+        if self._roles_satisfied_by_claims(current_user):
+            return current_user
+
         rbac_service = RBACService(db)
         user_roles = await rbac_service.get_user_roles(current_user.user_id)
         user_role_names = {role.name for role in user_roles}
@@ -132,6 +153,17 @@ class RoleChecker:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=self.error_message)
 
         return current_user
+
+    def _roles_satisfied_by_claims(self, current_user: UserInfo) -> bool:
+        """Allow short-circuit when token claims already include roles."""
+        user_roles = set(current_user.roles or [])
+        if not user_roles:
+            return False
+
+        if self.mode == PermissionMode.ALL:
+            return all(role in user_roles for role in self.roles)
+
+        return any(role in user_roles for role in self.roles)
 
 
 class PartnerPermissionChecker(PermissionChecker):
@@ -369,17 +401,6 @@ class ResourcePermissionChecker:
 
 
 # ==================== Specific Permission Checks ====================
-
-# Customer Management
-require_customer_read = require_permission("customer.read")
-require_customer_create = require_permission("customer.create")
-require_customer_update = require_permission("customer.update")
-require_customer_delete = require_permission("customer.delete")
-require_customer_export = require_permission("customer.export")
-require_customer_import = require_permission("customer.import")
-require_customer_impersonate = require_permission("customer.impersonate")
-require_customer_manage_status = require_permission("customer.manage_status")
-require_customer_reset_password = require_permission("customer.reset_password")
 
 # Ticket Management
 require_ticket_read = require_any_permission(

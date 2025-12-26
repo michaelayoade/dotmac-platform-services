@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from jinja2 import Template, TemplateSyntaxError
+from dotmac.platform.communications.template_service import TemplateService
 
 from . import AlertChannelPlugin, register_plugin
 
@@ -19,6 +19,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 else:  # pragma: no cover - runtime fallback for type checking only
     AlertType = Any
     AlertChannelType = Any
+
+_template_service = TemplateService()
 
 
 def _default_headers(channel: AlertChannelType) -> dict[str, str]:
@@ -195,19 +197,21 @@ class WebhookChannelPlugin(AlertChannelPlugin):
     ) -> bool:
         if channel.custom_payload_template:
             try:
-                template = Template(channel.custom_payload_template)
                 alert_data = alert.model_dump()
                 # Include computed properties in the template context
                 alert_data["alertname"] = alert.alertname
                 alert_data["severity"] = alert.severity
                 alert_data["description"] = alert.description
                 alert_data["tenant_id"] = alert.tenant_id
-                rendered = template.render(alert=alert_data, **alert_data)
+                rendered = _template_service.render_inline(
+                    channel.custom_payload_template,
+                    {"alert": alert_data, **alert_data},
+                )
                 try:
                     payload = json.loads(rendered)
                 except json.JSONDecodeError:
                     payload = {"message": rendered}
-            except TemplateSyntaxError as exc:
+            except ValueError as exc:
                 raise ValueError(f"Invalid custom payload template: {exc}") from exc
         else:
             payload = alert.model_dump()

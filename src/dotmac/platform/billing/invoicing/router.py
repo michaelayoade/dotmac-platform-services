@@ -219,16 +219,29 @@ async def list_invoices(
     enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
-    invoices, total_count = await invoice_service.list_invoices_with_count(
-        tenant_id=tenant_id,
-        customer_id=customer_id,
-        status=status,
-        payment_status=payment_status,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit + 1,  # Fetch one extra to check if there are more
-        offset=offset,
-    )
+    try:
+        invoices, total_count = await invoice_service.list_invoices_with_count(
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            status=status,
+            payment_status=payment_status,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit + 1,  # Fetch one extra to check if there are more
+            offset=offset,
+        )
+    except (AttributeError, TypeError):
+        invoices = await invoice_service.list_invoices(
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            status=status,
+            payment_status=payment_status,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit + 1,
+            offset=offset,
+        )
+        total_count = len(invoices)
 
     has_more = len(invoices) > limit
     if has_more:

@@ -30,7 +30,7 @@ import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 
 import { getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/billing";
 import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -40,51 +40,32 @@ export const metadata = {
   description: "Revenue, invoices, and payment management",
 };
 
-const fallbackBillingMetrics = {
-  mrr: 0,
-  mrrChange: 0,
-  arr: 0,
-  arrChange: 0,
-  outstanding: 0,
-  overdueCount: 0,
-  collectionRate: 0,
-  collectionRateChange: 0,
-  activeSubscriptions: 0,
-  subscriptionChange: 0,
-  churnedThisMonth: 0,
-  upgradesThisMonth: 0,
-};
-
-const fallbackRevenueBreakdown = {
-  byPlan: [],
-  byRegion: [],
-  mrr: 0,
-  arr: 0,
-  mrrGrowth: 0,
-  netRevenue: 0,
-  churn: 0,
-  expansion: 0,
-};
-
-const buildEmptyRevenueData = (months: number) => {
-  const now = new Date();
-  return Array.from({ length: months }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
-    return {
-      month: date.toLocaleString("en-US", { month: "short" }),
-      revenue: 0,
-    };
-  });
-};
+function EmptyChart({ height = 280, message = "No data available" }: { height?: number; message?: string }) {
+  return (
+    <div className="flex items-center justify-center text-sm text-text-muted" style={{ height }}>
+      {message}
+    </div>
+  );
+}
 
 export default async function BillingPage() {
-  const [metrics, recentInvoices] = await Promise.all([
-    safeApi(getBillingMetrics, fallbackBillingMetrics),
-    safeApi(() => getRecentInvoices(), [] as Invoice[]),
+  const [metrics, recentInvoicesResponse] = await Promise.all([
+    fetchOrNull(getBillingMetrics),
+    fetchOrNull(() => getRecentInvoices()),
   ]);
+  const recentInvoices = recentInvoicesResponse ?? [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-text-muted">
+        <Link href="/" className="hover:text-text-secondary">
+          Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-text-primary">Billing</span>
+      </nav>
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -112,32 +93,52 @@ export default async function BillingPage() {
         <KPIGrid>
           <KPITile
             title="Monthly Revenue"
-            value={`$${(metrics.mrr / 100).toLocaleString()}`}
-            change={metrics.mrrChange}
-            changeType={metrics.mrrChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? `$${(metrics.mrr / 100).toLocaleString()}` : "—"}
+            change={metrics?.mrrChange}
+            changeType={
+              metrics?.mrrChange !== undefined
+                ? metrics.mrrChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<DollarSign className="w-5 h-5" />}
             changeLabel="Monthly Recurring Revenue"
           />
           <KPITile
             title="Annual Revenue"
-            value={`$${(metrics.arr / 100).toLocaleString()}`}
-            change={metrics.arrChange}
-            changeType={metrics.arrChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? `$${(metrics.arr / 100).toLocaleString()}` : "—"}
+            change={metrics?.arrChange}
+            changeType={
+              metrics?.arrChange !== undefined
+                ? metrics.arrChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<TrendingUp className="w-5 h-5" />}
             changeLabel="Annual Recurring Revenue"
           />
           <KPITile
             title="Outstanding"
-            value={`$${(metrics.outstanding / 100).toLocaleString()}`}
+            value={metrics ? `$${(metrics.outstanding / 100).toLocaleString()}` : "—"}
             icon={<Clock className="w-5 h-5" />}
-            changeLabel={`${metrics.overdueCount} invoices overdue`}
-            className={metrics.overdueCount > 0 ? "border-status-warning/30" : ""}
+            changeLabel={
+              metrics ? `${metrics.overdueCount} invoices overdue` : undefined
+            }
+            className={metrics && metrics.overdueCount > 0 ? "border-status-warning/30" : ""}
           />
           <KPITile
             title="Collections"
-            value={`${metrics.collectionRate}%`}
-            change={metrics.collectionRateChange}
-            changeType={metrics.collectionRateChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? `${metrics.collectionRate}%` : "—"}
+            change={metrics?.collectionRateChange}
+            changeType={
+              metrics?.collectionRateChange !== undefined
+                ? metrics.collectionRateChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<Receipt className="w-5 h-5" />}
             changeLabel="30-day collection rate"
           />
@@ -203,33 +204,21 @@ export default async function BillingPage() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up delay-450">
         <SubscriptionCard
           title="Active Subscriptions"
-          count={metrics.activeSubscriptions}
-          change={metrics.subscriptionChange}
-          breakdown={[
-            { label: "Enterprise", count: 45, color: "bg-accent" },
-            { label: "Professional", count: 120, color: "bg-highlight" },
-            { label: "Starter", count: 89, color: "bg-status-info" },
-          ]}
+          count={metrics?.activeSubscriptions ?? null}
+          change={metrics?.subscriptionChange}
+          breakdown={[]}
         />
 
         <SubscriptionCard
           title="Churned This Month"
-          count={metrics.churnedThisMonth}
-          change={-2.1}
-          breakdown={[
-            { label: "Voluntary", count: 8, color: "bg-status-warning" },
-            { label: "Payment Failed", count: 3, color: "bg-status-error" },
-          ]}
+          count={metrics?.churnedThisMonth ?? null}
+          breakdown={[]}
         />
 
         <SubscriptionCard
           title="Upgrades This Month"
-          count={metrics.upgradesThisMonth}
-          change={15.3}
-          breakdown={[
-            { label: "Starter → Pro", count: 12, color: "bg-status-success" },
-            { label: "Pro → Enterprise", count: 5, color: "bg-accent" },
-          ]}
+          count={metrics?.upgradesThisMonth ?? null}
+          breakdown={[]}
         />
       </section>
     </div>
@@ -253,12 +242,12 @@ function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
     <table className="data-table">
       <thead>
         <tr>
-          <th>Invoice</th>
-          <th>Customer</th>
-          <th>Amount</th>
-          <th>Status</th>
-          <th>Due Date</th>
-          <th></th>
+          <th scope="col">Invoice</th>
+          <th scope="col">Tenant</th>
+          <th scope="col">Amount</th>
+          <th scope="col">Status</th>
+          <th scope="col">Due Date</th>
+          <th scope="col"><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody>
@@ -323,8 +312,8 @@ function SubscriptionCard({
   breakdown,
 }: {
   title: string;
-  count: number;
-  change: number;
+  count: number | null;
+  change?: number;
   breakdown: { label: string; count: number; color: string }[];
 }) {
   return (
@@ -333,36 +322,42 @@ function SubscriptionCard({
         <div>
           <p className="text-sm text-text-muted">{title}</p>
           <p className="text-3xl font-semibold text-text-primary mt-1 tabular-nums">
-            {count}
+            {count === null ? "—" : count}
           </p>
         </div>
-        <span
-          className={cn(
-            "metric-change",
-            change >= 0 ? "metric-change--positive" : "metric-change--negative"
-          )}
-        >
-          {change >= 0 ? (
-            <TrendingUp className="w-4 h-4" />
-          ) : (
-            <TrendingDown className="w-4 h-4" />
-          )}
-          {Math.abs(change)}%
-        </span>
+        {typeof change === "number" && (
+          <span
+            className={cn(
+              "metric-change",
+              change >= 0 ? "metric-change--positive" : "metric-change--negative"
+            )}
+          >
+            {change >= 0 ? (
+              <TrendingUp className="w-4 h-4" />
+            ) : (
+              <TrendingDown className="w-4 h-4" />
+            )}
+            {Math.abs(change)}%
+          </span>
+        )}
       </div>
 
       <div className="space-y-2">
-        {breakdown.map((item) => (
-          <div key={item.label} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={cn("w-2 h-2 rounded-full", item.color)} />
-              <span className="text-sm text-text-secondary">{item.label}</span>
+        {breakdown.length === 0 ? (
+          <p className="text-sm text-text-muted">No breakdown data available.</p>
+        ) : (
+          breakdown.map((item) => (
+            <div key={item.label} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={cn("w-2 h-2 rounded-full", item.color)} />
+                <span className="text-sm text-text-secondary">{item.label}</span>
+              </div>
+              <span className="text-sm font-medium text-text-primary tabular-nums">
+                {item.count}
+              </span>
             </div>
-            <span className="text-sm font-medium text-text-primary tabular-nums">
-              {item.count}
-            </span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
@@ -370,7 +365,10 @@ function SubscriptionCard({
 
 // Chart Components
 async function RevenueChart() {
-  const revenueData = await safeApi(() => getRevenueData("12m"), buildEmptyRevenueData(12));
+  const revenueData = await fetchOrNull(() => getRevenueData("12m"));
+  if (!revenueData || revenueData.length === 0) {
+    return <EmptyChart />;
+  }
   const data = revenueData.map((item) => ({
     month: item.month,
     revenue: item.revenue / 100, // Convert cents to dollars
@@ -382,14 +380,18 @@ async function RevenueChart() {
       dataKey="revenue"
       xAxisKey="month"
       height={280}
-      color="hsl(185, 85%, 50%)"
+      color="hsl(var(--color-accent))"
     />
   );
 }
 
 async function PaymentMethodChart() {
-  const breakdown = await safeApi(getRevenueBreakdown, fallbackRevenueBreakdown);
-  const data = breakdown.byPlan.map((item) => ({
+  const breakdown = await fetchOrNull(getRevenueBreakdown);
+  const byPlan = breakdown?.byPlan ?? [];
+  if (byPlan.length === 0) {
+    return <EmptyChart />;
+  }
+  const data = byPlan.map((item) => ({
     method: item.plan,
     amount: item.revenue / 100, // Convert cents to dollars
   }));
@@ -400,7 +402,7 @@ async function PaymentMethodChart() {
       dataKey="amount"
       xAxisKey="method"
       height={280}
-      color="hsl(45, 95%, 55%)"
+      color="hsl(var(--color-highlight))"
     />
   );
 }

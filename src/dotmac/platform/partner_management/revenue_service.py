@@ -31,6 +31,22 @@ from dotmac.platform.tenant import get_current_tenant_id
 logger = structlog.get_logger(__name__)
 
 
+def _normalize_datetime(value: datetime | str | int | float | None) -> datetime | None:
+    """Normalize sqlite/postgres datetime values for API responses."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, UTC)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
 class PartnerRevenueService:
     """Service for managing partner revenue, commissions, and payouts."""
 
@@ -240,24 +256,24 @@ class PartnerRevenueService:
                 id=event.id,
                 partner_id=event.partner_id,
                 invoice_id=event.invoice_id,
-                customer_id=event.customer_id,
+                tenant_id=event.customer_id,
                 commission_amount=event.commission_amount,
                 currency=event.currency,
                 base_amount=event.base_amount,
                 commission_rate=event.commission_rate,
                 status=event.status,
                 event_type=event.event_type,
-                event_date=event.event_date,
+                event_date=_normalize_datetime(event.event_date) or datetime.now(UTC),
                 payout_id=event.payout_id,
-                paid_at=event.paid_at,
+                paid_at=_normalize_datetime(event.paid_at),
                 notes=event.notes,
                 metadata_=(
                     event.metadata_
                     if hasattr(event, "metadata_") and isinstance(event.metadata_, dict)
                     else {}
                 ),
-                created_at=event.created_at,
-                updated_at=event.updated_at,
+                created_at=_normalize_datetime(event.created_at) or datetime.now(UTC),
+                updated_at=_normalize_datetime(event.updated_at) or datetime.now(UTC),
             )
             for event in events
         ]
@@ -368,7 +384,7 @@ class PartnerRevenueService:
 
         Args:
             partner_id: Partner UUID
-            customer_id: Customer UUID
+            customer_id: Tenant UUID
             invoice_amount: Invoice amount
 
         Returns:

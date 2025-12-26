@@ -97,20 +97,20 @@ export function ChartCard({
   return (
     <div
       className={cn(
-        "bg-white rounded-lg border border-gray-200 shadow-sm",
+        "bg-card rounded-lg border border-border shadow-sm",
         fullWidth && "lg:col-span-2",
         className
       )}
     >
       {/* Header */}
       {(title || displayActions) && (
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div>
             {title && (
-              <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+              <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
             )}
             {displaySubtitle && (
-              <p className="text-xs text-gray-500 mt-0.5">{displaySubtitle}</p>
+              <p className="text-xs text-text-muted mt-0.5">{displaySubtitle}</p>
             )}
           </div>
           {displayActions && <div className="flex items-center gap-2">{displayActions}</div>}
@@ -125,8 +125,8 @@ export function ChartCard({
         {loading ? (
           <div className="h-full flex items-center justify-center">
             <div className="animate-pulse flex flex-col items-center gap-2">
-              <div className="h-8 w-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-              <span className="text-sm text-gray-500">Loading chart...</span>
+              <div className="h-8 w-8 border-4 border-border border-t-accent rounded-full animate-spin" />
+              <span className="text-sm text-text-muted">Loading chart...</span>
             </div>
           </div>
         ) : (

@@ -23,12 +23,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.models import Permission, PermissionCategory, Role, user_roles
 from dotmac.platform.auth.rbac_router import router
 from dotmac.platform.auth.rbac_service import RBACService
+from dotmac.platform.user_management.models import User
 
 
 @pytest_asyncio.fixture
 async def admin_user_id(async_db_session: AsyncSession):
     """Create admin user in database with required permissions."""
     user_id = uuid4()
+    user = User(
+        id=user_id,
+        username="admin_user",
+        email="admin@example.com",
+        password_hash="hashed",
+        is_active=True,
+        tenant_id="test-tenant",
+    )
+    async_db_session.add(user)
 
     # Create required permissions first
     perms = [

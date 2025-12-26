@@ -44,7 +44,6 @@ class CacheNamespace(str, Enum):
 
     # Core entities
     USER = "user"
-    CUSTOMER = "customer"
     TENANT = "tenant"
 
     # Billing

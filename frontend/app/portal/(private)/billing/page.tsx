@@ -35,76 +35,6 @@ const invoiceStatusColors = {
   UNCOLLECTIBLE: "error",
 } as const;
 
-// Demo data
-const demoBilling = {
-  subscription: {
-    id: "sub1",
-    planName: "Professional",
-    planType: "PROFESSIONAL" as const,
-    status: "ACTIVE" as const,
-    currentPeriodStart: "2024-12-01T00:00:00Z",
-    currentPeriodEnd: "2025-01-01T00:00:00Z",
-    cancelAtPeriodEnd: false,
-    monthlyPrice: 99,
-    billingInterval: "monthly" as const,
-  },
-  invoices: [
-    {
-      id: "inv1",
-      number: "INV-2024-012",
-      status: "PAID" as const,
-      amountDue: 9900,
-      amountPaid: 9900,
-      currency: "USD",
-      periodStart: "2024-12-01T00:00:00Z",
-      periodEnd: "2025-01-01T00:00:00Z",
-      paidAt: "2024-12-01T10:30:00Z",
-      createdAt: "2024-12-01T00:00:00Z",
-    },
-    {
-      id: "inv2",
-      number: "INV-2024-011",
-      status: "PAID" as const,
-      amountDue: 9900,
-      amountPaid: 9900,
-      currency: "USD",
-      periodStart: "2024-11-01T00:00:00Z",
-      periodEnd: "2024-12-01T00:00:00Z",
-      paidAt: "2024-11-01T10:30:00Z",
-      createdAt: "2024-11-01T00:00:00Z",
-    },
-    {
-      id: "inv3",
-      number: "INV-2024-010",
-      status: "PAID" as const,
-      amountDue: 9900,
-      amountPaid: 9900,
-      currency: "USD",
-      periodStart: "2024-10-01T00:00:00Z",
-      periodEnd: "2024-11-01T00:00:00Z",
-      paidAt: "2024-10-01T10:30:00Z",
-      createdAt: "2024-10-01T00:00:00Z",
-    },
-  ],
-  paymentMethods: [
-    {
-      id: "pm1",
-      type: "card" as const,
-      isDefault: true,
-      card: {
-        brand: "Visa",
-        last4: "4242",
-        expMonth: 12,
-        expYear: 2026,
-      },
-      createdAt: "2024-01-15T00:00:00Z",
-    },
-  ],
-  upcomingInvoice: {
-    amountDue: 9900,
-    dueDate: "2025-01-01T00:00:00Z",
-  },
-};
 
 const planFeatures: Record<CurrentSubscription["planType"], string[]> = {
   PROFESSIONAL: [
@@ -150,8 +80,7 @@ function BillingSkeleton() {
 export default function BillingPage() {
   const { data: billingData, isLoading } = useTenantBilling();
   const downloadInvoice = useDownloadInvoice();
-
-  const billing = billingData || demoBilling;
+  const billing = billingData ?? null;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -189,6 +118,22 @@ export default function BillingPage() {
           description="Manage your subscription and payment methods"
         />
         <BillingSkeleton />
+      </div>
+    );
+  }
+
+  if (!billing) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Billing"
+          description="Manage your subscription and payment methods"
+        />
+        <EmptyState
+          icon={CreditCard}
+          title="No billing data available"
+          description="Connect a payment method to view subscription details and invoices."
+        />
       </div>
     );
   }
@@ -231,7 +176,7 @@ export default function BillingPage() {
             <button className="px-4 py-2 rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay transition-colors">
               Change Plan
             </button>
-            <button className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors">
+            <button className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
               Upgrade
             </button>
           </div>
@@ -261,7 +206,7 @@ export default function BillingPage() {
         <div className="bg-surface-elevated rounded-lg border border-border p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2 rounded-lg bg-status-warning/10 text-status-warning">
+              <div className="p-2 rounded-lg bg-status-warning/15 text-status-warning">
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
@@ -312,7 +257,7 @@ export default function BillingPage() {
                       {method.card?.brand} •••• {method.card?.last4}
                     </p>
                     {method.isDefault && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent/15 text-accent">
                         Default
                       </span>
                     )}
@@ -347,7 +292,7 @@ export default function BillingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table">
               <thead>
                 <tr className="border-b border-border bg-surface-overlay/50">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">

@@ -125,13 +125,13 @@ class TestPartnerAccounts:
 
     @pytest.mark.asyncio
     async def test_create_partner_account(self, service, mock_db_session):
-        """Test creating partner-customer account assignment."""
+        """Test creating partner-tenant account assignment."""
         partner_id = uuid4()
-        customer_id = uuid4()
+        tenant_id = uuid4()
 
         account_data = PartnerAccountCreate(
             partner_id=partner_id,
-            customer_id=customer_id,
+            tenant_id=tenant_id,
             engagement_type="referral",
             metadata={"source": "referral"},
         )
@@ -159,7 +159,7 @@ class TestPartnerAccounts:
     async def test_create_partner_account_no_partner(self, service, mock_db_session):
         """Test creating account when partner doesn't exist."""
         account_data = PartnerAccountCreate(
-            partner_id=uuid4(), customer_id=uuid4(), engagement_type="direct"
+            partner_id=uuid4(), tenant_id=uuid4(), engagement_type="direct"
         )
 
         # Mock partner not found
@@ -475,14 +475,14 @@ class TestReferralLeads:
 
         update_dict = {
             "status": ReferralStatus.CONTACTED,
-            "notes": "Called customer",
+            "notes": "Called tenant",
             "metadata": {"call_date": "2024-01-15"},
         }
 
         await service.update_referral(referral_id, update_dict)
 
         assert mock_referral.status == ReferralStatus.CONTACTED
-        assert mock_referral.notes == "Called customer"
+        assert mock_referral.notes == "Called tenant"
         assert mock_referral.metadata_ == {"call_date": "2024-01-15"}
 
     @pytest.mark.asyncio

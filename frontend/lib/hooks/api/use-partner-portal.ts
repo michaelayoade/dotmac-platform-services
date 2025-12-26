@@ -8,7 +8,7 @@ import {
   getReferralById,
   createReferral,
   updateReferral,
-  getPartnerCustomers,
+  getPartnerTenants,
   getPartnerCommissions,
   getPartnerStatements,
   getStatementById,
@@ -17,7 +17,7 @@ import {
   getPartnerProfile,
   updatePartnerProfile,
   type GetReferralsParams,
-  type GetCustomersParams,
+  type GetTenantsParams,
   type GetCommissionsParams,
   type GetStatementsParams,
 } from "@/lib/api/partner-portal";
@@ -85,11 +85,11 @@ export function useUpdateReferral() {
   });
 }
 
-// Customers
-export function usePartnerCustomers(params?: GetCustomersParams) {
+// Tenants
+export function usePartnerTenants(params?: GetTenantsParams) {
   return useQuery({
-    queryKey: queryKeys.partnerPortal.customers.list(params),
-    queryFn: () => getPartnerCustomers(params),
+    queryKey: queryKeys.partnerPortal.tenants.list(params),
+    queryFn: () => getPartnerTenants(params),
     placeholderData: (previousData) => previousData,
   });
 }
@@ -149,5 +149,63 @@ export function useUpdatePartnerProfile() {
     onSuccess: (updatedProfile) => {
       queryClient.setQueryData(queryKeys.partnerPortal.profile(), updatedProfile);
     },
+  });
+}
+
+// ============================================
+// Partner Billing (Multi-Tenant)
+// ============================================
+
+import {
+  getPartnerBillingSummary,
+  getPartnerInvoices,
+  exportPartnerInvoices,
+  getPartnerExportHistory,
+  downloadExport,
+  type GetPartnerInvoicesParams,
+  type GetExportHistoryParams,
+  type ExportPartnerInvoicesRequest,
+} from "@/lib/api/partner-portal";
+
+export function usePartnerBillingSummary() {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.summary(),
+    queryFn: getPartnerBillingSummary,
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+export function usePartnerInvoices(params?: GetPartnerInvoicesParams) {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.invoices.list(params),
+    queryFn: () => getPartnerInvoices(params),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
+export function useExportPartnerInvoices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: ExportPartnerInvoicesRequest) => exportPartnerInvoices(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.billing.exports.all(),
+      });
+    },
+  });
+}
+
+export function usePartnerExportHistory(params?: GetExportHistoryParams) {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.exports.list(params),
+    queryFn: () => getPartnerExportHistory(params),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
+export function useDownloadExport() {
+  return useMutation({
+    mutationFn: downloadExport,
   });
 }

@@ -22,7 +22,7 @@ export const buttonVariants = cva(
     "inline-flex items-center justify-center",
     "font-medium text-sm",
     "transition-colors duration-200",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:opacity-50",
     "whitespace-nowrap",
   ],
@@ -46,11 +46,40 @@ export const buttonVariants = cva(
         icon: "h-10 w-10 rounded-md",
         "icon-sm": "h-8 w-8 rounded-md",
         "icon-lg": "h-12 w-12 rounded-lg",
+        // Density-aware sizes (use CSS variables from theme)
+        "density-sm": "h-[var(--height-button,2rem)] px-3 text-xs rounded-md",
+        "density-md": "h-[var(--height-button,2.5rem)] px-4 text-sm rounded-md",
+        "density-lg": "h-[var(--height-button,2.75rem)] px-6 text-base rounded-md",
       },
       fullWidth: {
         true: "w-full",
       },
+      density: {
+        compact: "",
+        comfortable: "",
+        spacious: "",
+      },
     },
+    compoundVariants: [
+      // Compact density reduces sizes
+      { density: "compact", size: "xs", className: "h-6 px-1.5 text-xs" },
+      { density: "compact", size: "sm", className: "h-7 px-2 text-xs" },
+      { density: "compact", size: "md", className: "h-8 px-3 text-sm" },
+      { density: "compact", size: "lg", className: "h-9 px-4 text-sm" },
+      { density: "compact", size: "xl", className: "h-10 px-6 text-base" },
+      { density: "compact", size: "icon", className: "h-8 w-8" },
+      { density: "compact", size: "icon-sm", className: "h-6 w-6" },
+      { density: "compact", size: "icon-lg", className: "h-10 w-10" },
+      // Spacious density increases sizes
+      { density: "spacious", size: "xs", className: "h-8 px-3 text-xs" },
+      { density: "spacious", size: "sm", className: "h-9 px-4 text-sm" },
+      { density: "spacious", size: "md", className: "h-12 px-5 text-sm" },
+      { density: "spacious", size: "lg", className: "h-14 px-8 text-base" },
+      { density: "spacious", size: "xl", className: "h-16 px-10 text-lg" },
+      { density: "spacious", size: "icon", className: "h-12 w-12" },
+      { density: "spacious", size: "icon-sm", className: "h-10 w-10" },
+      { density: "spacious", size: "icon-lg", className: "h-14 w-14" },
+    ],
     defaultVariants: {
       variant: "default",
       size: "md",
@@ -81,6 +110,13 @@ export interface ButtonProps
    * Icon to show after children
    */
   rightIcon?: React.ReactNode;
+  /**
+   * Density mode for spacing adjustments
+   * - compact: Reduced padding and height
+   * - comfortable: Default spacing (default)
+   * - spacious: Increased padding and height
+   */
+  density?: "compact" | "comfortable" | "spacious";
 }
 
 // ============================================================================
@@ -94,6 +130,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       variant,
       size,
       fullWidth,
+      density,
       asChild = false,
       loading = false,
       leftIcon,
@@ -110,7 +147,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         ref={ref}
-        className={cn(buttonVariants({ variant, size, fullWidth }), className)}
+        className={cn(buttonVariants({ variant, size, fullWidth, density }), className)}
         disabled={isDisabled}
         aria-busy={loading}
         {...props}

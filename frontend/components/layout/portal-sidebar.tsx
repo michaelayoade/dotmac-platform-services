@@ -167,7 +167,7 @@ export function PortalSidebar({
                         <>
                           <span className="text-sm font-medium">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-auto inline-flex items-center justify-center px-2 h-5 text-2xs font-semibold rounded-full bg-accent/10 text-accent">
+                            <span className="ml-auto inline-flex items-center justify-center px-2 h-5 text-2xs font-semibold rounded-full bg-accent/15 text-accent">
                               {item.badge}
                             </span>
                           )}
@@ -175,7 +175,7 @@ export function PortalSidebar({
                       )}
 
                       {collapsed && item.badge && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-accent text-white">
+                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-accent text-text-inverse">
                           {item.badge}
                         </span>
                       )}
@@ -241,7 +241,7 @@ export function PortalSidebar({
           onClick={handleSignOut}
           className={cn(
             "w-full flex items-center gap-3 rounded-md px-3 py-2.5 mt-1",
-            "text-text-muted hover:text-status-error hover:bg-status-error/10",
+            "text-text-muted hover:text-status-error hover:bg-status-error/15",
             "transition-colors",
             collapsed && "justify-center px-2"
           )}

@@ -268,7 +268,7 @@ class QuotaDefinition(Base):
 
     Examples:
     - "Staff Users" quota (max 50 users)
-    - "Customers" quota (max 10,000 customers)
+    - "Tenants" quota (max 10,000 tenants)
     - "API Calls" quota (100,000 calls/month)
     - "Storage" quota (500 GB)
     """

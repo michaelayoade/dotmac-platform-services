@@ -135,7 +135,7 @@ async def test_payment_with_commit(
    - Query testing within same transaction
    ```python
    customer = await customer_factory()
-   result = await customer_repository.find_by_email(customer.email)
+   assert customer.email.endswith("@test.example.com")
    ```
 
 3. **Unit tests (with database)**

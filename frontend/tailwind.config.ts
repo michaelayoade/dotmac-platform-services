@@ -21,6 +21,7 @@ const config: Config = {
           overlay: "hsl(var(--color-surface-overlay))",
           subtle: "hsl(var(--color-surface-subtle))",
         },
+        overlay: "hsl(var(--color-overlay))",
         // Borders and dividers
         border: {
           DEFAULT: "hsl(var(--color-border))",
@@ -53,6 +54,11 @@ const config: Config = {
           DEFAULT: "hsl(var(--color-highlight))",
           subtle: "hsl(var(--color-highlight) / 0.15)",
         },
+        "portal-admin": "hsl(var(--color-portal-admin))",
+        "portal-tenant": "hsl(var(--color-portal-tenant))",
+        "portal-reseller": "hsl(var(--color-portal-reseller))",
+        "portal-technician": "hsl(var(--color-portal-technician))",
+        "portal-management": "hsl(var(--color-portal-management))",
       },
       // Typography - authoritative yet modern
       fontFamily: {

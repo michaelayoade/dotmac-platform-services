@@ -7,7 +7,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-# Customer is not needed - commission events just reference customer_id as UUID
 from dotmac.platform.partner_management.models import (
     CommissionModel,
     CommissionStatus,
@@ -146,12 +145,12 @@ class TestPartnerCommissionEvents:
         )
         db_session.add(partner)
 
-        # Create commission events (customer_id is just a UUID reference)
-        customer_id = uuid4()
+        # Create commission events
+        account_id = uuid4()
         commission1 = PartnerCommissionEvent(
             id=uuid4(),
             partner_id=partner.id,
-            customer_id=customer_id,
+            customer_id=account_id,
             base_amount=Decimal("500.00"),
             commission_rate=Decimal("0.10"),
             commission_amount=Decimal("50.00"),
@@ -163,7 +162,7 @@ class TestPartnerCommissionEvents:
         commission2 = PartnerCommissionEvent(
             id=uuid4(),
             partner_id=partner.id,
-            customer_id=customer_id,
+            customer_id=account_id,
             base_amount=Decimal("1000.00"),
             commission_rate=Decimal("0.10"),
             commission_amount=Decimal("100.00"),
@@ -358,11 +357,11 @@ class TestCommissionCalculation:
         db_session.add(partner)
 
         # Create partner account with custom commission rate
-        customer_id = uuid4()
+        tenant_id = uuid4()
         account = PartnerAccount(
             id=uuid4(),
             partner_id=partner.id,
-            customer_id=customer_id,
+            customer_id=tenant_id,
             engagement_type="reseller",
             custom_commission_rate=Decimal("0.20"),  # Custom rate
             start_date=datetime.utcnow(),
@@ -385,7 +384,7 @@ class TestCommissionCalculation:
         # Test with custom rate
         commission2 = await service.calculate_commission(
             partner_id=partner.id,
-            customer_id=customer_id,
+            customer_id=tenant_id,
             invoice_amount=Decimal("1000.00"),
         )
         assert commission2 == Decimal("200.00")  # 20% of 1000
@@ -509,11 +508,11 @@ class TestCommissionMetadataSerialization:
 
         # Create commission event with rich metadata
         invoice_id = uuid4()
-        customer_id = uuid4()
+        account_id = uuid4()
         test_metadata = {
             "invoice_id": str(invoice_id),
             "invoice_number": "INV-2024-001",
-            "customer_name": "Acme Corp",
+            "tenant_name": "Acme Corp",
             "payment_method": "credit_card",
             "transaction_id": "txn_abc123",
         }
@@ -521,7 +520,7 @@ class TestCommissionMetadataSerialization:
         commission = PartnerCommissionEvent(
             id=uuid4(),
             partner_id=partner.id,
-            customer_id=customer_id,
+            customer_id=account_id,
             invoice_id=invoice_id,
             base_amount=Decimal("1000.00"),
             commission_rate=Decimal("0.10"),
@@ -554,7 +553,7 @@ class TestCommissionMetadataSerialization:
 
         # Verify specific metadata fields
         assert event_response.metadata_["invoice_number"] == "INV-2024-001"
-        assert event_response.metadata_["customer_name"] == "Acme Corp"
+        assert event_response.metadata_["tenant_name"] == "Acme Corp"
         assert event_response.metadata_["payment_method"] == "credit_card"
 
     async def test_commission_metadata_empty_when_not_set(self, db_session, test_tenant_id):

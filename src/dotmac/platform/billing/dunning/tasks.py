@@ -281,14 +281,18 @@ async def _execute_action(
                 set_session_rls_context(session, tenant_id=None, bypass_rls=True)
             service = DunningService(session)
 
-            # Get execution details
-            if tenant_id:
+            # Get execution details (prefer service for tenant validation)
+            execution = None
+            try:
                 execution = await service.get_execution(
                     execution_id=execution_id,
-                    tenant_id=tenant_id,
+                    tenant_id=tenant_id or "",
                 )
-            else:
-                execution = await session.get(DunningExecution, execution_id)
+            except Exception:
+                if not tenant_id:
+                    execution = await session.get(DunningExecution, execution_id)
+                else:
+                    raise
 
             if not execution:
                 result["status"] = "failed"
@@ -318,14 +322,14 @@ async def _execute_action(
                 from .models import DunningActionLog
 
                 action_log = DunningActionLog(
+                    tenant_id=execution.tenant_id,
                     execution_id=execution_id,
                     action_type=action_type,
                     action_config=action_config,
                     step_number=step_number,
-                    attempted_at=executed_at,
-                    completed_at=datetime.now(UTC),
-                    success=result.get("status") == "success",
-                    response_data=result.get("details", {}),
+                    executed_at=executed_at,
+                    status="success" if result.get("status") == "success" else "failed",
+                    result=result.get("details", {}),
                     error_message=result.get("error"),
                     external_id=result.get("external_id"),
                 )
@@ -333,7 +337,8 @@ async def _execute_action(
 
                 # Update execution progress
                 execution.current_step = step_number + 1
-                execution.execution_log.append(
+                execution_log = list(execution.execution_log or [])
+                execution_log.append(
                     {
                         "step": step_number,
                         "action": action_type.value,
@@ -341,6 +346,7 @@ async def _execute_action(
                         "timestamp": executed_at.isoformat(),
                     }
                 )
+                execution.execution_log = execution_log
 
                 # Calculate next action time if there are more steps
                 campaign = await service.get_campaign(

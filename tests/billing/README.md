@@ -252,11 +252,11 @@ async def test_tenant_isolation(test_tenant_id):
 
 #### `test_customer_id` - Unique Customer ID
 ```python
-async def test_customer_operations(test_tenant_id, test_customer_id):
-    """Test customer operations."""
-    customer = await customer_service.get_customer(
+async def test_customer_operations(test_tenant_id, test_customer_id, invoice_service):
+    """Test billing operations scoped to a customer id."""
+    invoices = await invoice_service.list_invoices(
         tenant_id=test_tenant_id,
-        customer_id=test_customer_id
+        customer_id=test_customer_id,
     )
 ```
 
@@ -390,13 +390,17 @@ async def test_full_billing_flow(complete_billing_scenario):
     assert invoice.customer_id == customer_id
     assert payment.customer_id == customer_id
 
-    # Test business operations on complete scenario
-    summary = await billing_service.get_customer_billing_summary(
+    # Fetch entities using billing services
+    fetched_invoice = await invoice_service.get_invoice(
         tenant_id=tenant_id,
-        customer_id=customer_id
+        invoice_id=invoice.invoice_id,
     )
-    assert summary.total_invoices >= 1
-    assert summary.total_payments >= 1
+    fetched_payment = await payment_service.get_payment(
+        tenant_id=tenant_id,
+        payment_id=payment.payment_id,
+    )
+    assert fetched_invoice is not None
+    assert fetched_payment is not None
 ```
 
 ### Service Mock Fixtures

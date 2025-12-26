@@ -57,15 +57,15 @@ StyledButton.displayName = "StyledButton";
 // ============================================================================
 
 export interface PortalButtonProps extends ButtonProps {
-  portal?: "admin" | "customer" | "reseller" | "technician" | "management";
+  portal?: "admin" | "tenant" | "reseller" | "technician" | "management";
 }
 
 const portalButtonClasses = {
-  admin: "bg-blue-600 hover:bg-blue-700 text-white",
-  customer: "bg-green-600 hover:bg-green-700 text-white",
-  reseller: "bg-purple-600 hover:bg-purple-700 text-white",
-  technician: "bg-orange-600 hover:bg-orange-700 text-white",
-  management: "bg-gray-800 hover:bg-gray-900 text-white",
+  admin: "bg-portal-admin hover:bg-portal-admin/90 text-text-inverse",
+  tenant: "bg-portal-tenant hover:bg-portal-tenant/90 text-text-inverse",
+  reseller: "bg-portal-reseller hover:bg-portal-reseller/90 text-text-inverse",
+  technician: "bg-portal-technician hover:bg-portal-technician/90 text-text-inverse",
+  management: "bg-portal-management hover:bg-portal-management/90 text-text-inverse",
 };
 
 export const PortalButton = forwardRef<HTMLButtonElement, PortalButtonProps>(

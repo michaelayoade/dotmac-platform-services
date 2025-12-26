@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, normalizePaginatedResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { Tenant, TenantStatus, TenantSettings } from "@/types/models";
+import type { Tenant, TenantStatus, TenantSettings, TenantPlanType } from "@/types/models";
 import type { PaginatedResponse, ListQueryParams } from "@/types/api";
 
 // Types
@@ -16,9 +16,12 @@ export interface ListTenantsParams extends ListQueryParams {
 export interface CreateTenantData {
   name: string;
   slug: string;
-  planType?: string;
+  plan?: TenantPlanType;
+  planType?: string; // Deprecated - use plan
   billingCycle?: "month" | "year";
   domain?: string;
+  ownerEmail?: string;
+  ownerName?: string;
 }
 
 export interface UpdateTenantData {
@@ -36,6 +39,7 @@ export interface TenantStats {
   apiCallsLimit: number;
   deploymentsActive: number;
   deploymentsLimit: number;
+  mrr?: number; // Monthly recurring revenue in cents
 }
 
 type TenantsResponse = PaginatedResponse<Tenant>;

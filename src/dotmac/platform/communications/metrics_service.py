@@ -68,18 +68,6 @@ class CommunicationMetricsService:
         Returns:
             Created communication log entry.
         """
-        store_user_id = user_id
-        try:
-            # SQLite driver sometimes returns UUID columns as floats when round-tripping.
-            # Skip storing user_id on SQLite to keep logging resilient in tests.
-            if (
-                getattr(getattr(self.db, "bind", None), "dialect", None)
-                and getattr(self.db.bind.dialect, "name", "") == "sqlite"
-            ):
-                store_user_id = None
-        except Exception:
-            store_user_id = user_id
-
         log_entry = CommunicationLog(
             type=type,
             recipient=recipient,
@@ -89,7 +77,7 @@ class CommunicationMetricsService:
             html_body=html_body,
             template_id=template_id,
             template_name=template_name,
-            user_id=store_user_id,
+            user_id=user_id,
             job_id=job_id,
             tenant_id=tenant_id,
             metadata_=metadata or {},

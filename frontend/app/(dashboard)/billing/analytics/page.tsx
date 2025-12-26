@@ -23,7 +23,7 @@ import { Button } from "@/lib/dotmac/core";
 
 import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
 import { getBillingMetrics } from "@/lib/api/billing";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -39,42 +39,13 @@ interface PageProps {
   };
 }
 
-const fallbackMetrics = {
-  mrr: 0,
-  mrrChange: 0,
-  arr: 0,
-  arrChange: 0,
-  outstanding: 0,
-  overdueCount: 0,
-  collectionRate: 0,
-  collectionRateChange: 0,
-  activeSubscriptions: 0,
-  subscriptionChange: 0,
-  churnedThisMonth: 0,
-  upgradesThisMonth: 0,
-};
-
-const fallbackBreakdown = {
-  byPlan: [],
-  byRegion: [],
-  mrr: 0,
-  arr: 0,
-  mrrGrowth: 0,
-  netRevenue: 0,
-  churn: 0,
-  expansion: 0,
-};
-
-const buildEmptyRevenueData = (months: number) => {
-  const now = new Date();
-  return Array.from({ length: months }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
-    return {
-      month: date.toLocaleString("en-US", { month: "short" }),
-      revenue: 0,
-    };
-  });
-};
+function EmptyChart({ height = 260, message = "No data available" }: { height?: number; message?: string }) {
+  return (
+    <div className="flex items-center justify-center text-sm text-text-muted" style={{ height }}>
+      {message}
+    </div>
+  );
+}
 
 const periodOptions = [
   { value: "6m", label: "6 Months" },
@@ -88,33 +59,38 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
   const months = period === "6m" ? 6 : period === "12m" ? 12 : 12;
 
   const [metrics, breakdown, revenueData] = await Promise.all([
-    safeApi(getBillingMetrics, fallbackMetrics),
-    safeApi(getRevenueBreakdown, fallbackBreakdown),
-    safeApi(() => getRevenueData(period), buildEmptyRevenueData(months)),
+    fetchOrNull(getBillingMetrics),
+    fetchOrNull(getRevenueBreakdown),
+    fetchOrNull(() => getRevenueData(period)),
   ]);
 
   // Format data for charts
-  const revenueTrendData = revenueData.map((item) => ({
+  const revenueTrendData = (revenueData ?? []).map((item) => ({
     month: item.month,
     revenue: item.revenue / 100,
   }));
 
-  const planData = breakdown.byPlan.map((item) => ({
+  const planData = (breakdown?.byPlan ?? []).map((item) => ({
     plan: item.plan,
     revenue: item.revenue / 100,
     percentage: item.percentage,
   }));
 
-  const regionData = breakdown.byRegion.map((item) => ({
+  const regionData = (breakdown?.byRegion ?? []).map((item) => ({
     region: item.region,
     revenue: item.revenue / 100,
     percentage: item.percentage,
   }));
 
   // Calculate additional metrics
-  const netRevenueRetention = breakdown.netRevenue > 0
-    ? ((breakdown.netRevenue + breakdown.expansion - breakdown.churn) / breakdown.netRevenue * 100).toFixed(1)
-    : "100.0";
+  const netRevenueRetention =
+    breakdown && breakdown.netRevenue > 0
+      ? (
+          ((breakdown.netRevenue + breakdown.expansion - breakdown.churn) /
+            breakdown.netRevenue) *
+          100
+        ).toFixed(1)
+      : null;
 
   return (
     <div className="space-y-8">
@@ -146,35 +122,59 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
         <KPIGrid>
           <KPITile
             title="Monthly Recurring Revenue"
-            value={`$${(metrics.mrr / 100).toLocaleString()}`}
-            change={metrics.mrrChange}
-            changeType={metrics.mrrChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? `$${(metrics.mrr / 100).toLocaleString()}` : "—"}
+            change={metrics?.mrrChange}
+            changeType={
+              metrics?.mrrChange !== undefined
+                ? metrics.mrrChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<DollarSign className="w-5 h-5" />}
             description="Current MRR"
           />
           <KPITile
             title="Annual Recurring Revenue"
-            value={`$${(metrics.arr / 100).toLocaleString()}`}
-            change={metrics.arrChange}
-            changeType={metrics.arrChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? `$${(metrics.arr / 100).toLocaleString()}` : "—"}
+            change={metrics?.arrChange}
+            changeType={
+              metrics?.arrChange !== undefined
+                ? metrics.arrChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<TrendingUp className="w-5 h-5" />}
             description="Annualized revenue"
           />
           <KPITile
             title="Net Revenue Retention"
-            value={`${netRevenueRetention}%`}
-            change={breakdown.mrrGrowth}
-            changeType={breakdown.mrrGrowth >= 0 ? "increase" : "decrease"}
+            value={netRevenueRetention === null ? "—" : `${netRevenueRetention}%`}
+            change={breakdown?.mrrGrowth}
+            changeType={
+              breakdown?.mrrGrowth !== undefined
+                ? breakdown.mrrGrowth >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<RefreshCcw className="w-5 h-5" />}
             description="Including expansion"
           />
           <KPITile
             title="Active Subscriptions"
-            value={metrics.activeSubscriptions.toLocaleString()}
-            change={metrics.subscriptionChange}
-            changeType={metrics.subscriptionChange >= 0 ? "increase" : "decrease"}
+            value={metrics ? metrics.activeSubscriptions.toLocaleString() : "—"}
+            change={metrics?.subscriptionChange}
+            changeType={
+              metrics?.subscriptionChange !== undefined
+                ? metrics.subscriptionChange >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<Users className="w-5 h-5" />}
-            description="Paying customers"
+            description="Paying tenants"
           />
         </KPIGrid>
       </section>
@@ -186,13 +186,17 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
           description={`Revenue over the past ${period === "6m" ? "6 months" : period === "12m" ? "12 months" : period === "ytd" ? "year" : "all time"}`}
         >
           <Suspense fallback={<ChartSkeleton />}>
-            <LineChart
-              data={revenueTrendData}
-              dataKey="revenue"
-              xAxisKey="month"
-              height={320}
-              color="hsl(185, 85%, 50%)"
-            />
+            {revenueTrendData.length === 0 ? (
+              <EmptyChart height={320} />
+            ) : (
+              <LineChart
+                data={revenueTrendData}
+                dataKey="revenue"
+                xAxisKey="month"
+                height={320}
+                color="hsl(var(--color-accent))"
+              />
+            )}
           </Suspense>
         </ChartCard>
       </section>
@@ -205,13 +209,17 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             description="Distribution across subscription plans"
           >
             <Suspense fallback={<ChartSkeleton />}>
-              <BarChart
-                data={planData}
-                dataKey="revenue"
-                xAxisKey="plan"
-                height={280}
-                color="hsl(45, 95%, 55%)"
-              />
+              {planData.length === 0 ? (
+                <EmptyChart height={280} />
+              ) : (
+                <BarChart
+                  data={planData}
+                  dataKey="revenue"
+                  xAxisKey="plan"
+                  height={280}
+                  color="hsl(var(--color-highlight))"
+                />
+              )}
             </Suspense>
           </ChartCard>
 
@@ -220,13 +228,17 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             description="Geographic distribution"
           >
             <Suspense fallback={<ChartSkeleton />}>
-              <BarChart
-                data={regionData}
-                dataKey="revenue"
-                xAxisKey="region"
-                height={280}
-                color="hsl(185, 85%, 50%)"
-              />
+              {regionData.length === 0 ? (
+                <EmptyChart height={280} />
+              ) : (
+                <BarChart
+                  data={regionData}
+                  dataKey="revenue"
+                  xAxisKey="region"
+                  height={280}
+                  color="hsl(var(--color-accent))"
+                />
+              )}
             </Suspense>
           </ChartCard>
         </ChartGrid>
@@ -243,12 +255,12 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             <div>
               <p className="text-sm text-text-muted">Churned Revenue</p>
               <p className="text-2xl font-semibold text-text-primary tabular-nums">
-                ${(breakdown.churn / 100).toLocaleString()}
+                {breakdown ? `$${(breakdown.churn / 100).toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
           <p className="text-sm text-text-muted">
-            {metrics.churnedThisMonth} subscriptions churned this month
+            {metrics ? `${metrics.churnedThisMonth} subscriptions churned this month` : "No churn data available."}
           </p>
         </div>
 
@@ -260,12 +272,12 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             <div>
               <p className="text-sm text-text-muted">Expansion Revenue</p>
               <p className="text-2xl font-semibold text-text-primary tabular-nums">
-                ${(breakdown.expansion / 100).toLocaleString()}
+                {breakdown ? `$${(breakdown.expansion / 100).toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
           <p className="text-sm text-text-muted">
-            {metrics.upgradesThisMonth} upgrades this month
+            {metrics ? `${metrics.upgradesThisMonth} upgrades this month` : "No upgrade data available."}
           </p>
         </div>
 
@@ -277,12 +289,13 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             <div>
               <p className="text-sm text-text-muted">Collection Rate</p>
               <p className="text-2xl font-semibold text-text-primary tabular-nums">
-                {metrics.collectionRate}%
+                {metrics ? `${metrics.collectionRate}%` : "—"}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm">
-            {metrics.collectionRateChange >= 0 ? (
+            {metrics && metrics.collectionRateChange !== undefined ? (
+              metrics.collectionRateChange >= 0 ? (
               <>
                 <ArrowUpRight className="w-4 h-4 text-status-success" />
                 <span className="text-status-success">{metrics.collectionRateChange}%</span>
@@ -292,6 +305,9 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
                 <ArrowDownRight className="w-4 h-4 text-status-error" />
                 <span className="text-status-error">{Math.abs(metrics.collectionRateChange)}%</span>
               </>
+              )
+            ) : (
+              <span className="text-text-muted">No comparison data</span>
             )}
             <span className="text-text-muted">vs last month</span>
           </div>
@@ -320,7 +336,7 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
                 </tr>
               </thead>
               <tbody>
-                {breakdown.byPlan.length > 0 ? (
+                {breakdown && breakdown.byPlan.length > 0 ? (
                   breakdown.byPlan.map((plan, index) => (
                     <tr key={plan.plan}>
                       <td>
@@ -366,7 +382,7 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
         </div>
       </section>
 
-      {/* Top Customers would go here */}
+      {/* Top Tenants would go here */}
     </div>
   );
 }

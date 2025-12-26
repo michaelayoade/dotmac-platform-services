@@ -22,3 +22,4 @@ export {
   InlineError,
 } from "./error-boundary";
 export { StepIndicator, type Step } from "./step-indicator";
+export { APIErrorBanner } from "./api-error-banner";

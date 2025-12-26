@@ -159,7 +159,7 @@ export function PlanSelector({
               {/* Popular badge */}
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="px-3 py-1 text-2xs font-semibold uppercase tracking-wider bg-accent text-white rounded-full">
+                  <span className="px-3 py-1 text-2xs font-semibold uppercase tracking-wider bg-accent text-text-inverse rounded-full">
                     Most Popular
                   </span>
                 </div>
@@ -228,7 +228,7 @@ export function PlanSelector({
                 className={cn(
                   "mt-6 py-2 px-4 rounded-lg text-center text-sm font-medium transition-colors",
                   isSelected
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-text-inverse"
                     : "bg-surface-overlay text-text-secondary"
                 )}
               >

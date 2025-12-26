@@ -30,6 +30,13 @@ from dotmac.platform.billing.exceptions import (
     ProductError,
     ProductNotFoundError,
 )
+from tests.fixtures.async_db import AsyncSessionShim
+
+
+@pytest.fixture
+def async_db_session(db_session):
+    """Wrap sync session in an async-compatible shim for service tests."""
+    return AsyncSessionShim(db_session)
 
 
 @pytest.mark.integration
@@ -39,11 +46,11 @@ class TestProductServiceProductCreation:
     @pytest.mark.asyncio
     async def test_create_product_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test successful product creation."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product_data = ProductCreateRequest(
             sku="SKU-TEST-001",
@@ -71,11 +78,11 @@ class TestProductServiceProductCreation:
     @pytest.mark.asyncio
     async def test_create_product_with_usage_configuration(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test creating usage-based product with proper configuration."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product_data = ProductCreateRequest(
             sku="SKU-API-001",
@@ -97,11 +104,11 @@ class TestProductServiceProductCreation:
     @pytest.mark.asyncio
     async def test_create_product_duplicate_sku_fails(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product creation fails with duplicate SKU."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product_data = ProductCreateRequest(
             sku="SKU-DUPLICATE",
@@ -132,11 +139,11 @@ class TestProductServiceProductCreation:
     @pytest.mark.asyncio
     async def test_create_usage_product_without_usage_type_fails(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test creating usage-based product without usage_type fails."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product_data = ProductCreateRequest(
             sku="SKU-INVALID-USAGE",
@@ -155,11 +162,11 @@ class TestProductServiceProductCreation:
     @pytest.mark.asyncio
     async def test_create_usage_product_without_unit_name_fails(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test creating usage-based product without usage_unit_name fails."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product_data = ProductCreateRequest(
             sku="SKU-NO-UNIT",
@@ -184,11 +191,11 @@ class TestProductServiceProductRetrieval:
     @pytest.mark.asyncio
     async def test_get_product_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test successful product retrieval by ID."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -211,11 +218,11 @@ class TestProductServiceProductRetrieval:
     @pytest.mark.asyncio
     async def test_get_product_not_found(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product retrieval fails when product doesn't exist."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         with pytest.raises(ProductNotFoundError) as exc_info:
             await service.get_product("prod_nonexistent", tenant_id)
@@ -225,11 +232,11 @@ class TestProductServiceProductRetrieval:
     @pytest.mark.asyncio
     async def test_get_product_wrong_tenant(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product retrieval fails with wrong tenant ID."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product for tenant A
         product_data = ProductCreateRequest(
@@ -248,11 +255,11 @@ class TestProductServiceProductRetrieval:
     @pytest.mark.asyncio
     async def test_get_product_by_sku_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product retrieval by SKU."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -274,11 +281,11 @@ class TestProductServiceProductRetrieval:
     @pytest.mark.asyncio
     async def test_get_product_by_sku_not_found(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product retrieval by SKU returns None when not found."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         product = await service.get_product_by_sku("SKU-NOTEXIST", tenant_id)
 
@@ -292,11 +299,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_no_filters(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products without filters."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create multiple products
         products_data = [
@@ -325,11 +332,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_filter_by_category(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products filtered by category."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create products in different categories
         await service.create_product(
@@ -364,11 +371,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_filter_by_product_type(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products filtered by product type."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create products of different types
         await service.create_product(
@@ -403,11 +410,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_filter_by_usage_type(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products filtered by usage type."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create usage-based products
         await service.create_product(
@@ -446,11 +453,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_filter_by_active_status(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products filtered by active status."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create active product
         product_data = ProductCreateRequest(
@@ -482,11 +489,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_search_by_name(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing products with text search in name."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create products with specific names
         await service.create_product(
@@ -523,11 +530,11 @@ class TestProductServiceProductListing:
     @pytest.mark.asyncio
     async def test_list_products_pagination(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product listing with pagination."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create 5 products
         for i in range(1, 6):
@@ -563,11 +570,11 @@ class TestProductServiceProductUpdates:
     @pytest.mark.asyncio
     async def test_update_product_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test successful product update."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -599,11 +606,11 @@ class TestProductServiceProductUpdates:
     @pytest.mark.asyncio
     async def test_update_product_partial(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test partial product update."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -629,11 +636,11 @@ class TestProductServiceProductUpdates:
     @pytest.mark.asyncio
     async def test_update_product_not_found(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product update fails when product doesn't exist."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         updates = ProductUpdateRequest(name="Updated Name")
 
@@ -643,11 +650,11 @@ class TestProductServiceProductUpdates:
     @pytest.mark.asyncio
     async def test_update_price_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product price update."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -671,11 +678,11 @@ class TestProductServiceProductUpdates:
     @pytest.mark.asyncio
     async def test_deactivate_product_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test product deactivation (soft delete)."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create product
         product_data = ProductCreateRequest(
@@ -705,11 +712,11 @@ class TestProductServiceCategories:
     @pytest.mark.asyncio
     async def test_create_category_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test successful category creation."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         category_data = ProductCategoryCreateRequest(
             name="Software Tools",
@@ -730,11 +737,11 @@ class TestProductServiceCategories:
     @pytest.mark.asyncio
     async def test_create_category_duplicate_name_fails(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test category creation fails with duplicate name."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         category_data = ProductCategoryCreateRequest(
             name="Duplicate Category",
@@ -758,11 +765,11 @@ class TestProductServiceCategories:
     @pytest.mark.asyncio
     async def test_get_category_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test successful category retrieval."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create category
         category_data = ProductCategoryCreateRequest(
@@ -781,11 +788,11 @@ class TestProductServiceCategories:
     @pytest.mark.asyncio
     async def test_get_category_not_found(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test category retrieval fails when not found."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         with pytest.raises(CategoryNotFoundError):
             await service.get_category("cat_nonexistent", tenant_id)
@@ -793,11 +800,11 @@ class TestProductServiceCategories:
     @pytest.mark.asyncio
     async def test_list_categories_success(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test listing categories."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create multiple categories
         categories_data = [
@@ -833,11 +840,11 @@ class TestProductServiceUsageProducts:
     @pytest.mark.asyncio
     async def test_get_usage_products(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test retrieving usage-based products."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create various product types
         await service.create_product(
@@ -889,11 +896,11 @@ class TestProductServiceUsageProducts:
     @pytest.mark.asyncio
     async def test_get_products_by_category(
         self,
-        db_session: AsyncSession,
+        async_db_session: AsyncSession,
         tenant_id: str,
     ):
         """Test retrieving products by category."""
-        service = ProductService(db_session)
+        service = ProductService(async_db_session)
 
         # Create products in specific category
         await service.create_product(

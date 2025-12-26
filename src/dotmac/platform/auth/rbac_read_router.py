@@ -121,13 +121,16 @@ async def get_my_permissions(
                 resource = parts[1]
                 action = parts[2]
             elif len(parts) == 2:
-                resource = ""
-                action = parts[1]
+                resource = parts[1]
+                action = ""
         elif ":" in perm_name:
             # Support older "category:action" style
             parts = perm_name.split(":")
             category = parts[0] if len(parts) > 0 else ""
             action = parts[1] if len(parts) > 1 else ""
+        else:
+            # Single token permissions map to category only.
+            category = perm_name
 
         permissions.append(
             PermissionInfo(

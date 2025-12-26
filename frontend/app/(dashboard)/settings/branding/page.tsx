@@ -3,6 +3,8 @@
 import { useState, useEffect, type ChangeEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
   Palette,
@@ -20,6 +22,7 @@ import {
   useUpdateBranding,
   useUploadBrandingLogo,
 } from "@/lib/hooks/api/use-tenants";
+import { brandingFormSchema, type BrandingFormData } from "@/lib/schemas/branding";
 import type { TenantBranding } from "@/lib/api/tenants";
 
 export default function BrandingSettingsPage() {
@@ -29,36 +32,113 @@ export default function BrandingSettingsPage() {
   const updateBranding = useUpdateBranding();
   const uploadLogo = useUploadBrandingLogo();
 
-  const [formData, setFormData] = useState<Partial<TenantBranding>>({
-    productName: "",
-    tagline: "",
-    primaryColor: "#00d4ff",
-    secondaryColor: "#1a1a2e",
-    accentColor: "#ffd700",
-    supportEmail: "",
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<BrandingFormData>({
+    resolver: zodResolver(brandingFormSchema),
+    defaultValues: {
+      productName: "",
+      tagline: "",
+      primaryColor: "",
+      secondaryColor: "",
+      accentColor: "",
+      supportEmail: "",
+    },
   });
 
+  const formData = watch();
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
+  const [themeDefaults, setThemeDefaults] = useState({
+    primaryColor: "",
+    secondaryColor: "",
+    accentColor: "",
+  });
+
+  useEffect(() => {
+    const hslToHex = (h: number, s: number, l: number) => {
+      const hNorm = h / 360;
+      const sNorm = s / 100;
+      const lNorm = l / 100;
+      const hueToRgb = (p: number, q: number, t: number) => {
+        let value = t;
+        if (value < 0) value += 1;
+        if (value > 1) value -= 1;
+        if (value < 1 / 6) return p + (q - p) * 6 * value;
+        if (value < 1 / 2) return q;
+        if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
+        return p;
+      };
+
+      let r = lNorm;
+      let g = lNorm;
+      let b = lNorm;
+
+      if (sNorm !== 0) {
+        const q = lNorm < 0.5 ? lNorm * (1 + sNorm) : lNorm + sNorm - lNorm * sNorm;
+        const p = 2 * lNorm - q;
+        r = hueToRgb(p, q, hNorm + 1 / 3);
+        g = hueToRgb(p, q, hNorm);
+        b = hueToRgb(p, q, hNorm - 1 / 3);
+      }
+
+      const toHex = (value: number) => {
+        const hex = Math.round(value * 255).toString(16).padStart(2, "0");
+        return hex;
+      };
+
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    };
+
+    const cssVarToHex = (value: string) => {
+      const cleaned = value.split("/")[0]?.trim();
+      if (!cleaned) return "";
+      const parts = cleaned.split(/\s+/);
+      if (parts.length < 3) return "";
+      const h = Number(parts[0]);
+      const s = Number(parts[1].replace("%", ""));
+      const l = Number(parts[2].replace("%", ""));
+      if (Number.isNaN(h) || Number.isNaN(s) || Number.isNaN(l)) return "";
+      return hslToHex(h, s, l);
+    };
+
+    const computed = getComputedStyle(document.documentElement);
+    const primary = cssVarToHex(computed.getPropertyValue("--color-accent"));
+    const secondary = cssVarToHex(computed.getPropertyValue("--color-surface"));
+    const accent = cssVarToHex(computed.getPropertyValue("--color-highlight"));
+
+    setThemeDefaults({
+      primaryColor: primary,
+      secondaryColor: secondary,
+      accentColor: accent,
+    });
+  }, []);
+
+  const previewColors = {
+    primaryColor: formData.primaryColor || themeDefaults.primaryColor,
+    secondaryColor: formData.secondaryColor || themeDefaults.secondaryColor,
+    accentColor: formData.accentColor || themeDefaults.accentColor,
+  };
 
   useEffect(() => {
     if (branding) {
-      setFormData({
+      reset({
         productName: branding.productName || "",
         tagline: branding.tagline || "",
-        primaryColor: branding.primaryColor || "#00d4ff",
-        secondaryColor: branding.secondaryColor || "#1a1a2e",
-        accentColor: branding.accentColor || "#ffd700",
+        primaryColor: branding.primaryColor || "",
+        secondaryColor: branding.secondaryColor || "",
+        accentColor: branding.accentColor || "",
         supportEmail: branding.supportEmail || "",
       });
       if (branding.logoUrl) setLogoPreview(branding.logoUrl);
       if (branding.faviconUrl) setFaviconPreview(branding.faviconUrl);
     }
-  }, [branding]);
-
-  const handleInputChange = (field: keyof TenantBranding, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  }, [branding, reset]);
 
   const handleFileChange = async (
     e: ChangeEvent<HTMLInputElement>,
@@ -86,10 +166,7 @@ export default function BrandingSettingsPage() {
         type,
       });
 
-      setFormData((prev) => ({
-        ...prev,
-        [type === "logo" ? "logoUrl" : "faviconUrl"]: result.url,
-      }));
+      setValue(type === "logo" ? "logoUrl" : "faviconUrl", result.url);
 
       toast({
         title: "Image uploaded",
@@ -105,13 +182,13 @@ export default function BrandingSettingsPage() {
     }
   };
 
-  const handleSave = async () => {
+  const onSubmit = async (data: BrandingFormData) => {
     if (!tenant?.id) return;
 
     try {
       await updateBranding.mutateAsync({
         tenantId: tenant.id,
-        data: formData,
+        data,
       });
 
       toast({
@@ -130,12 +207,12 @@ export default function BrandingSettingsPage() {
 
   const handleReset = () => {
     if (branding) {
-      setFormData({
+      reset({
         productName: branding.productName || "",
         tagline: branding.tagline || "",
-        primaryColor: branding.primaryColor || "#00d4ff",
-        secondaryColor: branding.secondaryColor || "#1a1a2e",
-        accentColor: branding.accentColor || "#ffd700",
+        primaryColor: branding.primaryColor || "",
+        secondaryColor: branding.secondaryColor || "",
+        accentColor: branding.accentColor || "",
         supportEmail: branding.supportEmail || "",
       });
       if (branding.logoUrl) setLogoPreview(branding.logoUrl);
@@ -177,7 +254,7 @@ export default function BrandingSettingsPage() {
             Reset
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={handleSubmit(onSubmit)}
             disabled={updateBranding.isPending}
             className="shadow-glow-sm"
           >
@@ -241,8 +318,8 @@ export default function BrandingSettingsPage() {
                       </div>
                     )}
                   </div>
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                    <Upload className="w-6 h-6 text-white" />
+                  <label className="absolute inset-0 flex items-center justify-center bg-overlay/50 rounded-lg opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                    <Upload className="w-6 h-6 text-text-inverse" />
                     <input
                       type="file"
                       accept="image/*"
@@ -278,8 +355,8 @@ export default function BrandingSettingsPage() {
                       </div>
                     )}
                   </div>
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                    <Upload className="w-6 h-6 text-white" />
+                  <label className="absolute inset-0 flex items-center justify-center bg-overlay/50 rounded-lg opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                    <Upload className="w-6 h-6 text-text-inverse" />
                     <input
                       type="file"
                       accept="image/png"
@@ -316,21 +393,22 @@ export default function BrandingSettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={formData.primaryColor}
-                    onChange={(e) =>
-                      handleInputChange("primaryColor", e.target.value)
-                    }
+                    value={previewColors.primaryColor}
+                    onChange={(e) => setValue("primaryColor", e.target.value)}
                     className="w-10 h-10 rounded cursor-pointer border-0"
                   />
                   <input
                     type="text"
-                    value={formData.primaryColor}
-                    onChange={(e) =>
-                      handleInputChange("primaryColor", e.target.value)
-                    }
-                    className="flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    {...register("primaryColor")}
+                    className={cn(
+                      "flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent",
+                      errors.primaryColor && "border-status-error"
+                    )}
                   />
                 </div>
+                {errors.primaryColor && (
+                  <p className="text-xs text-status-error mt-1">{errors.primaryColor.message}</p>
+                )}
               </div>
 
               <div>
@@ -340,21 +418,22 @@ export default function BrandingSettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={formData.secondaryColor}
-                    onChange={(e) =>
-                      handleInputChange("secondaryColor", e.target.value)
-                    }
+                    value={previewColors.secondaryColor}
+                    onChange={(e) => setValue("secondaryColor", e.target.value)}
                     className="w-10 h-10 rounded cursor-pointer border-0"
                   />
                   <input
                     type="text"
-                    value={formData.secondaryColor}
-                    onChange={(e) =>
-                      handleInputChange("secondaryColor", e.target.value)
-                    }
-                    className="flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    {...register("secondaryColor")}
+                    className={cn(
+                      "flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent",
+                      errors.secondaryColor && "border-status-error"
+                    )}
                   />
                 </div>
+                {errors.secondaryColor && (
+                  <p className="text-xs text-status-error mt-1">{errors.secondaryColor.message}</p>
+                )}
               </div>
 
               <div>
@@ -364,21 +443,22 @@ export default function BrandingSettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={formData.accentColor}
-                    onChange={(e) =>
-                      handleInputChange("accentColor", e.target.value)
-                    }
+                    value={previewColors.accentColor}
+                    onChange={(e) => setValue("accentColor", e.target.value)}
                     className="w-10 h-10 rounded cursor-pointer border-0"
                   />
                   <input
                     type="text"
-                    value={formData.accentColor}
-                    onChange={(e) =>
-                      handleInputChange("accentColor", e.target.value)
-                    }
-                    className="flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    {...register("accentColor")}
+                    className={cn(
+                      "flex-1 px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent",
+                      errors.accentColor && "border-status-error"
+                    )}
                   />
                 </div>
+                {errors.accentColor && (
+                  <p className="text-xs text-status-error mt-1">{errors.accentColor.message}</p>
+                )}
               </div>
             </div>
           </div>
@@ -406,13 +486,16 @@ export default function BrandingSettingsPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.productName}
-                  onChange={(e) =>
-                    handleInputChange("productName", e.target.value)
-                  }
+                  {...register("productName")}
                   placeholder="Your Product Name"
-                  className="w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  className={cn(
+                    "w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent",
+                    errors.productName && "border-status-error"
+                  )}
                 />
+                {errors.productName && (
+                  <p className="text-xs text-status-error mt-1">{errors.productName.message}</p>
+                )}
               </div>
 
               <div>
@@ -421,11 +504,16 @@ export default function BrandingSettingsPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.tagline}
-                  onChange={(e) => handleInputChange("tagline", e.target.value)}
+                  {...register("tagline")}
                   placeholder="Your product tagline"
-                  className="w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  className={cn(
+                    "w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent",
+                    errors.tagline && "border-status-error"
+                  )}
                 />
+                {errors.tagline && (
+                  <p className="text-xs text-status-error mt-1">{errors.tagline.message}</p>
+                )}
               </div>
 
               <div>
@@ -434,13 +522,16 @@ export default function BrandingSettingsPage() {
                 </label>
                 <input
                   type="email"
-                  value={formData.supportEmail}
-                  onChange={(e) =>
-                    handleInputChange("supportEmail", e.target.value)
-                  }
+                  {...register("supportEmail")}
                   placeholder="support@yourcompany.com"
-                  className="w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  className={cn(
+                    "w-full px-3 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent",
+                    errors.supportEmail && "border-status-error"
+                  )}
                 />
+                {errors.supportEmail && (
+                  <p className="text-xs text-status-error mt-1">{errors.supportEmail.message}</p>
+                )}
               </div>
             </div>
           </div>
@@ -457,13 +548,12 @@ export default function BrandingSettingsPage() {
             <div
               className="rounded-lg overflow-hidden border border-border"
               style={{
-                backgroundColor: formData.secondaryColor,
+                backgroundColor: previewColors.secondaryColor,
               }}
             >
               {/* Header */}
               <div
-                className="p-3 flex items-center gap-2"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+                className="p-3 flex items-center gap-2 border-b border-border"
               >
                 {logoPreview ? (
                   <Image
@@ -477,10 +567,10 @@ export default function BrandingSettingsPage() {
                 ) : (
                   <div
                     className="w-6 h-6 rounded"
-                    style={{ backgroundColor: formData.primaryColor }}
+                    style={{ backgroundColor: previewColors.primaryColor }}
                   />
                 )}
-                <span className="text-white text-sm font-medium">
+                <span className="text-text-inverse text-sm font-medium">
                   {formData.productName || "Your Product"}
                 </span>
               </div>
@@ -490,28 +580,28 @@ export default function BrandingSettingsPage() {
                 <div
                   className="h-2 rounded"
                   style={{
-                    backgroundColor: formData.primaryColor,
+                    backgroundColor: previewColors.primaryColor,
                     width: "60%",
                   }}
                 />
                 <div
                   className="h-2 rounded opacity-50"
                   style={{
-                    backgroundColor: formData.primaryColor,
+                    backgroundColor: previewColors.primaryColor,
                     width: "80%",
                   }}
                 />
                 <div
                   className="h-2 rounded opacity-30"
                   style={{
-                    backgroundColor: formData.primaryColor,
+                    backgroundColor: previewColors.primaryColor,
                     width: "40%",
                   }}
                 />
 
                 <button
-                  className="mt-4 px-3 py-1.5 rounded text-xs font-medium text-white"
-                  style={{ backgroundColor: formData.accentColor }}
+                  className="mt-4 px-3 py-1.5 rounded text-xs font-medium text-text-inverse"
+                  style={{ backgroundColor: previewColors.accentColor }}
                 >
                   Action Button
                 </button>
@@ -521,18 +611,18 @@ export default function BrandingSettingsPage() {
             {/* Color Swatches */}
             <div className="mt-4 flex items-center gap-2">
               <div
-                className="w-8 h-8 rounded-full border-2 border-white/20"
-                style={{ backgroundColor: formData.primaryColor }}
+                className="w-8 h-8 rounded-full border-2 border-text-inverse/20"
+                style={{ backgroundColor: previewColors.primaryColor }}
                 title="Primary"
               />
               <div
-                className="w-8 h-8 rounded-full border-2 border-white/20"
-                style={{ backgroundColor: formData.secondaryColor }}
+                className="w-8 h-8 rounded-full border-2 border-text-inverse/20"
+                style={{ backgroundColor: previewColors.secondaryColor }}
                 title="Secondary"
               />
               <div
-                className="w-8 h-8 rounded-full border-2 border-white/20"
-                style={{ backgroundColor: formData.accentColor }}
+                className="w-8 h-8 rounded-full border-2 border-text-inverse/20"
+                style={{ backgroundColor: previewColors.accentColor }}
                 title="Accent"
               />
             </div>

@@ -452,8 +452,9 @@ def queue_email(
     return service.send_email_async(message)
 
 
-def queue_bulk_emails(name: str, messages: list[EmailMessage]) -> tuple[str, str]:
-    return queue_bulk_emails_with_meta(name, messages, metadata=None)
+def queue_bulk_emails(name: str, messages: list[EmailMessage]) -> str:
+    job_id, task_id = queue_bulk_emails_with_meta(name, messages, metadata=None)
+    return task_id
 
 
 def queue_bulk_emails_with_meta(

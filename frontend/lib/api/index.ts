@@ -12,7 +12,6 @@ export * from "./query-keys";
 export * from "./users";
 export * from "./tenants";
 export * from "./billing";
-export * from "./customers";
 export * from "./deployments";
 export {
   getDashboardMetrics,

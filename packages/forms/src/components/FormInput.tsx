@@ -50,10 +50,10 @@ export const ControlledInput = forwardRef<HTMLInputElement, ControlledInputProps
               aria-describedby={error ? `${name}-error` : description ? `${name}-desc` : undefined}
               className={cn(
                 "w-full h-10 px-3 rounded-md border text-sm",
-                "bg-white text-gray-900 placeholder:text-gray-400",
-                "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
-                error ? "border-red-500" : "border-gray-300",
+                "bg-background text-foreground placeholder:text-muted-foreground",
+                "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+                "disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed",
+                error ? "border-destructive" : "border-input",
                 className
               )}
             />
@@ -98,10 +98,10 @@ export const UncontrolledInput = forwardRef<HTMLInputElement, UncontrolledInputP
           aria-invalid={!!error}
           className={cn(
             "w-full h-10 px-3 rounded-md border text-sm",
-            "bg-white text-gray-900 placeholder:text-gray-400",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-            "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
-            error ? "border-red-500" : "border-gray-300",
+            "bg-background text-foreground placeholder:text-muted-foreground",
+            "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+            "disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed",
+            error ? "border-destructive" : "border-input",
             className
           )}
         />
@@ -131,11 +131,11 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
 
     const textareaClasses = cn(
       "w-full min-h-[80px] px-3 py-2 rounded-md border text-sm",
-      "bg-white text-gray-900 placeholder:text-gray-400",
-      "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-      "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
+      "bg-background text-foreground placeholder:text-muted-foreground",
+      "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+      "disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed",
       "resize-y",
-      error ? "border-red-500" : "border-gray-300",
+      error ? "border-destructive" : "border-input",
       className
     );
 
@@ -219,10 +219,10 @@ export const FormSelect = forwardRef<HTMLSelectElement, FormSelectProps>(
           aria-invalid={!!error}
           className={cn(
             "w-full h-10 px-3 rounded-md border text-sm",
-            "bg-white text-gray-900",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-            "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
-            error ? "border-red-500" : "border-gray-300",
+            "bg-background text-foreground",
+            "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+            "disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed",
+            error ? "border-destructive" : "border-input",
             className
           )}
         >
@@ -269,21 +269,21 @@ export const FormCheckbox = forwardRef<HTMLInputElement, FormCheckboxProps>(
           type="checkbox"
           aria-invalid={!!error}
           className={cn(
-            "h-4 w-4 rounded border-gray-300 text-blue-600",
-            "focus:ring-2 focus:ring-blue-500",
+            "h-4 w-4 rounded border-input text-primary",
+            "focus:ring-2 focus:ring-ring",
             "disabled:opacity-50",
-            error && "border-red-500"
+            error && "border-destructive"
           )}
         />
         <div className="flex flex-col">
-          <label htmlFor={name} className="text-sm font-medium text-gray-700">
+          <label htmlFor={name} className="text-sm font-medium text-foreground">
             {label}
           </label>
           {description && (
-            <p className="text-sm text-gray-500">{description}</p>
+            <p className="text-sm text-muted-foreground">{description}</p>
           )}
           {error && (
-            <p className="text-sm text-red-600">{error.message as string}</p>
+            <p className="text-sm text-destructive">{error.message as string}</p>
           )}
         </div>
       </div>

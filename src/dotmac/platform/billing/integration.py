@@ -6,6 +6,7 @@ Handles automated billing workflows and subscription lifecycle integration.
 """
 
 import logging
+from inspect import isawaitable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -52,7 +53,8 @@ class BillingInvoiceRequest(BaseModel):
 
     model_config = ConfigDict()
 
-    tenant_id: str = Field(description="Tenant identifier")
+    customer_id: str = Field(description="Customer identifier")
+    tenant_id: str | None = Field(default=None, description="Tenant identifier")
     subscription_id: str | None = Field(None, description="Related subscription")
     billing_period_start: datetime = Field(description="Billing period start")
     billing_period_end: datetime = Field(description="Billing period end")
@@ -185,6 +187,7 @@ class BillingIntegrationService:
 
             # Create invoice request
             invoice_request = BillingInvoiceRequest(
+                customer_id=str(subscription.customer_id or tenant_id),
                 tenant_id=tenant_id,
                 subscription_id=subscription_id,
                 billing_period_start=subscription.current_period_start,
@@ -300,8 +303,10 @@ class BillingIntegrationService:
         stmt = select(Tenant).where(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).limit(1)
         result = await self.db.execute(stmt)
         tenant = result.scalar_one_or_none()
+        if isawaitable(tenant) or callable(getattr(tenant, "__await__", None)):
+            tenant = await tenant
 
-        if tenant is None:
+        if tenant is None or not hasattr(tenant, "billing_email"):
             logger.warning(
                 "Tenant not found when resolving billing details",
                 extra={"tenant_id": tenant_id},
@@ -322,6 +327,18 @@ class BillingIntegrationService:
         filtered_address = {key: value for key, value in billing_address.items() if value}
 
         return billing_email, filtered_address
+
+    async def _resolve_customer_billing_details(
+        self,
+        customer_id: str,
+        tenant_id: str,
+    ) -> tuple[str, dict[str, str]]:
+        """Resolve billing details for a customer, falling back to tenant defaults."""
+        if not customer_id or customer_id == tenant_id:
+            return await self._resolve_tenant_billing_details(tenant_id)
+
+        # Customer records are tenant-scoped; reuse tenant billing details for now.
+        return await self._resolve_tenant_billing_details(tenant_id)
 
     async def _create_invoice(
         self, invoice_request: BillingInvoiceRequest, tenant_id: str
@@ -344,13 +361,16 @@ class BillingIntegrationService:
                     }
                 )
 
-            billing_email, billing_address = await self._resolve_tenant_billing_details(tenant_id)
+            billing_email, billing_address = await self._resolve_customer_billing_details(
+                customer_id=invoice_request.customer_id,
+                tenant_id=tenant_id,
+            )
             resolved_currency = (invoice_request.currency or "USD").upper()
 
             # Create invoice using the actual invoice service
             invoice = await self.invoice_service.create_invoice(
                 tenant_id=tenant_id,
-                customer_id=invoice_request.tenant_id,
+                customer_id=invoice_request.customer_id,
                 billing_email=billing_email,
                 billing_address=billing_address,
                 line_items=line_items,
@@ -364,7 +384,7 @@ class BillingIntegrationService:
                 logger.error(
                     "Invoice created without identifier",
                     extra={
-                        "tenant_id": invoice_request.tenant_id,
+                        "customer_id": invoice_request.customer_id,
                         "subscription_id": invoice_request.subscription_id,
                         "tenant_id": tenant_id,
                     },
@@ -375,7 +395,7 @@ class BillingIntegrationService:
                 "Created invoice from billing system",
                 extra={
                     "invoice_id": invoice_id_value,
-                    "tenant_id": invoice_request.tenant_id,
+                    "customer_id": invoice_request.customer_id,
                     "subscription_id": invoice_request.subscription_id,
                     "amount": str(invoice_request.total_amount),
                     "items_count": len(invoice_request.items),
@@ -403,7 +423,7 @@ class BillingIntegrationService:
             logger.error(
                 "Failed to create invoice from billing system",
                 extra={
-                    "tenant_id": invoice_request.tenant_id,
+                    "customer_id": invoice_request.customer_id,
                     "subscription_id": invoice_request.subscription_id,
                     "error": str(e),
                     "tenant_id": tenant_id,
@@ -674,6 +694,7 @@ class BillingIntegrationService:
 
             # Create invoice
             invoice_request = BillingInvoiceRequest(
+                customer_id=str(tenant_id),
                 tenant_id=tenant_id,
                 subscription_id=None,
                 billing_period_start=billing_period_start,

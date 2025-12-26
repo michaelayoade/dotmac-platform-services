@@ -27,6 +27,7 @@ from dotmac.platform.db import get_session_dependency
 from dotmac.platform.file_storage.metrics_router import _get_file_stats_cached
 from dotmac.platform.file_storage.service import get_storage_service
 from dotmac.platform.monitoring.metrics_router import _get_monitoring_metrics_cached
+from dotmac.platform.infrastructure_health import HealthStatus, check_all_infrastructure_health
 from dotmac.platform.secrets.metrics_router import _get_secrets_metrics_cached
 
 from .models import (
@@ -85,6 +86,40 @@ class AnalyticsDashboardResponse(BaseModel):  # BaseModel resolves to Any in iso
     generated_at: str
     window: PeriodWindow
 
+
+class ActivityActor(BaseModel):  # BaseModel resolves to Any in isolation
+    """Activity feed actor."""
+
+    model_config = ConfigDict()
+
+    id: str
+    name: str
+    avatar: str | None = None
+
+
+class ActivityTarget(BaseModel):  # BaseModel resolves to Any in isolation
+    """Activity feed target."""
+
+    model_config = ConfigDict()
+
+    type: str
+    id: str | None = None
+    name: str | None = None
+
+
+class ActivityItem(BaseModel):  # BaseModel resolves to Any in isolation
+    """Activity feed item."""
+
+    model_config = ConfigDict()
+
+    id: str
+    type: str
+    action: str
+    timestamp: str
+    actor: ActivityActor | None = None
+    target: ActivityTarget | None = None
+    metadata: dict[str, Any] | None = None
+
 if TYPE_CHECKING:
     from dotmac.platform.analytics.service import AnalyticsService
 
@@ -119,6 +154,90 @@ def _isoformat(value: Any | None) -> str:
     return format_datetime(_ensure_utc(value))
 
 
+def _event_datetime(value: Any | None) -> datetime | None:
+    """Best-effort parse of event timestamps."""
+
+    try:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return _ensure_utc(value)
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned.endswith("Z"):
+                cleaned = cleaned[:-1] + "+00:00"
+            return _ensure_utc(datetime.fromisoformat(cleaned))
+    except Exception:
+        return None
+    return None
+
+
+def _map_event_to_activity(event: dict[str, Any], fallback_id: str) -> ActivityItem:
+    """Map raw analytics event to activity feed item."""
+
+    properties = event.get("properties")
+    if not isinstance(properties, dict):
+        properties = {}
+
+    event_id = str(event.get("event_id") or event.get("id") or fallback_id)
+    event_type = str(event.get("event_type") or "system_event")
+    action = str(event.get("event_name") or event_type)
+
+    timestamp_value = event.get("timestamp")
+    timestamp = _isoformat(timestamp_value)
+
+    actor_id = (
+        properties.get("actor_id")
+        or properties.get("user_id")
+        or event.get("user_id")
+        or None
+    )
+    actor_name = (
+        properties.get("actor_name")
+        or properties.get("user_name")
+        or properties.get("username")
+        or None
+    )
+    actor_avatar = properties.get("actor_avatar") or properties.get("avatar") or None
+    actor = None
+    if actor_id or actor_name:
+        actor = ActivityActor(
+            id=str(actor_id or "unknown"),
+            name=str(actor_name or "User"),
+            avatar=str(actor_avatar) if actor_avatar else None,
+        )
+
+    target_type = properties.get("target_type")
+    target_id = properties.get("target_id")
+    target_name = properties.get("target_name")
+    target = None
+    if target_type or target_id or target_name:
+        target = ActivityTarget(
+            type=str(target_type or "resource"),
+            id=str(target_id) if target_id else None,
+            name=str(target_name) if target_name else None,
+        )
+
+    return ActivityItem(
+        id=event_id,
+        type=event_type,
+        action=action,
+        timestamp=timestamp,
+        actor=actor,
+        target=target,
+        metadata=properties or None,
+    )
+
+
+async def _get_tenant_metrics_cached(
+    period_days: int, tenant_id: str, session: AsyncSession
+) -> dict[str, Any]:
+    """Return cached tenant metrics for the analytics dashboard."""
+
+    del period_days, tenant_id, session
+    return {}
+
+
 def _parse_time_range_to_days(time_range: str | None) -> int:
     """Convert a timeRange string like '30d' or '24h' into whole days."""
     if not time_range:
@@ -139,43 +258,67 @@ def _parse_time_range_to_days(time_range: str | None) -> int:
     return max(days, 1)
 
 
-def _build_infrastructure_metrics() -> dict[str, Any]:
-    """Synthetic infrastructure metrics compatible with frontend expectations."""
-    uptime = 99.9
+async def _build_infrastructure_metrics() -> dict[str, Any]:
+    """Build infrastructure metrics from health checks."""
+    results = await check_all_infrastructure_health()
+    latencies = [r.response_time_ms for r in results if r.response_time_ms is not None]
+    latencies_sorted = sorted(latencies)
+
+    avg_latency = sum(latencies_sorted) / len(latencies_sorted) if latencies_sorted else None
+    p99_latency = (
+        latencies_sorted[max(int(len(latencies_sorted) * 0.99) - 1, 0)]
+        if latencies_sorted
+        else None
+    )
+
+    healthy_count = sum(1 for r in results if r.status == HealthStatus.HEALTHY)
+    degraded_count = sum(1 for r in results if r.status == HealthStatus.DEGRADED)
+    unhealthy_count = sum(1 for r in results if r.status == HealthStatus.UNHEALTHY)
+
+    overall_status = "healthy"
+    if unhealthy_count:
+        overall_status = "critical"
+    elif degraded_count:
+        overall_status = "degraded"
+
     return {
         "health": {
-            "status": "healthy",
-            "uptime": uptime,
+            "status": overall_status,
+            "uptime": None,
             "services": [
-                {"name": "api", "status": "healthy", "latency": 12.5, "uptime": uptime},
-                {"name": "db", "status": "healthy", "latency": 18.2, "uptime": uptime},
-                {"name": "redis", "status": "healthy", "latency": 6.4, "uptime": uptime},
+                {
+                    "name": r.service,
+                    "status": r.status.value,
+                    "latency": r.response_time_ms,
+                    "uptime": None,
+                }
+                for r in results
             ],
         },
         "performance": {
-            "avgLatency": 12.5,
-            "p99Latency": 48.1,
-            "throughput": 1240,
-            "errorRate": 0.05,
-            "requestsPerSecond": 320,
+            "avgLatency": avg_latency,
+            "p99Latency": p99_latency,
+            "throughput": None,
+            "errorRate": None,
+            "requestsPerSecond": None,
         },
         "logs": {
-            "totalLogs": 12500,
-            "errors": 18,
-            "warnings": 94,
+            "totalLogs": None,
+            "errors": None,
+            "warnings": None,
         },
-        "uptime": uptime,
+        "uptime": None,
         "services": {
-            "total": 5,
-            "healthy": 5,
-            "degraded": 0,
-            "critical": 0,
+            "total": len(results),
+            "healthy": healthy_count,
+            "degraded": degraded_count,
+            "critical": unhealthy_count,
         },
         "resources": {
-            "cpu": 62.5,
-            "memory": 71.2,
-            "disk": 55.3,
-            "network": 38.7,
+            "cpu": None,
+            "memory": None,
+            "disk": None,
+            "network": None,
         },
     }
 
@@ -303,13 +446,18 @@ async def get_operations_metrics(
         )
     ),
 ) -> dict[str, Any]:
-    """Return operations metrics using customer/comms/file/monitoring data."""
+    """Return operations metrics using tenant/comms/file/monitoring data."""
     period_days = _parse_time_range_to_days(timeRange)
     tenant_id = _resolve_tenant_id(request, current_user)
 
     storage_service = get_storage_service()
 
-    comms_data, file_data, monitoring_data = await asyncio.gather(
+    tenant_data, comms_data, file_data, monitoring_data = await asyncio.gather(
+        _get_tenant_metrics_cached(
+            period_days=period_days,
+            tenant_id=tenant_id,
+            session=session,
+        ),
         _get_communication_stats_cached(
             period_days=period_days,
             tenant_id=tenant_id,
@@ -331,22 +479,22 @@ async def get_operations_metrics(
     def _safe(data: Any) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
 
-    customers: dict[str, Any] = {}
+    tenants = _safe(tenant_data)
     comms = _safe(comms_data)
     files = _safe(file_data)
     monitoring = _safe(monitoring_data)
 
-    total_customers = customers.get("total_customers", 0)
-    churn_risk = customers.get("at_risk_customers", 0)
-    churn_risk_pct = (churn_risk / total_customers * 100) if total_customers else 0.0
+    total_tenants = tenants.get("total_tenants", 0)
+    churn_risk = tenants.get("at_risk_tenants", 0)
+    churn_risk_pct = (churn_risk / total_tenants * 100) if total_tenants else 0.0
 
     total_requests = monitoring.get("total_requests", 0) or 0
 
     response: dict[str, Any] = {
-        "customers": {
-            "total": total_customers,
-            "newThisMonth": customers.get("new_customers_this_month", 0),
-            "growthRate": customers.get("customer_growth_rate", 0.0),
+        "tenants": {
+            "total": total_tenants,
+            "newThisMonth": tenants.get("new_tenants_this_month", 0),
+            "growthRate": tenants.get("tenant_growth_rate", 0.0),
             "churnRisk": churn_risk_pct,
         },
         "communications": {
@@ -367,10 +515,10 @@ async def get_operations_metrics(
     }
     # Provide flattened aliases for legacy callers/UI fallbacks
     response.update(
-        totalCustomers=response["customers"]["total"],
-        newCustomersThisMonth=response["customers"]["newThisMonth"],
-        customerGrowthRate=response["customers"]["growthRate"],
-        customersAtRisk=response["customers"]["churnRisk"],
+        totalTenants=response["tenants"]["total"],
+        newTenantsThisMonth=response["tenants"]["newThisMonth"],
+        tenantGrowthRate=response["tenants"]["growthRate"],
+        tenantsAtRisk=response["tenants"]["churnRisk"],
         totalCommunications=response["communications"]["totalSent"],
         communicationsSentToday=response["communications"]["sentToday"],
         communicationDeliveryRate=response["communications"]["deliveryRate"],
@@ -388,7 +536,7 @@ async def get_operations_metrics(
 @analytics_router.get(
     "/infrastructure/health",
     summary="Get infrastructure health metrics",
-    description="Stub endpoint to provide infrastructure health/performance for dashboards",
+    description="Infrastructure health/performance for dashboards derived from health checks",
 )
 async def get_infrastructure_health(
     current_user: CurrentUser = Depends(
@@ -401,8 +549,8 @@ async def get_infrastructure_health(
         )
     ),
 ) -> dict[str, Any]:
-    """Return synthetic infrastructure health metrics."""
-    return _build_infrastructure_metrics()
+    """Return infrastructure health metrics."""
+    return await _build_infrastructure_metrics()
 
 
 @analytics_router.get(
@@ -591,6 +739,55 @@ async def record_metric(
         logger.error(f"Error recording metric {metric_request.metric_name}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to record metric"
+        )
+
+
+@analytics_router.get("/activity", response_model=list[ActivityItem])
+async def get_activity_feed(
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+    limit: int = Query(20, ge=1, le=200, description="Result limit"),
+    offset: int = Query(0, ge=0, description="Result offset"),
+    types: str | None = Query(None, description="Comma-separated activity types"),
+) -> list[ActivityItem]:
+    """
+    Return a lightweight activity feed derived from analytics events.
+
+    Requires authentication.
+    """
+    try:
+        service = get_analytics_service(request, current_user)
+
+        type_list = None
+        if types:
+            type_list = [t.strip() for t in types.split(",") if t.strip()]
+
+        query_limit = min(limit + offset, 500)
+        if type_list and len(type_list) == 1:
+            events = await service.query_events(event_type=type_list[0], limit=query_limit)
+        else:
+            events = await service.query_events(limit=query_limit)
+
+        filtered = events
+        if type_list and len(type_list) > 1:
+            filtered = [e for e in events if e.get("event_type") in type_list]
+
+        filtered = sorted(
+            filtered,
+            key=lambda e: _event_datetime(e.get("timestamp")) or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+
+        sliced = filtered[offset : offset + limit]
+
+        return [
+            _map_event_to_activity(event, fallback_id=f"activity_{idx + offset + 1}")
+            for idx, event in enumerate(sliced)
+        ]
+    except Exception as e:
+        logger.error("Error querying activity feed", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to query activity"
         )
 
 

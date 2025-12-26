@@ -59,7 +59,7 @@ export const fontWeight = {
 
 export type PortalTypographyVariant =
   | "admin"
-  | "customer"
+  | "tenant"
   | "reseller"
   | "technician"
   | "management";
@@ -76,7 +76,7 @@ export const portalTypography: Record<PortalTypographyVariant, PortalTypography>
     bodySize: "sm",
     density: "comfortable",
   },
-  customer: {
+  tenant: {
     headingSize: "3xl",
     bodySize: "base",
     density: "spacious",

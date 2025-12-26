@@ -31,6 +31,13 @@ from dotmac.platform.billing.cache import (
     invalidate_on_change,
 )
 from dotmac.platform.core.caching import cache_clear
+from tests.fixtures.async_db import AsyncSessionShim
+
+
+@pytest.fixture
+def async_db_session(db_session):
+    """Provide async-compatible session for billing autouse fixtures."""
+    return AsyncSessionShim(db_session)
 
 
 class TestCacheEnums:
@@ -557,9 +564,12 @@ class TestGlobalCacheInstance:
 class TestCachedResultDecorator:
     """Test cached_result decorator."""
 
-    @pytest.mark.asyncio
-    async def test_cached_result_caches_value(self):
+    def test_cached_result_caches_value(self):
         """Test that decorator caches function results."""
+        from dotmac.platform.core.caching import set_redis_client
+        from tests.fixtures.app_stubs import create_mock_redis
+
+        set_redis_client(create_mock_redis())
         cache_clear()
         cache = get_billing_cache()
         if hasattr(cache, "product_cache"):
@@ -569,14 +579,21 @@ class TestCachedResultDecorator:
 
         call_count = 0
 
-        @cached_result(ttl=3600, key_prefix="test", key_params=["param1"])
+        @cached_result(
+            ttl=3600,
+            key_prefix="product",
+            key_params=["param1"],
+            tier=CacheTier.L1_MEMORY,
+        )
         async def expensive_function(param1: str):
             nonlocal call_count
             call_count += 1
             return f"result_{param1}"
 
-        result1 = await expensive_function("value1")
-        result2 = await expensive_function("value1")
+        import asyncio
+
+        result1 = asyncio.run(expensive_function("value1"))
+        result2 = asyncio.run(expensive_function("value1"))
 
         assert result1 == "result_value1"
         assert result2 == "result_value1"

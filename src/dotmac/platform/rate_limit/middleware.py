@@ -38,6 +38,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not tenant_id:
             tenant_id = "public"  # Use special tenant for public endpoints
 
+        response: Response | None = None
+        called_next = False
+
         try:
             # Check rate limit
             async for db in get_async_session(request=request):
@@ -73,6 +76,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     )
 
                 # Process request
+                called_next = True
                 response = await call_next(request)
 
                 # Increment counter for successful requests
@@ -100,6 +104,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error("Rate limit middleware error", error=str(e))
             # Don't block requests if rate limiting fails
+            if called_next:
+                if response is not None:
+                    return response
+                raise
             return await call_next(request)
 
         # Fallback (should not reach here)

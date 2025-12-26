@@ -83,14 +83,20 @@ class ContactMethodUpdate(BaseModel):  # BaseModel resolves to Any in isolation
 class ContactMethodResponse(ContactMethodBase):  # ContactMethodBase resolves to Any in isolation
     """Contact method response schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
-    contact_id: UUID
+    id: str
+    contact_id: str
     verified_at: datetime | None = None
-    verified_by: UUID | None = None
+    verified_by: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "contact_id", "verified_by", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str | None:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else None
 
 
 # Contact Schemas
@@ -232,10 +238,10 @@ class ContactUpdate(BaseModel):  # BaseModel resolves to Any in isolation
 class ContactResponse(ContactBase):  # ContactBase resolves to Any in isolation
     """Contact response schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
-    tenant_id: UUID
+    id: str
+    tenant_id: str
     is_verified: bool
     created_at: datetime
     updated_at: datetime
@@ -245,6 +251,12 @@ class ContactResponse(ContactBase):  # ContactBase resolves to Any in isolation
     # Relationships
     contact_methods: list[ContactMethodResponse] | None = None
     labels: list["ContactLabelDefinitionResponse"] | None = None
+
+    @field_validator("id", "tenant_id", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else ""
 
 
 class ContactListResponse(BaseModel):  # BaseModel resolves to Any in isolation
@@ -314,13 +326,19 @@ class ContactLabelDefinitionUpdate(BaseModel):  # BaseModel resolves to Any in i
 class ContactLabelDefinitionResponse(ContactLabelDefinitionBase):
     """Label definition response schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
-    tenant_id: UUID
+    id: str
+    tenant_id: str
     created_at: datetime
     updated_at: datetime
-    created_by: UUID | None = None
+    created_by: str | None = None
+
+    @field_validator("id", "tenant_id", "created_by", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str | None:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else None
 
 
 # Field Definition Schemas
@@ -396,13 +414,19 @@ class ContactFieldDefinitionResponse(
 ):  # ContactFieldDefinitionBase resolves to Any in isolation
     """Field definition response schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
-    tenant_id: UUID
+    id: str
+    tenant_id: str
     created_at: datetime
     updated_at: datetime
-    created_by: UUID | None = None
+    created_by: str | None = None
+
+    @field_validator("id", "tenant_id", "created_by", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str | None:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else None
 
 
 # Activity Schemas
@@ -438,13 +462,19 @@ class ContactActivityResponse(
 ):  # ContactActivityBase resolves to Any in isolation
     """Activity response schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
-    contact_id: UUID
-    performed_by: UUID
+    id: str
+    contact_id: str
+    performed_by: str
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "contact_id", "performed_by", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else ""
 
 
 # Search Schemas

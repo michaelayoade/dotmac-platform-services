@@ -2,7 +2,7 @@
  * @dotmac/design-tokens - Color System
  *
  * Unified color tokens supporting:
- * - Portal-specific palettes (admin, customer, reseller, technician, management)
+ * - Portal-specific palettes (admin, tenant, reseller, technician, management)
  * - Semantic colors (success, warning, error, info)
  * - Status colors (online, offline, degraded)
  * - ISP-specific brand colors
@@ -207,7 +207,7 @@ export const statusColors = {
 
 export type PortalVariant =
   | "admin"
-  | "customer"
+  | "tenant"
   | "reseller"
   | "technician"
   | "management"
@@ -220,9 +220,9 @@ export interface PortalColorScheme {
   name: string;
   primary: ColorScale;
   accent: string;
-  background: string;
-  surface: string;
-  text: string;
+  background: { light: string; dark: string };
+  surface: { light: string; dark: string };
+  text: { light: string; dark: string };
   sidebarMode: "dark" | "light" | "none";
 }
 
@@ -231,81 +231,81 @@ export const portalColors: Record<PortalVariant, PortalColorScheme> = {
     name: "Admin Portal",
     primary: colors.primary,
     accent: colors.network[500],
-    background: "#f8fafc",
-    surface: "#ffffff",
-    text: "#1e293b",
+    background: { light: "#f8fafc", dark: "#0f172a" },
+    surface: { light: "#ffffff", dark: "#1e293b" },
+    text: { light: "#1e293b", dark: "#f1f5f9" },
     sidebarMode: "dark",
   },
-  customer: {
-    name: "Customer Portal",
+  tenant: {
+    name: "Tenant Portal",
     primary: colors.network,
     accent: colors.primary[500],
-    background: "#f0f9ff",
-    surface: "#ffffff",
-    text: "#1e40af",
+    background: { light: "#f0f9ff", dark: "#0c1929" },
+    surface: { light: "#ffffff", dark: "#1e293b" },
+    text: { light: "#1e40af", dark: "#93c5fd" },
     sidebarMode: "none",
   },
   reseller: {
     name: "Reseller Portal",
     primary: colors.purple,
     accent: colors.network[500],
-    background: "#fdf4ff",
-    surface: "#ffffff",
-    text: "#7c2d12",
+    background: { light: "#fdf4ff", dark: "#1a0a29" },
+    surface: { light: "#ffffff", dark: "#2d1a47" },
+    text: { light: "#581c87", dark: "#e9d5ff" },
     sidebarMode: "light",
   },
   technician: {
     name: "Technician Portal",
     primary: colors.network,
     accent: colors.alert[500],
-    background: "#f0fdf4",
-    surface: "#ffffff",
-    text: "#14532d",
+    background: { light: "#f0fdf4", dark: "#0a1f14" },
+    surface: { light: "#ffffff", dark: "#14332a" },
+    text: { light: "#14532d", dark: "#bbf7d0" },
     sidebarMode: "light",
   },
   management: {
     name: "Management Console",
     primary: colors.alert,
     accent: colors.primary[500],
-    background: "#f9fafb",
-    surface: "#ffffff",
-    text: "#111827",
+    background: { light: "#f9fafb", dark: "#111827" },
+    surface: { light: "#ffffff", dark: "#1f2937" },
+    text: { light: "#111827", dark: "#f3f4f6" },
     sidebarMode: "dark",
   },
   platformAdmin: {
     name: "Platform Admin",
     primary: colors.primary,
     accent: colors.cyan[500],
-    background: "#f8fafc",
-    surface: "#ffffff",
-    text: "#1e293b",
+    background: { light: "#f8fafc", dark: "#0f172a" },
+    surface: { light: "#ffffff", dark: "#1e293b" },
+    text: { light: "#1e293b", dark: "#f1f5f9" },
     sidebarMode: "dark",
   },
   platformReseller: {
     name: "Platform Reseller",
     primary: colors.alert,
     accent: colors.network[500],
-    background: "#fff7ed",
-    surface: "#ffffff",
-    text: "#7c2d12",
+    background: { light: "#fff7ed", dark: "#1c1007" },
+    surface: { light: "#ffffff", dark: "#2d1f0f" },
+    text: { light: "#7c2d12", dark: "#fed7aa" },
     sidebarMode: "light",
   },
   platformTenant: {
     name: "Platform Tenant",
     primary: colors.purple,
     accent: colors.primary[500],
-    background: "#faf5ff",
-    surface: "#ffffff",
-    text: "#581c87",
+    background: { light: "#faf5ff", dark: "#1a0a29" },
+    surface: { light: "#ffffff", dark: "#2d1a47" },
+    text: { light: "#581c87", dark: "#e9d5ff" },
     sidebarMode: "light",
   },
   insights: {
     name: "Dotmac Insights",
     primary: colors.dotmac,
     accent: colors.alert[400],
-    background: "#0b1220",
-    surface: "#0f172a",
-    text: "#e2e8f0",
+    background: { light: "#f0fdfa", dark: "#0b1220" },
+    surface: { light: "#ffffff", dark: "#0f172a" },
+    text: { light: "#134e4a", dark: "#e2e8f0" },
     sidebarMode: "dark",
   },
 };

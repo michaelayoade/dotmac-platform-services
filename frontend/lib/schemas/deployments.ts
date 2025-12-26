@@ -23,7 +23,7 @@ export const createDeploymentSchema = z.object({
       /^[a-z0-9][a-z0-9-]*[a-z0-9]$/,
       "Name must be lowercase, start and end with alphanumeric, and can contain hyphens"
     ),
-  environment: z.enum(["production", "staging", "development"], {
+  environment: z.enum(["production", "staging", "development", "preview"], {
     required_error: "Please select an environment",
   }),
   region: z.string().min(1, "Region is required"),
@@ -45,6 +45,7 @@ export const updateDeploymentSchema = z.object({
     .max(63, "Name must be at most 63 characters")
     .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, "Invalid name format")
     .optional(),
+  environment: z.enum(["production", "staging", "development", "preview"]).optional(),
   version: z.string().optional(),
   replicas: z.coerce.number().min(1).max(10).optional(),
   resources: resourcesSchema.optional(),

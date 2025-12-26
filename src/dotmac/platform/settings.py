@@ -299,7 +299,7 @@ class ExternalServicesSettings(BaseModel):  # BaseModel resolves to Any in isola
     # Frontend Application URLs
     # ============================================================
 
-    # Main frontend (customer-facing)
+    # Main frontend (tenant-facing)
     frontend_url: str = Field(
         default_factory=lambda: os.getenv("FRONTEND_URL", "http://localhost:3000"),
         description="Frontend application URL for user-facing features",
@@ -475,15 +475,11 @@ class Settings(BaseSettings):
         )
         customer_billing_dashboard_url: str = Field(
             "https://app.example.com/tenant/billing/subscription",
-            description="Default dashboard URL embedded in billing emails",
+            description="Default tenant billing dashboard URL embedded in billing emails",
         )
         payment_method_update_url: str = Field(
             "https://app.example.com/tenant/billing/payment-methods",
             description="Default payment method update URL embedded in billing emails",
-        )
-        exit_survey_base_url: str = Field(
-            "https://survey.dotmac.com/exit",
-            description="Base URL for customer feedback/exit surveys",
         )
 
     urls: URLSettings = Field(  # type: ignore[call-arg]
@@ -999,7 +995,7 @@ class Settings(BaseSettings):
         pricing_rules_enabled: bool = Field(True, description="Enable pricing rules system")
         max_discount_percentage: int = Field(50, description="Maximum discount percentage allowed")
         customer_specific_pricing_enabled: bool = Field(
-            True, description="Enable customer-specific pricing"
+            True, description="Enable tenant-specific pricing"
         )
         volume_discounts_enabled: bool = Field(True, description="Enable volume discount rules")
 
@@ -1045,7 +1041,7 @@ class Settings(BaseSettings):
         # Tax and compliance
         tax_inclusive_pricing: bool = Field(False, description="Display tax-inclusive prices")
         require_tax_id_for_business: bool = Field(
-            False, description="Require tax ID for business customers"
+            False, description="Require tax ID for business tenants"
         )
         enable_tax_exemptions: bool = Field(True, description="Allow tax exemptions")
 

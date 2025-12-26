@@ -365,7 +365,7 @@ export function DataTable<TData, TValue>({
         checked={table.getIsAllPageRowsSelected()}
         onChange={(e) => table.toggleAllPageRowsSelected(e.target.checked)}
         aria-label="Select all"
-        className="h-4 w-4 rounded border-gray-300"
+        className="h-4 w-4 rounded border-input accent-primary"
       />
     ),
     cell: ({ row }) => (
@@ -374,7 +374,7 @@ export function DataTable<TData, TValue>({
         checked={row.getIsSelected()}
         onChange={(e) => row.toggleSelected(e.target.checked)}
         aria-label="Select row"
-        className="h-4 w-4 rounded border-gray-300"
+        className="h-4 w-4 rounded border-input accent-primary"
       />
     ),
     enableSorting: false,
@@ -509,7 +509,7 @@ export function DataTable<TData, TValue>({
     <div className={cn("space-y-4", className)}>
       {/* Error message */}
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-destructive/30 bg-destructive/15 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -526,7 +526,7 @@ export function DataTable<TData, TValue>({
                   placeholder={t.searchPlaceholder}
                   value={globalFilter}
                   onChange={(e) => handleGlobalFilterChange(e.target.value)}
-                  className="max-w-sm h-10 px-3 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="max-w-sm h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label={t.searchPlaceholder}
                 />
               )}
@@ -537,8 +537,8 @@ export function DataTable<TData, TValue>({
                   className={cn(
                     "inline-flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium",
                     showFilters
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
                   <Filter className="h-4 w-4" />
@@ -555,7 +555,7 @@ export function DataTable<TData, TValue>({
                 <button
                   onClick={handleExport}
                   disabled={filteredData.length === 0}
-                  className="inline-flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50"
                 >
                   <Download className="h-4 w-4" />
                   {t.exportLabel}
@@ -569,15 +569,15 @@ export function DataTable<TData, TValue>({
                     className={cn(
                       "inline-flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium",
                       showColumnMenu
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     )}
                   >
                     <Columns3 className="h-4 w-4" />
                     {t.columnsLabel}
                   </button>
                   {showColumnMenu && (
-                    <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-popover border border-border z-50">
                       <div className="py-1 max-h-64 overflow-y-auto">
                         {table
                           .getAllColumns()
@@ -591,7 +591,7 @@ export function DataTable<TData, TValue>({
                             return (
                               <label
                                 key={column.id}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-popover-foreground hover:bg-muted cursor-pointer"
                               >
                                 <input
                                   type="checkbox"
@@ -599,20 +599,20 @@ export function DataTable<TData, TValue>({
                                   onChange={(e) =>
                                     column.toggleVisibility(e.target.checked)
                                   }
-                                  className="h-4 w-4 rounded border-gray-300"
+                                  className="h-4 w-4 rounded border-input"
                                 />
                                 {label}
                               </label>
                             );
                           })}
                       </div>
-                      <div className="border-t border-gray-100 px-4 py-2">
+                      <div className="border-t border-border px-4 py-2">
                         <button
                           onClick={() => {
                             // Reset to defaultColumnVisibility, not empty state
                             table.setColumnVisibility(defaultColumnVisibility);
                           }}
-                          className="text-sm text-blue-600 hover:text-blue-800"
+                          className="text-sm text-primary hover:text-primary/80"
                         >
                           Reset to default
                         </button>
@@ -624,7 +624,7 @@ export function DataTable<TData, TValue>({
 
               {selectable && bulkActions.length > 0 && selectedRows.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-muted-foreground">
                     {selectedRows.length} selected
                   </span>
                   {bulkActions.map((action, i) => {
@@ -637,8 +637,8 @@ export function DataTable<TData, TValue>({
                         className={cn(
                           "inline-flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium",
                           action.variant === "destructive"
-                            ? "bg-red-600 text-white hover:bg-red-700"
-                            : "bg-blue-600 text-white hover:bg-blue-700",
+                            ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90",
                           "disabled:opacity-50"
                         )}
                       >
@@ -665,8 +665,8 @@ export function DataTable<TData, TValue>({
                     className={cn(
                       "inline-flex items-center gap-2 h-8 px-3 rounded-full text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     )}
                   >
                     {Icon && <Icon className="h-4 w-4" />}
@@ -677,7 +677,7 @@ export function DataTable<TData, TValue>({
               {activeQuickFilters.size > 0 && (
                 <button
                   onClick={() => setActiveQuickFilters(new Set())}
-                  className="text-sm text-gray-500 hover:text-gray-700"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   {t.clearFilters}
                 </button>
@@ -687,10 +687,10 @@ export function DataTable<TData, TValue>({
 
           {/* Advanced filters */}
           {showFilters && filters.length > 0 && (
-            <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-md border">
+            <div className="flex flex-wrap gap-4 p-4 bg-muted rounded-md border border-border">
               {filters.map((filter) => (
                 <div key={filter.column} className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-600">
+                  <label className="text-sm font-medium text-muted-foreground">
                     {filter.label}
                   </label>
                   {filter.type === "select" && filter.options ? (
@@ -699,7 +699,7 @@ export function DataTable<TData, TValue>({
                       onChange={(e) =>
                         table.getColumn(filter.column)?.setFilterValue(e.target.value || undefined)
                       }
-                      className="h-8 px-2 rounded border border-gray-300 text-sm"
+                      className="h-8 px-2 rounded border border-input bg-background text-sm"
                     >
                       <option value="">All</option>
                       {filter.options.map((opt) => (
@@ -715,14 +715,14 @@ export function DataTable<TData, TValue>({
                       onChange={(e) =>
                         table.getColumn(filter.column)?.setFilterValue(e.target.value || undefined)
                       }
-                      className="h-8 px-2 w-40 rounded border border-gray-300 text-sm"
+                      className="h-8 px-2 w-40 rounded border border-input bg-background text-sm"
                     />
                   )}
                 </div>
               ))}
               <button
                 onClick={() => table.resetColumnFilters()}
-                className="self-end h-8 px-3 text-sm text-gray-600 hover:text-gray-800"
+                className="self-end h-8 px-3 text-sm text-muted-foreground hover:text-foreground"
               >
                 {t.clearFilters}
               </button>
@@ -735,14 +735,14 @@ export function DataTable<TData, TValue>({
       {showMobileCards && (
         <div className="space-y-3 md:hidden">
           {loading ? (
-            <div className="p-6 text-center text-gray-500">{t.loadingLabel}</div>
+            <div className="p-6 text-center text-muted-foreground">{t.loadingLabel}</div>
           ) : table.getRowModel().rows.length > 0 ? (
             table.getRowModel().rows.map((row) => (
               <div
                 key={row.id}
                 onClick={() => onRowClick?.(row.original)}
                 className={cn(
-                  "p-4 bg-white rounded-lg border shadow-sm",
+                  "p-4 bg-card rounded-lg border border-border shadow-sm",
                   onRowClick && "cursor-pointer hover:shadow-md"
                 )}
               >
@@ -750,7 +750,7 @@ export function DataTable<TData, TValue>({
               </div>
             ))
           ) : (
-            <div className="p-6 text-center text-gray-500">{t.emptyLabel}</div>
+            <div className="p-6 text-center text-muted-foreground">{t.emptyLabel}</div>
           )}
         </div>
       )}
@@ -758,19 +758,19 @@ export function DataTable<TData, TValue>({
       {/* Table view */}
       <div
         className={cn(
-          "rounded-md border bg-white overflow-hidden",
+          "rounded-md border border-border bg-card overflow-hidden",
           showMobileCards && "hidden md:block"
         )}
       >
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-muted border-b border-border">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
                     className={cn(
-                      "px-4 py-3 text-left font-medium text-gray-700",
+                      "px-4 py-3 text-left font-medium text-muted-foreground",
                       header.column.getCanSort() && "cursor-pointer select-none"
                     )}
                     onClick={header.column.getToggleSortingHandler()}
@@ -795,7 +795,7 @@ export function DataTable<TData, TValue>({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={tableColumns.length} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={tableColumns.length} className="px-4 py-12 text-center text-muted-foreground">
                   {t.loadingLabel}
                 </td>
               </tr>
@@ -805,8 +805,8 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   onClick={() => onRowClick?.(row.original)}
                   className={cn(
-                    "border-b last:border-0 hover:bg-gray-50",
-                    row.getIsSelected() && "bg-blue-50",
+                    "border-b border-border last:border-0 hover:bg-muted/50",
+                    row.getIsSelected() && "bg-primary/10",
                     onRowClick && "cursor-pointer"
                   )}
                 >
@@ -819,7 +819,7 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <tr>
-                <td colSpan={tableColumns.length} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={tableColumns.length} className="px-4 py-12 text-center text-muted-foreground">
                   {t.emptyLabel}
                 </td>
               </tr>
@@ -831,7 +831,7 @@ export function DataTable<TData, TValue>({
       {/* Pagination */}
       {pagination && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             {selectedRows.length > 0 ? (
               <span>
                 {t.selectedCount(
@@ -850,7 +850,7 @@ export function DataTable<TData, TValue>({
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">{t.rowsPerPage}</span>
+              <span className="text-sm text-muted-foreground">{t.rowsPerPage}</span>
               <select
                 value={currentPageSize}
                 onChange={(e) => {
@@ -862,7 +862,7 @@ export function DataTable<TData, TValue>({
                     table.setPageSize(newSize);
                   }
                 }}
-                className="h-8 px-2 rounded border border-gray-300 text-sm"
+                className="h-8 px-2 rounded border border-input bg-background text-sm"
               >
                 {pageSizeOptions.map((size) => (
                   <option key={size} value={size}>
@@ -872,7 +872,7 @@ export function DataTable<TData, TValue>({
               </select>
             </div>
 
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-muted-foreground">
               {t.pageOf(currentPage + 1, pageCount || 1)}
             </span>
 
@@ -886,7 +886,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 disabled={currentPage === 0}
-                className="h-8 px-3 rounded border border-gray-300 text-sm disabled:opacity-50 hover:bg-gray-50"
+                className="h-8 px-3 rounded border border-input text-sm disabled:opacity-50 hover:bg-muted"
               >
                 {t.previous}
               </button>
@@ -899,7 +899,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
                 disabled={currentPage >= pageCount - 1}
-                className="h-8 px-3 rounded border border-gray-300 text-sm disabled:opacity-50 hover:bg-gray-50"
+                className="h-8 px-3 rounded border border-input text-sm disabled:opacity-50 hover:bg-muted"
               >
                 {t.next}
               </button>

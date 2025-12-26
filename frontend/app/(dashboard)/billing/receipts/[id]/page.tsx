@@ -97,7 +97,7 @@ export default function ReceiptDetailPage() {
       await emailReceipt.mutateAsync({ id: receipt.id });
       toast({
         title: "Receipt sent",
-        description: "The receipt has been emailed to the customer.",
+        description: "The receipt has been emailed to the tenant.",
         variant: "success",
       });
     } catch {
@@ -247,15 +247,15 @@ export default function ReceiptDetailPage() {
           </div>
         </div>
 
-        {/* Customer & Payment Info */}
+        {/* Tenant & Payment Info */}
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-              Customer
+              Tenant
             </h3>
             <div className="space-y-1">
               <p className="font-medium text-text-primary">
-                {receipt.customer?.name || "Customer"}
+                {receipt.customer?.name || "Tenant"}
               </p>
               {receipt.customer?.email && (
                 <p className="text-sm text-text-muted">
@@ -293,7 +293,7 @@ export default function ReceiptDetailPage() {
             Payment Details
           </h3>
           <div className="bg-surface-overlay rounded-lg overflow-hidden">
-            <table className="w-full">
+            <table className="data-table">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">

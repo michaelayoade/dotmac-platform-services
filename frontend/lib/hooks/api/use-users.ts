@@ -21,9 +21,12 @@ export interface CreateUserData {
   sendInvite?: boolean;
 }
 
+// Tenant-level roles used in forms
+type TenantRole = "owner" | "admin" | "member" | "viewer";
+
 export interface UpdateUserData {
   name?: string;
-  role?: UserRole;
+  role?: UserRole | TenantRole;
   phone?: string;
   timezone?: string;
   teamIds?: string[];

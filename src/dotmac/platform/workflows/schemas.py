@@ -7,7 +7,7 @@ Pydantic schemas for API request/response validation.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .models import StepStatus, WorkflowStatus
 
@@ -21,7 +21,7 @@ class WorkflowCreate(BaseModel):
     description: str | None = Field(None, description="Workflow description")
     definition: dict[str, Any] = Field(..., description="Workflow definition with steps")
     version: str = Field(default="1.0.0", description="Workflow version")
-    tags: dict[str, Any] | None = Field(None, description="Metadata tags")
+    tags: list[str] | None = Field(None, description="Workflow tags")
 
 
 class WorkflowUpdate(BaseModel):
@@ -30,23 +30,29 @@ class WorkflowUpdate(BaseModel):
     description: str | None = None
     definition: dict[str, Any] | None = None
     is_active: bool | None = None
-    tags: dict[str, Any] | None = None
+    tags: list[str] | None = None
 
 
 class WorkflowResponse(BaseModel):
     """Schema for workflow template response"""
 
-    id: int
+    id: str
     name: str
     description: str | None
     definition: dict[str, Any]
     is_active: bool
     version: str
-    tags: dict[str, Any] | None
+    tags: list[str] | None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_id(cls, v: Any) -> str:
+        """Convert ID to string."""
+        return str(v) if v is not None else ""
 
 
 class WorkflowListResponse(BaseModel):
@@ -72,7 +78,7 @@ class WorkflowExecuteRequest(BaseModel):
 class WorkflowStepResponse(BaseModel):
     """Schema for workflow step response"""
 
-    id: int
+    id: str
     step_name: str
     step_type: str
     sequence_number: int
@@ -91,12 +97,18 @@ class WorkflowStepResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_id(cls, v: Any) -> str:
+        """Convert ID to string."""
+        return str(v) if v is not None else ""
+
 
 class WorkflowExecutionResponse(BaseModel):
     """Schema for workflow execution response"""
 
-    id: int
-    workflow_id: int
+    id: str
+    workflow_id: str
     status: WorkflowStatus
     context: dict[str, Any] | None
     result: dict[str, Any] | None
@@ -111,6 +123,12 @@ class WorkflowExecutionResponse(BaseModel):
     steps: list[WorkflowStepResponse] | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("id", "workflow_id", mode="before")
+    @classmethod
+    def convert_ids(cls, v: Any) -> str:
+        """Convert IDs to string."""
+        return str(v) if v is not None else ""
 
 
 class WorkflowExecutionListResponse(BaseModel):
@@ -157,138 +175,28 @@ class WorkflowDefinition(BaseModel):
 # Examples for documentation
 
 
-EXAMPLE_LEAD_TO_CUSTOMER_WORKFLOW = {
-    "name": "lead_to_customer_onboarding",
-    "description": "Automated workflow from qualified lead to deployed customer",
+EXAMPLE_WORKFLOW = {
+    "name": "tenant_status_check",
+    "description": "Minimal workflow example for control-plane operations.",
     "definition": {
         "steps": [
             {
-                "name": "create_customer",
-                "type": "service_call",
-                "service": "customer_service",
-                "method": "create_from_lead",
-                "params": {
-                    "lead_id": "${context.lead_id}",
-                    "tenant_id": "${context.tenant_id}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "create_subscription",
-                "type": "service_call",
-                "service": "billing_service",
-                "method": "create_subscription",
-                "params": {
-                    "customer_id": "${step_create_customer_result.customer_id}",
-                    "plan_id": "${context.plan_id}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "issue_license",
-                "type": "service_call",
-                "service": "license_service",
-                "method": "issue_license",
-                "params": {
-                    "customer_id": "${step_create_customer_result.customer_id}",
-                    "license_template_id": "${context.license_template_id}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "provision_tenant",
-                "type": "service_call",
-                "service": "deployment_service",
-                "method": "provision_tenant",
-                "params": {
-                    "customer_id": "${step_create_customer_result.customer_id}",
-                    "license_key": "${step_issue_license_result.license_key}",
-                },
-                "max_retries": 2,
-            },
-            {
-                "name": "send_welcome_email",
+                "name": "send_status_notification",
                 "type": "service_call",
                 "service": "communications_service",
                 "method": "send_template_email",
                 "params": {
-                    "template": "customer_welcome",
-                    "recipient": "${step_create_customer_result.email}",
+                    "template": "status_update",
+                    "recipient": "${context.recipient_email}",
                     "variables": {
-                        "customer_name": "${step_create_customer_result.name}",
-                        "tenant_url": "${step_provision_tenant_result.tenant_url}",
-                        "license_key": "${step_issue_license_result.license_key}",
+                        "tenant_id": "${context.tenant_id}",
+                        "status": "${context.status}",
                     },
                 },
-                "max_retries": 3,
-            },
-        ]
-    },
-    "version": "1.0.0",
-    "tags": {"category": "onboarding", "priority": "high"},
-}
-
-
-EXAMPLE_QUOTE_ACCEPTED_WORKFLOW = {
-    "name": "quote_accepted_to_order",
-    "description": "Automated workflow from quote acceptance to order creation",
-    "definition": {
-        "steps": [
-            {
-                "name": "create_order",
-                "type": "service_call",
-                "service": "sales_service",
-                "method": "create_order_from_quote",
-                "params": {
-                    "quote_id": "${context.quote_id}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "check_payment_required",
-                "type": "condition",
-                "condition": {
-                    "operator": "eq",
-                    "left": "${context.payment_method}",
-                    "right": "prepaid",
-                },
-            },
-            {
-                "name": "process_payment",
-                "type": "service_call",
-                "service": "billing_service",
-                "method": "process_payment",
-                "params": {
-                    "order_id": "${step_create_order_result.order_id}",
-                    "amount": "${context.total_amount}",
-                },
                 "max_retries": 2,
-            },
-            {
-                "name": "trigger_deployment",
-                "type": "service_call",
-                "service": "deployment_service",
-                "method": "schedule_deployment",
-                "params": {
-                    "order_id": "${step_create_order_result.order_id}",
-                    "priority": "${context.priority}",
-                },
-                "max_retries": 3,
-            },
-            {
-                "name": "notify_operations",
-                "type": "service_call",
-                "service": "notifications_service",
-                "method": "notify_team",
-                "params": {
-                    "team": "operations",
-                    "message": "New order ready for deployment",
-                    "order_id": "${step_create_order_result.order_id}",
-                },
-                "max_retries": 3,
-            },
+            }
         ]
     },
     "version": "1.0.0",
-    "tags": {"category": "sales", "priority": "high"},
+    "tags": ["ops", "low-priority"],
 }

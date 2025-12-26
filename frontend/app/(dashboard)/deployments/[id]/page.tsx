@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { ConfirmDialog, useConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ActivityTimeline, type ActivityItem } from "@/components/shared/activity-timeline";
+import { DeploymentMetricsCharts } from "@/components/features/deployments/deployment-metrics-charts";
 import {
   useDeployment,
   useDeploymentStatus,
@@ -178,7 +179,6 @@ export default function DeploymentDetailPage({ params }: DeploymentDetailPagePro
   const isRunning = deployment.status === "running";
   const isStopped = deployment.status === "stopped" || deployment.status === "failed";
 
-  // Mock events from status
   const events: ActivityItem[] = (status?.events || []).slice(0, 5).map((event, idx) => ({
     id: `event-${idx}`,
     type: event.type,
@@ -412,6 +412,14 @@ export default function DeploymentDetailPage({ params }: DeploymentDetailPagePro
               </div>
             </div>
           </Card>
+
+          {/* Performance Metrics Charts */}
+          {isRunning && (
+            <DeploymentMetricsCharts
+              deploymentId={id}
+              isLoading={false}
+            />
+          )}
 
           {/* Events */}
           <Card className="p-6">

@@ -59,23 +59,6 @@ async def track_payment_analytics(event: Event) -> None:
     )
 
 
-@subscribe("customer.created")
-async def track_customer_signup(event: Event) -> None:
-    """
-    Track customer signup in analytics.
-
-    Updates acquisition metrics, conversion funnels, cohort analysis.
-    """
-    customer_data = event.payload
-    tenant_id = event.metadata.tenant_id
-
-    logger.debug(
-        "Tracking customer signup",
-        customer_id=customer_data.get("customer_id"),
-        tenant_id=tenant_id,
-    )
-
-
 # Notification Integration Listeners
 
 
@@ -208,23 +191,6 @@ async def trigger_payment_webhook(event: Event) -> None:
     )
 
 
-@subscribe("customer.created")
-async def trigger_customer_webhook(event: Event) -> None:
-    """
-    Trigger webhook for customer creation.
-
-    Sends webhook to configured endpoints for customer.created event.
-    """
-    tenant_id = event.metadata.tenant_id
-    customer_data = event.payload
-
-    logger.debug(
-        "Triggering customer webhook",
-        customer_id=customer_data.get("customer_id"),
-        tenant_id=tenant_id,
-    )
-
-
 # Audit Logging Listeners
 
 
@@ -273,27 +239,6 @@ async def audit_user_login(event: Event) -> None:
         "Auditing user login",
         user_id=user_id,
         ip_address=ip_address,
-        tenant_id=tenant_id,
-    )
-
-
-@subscribe("customer.updated")
-async def audit_customer_update(event: Event) -> None:
-    """
-    Audit log customer updates.
-
-    Records customer data changes for compliance and data lineage.
-    """
-    customer_id = event.payload.get("customer_id")
-    updated_fields = event.payload.get("updated_fields", [])
-    updated_by = event.metadata.user_id
-    tenant_id = event.metadata.tenant_id
-
-    logger.debug(
-        "Auditing customer update",
-        customer_id=customer_id,
-        fields=updated_fields,
-        updated_by=updated_by,
         tenant_id=tenant_id,
     )
 
@@ -357,29 +302,6 @@ async def index_uploaded_file(event: Event) -> None:
 
 
 # Cache Invalidation Listeners
-
-
-@subscribe("customer.updated")
-async def invalidate_customer_cache(event: Event) -> None:
-    """
-    Invalidate customer cache on update.
-
-    Ensures cached customer data is refreshed after updates.
-    """
-    customer_id = event.payload.get("customer_id")
-    tenant_id = event.metadata.tenant_id
-
-    logger.debug(
-        "Invalidating customer cache",
-        customer_id=customer_id,
-        tenant_id=tenant_id,
-    )
-
-    # Example cache invalidation
-    # from dotmac.platform.core.caching import get_redis
-    # redis = get_redis()
-    # cache_key = f"customer:{tenant_id}:{customer_id}"
-    # redis.delete(cache_key)
 
 
 @subscribe("billing.invoice.updated")

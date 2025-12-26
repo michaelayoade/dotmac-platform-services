@@ -221,7 +221,6 @@ async def seed_multi_tenant_data(e2e_db_engine):
     return {
         "tenants": tenants_data,
         "total_users": sum(t["users"] for t in tenants_data) + 1,  # +1 for admin
-        "total_customers": 0,
     }
 
 
@@ -378,7 +377,6 @@ class TestTenantListing:
 
         # Verify aggregated metrics
         assert data["total_users"] == 5
-        assert data["total_customers"] == 0
 
         # Verify timestamps exist
         assert "created_at" in data

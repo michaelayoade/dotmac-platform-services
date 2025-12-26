@@ -15,14 +15,14 @@ import {
 import { Button } from "@/lib/dotmac/core";
 
 import { getInvoices, type Invoice } from "@/lib/api/billing";
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Invoices",
-  description: "Manage customer invoices",
+  description: "Manage tenant invoices",
 };
 
 interface PageProps {
@@ -37,18 +37,24 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
   const page = Number(searchParams.page) || 1;
   const status = searchParams.status as Invoice["status"] | undefined;
 
-  const { invoices, totalCount, pageCount } = await safeApi(
-    () => getInvoices({ page, pageSize: 20, status }),
-    { invoices: [], totalCount: 0, pageCount: 1 }
-  );
+  const response = await fetchOrNull(() => getInvoices({ page, pageSize: 20, status }));
+  const invoices = response?.invoices ?? [];
+  const totalCount = response?.totalCount ?? null;
+  const pageCount = response?.pageCount ?? 1;
 
-  const stats = {
-    total: totalCount,
-    paid: invoices.filter((i) => i.status === "paid").length,
-    pending: invoices.filter((i) => i.status === "pending").length,
-    overdue: invoices.filter((i) => i.status === "overdue").length,
-    totalAmount: invoices.reduce((sum, i) => sum + i.amount, 0),
-  };
+  const stats = response
+    ? {
+        total: totalCount,
+        paid: invoices.filter((i) => i.status === "paid").length,
+        pending: invoices.filter((i) => i.status === "pending").length,
+        overdue: invoices.filter((i) => i.status === "overdue").length,
+      }
+    : {
+        total: null,
+        paid: null,
+        pending: null,
+        overdue: null,
+      };
 
   return (
     <div className="space-y-6">
@@ -66,7 +72,7 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
           <div>
             <h1 className="page-title">Invoices</h1>
             <p className="page-description">
-              Create and manage customer invoices
+              Create and manage tenant invoices
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -88,19 +94,19 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
       <div className="quick-stats">
         <div className="quick-stat">
           <p className="metric-label">Total Invoices</p>
-          <p className="metric-value text-2xl">{stats.total}</p>
+          <p className="metric-value text-2xl">{stats.total ?? "—"}</p>
         </div>
         <div className="quick-stat">
           <p className="metric-label">Paid</p>
-          <p className="metric-value text-2xl text-status-success">{stats.paid}</p>
+          <p className="metric-value text-2xl text-status-success">{stats.paid ?? "—"}</p>
         </div>
         <div className="quick-stat">
           <p className="metric-label">Pending</p>
-          <p className="metric-value text-2xl text-status-warning">{stats.pending}</p>
+          <p className="metric-value text-2xl text-status-warning">{stats.pending ?? "—"}</p>
         </div>
         <div className="quick-stat">
           <p className="metric-label">Overdue</p>
-          <p className="metric-value text-2xl text-status-error">{stats.overdue}</p>
+          <p className="metric-value text-2xl text-status-error">{stats.overdue ?? "—"}</p>
         </div>
       </div>
 
@@ -224,7 +230,7 @@ function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
       <thead>
         <tr>
           <th>Invoice</th>
-          <th>Customer</th>
+          <th>Tenant</th>
           <th>Amount</th>
           <th>Status</th>
           <th>Due Date</th>

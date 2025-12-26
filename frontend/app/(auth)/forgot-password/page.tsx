@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
           {submitted ? (
             // Success state
             <div className="space-y-6">
-              <div className="flex items-center justify-center w-16 h-16 mx-auto rounded-full bg-status-success/10">
+              <div className="flex items-center justify-center w-16 h-16 mx-auto rounded-full bg-status-success/15">
                 <CheckCircle className="w-8 h-8 text-status-success" />
               </div>
 
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
 
               {/* Error message */}
               {requestReset.error && (
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error">
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm">Something went wrong. Please try again.</p>
                 </div>
@@ -160,8 +160,8 @@ export default function ForgotPasswordPage() {
         <div className="absolute inset-0 bg-grid opacity-[0.03]" />
 
         {/* Gradient orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/15 rounded-full blur-3xl" />
 
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center p-16">

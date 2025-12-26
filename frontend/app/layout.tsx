@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { ThemeProvider, ToastProvider, ToastViewport } from "@/lib/dotmac/core";
+import {
+  ThemeProvider,
+  ToastProvider,
+  ToastViewport,
+} from "@/lib/dotmac/core";
+import { generateThemeScript } from "@dotmac/design-tokens";
 
 import { QueryProvider } from "@/lib/providers/query-provider";
 import { AuthProvider } from "@/lib/providers/auth-provider";
-import { CustomThemeProvider, themeScript } from "@/providers/theme-provider";
 
 import "./globals.css";
 
@@ -35,21 +39,23 @@ export default function RootLayout({
       <head>
         {/* Inline script to prevent theme flash */}
         <script
-          dangerouslySetInnerHTML={{ __html: themeScript }}
+          dangerouslySetInnerHTML={{ __html: generateThemeScript() }}
         />
       </head>
       <body className="min-h-screen bg-surface antialiased">
-        <ThemeProvider defaultVariant="admin">
-          <CustomThemeProvider>
-            <QueryProvider>
-              <AuthProvider>
-                <ToastProvider>
-                  {children}
-                  <ToastViewport />
-                </ToastProvider>
-              </AuthProvider>
-            </QueryProvider>
-          </CustomThemeProvider>
+        <ThemeProvider
+          defaultVariant="admin"
+          manageColorScheme
+          managePalette
+        >
+          <QueryProvider>
+            <AuthProvider>
+              <ToastProvider>
+                {children}
+                <ToastViewport />
+              </ToastProvider>
+            </AuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

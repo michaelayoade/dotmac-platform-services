@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,63 +39,44 @@ const generalSchema = z.object({
 
 type GeneralFormData = z.infer<typeof generalSchema>;
 
-// Demo data
-const demoSettings = {
+const emptySettings = {
   general: {
-    name: "Acme Corporation",
-    slug: "acme-corp",
-    industry: "Technology",
-    timezone: "America/New_York",
-    dateFormat: "MM/DD/YYYY",
+    name: "",
+    slug: "",
+    industry: "",
+    timezone: "UTC",
+    dateFormat: "YYYY-MM-DD",
     language: "en",
   },
   branding: {
     logoUrl: undefined,
-    primaryColor: "#00B8D4",
-    accentColor: "#FFD600",
+    primaryColor: "",
+    accentColor: "",
   },
   security: {
     mfaRequired: false,
-    sessionTimeout: 60,
-    ipWhitelist: [],
-    allowedDomains: ["acme.com"],
+    sessionTimeout: 0,
+    ipWhitelist: [] as string[],
+    allowedDomains: [] as string[],
   },
   features: {
-    advancedAnalytics: true,
-    customIntegrations: true,
-    apiAccess: true,
+    advancedAnalytics: false,
+    customIntegrations: false,
+    apiAccess: false,
   },
 };
-
-const demoApiKeys = [
-  {
-    id: "key1",
-    name: "Production API Key",
-    prefix: "pk_live_",
-    lastUsedAt: "2024-12-22T14:30:00Z",
-    createdAt: "2024-01-15T00:00:00Z",
-    createdBy: "John Admin",
-  },
-  {
-    id: "key2",
-    name: "Development Key",
-    prefix: "pk_test_",
-    lastUsedAt: "2024-12-20T10:15:00Z",
-    createdAt: "2024-06-01T00:00:00Z",
-    createdBy: "John Admin",
-  },
-];
 
 function GeneralSettingsSection() {
   const { data: settings } = useTenantSettings();
   const updateSettings = useUpdateTenantSettings();
   const [isEditing, setIsEditing] = useState(false);
 
-  const currentSettings = settings || demoSettings;
+  const currentSettings = settings ?? emptySettings;
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<GeneralFormData>({
     resolver: zodResolver(generalSchema),
@@ -106,6 +87,17 @@ function GeneralSettingsSection() {
       language: currentSettings.general.language,
     },
   });
+
+  useEffect(() => {
+    if (settings) {
+      reset({
+        name: settings.general.name,
+        timezone: settings.general.timezone,
+        dateFormat: settings.general.dateFormat,
+        language: settings.general.language,
+      });
+    }
+  }, [settings, reset]);
 
   const onSubmit = async (data: GeneralFormData) => {
     try {
@@ -118,11 +110,22 @@ function GeneralSettingsSection() {
     }
   };
 
+  if (!settings) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">General Settings</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Organization settings are not available yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent/10 text-accent">
+          <div className="p-2 rounded-lg bg-accent/15 text-accent">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
@@ -133,7 +136,7 @@ function GeneralSettingsSection() {
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="px-4 py-2 rounded-md text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+            className="px-4 py-2 rounded-md text-sm font-medium text-accent hover:bg-accent/15 transition-colors"
           >
             Edit
           </button>
@@ -217,7 +220,7 @@ function GeneralSettingsSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 inline-flex items-center gap-2"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -237,9 +240,15 @@ function SecuritySettingsSection() {
   const { data: settings } = useTenantSettings();
   const updateSettings = useUpdateTenantSettings();
 
-  const currentSettings = settings || demoSettings;
+  const currentSettings = settings ?? emptySettings;
   const [securitySettings, setSecuritySettings] = useState(currentSettings.security);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setSecuritySettings(settings.security);
+    }
+  }, [settings]);
 
   const handleToggleMfa = async () => {
     const newValue = !securitySettings.mfaRequired;
@@ -257,10 +266,21 @@ function SecuritySettingsSection() {
     }
   };
 
+  if (!settings) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">Security Settings</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Security settings are not available yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-status-warning/10 text-status-warning">
+        <div className="p-2 rounded-lg bg-status-warning/15 text-status-warning">
           <Shield className="w-5 h-5" />
         </div>
         <div>
@@ -289,7 +309,7 @@ function SecuritySettingsSection() {
           >
             <span
               className={cn(
-                "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow transition-transform",
                 securitySettings.mfaRequired && "translate-x-5"
               )}
             />
@@ -349,7 +369,7 @@ function ApiKeysSection() {
   const [newKeySecret, setNewKeySecret] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
 
-  const keys = apiKeys || demoApiKeys;
+  const keys = apiKeys ?? [];
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -397,7 +417,7 @@ function ApiKeysSection() {
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-highlight/10 text-highlight">
+          <div className="p-2 rounded-lg bg-highlight/15 text-highlight">
             <Key className="w-5 h-5" />
           </div>
           <div>
@@ -409,7 +429,7 @@ function ApiKeysSection() {
         </div>
         <button
           onClick={() => setIsCreating(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
         >
           <Plus className="w-4 h-4" />
           Create Key
@@ -418,7 +438,7 @@ function ApiKeysSection() {
 
       {/* New Key Created Banner */}
       {newKeySecret && (
-        <div className="p-4 bg-status-warning/10 border-b border-status-warning/20">
+        <div className="p-4 bg-status-warning/15 border-b border-status-warning/20">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -478,7 +498,7 @@ function ApiKeysSection() {
             <button
               onClick={handleCreateKey}
               disabled={!newKeyName || createApiKey.isPending}
-              className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 transition-colors"
             >
               {createApiKey.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -520,7 +540,7 @@ function ApiKeysSection() {
             </div>
             <button
               onClick={() => handleDeleteKey(key.id)}
-              className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error/10 transition-colors"
+              className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error/15 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>

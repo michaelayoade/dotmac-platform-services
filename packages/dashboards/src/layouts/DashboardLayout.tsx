@@ -61,17 +61,17 @@ export function DashboardLayout({
   contentClassName,
 }: DashboardLayoutProps) {
   return (
-    <div className={cn("min-h-screen bg-gray-50", className)}>
+    <div className={cn("min-h-screen bg-surface-subtle", className)}>
       {/* Header */}
       {(title || actions) && (
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <header className="bg-surface border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               {title && (
-                <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+                <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
               )}
               {subtitle && (
-                <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+                <p className="mt-1 text-sm text-text-muted">{subtitle}</p>
               )}
             </div>
             {actions && <div className="flex items-center gap-3">{actions}</div>}
@@ -81,7 +81,7 @@ export function DashboardLayout({
 
       {/* Filters */}
       {showFilters && filters && (
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="bg-surface border-b border-border px-6 py-3">
           <div className="flex flex-wrap items-center gap-3">{filters}</div>
         </div>
       )}
@@ -91,7 +91,7 @@ export function DashboardLayout({
         {/* Left Sidebar */}
         {sidebar && sidebarPosition === "left" && (
           <aside
-            className="hidden lg:block bg-white border-r border-gray-200 p-6 overflow-y-auto"
+            className="hidden lg:block bg-surface border-r border-border p-6 overflow-y-auto"
             style={{ width: sidebarWidth, minWidth: sidebarWidth }}
           >
             {sidebar}
@@ -111,7 +111,7 @@ export function DashboardLayout({
         {/* Right Sidebar */}
         {sidebar && sidebarPosition === "right" && (
           <aside
-            className="hidden lg:block bg-white border-l border-gray-200 p-6 overflow-y-auto"
+            className="hidden lg:block bg-surface border-l border-border p-6 overflow-y-auto"
             style={{ width: sidebarWidth, minWidth: sidebarWidth }}
           >
             {sidebar}
@@ -156,10 +156,10 @@ export function DashboardSection({
         <div className="flex items-center justify-between mb-4">
           <div>
             {title && (
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
             )}
             {description && (
-              <p className="text-sm text-gray-500">{description}</p>
+              <p className="text-sm text-text-muted">{description}</p>
             )}
           </div>
           {actions && <div className="flex items-center gap-2">{actions}</div>}

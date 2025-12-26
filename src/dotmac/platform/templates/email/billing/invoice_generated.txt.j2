@@ -13,5 +13,9 @@ Invoice Summary:
 
 Payment will be automatically charged to your {{ payment_method }} on {{ due_date | format_date }}.
 
+{% if has_notes %}
+Notes: {{ notes }}
+{% endif %}
+
 View Invoice: {{ invoice_url }}
 {% endblock %}

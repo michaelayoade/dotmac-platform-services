@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plus,
-  Search,
   Users,
   Mail,
   MoreVertical,
@@ -15,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 
-import { PageHeader, StatusBadge, EmptyState, Avatar } from "@/components/shared";
+import { PageHeader, StatusBadge, EmptyState, Avatar, SearchInput } from "@/components/shared";
 import { InviteMemberModal } from "@/components/features/tenant/invite-member-modal";
 import {
   useTenantMembers,
@@ -36,67 +35,13 @@ const roleLabels: Record<MemberRole, string> = {
 };
 
 const roleColors: Record<MemberRole, string> = {
-  tenant_admin: "bg-purple-500/10 text-purple-500",
-  member: "bg-blue-500/10 text-blue-500",
-  viewer: "bg-gray-500/10 text-gray-500",
+  tenant_admin: "bg-status-info/15 text-status-info",
+  member: "bg-status-success/15 text-status-success",
+  viewer: "bg-surface-overlay text-text-muted",
 };
 
-// Demo data
-const demoMembers = [
-  {
-    id: "1",
-    userId: "u1",
-    email: "admin@company.com",
-    fullName: "John Admin",
-    role: "tenant_admin" as MemberRole,
-    status: "ACTIVE" as MemberStatus,
-    lastActiveAt: "2024-12-23T10:30:00Z",
-    joinedAt: "2024-01-15T00:00:00Z",
-  },
-  {
-    id: "2",
-    userId: "u2",
-    email: "sarah@company.com",
-    fullName: "Sarah Johnson",
-    role: "member" as MemberRole,
-    status: "ACTIVE" as MemberStatus,
-    lastActiveAt: "2024-12-22T14:30:00Z",
-    joinedAt: "2024-03-01T00:00:00Z",
-  },
-  {
-    id: "3",
-    userId: "u3",
-    email: "michael@company.com",
-    fullName: "Michael Chen",
-    role: "member" as MemberRole,
-    status: "ACTIVE" as MemberStatus,
-    lastActiveAt: "2024-12-21T09:15:00Z",
-    joinedAt: "2024-06-15T00:00:00Z",
-  },
-  {
-    id: "4",
-    userId: "u4",
-    email: "emily@company.com",
-    fullName: "Emily Rodriguez",
-    role: "viewer" as MemberRole,
-    status: "ACTIVE" as MemberStatus,
-    lastActiveAt: "2024-12-20T16:45:00Z",
-    joinedAt: "2024-09-01T00:00:00Z",
-  },
-];
-
-const demoInvitations = [
-  {
-    id: "inv1",
-    email: "newuser@company.com",
-    role: "member" as MemberRole,
-    status: "PENDING" as const,
-    invitedBy: "u1",
-    invitedByName: "John Admin",
-    expiresAt: "2024-12-30T00:00:00Z",
-    createdAt: "2024-12-20T10:00:00Z",
-  },
-];
+const emptyMembers: TeamMember[] = [];
+const emptyInvitations: Invitation[] = [];
 
 function MemberCard({
   member,
@@ -172,7 +117,7 @@ function MemberCard({
                     onRemove(member.id);
                     setShowMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-status-error hover:bg-status-error/10 transition-colors flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-status-error hover:bg-status-error/15 transition-colors flex items-center gap-2"
                 >
                   <UserX className="w-4 h-4" />
                   Remove Member
@@ -199,7 +144,7 @@ function MemberCard({
                       className={cn(
                         "w-full px-4 py-2 text-left text-sm transition-colors flex items-center justify-between",
                         member.role === role
-                          ? "bg-accent/10 text-accent"
+                          ? "bg-accent/15 text-accent"
                           : "text-text-secondary hover:bg-surface-overlay"
                       )}
                     >
@@ -265,14 +210,14 @@ function InvitationCard({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onResend(invitation.id)}
-            className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+            className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/15 transition-colors"
             title="Resend invitation"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
             onClick={() => onCancel(invitation.id)}
-            className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error/10 transition-colors"
+            className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error/15 transition-colors"
             title="Cancel invitation"
           >
             <X className="w-4 h-4" />
@@ -324,8 +269,15 @@ export default function TeamPage() {
     }
   }, [searchParams]);
 
-  const members = membersData?.members || demoMembers;
-  const invitations = invitationsData?.invitations || demoInvitations;
+  const members = membersData?.members ?? emptyMembers;
+  const invitations = invitationsData?.invitations ?? emptyInvitations;
+  const membersCount = membersData ? members.length : null;
+  const adminsCount = membersData
+    ? members.filter((m) => m.role === "tenant_admin").length
+    : null;
+  const pendingInvitesCount = invitationsData
+    ? invitations.filter((i) => i.status === "PENDING").length
+    : null;
 
   const filteredMembers = searchQuery
     ? members.filter(
@@ -384,7 +336,7 @@ export default function TeamPage() {
         actions={
           <button
             onClick={() => setIsInviteOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
           >
             <Plus className="w-4 h-4" />
             Invite Member
@@ -396,39 +348,39 @@ export default function TeamPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-accent/10 text-accent">
+            <div className="p-2 rounded-lg bg-accent/15 text-accent">
               <Users className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Total Members</p>
               <p className="text-xl font-semibold text-text-primary">
-                {members.length}
+                {membersCount ?? "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
+            <div className="p-2 rounded-lg bg-status-info/15 text-status-info">
               <Shield className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Admins</p>
               <p className="text-xl font-semibold text-text-primary">
-                {members.filter((m) => m.role === "tenant_admin").length}
+                {adminsCount ?? "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-status-warning/10 text-status-warning">
+            <div className="p-2 rounded-lg bg-status-warning/15 text-status-warning">
               <Clock className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Pending Invites</p>
               <p className="text-xl font-semibold text-text-primary">
-                {invitations.filter((i) => i.status === "PENDING").length}
+                {pendingInvitesCount ?? "—"}
               </p>
             </div>
           </div>
@@ -436,16 +388,12 @@ export default function TeamPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-        <input
-          type="text"
-          placeholder="Search members..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-md border border-border bg-surface text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
-        />
-      </div>
+      <SearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search members..."
+        className="max-w-md"
+      />
 
       {/* Pending Invitations */}
       {invitations.length > 0 && (

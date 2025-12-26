@@ -104,7 +104,7 @@ export default function NewReferralPage() {
           Create New Referral
         </h1>
         <p className="text-text-muted mt-1">
-          Submit a new customer referral to earn commissions
+          Submit a new tenant referral to earn commissions
         </p>
       </div>
 

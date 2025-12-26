@@ -206,55 +206,10 @@ class BillingService:
                     "Configure a payment plugin or set BILLING__REQUIRE_PAYMENT_PLUGIN=false"
                 ) from e
 
-        # Fallback: Simulate payment processing
-        # This allows workflows to work in development/testing without payment plugins
-        # IMPORTANT: Set BILLING__REQUIRE_PAYMENT_PLUGIN=true in production to prevent this
-
-        # Get settings to check environment and plugin requirement
-        from ..settings import get_settings
-
-        settings = get_settings()
-
-        # CRITICAL: Block fallback in production environment
-        if settings.is_production:
-            raise RuntimeError(
-                "CRITICAL: Cannot process payments in production without a payment plugin. "
-                "Simulated payments are blocked in production mode. "
-                "Configure a payment plugin (Paystack, Stripe, etc.) or contact system administrator."
-            )
-
-        # Additional check: Enforce plugin requirement even in non-production
-        if settings.billing.require_payment_plugin:
-            raise RuntimeError(
-                "Payment plugin is required (BILLING__REQUIRE_PAYMENT_PLUGIN=true) but no plugin is available. "
-                "Either configure a payment plugin or set BILLING__REQUIRE_PAYMENT_PLUGIN=false for development/testing only."
-            )
-
-        # Log prominent warning for development/testing
-        logger.warning("=" * 80)
-        logger.warning(f"⚠️  [MOCK PAYMENT] Using simulated payment processing for order {order_id}")
-        logger.warning("⚠️  NO REAL MONEY IS BEING COLLECTED")
-        logger.warning(f"⚠️  Environment: {settings.environment.value}")
-        logger.warning(
-            "⚠️  This is ONLY allowed in development/testing with BILLING__REQUIRE_PAYMENT_PLUGIN=false"
+        raise RuntimeError(
+            "Payment processing failed: no payment plugin is configured. "
+            "Configure a payment plugin (Paystack, Stripe, etc.) before running workflows."
         )
-        logger.warning("=" * 80)
-
-        payment_id = f"pay_mock_{secrets.token_hex(12)}"
-        transaction_id = f"txn_mock_{secrets.token_hex(12)}"
-
-        return {
-            "payment_id": payment_id,
-            "order_id": str(order_id),
-            "amount": str(amount_decimal),
-            "payment_method": payment_method,
-            "status": "completed",
-            "transaction_id": transaction_id,
-            "processed_at": datetime.utcnow().isoformat(),
-            "provider": "mock",
-            "warning": "⚠️ SIMULATED PAYMENT - NO MONEY COLLECTED - DEVELOPMENT/TESTING ONLY",
-            "mock_payment": True,
-        }
 
     async def check_renewal_eligibility(
         self,

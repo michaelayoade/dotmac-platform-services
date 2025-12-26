@@ -28,6 +28,12 @@
     Payment will be automatically charged to your {{ payment_method }} on {{ due_date | format_date }}.
 </p>
 
+{% if has_notes %}
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    {{ notes }}
+</p>
+{% endif %}
+
 <p style="text-align: center; margin: 0;">
     <a href="{{ invoice_url }}" class="button">View Invoice</a>
 </p>

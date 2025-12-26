@@ -15,10 +15,9 @@ from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing._typing_helpers import rate_limit
-from dotmac.platform.billing.dependencies import enforce_tenant_access
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.core.exceptions import EntityNotFoundError
 from dotmac.platform.db import get_async_session
-from dotmac.platform.tenant import get_current_tenant_id
 
 from .models import DunningExecutionStatus
 from .schemas import (
@@ -55,7 +54,7 @@ async def create_campaign(
     campaign_payload: dict[str, Any],
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Create a new dunning campaign.
@@ -107,7 +106,7 @@ async def list_campaigns(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
     active_only: bool = Query(True, description="Show only active campaigns"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
@@ -135,7 +134,7 @@ async def get_campaign(
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Get a specific dunning campaign by ID."""
     _require_tenant(current_user, tenant_id)
@@ -163,7 +162,7 @@ async def update_campaign(
     campaign_data: DunningCampaignUpdate,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Update a dunning campaign.
@@ -201,7 +200,7 @@ async def delete_campaign(
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> None:
     """
     Delete a dunning campaign.
@@ -234,7 +233,7 @@ async def get_campaign_stats(
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Get statistics for a specific campaign.
@@ -273,7 +272,7 @@ async def start_execution(
     execution_data: DunningExecutionStart,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Start a new dunning execution for a subscription.
@@ -314,7 +313,7 @@ async def list_executions(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
     campaign_id: UUID | None = Query(None, description="Filter by campaign ID"),
     subscription_id: str | None = Query(None, description="Filter by subscription ID"),
     customer_id: UUID | None = Query(None, description="Filter by customer ID"),
@@ -361,7 +360,7 @@ async def get_execution(
     execution_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Get a specific dunning execution by ID with full details."""
     _require_tenant(current_user, tenant_id)
@@ -393,7 +392,7 @@ async def cancel_execution(
     cancel_data: DunningCancelRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Cancel an active dunning execution.
@@ -450,7 +449,7 @@ async def get_execution_logs(
     execution_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> list[dict[str, Any]]:
     """
     Get action logs for a specific execution.
@@ -484,7 +483,7 @@ async def get_tenant_stats(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Get overall dunning statistics for the tenant.
@@ -507,7 +506,7 @@ async def get_pending_actions(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
     limit: int = Query(100, ge=1, le=1000, description="Maximum executions to return"),
 ) -> list[dict[str, Any]]:
     """

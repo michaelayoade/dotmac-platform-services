@@ -1,173 +1,180 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ElementType, type KeyboardEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  CreditCard,
-  BarChart3,
-  UserCircle,
-  Server,
-  Settings,
-  Search,
-  Plus,
-  FileText,
-  Clock,
-} from "lucide-react";
-import { Dialog, DialogContent, DialogOverlay } from "@dotmac/core";
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  memo,
+  type KeyboardEvent,
+} from "react";
+import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogOverlay,
+  DialogTitle,
+} from "@dotmac/core";
 
 import { cn } from "@/lib/utils";
+import {
+  getAllNavItems,
+  quickActions,
+  footerNavItem,
+  searchNavigation,
+  type NavItem,
+  type ActionItem,
+} from "@/lib/config/navigation";
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
 }
 
-interface CommandItem {
+interface CommandItemData {
   id: string;
   label: string;
   description?: string;
-  icon: ElementType;
-  action: () => void;
-  keywords?: string[];
-  section: "navigation" | "actions" | "recent";
+  icon: React.ElementType;
+  href: string;
+  section: "navigation" | "actions";
 }
 
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+// ============================================================================
+// Hooks
+// ============================================================================
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// ============================================================================
+// Components
+// ============================================================================
+
+const CommandRow = memo(function CommandRow({
+  item,
+  selected,
+  onClick,
+}: {
+  item: CommandItemData;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+        "focus:outline-none",
+        selected
+          ? "bg-accent-subtle text-accent"
+          : "text-text-secondary hover:bg-surface-overlay"
+      )}
+    >
+      <Icon
+        className={cn(
+          "w-4 h-4 flex-shrink-0",
+          selected ? "text-accent" : "text-text-muted"
+        )}
+      />
+      <div className="flex-1 min-w-0">
+        <p className={cn("text-sm font-medium", selected && "text-accent")}>
+          {item.label}
+        </p>
+        {item.description && (
+          <p className="text-xs text-text-muted truncate">{item.description}</p>
+        )}
+      </div>
+    </button>
+  );
+});
+
+export const CommandPalette = memo(function CommandPalette({
+  open,
+  onClose,
+}: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
-  const commands = useMemo<CommandItem[]>(() => [
-    // Recent
-    {
-      id: "recent-1",
-      label: "Invoice #INV-2024-001",
-      description: "Viewed 2 hours ago",
-      icon: Clock,
-      action: () => router.push("/billing/invoices/INV-2024-001"),
-      section: "recent",
-    },
-    {
-      id: "recent-2",
-      label: "User: john.doe@example.com",
-      description: "Viewed yesterday",
-      icon: Clock,
-      action: () => router.push("/users/abc123"),
-      section: "recent",
-    },
-    // Navigation
-    {
-      id: "nav-dashboard",
-      label: "Go to Dashboard",
-      icon: LayoutDashboard,
-      action: () => router.push("/"),
-      keywords: ["home", "overview"],
-      section: "navigation",
-    },
-    {
-      id: "nav-users",
-      label: "Go to Users",
-      icon: Users,
-      action: () => router.push("/users"),
-      keywords: ["members", "team"],
-      section: "navigation",
-    },
-    {
-      id: "nav-tenants",
-      label: "Go to Tenants",
-      icon: Building2,
-      action: () => router.push("/tenants"),
-      keywords: ["organizations", "orgs"],
-      section: "navigation",
-    },
-    {
-      id: "nav-billing",
-      label: "Go to Billing",
-      icon: CreditCard,
-      action: () => router.push("/billing"),
-      keywords: ["invoices", "payments", "subscriptions"],
-      section: "navigation",
-    },
-    {
-      id: "nav-analytics",
-      label: "Go to Analytics",
-      icon: BarChart3,
-      action: () => router.push("/analytics"),
-      keywords: ["reports", "metrics", "stats"],
-      section: "navigation",
-    },
-    {
-      id: "nav-customers",
-      label: "Go to Customers",
-      icon: UserCircle,
-      action: () => router.push("/customers"),
-      keywords: ["crm", "contacts"],
-      section: "navigation",
-    },
-    {
-      id: "nav-deployments",
-      label: "Go to Deployments",
-      icon: Server,
-      action: () => router.push("/deployments"),
-      keywords: ["infrastructure", "instances"],
-      section: "navigation",
-    },
-    {
-      id: "nav-settings",
-      label: "Go to Settings",
-      icon: Settings,
-      action: () => router.push("/settings"),
-      keywords: ["config", "preferences"],
-      section: "navigation",
-    },
-    // Actions
-    {
-      id: "action-new-user",
-      label: "Create New User",
-      icon: Plus,
-      action: () => router.push("/users/new"),
-      keywords: ["add user", "invite"],
-      section: "actions",
-    },
-    {
-      id: "action-new-tenant",
-      label: "Create New Tenant",
-      icon: Plus,
-      action: () => router.push("/tenants/new"),
-      keywords: ["add org", "organization"],
-      section: "actions",
-    },
-    {
-      id: "action-new-invoice",
-      label: "Create New Invoice",
-      icon: FileText,
-      action: () => router.push("/billing/invoices/new"),
-      keywords: ["bill", "charge"],
-      section: "actions",
-    },
-  ], [router]);
+  // Debounce search for performance
+  const debouncedQuery = useDebounce(query, 150);
 
-  // Filter commands based on query
+  // Track the element that was focused before opening
+  useEffect(() => {
+    if (open) {
+      previousActiveElement.current = document.activeElement as HTMLElement;
+    }
+  }, [open]);
+
+  // Get all nav items including help
+  const allNavItems = useMemo(() => {
+    return [...getAllNavItems(), footerNavItem];
+  }, []);
+
+  // Convert to command items format
+  const commands = useMemo<CommandItemData[]>(() => {
+    const navCommands: CommandItemData[] = allNavItems.map((item) => ({
+      id: `nav-${item.id}`,
+      label: `Go to ${item.label}`,
+      description: item.description,
+      icon: item.icon,
+      href: item.href,
+      section: "navigation" as const,
+    }));
+
+    const actionCommands: CommandItemData[] = quickActions.map((action) => ({
+      id: action.id,
+      label: action.label,
+      description: action.description,
+      icon: action.icon,
+      href: action.href,
+      section: "actions" as const,
+    }));
+
+    return [...actionCommands, ...navCommands];
+  }, [allNavItems]);
+
+  // Filter commands based on debounced query
   const filteredCommands = useMemo(() => {
-    if (!query) {
+    if (!debouncedQuery.trim()) {
       return commands;
     }
-    const normalizedQuery = query.toLowerCase();
-    return commands.filter((cmd) => {
-      const searchStr = [cmd.label, cmd.description, ...(cmd.keywords || [])]
-        .join(" ")
-        .toLowerCase();
-      return searchStr.includes(normalizedQuery);
-    });
-  }, [commands, query]);
+
+    const { navItems, actionItems } = searchNavigation(
+      debouncedQuery,
+      allNavItems,
+      quickActions
+    );
+
+    const matchedNavIds = new Set(navItems.map((n) => `nav-${n.id}`));
+    const matchedActionIds = new Set(actionItems.map((a) => a.id));
+
+    return commands.filter(
+      (cmd) => matchedNavIds.has(cmd.id) || matchedActionIds.has(cmd.id)
+    );
+  }, [commands, debouncedQuery, allNavItems]);
 
   // Group by section
   const groupedCommands = useMemo(
     () => ({
-      recent: filteredCommands.filter((c) => c.section === "recent"),
       actions: filteredCommands.filter((c) => c.section === "actions"),
       navigation: filteredCommands.filter((c) => c.section === "navigation"),
     }),
@@ -175,57 +182,75 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   );
 
   const flatCommands = useMemo(
-    () => [
-      ...groupedCommands.recent,
-      ...groupedCommands.actions,
-      ...groupedCommands.navigation,
-    ],
+    () => [...groupedCommands.actions, ...groupedCommands.navigation],
     [groupedCommands]
   );
 
   // Reset selection when query changes
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [debouncedQuery]);
+
+  // Execute command
+  const executeCommand = useCallback(
+    (command: CommandItemData) => {
+      router.push(command.href);
+      onClose();
+    },
+    [router, onClose]
+  );
 
   // Keyboard navigation
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (flatCommands.length === 0) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-      return;
-    }
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedIndex((i) => (i + 1) % flatCommands.length);
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + flatCommands.length) % flatCommands.length);
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (flatCommands[selectedIndex]) {
-          flatCommands[selectedIndex].action();
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (flatCommands.length === 0) {
+        if (e.key === "Escape") {
+          e.preventDefault();
           onClose();
         }
-        break;
-      case "Escape":
-        e.preventDefault();
-        onClose();
-        break;
-    }
-  };
+        return;
+      }
 
-  // Reset state when closing
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((i) => (i + 1) % flatCommands.length);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex(
+            (i) => (i - 1 + flatCommands.length) % flatCommands.length
+          );
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (flatCommands[selectedIndex]) {
+            executeCommand(flatCommands[selectedIndex]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          onClose();
+          break;
+      }
+    },
+    [flatCommands, selectedIndex, executeCommand, onClose]
+  );
+
+  // Reset state and restore focus when closing
   useEffect(() => {
     if (!open) {
       setQuery("");
       setSelectedIndex(0);
+      // Restore focus to the element that was focused before opening
+      if (
+        previousActiveElement.current &&
+        typeof previousActiveElement.current.focus === "function"
+      ) {
+        requestAnimationFrame(() => {
+          previousActiveElement.current?.focus();
+        });
+      }
     }
   }, [open]);
 
@@ -235,9 +260,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogOverlay className="bg-surface/80 backdrop-blur-sm" />
       <DialogContent
-        className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-xl bg-surface-elevated border border-border rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+        className="fixed top-[20%] left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] sm:w-full max-w-xl bg-surface-elevated border border-border rounded-xl shadow-2xl overflow-hidden animate-scale-in"
         onKeyDown={handleKeyDown}
+        aria-describedby={undefined}
       >
+        {/* Visually hidden title for screen readers */}
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
+
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <Search className="w-5 h-5 text-text-muted flex-shrink-0" />
@@ -262,28 +291,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             </div>
           ) : (
             <>
-              {/* Recent */}
-              {groupedCommands.recent.length > 0 && (
-                <div className="mb-2">
-                  <div className="px-4 py-1">
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-text-muted">
-                      Recent
-                    </span>
-                  </div>
-                  {groupedCommands.recent.map((cmd, idx) => (
-                    <CommandRow
-                      key={cmd.id}
-                      command={cmd}
-                      selected={flatCommands.indexOf(cmd) === selectedIndex}
-                      onClick={() => {
-                        cmd.action();
-                        onClose();
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-
               {/* Actions */}
               {groupedCommands.actions.length > 0 && (
                 <div className="mb-2">
@@ -295,12 +302,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   {groupedCommands.actions.map((cmd) => (
                     <CommandRow
                       key={cmd.id}
-                      command={cmd}
+                      item={cmd}
                       selected={flatCommands.indexOf(cmd) === selectedIndex}
-                      onClick={() => {
-                        cmd.action();
-                        onClose();
-                      }}
+                      onClick={() => executeCommand(cmd)}
                     />
                   ))}
                 </div>
@@ -317,12 +321,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   {groupedCommands.navigation.map((cmd) => (
                     <CommandRow
                       key={cmd.id}
-                      command={cmd}
+                      item={cmd}
                       selected={flatCommands.indexOf(cmd) === selectedIndex}
-                      onClick={() => {
-                        cmd.action();
-                        onClose();
-                      }}
+                      onClick={() => executeCommand(cmd)}
                     />
                   ))}
                 </div>
@@ -335,50 +336,28 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         <div className="flex items-center justify-between px-4 py-2 border-t border-border text-2xs text-text-muted">
           <div className="flex items-center gap-4">
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">↑↓</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">
+                ↑↓
+              </kbd>
               Navigate
             </span>
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">↵</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">
+                ↵
+              </kbd>
               Select
             </span>
           </div>
           <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">ESC</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border mr-1">
+              ESC
+            </kbd>
             Close
           </span>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+});
 
-function CommandRow({
-  command,
-  selected,
-  onClick,
-}: {
-  command: CommandItem;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const Icon = command.icon;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-        selected ? "bg-accent-subtle text-accent" : "text-text-secondary hover:bg-surface-overlay"
-      )}
-    >
-      <Icon className={cn("w-4 h-4 flex-shrink-0", selected ? "text-accent" : "text-text-muted")} />
-      <div className="flex-1 min-w-0">
-        <p className={cn("text-sm font-medium", selected && "text-accent")}>{command.label}</p>
-        {command.description && (
-          <p className="text-xs text-text-muted truncate">{command.description}</p>
-        )}
-      </div>
-    </button>
-  );
-}
+export default CommandPalette;

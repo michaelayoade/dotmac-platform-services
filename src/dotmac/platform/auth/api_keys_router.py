@@ -596,19 +596,9 @@ async def get_available_scopes(
         "read": {"name": "Read Access", "description": "Read-only access to resources"},
         "write": {"name": "Write Access", "description": "Create and update resources"},
         "delete": {"name": "Delete Access", "description": "Delete resources"},
-        # Customer & CRM
-        "customers:read": {"name": "Read Customers", "description": "View customer information"},
-        "customers:write": {
-            "name": "Manage Customers",
-            "description": "Create and update customers",
-        },
-        "crm:leads:read": {"name": "Read Leads", "description": "View CRM leads"},
-        "crm:leads:write": {"name": "Manage Leads", "description": "Create and manage leads"},
-        "crm:contacts:read": {"name": "Read Contacts", "description": "View contacts"},
-        "crm:contacts:write": {
-            "name": "Manage Contacts",
-            "description": "Create and manage contacts",
-        },
+        # Contacts
+        "contacts:read": {"name": "Read Contacts", "description": "View contacts"},
+        "contacts:write": {"name": "Manage Contacts", "description": "Create and manage contacts"},
         # Billing & Revenue
         "billing:read": {"name": "Read Billing", "description": "View invoices and billing data"},
         "billing:write": {

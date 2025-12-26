@@ -343,13 +343,17 @@ class PartnerService:
         self,
         data: PartnerAccountCreate,
     ) -> PartnerAccount:
-        """Create partner-customer account assignment."""
+        """Create partner-tenant account assignment."""
         tenant_id = self._resolve_tenant_id()
+
+        payload = data.model_dump(exclude={"metadata"})
+        tenant_account_id = payload.pop("tenant_id")
 
         account = PartnerAccount(
             tenant_id=tenant_id,
             is_active=True,
-            **data.model_dump(exclude={"metadata"}),
+            customer_id=tenant_account_id,
+            **payload,
         )
 
         account.metadata_ = data.metadata or {}
@@ -369,7 +373,7 @@ class PartnerService:
             "Partner account created",
             account_id=str(account.id),
             partner_id=str(account.partner_id),
-            customer_id=str(account.customer_id),
+            tenant_id=str(account.customer_id),
         )
 
         return account
@@ -406,10 +410,14 @@ class PartnerService:
         """Create a commission event."""
         tenant_id = self._resolve_tenant_id()
 
+        payload = data.model_dump(exclude={"metadata_"})
+        commission_tenant_id = payload.pop("tenant_id", None)
+
         event = PartnerCommissionEvent(
             tenant_id=tenant_id,
             event_date=datetime.now(UTC),
-            **data.model_dump(exclude={"metadata_"}),
+            customer_id=commission_tenant_id,
+            **payload,
         )
 
         event.metadata_ = data.metadata_ or {}

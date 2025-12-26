@@ -33,10 +33,10 @@ import {
 } from "@/lib/hooks/api/use-contacts";
 import type { ContactStage } from "@/lib/api/contacts";
 
-type ContactType = "customer" | "lead" | "partner" | "vendor" | "other";
+type ContactType = "account" | "lead" | "partner" | "vendor" | "other";
 
 const typeConfig: Record<ContactType, { label: string; color: string }> = {
-  customer: { label: "Customer", color: "bg-status-success/15 text-status-success" },
+  account: { label: "Account", color: "bg-status-success/15 text-status-success" },
   lead: { label: "Lead", color: "bg-status-info/15 text-status-info" },
   partner: { label: "Partner", color: "bg-accent-subtle text-accent" },
   vendor: { label: "Vendor", color: "bg-highlight-subtle text-highlight" },
@@ -167,9 +167,9 @@ export default function ContactsPage() {
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-text-muted mb-1">Customers</p>
+          <p className="text-sm text-text-muted mb-1">Accounts</p>
           <p className="text-2xl font-semibold text-status-success">
-            {stats?.customerCount?.toLocaleString() || 0}
+            {stats?.accountCount?.toLocaleString() || 0}
           </p>
         </Card>
         <Card className="p-4">
@@ -218,7 +218,7 @@ export default function ContactsPage() {
             className="px-3 py-2 bg-surface-primary border border-border-subtle rounded-md text-sm"
           >
             <option value="all">All Types</option>
-            <option value="customer">Customer</option>
+            <option value="account">Account</option>
             <option value="lead">Lead</option>
             <option value="partner">Partner</option>
             <option value="vendor">Vendor</option>
@@ -247,7 +247,7 @@ export default function ContactsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table">
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left px-4 py-3 w-12">

@@ -208,7 +208,7 @@ export default function DeploymentConfigPage() {
 
       {/* Unsaved Changes Warning */}
       {hasChanges && (
-        <div className="flex items-center gap-3 p-4 bg-status-warning/10 border border-status-warning/30 rounded-lg">
+        <div className="flex items-center gap-3 p-4 bg-status-warning/15 border border-status-warning/30 rounded-lg">
           <AlertCircle className="w-5 h-5 text-status-warning flex-shrink-0" />
           <p className="text-sm text-text-primary">
             You have unsaved changes. Save your configuration to apply them.

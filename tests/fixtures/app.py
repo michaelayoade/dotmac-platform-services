@@ -130,6 +130,12 @@ else:
 
         app.dependency_overrides[get_async_session] = override_session_dependency
         app.dependency_overrides[get_session_dependency] = override_session_dependency
+        try:
+            from dotmac.platform.db import get_async_db
+
+            app.dependency_overrides[get_async_db] = override_session_dependency
+        except ImportError:
+            pass
 
         # Some modules import get_async_session from dotmac.platform.database
         try:
@@ -172,6 +178,12 @@ else:
         if not _is_integration_test:
             mock_redis = create_mock_redis()
             app.state._redis_mock = mock_redis
+            try:
+                from dotmac.platform.core.caching import set_redis_client
+
+                set_redis_client(mock_redis)
+            except Exception:  # pragma: no cover - defensive
+                pass
 
             def _mock_redis_dependency():
                 return app.state._redis_mock

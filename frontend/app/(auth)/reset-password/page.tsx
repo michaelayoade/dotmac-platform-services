@@ -141,7 +141,7 @@ function ResetPasswordContent() {
           {/* Validating State */}
           {state === "validating" && (
             <div className="text-center space-y-4">
-              <div className="w-16 h-16 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-accent/15 rounded-full flex items-center justify-center">
                 <Loader2 className="w-8 h-8 text-accent animate-spin" />
               </div>
               <div className="space-y-2">
@@ -158,7 +158,7 @@ function ResetPasswordContent() {
           {/* Invalid/Expired State */}
           {(state === "invalid" || state === "expired") && (
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 mx-auto bg-status-error/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-status-error/15 rounded-full flex items-center justify-center">
                 <XCircle className="w-8 h-8 text-status-error" />
               </div>
               <div className="space-y-2">
@@ -204,7 +204,7 @@ function ResetPasswordContent() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error">
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm">{error}</p>
                 </div>
@@ -301,7 +301,7 @@ function ResetPasswordContent() {
           {/* Success State */}
           {state === "success" && (
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 mx-auto bg-status-success/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-status-success/15 rounded-full flex items-center justify-center">
                 <CheckCircle className="w-8 h-8 text-status-success" />
               </div>
               <div className="space-y-2">

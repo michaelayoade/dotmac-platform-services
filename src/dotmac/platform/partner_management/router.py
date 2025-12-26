@@ -55,6 +55,8 @@ def _convert_partner_to_response(partner: Any) -> PartnerResponse:
     for key in PartnerResponse.model_fields:
         if key == "metadata":
             partner_dict["metadata"] = partner.metadata_ if hasattr(partner, "metadata_") else {}
+        elif key == "total_tenants":
+            partner_dict["total_tenants"] = getattr(partner, "total_customers", 0)
         elif hasattr(partner, key):
             partner_dict[key] = getattr(partner, key)
     return PartnerResponse.model_validate(partner_dict)
@@ -296,6 +298,8 @@ async def create_partner_account(
     for key in PartnerAccountResponse.model_fields:
         if key == "metadata":
             account_dict["metadata"] = account.metadata_ if hasattr(account, "metadata_") else {}
+        elif key == "tenant_id":
+            account_dict["tenant_id"] = account.customer_id
         elif hasattr(account, key):
             account_dict[key] = getattr(account, key)
 
@@ -324,6 +328,8 @@ async def list_partner_accounts(
                 account_dict["metadata"] = (
                     account.metadata_ if hasattr(account, "metadata_") else {}
                 )
+            elif key == "tenant_id":
+                account_dict["tenant_id"] = account.customer_id
             elif hasattr(account, key):
                 account_dict[key] = getattr(account, key)
         responses.append(PartnerAccountResponse.model_validate(account_dict))
@@ -357,6 +363,8 @@ async def create_commission_event(
     for key in PartnerCommissionEventResponse.model_fields:
         if key == "metadata":
             event_dict["metadata"] = event.metadata_ if hasattr(event, "metadata_") else {}
+        elif key == "tenant_id":
+            event_dict["tenant_id"] = event.customer_id
         elif hasattr(event, key):
             event_dict[key] = getattr(event, key)
 
@@ -390,6 +398,8 @@ async def list_commission_events(
         for key in PartnerCommissionEventResponse.model_fields:
             if key == "metadata":
                 event_dict["metadata"] = event.metadata_ if hasattr(event, "metadata_") else {}
+            elif key == "tenant_id":
+                event_dict["tenant_id"] = event.customer_id
             elif hasattr(event, key):
                 event_dict[key] = getattr(event, key)
         responses.append(PartnerCommissionEventResponse.model_validate(event_dict))

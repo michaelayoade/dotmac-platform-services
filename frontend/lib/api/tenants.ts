@@ -6,26 +6,12 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";
 
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  status: "active" | "trial" | "suspended" | "inactive";
-  plan: "Enterprise" | "Professional" | "Starter" | "Free";
-  userCount: number;
-  mrr: number; // in cents
-  deploymentCount: number;
-  domain?: string;
-  createdAt: string;
-  updatedAt: string;
-  settings?: {
-    features: string[];
-    limits: Record<string, number>;
-  };
-}
+// Re-export Tenant from models for convenience
+export type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";
 
-export interface TenantStats {
+export interface TenantListStats {
   total: number;
   totalChange: number;
   active: number;
@@ -37,15 +23,15 @@ export interface GetTenantsParams {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: Tenant["status"];
-  plan?: Tenant["plan"];
+  status?: TenantStatus;
+  plan?: TenantPlanType;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }
 
 export async function getTenants(params: GetTenantsParams = {}): Promise<{
   tenants: Tenant[];
-  stats: TenantStats;
+  stats: TenantListStats;
   totalCount: number;
   pageCount: number;
 }> {
@@ -63,8 +49,8 @@ export async function getTenants(params: GetTenantsParams = {}): Promise<{
     },
   });
   const normalized = normalizePaginatedResponse<Tenant>(response);
-  const responseStats = (response as { stats?: TenantStats }).stats;
-  const derivedStats: TenantStats = {
+  const responseStats = (response as { stats?: TenantListStats }).stats;
+  const derivedStats: TenantListStats = {
     total: normalized.total,
     totalChange: 0,
     active: normalized.items.filter((tenant) => tenant.status === "active").length,
@@ -140,7 +126,7 @@ export async function updateTenantSettings(
 export interface CreateTenantData {
   name: string;
   slug: string;
-  plan: Tenant["plan"];
+  plan: TenantPlanType;
   ownerEmail: string;
   ownerName: string;
 }
@@ -179,7 +165,7 @@ export interface TenantMember {
   id: string;
   userId: string;
   email: string;
-  name: string;
+  fullName: string;
   role: "owner" | "admin" | "member" | "viewer";
   joinedAt: string;
 }

@@ -69,11 +69,12 @@ async function disableMfa(code: string): Promise<void> {
 }
 
 // Hooks
-export function useCurrentUser() {
+export function useCurrentUser(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.auth.me(),
     queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: options?.enabled ?? true,
   });
 }
 

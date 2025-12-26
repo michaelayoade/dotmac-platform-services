@@ -73,10 +73,10 @@ TEST_CARDS = (
 )
 WEBHOOK_EVENTS = (
     "invoice.payment_succeeded",
-    "customer.subscription.updated",
+    "subscription.updated",
     "invoice.created",
     "payment_method.attached",
-    "customer.updated",
+    "user.updated",
 )
 
 

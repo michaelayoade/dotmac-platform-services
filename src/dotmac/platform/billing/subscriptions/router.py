@@ -15,10 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.auth.rbac_dependencies import require_permission
-from dotmac.platform.billing.dependencies import enforce_tenant_access
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.billing._typing_helpers import rate_limit
 from dotmac.platform.db import get_async_session
-from dotmac.platform.tenant import get_current_tenant_id
 
 from ..exceptions import PlanNotFoundError
 from .models import (
@@ -67,7 +66,7 @@ async def create_subscription_plan(
     plan_data: SubscriptionPlanCreateRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Create a new subscription plan. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -85,7 +84,7 @@ async def list_subscription_plans(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
     product_id: str | None = Query(None, description="Filter by product ID"),
     active_only: bool = Query(True, description="Show only active plans"),
 ) -> list[dict[str, Any]]:
@@ -108,7 +107,7 @@ async def get_subscription_plan(
     plan_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Get a specific subscription plan."""
     _require_tenant(current_user, tenant_id)
@@ -132,7 +131,7 @@ async def update_subscription_plan(
     plan_data: dict[str, str],  # Using dict for flexible updates
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> SubscriptionPlanResponse:
     """Update a subscription plan. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -152,7 +151,7 @@ async def deactivate_subscription_plan(
     plan_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> JSONResponse:
     """Deactivate a subscription plan (soft delete). Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -177,7 +176,7 @@ async def create_subscription(
     subscription_data: SubscriptionCreateRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Create a new customer subscription. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -198,7 +197,7 @@ async def create_subscription(
 async def list_subscriptions(
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     plan_id: str | None = Query(None, description="Filter by plan ID"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
@@ -243,7 +242,7 @@ async def get_expiring_subscriptions(
     ),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, int | str | None]:
     """
     Get subscriptions expiring within the specified number of days.
@@ -315,7 +314,7 @@ async def get_subscription(
     subscription_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> SubscriptionResponse:
     """Get a specific subscription."""
     _require_tenant(current_user, tenant_id)
@@ -341,7 +340,7 @@ async def update_subscription(
     update_data: SubscriptionUpdateRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> SubscriptionResponse:
     """Update a subscription. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -376,7 +375,7 @@ async def cancel_subscription(
     at_period_end: bool = Query(True, description="Cancel at current period end"),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> JSONResponse:
     """Cancel a subscription. Requires billing.subscription.cancel permission."""
     _require_tenant(current_user, tenant_id)
@@ -409,7 +408,7 @@ async def reactivate_subscription(
     subscription_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> JSONResponse:
     """Reactivate a canceled subscription. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -441,7 +440,7 @@ async def change_subscription_plan(
     change_data: SubscriptionPlanChangeRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> SubscriptionPlanChangeResponse:
     """Change subscription plan with proration calculation. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -476,7 +475,7 @@ async def record_usage(
     usage_data: UsageRecordRequest,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> JSONResponse:
     """Record usage for usage-based or hybrid subscriptions. Requires billing.subscription.manage permission."""
     _require_tenant(current_user, tenant_id)
@@ -501,7 +500,7 @@ async def get_subscription_usage(
     subscription_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, str | dict[str, int]]:
     """Get current usage for a subscription."""
     _require_tenant(current_user, tenant_id)
@@ -522,7 +521,7 @@ async def preview_plan_change_proration(
     new_plan_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> ProrationResult:
     """Preview proration calculation for plan change."""
     _require_tenant(current_user, tenant_id)
@@ -552,7 +551,7 @@ async def check_subscription_renewal_eligibility(
     subscription_id: str,
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.view")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Check if a subscription is eligible for renewal.
@@ -581,7 +580,7 @@ async def extend_subscription(
     payment_id: str | None = Query(None, description="Associated payment ID"),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> SubscriptionResponse:
     """
     Extend subscription to the next billing period.
@@ -640,7 +639,7 @@ async def process_subscription_renewal_payment(
     idempotency_key: str | None = Query(None, description="Idempotency key"),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Process payment for subscription renewal.
@@ -681,7 +680,7 @@ async def create_subscription_renewal_quote(
     notes: str | None = Query(None, description="Additional notes"),
     db_session: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.subscription.manage")),
-    tenant_id: str = Depends(get_current_tenant_id),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Create a renewal quote for a subscription.
@@ -696,7 +695,7 @@ async def create_subscription_renewal_quote(
         from dotmac.platform.crm.service import QuoteService
     except ImportError:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="CRM quoting service is not available in this deployment",
         )
 

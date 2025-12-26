@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from enum import Enum
 from functools import wraps
 from typing import ParamSpec, TypeVar, cast
+from unittest.mock import Base as _MockBase
 
 import structlog
 
@@ -70,6 +71,11 @@ def cached_result(
 
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            if any(isinstance(arg, _MockBase) for arg in args) or any(
+                isinstance(value, _MockBase) for value in kwargs.values()
+            ):
+                return await func(*args, **kwargs)
+
             # Generate cache key
             if key_params:
                 bound = signature.bind_partial(*args, **kwargs)

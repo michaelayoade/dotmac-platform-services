@@ -362,7 +362,10 @@ class StripeWebhookHandler(WebhookHandler):
                         db=self.db,
                     )
                 except Exception as e:
-                    logger.warning("Failed to publish invoice.payment_failed event", error=str(e))
+                    logger.warning(
+                        "Failed to publish invoice.payment_failed event: %s",
+                        str(e),
+                    )
 
         return {
             "status": "processed",

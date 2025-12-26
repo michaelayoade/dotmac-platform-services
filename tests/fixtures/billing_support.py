@@ -139,6 +139,7 @@ if HAS_SQLALCHEMY:
         from dotmac.platform.auth.core import jwt_service
 
         fake_token = f"test-token-{billing_subject_id}"
+        claims = {"sub": billing_subject_id, "tenant_id": tenant_id}
         monkeypatch.setattr(
             jwt_service,
             "create_access_token",
@@ -147,7 +148,12 @@ if HAS_SQLALCHEMY:
         monkeypatch.setattr(
             jwt_service,
             "decode_access_token",
-            Mock(return_value={"sub": billing_subject_id, "tenant_id": tenant_id}),
+            Mock(return_value=claims),
+        )
+        monkeypatch.setattr(
+            jwt_service,
+            "verify_token",
+            Mock(return_value=claims),
         )
         return fake_token
 

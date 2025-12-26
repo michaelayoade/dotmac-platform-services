@@ -170,7 +170,7 @@ class CrossTenantSearchRequest(BaseModel):
     entity_type: str | None = Field(
         None,
         alias="resource_type",
-        description="Resource type to search (user, customer, ticket, etc.)",
+        description="Resource type to search (user, tenant, ticket, etc.)",
     )
     tenant_id: str | None = Field(None, description="Optional tenant ID to limit scope")
     limit: int = Field(20, ge=1, le=100, description="Maximum results")
@@ -566,7 +566,7 @@ async def _execute_cross_tenant_search(
                 indices_to_search.append(entity_type)
         else:
             # Search all resource types
-            indices_to_search = ["customers", "invoices", "tickets", "users"]
+            indices_to_search = ["tenants", "invoices", "tickets", "users"]
 
         # Aggregate results from all indices
         all_results = []

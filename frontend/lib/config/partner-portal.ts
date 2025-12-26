@@ -34,8 +34,8 @@ export const partnerPortalConfig: PortalConfig = {
           icon: UserPlus,
         },
         {
-          label: "Customers",
-          href: "/partner/customers",
+          label: "Tenants",
+          href: "/partner/tenants",
           icon: Users,
         },
         {
