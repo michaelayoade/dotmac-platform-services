@@ -11,7 +11,7 @@ This module contains Celery tasks for:
 
 import structlog
 
-from dotmac.platform.celery_app import app
+from dotmac.platform.celery_app import celery_app
 from dotmac.platform.database import get_async_session_context
 
 from .service import SubscriptionService
@@ -43,7 +43,7 @@ def _run_async(coro):
             loop.close()
 
 
-@app.task(name="subscriptions.process_scheduled_plan_changes")
+@celery_app.task(name="subscriptions.process_scheduled_plan_changes")
 def process_scheduled_plan_changes_task() -> dict[str, int]:
     """
     Process all scheduled plan changes that are due.
@@ -75,7 +75,7 @@ def process_scheduled_plan_changes_task() -> dict[str, int]:
     return result
 
 
-@app.task(name="subscriptions.enforce_grace_periods")
+@celery_app.task(name="subscriptions.enforce_grace_periods")
 def enforce_grace_periods_task() -> dict[str, int]:
     """
     Enforce grace periods for subscriptions with failed payments.
@@ -140,7 +140,7 @@ def enforce_grace_periods_task() -> dict[str, int]:
 # Schedule this task to run periodically
 # Example: Run every 15 minutes to check for due plan changes
 # This can be configured in celerybeat_schedule or via Celery Beat
-@app.on_after_finalize.connect
+@celery_app.on_after_finalize.connect
 def setup_periodic_tasks(sender, **kwargs):
     """Set up periodic task schedules."""
     # Run scheduled plan changes every 15 minutes

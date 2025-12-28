@@ -23,15 +23,13 @@ RUN set -eux; \
         libpq-dev="$(apt-cache policy libpq-dev | awk '/Candidate/ {print $2}')"; \
     rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml poetry.lock ./
+# Copy dependency files and README for pip install
+COPY pyproject.toml poetry.lock README.md ./
+COPY src ./src
 
-# Export and install dependencies to a target directory
-RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
-    poetry config virtualenvs.create false && \
-    poetry export -f requirements.txt --output requirements.txt --without dev --without-hashes && \
-    pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt && \
-    pip install --no-cache-dir --target=/install -r requirements.txt
+# Install package and dependencies from pyproject.toml (PEP 621 format)
+RUN pip install --no-cache-dir . && \
+    pip freeze | grep -v "^-e " | grep -v "dotmac-platform-services" > requirements.txt
 
 # Stage 2: Application Builder
 FROM python:${PYTHON_VERSION}-slim AS app-builder
@@ -42,11 +40,6 @@ WORKDIR /build
 COPY src ./src
 COPY alembic.ini ./
 COPY alembic ./alembic
-
-# Compile Python files for optimization
-RUN python -m compileall -b src && \
-    find src -name "*.py" -delete && \
-    find src -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # Stage 3: Runtime Base
 FROM python:${PYTHON_VERSION}-slim AS runtime-base
@@ -77,15 +70,14 @@ ARG APP_VERSION
 
 WORKDIR /app
 
-# Copy only the installed packages (not entire /usr/local)
-COPY --from=dependencies --chown=dotmac:dotmac /install /usr/local/lib/python3.12/site-packages
+# Copy requirements and install dependencies
+COPY --from=dependencies /build/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
-# Copy compiled application
+# Copy application source
 COPY --from=app-builder --chown=dotmac:dotmac /build/src ./src
 COPY --from=app-builder --chown=dotmac:dotmac /build/alembic.ini ./
 COPY --from=app-builder --chown=dotmac:dotmac /build/alembic ./alembic
-
-# (Optional) CLI entry point removed in production image to reduce footprint
 
 # Add startup script for migrations and health checks
 COPY --chown=dotmac:dotmac scripts/docker-entrypoint.sh /docker-entrypoint.sh
@@ -130,13 +122,12 @@ FROM runtime-base AS celery
 
 WORKDIR /app
 
-# Copy only the installed packages
-COPY --from=dependencies --chown=dotmac:dotmac /install /usr/local/lib/python3.12/site-packages
+# Copy requirements and install dependencies
+COPY --from=dependencies /build/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
-# Copy compiled application
+# Copy application source
 COPY --from=app-builder --chown=dotmac:dotmac /build/src ./src
-
-# (Optional) CLI entry point removed in production image to reduce footprint
 
 # Add celery startup script
 COPY --chown=dotmac:dotmac scripts/celery-entrypoint.sh /celery-entrypoint.sh
@@ -167,7 +158,7 @@ LABEL org.opencontainers.image.title="DotMac Platform Celery" \
 USER dotmac
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
-  CMD celery -A ${CELERY_APP} inspect ping || exit 1
+  CMD python -m celery -A ${CELERY_APP} inspect ping || exit 1
 
 ENTRYPOINT ["/celery-entrypoint.sh"]
 CMD ["worker"]

@@ -716,6 +716,27 @@ def upgrade() -> None:
     # Webhooks
     # =====================================================================
 
+    if "webhook_subscriptions" not in existing_tables:
+        op.create_table(
+            "webhook_subscriptions",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("tenant_id", sa.String(255), nullable=True, index=True),
+            sa.Column("name", sa.String(255), nullable=False),
+            sa.Column("url", sa.String(2048), nullable=False),
+            sa.Column("secret", sa.String(255), nullable=True),
+            sa.Column("event_types", postgresql.JSON(), nullable=False, server_default="[]"),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+            sa.Column("headers", postgresql.JSON(), nullable=False, server_default="{}"),
+            sa.Column("retry_config", postgresql.JSON(), nullable=False, server_default="{}"),
+            sa.Column("created_by", sa.String(255), nullable=True),
+            sa.Column("updated_by", sa.String(255), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        )
+        op.create_index("ix_webhook_subscriptions_tenant", "webhook_subscriptions", ["tenant_id"])
+        op.create_index("ix_webhook_subscriptions_active", "webhook_subscriptions", ["is_active"])
+
     if "webhook_deliveries" not in existing_tables:
         op.create_table(
             "webhook_deliveries",
@@ -1284,6 +1305,7 @@ def downgrade() -> None:
         "communication_stats",
         "communication_logs",
         "webhook_deliveries",
+        "webhook_subscriptions",
         "scheduled_jobs",
         "jobs",
         "rate_limit_logs",

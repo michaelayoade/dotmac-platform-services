@@ -5,35 +5,72 @@ metadata:
   labels:
     {{- include "dotmac-platform.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount.worker }}
+  strategy:
+    {{- toYaml .Values.strategy.worker | nindent 4 }}
   selector:
     matchLabels:
       app: dotmac-worker
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.secrets.checksum }}
+        checksum/secret: {{ .Values.secrets.checksum | quote }}
+        {{- end }}
       labels:
         app: dotmac-worker
         {{- include "dotmac-platform.labels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "dotmac-platform.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds.worker }}
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
       containers:
         - name: worker
           image: {{ .Values.image.worker }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           envFrom:
             - configMapRef:
                 name: {{ include "dotmac-platform.fullname" . }}-config
             - secretRef:
                 name: {{ .Values.secrets.name }}
-          command: ["/bin/sh","-c"]
-          args:
-            - >
-              celery -A ${CELERY_APP:-dotmac.platform.tasks.celery_app} worker
-              --loglevel=${CELERY_LOGLEVEL:-info}
-              --concurrency=${CELERY_CONCURRENCY:-4}
-              --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-1000}
-              --queues=${CELERY_QUEUES:-celery,priority,background}
-              --hostname=${CELERY_HOSTNAME:-worker@%h}
-              --time-limit=${CELERY_TASK_TIME_LIMIT:-600}
-              --soft-time-limit=${CELERY_TASK_SOFT_TIME_LIMIT:-300}
+          command: ["/celery-entrypoint.sh"]
+          args: ["worker"]
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - >
+                  python -m celery -A ${CELERY_APP:-dotmac.platform.tasks.celery_app} inspect ping
+                  -d ${CELERY_HOSTNAME:-worker@%h} >/dev/null 2>&1
+            initialDelaySeconds: {{ .Values.probes.worker.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.worker.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.worker.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.worker.readiness.failureThreshold }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - >
+                  python -m celery -A ${CELERY_APP:-dotmac.platform.tasks.celery_app} inspect ping
+                  -d ${CELERY_HOSTNAME:-worker@%h} >/dev/null 2>&1
+            initialDelaySeconds: {{ .Values.probes.worker.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.worker.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.worker.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.worker.liveness.failureThreshold }}

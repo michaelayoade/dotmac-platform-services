@@ -5,22 +5,42 @@ metadata:
   labels:
     {{- include "dotmac-platform.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount.frontend }}
+  strategy:
+    {{- toYaml .Values.strategy.frontend | nindent 4 }}
   selector:
     matchLabels:
       app: dotmac-frontend
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.secrets.checksum }}
+        checksum/secret: {{ .Values.secrets.checksum | quote }}
+        {{- end }}
       labels:
         app: dotmac-frontend
         {{- include "dotmac-platform.labels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "dotmac-platform.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds.frontend }}
       imagePullSecrets:
         {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
       containers:
         - name: frontend
           image: {{ .Values.image.frontend }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
             - containerPort: {{ .Values.service.frontendPort }}
           envFrom:
@@ -28,3 +48,21 @@ spec:
                 name: {{ include "dotmac-platform.fullname" . }}-config
             - secretRef:
                 name: {{ .Values.secrets.name }}
+          resources:
+            {{- toYaml .Values.resources.frontend | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.frontend.readiness.path }}
+              port: {{ .Values.service.frontendPort }}
+            initialDelaySeconds: {{ .Values.probes.frontend.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.frontend.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.frontend.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.frontend.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.frontend.liveness.path }}
+              port: {{ .Values.service.frontendPort }}
+            initialDelaySeconds: {{ .Values.probes.frontend.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.frontend.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.frontend.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.frontend.liveness.failureThreshold }}
