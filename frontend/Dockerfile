@@ -9,8 +9,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 FROM base AS deps
 WORKDIR /app
 
-# Copy workspace config and package files
-COPY pnpm-workspace.yaml ./
+# Copy workspace config, lock file, and package files
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY frontend/package.json ./frontend/
 COPY packages ./packages
 
@@ -19,17 +19,26 @@ RUN echo '{"name": "dotmac-platform", "private": true}' > package.json
 
 # Install dependencies
 WORKDIR /app
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Builder stage
 FROM base AS builder
 WORKDIR /app
 
-# Copy workspace structure
+# Copy workspace structure and dependencies
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
-COPY pnpm-workspace.yaml ./
+COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
+COPY pnpm-workspace.yaml tsconfig.base.json ./
 RUN echo '{"name": "dotmac-platform", "private": true}' > package.json
+
+# Build workspace packages first (skip DTS for speed)
+RUN cd packages/design-tokens && pnpm build && \
+    cd ../core && pnpm build && \
+    cd ../forms && pnpm build && \
+    cd ../charts && pnpm build && \
+    cd ../data-table && pnpm build && \
+    cd ../dashboards && pnpm build
 
 # Copy frontend source
 COPY frontend ./frontend
