@@ -29,6 +29,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = inspector.get_table_names()
+    schema = inspector.default_schema_name
 
     # =====================================================================
     # Enum types
@@ -716,7 +717,7 @@ def upgrade() -> None:
     # Webhooks
     # =====================================================================
 
-    if "webhook_subscriptions" not in existing_tables:
+    if not inspector.has_table("webhook_subscriptions", schema=schema):
         op.create_table(
             "webhook_subscriptions",
             sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -737,7 +738,7 @@ def upgrade() -> None:
         op.create_index("ix_webhook_subscriptions_tenant", "webhook_subscriptions", ["tenant_id"])
         op.create_index("ix_webhook_subscriptions_active", "webhook_subscriptions", ["is_active"])
 
-    if "webhook_deliveries" not in existing_tables:
+    if not inspector.has_table("webhook_deliveries", schema=schema):
         op.create_table(
             "webhook_deliveries",
             sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -1207,81 +1208,9 @@ def upgrade() -> None:
             sa.UniqueConstraint("module_id", "capability_code", name="ix_module_capabilities_module_capability"),
         )
 
-    if "licensing_tenant_subscriptions" not in existing_tables:
-        op.create_table(
-            "licensing_tenant_subscriptions",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-            sa.Column("tenant_id", sa.String(255), nullable=False, unique=True, index=True),
-            sa.Column(
-                "plan_id",
-                postgresql.UUID(as_uuid=True),
-                sa.ForeignKey("licensing_service_plans.id"),
-                nullable=False,
-                index=True,
-            ),
-            sa.Column("status", subscription_status_enum, nullable=False, server_default="trial", index=True),
-            sa.Column("billing_cycle", billing_cycle_enum, nullable=False, server_default="monthly"),
-            sa.Column("monthly_price", sa.Numeric(15, 2), nullable=False),
-            sa.Column("annual_price", sa.Numeric(15, 2), nullable=True),
-            sa.Column("currency", sa.String(3), nullable=False, server_default="USD"),
-            sa.Column("trial_start", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("trial_end", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("current_period_start", sa.DateTime(timezone=True), nullable=False),
-            sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=False),
-            sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("auto_renew", sa.Boolean(), nullable=False, server_default="true"),
-            sa.Column("billing_email", sa.String(255), nullable=True),
-            sa.Column("payment_method_id", sa.String(100), nullable=True),
-            sa.Column("stripe_subscription_id", sa.String(100), nullable=True, index=True),
-            sa.Column("paypal_subscription_id", sa.String(100), nullable=True, index=True),
-            sa.Column("extra_metadata", postgresql.JSON(), nullable=False, server_default="{}"),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        )
-        op.create_index(
-            "ix_tenant_subscriptions_tenant_status",
-            "licensing_tenant_subscriptions",
-            ["tenant_id", "status"],
-        )
-        op.create_index(
-            "ix_tenant_subscriptions_plan_status",
-            "licensing_tenant_subscriptions",
-            ["plan_id", "status"],
-        )
-
-    if "licensing_subscription_modules" not in existing_tables:
-        op.create_table(
-            "licensing_subscription_modules",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-            sa.Column(
-                "subscription_id",
-                postgresql.UUID(as_uuid=True),
-                sa.ForeignKey("licensing_tenant_subscriptions.id", ondelete="CASCADE"),
-                nullable=False,
-                index=True,
-            ),
-            sa.Column(
-                "module_id",
-                postgresql.UUID(as_uuid=True),
-                sa.ForeignKey("licensing_feature_modules.id"),
-                nullable=False,
-                index=True,
-            ),
-            sa.Column("is_enabled", sa.Boolean(), nullable=False, server_default="true"),
-            sa.Column("source", sa.String(20), nullable=False),
-            sa.Column("addon_price", sa.Numeric(15, 2), nullable=True),
-            sa.Column("trial_only", sa.Boolean(), nullable=False, server_default="false"),
-            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("config", postgresql.JSON(), nullable=False, server_default="{}"),
-            sa.Column("activated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-            sa.Column("deactivated_at", sa.DateTime(timezone=True), nullable=True),
-            sa.UniqueConstraint(
-                "subscription_id",
-                "module_id",
-                name="ix_subscription_modules_subscription_module",
-            ),
-        )
+    # NOTE: licensing_tenant_subscriptions and licensing_subscription_modules
+    # are created in correct_missing_tables.py migration which also creates
+    # licensing_service_plans (the FK dependency)
 
 
 def downgrade() -> None:

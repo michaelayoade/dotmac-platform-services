@@ -1801,6 +1801,50 @@ def upgrade() -> None:
             ["is_active", "is_public"],
         )
 
+    # Create licensing_tenant_subscriptions after licensing_service_plans (FK dependency)
+    if not _table_exists(bind, "licensing_tenant_subscriptions"):
+        op.create_table(
+            "licensing_tenant_subscriptions",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("tenant_id", sa.String(255), nullable=False, unique=True, index=True),
+            sa.Column(
+                "plan_id",
+                postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("licensing_service_plans.id"),
+                nullable=True,
+                index=True,
+            ),
+            sa.Column("status", subscription_status_enum, nullable=False, server_default="trial", index=True),
+            sa.Column("billing_cycle", billing_cycle_enum, nullable=False, server_default="monthly"),
+            sa.Column("monthly_price", sa.Numeric(15, 2), nullable=False, server_default="0"),
+            sa.Column("annual_price", sa.Numeric(15, 2), nullable=True),
+            sa.Column("currency", sa.String(3), nullable=False, server_default="USD"),
+            sa.Column("trial_start", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("trial_end", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("current_period_start", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("auto_renew", sa.Boolean(), nullable=False, server_default="true"),
+            sa.Column("billing_email", sa.String(255), nullable=True),
+            sa.Column("payment_method_id", sa.String(100), nullable=True),
+            sa.Column("stripe_subscription_id", sa.String(100), nullable=True, index=True),
+            sa.Column("paypal_subscription_id", sa.String(100), nullable=True, index=True),
+            sa.Column("extra_metadata", postgresql.JSON(), nullable=False, server_default="{}"),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        )
+        op.create_index(
+            "ix_tenant_subscriptions_tenant_status",
+            "licensing_tenant_subscriptions",
+            ["tenant_id", "status"],
+        )
+        op.create_index(
+            "ix_tenant_subscriptions_plan_status",
+            "licensing_tenant_subscriptions",
+            ["plan_id", "status"],
+        )
+
     if _table_exists(bind, "licensing_plan_modules"):
         columns = _get_columns(bind, "licensing_plan_modules")
         with op.batch_alter_table("licensing_plan_modules") as batch_op:
