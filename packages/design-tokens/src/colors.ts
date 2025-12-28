@@ -579,7 +579,21 @@ export function generateColorScale(baseColor: string): ColorScale {
     return Math.max(0, oklch.C * dampen);
   };
 
-  const scale = (Object.keys(lightnessScale) as Array<keyof ColorScale>).reduce(
+  const scaleKeys: Array<keyof ColorScale> = [
+    50,
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900,
+    950,
+  ];
+
+  const scale = scaleKeys.reduce(
     (scale, shade) => {
       const L = clamp(lightnessScale[shade] + delta, 0.02, 0.98);
       const C = adjustChroma(L);
