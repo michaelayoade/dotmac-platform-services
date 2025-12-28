@@ -324,7 +324,7 @@ async def get_user_dashboard(
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Get session from service
-        session = user_service._session
+        session = user_service.session
 
         from .models import User
 

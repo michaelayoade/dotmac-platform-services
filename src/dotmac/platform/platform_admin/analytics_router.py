@@ -282,10 +282,18 @@ async def aggregate_metric_across_tenants(
 
     **Returns:** Aggregated metric with per-tenant breakdown
     """
+    async def _get_tenant_names(tenant_ids: list[str]) -> dict[str, str]:
+        if not tenant_ids:
+            return {}
+        from dotmac.platform.tenant.models import Tenant
+
+        tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+        tenant_result = await session.execute(tenant_query)
+        return {str(row.id): row.name for row in tenant_result.all()}
+
     try:
         if metric_name == "user_count":
             from dotmac.platform.auth.models import User
-            from dotmac.platform.tenant.models import Tenant
 
             # Get user counts by tenant
             query = select(
@@ -301,11 +309,7 @@ async def aggregate_metric_across_tenants(
 
             # Fetch tenant names
             tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
-            tenant_names: dict[str, str] = {}
-            if tenant_ids:
-                tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
-                tenant_result = await session.execute(tenant_query)
-                tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+            tenant_names = await _get_tenant_names(tenant_ids)
 
             by_tenant = [
                 TenantMetric(
@@ -329,7 +333,6 @@ async def aggregate_metric_across_tenants(
 
         if metric_name == "login_count":
             from dotmac.platform.audit.models import ActivityType, AuditActivity
-            from dotmac.platform.tenant.models import Tenant
 
             filters = [
                 AuditActivity.activity_type == ActivityType.USER_LOGIN.value,
@@ -356,11 +359,7 @@ async def aggregate_metric_across_tenants(
             rows = result.all()
 
             tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
-            tenant_names: dict[str, str] = {}
-            if tenant_ids:
-                tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
-                tenant_result = await session.execute(tenant_query)
-                tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+            tenant_names = await _get_tenant_names(tenant_ids)
 
             by_tenant = [
                 TenantMetric(
@@ -384,7 +383,6 @@ async def aggregate_metric_across_tenants(
 
         if metric_name == "revenue":
             from dotmac.platform.billing.core.entities import InvoiceEntity
-            from dotmac.platform.tenant.models import Tenant
 
             revenue_expr = InvoiceEntity.total_amount - InvoiceEntity.remaining_balance
             filters = [InvoiceEntity.tenant_id.is_not(None)]
@@ -409,11 +407,7 @@ async def aggregate_metric_across_tenants(
             rows = result.all()
 
             tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
-            tenant_names: dict[str, str] = {}
-            if tenant_ids:
-                tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
-                tenant_result = await session.execute(tenant_query)
-                tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+            tenant_names = await _get_tenant_names(tenant_ids)
 
             by_tenant = [
                 TenantMetric(

@@ -240,9 +240,9 @@ async def record_offline_payment(
     such as checks, wire transfers, or cash payments.
     """
     try:
-        effective_tenant_id = tenant_id if isinstance(tenant_id, str) else None
+        effective_tenant_id: str | None = tenant_id if isinstance(tenant_id, str) else None
         if not effective_tenant_id:
-            effective_tenant_id = getattr(current_user, "tenant_id", None)
+            effective_tenant_id = current_user.effective_tenant_id
 
         if not effective_tenant_id:
             raise HTTPException(
@@ -298,9 +298,9 @@ async def list_payments(
     List payments with optional filtering and pagination.
     """
     try:
-        effective_tenant_id = tenant_id if isinstance(tenant_id, str) else None
+        effective_tenant_id: str | None = tenant_id if isinstance(tenant_id, str) else None
         if not effective_tenant_id:
-            effective_tenant_id = getattr(current_user, "tenant_id", None)
+            effective_tenant_id = current_user.effective_tenant_id
 
         if not effective_tenant_id:
             return PaymentListResponse(
@@ -426,9 +426,9 @@ async def get_payment(
     Get a specific payment by ID.
     """
     try:
-        effective_tenant_id = tenant_id if isinstance(tenant_id, str) else None
+        effective_tenant_id: str | None = tenant_id if isinstance(tenant_id, str) else None
         if not effective_tenant_id:
-            effective_tenant_id = getattr(current_user, "tenant_id", None)
+            effective_tenant_id = current_user.effective_tenant_id
 
         if not effective_tenant_id:
             raise HTTPException(

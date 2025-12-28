@@ -349,7 +349,7 @@ async def get_tenant_dashboard(
         # Churned (deleted/suspended) this month
         churned_this_month = await db.execute(
             select(func.count(Tenant.id)).where(
-                Tenant.status.in_([TenantStatus.SUSPENDED, TenantStatus.DELETED]),
+                Tenant.status.in_([TenantStatus.SUSPENDED, TenantStatus.CANCELLED]),
                 Tenant.updated_at >= month_start,
             )
         )

@@ -245,7 +245,7 @@ def get_instance_status(
 
 
 @router.post("/provision", response_model=OperationResponse, status_code=status.HTTP_202_ACCEPTED)
-def provision_deployment(
+async def provision_deployment(
     request: ProvisionRequest,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.instance.create")),
@@ -280,7 +280,7 @@ def provision_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def upgrade_deployment(
+async def upgrade_deployment(
     instance_id: int,
     request: UpgradeRequest,
     db: Session = Depends(get_db),
@@ -318,7 +318,7 @@ def upgrade_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def scale_deployment(
+async def scale_deployment(
     instance_id: int,
     request: ScaleRequest,
     db: Session = Depends(get_db),
@@ -356,7 +356,7 @@ def scale_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def suspend_deployment(
+async def suspend_deployment(
     instance_id: int,
     request: SuspendRequest,
     db: Session = Depends(get_db),
@@ -394,7 +394,7 @@ def suspend_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def resume_deployment(
+async def resume_deployment(
     instance_id: int,
     request: ResumeRequest,
     db: Session = Depends(get_db),
@@ -432,7 +432,7 @@ def resume_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def destroy_deployment(
+async def destroy_deployment(
     instance_id: int,
     request: DestroyRequest,
     db: Session = Depends(get_db),

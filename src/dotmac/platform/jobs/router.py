@@ -448,33 +448,32 @@ async def get_job_dashboard(
         stats = await service.get_statistics(tenant_id)
 
         # Calculate success rate
-        total_completed = stats.completed + stats.failed
-        success_rate = (stats.completed / total_completed * 100) if total_completed > 0 else 0.0
+        total_completed = stats.completed_jobs + stats.failed_jobs
+        success_rate = (
+            (stats.completed_jobs / total_completed * 100) if total_completed > 0 else 0.0
+        )
 
         summary = JobDashboardSummary(
-            total_jobs=stats.total,
-            pending_jobs=stats.pending,
-            running_jobs=stats.running,
-            completed_jobs=stats.completed,
-            failed_jobs=stats.failed,
-            cancelled_jobs=stats.cancelled,
+            total_jobs=stats.total_jobs,
+            pending_jobs=stats.pending_jobs,
+            running_jobs=stats.running_jobs,
+            completed_jobs=stats.completed_jobs,
+            failed_jobs=stats.failed_jobs,
+            cancelled_jobs=stats.cancelled_jobs,
             success_rate_pct=round(success_rate, 2),
             avg_duration_seconds=stats.avg_duration_seconds,
         )
 
         # Chart data from stats
         jobs_by_status = [
-            JobChartDataPoint(label="pending", value=stats.pending),
-            JobChartDataPoint(label="running", value=stats.running),
-            JobChartDataPoint(label="completed", value=stats.completed),
-            JobChartDataPoint(label="failed", value=stats.failed),
-            JobChartDataPoint(label="cancelled", value=stats.cancelled),
+            JobChartDataPoint(label="pending", value=stats.pending_jobs),
+            JobChartDataPoint(label="running", value=stats.running_jobs),
+            JobChartDataPoint(label="completed", value=stats.completed_jobs),
+            JobChartDataPoint(label="failed", value=stats.failed_jobs),
+            JobChartDataPoint(label="cancelled", value=stats.cancelled_jobs),
         ]
 
-        jobs_by_type = [
-            JobChartDataPoint(label=job_type, value=count)
-            for job_type, count in (stats.by_type or {}).items()
-        ]
+        jobs_by_type: list[JobChartDataPoint] = []
 
         # Generate daily trends (simulated from available data)
         jobs_trend = []
@@ -482,7 +481,7 @@ async def get_job_dashboard(
         for i in range(min(period_days, 14) - 1, -1, -1):
             day_date = now - timedelta(days=i)
             # Use stats total as approximate daily value
-            daily_value = stats.total / max(period_days, 1)
+            daily_value = stats.total_jobs / max(period_days, 1)
             jobs_trend.append(JobChartDataPoint(
                 label=day_date.strftime("%b %d"),
                 value=round(daily_value, 1),
@@ -502,21 +501,21 @@ async def get_job_dashboard(
         # Alerts
         alerts = []
 
-        if stats.failed > 0:
+        if stats.failed_jobs > 0:
             alerts.append(JobAlert(
                 type="error",
                 title="Failed Jobs",
-                message=f"{stats.failed} job(s) have failed",
-                count=stats.failed,
+                message=f"{stats.failed_jobs} job(s) have failed",
+                count=stats.failed_jobs,
                 action_url="/jobs?status=failed",
             ))
 
-        if stats.running > 5:
+        if stats.running_jobs > 5:
             alerts.append(JobAlert(
                 type="warning",
                 title="High Job Load",
-                message=f"{stats.running} jobs currently running",
-                count=stats.running,
+                message=f"{stats.running_jobs} jobs currently running",
+                count=stats.running_jobs,
                 action_url="/jobs?status=running",
             ))
 
@@ -531,7 +530,7 @@ async def get_job_dashboard(
             JobRecentActivity(
                 id=job.id,
                 type=job.job_type,
-                description=f"Job: {job.name or job.id[:8]}",
+                description=f"Job: {job.title or job.id[:8]}",
                 status=job.status,
                 progress=job.progress_percent or 0,
                 timestamp=job.created_at,

@@ -209,7 +209,7 @@ async def list_invoices(
     request: Request,
     tenant_id: str = Depends(get_tenant_id),
     customer_id: str | None = Query(None, description="Filter by customer ID"),
-    status: InvoiceStatus | None = Query(None, description="Filter by status"),
+    invoice_status: InvoiceStatus | None = Query(None, description="Filter by status"),
     payment_status: PaymentStatus | None = Query(None, description="Filter by payment status"),
     start_date: datetime | None = Query(None, description="Filter by start date"),
     end_date: datetime | None = Query(None, description="Filter by end date"),
@@ -222,7 +222,10 @@ async def list_invoices(
 
     auth_header = request.headers.get("Authorization")
     if not auth_header:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
@@ -231,7 +234,7 @@ async def list_invoices(
             invoices, total_count = await invoice_service.list_invoices_with_count(
                 tenant_id=tenant_id,
                 customer_id=customer_id,
-                status=status,
+                status=invoice_status,
                 payment_status=payment_status,
                 start_date=start_date,
                 end_date=end_date,

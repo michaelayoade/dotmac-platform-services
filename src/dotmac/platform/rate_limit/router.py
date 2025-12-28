@@ -314,8 +314,15 @@ async def get_rate_limit_status(
     """Get rate limit status."""
     service = RateLimitService(db)
 
+    tenant_id = current_user.effective_tenant_id
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required",
+        )
+
     status_data = await service.get_rate_limit_status(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         endpoint=endpoint,
         user_id=UUID(current_user.user_id),
     )
@@ -338,8 +345,15 @@ async def reset_rate_limit(
     """Reset rate limit."""
     service = RateLimitService(db)
 
+    tenant_id = current_user.effective_tenant_id
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required",
+        )
+
     success = await service.reset_limit(
-        tenant_id=current_user.tenant_id, rule_id=rule_id, identifier=identifier
+        tenant_id=tenant_id, rule_id=rule_id, identifier=identifier
     )
 
     if not success:

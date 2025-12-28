@@ -269,9 +269,10 @@ class UsageAggregate(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]  
     )
 
     def __repr__(self) -> str:
+        amount_cents = self.total_amount or 0
         return (
             f"<UsageAggregate(type={self.usage_type}, period={self.period_type}, "
-            f"qty={self.total_quantity}, amount=${self.total_amount / 100:.2f})>"
+            f"qty={self.total_quantity}, amount=${amount_cents / 100:.2f})>"
         )
 
 

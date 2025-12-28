@@ -71,7 +71,7 @@ def rotate_jwt_keys_task() -> dict[str, Any]:
     """
     from dotmac.platform.secrets.vault_client import VaultClient, VaultError
 
-    result = {
+    result: dict[str, Any] = {
         "rotated": False,
         "new_key_id": None,
         "old_key_id": settings.auth.jwt_key_id,
@@ -86,6 +86,7 @@ def rotate_jwt_keys_task() -> dict[str, Any]:
 
         # Generate new key pair based on algorithm
         algorithm = settings.auth.jwt_asymmetric_algorithm
+        private_key: rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
         if algorithm.startswith("RS"):
             # RSA key (RS256, RS384, RS512)
             private_key = rsa.generate_private_key(
@@ -197,21 +198,27 @@ def check_expiring_api_keys_task() -> dict[str, Any]:
     async def _check():
         from sqlalchemy import and_, select
 
-        from dotmac.platform.auth.models import APIKeyTable
+        from dotmac.platform.auth.models import ApiKey
 
         warning_days = 7  # Notify 7 days before expiration
         cutoff_date = datetime.now(UTC) + timedelta(days=warning_days)
 
-        stats = {"expiring_count": 0, "notified": 0, "errors": 0, "keys": []}
+        keys: list[dict[str, Any]] = []
+        stats: dict[str, Any] = {
+            "expiring_count": 0,
+            "notified": 0,
+            "errors": 0,
+            "keys": keys,
+        }
 
         async with get_async_session_context() as session:
             # Find expiring API keys
-            stmt = select(APIKeyTable).where(
+            stmt = select(ApiKey).where(
                 and_(
-                    APIKeyTable.expires_at.isnot(None),
-                    APIKeyTable.expires_at <= cutoff_date,
-                    APIKeyTable.expires_at > datetime.now(UTC),
-                    APIKeyTable.revoked_at.is_(None),
+                    ApiKey.expires_at.isnot(None),
+                    ApiKey.expires_at <= cutoff_date,
+                    ApiKey.expires_at > datetime.now(UTC),
+                    ApiKey.is_active == True,  # noqa: E712
                 )
             )
 
@@ -223,7 +230,7 @@ def check_expiring_api_keys_task() -> dict[str, Any]:
             for key in expiring_keys:
                 days_until_expiry = (key.expires_at - datetime.now(UTC)).days
 
-                stats["keys"].append(
+                keys.append(
                     {
                         "key_id": str(key.id),
                         "name": key.name,
@@ -280,17 +287,17 @@ def cleanup_expired_api_keys_task() -> dict[str, Any]:
     async def _cleanup():
         from sqlalchemy import and_, select
 
-        from dotmac.platform.auth.models import APIKeyTable
+        from dotmac.platform.auth.models import ApiKey
 
-        stats = {"cleaned_count": 0, "errors": 0}
+        stats: dict[str, Any] = {"cleaned_count": 0, "errors": 0}
 
         async with get_async_session_context() as session:
             # Find expired, non-revoked API keys
-            stmt = select(APIKeyTable).where(
+            stmt = select(ApiKey).where(
                 and_(
-                    APIKeyTable.expires_at.isnot(None),
-                    APIKeyTable.expires_at <= datetime.now(UTC),
-                    APIKeyTable.revoked_at.is_(None),
+                    ApiKey.expires_at.isnot(None),
+                    ApiKey.expires_at <= datetime.now(UTC),
+                    ApiKey.is_active == True,  # noqa: E712
                 )
             )
 
@@ -299,8 +306,12 @@ def cleanup_expired_api_keys_task() -> dict[str, Any]:
 
             for key in expired_keys:
                 try:
-                    key.revoked_at = datetime.now(UTC)
-                    key.revoked_reason = "expired"
+                    key.is_active = False
+                    key.metadata_ = {
+                        **(key.metadata_ or {}),
+                        "revoked_at": datetime.now(UTC).isoformat(),
+                        "revoked_reason": "expired",
+                    }
 
                     logger.info(
                         "api_key.auto_revoked",
@@ -353,7 +364,7 @@ def cleanup_previous_jwt_keys_task() -> dict[str, Any]:
     """
     from dotmac.platform.secrets.vault_client import VaultClient, VaultError
 
-    result = {"checked": 0, "removed": 0, "retained": 0, "error": None}
+    result: dict[str, Any] = {"checked": 0, "removed": 0, "retained": 0, "error": None}
 
     retention_days = 30  # Keep previous keys for 30 days
 

@@ -1070,12 +1070,12 @@ async def _get_usage_from_audit_activity(
     )
     feature_rows = feature_query.all()
 
-    total_calls = sum(row.count for row in feature_rows) or 1
+    total_calls = sum(int(row._mapping["count"]) for row in feature_rows) or 1
     by_feature = [
         {
             "feature": row.activity_type.replace(".", " ").replace("_", " ").title() if row.activity_type else "Unknown",
-            "calls": int(row.count),
-            "percentage": round((row.count / total_calls) * 100, 1),
+            "calls": int(row._mapping["count"]),
+            "percentage": round((int(row._mapping["count"]) / total_calls) * 100, 1),
         }
         for row in feature_rows
     ]
@@ -1119,7 +1119,7 @@ async def _get_usage_from_audit_activity(
         {
             "userId": row.user_id,
             "userName": user_names.get(str(row.user_id), "Unknown"),
-            "apiCalls": int(row.count),
+            "apiCalls": int(row._mapping["count"]),
             "storageUsed": 0.0,  # Not available from audit activity
         }
         for row in user_rows
@@ -1153,7 +1153,10 @@ async def _get_usage_history_from_audit_activity(
     rows = result.all()
 
     return [
-        {"date": row.date.isoformat() if row.date else "", "value": int(row.count)}
+        {
+            "date": (row._mapping["date"].isoformat() if row._mapping["date"] else ""),
+            "value": int(row._mapping["count"]),
+        }
         for row in rows
     ]
 
@@ -1315,6 +1318,12 @@ async def get_usage_breakdown(
                 elif isinstance(calls, (int, float)):
                     _add_feature(str(feature), float(calls))
 
+        def _coerce_float(value: Any) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
+
         user_entries = (
             metrics.get("by_user")
             or metrics.get("byUser")
@@ -1330,13 +1339,13 @@ async def get_usage_breakdown(
                 api_calls = item.get("apiCalls") or item.get("api_calls") or item.get("calls") or 0
                 storage_mb = 0.0
                 if item.get("storage_gb") is not None:
-                    storage_mb = float(item.get("storage_gb")) * 1024
+                    storage_mb = _coerce_float(item.get("storage_gb")) * 1024
                 elif item.get("storageUsed") is not None:
-                    storage_mb = float(item.get("storageUsed"))
+                    storage_mb = _coerce_float(item.get("storageUsed"))
                 elif item.get("storage_used") is not None:
-                    storage_mb = float(item.get("storage_used"))
+                    storage_mb = _coerce_float(item.get("storage_used"))
                 elif item.get("storage_mb") is not None:
-                    storage_mb = float(item.get("storage_mb"))
+                    storage_mb = _coerce_float(item.get("storage_mb"))
                 _add_user(str(user_id), str(user_name) if user_name else None, float(api_calls), storage_mb)
         elif isinstance(user_entries, dict):
             for user_id, data in user_entries.items():
@@ -1345,13 +1354,13 @@ async def get_usage_breakdown(
                     api_calls = data.get("apiCalls") or data.get("api_calls") or data.get("calls") or 0
                     storage_mb = 0.0
                     if data.get("storage_gb") is not None:
-                        storage_mb = float(data.get("storage_gb")) * 1024
+                        storage_mb = _coerce_float(data.get("storage_gb")) * 1024
                     elif data.get("storageUsed") is not None:
-                        storage_mb = float(data.get("storageUsed"))
+                        storage_mb = _coerce_float(data.get("storageUsed"))
                     elif data.get("storage_used") is not None:
-                        storage_mb = float(data.get("storage_used"))
+                        storage_mb = _coerce_float(data.get("storage_used"))
                     elif data.get("storage_mb") is not None:
-                        storage_mb = float(data.get("storage_mb"))
+                        storage_mb = _coerce_float(data.get("storage_mb"))
                     _add_user(str(user_id), str(user_name) if user_name else None, float(api_calls), storage_mb)
                 elif isinstance(data, (int, float)):
                     _add_user(str(user_id), None, float(data), 0.0)

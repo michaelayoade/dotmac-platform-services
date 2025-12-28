@@ -1263,14 +1263,19 @@ async def get_audit_dashboard(
             days=7,
         )
 
+        def _value_or_str(value: Any, default: str) -> str:
+            if value is None:
+                return default
+            return value.value if hasattr(value, "value") else str(value)
+
         recent_activity = [
             AuditRecentActivityItem(
                 id=str(a.id),
-                activity_type=a.activity_type.value if a.activity_type else "unknown",
+                activity_type=_value_or_str(a.activity_type, "unknown"),
                 action=a.action or "",
                 description=a.description or "",
-                severity=a.severity.value if a.severity else "low",
-                timestamp=a.created_at,
+                severity=_value_or_str(a.severity, "low"),
+                timestamp=a.timestamp,
                 user_id=a.user_id,
                 tenant_id=a.tenant_id,
             )

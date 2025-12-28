@@ -3,6 +3,7 @@ Billing module enumerations
 """
 
 from enum import Enum
+from typing import cast
 
 
 class CaseInsensitiveEnum(str, Enum):
@@ -58,7 +59,7 @@ class PaymentStatus(CaseInsensitiveEnum):
                 return cls.PENDING
             if candidate == "paid":
                 return cls.SUCCEEDED
-        return super()._missing_(value)
+        return cast("PaymentStatus | None", super()._missing_(value))
 
 
 class PaymentMethodType(CaseInsensitiveEnum):

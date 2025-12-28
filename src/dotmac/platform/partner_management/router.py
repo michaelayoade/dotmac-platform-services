@@ -1041,8 +1041,8 @@ class PartnerDashboardResponse(BaseModel):
     description="Returns consolidated partner metrics, charts, and alerts for the dashboard",
 )
 async def get_partner_dashboard(
+    admin: Annotated[UserInfo, Depends(require_platform_admin)],
     period_months: int = Query(6, ge=1, le=24, description="Months of trend data"),
-    admin: Annotated[UserInfo, Depends(require_platform_admin)] = None,
     session: AsyncSession = Depends(get_session_dependency),
 ) -> PartnerDashboardResponse:
     """

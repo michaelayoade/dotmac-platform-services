@@ -397,7 +397,10 @@ class JWTService:
             )
 
             if use_asymmetric:
-                private_key, kid = self._key_manager.get_signing_key()
+                key_manager = self._key_manager
+                if key_manager is None:
+                    raise RuntimeError("Key manager unavailable for asymmetric signing")
+                private_key, kid = key_manager.get_signing_key()
                 header = {"alg": settings.auth.jwt_asymmetric_algorithm, "kid": kid}
                 token = jwt.encode(header, to_encode, private_key)
                 return token.decode("utf-8") if isinstance(token, bytes) else token
