@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-worker
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dotmac-worker
+  template:
+    metadata:
+      labels:
+        app: dotmac-worker
+        {{- include "dotmac-platform.labels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      containers:
+        - name: worker
+          image: {{ .Values.image.worker }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "dotmac-platform.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          command: ["/bin/sh","-c"]
+          args:
+            - >
+              celery -A ${CELERY_APP:-dotmac.platform.tasks.celery_app} worker
+              --loglevel=${CELERY_LOGLEVEL:-info}
+              --concurrency=${CELERY_CONCURRENCY:-4}
+              --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-1000}
+              --queues=${CELERY_QUEUES:-celery,priority,background}
+              --hostname=${CELERY_HOSTNAME:-worker@%h}
+              --time-limit=${CELERY_TASK_TIME_LIMIT:-600}
+              --soft-time-limit=${CELERY_TASK_SOFT_TIME_LIMIT:-300}

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-frontend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.frontendPort }}
+      targetPort: {{ .Values.service.frontendPort }}
+  selector:
+    app: dotmac-frontend

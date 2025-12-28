@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-frontend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dotmac-frontend
+  template:
+    metadata:
+      labels:
+        app: dotmac-frontend
+        {{- include "dotmac-platform.labels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      containers:
+        - name: frontend
+          image: {{ .Values.image.frontend }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.frontendPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "dotmac-platform.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secrets.name }}

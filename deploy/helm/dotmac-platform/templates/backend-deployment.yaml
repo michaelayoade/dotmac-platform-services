@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-backend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dotmac-backend
+  template:
+    metadata:
+      labels:
+        app: dotmac-backend
+        {{- include "dotmac-platform.labels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      containers:
+        - name: backend
+          image: {{ .Values.image.backend }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.backendPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "dotmac-platform.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.backendPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.backendPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 20

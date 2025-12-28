@@ -1,0 +1,42 @@
+image:
+  backend: ghcr.io/dotmactech/dotmac-platform-backend:0.1.0
+  frontend: ghcr.io/dotmactech/dotmac-platform-frontend:0.1.0
+  worker: ghcr.io/dotmactech/dotmac-platform-backend:0.1.0
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: ghcr-pull
+
+env:
+  environment: production
+  logLevel: info
+  logFormat: json
+  corsOrigins: '["https://admin.dotmac.io","https://dotmac.io"]'
+
+endpoints:
+  apiBaseUrl: https://api.dotmac.io
+  wsUrl: wss://api.dotmac.io
+  nextAuthUrl: https://admin.dotmac.io
+
+service:
+  backendPort: 8000
+  frontendPort: 3000
+
+secrets:
+  name: dotmac-platform-secrets
+
+migrations:
+  enabled: false
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 300
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    api: api.dotmac.io
+    admin: admin.dotmac.io
+  tls:
+    enabled: true
+    secretName: dotmac-tls
