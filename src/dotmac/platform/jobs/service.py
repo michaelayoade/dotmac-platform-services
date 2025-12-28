@@ -30,6 +30,11 @@ async def publish_job_update(
     job_type: str,
     status: str,
     progress_percent: int = 0,
+    items_total: int | None = None,
+    items_processed: int | None = None,
+    items_succeeded: int | None = None,
+    items_failed: int | None = None,
+    current_item: str | None = None,
     error_message: str | None = None,
 ) -> None:
     """

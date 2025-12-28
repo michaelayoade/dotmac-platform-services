@@ -8,6 +8,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
+from uuid import UUID
 
 import structlog
 from sqlalchemy import update
@@ -64,9 +65,11 @@ async def create_verification_token(
 
 async def invalidate_verification_tokens(
     session: AsyncSession,
-    user_id: str,
+    user_id: str | UUID,
     email: str,
 ) -> None:
+    if isinstance(user_id, str):
+        user_id = UUID(user_id)
     stmt = (
         update(EmailVerificationToken)
         .where(EmailVerificationToken.user_id == user_id)

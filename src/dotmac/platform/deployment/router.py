@@ -86,7 +86,7 @@ def get_deployment_service(db: Session = Depends(get_db)) -> DeploymentService:
 
 
 @router.get("/templates", response_model=list[DeploymentTemplateResponse])
-async def list_templates(
+def list_templates(
     is_active: bool | None = Query(None),
     backend: DeploymentBackend | None = Query(None),
     deployment_type: DeploymentType | None = Query(None),
@@ -104,7 +104,7 @@ async def list_templates(
 @router.post(
     "/templates", response_model=DeploymentTemplateResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_template(
+def create_template(
     template: DeploymentTemplateCreate,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.template.create")),
@@ -124,7 +124,7 @@ async def create_template(
 
 
 @router.get("/templates/{template_id}", response_model=DeploymentTemplateResponse)
-async def get_template(
+def get_template(
     template_id: int,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.template.read")),
@@ -138,7 +138,7 @@ async def get_template(
 
 
 @router.patch("/templates/{template_id}", response_model=DeploymentTemplateResponse)
-async def update_template(
+def update_template(
     template_id: int,
     updates: DeploymentTemplateUpdate,
     db: Session = Depends(get_db),
@@ -158,7 +158,7 @@ async def update_template(
 
 
 @router.get("/instances", response_model=DeploymentListResponse)
-async def list_instances(
+def list_instances(
     tenant_id: int | None = Query(None),
     state: DeploymentState | None = Query(None),
     environment: str | None = Query(None),
@@ -194,7 +194,7 @@ async def list_instances(
 
 
 @router.get("/instances/{instance_id}", response_model=DeploymentInstanceResponse)
-async def get_instance(
+def get_instance(
     instance_id: int,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.instance.read")),
@@ -208,7 +208,7 @@ async def get_instance(
 
 
 @router.get("/instances/{instance_id}/status", response_model=DeploymentStatusResponse)
-async def get_instance_status(
+def get_instance_status(
     instance_id: int,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.instance.read")),
@@ -245,7 +245,7 @@ async def get_instance_status(
 
 
 @router.post("/provision", response_model=OperationResponse, status_code=status.HTTP_202_ACCEPTED)
-async def provision_deployment(
+def provision_deployment(
     request: ProvisionRequest,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.instance.create")),
@@ -280,7 +280,7 @@ async def provision_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def upgrade_deployment(
+def upgrade_deployment(
     instance_id: int,
     request: UpgradeRequest,
     db: Session = Depends(get_db),
@@ -318,7 +318,7 @@ async def upgrade_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def scale_deployment(
+def scale_deployment(
     instance_id: int,
     request: ScaleRequest,
     db: Session = Depends(get_db),
@@ -356,7 +356,7 @@ async def scale_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def suspend_deployment(
+def suspend_deployment(
     instance_id: int,
     request: SuspendRequest,
     db: Session = Depends(get_db),
@@ -394,7 +394,7 @@ async def suspend_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def resume_deployment(
+def resume_deployment(
     instance_id: int,
     request: ResumeRequest,
     db: Session = Depends(get_db),
@@ -432,7 +432,7 @@ async def resume_deployment(
     response_model=OperationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def destroy_deployment(
+def destroy_deployment(
     instance_id: int,
     request: DestroyRequest,
     db: Session = Depends(get_db),
@@ -474,7 +474,7 @@ async def destroy_deployment(
 
 
 @router.get("/instances/{instance_id}/executions", response_model=list[DeploymentExecutionResponse])
-async def list_executions(
+def list_executions(
     instance_id: int,
     operation: str | None = Query(None),
     skip: int = Query(0, ge=0),
@@ -491,7 +491,7 @@ async def list_executions(
 
 
 @router.get("/executions/{execution_id}", response_model=DeploymentExecutionResponse)
-async def get_execution(
+def get_execution(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.instance.read")),
@@ -510,7 +510,7 @@ async def get_execution(
 
 
 @router.get("/instances/{instance_id}/health", response_model=list[DeploymentHealthResponse])
-async def list_health_records(
+def list_health_records(
     instance_id: int,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -547,7 +547,7 @@ async def trigger_health_check(
 
 
 @router.get("/stats")
-async def get_deployment_stats(
+def get_deployment_stats(
     tenant_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.stats.read")),
@@ -558,7 +558,7 @@ async def get_deployment_stats(
 
 
 @router.get("/stats/templates")
-async def get_template_usage_stats(
+def get_template_usage_stats(
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.stats.read")),
 ) -> dict[str, Any]:
@@ -568,7 +568,7 @@ async def get_template_usage_stats(
 
 
 @router.get("/stats/resources")
-async def get_resource_allocation(
+def get_resource_allocation(
     tenant_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(require_permissions("deployment.stats.read")),

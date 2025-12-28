@@ -6,6 +6,25 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { BillingDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getBillingDashboard(
+  params?: DashboardQueryParams
+): Promise<BillingDashboardResponse> {
+  return api.get<BillingDashboardResponse>("/api/v1/billing/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
+
+// ============================================================================
+// Metrics
+// ============================================================================
 
 export interface BillingMetrics {
   mrr: number; // Monthly Recurring Revenue (in cents)
@@ -68,6 +87,7 @@ export interface GetInvoicesParams {
   customerId?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
 }
 
 export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
@@ -75,7 +95,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
   totalCount: number;
   pageCount: number;
 }> {
-  const { page = 1, pageSize = 20, status, customerId, startDate, endDate } = params;
+  const { page = 1, pageSize = 20, status, customerId, startDate, endDate, search } = params;
 
   const response = await api.get<unknown>("/api/v1/billing/invoices", {
     params: {
@@ -85,6 +105,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
       customer_id: customerId,
       start_date: startDate,
       end_date: endDate,
+      search,
     },
   });
   const normalized = normalizePaginatedResponse<Invoice>(response);

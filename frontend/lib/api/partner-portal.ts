@@ -66,6 +66,25 @@ export async function updateReferral(
   return api.patch<Referral>(`/api/v1/partners/portal/referrals/${id}`, data);
 }
 
+export async function deleteReferral(id: string): Promise<void> {
+  return api.delete(`/api/v1/partners/portal/referrals/${id}`);
+}
+
+export interface ReferralLink {
+  code: string;
+  url: string;
+  createdAt: string;
+  usageCount: number;
+}
+
+export async function getReferralLink(): Promise<ReferralLink> {
+  return api.get<ReferralLink>("/api/v1/partners/portal/referral-link");
+}
+
+export async function generateReferralLink(): Promise<ReferralLink> {
+  return api.post<ReferralLink>("/api/v1/partners/portal/referral-link");
+}
+
 // Tenants
 export interface GetTenantsParams {
   page?: number;
@@ -151,6 +170,20 @@ export async function downloadStatement(id: string): Promise<Blob> {
   return api.getBlob(`/api/v1/partners/portal/statements/${id}/download`);
 }
 
+export interface ExportStatementsParams {
+  year?: number;
+  format?: "csv" | "pdf";
+}
+
+export async function exportStatements(params?: ExportStatementsParams): Promise<Blob> {
+  return api.getBlob("/api/v1/partners/portal/statements/export", {
+    params: {
+      year: params?.year,
+      format: params?.format || "csv",
+    },
+  });
+}
+
 export async function getPartnerPayouts(): Promise<PayoutsResponse> {
   return api.get<PayoutsResponse>("/api/v1/partners/portal/payouts");
 }
@@ -218,6 +251,7 @@ export interface GetPartnerInvoicesParams {
   pageSize?: number;
   tenantId?: string;
   status?: string;
+  search?: string;
   startDate?: string;
   endDate?: string;
   minAmount?: number;
@@ -241,6 +275,7 @@ export async function getPartnerInvoices(
         page_size: params.pageSize,
         tenant_id: params.tenantId,
         status: params.status,
+        search: params.search,
         start_date: params.startDate,
         end_date: params.endDate,
         min_amount: params.minAmount,

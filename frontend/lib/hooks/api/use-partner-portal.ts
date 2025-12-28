@@ -8,11 +8,15 @@ import {
   getReferralById,
   createReferral,
   updateReferral,
+  deleteReferral,
+  getReferralLink,
+  generateReferralLink,
   getPartnerTenants,
   getPartnerCommissions,
   getPartnerStatements,
   getStatementById,
   downloadStatement,
+  exportStatements,
   getPartnerPayouts,
   getPartnerProfile,
   updatePartnerProfile,
@@ -85,6 +89,40 @@ export function useUpdateReferral() {
   });
 }
 
+export function useDeleteReferral() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteReferral(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.referrals.all(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.dashboard(),
+      });
+    },
+  });
+}
+
+export function useReferralLink() {
+  return useQuery({
+    queryKey: ["partnerPortal", "referralLink"],
+    queryFn: getReferralLink,
+  });
+}
+
+export function useGenerateReferralLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: generateReferralLink,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["partnerPortal", "referralLink"], data);
+    },
+  });
+}
+
 // Tenants
 export function usePartnerTenants(params?: GetTenantsParams) {
   return useQuery({
@@ -123,6 +161,12 @@ export function useStatement(id: string) {
 export function useDownloadStatement() {
   return useMutation({
     mutationFn: downloadStatement,
+  });
+}
+
+export function useExportStatements() {
+  return useMutation({
+    mutationFn: exportStatements,
   });
 }
 

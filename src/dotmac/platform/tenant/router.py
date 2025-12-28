@@ -12,8 +12,9 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.tenant.oss_config import OSSService, update_service_config
@@ -221,6 +222,261 @@ def require_tenant_permission(permission: str) -> Callable[..., Awaitable[UserIn
     return checker
 
 
+# ============================================================================
+# Dashboard Response Models
+# ============================================================================
+
+
+class TenantDashboardSummary(BaseModel):
+    """Summary statistics for tenant dashboard"""
+
+    model_config = ConfigDict()
+
+    total_tenants: int
+    active_tenants: int
+    trial_tenants: int
+    suspended_tenants: int
+    new_this_month: int
+    churned_this_month: int
+    growth_rate_pct: float
+
+
+class TenantChartDataPoint(BaseModel):
+    """Single data point for charts"""
+
+    model_config = ConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TenantDashboardCharts(BaseModel):
+    """Chart data for tenant dashboard"""
+
+    model_config = ConfigDict()
+
+    tenant_growth: list[TenantChartDataPoint]
+    tenants_by_plan: list[TenantChartDataPoint]
+    tenants_by_status: list[TenantChartDataPoint]
+
+
+class TenantDashboardAlert(BaseModel):
+    """Alert item for dashboard"""
+
+    model_config = ConfigDict()
+
+    type: str
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class TenantDashboardActivity(BaseModel):
+    """Recent activity item"""
+
+    model_config = ConfigDict()
+
+    id: str
+    type: str
+    tenant_name: str
+    description: str
+    timestamp: datetime
+
+
+class TenantDashboardResponse(BaseModel):
+    """Consolidated tenant dashboard response"""
+
+    model_config = ConfigDict()
+
+    summary: TenantDashboardSummary
+    charts: TenantDashboardCharts
+    alerts: list[TenantDashboardAlert]
+    recent_activity: list[TenantDashboardActivity]
+    generated_at: datetime
+
+
+# ============================================================================
+# Dashboard Endpoint
+# ============================================================================
+
+
+@router.get(
+    "/dashboard",
+    response_model=TenantDashboardResponse,
+    summary="Get tenant dashboard data",
+    description="Returns consolidated tenant metrics, charts, and alerts for the dashboard",
+)
+async def get_tenant_dashboard(
+    period_months: int = Query(6, ge=1, le=24, description="Months of trend data"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_tenant_permission(TENANT_READ_PERMISSION)),
+) -> TenantDashboardResponse:
+    """
+    Get consolidated tenant dashboard data including:
+    - Summary statistics (total, active, trial, suspended)
+    - Chart data (growth trends, plan distribution)
+    - Alerts (expiring trials, inactive tenants)
+    - Recent activity
+    """
+    from datetime import timedelta, timezone
+    from sqlalchemy import func, case
+
+    try:
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_start = (month_start - timedelta(days=1)).replace(day=1)
+
+        # ========== SUMMARY STATS ==========
+        # Count tenants by status
+        status_counts = await db.execute(
+            select(
+                func.count(Tenant.id).label("total"),
+                func.sum(case((Tenant.status == TenantStatus.ACTIVE, 1), else_=0)).label("active"),
+                func.sum(case((Tenant.status == TenantStatus.TRIAL, 1), else_=0)).label("trial"),
+                func.sum(case((Tenant.status == TenantStatus.SUSPENDED, 1), else_=0)).label("suspended"),
+            )
+        )
+        counts = status_counts.one()
+
+        # New tenants this month
+        new_this_month = await db.execute(
+            select(func.count(Tenant.id)).where(Tenant.created_at >= month_start)
+        )
+        new_count = new_this_month.scalar() or 0
+
+        # Churned (deleted/suspended) this month
+        churned_this_month = await db.execute(
+            select(func.count(Tenant.id)).where(
+                Tenant.status.in_([TenantStatus.SUSPENDED, TenantStatus.DELETED]),
+                Tenant.updated_at >= month_start,
+            )
+        )
+        churned_count = churned_this_month.scalar() or 0
+
+        # Growth rate
+        last_month_total = await db.execute(
+            select(func.count(Tenant.id)).where(Tenant.created_at < month_start)
+        )
+        last_month_count = last_month_total.scalar() or 1
+        growth_rate = ((new_count - churned_count) / last_month_count) * 100 if last_month_count > 0 else 0
+
+        summary = TenantDashboardSummary(
+            total_tenants=counts.total or 0,
+            active_tenants=counts.active or 0,
+            trial_tenants=counts.trial or 0,
+            suspended_tenants=counts.suspended or 0,
+            new_this_month=new_count,
+            churned_this_month=churned_count,
+            growth_rate_pct=round(growth_rate, 2),
+        )
+
+        # ========== CHART DATA ==========
+        # Tenant growth trend
+        tenant_growth = []
+        for i in range(period_months - 1, -1, -1):
+            month_date = (now - timedelta(days=i * 30)).replace(day=1)
+            next_month = (month_date + timedelta(days=32)).replace(day=1)
+
+            month_count = await db.execute(
+                select(func.count(Tenant.id)).where(
+                    Tenant.created_at >= month_date,
+                    Tenant.created_at < next_month,
+                )
+            )
+            tenant_growth.append(TenantChartDataPoint(
+                label=month_date.strftime("%b %Y"),
+                value=month_count.scalar() or 0,
+            ))
+
+        # Tenants by plan
+        plan_counts = await db.execute(
+            select(Tenant.plan_type, func.count(Tenant.id)).group_by(Tenant.plan_type)
+        )
+        tenants_by_plan = [
+            TenantChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+            for row in plan_counts.all()
+        ]
+
+        # Tenants by status
+        status_breakdown = await db.execute(
+            select(Tenant.status, func.count(Tenant.id)).group_by(Tenant.status)
+        )
+        tenants_by_status = [
+            TenantChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+            for row in status_breakdown.all()
+        ]
+
+        charts = TenantDashboardCharts(
+            tenant_growth=tenant_growth,
+            tenants_by_plan=tenants_by_plan,
+            tenants_by_status=tenants_by_status,
+        )
+
+        # ========== ALERTS ==========
+        alerts = []
+
+        # Expiring trials (next 7 days)
+        expiring_trials = await db.execute(
+            select(func.count(Tenant.id)).where(
+                Tenant.status == TenantStatus.TRIAL,
+                Tenant.trial_ends_at <= now + timedelta(days=7),
+                Tenant.trial_ends_at > now,
+            )
+        )
+        expiring_count = expiring_trials.scalar() or 0
+        if expiring_count > 0:
+            alerts.append(TenantDashboardAlert(
+                type="warning",
+                title="Expiring Trials",
+                message=f"{expiring_count} trial(s) expiring in the next 7 days",
+                count=expiring_count,
+                action_url="/tenants?status=trial&expiring=true",
+            ))
+
+        # Inactive tenants (no login in 30 days)
+        # This would require joining with users - simplified for now
+        if counts.suspended and counts.suspended > 0:
+            alerts.append(TenantDashboardAlert(
+                type="info",
+                title="Suspended Tenants",
+                message=f"{counts.suspended} tenant(s) are currently suspended",
+                count=counts.suspended,
+                action_url="/tenants?status=suspended",
+            ))
+
+        # ========== RECENT ACTIVITY ==========
+        recent_tenants = await db.execute(
+            select(Tenant).order_by(Tenant.created_at.desc()).limit(10)
+        )
+        recent_activity = [
+            TenantDashboardActivity(
+                id=str(t.id),
+                type="created",
+                tenant_name=t.name,
+                description=f"Tenant '{t.name}' was created",
+                timestamp=t.created_at,
+            )
+            for t in recent_tenants.scalars().all()
+        ]
+
+        return TenantDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate tenant dashboard", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate tenant dashboard: {str(e)}",
+        )
+
+
 # Tenant CRUD Operations
 @router.post("", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(
@@ -245,7 +501,7 @@ async def create_tenant(
 
         if oss_overrides:
             for service_name, overrides in oss_overrides.items():
-                await update_service_config(tenant.id, service_name, overrides)
+                await update_service_config(tenant.id, service_name, overrides, session)
 
         return _build_tenant_response(tenant, include_sensitive=True)
     except TenantAlreadyExistsError as e:
@@ -836,6 +1092,85 @@ async def get_tenant_provisioning_job(
     except TenantProvisioningJobNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return TenantProvisioningJobResponse.model_validate(job)
+
+
+# =============================================================================
+# Tenant Members Endpoint (Admin)
+# =============================================================================
+
+
+class TenantMemberResponse(BaseModel):
+    """Tenant member information for admin view."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    email: str
+    full_name: str | None = Field(default=None, alias="fullName")
+    role: str
+    status: str
+    is_active: bool = Field(default=True, alias="isActive")
+    created_at: datetime | None = Field(default=None, alias="createdAt")
+    last_login: datetime | None = Field(default=None, alias="lastLogin")
+
+
+class TenantMembersListResponse(BaseModel):
+    """Tenant members list for admin view."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    members: list[TenantMemberResponse]
+    total: int
+    page: int
+    page_size: int = Field(alias="pageSize")
+
+
+@router.get("/{tenant_id}/members", response_model=TenantMembersListResponse)
+async def list_tenant_members(
+    tenant_id: str,
+    current_user: UserInfo = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> TenantMembersListResponse:
+    """
+    List all members (users) of a tenant.
+
+    Admin-only endpoint to view tenant membership.
+    """
+    from dotmac.platform.user_management.service import UserService
+
+    _ensure_can_read_tenant(current_user, tenant_id)
+
+    # Get users belonging to this tenant
+    user_service = UserService(db)
+    skip = (page - 1) * page_size
+    users, total = await user_service.list_users(
+        tenant_id=tenant_id,
+        skip=skip,
+        limit=page_size,
+    )
+
+    members = [
+        TenantMemberResponse(
+            id=str(user.id),
+            email=user.email or "",
+            full_name=user.full_name,
+            role=user.roles[0] if user.roles else "member",
+            status="active" if user.is_active else "inactive",
+            is_active=user.is_active,
+            created_at=user.created_at,
+            last_login=user.last_login,
+        )
+        for user in users
+    ]
+
+    return TenantMembersListResponse(
+        members=members,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 # Legacy route alias (/api/v1/tenant/*) maintained for backwards compatibility.

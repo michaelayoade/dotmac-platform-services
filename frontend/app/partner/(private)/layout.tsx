@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PortalShell } from "@/components/layout/portal-shell";
-import { partnerPortalConfig } from "@/lib/config/partner-portal";
+import { PortalShellWithConfig } from "@/components/layout/portal-shell";
 import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 const ADMIN_ROLES = new Set(["admin", "platform_admin", "super_admin"]);
@@ -37,8 +36,8 @@ export default async function PartnerPrivateLayout({
   }
 
   return (
-    <PortalShell user={user} config={partnerPortalConfig}>
+    <PortalShellWithConfig user={user} configKey="partner">
       {children}
-    </PortalShell>
+    </PortalShellWithConfig>
   );
 }

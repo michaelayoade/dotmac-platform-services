@@ -86,6 +86,12 @@ export const MobileDrawer = memo(function MobileDrawer({
 }: MobileDrawerProps) {
   const pathname = usePathname();
   const { hasPermission, isLoading } = usePermission();
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousPathRef = useRef(pathname);
@@ -293,9 +299,7 @@ export const MobileDrawer = memo(function MobileDrawer({
           <div className="flex items-center gap-3 rounded-md px-3 py-2.5 mt-1">
             <div className="relative flex-shrink-0">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-                {user.fullName?.charAt(0).toUpperCase() ||
-                  user.username?.charAt(0).toUpperCase() ||
-                  "U"}
+                {userInitial}
               </div>
               <span
                 className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full"

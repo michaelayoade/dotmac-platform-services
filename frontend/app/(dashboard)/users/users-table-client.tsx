@@ -27,6 +27,13 @@ import {
 
 import { cn } from "@/lib/utils";
 import { type User } from "@/lib/api/users";
+import {
+  useDeleteUser,
+  useBulkDeleteUsers,
+  useBulkSuspendUsers,
+  useBulkActivateUsers,
+  useBulkResendVerification,
+} from "@/lib/hooks/api/use-users";
 import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface UsersTableClientProps {
@@ -51,6 +58,11 @@ export function UsersTableClient({
   const { toast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const deleteUser = useDeleteUser();
+  const bulkDelete = useBulkDeleteUsers();
+  const bulkSuspend = useBulkSuspendUsers();
+  const bulkActivate = useBulkActivateUsers();
+  const bulkResendVerification = useBulkResendVerification();
 
   // Update URL params for server-side pagination
   const updateParams = useCallback(
@@ -85,18 +97,26 @@ export function UsersTableClient({
             variant: "danger",
           });
           if (confirmed) {
-            // TODO: Call delete API
-            toast({
-              title: "User deleted",
-              description: `User "${user.name}" has been deleted.`,
-              variant: "success",
-            });
+            try {
+              await deleteUser.mutateAsync(user.id);
+              toast({
+                title: "User deleted",
+                description: `User "${user.name}" has been deleted.`,
+                variant: "success",
+              });
+            } catch {
+              toast({
+                title: "Failed to delete user",
+                description: "An error occurred while deleting the user. Please try again.",
+                variant: "error",
+              });
+            }
           }
           break;
         }
       }
     },
-    [router, confirm, toast]
+    [router, confirm, toast, deleteUser]
   );
 
   // Column definitions
@@ -243,6 +263,7 @@ export function UsersTableClient({
       label: "Send Email",
       icon: Mail,
       action: async (users) => {
+        // Email functionality would need a dedicated endpoint
         toast({
           title: "Email sent",
           description: `Email sent to ${users.length} user(s)`,
@@ -254,24 +275,96 @@ export function UsersTableClient({
       label: "Activate",
       icon: UserCheck,
       action: async (users) => {
-        toast({
-          title: "Users activated",
-          description: `${users.length} user(s) activated`,
-          variant: "success",
-        });
+        try {
+          const result = await bulkActivate.mutateAsync(users.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) activated, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users activated",
+              description: `${result.success_count} user(s) activated`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to activate users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       disabled: (users) => users.every((u) => u.status === "active"),
+    },
+    {
+      label: "Resend Verification",
+      icon: Mail,
+      action: async (users) => {
+        try {
+          const pendingUsers = users.filter((u) => u.status === "pending");
+          if (pendingUsers.length === 0) {
+            toast({
+              title: "No pending users",
+              description: "None of the selected users need verification",
+              variant: "warning",
+            });
+            return;
+          }
+          const result = await bulkResendVerification.mutateAsync(pendingUsers.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `Sent ${result.success_count} email(s), ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Verification emails sent",
+              description: `Sent ${result.success_count} verification email(s)`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to send verification emails",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
+      },
+      disabled: (users) => users.every((u) => u.status !== "pending"),
     },
     {
       label: "Suspend",
       icon: UserX,
       variant: "destructive",
       action: async (users) => {
-        toast({
-          title: "Users suspended",
-          description: `${users.length} user(s) suspended`,
-          variant: "warning",
-        });
+        try {
+          const result = await bulkSuspend.mutateAsync(users.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) suspended, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users suspended",
+              description: `${result.success_count} user(s) suspended`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to suspend users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       confirm: {
         title: "Suspend Users",
@@ -284,11 +377,28 @@ export function UsersTableClient({
       icon: Trash2,
       variant: "destructive",
       action: async (users) => {
-        toast({
-          title: "Users deleted",
-          description: `${users.length} user(s) deleted`,
-          variant: "error",
-        });
+        try {
+          const result = await bulkDelete.mutateAsync({ userIds: users.map((u) => u.id) });
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) deleted, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users deleted",
+              description: `${result.success_count} user(s) deleted`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to delete users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       confirm: {
         title: "Delete Users",

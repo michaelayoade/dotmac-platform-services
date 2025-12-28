@@ -120,6 +120,7 @@ export {
   type ThemeConfig,
   type Theme,
   type BrandConfig,
+  type PortalBrandOverride,
 } from "./theme";
 
 // ============================================================================

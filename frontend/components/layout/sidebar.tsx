@@ -168,6 +168,12 @@ export const Sidebar = memo(function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { hasPermission, isLoading } = usePermission();
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
 
   // Filter navigation by permissions - memoized
   const filteredSections = useMemo(
@@ -178,7 +184,7 @@ export const Sidebar = memo(function Sidebar({
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen",
+        "fixed left-0 top-0 z-20 h-screen",
         "bg-surface-elevated border-r border-border",
         "flex flex-col",
         isHydrated ? "transition-all duration-300 ease-in-out" : "transition-none",
@@ -299,9 +305,7 @@ export const Sidebar = memo(function Sidebar({
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-              {user.fullName?.charAt(0).toUpperCase() ||
-                user.username?.charAt(0).toUpperCase() ||
-                "U"}
+              {userInitial}
             </div>
             <span
               className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full"

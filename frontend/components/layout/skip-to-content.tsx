@@ -29,14 +29,14 @@ export function SkipToContent({
       href={`#${targetId}`}
       onClick={handleClick}
       className={[
-        // Visually hidden by default
-        "absolute -top-full left-4 z-[100]",
+        // Visually hidden by default (z-[1600] matches skipLink token)
+        "absolute -top-full left-4 z-[1600]",
         "px-4 py-2 rounded-md",
         "bg-accent text-text-inverse font-medium text-sm",
         "transition-all duration-150",
         // Show on focus
         "focus:top-4",
-        "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         className,
       ]
         .filter(Boolean)

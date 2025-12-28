@@ -29,13 +29,10 @@ router = APIRouter()
 # ========================================
 
 
-async def get_vault_client() -> AsyncVaultClient:
-    """Get Vault client instance."""
+async def get_vault_client() -> AsyncVaultClient | None:
+    """Get Vault client instance. Returns None if Vault is disabled."""
     if not settings.vault.enabled:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Vault/OpenBao is not enabled",
-        )
+        return None
 
     return AsyncVaultClient(
         url=settings.vault.url,
@@ -95,9 +92,10 @@ class HealthResponse(BaseModel):
 
     model_config = ConfigDict()
 
+    enabled: bool = Field(..., description="Whether Vault is enabled")
     healthy: bool = Field(..., description="Health status")
-    vault_url: str = Field(..., description="Vault URL")
-    mount_path: str = Field(..., description="Mount path")
+    vault_url: str | None = Field(None, description="Vault URL")
+    mount_path: str | None = Field(None, description="Mount path")
 
 
 # ========================================
@@ -107,12 +105,19 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse, tags=["Secrets Management"])
 async def check_vault_health(
-    vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    vault: Annotated[AsyncVaultClient | None, Depends(get_vault_client)],
 ) -> HealthResponse:
     """Check Vault/OpenBao health status."""
+    if vault is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vault/OpenBao is not enabled. Enable it in settings to manage secrets.",
+        )
+
     try:
         healthy = await vault.health_check()
         return HealthResponse(
+            enabled=True,
             healthy=healthy,
             vault_url=settings.vault.url,
             mount_path=settings.vault.mount_path,
@@ -120,6 +125,7 @@ async def check_vault_health(
     except Exception as e:
         logger.error(f"Vault health check failed: {e}")
         return HealthResponse(
+            enabled=True,
             healthy=False,
             vault_url=settings.vault.url,
             mount_path=settings.vault.mount_path,
@@ -130,7 +136,7 @@ async def check_vault_health(
 async def get_secret(
     path: str,
     request: Request,
-    vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    vault: Annotated[AsyncVaultClient | None, Depends(get_vault_client)],
     current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> SecretResponse:
     """
@@ -143,6 +149,12 @@ async def get_secret(
         path: Secret path (e.g., "app/database/credentials")
         current_user: Platform admin user (automatically injected)
     """
+    if vault is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vault/OpenBao is not enabled. Enable it in settings to manage secrets.",
+        )
+
     try:
         async with vault:
             data = await vault.get_secret(path)
@@ -204,7 +216,7 @@ async def create_or_update_secret(
     path: str,
     secret_data: SecretData,
     request: Request,
-    vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    vault: Annotated[AsyncVaultClient | None, Depends(get_vault_client)],
     current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> SecretResponse:
     """
@@ -217,6 +229,12 @@ async def create_or_update_secret(
         secret_data: Secret data to store
         current_user: Platform admin user (automatically injected)
     """
+    if vault is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vault/OpenBao is not enabled. Enable it in settings to manage secrets.",
+        )
+
     try:
         async with vault:
             existing_secret = await vault.get_secret(path)
@@ -279,7 +297,7 @@ async def create_or_update_secret(
 async def delete_secret(
     path: str,
     request: Request,
-    vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    vault: Annotated[AsyncVaultClient | None, Depends(get_vault_client)],
     current_user: Annotated[UserInfo, Depends(require_platform_admin)],
 ) -> None:
     """
@@ -294,6 +312,12 @@ async def delete_secret(
         path: Secret path to delete
         current_user: Platform admin user (automatically injected)
     """
+    if vault is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vault/OpenBao is not enabled. Enable it in settings to manage secrets.",
+        )
+
     try:
         async with vault:
             # For KV v2, delete the latest version
@@ -334,7 +358,7 @@ async def delete_secret(
 
 @router.get("/secrets", response_model=SecretListResponse, tags=["Secrets Management"])
 async def list_secrets(
-    vault: Annotated[AsyncVaultClient, Depends(get_vault_client)],
+    vault: Annotated[AsyncVaultClient | None, Depends(get_vault_client)],
     current_user: Annotated[UserInfo, Depends(require_platform_admin)],
     prefix: str = Query("", description="Optional path prefix to filter secrets"),
 ) -> SecretListResponse:
@@ -348,8 +372,8 @@ async def list_secrets(
         current_user: Platform admin user (automatically injected)
     """
     try:
-        if not vault:
-            logger.error("Vault client not available")
+        if vault is None:
+            logger.info("Vault is disabled, returning empty secrets list")
             return SecretListResponse(secrets=[])
 
         # Use the vault client to list secrets with metadata

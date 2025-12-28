@@ -2,8 +2,6 @@
 Schemas for tenant onboarding automation.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any
 
@@ -49,7 +47,7 @@ class OnboardingAdminUserCreate(BaseModel):  # BaseModel resolves to Any in isol
     )
 
     @model_validator(mode="after")
-    def ensure_password(self) -> OnboardingAdminUserCreate:
+    def ensure_password(self) -> "OnboardingAdminUserCreate":
         """Ensure a password is provided or auto-generation is enabled."""
         if self.password is None and not self.generate_password:
             raise ValueError("password is required when generate_password is false")
@@ -115,12 +113,14 @@ class TenantOnboardingRequest(BaseModel):  # BaseModel resolves to Any in isolat
     )
 
     @model_validator(mode="after")
-    def validate_target(self) -> TenantOnboardingRequest:
+    def validate_target(self) -> "TenantOnboardingRequest":
         """Ensure either tenant data or tenant_id is provided, but not both."""
         if not self.tenant and not self.tenant_id:
             raise ValueError("Provide either tenant payload or tenant_id for onboarding.")
         if self.tenant and self.tenant_id:
             raise ValueError("tenant and tenant_id cannot both be provided.")
+        if self.tenant and self.admin_user is None:
+            raise ValueError("admin_user is required when creating a tenant via onboarding.")
         return self
 
 

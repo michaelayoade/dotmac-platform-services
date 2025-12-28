@@ -10,6 +10,7 @@ import {
   Zap,
   ArrowUpRight,
 } from "lucide-react";
+import { useToast } from "@dotmac/core";
 
 import { PageHeader, StatusBadge, EmptyState } from "@/components/shared";
 import {
@@ -80,7 +81,40 @@ function BillingSkeleton() {
 export default function BillingPage() {
   const { data: billingData, isLoading } = useTenantBilling();
   const downloadInvoice = useDownloadInvoice();
+  const { toast } = useToast();
   const billing = billingData ?? null;
+
+  const handleChangePlan = () => {
+    toast({
+      title: "Change Plan",
+      description: "Please contact support to change your subscription plan.",
+      variant: "info",
+    });
+  };
+
+  const handleUpgrade = () => {
+    toast({
+      title: "Upgrade Plan",
+      description: "Please contact support to upgrade your subscription.",
+      variant: "info",
+    });
+  };
+
+  const handleAddPaymentMethod = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Payment method management will be available in a future update.",
+      variant: "info",
+    });
+  };
+
+  const handleEditPaymentMethod = (methodId: string) => {
+    toast({
+      title: "Coming Soon",
+      description: "Payment method editing will be available in a future update.",
+      variant: "info",
+    });
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -173,10 +207,16 @@ export default function BillingPage() {
           </div>
 
           <div className="flex gap-3">
-            <button className="px-4 py-2 rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay transition-colors">
+            <button
+              onClick={handleChangePlan}
+              className="px-4 py-2 rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay transition-colors"
+            >
               Change Plan
             </button>
-            <button className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+            <button
+              onClick={handleUpgrade}
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
+            >
               Upgrade
             </button>
           </div>
@@ -236,7 +276,10 @@ export default function BillingPage() {
               Manage your payment options
             </p>
           </div>
-          <button className="text-sm text-accent hover:text-accent-hover">
+          <button
+            onClick={handleAddPaymentMethod}
+            className="text-sm text-accent hover:text-accent-hover"
+          >
             Add Payment Method
           </button>
         </div>
@@ -267,7 +310,10 @@ export default function BillingPage() {
                   </p>
                 </div>
               </div>
-              <button className="text-sm text-text-muted hover:text-text-secondary">
+              <button
+                onClick={() => handleEditPaymentMethod(method.id)}
+                className="text-sm text-text-muted hover:text-text-secondary"
+              >
                 Edit
               </button>
             </div>
@@ -292,7 +338,7 @@ export default function BillingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Invoice history"><caption className="sr-only">Invoice history</caption>
               <thead>
                 <tr className="border-b border-border bg-surface-overlay/50">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">

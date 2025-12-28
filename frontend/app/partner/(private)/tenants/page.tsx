@@ -132,6 +132,8 @@ export default function TenantsPage() {
     status: statusFilter !== "ALL" ? statusFilter : undefined,
     search: searchQuery || undefined,
   });
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Failed to load tenants." : null;
 
   const tenants = data?.tenants ?? [];
   const filteredTenants =
@@ -154,6 +156,12 @@ export default function TenantsPage() {
         title="Tenants"
         description="Your managed tenants and their revenue"
       />
+
+      {errorMessage && (
+        <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

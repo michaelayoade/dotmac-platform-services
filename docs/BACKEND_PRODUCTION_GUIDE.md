@@ -44,7 +44,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d platf
 
 # 5) Validate
 docker compose -f docker-compose.base.yml ps
-curl http://localhost:${PLATFORM_BACKEND_PORT:-8001}/health
+curl http://localhost:${PLATFORM_BACKEND_PORT:-8000}/health
 ```
 
 > Tip: set `COMPOSE_PROJECT_NAME` per tenant to avoid container-name collisions, and override `PLATFORM_BACKEND_PORT`/`PLATFORM_FRONTEND_PORT` for parallel stacks.

@@ -3,8 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, normalizePaginatedResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import { getTenantsDashboard } from "@/lib/api/tenants";
 import type { Tenant, TenantStatus, TenantSettings, TenantPlanType } from "@/types/models";
 import type { PaginatedResponse, ListQueryParams } from "@/types/api";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 // Types
 export interface ListTenantsParams extends ListQueryParams {
@@ -122,6 +124,15 @@ async function updateTenantSettings({
 }
 
 // Hooks
+
+export function useTenantsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.tenants.dashboard(params),
+    queryFn: () => getTenantsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
 export function useTenants(params?: ListTenantsParams) {
   return useQuery({
     queryKey: queryKeys.tenants.list(params),
@@ -374,5 +385,39 @@ export function useUploadBrandingLogo() {
         queryKey: queryKeys.tenants.branding(tenantId),
       });
     },
+  });
+}
+
+// ========================================
+// Admin Tenant Members
+// ========================================
+
+export interface TenantMember {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: string;
+  status: string;
+  isActive: boolean;
+  createdAt: string | null;
+  lastLogin: string | null;
+}
+
+export interface TenantMembersResponse {
+  members: TenantMember[];
+  total: number;
+  page?: number;
+  pageSize?: number;
+}
+
+async function getTenantMembers(tenantId: string): Promise<TenantMembersResponse> {
+  return api.get<TenantMembersResponse>(`/api/v1/tenants/${tenantId}/members`);
+}
+
+export function useAdminTenantMembers(tenantId: string) {
+  return useQuery({
+    queryKey: [...queryKeys.tenants.detail(tenantId), "members"],
+    queryFn: () => getTenantMembers(tenantId),
+    enabled: !!tenantId,
   });
 }

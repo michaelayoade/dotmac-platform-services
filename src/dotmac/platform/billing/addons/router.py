@@ -24,7 +24,7 @@ from dotmac.platform.auth.core import (
 from dotmac.platform.billing._typing_helpers import rate_limit
 from dotmac.platform.billing.exceptions import AddonNotFoundError
 from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
-from dotmac.platform.db import get_async_db
+from dotmac.platform.database import get_async_session as get_async_db
 
 from .models import (
     Addon,

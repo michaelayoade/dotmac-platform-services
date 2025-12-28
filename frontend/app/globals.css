@@ -7,6 +7,20 @@
    Aesthetic: "Precision Control Room"
    ============================================================================ */
 
+/* Z-INDEX HIERARCHY (aligned with design-tokens/src/spacing.ts)
+ * -z-10:     Decorative backgrounds
+ * z-0:       Base content
+ * z-10:      Docked elements (unused, sidebar uses z-20)
+ * z-20:      Sidebar (fixed navigation)
+ * z-30:      Header (sticky top bar)
+ * z-50:      Mobile drawer overlay
+ * z-[1300]:  Overlay/backdrop (modals via @dotmac/core)
+ * z-[1400]:  Modal dialogs (via @dotmac/core Dialog)
+ * z-[1600]:  Skip-to-content link
+ * z-[1700]:  Toast notifications
+ * z-[1800]:  Tooltips
+ */
+
 @layer base {
   /* ========================================
      Non-Color Variables
@@ -15,14 +29,95 @@
   :root {
     /* Typography */
     --font-display: "Instrument Sans", system-ui, sans-serif;
+    --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
+    --font-family-serif: ui-serif, Georgia, serif;
+    --font-family-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+    /* Theme variable fallbacks (SSR/first paint) */
+    --color-background: 210 40% 98%;
+    --color-surface: 0 0% 100%;
+    --color-surface-elevated: 0 0% 98%;
+    --color-surface-overlay: 0 0% 95%;
+    --color-surface-subtle: 0 0% 92%;
+    --color-border: 152 8% 82%;
+    --color-border-subtle: 152 6% 88%;
+    --color-border-strong: 152 12% 72%;
+    --color-text-primary: 217 33% 17%;
+    --color-text-secondary: 217 33% 37%;
+    --color-text-muted: 217 33% 52%;
+    --color-text-inverse: 210 40% 98%;
+    --color-status-success: 142 71% 45%;
+    --color-status-warning: 25 95% 53%;
+    --color-status-error: 0 84% 60%;
+    --color-status-info: 217 91% 60%;
+    --color-accent: 142 71% 45%;
+    --color-accent-hover: 142 71% 53%;
+    --color-accent-muted: 142 71% 30%;
+    --color-accent-subtle: hsl(142 71% 45% / 0.15);
+    --color-highlight: 25 95% 53%;
+    --color-overlay: 0 0% 0%;
+    --shadow-color: 0 0% 0%;
+
+    /* Border radius */
+    --radius: 0.5rem;
 
     /* Spacing rhythm */
     --spacing-unit: 4px;
+    --spacing-1: 0.25rem;
+    --spacing-2: 0.5rem;
+    --spacing-3: 0.75rem;
+    --spacing-4: 1rem;
+    --spacing-5: 1.25rem;
+    --spacing-6: 1.5rem;
+    --spacing-8: 2rem;
+    --spacing-10: 2.5rem;
+    --spacing-12: 3rem;
+    --spacing-16: 4rem;
+    --spacing-20: 5rem;
+    --spacing-24: 6rem;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
     /* Transition defaults */
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Animation */
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+    --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --color-background: 222 47% 11%;
+    --color-surface: 217 33% 17%;
+    --color-surface-elevated: 217 33% 15%;
+    --color-surface-overlay: 217 33% 12%;
+    --color-surface-subtle: 217 33% 9%;
+    --color-border: 158 12% 28%;
+    --color-border-subtle: 158 8% 24%;
+    --color-border-strong: 158 18% 38%;
+    --color-text-primary: 210 40% 98%;
+    --color-text-secondary: 210 30% 75%;
+    --color-text-muted: 210 20% 55%;
+    --color-text-inverse: 222 47% 11%;
+    --color-accent: 142 71% 45%;
+    --color-accent-hover: 142 71% 37%;
+    --color-accent-muted: 142 71% 50%;
+    --color-accent-subtle: hsl(142 71% 45% / 0.15);
+    --color-highlight: 25 95% 53%;
+    --color-status-success: 142 71% 45%;
+    --color-status-warning: 25 95% 53%;
+    --color-status-error: 0 84% 60%;
+    --color-status-info: 217 91% 60%;
+    --color-overlay: 0 0% 0%;
+    --shadow-color: 0 0% 0%;
   }
 
   /* Base HTML styles */
@@ -48,7 +143,11 @@
   body {
     @apply bg-surface text-text-primary;
     @apply min-h-screen;
-    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    font-family: var(--font-family-sans, var(--font-geist-sans), system-ui, sans-serif);
+  }
+
+  * {
+    @apply border-border;
   }
 
   /* Selection styling */
@@ -77,6 +176,18 @@
   /* Focus visible - accessible and on-brand */
   *:focus-visible {
     @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-surface;
+  }
+
+  /* Reduced motion - respect user preferences (WCAG 2.1 SC 2.3.3) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -373,7 +484,3 @@
   @apply bg-surface-overlay border-border;
   @apply focus:border-accent focus:ring-accent;
 }
-
-/* ========================================
-   Mobile Navigation Animations
-   ======================================== */

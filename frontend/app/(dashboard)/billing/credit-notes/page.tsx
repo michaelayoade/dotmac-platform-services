@@ -223,7 +223,7 @@ function CreditNotesTable({ creditNotes }: { creditNotes: CreditNote[] }) {
   }
 
   return (
-    <table className="data-table">
+    <table className="data-table" aria-label="Credit notes list"><caption className="sr-only">Credit notes list</caption>
       <thead>
         <tr>
           <th>Credit Note</th>

@@ -33,6 +33,8 @@ export const queryKeys = {
   // Users module
   users: {
     all: ["users"] as const,
+    dashboard: (params?: { periodMonths?: number }) =>
+      [...queryKeys.users.all, "dashboard", params] as const,
     lists: () => [...queryKeys.users.all, "list"] as const,
     list: (params?: ListQueryParams) =>
       [...queryKeys.users.lists(), params] as const,
@@ -43,6 +45,8 @@ export const queryKeys = {
   // Tenants module
   tenants: {
     all: ["tenants"] as const,
+    dashboard: (params?: { periodMonths?: number }) =>
+      [...queryKeys.tenants.all, "dashboard", params] as const,
     lists: () => [...queryKeys.tenants.all, "list"] as const,
     list: (params?: ListQueryParams) =>
       [...queryKeys.tenants.lists(), params] as const,
@@ -61,6 +65,8 @@ export const queryKeys = {
   // Billing module
   billing: {
     all: ["billing"] as const,
+    dashboard: (params?: { periodMonths?: number }) =>
+      [...queryKeys.billing.all, "dashboard", params] as const,
     metrics: () => [...queryKeys.billing.all, "metrics"] as const,
     invoices: {
       all: () => [...queryKeys.billing.all, "invoices"] as const,
@@ -317,6 +323,8 @@ export const queryKeys = {
   // Ticketing module
   ticketing: {
     all: ["ticketing"] as const,
+    dashboard: (params?: { periodMonths?: number }) =>
+      [...queryKeys.ticketing.all, "dashboard", params] as const,
     tickets: {
       all: () => [...queryKeys.ticketing.all, "tickets"] as const,
       list: (params?: unknown) =>
@@ -335,6 +343,8 @@ export const queryKeys = {
   // Workflows module
   workflows: {
     all: ["workflows"] as const,
+    dashboard: (params?: { periodDays?: number }) =>
+      [...queryKeys.workflows.all, "dashboard", params] as const,
     list: (params?: unknown) =>
       [...queryKeys.workflows.all, "list", params] as const,
     detail: (id: string) =>
@@ -360,6 +370,8 @@ export const queryKeys = {
   // Jobs module
   jobs: {
     all: ["jobs"] as const,
+    dashboard: (params?: { periodDays?: number }) =>
+      [...queryKeys.jobs.all, "dashboard", params] as const,
     list: (params?: unknown) =>
       [...queryKeys.jobs.all, "list", params] as const,
     detail: (id: string) =>
@@ -381,6 +393,8 @@ export const queryKeys = {
   // Communications module
   communications: {
     all: ["communications"] as const,
+    dashboard: (params?: { periodDays?: number }) =>
+      [...queryKeys.communications.all, "dashboard", params] as const,
     templates: {
       all: () => [...queryKeys.communications.all, "templates"] as const,
       list: (params?: unknown) =>
@@ -510,6 +524,8 @@ export const queryKeys = {
   // Licensing module
   licensing: {
     all: ["licensing"] as const,
+    dashboard: (params?: { periodMonths?: number }) =>
+      [...queryKeys.licensing.all, "dashboard", params] as const,
     licenses: {
       all: () => [...queryKeys.licensing.all, "licenses"] as const,
       list: (params?: unknown) =>
@@ -532,6 +548,8 @@ export const queryKeys = {
   // Audit module
   audit: {
     all: ["audit"] as const,
+    dashboard: (params?: { periodDays?: number }) =>
+      [...queryKeys.audit.all, "dashboard", params] as const,
     activities: {
       all: () => [...queryKeys.audit.all, "activities"] as const,
       list: (params?: unknown) =>
@@ -652,6 +670,18 @@ export const queryKeys = {
       detail: (id: string) =>
         [...queryKeys.catalog.categories.all(), "detail", id] as const,
     },
+  },
+
+  // Admin Settings module
+  adminSettings: {
+    all: ["admin-settings"] as const,
+    categories: () => [...queryKeys.adminSettings.all, "categories"] as const,
+    category: (category: string) =>
+      [...queryKeys.adminSettings.all, "category", category] as const,
+    auditLogs: (params?: unknown) =>
+      [...queryKeys.adminSettings.all, "audit-logs", params] as const,
+    backups: () => [...queryKeys.adminSettings.all, "backups"] as const,
+    health: () => [...queryKeys.adminSettings.all, "health"] as const,
   },
 } as const;
 

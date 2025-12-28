@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.auth.core import get_current_user
+from dotmac.platform.auth.core import UserInfo, get_current_user
 from dotmac.platform.database import get_async_session
 from dotmac.platform.rate_limit.models import (
     RateLimitAction,
@@ -23,7 +23,6 @@ from dotmac.platform.rate_limit.models import (
     RateLimitWindow,
 )
 from dotmac.platform.rate_limit.service import RateLimitService
-from dotmac.platform.user_management.models import User
 
 router = APIRouter(
     prefix="/rate-limits",
@@ -114,7 +113,7 @@ class RateLimitLogResponse(BaseModel):  # BaseModel resolves to Any in isolation
 
 
 @router.post(
-    "/rate-limits/rules",
+    "/rules",
     response_model=RateLimitRuleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create rate limit rule",
@@ -123,7 +122,7 @@ class RateLimitLogResponse(BaseModel):  # BaseModel resolves to Any in isolation
 async def create_rate_limit_rule(
     rule_data: RateLimitRuleRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> RateLimitRule:
     """Create rate limit rule."""
     service = RateLimitService(db)
@@ -147,7 +146,7 @@ async def create_rate_limit_rule(
         exempt_ip_addresses=rule_data.exempt_ip_addresses,
         exempt_api_keys=rule_data.exempt_api_keys,
         config=rule_data.config,
-        created_by_id=current_user.id,
+        created_by_id=UUID(current_user.user_id),
     )
 
     db.add(rule)
@@ -158,7 +157,7 @@ async def create_rate_limit_rule(
 
 
 @router.get(
-    "/rate-limits/rules",
+    "/rules",
     response_model=list[RateLimitRuleResponse],
     summary="List rate limit rules",
     description="List all rate limit rules for the tenant",
@@ -169,7 +168,7 @@ async def list_rate_limit_rules(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> list[RateLimitRule]:
     """List rate limit rules."""
     stmt = select(RateLimitRule).where(
@@ -189,7 +188,7 @@ async def list_rate_limit_rules(
 
 
 @router.get(
-    "/rate-limits/rules/{rule_id}",
+    "/rules/{rule_id}",
     response_model=RateLimitRuleResponse,
     summary="Get rate limit rule",
     description="Get a specific rate limit rule",
@@ -197,7 +196,7 @@ async def list_rate_limit_rules(
 async def get_rate_limit_rule(
     rule_id: UUID,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> RateLimitRule:
     """Get rate limit rule."""
     stmt = select(RateLimitRule).where(
@@ -218,7 +217,7 @@ async def get_rate_limit_rule(
 
 
 @router.put(
-    "/rate-limits/rules/{rule_id}",
+    "/rules/{rule_id}",
     response_model=RateLimitRuleResponse,
     summary="Update rate limit rule",
     description="Update an existing rate limit rule",
@@ -227,7 +226,7 @@ async def update_rate_limit_rule(
     rule_id: UUID,
     rule_data: RateLimitRuleRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> RateLimitRule:
     """Update rate limit rule."""
     stmt = select(RateLimitRule).where(
@@ -261,7 +260,7 @@ async def update_rate_limit_rule(
     rule.exempt_ip_addresses = rule_data.exempt_ip_addresses
     rule.exempt_api_keys = rule_data.exempt_api_keys
     rule.config = rule_data.config
-    rule.updated_by_id = current_user.id
+    rule.updated_by_id = UUID(current_user.user_id)
 
     await db.commit()
     await db.refresh(rule)
@@ -270,7 +269,7 @@ async def update_rate_limit_rule(
 
 
 @router.delete(
-    "/rate-limits/rules/{rule_id}",
+    "/rules/{rule_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete rate limit rule",
     description="Soft delete a rate limit rule",
@@ -278,7 +277,7 @@ async def update_rate_limit_rule(
 async def delete_rate_limit_rule(
     rule_id: UUID,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> None:
     """Delete rate limit rule."""
     stmt = select(RateLimitRule).where(
@@ -302,7 +301,7 @@ async def delete_rate_limit_rule(
 
 
 @router.get(
-    "/rate-limits/status",
+    "/status",
     response_model=RateLimitStatusResponse,
     summary="Get rate limit status",
     description="Get current rate limit status for endpoint",
@@ -310,7 +309,7 @@ async def delete_rate_limit_rule(
 async def get_rate_limit_status(
     endpoint: str = Query(..., description="Endpoint path"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> RateLimitStatusResponse:
     """Get rate limit status."""
     service = RateLimitService(db)
@@ -318,14 +317,14 @@ async def get_rate_limit_status(
     status_data = await service.get_rate_limit_status(
         tenant_id=current_user.tenant_id,
         endpoint=endpoint,
-        user_id=current_user.id,
+        user_id=UUID(current_user.user_id),
     )
 
     return RateLimitStatusResponse.model_validate(status_data)
 
 
 @router.post(
-    "/rate-limits/reset",
+    "/reset",
     status_code=status.HTTP_200_OK,
     summary="Reset rate limit",
     description="Reset rate limit counter for specific identifier",
@@ -334,7 +333,7 @@ async def reset_rate_limit(
     rule_id: UUID = Query(..., description="Rule ID"),
     identifier: str = Query(..., description="Identifier (user ID, IP, etc.)"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Reset rate limit."""
     service = RateLimitService(db)
@@ -352,7 +351,7 @@ async def reset_rate_limit(
 
 
 @router.get(
-    "/rate-limits/logs",
+    "/logs",
     response_model=list[RateLimitLogResponse],
     summary="List rate limit violations",
     description="List rate limit violation logs",
@@ -365,7 +364,7 @@ async def list_rate_limit_logs(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> list[RateLimitLog]:
     """List rate limit logs."""
     stmt = select(RateLimitLog).where(RateLimitLog.tenant_id == current_user.tenant_id)
@@ -389,14 +388,14 @@ async def list_rate_limit_logs(
 
 
 @router.get(
-    "/rate-limits/analytics",
+    "/analytics",
     summary="Get rate limit analytics",
     description="Get analytics on rate limit violations",
 )
 async def get_rate_limit_analytics(
     hours: int = Query(24, ge=1, le=168, description="Hours to analyze"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get rate limit analytics."""
     from datetime import datetime, timedelta

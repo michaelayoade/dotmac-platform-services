@@ -348,7 +348,7 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
               <h3 className="text-lg font-semibold text-text-primary">Line Items</h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table className="data-table" aria-label="Invoice line items"><caption className="sr-only">Invoice line items</caption>
                 <thead>
                   <tr>
                     <th className="w-1/2">Description</th>
@@ -462,7 +462,11 @@ export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
                 <Download className="w-4 h-4 mr-2" />
                 Download PDF
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => window.print()}
+              >
                 <Printer className="w-4 h-4 mr-2" />
                 Print Invoice
               </Button>

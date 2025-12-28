@@ -8,7 +8,8 @@ from uuid import UUID, uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..auth.core import UserInfo, get_current_user, get_current_user_optional
@@ -606,6 +607,7 @@ async def create_frontend_logs(
 
     See docs/FRONTEND_LOG_JWT.md for implementation guide (when available).
     """
+    from authlib.jose import JoseError, jwt
     from dotmac.platform.settings import settings
 
     # SECURITY: Require a shared secret in production deployments
@@ -635,6 +637,48 @@ async def create_frontend_logs(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid or missing frontend log secret",
+            )
+
+    # SECURITY: Validate signed frontend log token when configured
+    jwt_secret = settings.audit.frontend_log_jwt_secret
+    if jwt_secret:
+        token = request.headers.get("X-Frontend-Log-Token")
+        if not token:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.lower().startswith("bearer "):
+                token = auth_header.split(" ", 1)[1].strip()
+
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing frontend log token",
+            )
+
+        try:
+            claims_raw = jwt.decode(token, jwt_secret)
+            claims_raw.validate(leeway=settings.audit.frontend_log_jwt_leeway_seconds)
+            claims = dict(claims_raw)
+
+            expected_iss = settings.audit.frontend_log_jwt_issuer
+            if expected_iss and claims.get("iss") != expected_iss:
+                raise JoseError("Invalid frontend log token issuer")
+
+            expected_aud = settings.audit.frontend_log_jwt_audience
+            if expected_aud:
+                aud_claim = claims.get("aud")
+                if isinstance(aud_claim, list):
+                    if expected_aud not in aud_claim:
+                        raise JoseError("Invalid frontend log token audience")
+                elif aud_claim != expected_aud:
+                    raise JoseError("Invalid frontend log token audience")
+
+            if not claims.get("nonce"):
+                raise JoseError("Missing frontend log token nonce")
+        except JoseError as exc:
+            logger.warning("frontend_log_ingestion_invalid_token", error=str(exc))
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid frontend log token",
             )
 
     # SECURITY: Validate origin header against allowlist with proper URL parsing
@@ -884,11 +928,12 @@ async def create_frontend_logs(
 )
 async def export_audit_logs(
     request_body: dict[str, Any],
+    request: Request,
     current_user: UserInfo = Depends(ensure_audit_access),
     tenant_id_from_context: str | None = Depends(get_current_tenant_id),
 ) -> AuditExportResponse:
     """Export audit logs and return a completed export with download URL."""
-    _ = resolve_tenant_for_audit(Request, current_user, tenant_id_from_context)  # type: ignore[arg-type]
+    _ = resolve_tenant_for_audit(request, current_user, tenant_id_from_context)
     export_id = str(uuid4())
     fmt = request_body.get("format", "csv")
     if fmt not in ("csv", "json", "pdf"):
@@ -967,3 +1012,282 @@ async def compliance_report(
         issues=issues,
         generated_at=datetime.now(UTC).isoformat(),
     )
+
+
+# =============================================================================
+# Dashboard Endpoint
+# =============================================================================
+
+
+class AuditDashboardSummary(BaseModel):
+    """Summary statistics for audit dashboard."""
+
+    model_config = ConfigDict()
+
+    total_activities: int = Field(description="Total audit activities")
+    activities_today: int = Field(description="Activities today")
+    activities_this_week: int = Field(description="Activities this week")
+    critical_events: int = Field(description="Critical severity events")
+    high_events: int = Field(description="High severity events")
+    auth_failures: int = Field(description="Authentication failures")
+    permission_changes: int = Field(description="Permission change events")
+    data_exports: int = Field(description="Data export events")
+
+
+class AuditChartDataPoint(BaseModel):
+    """Single data point for audit charts."""
+
+    model_config = ConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditCharts(BaseModel):
+    """Chart data for audit dashboard."""
+
+    model_config = ConfigDict()
+
+    activities_by_type: list[AuditChartDataPoint] = Field(description="Activities by type")
+    activities_by_severity: list[AuditChartDataPoint] = Field(description="Activities by severity")
+    activities_trend: list[AuditChartDataPoint] = Field(description="Daily activity trend")
+    top_users: list[AuditChartDataPoint] = Field(description="Top users by activity count")
+
+
+class AuditAlert(BaseModel):
+    """Alert item for audit dashboard."""
+
+    model_config = ConfigDict()
+
+    type: str = Field(description="Alert type: warning, error, info")
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class AuditRecentActivityItem(BaseModel):
+    """Recent activity item for audit dashboard."""
+
+    model_config = ConfigDict()
+
+    id: str
+    activity_type: str
+    action: str
+    description: str
+    severity: str
+    timestamp: datetime
+    user_id: str | None = None
+    tenant_id: str | None = None
+
+
+class AuditDashboardResponse(BaseModel):
+    """Consolidated audit dashboard response."""
+
+    model_config = ConfigDict()
+
+    summary: AuditDashboardSummary
+    charts: AuditCharts
+    alerts: list[AuditAlert]
+    recent_activity: list[AuditRecentActivityItem]
+    generated_at: datetime
+
+
+@router.get(
+    "/audit/dashboard",
+    response_model=AuditDashboardResponse,
+    summary="Get audit dashboard data",
+    description="Returns consolidated audit metrics, charts, and alerts for the dashboard",
+)
+async def get_audit_dashboard(
+    request: Request,
+    period_days: int = Query(30, ge=1, le=90, description="Days of trend data"),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(ensure_audit_access),
+    tenant_id_from_context: str | None = Depends(get_current_tenant_id),
+) -> AuditDashboardResponse:
+    """
+    Get consolidated audit dashboard data including:
+    - Summary statistics (activity counts, severity breakdown)
+    - Chart data (trends, breakdowns)
+    - Alerts (critical events, auth failures)
+    - Recent activity
+    """
+    from .models import AuditActivity
+
+    try:
+        tenant_id = resolve_tenant_for_audit(request, current_user, tenant_id_from_context)
+        now = datetime.now(UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=7)
+
+        # ========== SUMMARY STATS ==========
+        # Activity counts
+        activity_counts_query = select(
+            func.count(AuditActivity.id).label("total"),
+            func.sum(case((AuditActivity.created_at >= today_start, 1), else_=0)).label("today"),
+            func.sum(case((AuditActivity.created_at >= week_start, 1), else_=0)).label("this_week"),
+            func.sum(case((AuditActivity.severity == ActivitySeverity.CRITICAL, 1), else_=0)).label("critical"),
+            func.sum(case((AuditActivity.severity == ActivitySeverity.HIGH, 1), else_=0)).label("high"),
+            func.sum(case((AuditActivity.activity_type == ActivityType.AUTH_FAILURE, 1), else_=0)).label("auth_failures"),
+            func.sum(case((AuditActivity.activity_type.in_([
+                ActivityType.PERMISSION_CHANGE,
+                ActivityType.USER_ROLE_CHANGE,
+                ActivityType.USER_MANAGEMENT,
+            ]), 1), else_=0)).label("permission_changes"),
+        )
+        if tenant_id:
+            activity_counts_query = activity_counts_query.where(AuditActivity.tenant_id == tenant_id)
+        activity_counts_result = await session.execute(activity_counts_query)
+        activity_counts = activity_counts_result.one()
+
+        # Data exports count
+        exports_query = select(func.count(AuditActivity.id)).where(
+            func.lower(AuditActivity.action).contains("export")
+        )
+        if tenant_id:
+            exports_query = exports_query.where(AuditActivity.tenant_id == tenant_id)
+        exports_result = await session.execute(exports_query)
+        data_exports = exports_result.scalar() or 0
+
+        summary = AuditDashboardSummary(
+            total_activities=activity_counts.total or 0,
+            activities_today=activity_counts.today or 0,
+            activities_this_week=activity_counts.this_week or 0,
+            critical_events=activity_counts.critical or 0,
+            high_events=activity_counts.high or 0,
+            auth_failures=activity_counts.auth_failures or 0,
+            permission_changes=activity_counts.permission_changes or 0,
+            data_exports=data_exports,
+        )
+
+        # ========== CHART DATA ==========
+        # Activities by type
+        type_query = select(
+            AuditActivity.activity_type,
+            func.count(AuditActivity.id),
+        )
+        if tenant_id:
+            type_query = type_query.where(AuditActivity.tenant_id == tenant_id)
+        type_query = type_query.group_by(AuditActivity.activity_type).limit(10)
+        type_result = await session.execute(type_query)
+        activities_by_type = [
+            AuditChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+            for row in type_result.all()
+        ]
+
+        # Activities by severity
+        severity_query = select(
+            AuditActivity.severity,
+            func.count(AuditActivity.id),
+        )
+        if tenant_id:
+            severity_query = severity_query.where(AuditActivity.tenant_id == tenant_id)
+        severity_query = severity_query.group_by(AuditActivity.severity)
+        severity_result = await session.execute(severity_query)
+        activities_by_severity = [
+            AuditChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+            for row in severity_result.all()
+        ]
+
+        # Activities trend (daily)
+        activities_trend = []
+        for i in range(min(period_days, 14) - 1, -1, -1):
+            day_date = now - timedelta(days=i)
+            next_day = day_date + timedelta(days=1)
+
+            day_count_query = select(func.count(AuditActivity.id)).where(
+                AuditActivity.created_at >= day_date.replace(hour=0, minute=0, second=0),
+                AuditActivity.created_at < next_day.replace(hour=0, minute=0, second=0),
+            )
+            if tenant_id:
+                day_count_query = day_count_query.where(AuditActivity.tenant_id == tenant_id)
+            day_count_result = await session.execute(day_count_query)
+            day_count = day_count_result.scalar() or 0
+
+            activities_trend.append(AuditChartDataPoint(
+                label=day_date.strftime("%b %d"),
+                value=day_count,
+            ))
+
+        # Top users by activity
+        top_users_query = select(
+            AuditActivity.user_id,
+            func.count(AuditActivity.id),
+        ).where(AuditActivity.user_id.isnot(None))
+        if tenant_id:
+            top_users_query = top_users_query.where(AuditActivity.tenant_id == tenant_id)
+        top_users_query = top_users_query.group_by(AuditActivity.user_id).order_by(
+            func.count(AuditActivity.id).desc()
+        ).limit(10)
+        top_users_result = await session.execute(top_users_query)
+        top_users = [
+            AuditChartDataPoint(label=row[0] if row[0] else "unknown", value=row[1])
+            for row in top_users_result.all()
+        ]
+
+        charts = AuditCharts(
+            activities_by_type=activities_by_type,
+            activities_by_severity=activities_by_severity,
+            activities_trend=activities_trend,
+            top_users=top_users,
+        )
+
+        # ========== ALERTS ==========
+        alerts = []
+
+        if activity_counts.critical and activity_counts.critical > 0:
+            alerts.append(AuditAlert(
+                type="error",
+                title="Critical Events",
+                message=f"{activity_counts.critical} critical event(s) detected",
+                count=activity_counts.critical,
+                action_url="/audit/activities?severity=critical",
+            ))
+
+        if activity_counts.auth_failures and activity_counts.auth_failures > 5:
+            alerts.append(AuditAlert(
+                type="warning",
+                title="Authentication Failures",
+                message=f"{activity_counts.auth_failures} authentication failure(s) detected",
+                count=activity_counts.auth_failures,
+                action_url="/audit/activities?type=auth_failure",
+            ))
+
+        # ========== RECENT ACTIVITY ==========
+        service = AuditService(session)
+        recent_activities = await service.get_recent_activities(
+            tenant_id=tenant_id,
+            limit=10,
+            days=7,
+        )
+
+        recent_activity = [
+            AuditRecentActivityItem(
+                id=str(a.id),
+                activity_type=a.activity_type.value if a.activity_type else "unknown",
+                action=a.action or "",
+                description=a.description or "",
+                severity=a.severity.value if a.severity else "low",
+                timestamp=a.created_at,
+                user_id=a.user_id,
+                tenant_id=a.tenant_id,
+            )
+            for a in recent_activities
+        ]
+
+        return AuditDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate audit dashboard", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate audit dashboard: {str(e)}",
+        )

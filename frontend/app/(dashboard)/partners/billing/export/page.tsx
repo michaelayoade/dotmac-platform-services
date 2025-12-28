@@ -332,7 +332,7 @@ export default function PartnerExportPage() {
               <p className="text-text-muted">Loading export history...</p>
             </div>
           ) : exports.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Export history"><caption className="sr-only">Export history</caption>
               <thead>
                 <tr>
                   <th>Created</th>

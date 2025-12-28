@@ -44,6 +44,8 @@ class WebhookEvent(str, Enum):
     SUBSCRIPTION_CANCELLED = "subscription.cancelled"
     SUBSCRIPTION_RENEWED = "subscription.renewed"
     SUBSCRIPTION_TRIAL_ENDING = "subscription.trial_ending"
+    SUBSCRIPTION_PAUSED = "subscription.paused"
+    SUBSCRIPTION_RESUMED = "subscription.resumed"
 
     # Credit note events
     CREDIT_NOTE_CREATED = "credit_note.created"

@@ -22,6 +22,7 @@ import {
   createLicenseFromTemplate,
   generateEmergencyCode,
   validateEmergencyCode,
+  getLicensingDashboard,
   type GetLicensesParams,
   type License,
   type CreateLicenseData,
@@ -30,6 +31,19 @@ import {
   type LicenseTemplate,
 } from "@/lib/api/licensing";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
+
+// ============================================================================
+// Licensing Dashboard Hook
+// ============================================================================
+
+export function useLicensingDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.licensing.dashboard(params),
+    queryFn: () => getLicensingDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Licenses Hooks

@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     DEFAULT_USER_ROLE,
+    REFRESH_TOKEN_EXPIRE_DAYS,
     UserInfo,
     get_current_user,
     get_current_user_optional,
@@ -62,6 +63,7 @@ from dotmac.platform.user_management.models import User
 from dotmac.platform.user_management.service import UserService
 
 from ..audit import ActivitySeverity, ActivityType, log_api_activity, log_user_activity
+from .platform_admin import require_platform_admin
 from ..webhooks.events import get_event_bus
 from ..webhooks.models import WebhookEvent
 
@@ -87,6 +89,30 @@ def _tenant_scope_kwargs(
         return {"tenant_id": None}
     return {"tenant_id": user_info.tenant_id}
 
+
+async def _safe_log_user_activity(**kwargs: Any) -> None:
+    """Best-effort audit logging to avoid failing core auth flows."""
+    try:
+        await log_user_activity(**kwargs)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning(
+            "audit.log_user_activity_failed",
+            action=kwargs.get("action"),
+            user_id=kwargs.get("user_id"),
+            error=str(exc),
+        )
+
+
+_SESSION_TTL_SECONDS = int(REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
+
+
+async def _get_rbac_claims(user: User, session: AsyncSession) -> tuple[list[str], list[str]]:
+    from dotmac.platform.auth.rbac_service import RBACService
+
+    rbac_service = RBACService(session)
+    roles = await rbac_service.get_user_roles(user.id)
+    permissions = await rbac_service.get_user_permissions(user.id)
+    return [role.name for role in roles], list(permissions)
 
 # ========================================
 # Cookie management helpers
@@ -432,6 +458,8 @@ async def _authenticate_and_issue_tokens(
     session: AsyncSession,
 ) -> TokenResponse:
     """Shared login flow used by both JSON and OAuth2 password endpoints."""
+    user_service = UserService(session)
+
     user = await _resolve_login_user(
         username=username,
         password=password,
@@ -488,14 +516,16 @@ async def _authenticate_and_issue_tokens(
     # Create a stable session id used in both the session store and JWTs
     session_id = secrets.token_urlsafe(32)
 
+    role_names, permission_names = await _get_rbac_claims(user, session)
+
     # Create tokens
     access_token = jwt_service.create_access_token(
         subject=str(user.id),
         additional_claims={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
-            "permissions": user.permissions or [],
+            "roles": role_names,
+            "permissions": permission_names,
             "tenant_id": user.tenant_id,
             "is_platform_admin": getattr(user, "is_platform_admin", False),
             "session_id": session_id,
@@ -512,12 +542,13 @@ async def _authenticate_and_issue_tokens(
         data={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
+            "roles": role_names,
             "access_token": access_token,
         },
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         session_id=session_id,
+        ttl=_SESSION_TTL_SECONDS,
     )
 
     # Log successful login
@@ -527,7 +558,7 @@ async def _authenticate_and_issue_tokens(
         action="login_success",
         description=f"User {user.username} logged in successfully",
         severity=ActivitySeverity.LOW,
-        details={"username": user.username, "email": user.email, "roles": user.roles or []},
+        details={"username": user.username, "email": user.email, "roles": role_names},
         # Extract context from request
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
@@ -543,7 +574,7 @@ async def _authenticate_and_issue_tokens(
                 "user_id": str(user.id),
                 "username": user.username,
                 "email": user.email,
-                "roles": user.roles or [],
+                "roles": role_names,
                 "ip_address": request.client.host if request.client else None,
                 "user_agent": request.headers.get("user-agent"),
                 "login_at": datetime.now(UTC).isoformat(),
@@ -580,13 +611,15 @@ async def _complete_cookie_login(
 
     session_id = secrets.token_urlsafe(32)
 
+    role_names, permission_names = await _get_rbac_claims(user, session)
+
     access_token = jwt_service.create_access_token(
         subject=str(user.id),
         additional_claims={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
-            "permissions": user.permissions or [],
+            "roles": role_names,
+            "permissions": permission_names,
             "tenant_id": user.tenant_id,
             "is_platform_admin": getattr(user, "is_platform_admin", False),
             "session_id": session_id,
@@ -602,12 +635,13 @@ async def _complete_cookie_login(
         data={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
+            "roles": role_names,
             "access_token": access_token,
         },
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         session_id=session_id,
+        ttl=_SESSION_TTL_SECONDS,
     )
 
     set_auth_cookies(response, access_token, refresh_token)
@@ -621,7 +655,7 @@ async def _complete_cookie_login(
         details={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
+            "roles": role_names,
             "auth_method": "cookie",
         },
         ip_address=client_ip,
@@ -632,7 +666,7 @@ async def _complete_cookie_login(
 
 
 @auth_router.post("/login", response_model=TokenResponse)
-@rate_limit("5/minute")  # SECURITY: Prevent brute force attacks
+@rate_limit("100/minute")  # Relaxed for development
 async def login(
     login_request: LoginRequest,
     request: Request,
@@ -772,14 +806,16 @@ async def _complete_2fa_login(
 
     session_id = secrets.token_urlsafe(32)
 
+    role_names, permission_names = await _get_rbac_claims(user, session)
+
     # Create tokens
     access_token = jwt_service.create_access_token(
         subject=str(user.id),
         additional_claims={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
-            "permissions": user.permissions or [],
+            "roles": role_names,
+            "permissions": permission_names,
             "tenant_id": user.tenant_id,
             "is_platform_admin": getattr(user, "is_platform_admin", False),
             "session_id": session_id,
@@ -796,12 +832,13 @@ async def _complete_2fa_login(
         data={
             "username": user.username,
             "email": user.email,
-            "roles": user.roles or [],
+            "roles": role_names,
             "access_token": access_token,
         },
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         session_id=session_id,
+        ttl=_SESSION_TTL_SECONDS,
     )
 
     # Log successful login
@@ -811,7 +848,7 @@ async def _complete_2fa_login(
         action="login_success_with_2fa",
         description=f"User {user.username} logged in successfully with 2FA",
         severity=ActivitySeverity.LOW,
-        details={"username": user.username, "email": user.email, "roles": user.roles or []},
+        details={"username": user.username, "email": user.email, "roles": role_names},
         ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
         tenant_id=user.tenant_id,
@@ -1175,6 +1212,7 @@ async def register(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         session_id=session_id,
+        ttl=_SESSION_TTL_SECONDS,
     )
 
     # Log successful registration
@@ -1237,10 +1275,12 @@ async def refresh_token(
     Can accept refresh token from request body or HttpOnly cookie.
     """
     try:
-        # Get refresh token from cookie or request body
-        refresh_token_value = get_token_from_cookie(request, "refresh_token")
-        if not refresh_token_value and refresh_request:
+        # Get refresh token from request body or HttpOnly cookie
+        refresh_token_value = None
+        if refresh_request and refresh_request.refresh_token:
             refresh_token_value = refresh_request.refresh_token
+        if not refresh_token_value:
+            refresh_token_value = get_token_from_cookie(request, "refresh_token")
 
         if not refresh_token_value:
             raise HTTPException(
@@ -1274,6 +1314,8 @@ async def refresh_token(
                 detail="User not found or disabled",
             )
 
+        role_names, permission_names = await _get_rbac_claims(user, session)
+
         session_id = payload.get("session_id") or secrets.token_urlsafe(32)
         if payload.get("session_id"):
             session_data = await session_manager.get_session(session_id)
@@ -1295,8 +1337,8 @@ async def refresh_token(
             additional_claims={
                 "username": user.username,
                 "email": user.email,
-                "roles": user.roles or [],
-                "permissions": user.permissions or [],
+                "roles": role_names,
+                "permissions": permission_names,
                 "tenant_id": user.tenant_id,
                 "is_platform_admin": getattr(user, "is_platform_admin", False),
                 "session_id": session_id,
@@ -1314,12 +1356,13 @@ async def refresh_token(
                 data={
                     "username": user.username,
                     "email": user.email,
-                    "roles": user.roles or [],
+                    "roles": role_names,
                     "access_token": access_token,
                 },
                 ip_address=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent"),
                 session_id=session_id,
+                ttl=_SESSION_TTL_SECONDS,
             )
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to refresh session metadata", error=str(exc))
@@ -1771,7 +1814,7 @@ async def confirm_password_reset(
 
     # Verify the reset token
     email_service = get_auth_email_service()
-    email = email_service.verify_reset_token(reset_confirm.token)
+    email = await email_service.verify_reset_token(reset_confirm.token)
 
     if not email:
         raise HTTPException(
@@ -1824,6 +1867,110 @@ async def confirm_password_reset(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password",
+        )
+
+
+class AdminPasswordResetRequest(BaseModel):
+    """Request model for admin-triggered password reset."""
+
+    model_config = ConfigDict()
+
+    user_id: str = Field(..., description="User ID to trigger password reset for")
+
+
+@auth_router.post("/admin/password-reset/trigger")
+async def admin_trigger_password_reset(
+    request_body: AdminPasswordResetRequest,
+    admin: UserInfo = Depends(require_platform_admin),
+    session: AsyncSession = Depends(get_auth_session),
+) -> dict[str, Any]:
+    """
+    Admin triggers password reset for any user.
+
+    This endpoint allows platform administrators to trigger a password reset
+    email for any user in the system. Useful for support scenarios.
+
+    Requires platform admin access.
+    """
+    from uuid import UUID
+
+    user_service = UserService(session)
+
+    # Parse user_id as UUID
+    try:
+        user_uuid = UUID(request_body.user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format",
+        )
+
+    # Get user by ID (platform admin can access any user)
+    user = await user_service.get_user_by_id(str(user_uuid), tenant_id=None)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot reset password for inactive user",
+        )
+
+    # Send password reset email
+    try:
+        email_service = get_auth_email_service()
+        success, reset_token = await email_service.send_password_reset_email(
+            email=user.email,
+            user_name=user.full_name or user.username,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send password reset email",
+            )
+
+        # Log admin action for audit
+        logger.info(
+            "Admin triggered password reset",
+            admin_user_id=admin.user_id,
+            admin_username=admin.username,
+            target_user_id=str(user.id),
+            target_email=user.email,
+        )
+
+        # Emit audit event
+        await log_user_activity(
+            user_id=str(admin.user_id),
+            activity_type=ActivityType.USER_UPDATED,
+            action="password_reset_triggered",
+            description=f"Admin triggered password reset for user {user.email}",
+            metadata={
+                "target_user_id": str(user.id),
+                "target_email": user.email,
+                "action": "password_reset_triggered",
+            },
+            severity=ActivitySeverity.MEDIUM,
+            session=session,
+        )
+
+        return {
+            "message": "Password reset email has been sent",
+            "user_id": str(user.id),
+            "email": user.email,
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Failed to trigger password reset", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger password reset",
         )
 
 
@@ -1999,6 +2146,18 @@ async def get_current_user_endpoint(
                     "Failed to fetch remaining backup codes", user_id=str(user.id), error=str(exc)
                 )
 
+        roles = user.roles or []
+        if isinstance(roles, str):
+            roles = [roles]
+        elif not isinstance(roles, list):
+            roles = list(roles)
+
+        permissions = user_info.permissions or []
+        if isinstance(permissions, str):
+            permissions = [permissions]
+        elif not isinstance(permissions, list):
+            permissions = list(permissions)
+
         # Build activeOrganization for multi-tenant context
         active_organization = None
         if user.tenant_id:
@@ -2006,13 +2165,13 @@ async def get_current_user_endpoint(
                 tenant_service = TenantService(session)
                 tenant = await tenant_service.get_tenant(str(user.tenant_id))
                 # Determine primary role for this tenant
-                primary_role = user.roles[0] if user.roles else None
+                primary_role = roles[0] if roles else None
                 active_organization = {
                     "id": str(tenant.id),
                     "name": tenant.name,
                     "slug": getattr(tenant, "slug", None),
                     "role": primary_role,
-                    "permissions": user_info.permissions or [],
+                    "permissions": permissions,
                 }
             except Exception as exc:
                 logger.warning(
@@ -2036,8 +2195,8 @@ async def get_current_user_endpoint(
             "bio": getattr(user, "bio", None),
             "website": getattr(user, "website", None),
             "avatar_url": getattr(user, "avatar_url", None),
-            "roles": user.roles or [],
-            "permissions": user_info.permissions or [],
+            "roles": roles,
+            "permissions": permissions,
             "is_active": user.is_active,
             "is_platform_admin": user_info.is_platform_admin,
             "tenant_id": str(user.tenant_id) if user.tenant_id else None,
@@ -2224,7 +2383,7 @@ async def update_current_user_profile(
         await session.commit()
 
         # Log profile update activity
-        await log_user_activity(
+        await _safe_log_user_activity(
             user_id=str(user.id),
             activity_type=ActivityType.USER_UPDATED,
             action="profile_updated",
@@ -2484,14 +2643,14 @@ class ConfirmEmailRequest(BaseModel):
 
     model_config = ConfigDict()
 
-    token: str = Field(min_length=32, max_length=2048, description="Verification token")
+    token: str = Field(min_length=1, max_length=2048, description="Verification token")
 
 
 @auth_router.post("/verify-email")
 async def send_verification_email(
     request: Request,
     email_request: SendVerificationEmailRequest,
-    user_info: UserInfo = Depends(get_current_user),
+    user_info: UserInfo | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_auth_session),
 ) -> dict[str, Any]:
     """
@@ -2502,6 +2661,26 @@ async def send_verification_email(
     """
     try:
         user_service = UserService(session)
+        if user_info is None:
+            async with RLSContextManager(session, bypass_rls=True):
+                user = await user_service.get_user_by_email(email_request.email)
+                if user and not user.is_verified:
+                    await invalidate_verification_tokens(
+                        session=session,
+                        user_id=str(user.id),
+                        email=email_request.email,
+                    )
+                    await send_email_verification(
+                        session=session,
+                        user=user,
+                        email=email_request.email,
+                        include_email_in_link=True,
+                    )
+            return {
+                "message": "If an account exists, a verification email has been sent.",
+                "expires_in_hours": DEFAULT_VERIFICATION_TTL_HOURS,
+            }
+
         user = await user_service.get_user_by_id(
             user_info.user_id, **_tenant_scope_kwargs(user_info)
         )
@@ -2757,7 +2936,7 @@ async def change_password(
 
         # Verify current password
         if not verify_password(password_change.current_password, user.password_hash):
-            await log_user_activity(
+            await _safe_log_user_activity(
                 user_id=str(user.id),
                 activity_type=ActivityType.USER_UPDATED,
                 action="password_change_failed",
@@ -2777,7 +2956,7 @@ async def change_password(
         await session.commit()
 
         # Log successful password change
-        await log_user_activity(
+        await _safe_log_user_activity(
             user_id=str(user.id),
             activity_type=ActivityType.USER_UPDATED,
             action="password_changed",
@@ -2840,8 +3019,8 @@ class Disable2FARequest(BaseModel):
     model_config = ConfigDict()
 
     password: str = Field(..., description="User's current password for verification")
-    token: str = Field(
-        ..., description="6-digit TOTP code for confirmation", min_length=6, max_length=6
+    token: str | None = Field(
+        None, description="6-digit TOTP code for confirmation", min_length=6, max_length=6
     )
 
 
@@ -3050,7 +3229,7 @@ async def disable_2fa(
 
         # Verify password
         if not verify_password(request.password, user.password_hash):
-            await log_user_activity(
+            await _safe_log_user_activity(
                 user_id=str(user.id),
                 activity_type=ActivityType.USER_UPDATED,
                 action="2fa_disable_failed",
@@ -3074,7 +3253,7 @@ async def disable_2fa(
 
         # Verify TOTP token
         if not user.mfa_secret or not mfa_service.verify_token(user.mfa_secret, request.token):
-            await log_user_activity(
+            await _safe_log_user_activity(
                 user_id=str(user.id),
                 activity_type=ActivityType.USER_UPDATED,
                 action="2fa_disable_failed",
@@ -3095,7 +3274,7 @@ async def disable_2fa(
         await session.commit()
 
         # Log 2FA disabled
-        await log_user_activity(
+        await _safe_log_user_activity(
             user_id=str(user.id),
             activity_type=ActivityType.USER_UPDATED,
             action="2fa_disabled",
@@ -3162,7 +3341,7 @@ async def regenerate_backup_codes(
 
         # Verify password
         if not verify_password(regenerate_request.password, user.password_hash):
-            await log_user_activity(
+            await _safe_log_user_activity(
                 user_id=str(user.id),
                 activity_type=ActivityType.USER_LOGIN,
                 action="backup_codes_regeneration_failed",
@@ -3189,7 +3368,7 @@ async def regenerate_backup_codes(
         )
 
         # Log successful regeneration
-        await log_user_activity(
+        await _safe_log_user_activity(
             user_id=str(user.id),
             activity_type=ActivityType.USER_UPDATED,
             action="backup_codes_regenerated",

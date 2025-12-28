@@ -269,7 +269,7 @@ export const CommandPalette = memo(function CommandPalette({
 
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Search className="w-5 h-5 text-text-muted flex-shrink-0" />
+          <Search className="w-5 h-5 text-text-muted flex-shrink-0" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search commands, pages, or actions..."
@@ -277,6 +277,10 @@ export const CommandPalette = memo(function CommandPalette({
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted focus:outline-none text-base"
             autoFocus
+            role="combobox"
+            aria-controls="command-palette-results"
+            aria-expanded={flatCommands.length > 0}
+            aria-autocomplete="list"
           />
           <kbd className="px-2 py-1 text-xs font-mono text-text-muted bg-surface rounded border border-border">
             ESC
@@ -284,7 +288,12 @@ export const CommandPalette = memo(function CommandPalette({
         </div>
 
         {/* Results */}
-        <div className="max-h-80 overflow-y-auto py-2">
+        <div
+          id="command-palette-results"
+          role="listbox"
+          aria-label="Command palette results"
+          className="max-h-80 overflow-y-auto py-2"
+        >
           {flatCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-text-muted">
               <p>No results found for &quot;{query}&quot;</p>

@@ -12,6 +12,7 @@ import {
   executeWorkflow,
   cancelWorkflowExecution,
   getWorkflowStats,
+  getWorkflowsDashboard,
   type GetWorkflowsParams,
   type GetExecutionsParams,
   type WorkflowDefinition,
@@ -20,6 +21,7 @@ import {
   type CreateWorkflowData,
 } from "@/lib/api/workflows";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 type Workflow = WorkflowDefinition;
 
@@ -104,6 +106,18 @@ async function getExecutionLogs(
   _executionId: string
 ): Promise<ExecutionLog[]> {
   return [];
+}
+
+// ============================================================================
+// Workflows Dashboard Hook
+// ============================================================================
+
+export function useWorkflowsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.workflows.dashboard(params),
+    queryFn: () => getWorkflowsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
 }
 
 // ============================================================================

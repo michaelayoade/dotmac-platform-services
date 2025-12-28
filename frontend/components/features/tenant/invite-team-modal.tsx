@@ -111,11 +111,18 @@ export function InviteTeamModal({ isOpen, onClose }: InviteTeamModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="invite-team-modal-title"
+      aria-describedby="invite-team-modal-description"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-overlay/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
@@ -124,13 +131,13 @@ export function InviteTeamModal({ isOpen, onClose }: InviteTeamModalProps) {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center">
-              <UserPlus className="w-5 h-5 text-accent" />
+              <UserPlus className="w-5 h-5 text-accent" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-text-primary">
+              <h2 id="invite-team-modal-title" className="text-lg font-semibold text-text-primary">
                 Invite Team Member
               </h2>
-              <p className="text-xs text-text-muted">
+              <p id="invite-team-modal-description" className="text-xs text-text-muted">
                 Send an invitation to join your team
               </p>
             </div>
@@ -138,8 +145,9 @@ export function InviteTeamModal({ isOpen, onClose }: InviteTeamModalProps) {
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
+            aria-label="Close modal"
           >
-            <X className="w-5 h-5 text-text-muted" />
+            <X className="w-5 h-5 text-text-muted" aria-hidden="true" />
           </button>
         </div>
 
@@ -161,7 +169,7 @@ export function InviteTeamModal({ isOpen, onClose }: InviteTeamModalProps) {
                 }}
                 placeholder="colleague@company.com"
                 className={cn(
-                  "w-full pl-10 pr-3 py-2 bg-surface-overlay border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent",
+                  "w-full pl-10 pr-3 py-2 bg-surface-overlay border rounded-lg text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   error ? "border-status-error" : "border-border"
                 )}
                 autoFocus

@@ -14,7 +14,7 @@ from celery.exceptions import CeleryError
 from fastapi import APIRouter, Depends, HTTPException
 from jinja2 import TemplateSyntaxError, UndefinedError
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
-from sqlalchemy import and_, func, select
+from sqlalchemy import String, and_, cast, func, literal, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user
@@ -80,6 +80,22 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except Exception:
         return None
+
+
+def _normalize_datetime(value: datetime | str | int | float | None) -> datetime | None:
+    """Normalize datetime values (including sqlite timestamp floats)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, UTC)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _render_from_strings(
@@ -185,7 +201,7 @@ class SendEmailResponseSchema(BaseModel):  # BaseModel resolves to Any in isolat
 @router.post("/email/send", response_model=SendEmailResponseSchema)
 async def send_email_endpoint(
     request: EmailRequest,
-    current_user: UserInfo | None = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Any:
     """Send a single email immediately."""
     try:
@@ -290,7 +306,7 @@ async def send_email_endpoint(
 @router.post("/email/queue")
 async def queue_email_endpoint(
     request: EmailRequest,
-    current_user: UserInfo | None = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Any:
     """Queue an email for background sending."""
     try:
@@ -492,7 +508,7 @@ async def create_template_endpoint(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/templates", response_model=TemplateListResponse)
+@router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates_endpoint(
     channel: str | None = None,
     is_active: bool | None = None,
@@ -500,7 +516,7 @@ async def list_templates_endpoint(
     page: int = 1,
     page_size: int = 50,
     current_user: UserInfo = Depends(get_current_user),
-) -> TemplateListResponse:
+) -> list[TemplateResponse]:
     """List templates (paginated)."""
     tenant_id = getattr(current_user, "tenant_id", None)
     # Try DB-backed listing
@@ -562,12 +578,7 @@ async def list_templates_endpoint(
                 for tpl in templates_db
             ]
 
-            return TemplateListResponse(
-                templates=resp_templates,
-                total=_total,
-                page=page,
-                page_size=page_size,
-            )
+            return resp_templates
     except Exception as exc:
         logger.warning("DB template list failed, falling back to in-memory", error=str(exc))
 
@@ -612,12 +623,7 @@ async def list_templates_endpoint(
             )
         )
 
-    return TemplateListResponse(
-        templates=resp_templates,
-        total=len(filtered),
-        page=page,
-        page_size=page_size,
-    )
+    return resp_templates
 
 
 @router.get("/templates/{template_id}", response_model=TemplateResponse)
@@ -1414,15 +1420,15 @@ def _log_to_schema(log: CommunicationLog) -> CommunicationLogSchema:
         body_html=log.html_body,
         template_id=log.template_id,
         status=log.status.value if hasattr(log, "status") else "sent",
-        sent_at=log.sent_at,
-        delivered_at=log.delivered_at,
+        sent_at=_normalize_datetime(log.sent_at),
+        delivered_at=_normalize_datetime(log.delivered_at),
         opened_at=None,
         clicked_at=None,
-        failed_at=log.failed_at,
+        failed_at=_normalize_datetime(log.failed_at),
         error_message=log.error_message,
         metadata=getattr(log, "metadata_", {}) or {},
-        created_at=log.created_at or datetime.now(UTC),
-        updated_at=log.updated_at or datetime.now(UTC),
+        created_at=_normalize_datetime(log.created_at) or datetime.now(UTC),
+        updated_at=_normalize_datetime(log.updated_at) or datetime.now(UTC),
     )
 
 
@@ -1564,8 +1570,8 @@ async def get_communications_metrics(
                 if row.template_id
             ]
 
-            # Recent failures
-            failure_conditions = [CommunicationLog.status == CommunicationStatus.FAILED]
+            # Recent failures - cast column to String to match literal string
+            failure_conditions = [cast(CommunicationLog.status, String) == "failed"]
             if tenant_id:
                 failure_conditions.append(CommunicationLog.tenant_id == tenant_id)
             failures_query = (
@@ -1735,7 +1741,7 @@ async def get_recent_activity(
                     recipient=log.recipient,
                     subject=log.subject,
                     status=log.status.value,
-                    timestamp=log.created_at or datetime.now(UTC),
+                    timestamp=_normalize_datetime(log.created_at) or datetime.now(UTC),
                     metadata=log.metadata_ or {},
                 )
                 for log in logs
@@ -2071,3 +2077,284 @@ async def retry_log(
 ) -> dict[str, Any]:
     """Retry a failed communication (stub)."""
     return {"log_id": log_id, "status": "queued"}
+
+
+# =============================================================================
+# Dashboard Endpoint
+# =============================================================================
+
+
+from datetime import timedelta
+from pydantic import ConfigDict as PydanticConfigDict
+from sqlalchemy import case
+
+
+class CommsDashboardSummary(BaseModel):
+    """Summary statistics for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    total_sent: int = Field(description="Total communications sent")
+    sent_today: int = Field(description="Communications sent today")
+    sent_this_week: int = Field(description="Communications sent this week")
+    delivered: int = Field(description="Successfully delivered")
+    failed: int = Field(description="Failed communications")
+    pending: int = Field(description="Pending communications")
+    delivery_rate_pct: float = Field(description="Delivery success rate")
+    total_templates: int = Field(description="Total templates")
+    active_templates: int = Field(description="Active templates")
+
+
+class CommsChartDataPoint(BaseModel):
+    """Single data point for communications charts."""
+
+    model_config = PydanticConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CommsCharts(BaseModel):
+    """Chart data for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    by_status: list[CommsChartDataPoint] = Field(description="Communications by status")
+    by_type: list[CommsChartDataPoint] = Field(description="Communications by type")
+    daily_trend: list[CommsChartDataPoint] = Field(description="Daily communication trend")
+    top_templates: list[CommsChartDataPoint] = Field(description="Top templates by usage")
+
+
+class CommsAlert(BaseModel):
+    """Alert item for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    type: str = Field(description="Alert type: warning, error, info")
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class CommsRecentActivity(BaseModel):
+    """Recent activity item for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    id: str
+    type: str = Field(description="Communication type")
+    recipient: str
+    subject: str | None
+    status: str
+    timestamp: datetime
+    tenant_id: str | None = None
+
+
+class CommsDashboardResponse(BaseModel):
+    """Consolidated communications dashboard response."""
+
+    model_config = PydanticConfigDict()
+
+    summary: CommsDashboardSummary
+    charts: CommsCharts
+    alerts: list[CommsAlert]
+    recent_activity: list[CommsRecentActivity]
+    generated_at: datetime
+
+
+@router.get(
+    "/dashboard",
+    response_model=CommsDashboardResponse,
+    summary="Get communications dashboard data",
+    description="Returns consolidated communications metrics, charts, and alerts for the dashboard",
+)
+async def get_communications_dashboard(
+    period_days: int = 30,
+    current_user: UserInfo = Depends(get_current_user),
+) -> CommsDashboardResponse:
+    """
+    Get consolidated communications dashboard data including:
+    - Summary statistics (sent, delivered, failed)
+    - Chart data (trends, breakdowns)
+    - Alerts (failed communications, delivery issues)
+    - Recent activity
+    """
+    try:
+        tenant_id = getattr(current_user, "tenant_id", None)
+        now = datetime.now(UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=7)
+
+        async with get_async_session_context() as db:
+            # ========== SUMMARY STATS ==========
+            # Communication log counts
+            log_counts_query = select(
+                func.count(CommunicationLog.id).label("total"),
+                func.sum(case((CommunicationLog.created_at >= today_start, 1), else_=0)).label("today"),
+                func.sum(case((CommunicationLog.created_at >= week_start, 1), else_=0)).label("this_week"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.DELIVERED, 1), else_=0)).label("delivered"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.FAILED, 1), else_=0)).label("failed"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.PENDING, 1), else_=0)).label("pending"),
+            )
+            if tenant_id:
+                log_counts_query = log_counts_query.where(CommunicationLog.tenant_id == tenant_id)
+            log_counts_result = await db.execute(log_counts_query)
+            log_counts = log_counts_result.one()
+
+            # Template counts
+            template_counts_query = select(
+                func.count(CommunicationTemplate.id).label("total"),
+                func.sum(case((CommunicationTemplate.is_active.is_(True), 1), else_=0)).label("active"),
+            )
+            if tenant_id:
+                template_counts_query = template_counts_query.where(CommunicationTemplate.tenant_id == tenant_id)
+            template_counts_result = await db.execute(template_counts_query)
+            template_counts = template_counts_result.one()
+
+            # Calculate delivery rate
+            total_attempted = (log_counts.delivered or 0) + (log_counts.failed or 0)
+            delivery_rate = ((log_counts.delivered or 0) / total_attempted * 100) if total_attempted > 0 else 0.0
+
+            summary = CommsDashboardSummary(
+                total_sent=log_counts.total or 0,
+                sent_today=log_counts.today or 0,
+                sent_this_week=log_counts.this_week or 0,
+                delivered=log_counts.delivered or 0,
+                failed=log_counts.failed or 0,
+                pending=log_counts.pending or 0,
+                delivery_rate_pct=round(delivery_rate, 2),
+                total_templates=template_counts.total or 0,
+                active_templates=template_counts.active or 0,
+            )
+
+            # ========== CHART DATA ==========
+            # By status
+            status_query = select(
+                CommunicationLog.status,
+                func.count(CommunicationLog.id),
+            )
+            if tenant_id:
+                status_query = status_query.where(CommunicationLog.tenant_id == tenant_id)
+            status_query = status_query.group_by(CommunicationLog.status)
+            status_result = await db.execute(status_query)
+            by_status = [
+                CommsChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+                for row in status_result.all()
+            ]
+
+            # By type
+            type_query = select(
+                CommunicationLog.type,
+                func.count(CommunicationLog.id),
+            )
+            if tenant_id:
+                type_query = type_query.where(CommunicationLog.tenant_id == tenant_id)
+            type_query = type_query.group_by(CommunicationLog.type)
+            type_result = await db.execute(type_query)
+            by_type = [
+                CommsChartDataPoint(label=row[0].value if row[0] else "email", value=row[1])
+                for row in type_result.all()
+            ]
+
+            # Daily trend
+            daily_trend = []
+            for i in range(min(period_days, 14) - 1, -1, -1):
+                day_date = now - timedelta(days=i)
+                next_day = day_date + timedelta(days=1)
+
+                day_count_query = select(func.count(CommunicationLog.id)).where(
+                    CommunicationLog.created_at >= day_date.replace(hour=0, minute=0, second=0),
+                    CommunicationLog.created_at < next_day.replace(hour=0, minute=0, second=0),
+                )
+                if tenant_id:
+                    day_count_query = day_count_query.where(CommunicationLog.tenant_id == tenant_id)
+                day_count_result = await db.execute(day_count_query)
+                day_count = day_count_result.scalar() or 0
+
+                daily_trend.append(CommsChartDataPoint(
+                    label=day_date.strftime("%b %d"),
+                    value=day_count,
+                ))
+
+            # Top templates
+            top_templates_query = select(
+                CommunicationTemplate.name,
+                CommunicationTemplate.usage_count,
+            ).where(CommunicationTemplate.usage_count > 0)
+            if tenant_id:
+                top_templates_query = top_templates_query.where(CommunicationTemplate.tenant_id == tenant_id)
+            top_templates_query = top_templates_query.order_by(CommunicationTemplate.usage_count.desc()).limit(10)
+            top_templates_result = await db.execute(top_templates_query)
+            top_templates = [
+                CommsChartDataPoint(label=row[0] if row[0] else "Unknown", value=row[1] or 0)
+                for row in top_templates_result.all()
+            ]
+
+            charts = CommsCharts(
+                by_status=by_status,
+                by_type=by_type,
+                daily_trend=daily_trend,
+                top_templates=top_templates,
+            )
+
+            # ========== ALERTS ==========
+            alerts = []
+
+            if log_counts.failed and log_counts.failed > 0:
+                alerts.append(CommsAlert(
+                    type="error",
+                    title="Failed Communications",
+                    message=f"{log_counts.failed} communication(s) failed to deliver",
+                    count=log_counts.failed,
+                    action_url="/communications/logs?status=failed",
+                ))
+
+            if delivery_rate < 90.0 and total_attempted > 10:
+                alerts.append(CommsAlert(
+                    type="warning",
+                    title="Low Delivery Rate",
+                    message=f"Delivery rate is {delivery_rate:.1f}% (below 90%)",
+                    count=0,
+                    action_url="/communications/logs",
+                ))
+
+            # ========== RECENT ACTIVITY ==========
+            recent_logs_query = (
+                select(CommunicationLog)
+                .order_by(CommunicationLog.created_at.desc())
+                .limit(10)
+            )
+            if tenant_id:
+                recent_logs_query = recent_logs_query.where(CommunicationLog.tenant_id == tenant_id)
+            recent_logs_result = await db.execute(recent_logs_query)
+            recent_logs = recent_logs_result.scalars().all()
+
+            recent_activity = [
+                CommsRecentActivity(
+                    id=str(log.id),
+                    type=log.type.value if log.type else "email",
+                    recipient=log.recipient or "",
+                    subject=log.subject,
+                    status=log.status.value if log.status else "unknown",
+                    timestamp=_normalize_datetime(log.created_at) or datetime.now(UTC),
+                    tenant_id=log.tenant_id,
+                )
+                for log in recent_logs
+            ]
+
+        return CommsDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate communications dashboard", error=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to generate communications dashboard: {str(e)}",
+        )

@@ -17,6 +17,7 @@ import {
   linkTickets,
   getTicketStats,
   getAgentPerformance,
+  getTicketsDashboard,
   type GetTicketsParams,
   type Ticket,
   type TicketMessage,
@@ -27,8 +28,21 @@ import {
   type AgentPerformance,
 } from "@/lib/api/ticketing";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 type TicketStatsParams = Parameters<typeof getTicketStats> extends [infer P] ? P : undefined;
+
+// ============================================================================
+// Ticketing Dashboard Hook
+// ============================================================================
+
+export function useTicketsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.ticketing.dashboard(params),
+    queryFn: () => getTicketsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Tickets Hooks

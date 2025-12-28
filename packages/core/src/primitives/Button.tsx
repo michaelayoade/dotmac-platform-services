@@ -22,7 +22,7 @@ export const buttonVariants = cva(
     "inline-flex items-center justify-center",
     "font-medium text-sm",
     "transition-colors duration-200",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
     "disabled:pointer-events-none disabled:opacity-50",
     "whitespace-nowrap",
   ],

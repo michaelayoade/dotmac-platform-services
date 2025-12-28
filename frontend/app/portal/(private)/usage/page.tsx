@@ -190,7 +190,7 @@ function UserUsageTable({
         <p className="text-sm text-text-muted">Resource usage per user</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="data-table">
+        <table className="data-table" aria-label="Usage by team member"><caption className="sr-only">Usage by team member</caption>
           <thead>
             <tr className="border-b border-border bg-surface-overlay/50">
               <th className="px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">

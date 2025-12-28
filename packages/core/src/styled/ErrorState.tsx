@@ -113,7 +113,7 @@ const variantConfig = {
     description: "text-text-muted",
   },
   card: {
-    container: "bg-card border border-border rounded-lg",
+    container: "bg-surface-elevated border border-border rounded-lg",
     icon: "text-status-error",
     text: "text-text-primary",
     description: "text-text-muted",
@@ -191,7 +191,7 @@ export const ErrorState = forwardRef<HTMLDivElement, ErrorStateProps>(
               "inline-flex items-center justify-center gap-2 rounded-md font-medium",
               "bg-surface-elevated border border-border",
               "hover:bg-surface-overlay",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "transition-colors",
               sizes.button

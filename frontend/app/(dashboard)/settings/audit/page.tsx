@@ -23,10 +23,12 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   useAuditActivities,
+  useAuditDashboard,
   useAuditStats,
   useExportAuditActivities,
 } from "@/lib/hooks/api/use-audit";
 import type { AuditActivityType, AuditSeverity } from "@/lib/api/audit";
+import { DashboardAlerts } from "@/components/features/dashboard";
 
 type AuditType = "auth" | "data" | "config" | "admin" | "security";
 
@@ -60,6 +62,7 @@ export default function AuditPage() {
     activityType: selectedType !== "all" ? selectedType : undefined,
     severity: selectedSeverity !== "all" ? selectedSeverity : undefined,
   });
+  const { data: dashboardData } = useAuditDashboard();
   const { data: stats } = useAuditStats({ periodDays: 30 });
   const exportAudit = useExportAuditActivities();
 
@@ -146,6 +149,11 @@ export default function AuditPage() {
         }
       />
 
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
+
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -221,7 +229,7 @@ export default function AuditPage() {
       {/* Audit Log Table */}
       <Card>
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table className="data-table" aria-label="Audit log"><caption className="sr-only">Audit log</caption>
             <thead>
               <tr className="border-b border-border-subtle">
                 <th className="text-left text-sm font-medium text-text-muted px-4 py-3 w-8"></th>

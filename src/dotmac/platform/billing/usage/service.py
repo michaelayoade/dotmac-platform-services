@@ -73,7 +73,7 @@ class UsageBillingService:
         record = UsageRecord(
             tenant_id=tenant_id,
             subscription_id=data.subscription_id,
-            customer_id=data.customer_id,
+            customer_id=str(data.customer_id) if data.customer_id else tenant_id,
             usage_type=data.usage_type,
             quantity=Decimal(data.quantity),
             unit=data.unit,
@@ -168,7 +168,7 @@ class UsageBillingService:
         tenant_id: str,
         *,
         subscription_id: str | None = None,
-        customer_id: UUID | None = None,
+        customer_id: str | None = None,
         usage_type: UsageType | None = None,
         billed_status: BilledStatus | None = None,
         period_start: datetime | None = None,
@@ -182,7 +182,7 @@ class UsageBillingService:
         if subscription_id:
             stmt = stmt.where(UsageRecord.subscription_id == subscription_id)
         if customer_id:
-            stmt = stmt.where(UsageRecord.customer_id == customer_id)
+            stmt = stmt.where(UsageRecord.customer_id == str(customer_id))
         if usage_type:
             stmt = stmt.where(UsageRecord.usage_type == usage_type)
         if billed_status:
@@ -204,7 +204,7 @@ class UsageBillingService:
         tenant_id: str,
         *,
         subscription_id: str | None = None,
-        customer_id: UUID | None = None,
+        customer_id: str | None = None,
     ) -> list[UsageRecord]:
         """Return usage records that are pending billing."""
         return await self.list_usage_records(
@@ -257,7 +257,6 @@ class UsageBillingService:
             record.billed_status = BilledStatus.BILLED
             record.invoice_id = invoice_id
             record.billed_at = target_time
-
         await self.db.flush()
         return records
 
@@ -273,7 +272,7 @@ class UsageBillingService:
         period_start: datetime,
         period_end: datetime,
         *,
-        customer_id: UUID | None = None,
+        customer_id: str | None = None,
         usage_type: UsageType | None = None,
     ) -> UsageAggregate | None:
         """
@@ -295,16 +294,17 @@ class UsageBillingService:
 
         aggregate_usage_type = usage_type or records[0].usage_type
         total_quantity = sum((record.quantity for record in records), Decimal("0"))
-        total_amount = sum(int(record.total_amount) for record in records)
+        total_amount = sum(int(record.total_amount or 0) for record in records)
         record_count = len(records)
         min_quantity = min((record.quantity for record in records), default=None)
         max_quantity = max((record.quantity for record in records), default=None)
 
+        customer_id_value = str(customer_id) if customer_id else None
         stmt = select(UsageAggregate).where(
             and_(
                 UsageAggregate.tenant_id == tenant_id,
                 UsageAggregate.subscription_id == subscription_id,
-                UsageAggregate.customer_id == customer_id,
+                UsageAggregate.customer_id == customer_id_value,
                 UsageAggregate.usage_type == aggregate_usage_type,
                 UsageAggregate.period_start == period_start,
                 UsageAggregate.period_type == period_type,
@@ -317,7 +317,7 @@ class UsageBillingService:
             aggregate = UsageAggregate(
                 tenant_id=tenant_id,
                 subscription_id=subscription_id,
-                customer_id=customer_id,
+                customer_id=customer_id_value,
                 usage_type=aggregate_usage_type,
                 period_type=period_type,
                 period_start=period_start,
@@ -362,7 +362,7 @@ class UsageBillingService:
 
         for record in records:
             total_quantity += Decimal(record.quantity)
-            total_amount += int(record.total_amount)
+            total_amount += int(record.total_amount or 0)
             currency = record.currency or self._default_currency
 
             summary = usage_by_type.get(record.usage_type)
@@ -379,7 +379,7 @@ class UsageBillingService:
                 usage_by_type[record.usage_type] = summary
 
             summary.total_quantity += Decimal(record.quantity)
-            summary.total_amount += int(record.total_amount)
+            summary.total_amount += int(record.total_amount or 0)
             summary.record_count += 1
 
         return UsageReport(
@@ -400,7 +400,7 @@ class UsageBillingService:
         *,
         period_start: datetime | None = None,
         period_end: datetime | None = None,
-        customer_id: UUID | None = None,
+        customer_id: str | None = None,
         subscription_id: str | None = None,
     ) -> UsageStats:
         """Return usage statistics for dashboards."""
@@ -413,12 +413,16 @@ class UsageBillingService:
         )
 
         total_records = len(records)
-        total_amount = sum(int(r.total_amount) for r in records)
+        total_amount = sum(int(r.total_amount or 0) for r in records)
         pending_amount = sum(
-            int(r.total_amount) for r in records if r.billed_status == BilledStatus.PENDING
+            int(r.total_amount or 0)
+            for r in records
+            if r.billed_status == BilledStatus.PENDING
         )
         billed_amount = sum(
-            int(r.total_amount) for r in records if r.billed_status == BilledStatus.BILLED
+            int(r.total_amount or 0)
+            for r in records
+            if r.billed_status == BilledStatus.BILLED
         )
 
         by_type: dict[str, UsageSummary] = {}
@@ -426,18 +430,20 @@ class UsageBillingService:
             key = record.usage_type.value
             currency = (record.currency or self._default_currency).upper()
             if key not in by_type:
+                summary_start = period_start or record.period_start or datetime.now(UTC)
+                summary_end = period_end or record.period_end or datetime.now(UTC)
                 by_type[key] = UsageSummary(
                     usage_type=record.usage_type,
                     total_quantity=Decimal("0"),
                     total_amount=0,
                     currency=currency,
                     record_count=0,
-                    period_start=period_start or record.period_start,
-                    period_end=period_end or record.period_end,
+                    period_start=summary_start,
+                    period_end=summary_end,
                 )
             summary = by_type[key]
             summary.total_quantity += Decimal(record.quantity)
-            summary.total_amount += int(record.total_amount)
+            summary.total_amount += int(record.total_amount or 0)
             summary.record_count += 1
 
         return UsageStats(

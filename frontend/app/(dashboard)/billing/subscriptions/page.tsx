@@ -219,7 +219,7 @@ export default function SubscriptionsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Subscriptions list"><caption className="sr-only">Subscriptions list</caption>
               <thead>
                 <tr>
                   <th>Tenant</th>

@@ -263,7 +263,7 @@ Content-Type: application/json
 origins: [
     "http://localhost:3000",    # Frontend dev
     "http://localhost:3001",    # Admin dev
-    "http://localhost:3002",    # Partner portal
+    "http://localhost:3000",    # Partner portal
     "http://localhost:8000",    # API dev
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000"

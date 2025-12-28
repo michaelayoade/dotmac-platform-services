@@ -6,7 +6,6 @@ Handles automated billing workflows and subscription lifecycle integration.
 """
 
 import logging
-from inspect import isawaitable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -303,8 +302,6 @@ class BillingIntegrationService:
         stmt = select(Tenant).where(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).limit(1)
         result = await self.db.execute(stmt)
         tenant = result.scalar_one_or_none()
-        if isawaitable(tenant) or callable(getattr(tenant, "__await__", None)):
-            tenant = await tenant
 
         if tenant is None or not hasattr(tenant, "billing_email"):
             logger.warning(

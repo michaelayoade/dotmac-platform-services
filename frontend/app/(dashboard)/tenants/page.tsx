@@ -18,9 +18,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/lib/dotmac/core";
 
-import { getTenants, type Tenant } from "@/lib/api/tenants";
+import { getTenants, getTenantsDashboard, type Tenant } from "@/lib/api/tenants";
 import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn, getPlanName } from "@/lib/utils";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 export const metadata = {
   title: "Tenants",
@@ -33,9 +34,14 @@ export default async function TenantsPage({
   searchParams: { view?: string; status?: string };
 }) {
   const view = searchParams.view || "grid";
-  const tenantsResponse = await fetchOrNull(getTenants);
+  const [tenantsResponse, dashboardData] = await Promise.all([
+    fetchOrNull(getTenants),
+    fetchOrNull(() => getTenantsDashboard({ periodMonths: 6 })),
+  ]);
   const tenants = tenantsResponse?.tenants ?? [];
   const stats = tenantsResponse?.stats ?? null;
+  const alerts = dashboardData?.alerts ?? [];
+  const recentActivity = dashboardData?.recentActivity ?? [];
 
   return (
     <div className="space-y-6">
@@ -63,6 +69,11 @@ export default async function TenantsPage({
           </Button>
         </Link>
       </div>
+
+      {/* Dashboard Alerts */}
+      {alerts.length > 0 && (
+        <DashboardAlerts alerts={alerts} />
+      )}
 
       {/* Stats Cards */}
       <div className="quick-stats">
@@ -147,14 +158,29 @@ export default async function TenantsPage({
         </div>
       </div>
 
-      {/* Tenant Grid */}
-      <Suspense fallback={<TenantGridSkeleton />}>
-        {view === "grid" ? (
-          <TenantGrid tenants={tenants} />
-        ) : (
-          <TenantList tenants={tenants} />
+      {/* Tenant Grid & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Suspense fallback={<TenantGridSkeleton />}>
+            {view === "grid" ? (
+              <TenantGrid tenants={tenants} />
+            ) : (
+              <TenantList tenants={tenants} />
+            )}
+          </Suspense>
+        </div>
+
+        {/* Recent Activity Sidebar */}
+        {recentActivity.length > 0 && (
+          <div className="lg:col-span-1">
+            <DashboardRecentActivity
+              activities={recentActivity}
+              title="Recent Tenant Activity"
+              maxItems={8}
+            />
+          </div>
         )}
-      </Suspense>
+      </div>
     </div>
   );
 }
@@ -300,7 +326,7 @@ function TenantList({ tenants }: { tenants: Tenant[] }) {
 
   return (
     <div className="card overflow-hidden">
-      <table className="data-table">
+      <table className="data-table" aria-label="Tenants list"><caption className="sr-only">Tenants list</caption>
         <thead>
           <tr>
             <th>Organization</th>

@@ -114,7 +114,7 @@ export function InviteMemberModal({
                 placeholder="colleague@company.com"
                 className={cn(
                   "w-full pl-10 pr-3 py-2 rounded-md border bg-surface text-text-primary placeholder:text-text-muted",
-                  "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   errors.email ? "border-status-error" : "border-border"
                 )}
               />

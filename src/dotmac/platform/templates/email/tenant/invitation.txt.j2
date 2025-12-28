@@ -1,0 +1,17 @@
+You've been invited to join {{ organization_name }}
+
+{{ inviter_name }} has invited you to join {{ organization_name }} on {{ branding.product_name | default('DotMac Platform') }}.
+
+Organization: {{ organization_name }}
+Your Role: {{ role | title | replace('_', ' ') }}
+
+This invitation expires in 7 days.
+
+Accept your invitation by visiting:
+{{ accept_url }}
+
+If you didn't expect this invitation, you can safely ignore this email.
+
+---
+{{ branding.company_name | default(branding.product_name) | default('DotMac Platform') }}
+{% if branding.support_email %}Need help? Contact {{ branding.support_email }}{% endif %}

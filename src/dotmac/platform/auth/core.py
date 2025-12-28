@@ -288,7 +288,12 @@ def ensure_uuid(value: str | UUID) -> UUID:
 
 
 class JWTService:
-    """Simplified JWT service using Authlib with token revocation support."""
+    """Simplified JWT service using Authlib with token revocation support.
+
+    Supports dual-stack verification:
+    - Asymmetric (RS256/ES256) with kid-based key lookup for JWKS/OIDC
+    - Symmetric (HS256) for legacy tokens and fallback
+    """
 
     def __init__(
         self, secret: str | None = None, algorithm: str | None = None, redis_url: str | None = None
@@ -300,18 +305,34 @@ class JWTService:
         self._redis: Any | None = None
         self._redis_sync: Any | None = None
 
+        # JWKS/Asymmetric key support
+        self._key_manager: Any | None = None
+        try:
+            from .keys import get_key_manager
+
+            self._key_manager = get_key_manager()
+        except Exception as e:
+            logger.debug("key_manager.not_available", error=str(e))
+
+    @property
+    def key_manager(self) -> Any | None:
+        """Get the key manager (lazy loaded)."""
+        return self._key_manager
+
     def create_access_token(
         self,
         subject: str,
         additional_claims: dict[str, Any] | None = None,
         expire_minutes: int | None = None,
+        expires_delta: timedelta | None = None,
     ) -> str:
         """Create access token."""
         data = {"sub": subject, "type": TokenType.ACCESS.value}
         if additional_claims:
             data.update(additional_claims)
 
-        expires_delta = timedelta(minutes=expire_minutes or ACCESS_TOKEN_EXPIRE_MINUTES)
+        if expires_delta is None:
+            expires_delta = timedelta(minutes=expire_minutes or ACCESS_TOKEN_EXPIRE_MINUTES)
         return self._create_token(data, expires_delta)
 
     def create_refresh_token(
@@ -342,7 +363,11 @@ class JWTService:
         return self.verify_token(token)
 
     def _create_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:
-        """Internal token creation."""
+        """Internal token creation with OIDC claims support.
+
+        Adds iss/aud claims for OIDC compliance.
+        Uses asymmetric signing when feature-flagged and keys are available.
+        """
         to_encode = data.copy()
         expire = datetime.now(UTC) + expires_delta
 
@@ -352,11 +377,55 @@ class JWTService:
         if "jti" not in to_encode:
             to_encode["jti"] = secrets.token_urlsafe(16)
 
+        # Add OIDC claims (issuer and audience)
+        try:
+            from ..settings import settings
+
+            to_encode["iss"] = settings.auth.jwt_issuer
+            to_encode["aud"] = settings.auth.jwt_audience
+        except Exception:
+            pass  # Settings not available, skip OIDC claims
+
+        # Feature-flagged asymmetric signing
+        try:
+            from ..settings import settings
+
+            use_asymmetric = (
+                settings.auth.jwt_use_asymmetric
+                and self._key_manager is not None
+                and self._key_manager.is_signing_available
+            )
+
+            if use_asymmetric:
+                private_key, kid = self._key_manager.get_signing_key()
+                header = {"alg": settings.auth.jwt_asymmetric_algorithm, "kid": kid}
+                token = jwt.encode(header, to_encode, private_key)
+                return token.decode("utf-8") if isinstance(token, bytes) else token
+        except Exception as e:
+            logger.debug("jwt.asymmetric_signing_fallback", error=str(e))
+
+        # Default: HS256 symmetric signing
         token = jwt.encode(self.header, to_encode, self.secret)
         return token.decode("utf-8") if isinstance(token, bytes) else token
 
+    def _get_claims_options(self) -> dict[str, Any] | None:
+        """Build claims validation options for issuer/audience."""
+        try:
+            from ..settings import settings
+
+            return {
+                "iss": {"essential": True, "value": settings.auth.jwt_issuer},
+                "aud": {"essential": True, "value": settings.auth.jwt_audience},
+            }
+        except Exception:
+            return None
+
     def verify_token(self, token: str, expected_type: TokenType | None = None) -> dict[str, Any]:
-        """Verify and decode token with sync blacklist check.
+        """Verify and decode token with dual-stack support (HS256 + RS/ES256).
+
+        Verification order:
+        1. If token has 'kid' header, try asymmetric verification with key lookup
+        2. Fall back to HS256 symmetric verification
 
         Args:
             token: JWT token to verify
@@ -369,9 +438,20 @@ class JWTService:
             HTTPException: If token is invalid, revoked, or has wrong type
         """
         try:
-            claims_raw = jwt.decode(token, self.secret)
-            claims_raw.validate()
-            claims = cast(dict[str, Any], dict(claims_raw))
+            claims: dict[str, Any] | None = None
+            claims_options = self._get_claims_options()
+
+            # Try asymmetric verification first if kid is present
+            claims = self._try_asymmetric_verification(token, claims_options)
+
+            # Fall back to HS256 if asymmetric failed or not applicable
+            if claims is None:
+                if claims_options:
+                    claims_raw = jwt.decode(token, self.secret, claims_options=claims_options)
+                else:
+                    claims_raw = jwt.decode(token, self.secret)
+                claims_raw.validate()
+                claims = cast(dict[str, Any], dict(claims_raw))
 
             # Validate token type if specified
             if expected_type:
@@ -399,6 +479,61 @@ class JWTService:
                 detail=f"Invalid token: {e}",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+    def _try_asymmetric_verification(
+        self,
+        token: str,
+        claims_options: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Try to verify token using asymmetric keys.
+
+        Returns claims if successful, None if not applicable or failed.
+        Supports key rotation by trying current key first, then previous keys.
+        """
+        if self._key_manager is None or not self._key_manager.is_asymmetric_available:
+            return None
+
+        try:
+            # Decode header without verification to get kid
+            parts = token.split(".")
+            if len(parts) != 3:
+                return None
+
+            import base64
+            import json
+
+            # Decode header (add padding if needed)
+            header_b64 = parts[0]
+            padding = 4 - len(header_b64) % 4
+            if padding != 4:
+                header_b64 += "=" * padding
+            header_bytes = base64.urlsafe_b64decode(header_b64)
+            header = json.loads(header_bytes)
+
+            kid = header.get("kid")
+            alg = header.get("alg", "")
+
+            # Only try asymmetric if kid is present and algorithm is RS*/ES*
+            if not kid or not (alg.startswith("RS") or alg.startswith("ES")):
+                return None
+
+            # Look up key by kid
+            public_key = self._key_manager.get_key_by_kid(kid)
+            if public_key is None:
+                logger.debug("jwt.kid_not_found", kid=kid)
+                return None
+
+            # Verify with the asymmetric key
+            if claims_options:
+                claims_raw = jwt.decode(token, public_key, claims_options=claims_options)
+            else:
+                claims_raw = jwt.decode(token, public_key)
+            claims_raw.validate()
+            return cast(dict[str, Any], dict(claims_raw))
+
+        except Exception as e:
+            logger.debug("jwt.asymmetric_verification_failed", error=str(e))
+            return None
 
     async def _get_redis(self) -> Any | None:
         """Get Redis connection."""

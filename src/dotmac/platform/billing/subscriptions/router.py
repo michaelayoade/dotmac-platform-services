@@ -19,7 +19,7 @@ from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tena
 from dotmac.platform.billing._typing_helpers import rate_limit
 from dotmac.platform.db import get_async_session
 
-from ..exceptions import PlanNotFoundError
+from ..exceptions import PlanNotFoundError, SubscriptionNotFoundError
 from .models import (
     ProrationResult,
     SubscriptionCreateRequest,
@@ -33,9 +33,8 @@ from .models import (
 )
 from .service import SubscriptionService
 
-# Note: This router is included by the parent billing router which already has /billing prefix
-# So we only need /subscriptions here to avoid /billing/billing/subscriptions
-router = APIRouter(prefix="/subscriptions", tags=["Billing - Subscriptions"])
+# Note: This router is included by the parent billing router with /subscriptions prefix.
+router = APIRouter(prefix="", tags=["Billing - Subscriptions"])
 
 
 def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
@@ -319,7 +318,10 @@ async def get_subscription(
     """Get a specific subscription."""
     _require_tenant(current_user, tenant_id)
     service = SubscriptionService(db_session)
-    subscription = await service.get_subscription(subscription_id, tenant_id)
+    try:
+        subscription = await service.get_subscription(subscription_id, tenant_id)
+    except SubscriptionNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
     if not subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
@@ -544,7 +546,7 @@ async def preview_plan_change_proration(
 # Subscription Renewal Endpoints
 
 
-@router.get("/subscriptions/{subscription_id}/renewal-eligibility")
+@router.get("/{subscription_id}/renewal-eligibility")
 @rate_limit("30/minute")  # type: ignore[misc]
 async def check_subscription_renewal_eligibility(
     request: Request,
@@ -572,7 +574,7 @@ async def check_subscription_renewal_eligibility(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/subscriptions/{subscription_id}/extend")
+@router.post("/{subscription_id}/extend")
 @rate_limit("10/minute")  # type: ignore[misc]
 async def extend_subscription(
     request: Request,
@@ -630,7 +632,7 @@ async def extend_subscription(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/subscriptions/{subscription_id}/renewal-payment")
+@router.post("/{subscription_id}/renewal-payment")
 @rate_limit("10/minute")  # type: ignore[misc]
 async def process_subscription_renewal_payment(
     request: Request,
@@ -669,7 +671,7 @@ async def process_subscription_renewal_payment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/subscriptions/{subscription_id}/renewal-quote")
+@router.post("/{subscription_id}/renewal-quote")
 @rate_limit("20/minute")  # type: ignore[misc]
 async def create_subscription_renewal_quote(
     request: Request,

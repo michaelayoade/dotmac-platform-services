@@ -315,7 +315,7 @@ class DunningService:
         campaign_id: UUID,
         tenant_id: str,
         subscription_id: str,
-        customer_id: UUID,
+        customer_id: str | None,
         outstanding_amount: int,
         invoice_id: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -374,9 +374,9 @@ class DunningService:
             tenant_id=tenant_id,
             campaign_id=campaign_id,
             subscription_id=subscription_id,
-            customer_id=customer_id,
+            customer_id=customer_id or tenant_id,
             invoice_id=invoice_id,
-            status=DunningExecutionStatus.PENDING,
+            status=DunningExecutionStatus.IN_PROGRESS,
             current_step=0,
             total_steps=len(campaign.actions),
             retry_count=0,
@@ -517,7 +517,7 @@ class DunningService:
         tenant_id: str,
         campaign_id: UUID | None = None,
         subscription_id: str | None = None,
-        customer_id: UUID | None = None,
+        customer_id: str | None = None,
         status: DunningExecutionStatus | None = None,
         skip: int = 0,
         limit: int = 100,
@@ -589,7 +589,7 @@ class DunningService:
 
         execution.status = DunningExecutionStatus.CANCELED
         execution.canceled_reason = reason
-        execution.canceled_by_user_id = canceled_by_user_id
+        execution.canceled_by_user_id = str(canceled_by_user_id) if canceled_by_user_id else None
         execution.completed_at = datetime.now(UTC)
 
         # Log cancellation

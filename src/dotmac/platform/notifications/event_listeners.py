@@ -4,6 +4,8 @@ Notification Event Listeners.
 Listens to domain events and creates notifications automatically.
 """
 
+from uuid import UUID
+
 import structlog
 
 from dotmac.platform.database import get_async_session

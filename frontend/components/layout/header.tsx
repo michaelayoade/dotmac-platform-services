@@ -30,6 +30,12 @@ export function Header({ user, onCommandPaletteOpen, onMobileMenuOpen }: HeaderP
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { currentTenant, tenants, switchTenant } = useTenant();
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -116,10 +122,14 @@ export function Header({ user, onCommandPaletteOpen, onMobileMenuOpen }: HeaderP
         {/* Center - Tenant selector (if multi-tenant) */}
         {tenants && tenants.length > 1 && (
           <div className="hidden md:flex items-center">
+            <label htmlFor="tenant-selector" className="sr-only">
+              Select tenant
+            </label>
             <select
+              id="tenant-selector"
               value={currentTenant?.id}
               onChange={(e) => switchTenant(e.target.value)}
-              className="bg-surface-overlay border border-border rounded-md px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+              className="bg-surface-overlay border border-border rounded-md px-3 py-1.5 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               {tenants.map((tenant) => (
                 <option key={tenant.id} value={tenant.id}>
@@ -225,15 +235,13 @@ export function Header({ user, onCommandPaletteOpen, onMobileMenuOpen }: HeaderP
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 showUserMenu && "bg-surface-overlay"
               )}
-              aria-label={`User menu for ${user.fullName || user.username}`}
+              aria-label={`User menu for ${user.fullName || user.username || user.email || "user"}`}
               aria-expanded={showUserMenu}
               aria-haspopup="menu"
               aria-controls="user-menu"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-                {user.fullName?.charAt(0).toUpperCase() ||
-                  user.username?.charAt(0).toUpperCase() ||
-                  "U"}
+                {userInitial}
               </div>
               <ChevronDown
                 className={cn(

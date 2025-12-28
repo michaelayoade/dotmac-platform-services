@@ -90,6 +90,8 @@ function MemberCard({
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
+            aria-haspopup="menu"
+            aria-expanded={showMenu}
             className="p-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
           >
             <MoreVertical className="w-4 h-4" />
@@ -101,12 +103,17 @@ function MemberCard({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 mt-1 w-48 bg-surface-elevated rounded-lg border border-border shadow-lg z-20 py-1">
+              <div
+                role="menu"
+                aria-label="Member actions"
+                className="absolute right-0 mt-1 w-48 bg-surface-elevated rounded-lg border border-border shadow-lg z-20 py-1"
+              >
                 <button
                   onClick={() => {
                     setShowRoleMenu(true);
                     setShowMenu(false);
                   }}
+                  role="menuitem"
                   className="w-full px-4 py-2 text-left text-sm text-text-secondary hover:bg-surface-overlay transition-colors flex items-center gap-2"
                 >
                   <Shield className="w-4 h-4" />
@@ -117,6 +124,7 @@ function MemberCard({
                     onRemove(member.id);
                     setShowMenu(false);
                   }}
+                  role="menuitem"
                   className="w-full px-4 py-2 text-left text-sm text-status-error hover:bg-status-error/15 transition-colors flex items-center gap-2"
                 >
                   <UserX className="w-4 h-4" />
@@ -132,7 +140,11 @@ function MemberCard({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowRoleMenu(false)}
               />
-              <div className="absolute right-0 mt-1 w-48 bg-surface-elevated rounded-lg border border-border shadow-lg z-20 py-1">
+              <div
+                role="menu"
+                aria-label="Role selection"
+                className="absolute right-0 mt-1 w-48 bg-surface-elevated rounded-lg border border-border shadow-lg z-20 py-1"
+              >
                 {(["tenant_admin", "member", "viewer"] as MemberRole[]).map(
                   (role) => (
                     <button
@@ -141,6 +153,7 @@ function MemberCard({
                         onRoleChange(member.id, role);
                         setShowRoleMenu(false);
                       }}
+                      role="menuitem"
                       className={cn(
                         "w-full px-4 py-2 text-left text-sm transition-colors flex items-center justify-between",
                         member.role === role

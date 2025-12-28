@@ -185,7 +185,7 @@ export default function ReceiptsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Receipts list"><caption className="sr-only">Receipts list</caption>
               <thead>
                 <tr>
                   <th>Receipt #</th>

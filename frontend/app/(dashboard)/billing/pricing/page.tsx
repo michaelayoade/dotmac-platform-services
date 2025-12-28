@@ -247,7 +247,7 @@ export default function PricingRulesPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           {filteredRules.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Pricing rules"><caption className="sr-only">Pricing rules</caption>
               <thead>
                 <tr>
                   <th>Rule</th>

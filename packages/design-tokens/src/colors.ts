@@ -6,6 +6,42 @@
  * - Semantic colors (success, warning, error, info)
  * - Status colors (online, offline, degraded)
  * - ISP-specific brand colors
+ *
+ * ## WCAG Contrast Guidelines
+ *
+ * All color combinations should meet WCAG 2.1 AA standards:
+ * - Normal text: minimum 4.5:1 contrast ratio
+ * - Large text (18pt+ or 14pt bold): minimum 3:1 contrast ratio
+ * - UI components & graphics: minimum 3:1 contrast ratio
+ *
+ * ## Semantic Color Mapping
+ *
+ * | Semantic   | Token       | Tailwind   | Use Case                    |
+ * |------------|-------------|------------|-----------------------------|
+ * | Success    | network     | green-*    | Positive states, connected  |
+ * | Warning    | alert       | orange-*   | Caution, pending actions    |
+ * | Error      | critical    | red-*      | Errors, destructive actions |
+ * | Info       | primary     | blue-*     | Informational, neutral      |
+ * | Neutral    | secondary   | slate-*    | Backgrounds, borders        |
+ * | Premium    | purple      | purple-*   | Reseller, premium features  |
+ *
+ * ## Dark Mode Contrast
+ *
+ * Text on dark surfaces (surface: ~17% lightness):
+ * - text-primary:   98% lightness → ~15:1 contrast ✓ AAA
+ * - text-secondary: 75% lightness → ~8:1 contrast  ✓ AAA
+ * - text-muted:     55% lightness → ~4.5:1 contrast ✓ AA
+ *
+ * Text on light surfaces (surface: 100% lightness):
+ * - text-primary:   17% lightness → ~12:1 contrast ✓ AAA
+ * - text-secondary: 37% lightness → ~7:1 contrast  ✓ AAA
+ * - text-muted:     52% lightness → ~4.5:1 contrast ✓ AA
+ *
+ * ## Border Colors
+ *
+ * Borders use a subtle accent tint (hue ~152-158°) for brand cohesion:
+ * - Light mode: 152° hue, 6-12% saturation, 72-88% lightness
+ * - Dark mode:  158° hue, 8-18% saturation, 24-38% lightness
  */
 
 // ============================================================================
@@ -421,25 +457,139 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.startsWith("#") ? hex.slice(1) : hex;
+  const value = normalized.length === 3
+    ? normalized.split("").map((c) => c + c).join("")
+    : normalized;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return { r, g, b };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function srgbToLinear(channel: number): number {
+  const c = channel / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function linearToSrgb(channel: number): number {
+  const c = channel <= 0.0031308
+    ? 12.92 * channel
+    : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
+  return Math.round(clamp(c, 0, 1) * 255);
+}
+
+function rgbToOklab(r: number, g: number, b: number): { L: number; a: number; b: number } {
+  const lr = srgbToLinear(r);
+  const lg = srgbToLinear(g);
+  const lb = srgbToLinear(b);
+
+  const l = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
+  const m = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb;
+  const s = 0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb;
+
+  const lRoot = Math.cbrt(l);
+  const mRoot = Math.cbrt(m);
+  const sRoot = Math.cbrt(s);
+
+  return {
+    L: 0.2104542553 * lRoot + 0.7936177850 * mRoot - 0.0040720468 * sRoot,
+    a: 1.9779984951 * lRoot - 2.4285922050 * mRoot + 0.4505937099 * sRoot,
+    b: 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.8086757660 * sRoot,
+  };
+}
+
+function oklabToRgb(L: number, a: number, b: number): { r: number; g: number; b: number } {
+  const l = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s = L - 0.0894841775 * a - 1.2914855480 * b;
+
+  const l3 = l ** 3;
+  const m3 = m ** 3;
+  const s3 = s ** 3;
+
+  const rLinear = 4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  const gLinear = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  const bLinear = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+
+  return {
+    r: linearToSrgb(rLinear),
+    g: linearToSrgb(gLinear),
+    b: linearToSrgb(bLinear),
+  };
+}
+
+function oklabToOklch(L: number, a: number, b: number): { L: number; C: number; h: number } {
+  const C = Math.sqrt(a * a + b * b);
+  const h = Math.atan2(b, a);
+  return { L, C, h };
+}
+
+function oklchToOklab(L: number, C: number, h: number): { L: number; a: number; b: number } {
+  return {
+    L,
+    a: C * Math.cos(h),
+    b: C * Math.sin(h),
+  };
+}
+
+function oklchToHex(L: number, C: number, h: number): string {
+  const lab = oklchToOklab(L, C, h);
+  const rgb = oklabToRgb(lab.L, lab.a, lab.b);
+  return rgbToHex(rgb.r, rgb.g, rgb.b);
+}
+
 /**
  * Generate a complete color scale from a single base color
  */
 export function generateColorScale(baseColor: string): ColorScale {
-  const hsl = hexToHsl(baseColor);
+  const { r, g, b } = hexToRgb(baseColor);
+  const lab = rgbToOklab(r, g, b);
+  const oklch = oklabToOklch(lab.L, lab.a, lab.b);
 
-  return {
-    50: hslToHex(hsl.h, Math.max(0, hsl.s - 20), Math.min(100, hsl.l + 45)),
-    100: hslToHex(hsl.h, Math.max(0, hsl.s - 15), Math.min(100, hsl.l + 35)),
-    200: hslToHex(hsl.h, Math.max(0, hsl.s - 10), Math.min(100, hsl.l + 25)),
-    300: hslToHex(hsl.h, Math.max(0, hsl.s - 5), Math.min(100, hsl.l + 15)),
-    400: hslToHex(hsl.h, hsl.s, Math.min(100, hsl.l + 8)),
-    500: baseColor,
-    600: hslToHex(hsl.h, Math.min(100, hsl.s + 5), Math.max(0, hsl.l - 8)),
-    700: hslToHex(hsl.h, Math.min(100, hsl.s + 10), Math.max(0, hsl.l - 15)),
-    800: hslToHex(hsl.h, Math.min(100, hsl.s + 15), Math.max(0, hsl.l - 25)),
-    900: hslToHex(hsl.h, Math.min(100, hsl.s + 20), Math.max(0, hsl.l - 35)),
-    950: hslToHex(hsl.h, Math.min(100, hsl.s + 25), Math.max(0, hsl.l - 45)),
+  const lightnessScale: Record<keyof ColorScale, number> = {
+    50: 0.97,
+    100: 0.93,
+    200: 0.88,
+    300: 0.80,
+    400: 0.72,
+    500: 0.66,
+    600: 0.58,
+    700: 0.50,
+    800: 0.42,
+    900: 0.34,
+    950: 0.24,
   };
+
+  const baseTarget = lightnessScale[500];
+  const delta = oklch.L - baseTarget;
+
+  const adjustChroma = (L: number) => {
+    const distance = Math.abs(L - oklch.L);
+    const dampen = 1 - Math.min(0.35, distance * 1.1);
+    return Math.max(0, oklch.C * dampen);
+  };
+
+  const scale = (Object.keys(lightnessScale) as Array<keyof ColorScale>).reduce(
+    (scale, shade) => {
+      const L = clamp(lightnessScale[shade] + delta, 0.02, 0.98);
+      const C = adjustChroma(L);
+      scale[shade] = oklchToHex(L, C, oklch.h);
+      return scale;
+    },
+    {} as ColorScale
+  );
+  scale[500] = baseColor;
+  return scale;
 }
 
 /**

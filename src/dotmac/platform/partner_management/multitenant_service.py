@@ -7,7 +7,7 @@ querying across billing, ticketing, and tenant modules.
 
 from datetime import UTC, datetime, timedelta, date
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -77,9 +77,7 @@ class PartnerMultiTenantService:
     ) -> dict[str, Any]:
         """Get billing metrics for a tenant from the billing module."""
         try:
-            from dotmac.platform.billing.domain.repositories import InvoiceRepository
-
-            repo = InvoiceRepository(self.session)
+            from dotmac.platform.billing.core.entities import InvoiceEntity
 
             # Get current month start
             now = datetime.now(UTC)
@@ -87,7 +85,9 @@ class PartnerMultiTenantService:
             revenue_start = from_date or month_start
 
             # Query invoices for this tenant
-            invoices = await repo.list_by_tenant(tenant_id)
+            stmt = select(InvoiceEntity).where(InvoiceEntity.tenant_id == tenant_id)
+            result = await self.session.execute(stmt)
+            invoices = result.scalars().all()
 
             revenue_mtd = Decimal("0.00")
             accounts_receivable = Decimal("0.00")
@@ -274,10 +274,11 @@ class PartnerMultiTenantService:
     ) -> Decimal:
         """Get total overdue amount for a tenant."""
         try:
-            from dotmac.platform.billing.domain.repositories import InvoiceRepository
+            from dotmac.platform.billing.core.entities import InvoiceEntity
 
-            repo = InvoiceRepository(self.session)
-            invoices = await repo.list_by_tenant(tenant_id)
+            stmt = select(InvoiceEntity).where(InvoiceEntity.tenant_id == tenant_id)
+            result = await self.session.execute(stmt)
+            invoices = result.scalars().all()
 
             now = datetime.now(UTC)
             overdue_total = Decimal("0.00")
@@ -302,6 +303,7 @@ class PartnerMultiTenantService:
         status: str | None = None,
         from_date: datetime | None = None,
         to_date: datetime | None = None,
+        search: str | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> dict[str, Any]:
@@ -312,17 +314,19 @@ class PartnerMultiTenantService:
             Paginated invoice list with metadata
         """
         try:
-            from dotmac.platform.billing.domain.repositories import InvoiceRepository
-
-            repo = InvoiceRepository(self.session)
+            from dotmac.platform.billing.core.entities import InvoiceEntity
 
             # Filter tenant IDs
             target_tenants = [tenant_id] if tenant_id else managed_tenant_ids
             status_filter = status.lower() if status else None
 
             all_invoices = []
+            normalized_search = search.strip().lower() if search else None
+
             for tid in target_tenants:
-                invoices = await repo.list_by_tenant(tid)
+                stmt = select(InvoiceEntity).where(InvoiceEntity.tenant_id == tid)
+                result = await self.session.execute(stmt)
+                invoices = result.scalars().all()
                 tenant = await self._get_tenant(tid)
                 tenant_name = tenant.name if tenant else "Unknown"
 
@@ -341,6 +345,10 @@ class PartnerMultiTenantService:
                         continue
                     if to_date and invoice_date and invoice_date > to_date:
                         continue
+                    if normalized_search:
+                        search_target = f"{inv.invoice_number or ''} {tenant_name}".lower()
+                        if normalized_search not in search_target:
+                            continue
 
                     now = datetime.now(UTC)
                     is_overdue = (
@@ -368,10 +376,11 @@ class PartnerMultiTenantService:
                     })
 
             # Sort by invoice date descending
-            all_invoices.sort(
-                key=lambda x: self._safe_sort_datetime(x.get("invoice_date")),
-                reverse=True,
-            )
+            def _invoice_sort_key(invoice: dict[str, Any]) -> datetime:
+                value = cast(datetime | None, invoice.get("invoice_date"))
+                return self._safe_sort_datetime(value)
+
+            all_invoices.sort(key=_invoice_sort_key, reverse=True)
 
             # Apply pagination
             total = len(all_invoices)
@@ -708,7 +717,7 @@ class PartnerMultiTenantService:
         from_date: datetime,
         to_date: datetime,
         tenant_ids: list[str] | None = None,
-        partner_id: str | None = None,
+        partner_id: str | UUID | None = None,
     ) -> dict[str, Any]:
         """
         Generate SLA compliance report across managed tenants.
@@ -745,7 +754,7 @@ class PartnerMultiTenantService:
                     )
                 )
             )
-            row = result.first()
+            row = result.one()
 
             total_tickets = row.total or 0
             breached = row.breached or 0
@@ -886,7 +895,7 @@ class PartnerMultiTenantService:
         managed_tenant_ids: list[str],
         tenant_id: str | None = None,
         acknowledged: bool | None = None,
-        partner_id: str | None = None,
+        partner_id: str | UUID | None = None,
     ) -> dict[str, Any]:
         """
         Get billing threshold alerts for managed tenants.
@@ -947,20 +956,24 @@ class PartnerMultiTenantService:
     def _normalize_invoice_status(invoice: Any) -> str:
         """Normalize invoice status to a lowercase string for comparisons."""
         status = getattr(invoice, "status", None)
-        if hasattr(status, "value"):
+        if status is not None and hasattr(status, "value"):
             return str(status.value).lower()
         if status is None:
             return ""
         return str(status).lower()
 
     @staticmethod
-    def _safe_sort_datetime(value: datetime | None) -> datetime:
+    def _safe_sort_datetime(value: Any) -> datetime:
         """Return a timezone-aware datetime for sorting."""
-        if value is None:
-            return datetime.min.replace(tzinfo=UTC)
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+            except ValueError:
+                return datetime.min.replace(tzinfo=UTC)
+        return datetime.min.replace(tzinfo=UTC)
 
     @staticmethod
     def _coerce_event_timestamp(value: Any) -> datetime | None:

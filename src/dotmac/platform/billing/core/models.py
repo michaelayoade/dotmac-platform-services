@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_serializer, field_validator
 
 from dotmac.platform.core.models import BaseModel
 
@@ -52,7 +52,11 @@ class InvoiceLineItem(BaseModel):  # type: ignore[misc]  # BaseModel resolves to
     description: str = Field(default="", min_length=0, max_length=500)
     quantity: int = Field(default=1, ge=0)
     unit_price: int = Field(default=0, description="Unit price in minor currency units")
-    total_price: int = Field(default=0, description="Total price (quantity * unit_price)")
+    total_price: int = Field(
+        default=0,
+        description="Total price (quantity * unit_price)",
+        validation_alias=AliasChoices("total_price", "amount"),
+    )
 
     # Optional references
     product_id: str | None = Field(None, description="Reference to product/service")
@@ -68,7 +72,7 @@ class InvoiceLineItem(BaseModel):  # type: ignore[misc]  # BaseModel resolves to
 
     extra_data: dict[str, Any] = Field(default_factory=lambda: {})
 
-    @field_validator("tax_amount", "discount_amount", mode="before")
+    @field_validator("unit_price", "total_price", "tax_amount", "discount_amount", mode="before")
     @classmethod
     def to_minor_units(cls, value: Any) -> Any:
         """Convert Decimal/float monetary values to integer minor units (cents)."""
@@ -78,6 +82,12 @@ class InvoiceLineItem(BaseModel):  # type: ignore[misc]  # BaseModel resolves to
             return int((value * 100).to_integral_value(rounding=ROUND_HALF_UP))
         if isinstance(value, float):
             return int(Decimal(str(value)).scaleb(2).to_integral_value(rounding=ROUND_HALF_UP))
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return int(
+                    Decimal(cleaned).scaleb(2).to_integral_value(rounding=ROUND_HALF_UP)
+                )
         return int(value)
 
     @field_validator("total_price")
@@ -85,6 +95,8 @@ class InvoiceLineItem(BaseModel):  # type: ignore[misc]  # BaseModel resolves to
     def validate_total_price(cls, v: int, info: Any) -> int:
         if "quantity" in info.data and "unit_price" in info.data:
             expected = info.data["quantity"] * info.data["unit_price"]
+            if v == 0 and expected != 0:
+                return expected
             if v != expected:
                 raise ValueError(f"Total price must equal quantity * unit_price ({expected})")
         return v
@@ -144,6 +156,16 @@ class Invoice(BillingBaseModel):
     updated_at: datetime | None = Field(None, description="Last update timestamp")
     paid_at: datetime | None = None
     voided_at: datetime | None = None
+
+    @field_serializer("payment_status")
+    def serialize_payment_status(self, value: Any) -> str | Any:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized == "pending":
+                return "unpaid"
+            if normalized == "succeeded":
+                return "paid"
+        return value
 
     @property
     def net_amount_due(self) -> int:
@@ -310,7 +332,7 @@ class CreditNote(BillingBaseModel):
 
     # Idempotency
     idempotency_key: str | None = None
-    created_by: str
+    created_by: str | None = None
 
     # Customer and reference
     customer_id: str
@@ -334,7 +356,7 @@ class CreditNote(BillingBaseModel):
     status: CreditNoteStatus = Field(CreditNoteStatus.DRAFT)
 
     # Line items
-    line_items: list[CreditNoteLineItem] = Field(min_length=1)
+    line_items: list[CreditNoteLineItem] = Field(default_factory=list)
 
     # Application
     auto_apply_to_invoice: bool = Field(True)

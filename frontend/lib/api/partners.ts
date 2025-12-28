@@ -5,6 +5,21 @@
  */
 
 import { api, ApiClientError, normalizePaginatedResponse } from "./client";
+import type { PartnerDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard (Admin)
+// ============================================================================
+
+export async function getPartnersDashboard(
+  params?: DashboardQueryParams
+): Promise<PartnerDashboardResponse> {
+  return api.get<PartnerDashboardResponse>("/api/v1/partners/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
 
 // ============================================================================
 // Partner Types
@@ -175,6 +190,10 @@ export async function getPartnerUsers(partnerId: string): Promise<PartnerUser[]>
   return api.get<PartnerUser[]>(`/api/v1/partners/${partnerId}/users`);
 }
 
+export async function getPartnerUser(partnerId: string, userId: string): Promise<PartnerUser> {
+  return api.get<PartnerUser>(`/api/v1/partners/${partnerId}/users/${userId}`);
+}
+
 export async function addPartnerUser(
   partnerId: string,
   data: {
@@ -193,8 +212,26 @@ export async function addPartnerUser(
   });
 }
 
-export async function removePartnerUser(_partnerId: string, _userId: string): Promise<void> {
-  throw new ApiClientError("Removing partner users is not supported", 501, "NOT_IMPLEMENTED");
+export interface UpdatePartnerUserData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  isPrimaryContact?: boolean;
+  isActive?: boolean;
+}
+
+export async function updatePartnerUser(
+  partnerId: string,
+  userId: string,
+  data: UpdatePartnerUserData
+): Promise<PartnerUser> {
+  return api.patch<PartnerUser>(`/api/v1/partners/${partnerId}/users/${userId}`, data);
+}
+
+export async function removePartnerUser(partnerId: string, userId: string): Promise<void> {
+  return api.delete(`/api/v1/partners/${partnerId}/users/${userId}`);
 }
 
 // ============================================================================

@@ -10,7 +10,9 @@ import {
   activatePartner,
   deactivatePartner,
   getPartnerUsers,
+  getPartnerUser,
   addPartnerUser,
+  updatePartnerUser,
   removePartnerUser,
   getPartnerAccounts,
   addPartnerAccount,
@@ -24,6 +26,7 @@ import {
   convertReferral,
   getPartnerDashboard,
   getPartnerStats,
+  getPartnersDashboard,
   type GetPartnersParams,
   type Partner,
   type CreatePartnerData,
@@ -34,8 +37,10 @@ import {
   type ReferralLead,
   type PartnerDashboard,
   type PartnerStats,
+  type UpdatePartnerUserData,
 } from "@/lib/api/partners";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 type PartnerCommissionsParams = Parameters<typeof getPartnerCommissions> extends [
   string,
@@ -50,6 +55,14 @@ type PartnerReferralsParams = Parameters<typeof getReferrals> extends [string, i
 // ============================================================================
 // Partners Hooks
 // ============================================================================
+
+export function usePartnersDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.partners.dashboard(),
+    queryFn: () => getPartnersDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 export function usePartners(params?: GetPartnersParams) {
   return useQuery({
@@ -148,6 +161,14 @@ export function usePartnerUsers(partnerId: string) {
   });
 }
 
+export function usePartnerUser(partnerId: string, userId: string) {
+  return useQuery({
+    queryKey: [...queryKeys.partners.users(partnerId), userId],
+    queryFn: () => getPartnerUser(partnerId, userId),
+    enabled: !!partnerId && !!userId,
+  });
+}
+
 export function useAddPartnerUser() {
   const queryClient = useQueryClient();
 
@@ -180,6 +201,27 @@ export function useAddPartnerUser() {
         userId,
         isPrimaryContact,
       }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partners.users(variables.partnerId),
+      });
+    },
+  });
+}
+
+export function useUpdatePartnerUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      partnerId,
+      userId,
+      data,
+    }: {
+      partnerId: string;
+      userId: string;
+      data: UpdatePartnerUserData;
+    }) => updatePartnerUser(partnerId, userId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.partners.users(variables.partnerId),
@@ -392,4 +434,5 @@ export type {
   ReferralLead,
   PartnerDashboard,
   PartnerStats,
+  UpdatePartnerUserData,
 };

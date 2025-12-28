@@ -13,21 +13,28 @@ import { cn } from "../utils/cn";
 
 // ============================================================================
 // Styled Variants (extending primitive variants with theme colors)
+//
+// Token Mapping:
+// - primary     → accent color (main CTA)
+// - secondary   → surface-overlay (subtle actions)
+// - destructive → status-error (dangerous actions)
 // ============================================================================
 
 const styledVariantClasses = {
   default:
-    "bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary",
+    "bg-primary text-primary-foreground hover:bg-accent-hover focus-visible:ring-accent",
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary",
+    "bg-primary text-primary-foreground hover:bg-accent-hover focus-visible:ring-accent",
   secondary:
-    "bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-secondary",
+    "bg-secondary text-secondary-foreground hover:bg-surface-subtle focus-visible:ring-accent",
   destructive:
-    "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive",
+    "bg-destructive text-destructive-foreground hover:bg-status-error/90 focus-visible:ring-status-error",
   outline:
-    "border border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring",
-  ghost: "hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring",
-  link: "text-primary hover:text-primary/80 focus-visible:ring-primary",
+    "border border-input bg-surface hover:bg-surface-overlay hover:text-text-primary focus-visible:ring-accent",
+  ghost:
+    "hover:bg-surface-overlay hover:text-text-primary focus-visible:ring-accent",
+  link:
+    "text-accent underline-offset-4 hover:underline hover:text-accent-hover focus-visible:ring-accent",
 };
 
 // ============================================================================

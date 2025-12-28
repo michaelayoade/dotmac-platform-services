@@ -5,16 +5,26 @@ Provides API key usage statistics endpoints for monitoring
 key creation, usage patterns, and security metrics.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+
 from dotmac.platform.auth.core import UserInfo, api_key_service
 from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.core.cache_decorators import CacheTier, cached_result
+
+
+def _ensure_tz_aware(dt: datetime | None) -> datetime | None:
+    """Ensure a datetime is timezone-aware (assumes UTC if naive)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 logger = structlog.get_logger(__name__)
 
@@ -121,7 +131,9 @@ def _calculate_key_status_metrics(
 ) -> tuple[int, int, int]:
     """Calculate active/inactive/expired status for a key."""
     is_active = key_data.get("is_active", True)
-    is_expired = expires_at and expires_at < now if expires_at else False
+    # Ensure expires_at is timezone-aware for comparison
+    expires_at_tz = _ensure_tz_aware(expires_at)
+    is_expired = expires_at_tz and expires_at_tz < now if expires_at_tz else False
 
     expired = 1 if is_expired else 0
     active = 1 if (not is_expired and is_active) else 0
@@ -139,15 +151,20 @@ def _calculate_time_based_metrics(
     thirty_days_from_now: datetime,
 ) -> tuple[int, int, int, int, int]:
     """Calculate time-based metrics for a key."""
+    # Ensure all datetimes are timezone-aware for comparison
+    created_at_tz = _ensure_tz_aware(created_at)
+    last_used_at_tz = _ensure_tz_aware(last_used_at)
+    expires_at_tz = _ensure_tz_aware(expires_at)
+
     # Recent creation
-    created_recently = 1 if created_at and created_at >= period_start else 0
+    created_recently = 1 if created_at_tz and created_at_tz >= period_start else 0
 
     # Recent usage
     seven_days_ago = now - timedelta(days=7)
-    used_recently = 1 if last_used_at and last_used_at >= seven_days_ago else 0
+    used_recently = 1 if last_used_at_tz and last_used_at_tz >= seven_days_ago else 0
 
     # Expiring soon
-    expiring_soon = 1 if expires_at and now < expires_at < thirty_days_from_now else 0
+    expiring_soon = 1 if expires_at_tz and now < expires_at_tz < thirty_days_from_now else 0
 
     # Never used
     never_used = 1 if not last_used_at else 0

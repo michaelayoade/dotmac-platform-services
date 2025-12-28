@@ -4,9 +4,10 @@ import { Plus, Download, Filter, MoreHorizontal, Mail, Shield, Trash2 } from "lu
 import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 import { Button } from "@/lib/dotmac/core";
 
-import { getUsers, type User } from "@/lib/api/users";
+import { getUsers, getUsersDashboard, type User } from "@/lib/api/users";
 import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { UsersTableClient } from "./users-table-client";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 export const metadata = {
   title: "Users",
@@ -22,17 +23,22 @@ export default async function UsersPage({
   const search = searchParams.search || "";
   const status = searchParams.status || "";
 
-  const userResponse = await fetchOrNull(() =>
-    getUsers({
-      page,
-      search,
-      status,
-      pageSize: 20,
-    })
-  );
+  const [userResponse, dashboardData] = await Promise.all([
+    fetchOrNull(() =>
+      getUsers({
+        page,
+        search,
+        status,
+        pageSize: 20,
+      })
+    ),
+    fetchOrNull(() => getUsersDashboard({ periodMonths: 6 })),
+  ]);
   const users = userResponse?.users ?? [];
   const totalCount = userResponse?.totalCount ?? null;
   const pageCount = userResponse?.pageCount ?? 1;
+  const alerts = dashboardData?.alerts ?? [];
+  const recentActivity = dashboardData?.recentActivity ?? [];
 
   return (
     <div className="space-y-6">
@@ -67,6 +73,11 @@ export default async function UsersPage({
         </div>
       </div>
 
+      {/* Dashboard Alerts */}
+      {alerts.length > 0 && (
+        <DashboardAlerts alerts={alerts} />
+      )}
+
       {/* Stats Cards */}
       <div className="quick-stats">
         <div className="quick-stat">
@@ -95,17 +106,32 @@ export default async function UsersPage({
         </div>
       </div>
 
-      {/* Users Table */}
-      <Suspense fallback={<TableSkeleton />}>
-        <UsersTableClient
-          initialUsers={users}
-          pageCount={pageCount}
-          totalCount={totalCount ?? 0}
-          currentPage={page}
-          currentSearch={search}
-          currentStatus={status}
-        />
-      </Suspense>
+      {/* Users Table & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Suspense fallback={<TableSkeleton />}>
+            <UsersTableClient
+              initialUsers={users}
+              pageCount={pageCount}
+              totalCount={totalCount ?? 0}
+              currentPage={page}
+              currentSearch={search}
+              currentStatus={status}
+            />
+          </Suspense>
+        </div>
+
+        {/* Recent Activity Sidebar */}
+        {recentActivity.length > 0 && (
+          <div className="lg:col-span-1">
+            <DashboardRecentActivity
+              activities={recentActivity}
+              title="Recent User Activity"
+              maxItems={8}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -38,25 +38,6 @@ import { fontFamily, fontSize, fontWeight, textStyles, portalTypography } from "
 // Theme Configuration Types
 // ============================================================================
 
-export interface BrandConfig {
-  name: string;
-  primaryColor: string;
-  accentColor?: string;
-  logoUrl?: string;
-  faviconUrl?: string;
-  fontFamily?: string[];
-  customCss?: string;
-}
-
-export interface ThemeConfig {
-  variant: PortalVariant;
-  density: "compact" | "comfortable" | "spacious";
-  colorScheme: "light" | "dark" | "system";
-  highContrast: boolean;
-  reducedMotion: boolean;
-  brand?: BrandConfig;
-}
-
 export interface FontFamily {
   sans: readonly string[] | string[];
   serif: readonly string[] | string[];
@@ -112,11 +93,64 @@ const defaultConfig: ThemeConfig = {
 // Theme Builder
 // ============================================================================
 
+export interface PortalBrandOverride {
+  name?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  background?: Partial<PortalColorScheme["background"]>;
+  surface?: Partial<PortalColorScheme["surface"]>;
+  text?: Partial<PortalColorScheme["text"]>;
+}
+
+export interface BrandConfig {
+  name: string;
+  primaryColor: string;
+  accentColor?: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  fontFamily?: string[];
+  customCss?: string;
+  portalOverrides?: Partial<Record<PortalVariant, PortalBrandOverride>>;
+}
+
+export interface ThemeConfig {
+  variant: PortalVariant;
+  density: "compact" | "comfortable" | "spacious";
+  colorScheme: "light" | "dark" | "system";
+  highContrast: boolean;
+  reducedMotion: boolean;
+  brand?: BrandConfig;
+}
+
+function resolvePortalScheme(config: ThemeConfig): PortalColorScheme {
+  const baseScheme = portalColors[config.variant];
+  const overrides = config.brand?.portalOverrides?.[config.variant];
+
+  if (!overrides) {
+    return baseScheme;
+  }
+
+  const primary = overrides.primaryColor
+    ? generateColorScale(overrides.primaryColor)
+    : (config.brand?.primaryColor ? generateColorScale(config.brand.primaryColor) : baseScheme.primary);
+
+  return {
+    ...baseScheme,
+    name: overrides.name ?? baseScheme.name,
+    primary,
+    accent: overrides.accentColor ?? config.brand?.accentColor ?? baseScheme.accent,
+    background: { ...baseScheme.background, ...overrides.background },
+    surface: { ...baseScheme.surface, ...overrides.surface },
+    text: { ...baseScheme.text, ...overrides.text },
+  };
+}
+
 export function buildTheme(config: ThemeConfig, resolvedColorScheme: "light" | "dark" = "light"): Theme {
-  const portalScheme = portalColors[config.variant];
-  const brandPrimary = config.brand?.primaryColor
-    ? generateColorScale(config.brand.primaryColor)
-    : portalScheme.primary;
+  const portalScheme = resolvePortalScheme(config);
+  const portalOverride = config.brand?.portalOverrides?.[config.variant];
+  const brandPrimary = portalOverride?.primaryColor
+    ? generateColorScale(portalOverride.primaryColor)
+    : (config.brand?.primaryColor ? generateColorScale(config.brand.primaryColor) : portalScheme.primary);
 
   return {
     colors: {
@@ -126,7 +160,7 @@ export function buildTheme(config: ThemeConfig, resolvedColorScheme: "light" | "
       success: colors.network,
       warning: colors.alert,
       error: colors.critical,
-      accent: portalScheme.accent,
+      accent: config.brand?.accentColor ?? portalScheme.accent,
       background: portalScheme.background[resolvedColorScheme],
       surface: portalScheme.surface[resolvedColorScheme],
       text: portalScheme.text[resolvedColorScheme],
@@ -313,7 +347,7 @@ export function ThemeProvider({
   }, [configEndpoint, tenantId, config.variant]);
 
   const theme = useMemo(() => buildTheme(config, resolvedColorScheme), [config, resolvedColorScheme]);
-  const portalScheme = portalColors[config.variant];
+  const portalScheme = useMemo(() => resolvePortalScheme(config), [config]);
 
   const updateConfig = useCallback((updates: Partial<ThemeConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
@@ -371,7 +405,10 @@ export function ThemeProvider({
       theme.colors.accent,
       isDarkHsl(currentText) ? -15 : 5
     );
-    vars["--color-accent-subtle"] = `${toHslTriplet(theme.colors.accent)} / 0.15`;
+    vars["--color-accent-subtle"] = `hsl(${toHslTriplet(theme.colors.accent)} / 0.15)`;
+    vars["--color-highlight"] = toHslTriplet(theme.colors.warning[500]);
+    vars["--color-overlay"] = "0 0% 0%";
+    vars["--shadow-color"] = "0 0% 0%";
 
     // Status semantic colors (using 500 shade as default)
     vars["--color-status-success"] = toHslTriplet(theme.colors.success[500]);
@@ -380,11 +417,15 @@ export function ThemeProvider({
     vars["--color-status-info"] = toHslTriplet(theme.colors.primary[500]);
 
     // Portal colors
-    vars["--color-portal-admin"] = toHslTriplet(portalColors.admin.primary[600]);
-    vars["--color-portal-tenant"] = toHslTriplet(portalColors.tenant.primary[600]);
-    vars["--color-portal-reseller"] = toHslTriplet(portalColors.reseller.primary[600]);
-    vars["--color-portal-technician"] = toHslTriplet(portalColors.technician.primary[600]);
-    vars["--color-portal-management"] = toHslTriplet(portalColors.management.primary[600]);
+    const portalMap = {
+      ...portalColors,
+      [config.variant]: portalScheme,
+    };
+    vars["--color-portal-admin"] = toHslTriplet(portalMap.admin.primary[600]);
+    vars["--color-portal-tenant"] = toHslTriplet(portalMap.tenant.primary[600]);
+    vars["--color-portal-reseller"] = toHslTriplet(portalMap.reseller.primary[600]);
+    vars["--color-portal-technician"] = toHslTriplet(portalMap.technician.primary[600]);
+    vars["--color-portal-management"] = toHslTriplet(portalMap.management.primary[600]);
 
     if (managePalette) {
       const background = portalScheme.background[resolvedColorScheme];

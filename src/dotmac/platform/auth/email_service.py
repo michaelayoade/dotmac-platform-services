@@ -7,6 +7,7 @@ Templates are rendered using the TenantAwareTemplateService with Jinja2.
 from __future__ import annotations
 
 import secrets
+import inspect
 
 import structlog
 
@@ -141,7 +142,7 @@ async def send_password_reset_email(
         return False, None
 
 
-def verify_reset_token(token: str) -> str | None:
+async def verify_reset_token(token: str) -> str | None:
     """
     Verify password reset token and return associated email.
 
@@ -159,10 +160,14 @@ def verify_reset_token(token: str) -> str | None:
 
         token_key = f"password_reset:{token}"
         email = redis_client.get(token_key)
+        if inspect.isawaitable(email):
+            email = await email
 
         if email:
             # Token is valid, delete it (one-time use)
-            redis_client.delete(token_key)
+            delete_result = redis_client.delete(token_key)
+            if inspect.isawaitable(delete_result):
+                await delete_result
             return email.decode("utf-8") if isinstance(email, bytes) else email
 
         return None
@@ -299,8 +304,8 @@ class AuthEmailServiceFacade:
     ) -> bool:
         return await send_verification_email(email, user_name, verification_url)
 
-    def verify_reset_token(self, token: str) -> str | None:
-        return verify_reset_token(token)
+    async def verify_reset_token(self, token: str) -> str | None:
+        return await verify_reset_token(token)
 
     async def send_password_reset_success_email(self, email: str, user_name: str) -> bool:
         return await send_password_reset_success_email(email, user_name)

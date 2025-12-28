@@ -30,10 +30,14 @@ export function usePermission(): UsePermissionReturn {
 
   const hasPermission = (permission: string): boolean => {
     // Admins have all permissions
-    if (role === "admin" || role === "platform_admin") return true;
+    if (role === "admin" || role === "platform_admin" || role === "super_admin") {
+      return true;
+    }
 
     // Check explicit permission
-    if (permissions.includes(permission)) return true;
+    if (permissions.includes(permission) || permissions.includes("*") || permissions.includes("*:*")) {
+      return true;
+    }
 
     // Check wildcard permissions
     const [resource, action] = permission.split(":");

@@ -216,7 +216,7 @@ export default function DunningExecutionsPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           {executions.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Dunning executions"><caption className="sr-only">Dunning executions</caption>
               <thead>
                 <tr>
                   <th>Customer</th>

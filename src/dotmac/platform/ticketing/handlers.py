@@ -5,7 +5,7 @@ This module provides event handlers for ticket lifecycle events, handling
 notifications, audit logging, and analytics updates.
 """
 
-from typing import Final
+from typing import Any, Final
 
 import structlog
 
@@ -640,6 +640,47 @@ async def handle_order_completed_create_installation_ticket(event: Event) -> Non
             elif hasattr(order, "priority") and order.priority == "high":
                 priority = TicketPriority.HIGH
 
+            def _format_address(value: Any) -> str | None:
+                if not value:
+                    return None
+                if isinstance(value, str):
+                    return value.strip() or None
+                if isinstance(value, dict):
+                    parts = [
+                        value.get("line1") or value.get("address_line1"),
+                        value.get("line2") or value.get("address_line2"),
+                        value.get("city"),
+                        value.get("state"),
+                        value.get("postal_code") or value.get("zip"),
+                        value.get("country"),
+                    ]
+                    return ", ".join([part for part in parts if part]) or None
+                return None
+
+            def _resolve_service_address(order: Any) -> str | None:
+                candidates = [
+                    getattr(order, "service_address", None),
+                    getattr(order, "installation_address", None),
+                    getattr(order, "shipping_address", None),
+                    getattr(order, "billing_address", None),
+                    getattr(order, "address", None),
+                ]
+                for candidate in candidates:
+                    formatted = _format_address(candidate)
+                    if formatted:
+                        return formatted
+
+                line1 = getattr(order, "address_line1", None)
+                line2 = getattr(order, "address_line2", None)
+                city = getattr(order, "city", None)
+                state = getattr(order, "state", None)
+                postal = getattr(order, "postal_code", None) or getattr(order, "zip", None)
+                country = getattr(order, "country", None)
+                parts = [line1, line2, city, state, postal, country]
+                return ", ".join([part for part in parts if part]) or None
+
+            service_address = _resolve_service_address(order) or order.customer_email or None
+
             # Prepare ticket data
             ticket_data = TicketCreate(
                 subject=f"Installation Request - Order {order.order_number}",
@@ -656,7 +697,7 @@ Please schedule and assign technician for field installation.
                 priority=priority,
                 tenant_id=tenant_id,
                 ticket_type=TicketType.INSTALLATION_REQUEST,
-                service_address=order.customer_email or None,  # TODO: actual address
+                service_address=service_address,
                 metadata={
                     "order_id": str(order_id),
                     "order_number": order.order_number,

@@ -249,10 +249,16 @@ async def http_exception_handler(request: Request, exc: Any) -> JSONResponse:
     # Add FastAPI-style detail for compatibility
     content.setdefault("detail", detail)
 
+    response_headers: dict[str, str] = {}
+    exc_headers = getattr(exc, "headers", None)
+    if isinstance(exc_headers, dict):
+        response_headers.update({k: str(v) for k, v in exc_headers.items()})
+    response_headers["X-Correlation-ID"] = correlation_id
+
     return JSONResponse(
         status_code=status_code,
         content=content,
-        headers={"X-Correlation-ID": correlation_id},
+        headers=response_headers,
     )
 
 

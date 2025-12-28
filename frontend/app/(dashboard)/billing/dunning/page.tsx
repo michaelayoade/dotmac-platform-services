@@ -152,7 +152,7 @@ export default function DunningDashboardPage() {
           </div>
           <div className="overflow-x-auto">
             {analytics?.byCampaign && analytics.byCampaign.length > 0 ? (
-              <table className="data-table">
+              <table className="data-table" aria-label="Campaign performance"><caption className="sr-only">Campaign performance</caption>
                 <thead>
                   <tr>
                     <th>Campaign</th>
@@ -256,7 +256,7 @@ export default function DunningDashboardPage() {
           </div>
           <div className="overflow-x-auto">
             {analytics?.recentRecoveries && analytics.recentRecoveries.length > 0 ? (
-              <table className="data-table">
+              <table className="data-table" aria-label="Recent recoveries"><caption className="sr-only">Recent recoveries</caption>
                 <thead>
                   <tr>
                     <th>Invoice</th>
@@ -326,7 +326,7 @@ export default function DunningDashboardPage() {
           <div className="overflow-x-auto">
             {executions.filter((e) => e.status === "in_progress" || e.status === "pending").length >
             0 ? (
-              <table className="data-table">
+              <table className="data-table" aria-label="Active dunning executions"><caption className="sr-only">Active dunning executions</caption>
                 <thead>
                   <tr>
                     <th>Customer</th>
@@ -395,7 +395,7 @@ export default function DunningDashboardPage() {
         </div>
         <div className="overflow-x-auto">
           {campaigns.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Dunning campaigns overview"><caption className="sr-only">Dunning campaigns overview</caption>
               <thead>
                 <tr>
                   <th>Campaign</th>

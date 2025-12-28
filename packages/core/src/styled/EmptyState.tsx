@@ -58,7 +58,7 @@ const sizeConfig = {
 
 const variantConfig = {
   default: "bg-transparent",
-  card: "bg-card border border-border rounded-lg",
+  card: "bg-surface-elevated border border-border rounded-lg",
   inline: "bg-surface-overlay rounded-md",
 };
 

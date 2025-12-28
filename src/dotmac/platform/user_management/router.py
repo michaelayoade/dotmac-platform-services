@@ -4,12 +4,14 @@ User management API router.
 Provides REST endpoints for user management operations.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
+from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
@@ -22,9 +24,19 @@ from dotmac.platform.user_management.service import UserService
 
 logger = structlog.get_logger(__name__)
 
+def require_authorization_header(request: Request) -> None:
+    """Ensure an Authorization header is present for protected endpoints."""
+    if not request.headers.get("Authorization"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+
 # Create router
 user_router = APIRouter(
     prefix="/users",
+    dependencies=[Depends(require_authorization_header)],
 )
 
 TARGET_TENANT_HEADER = "X-Target-Tenant-ID"
@@ -166,6 +178,31 @@ class UserListResponse(BaseModel):  # BaseModel resolves to Any in isolation
     per_page: int = Field(..., description="Items per page")
 
 
+class UserBulkActionRequest(BaseModel):
+    """Request model for bulk user actions."""
+
+    model_config = ConfigDict()
+
+    user_ids: list[str] = Field(..., min_length=1, description="List of user IDs to operate on")
+
+
+class UserBulkDeleteRequest(UserBulkActionRequest):
+    """Request model for bulk user deletion."""
+
+    hard_delete: bool = Field(default=False, description="If true, permanently delete users")
+
+
+class UserBulkActionResponse(BaseModel):
+    """Response model for bulk user actions."""
+
+    model_config = ConfigDict()
+
+    success_count: int = Field(..., description="Number of users successfully processed")
+    errors: list[dict[str, str]] = Field(
+        default_factory=list, description="List of errors for failed operations"
+    )
+
+
 # ========================================
 # Dependency Injection
 # ========================================
@@ -176,6 +213,272 @@ async def get_user_service(
 ) -> UserService:
     """Get user service with database session."""
     return UserService(session)
+
+
+# ========================================
+# Dashboard Response Models
+# ========================================
+
+
+class UserDashboardSummary(BaseModel):
+    """Summary statistics for user dashboard"""
+
+    model_config = ConfigDict()
+
+    total_users: int
+    active_users: int
+    inactive_users: int
+    verified_users: int
+    unverified_users: int
+    new_this_month: int
+    active_today: int
+    growth_rate_pct: float
+
+
+class UserChartDataPoint(BaseModel):
+    """Single data point for charts"""
+
+    model_config = ConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class UserDashboardCharts(BaseModel):
+    """Chart data for user dashboard"""
+
+    model_config = ConfigDict()
+
+    user_growth: list[UserChartDataPoint]
+    users_by_role: list[UserChartDataPoint]
+    users_by_tenant: list[UserChartDataPoint]
+    login_activity: list[UserChartDataPoint]
+
+
+class UserDashboardAlert(BaseModel):
+    """Alert item for dashboard"""
+
+    model_config = ConfigDict()
+
+    type: str
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class UserDashboardActivity(BaseModel):
+    """Recent activity item"""
+
+    model_config = ConfigDict()
+
+    id: str
+    type: str
+    user_email: str
+    description: str
+    timestamp: datetime
+
+
+class UserDashboardResponse(BaseModel):
+    """Consolidated user dashboard response"""
+
+    model_config = ConfigDict()
+
+    summary: UserDashboardSummary
+    charts: UserDashboardCharts
+    alerts: list[UserDashboardAlert]
+    recent_activity: list[UserDashboardActivity]
+    generated_at: datetime
+
+
+# ========================================
+# Dashboard Endpoint
+# ========================================
+
+
+@user_router.get(
+    "/dashboard",
+    response_model=UserDashboardResponse,
+    summary="Get user dashboard data",
+    description="Returns consolidated user metrics, charts, and alerts for the dashboard",
+)
+async def get_user_dashboard(
+    period_months: int = Query(6, ge=1, le=24, description="Months of trend data"),
+    user_service: UserService = Depends(get_user_service),
+    current_user: UserInfo = Depends(require_permission("users.read")),
+) -> UserDashboardResponse:
+    """
+    Get consolidated user dashboard data including:
+    - Summary statistics (total, active, verified)
+    - Chart data (growth trends, role distribution)
+    - Alerts (unverified users, inactive accounts)
+    - Recent activity
+    """
+    from datetime import timedelta, timezone
+    from sqlalchemy import func, case, select
+
+    try:
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Get session from service
+        session = user_service._session
+
+        from .models import User
+
+        # ========== SUMMARY STATS ==========
+        status_counts = await session.execute(
+            select(
+                func.count(User.id).label("total"),
+                func.sum(case((User.is_active == True, 1), else_=0)).label("active"),
+                func.sum(case((User.is_active == False, 1), else_=0)).label("inactive"),
+                func.sum(case((User.is_verified == True, 1), else_=0)).label("verified"),
+                func.sum(case((User.is_verified == False, 1), else_=0)).label("unverified"),
+            )
+        )
+        counts = status_counts.one()
+
+        # New users this month
+        new_this_month = await session.execute(
+            select(func.count(User.id)).where(User.created_at >= month_start)
+        )
+        new_count = new_this_month.scalar() or 0
+
+        # Active today (logged in today)
+        active_today = await session.execute(
+            select(func.count(User.id)).where(User.last_login >= today_start)
+        )
+        active_today_count = active_today.scalar() or 0
+
+        # Growth rate
+        last_month_total = await session.execute(
+            select(func.count(User.id)).where(User.created_at < month_start)
+        )
+        last_month_count = last_month_total.scalar() or 1
+        growth_rate = (new_count / last_month_count) * 100 if last_month_count > 0 else 0
+
+        summary = UserDashboardSummary(
+            total_users=counts.total or 0,
+            active_users=counts.active or 0,
+            inactive_users=counts.inactive or 0,
+            verified_users=counts.verified or 0,
+            unverified_users=counts.unverified or 0,
+            new_this_month=new_count,
+            active_today=active_today_count,
+            growth_rate_pct=round(growth_rate, 2),
+        )
+
+        # ========== CHART DATA ==========
+        # User growth trend
+        user_growth = []
+        for i in range(period_months - 1, -1, -1):
+            month_date = (now - timedelta(days=i * 30)).replace(day=1)
+            next_month = (month_date + timedelta(days=32)).replace(day=1)
+
+            month_count = await session.execute(
+                select(func.count(User.id)).where(
+                    User.created_at >= month_date,
+                    User.created_at < next_month,
+                )
+            )
+            user_growth.append(UserChartDataPoint(
+                label=month_date.strftime("%b %Y"),
+                value=month_count.scalar() or 0,
+            ))
+
+        # Users by tenant
+        tenant_counts = await session.execute(
+            select(User.tenant_id, func.count(User.id)).group_by(User.tenant_id).limit(10)
+        )
+        users_by_tenant = [
+            UserChartDataPoint(label=row[0] or "No Tenant", value=row[1])
+            for row in tenant_counts.all()
+        ]
+
+        # Login activity (last 7 days)
+        login_activity = []
+        for i in range(6, -1, -1):
+            day_date = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+            next_day = day_date + timedelta(days=1)
+
+            day_logins = await session.execute(
+                select(func.count(User.id)).where(
+                    User.last_login >= day_date,
+                    User.last_login < next_day,
+                )
+            )
+            login_activity.append(UserChartDataPoint(
+                label=day_date.strftime("%a"),
+                value=day_logins.scalar() or 0,
+            ))
+
+        charts = UserDashboardCharts(
+            user_growth=user_growth,
+            users_by_role=[],  # Would need to join with roles table
+            users_by_tenant=users_by_tenant,
+            login_activity=login_activity,
+        )
+
+        # ========== ALERTS ==========
+        alerts = []
+
+        if counts.unverified and counts.unverified > 0:
+            alerts.append(UserDashboardAlert(
+                type="warning",
+                title="Unverified Users",
+                message=f"{counts.unverified} user(s) have not verified their email",
+                count=counts.unverified,
+                action_url="/users?verified=false",
+            ))
+
+        # Inactive users (no login in 30 days)
+        inactive_30d = await session.execute(
+            select(func.count(User.id)).where(
+                User.is_active == True,
+                User.last_login < now - timedelta(days=30),
+            )
+        )
+        inactive_count = inactive_30d.scalar() or 0
+        if inactive_count > 5:
+            alerts.append(UserDashboardAlert(
+                type="info",
+                title="Inactive Users",
+                message=f"{inactive_count} active users haven't logged in for 30+ days",
+                count=inactive_count,
+                action_url="/users?inactive=true",
+            ))
+
+        # ========== RECENT ACTIVITY ==========
+        recent_users = await session.execute(
+            select(User).order_by(User.created_at.desc()).limit(10)
+        )
+        recent_activity = [
+            UserDashboardActivity(
+                id=str(u.id),
+                type="created",
+                user_email=u.email or "unknown",
+                description=f"User '{u.email}' was created",
+                timestamp=u.created_at,
+            )
+            for u in recent_users.scalars().all()
+        ]
+
+        return UserDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate user dashboard", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate user dashboard: {str(e)}",
+        )
 
 
 # ========================================
@@ -195,6 +498,8 @@ async def get_current_user_profile(
     """
     tenant_scope = _tenant_scope_from_user(current_user)
     user = await user_service.get_user_by_id(current_user.user_id, tenant_id=tenant_scope)
+    if not user and tenant_scope is not None:
+        user = await user_service.get_user_by_id(current_user.user_id, tenant_id=None)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found")
 
@@ -221,6 +526,12 @@ async def update_current_user_profile(
         tenant_id=tenant_scope,
         **update_data,
     )
+    if not updated_user and tenant_scope is not None:
+        updated_user = await user_service.update_user(
+            user_id=current_user.user_id,
+            tenant_id=None,
+            **update_data,
+        )
     if not updated_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -322,13 +633,13 @@ async def create_user(
             tenant_id=target_tenant,
         )
         return UserResponse(**new_user.to_dict())
-    except ValueError as e:
+    except (IntegrityError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @user_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: str,
+    user_id: UUID,
     request: Request,
     admin_user: UserInfo = Depends(require_permission("users.read")),
     user_service: UserService = Depends(get_user_service),
@@ -350,7 +661,7 @@ async def get_user(
 
 @user_router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: str,
+    user_id: UUID,
     updates: UserUpdateRequest,
     request: Request,
     admin_user: UserInfo = Depends(require_permission("users.update")),
@@ -382,7 +693,7 @@ async def update_user(
 
 @user_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
-    user_id: str,
+    user_id: UUID,
     request: Request,
     admin_user: UserInfo = Depends(require_permission("users.delete")),
     user_service: UserService = Depends(get_user_service),
@@ -401,13 +712,13 @@ async def delete_user(
         )
 
 
-@user_router.post("/{user_id}/disable")
+@user_router.post("/{user_id}/disable", response_model=UserResponse)
 async def disable_user(
-    user_id: str,
+    user_id: UUID,
     request: Request,
     admin_user: UserInfo = Depends(require_permission("users.update")),
     user_service: UserService = Depends(get_user_service),
-) -> dict[str, Any]:
+) -> UserResponse:
     """
     Disable a user account.
 
@@ -424,16 +735,16 @@ async def disable_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
-    return {"message": f"User {user_id} disabled successfully"}
+    return UserResponse(**updated_user.to_dict())
 
 
-@user_router.post("/{user_id}/enable")
+@user_router.post("/{user_id}/enable", response_model=UserResponse)
 async def enable_user(
-    user_id: str,
+    user_id: UUID,
     request: Request,
     admin_user: UserInfo = Depends(require_permission("users.update")),
     user_service: UserService = Depends(get_user_service),
-) -> dict[str, Any]:
+) -> UserResponse:
     """
     Enable a user account.
 
@@ -450,7 +761,296 @@ async def enable_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
 
-    return {"message": f"User {user_id} enabled successfully"}
+    return UserResponse(**updated_user.to_dict())
+
+
+@user_router.post("/{user_id}/resend-verification")
+async def resend_user_verification(
+    user_id: UUID,
+    request: Request,
+    admin_user: UserInfo = Depends(require_permission("users.update")),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, Any]:
+    """
+    Resend verification email for a user.
+
+    Requires admin role.
+    """
+    from dotmac.platform.auth.email_verification import send_verification_email
+
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=True)
+    user = await user_service.get_user_by_id(user_id=user_id, tenant_id=target_tenant)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
+        )
+
+    if user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User email is already verified",
+        )
+
+    try:
+        await send_verification_email(
+            session=user_service.session,
+            user=user,
+            email=user.email,
+            include_email_in_link=True,
+        )
+        return {"message": f"Verification email sent to {user.email}"}
+    except Exception:
+        logger.error("Failed to resend verification email", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send verification email",
+        )
+
+
+# ========================================
+# Bulk Operations
+# ========================================
+
+
+@user_router.post("/bulk/delete", status_code=status.HTTP_200_OK)
+async def bulk_delete_users(
+    bulk_delete: UserBulkDeleteRequest,
+    request: Request,
+    admin_user: UserInfo = Depends(require_permission("users.delete")),
+    user_service: UserService = Depends(get_user_service),
+) -> UserBulkActionResponse:
+    """
+    Bulk delete multiple users.
+
+    Requires admin role with users.delete permission.
+    """
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=True)
+    success_count = 0
+    errors: list[dict[str, str]] = []
+
+    for user_id in bulk_delete.user_ids:
+        try:
+            if bulk_delete.hard_delete:
+                success = await user_service.delete_user(
+                    user_id=user_id,
+                    tenant_id=target_tenant,
+                )
+                if success:
+                    success_count += 1
+                else:
+                    errors.append({"user_id": user_id, "error": "User not found"})
+                continue
+
+            user = await user_service.get_user_by_id(user_id, tenant_id=target_tenant)
+            if not user:
+                errors.append({"user_id": user_id, "error": "User not found"})
+                continue
+
+            metadata = dict(user.metadata_ or {})
+            metadata["deleted_at"] = datetime.now(UTC).isoformat()
+            metadata["deleted_by"] = admin_user.user_id
+
+            updated = await user_service.update_user(
+                user_id=user_id,
+                tenant_id=target_tenant,
+                is_active=False,
+                metadata=metadata,
+            )
+            if updated:
+                success_count += 1
+            else:
+                errors.append({"user_id": user_id, "error": "User not found"})
+        except Exception as exc:
+            errors.append({"user_id": user_id, "error": str(exc)})
+            logger.error("Error deleting user", user_id=user_id, error=str(exc))
+
+    return UserBulkActionResponse(success_count=success_count, errors=errors)
+
+
+@user_router.post("/bulk/suspend", status_code=status.HTTP_200_OK)
+async def bulk_suspend_users(
+    bulk_action: UserBulkActionRequest,
+    request: Request,
+    admin_user: UserInfo = Depends(require_permission("users.update")),
+    user_service: UserService = Depends(get_user_service),
+) -> UserBulkActionResponse:
+    """
+    Bulk suspend (disable) multiple users.
+
+    Requires admin role with users.update permission.
+    """
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=True)
+    success_count = 0
+    errors: list[dict[str, str]] = []
+
+    for user_id in bulk_action.user_ids:
+        try:
+            updated_user = await user_service.update_user(
+                user_id=user_id,
+                tenant_id=target_tenant,
+                is_active=False,
+            )
+            if updated_user:
+                success_count += 1
+            else:
+                errors.append({"user_id": user_id, "error": "User not found"})
+        except Exception as exc:
+            errors.append({"user_id": user_id, "error": str(exc)})
+            logger.error("Error suspending user", user_id=user_id, error=str(exc))
+
+    return UserBulkActionResponse(success_count=success_count, errors=errors)
+
+
+@user_router.post("/bulk/activate", status_code=status.HTTP_200_OK)
+async def bulk_activate_users(
+    bulk_action: UserBulkActionRequest,
+    request: Request,
+    admin_user: UserInfo = Depends(require_permission("users.update")),
+    user_service: UserService = Depends(get_user_service),
+) -> UserBulkActionResponse:
+    """
+    Bulk activate (enable) multiple users.
+
+    Requires admin role with users.update permission.
+    """
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=True)
+    success_count = 0
+    errors: list[dict[str, str]] = []
+
+    for user_id in bulk_action.user_ids:
+        try:
+            updated_user = await user_service.update_user(
+                user_id=user_id,
+                tenant_id=target_tenant,
+                is_active=True,
+            )
+            if updated_user:
+                success_count += 1
+            else:
+                errors.append({"user_id": user_id, "error": "User not found"})
+        except Exception as exc:
+            errors.append({"user_id": user_id, "error": str(exc)})
+            logger.error("Error activating user", user_id=user_id, error=str(exc))
+
+    return UserBulkActionResponse(success_count=success_count, errors=errors)
+
+
+@user_router.post("/bulk/resend-verification", status_code=status.HTTP_200_OK)
+async def bulk_resend_verification(
+    bulk_action: UserBulkActionRequest,
+    request: Request,
+    admin_user: UserInfo = Depends(require_permission("users.update")),
+    user_service: UserService = Depends(get_user_service),
+) -> UserBulkActionResponse:
+    """
+    Bulk resend verification emails for multiple users.
+
+    Only sends to users who are not already verified.
+    Requires admin role with users.update permission.
+    """
+    from dotmac.platform.auth.email_verification import send_verification_email
+
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=True)
+    success_count = 0
+    errors: list[dict[str, str]] = []
+
+    for user_id in bulk_action.user_ids:
+        try:
+            user = await user_service.get_user_by_id(user_id, tenant_id=target_tenant)
+            if not user:
+                errors.append({"user_id": user_id, "error": "User not found"})
+                continue
+
+            if user.is_verified:
+                errors.append({"user_id": user_id, "error": "Already verified"})
+                continue
+
+            await send_verification_email(
+                session=user_service.session,
+                user=user,
+                email=user.email,
+                include_email_in_link=True,
+            )
+            success_count += 1
+        except Exception as exc:
+            errors.append({"user_id": user_id, "error": str(exc)})
+            logger.error("Error resending verification", user_id=user_id, error=str(exc))
+
+    return UserBulkActionResponse(success_count=success_count, errors=errors)
+
+
+@user_router.post("/export")
+async def export_users(
+    request: Request,
+    format: str = Query("csv", description="Export format: csv or json"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
+    role: str | None = Query(None, description="Filter by role"),
+    admin_user: UserInfo = Depends(require_permission("users.read")),
+    user_service: UserService = Depends(get_user_service),
+) -> Any:
+    """
+    Export users to CSV or JSON.
+
+    Requires admin role with users.read permission.
+    """
+    import csv
+    import io
+    import json
+    from fastapi.responses import StreamingResponse
+
+    target_tenant = _resolve_target_tenant(admin_user, request, require_tenant=False)
+
+    # Get all users (no pagination for export)
+    users, _ = await user_service.list_users(
+        skip=0,
+        limit=10000,  # Reasonable limit
+        is_active=is_active,
+        role=role,
+        tenant_id=target_tenant,
+        require_tenant=target_tenant is not None,
+    )
+
+    if format.lower() == "json":
+        user_data = [u.to_dict() for u in users]
+        content = json.dumps(user_data, default=str, indent=2)
+        return StreamingResponse(
+            io.BytesIO(content.encode()),
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="users_export.json"'},
+        )
+
+    # Default to CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    writer.writerow([
+        "user_id", "username", "email", "full_name", "roles",
+        "is_active", "is_verified", "created_at", "last_login"
+    ])
+
+    # Data rows
+    for user in users:
+        user_dict = user.to_dict()
+        writer.writerow([
+            user_dict.get("user_id", ""),
+            user_dict.get("username", ""),
+            user_dict.get("email", ""),
+            user_dict.get("full_name", ""),
+            ",".join(user_dict.get("roles", [])),
+            user_dict.get("is_active", False),
+            getattr(user, "is_verified", False),
+            user_dict.get("created_at", ""),
+            user_dict.get("last_login", ""),
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="users_export.csv"'},
+    )
 
 
 # Export router

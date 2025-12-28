@@ -140,11 +140,13 @@ export function LoginScreen({
       if (!response.ok) {
         let message = "Invalid email or password. Please try again.";
         try {
-          const payload = (await response.json()) as { detail?: string; message?: string };
+          const payload = (await response.json()) as { detail?: string; message?: string; error?: string };
           if (payload?.detail) {
             message = payload.detail;
           } else if (payload?.message) {
             message = payload.message;
+          } else if (payload?.error) {
+            message = payload.error;
           }
         } catch {
           // Keep the default message when the response isn't JSON.
@@ -204,7 +206,7 @@ export function LoginScreen({
   const BrandingIcon = branding.icon;
 
   return (
-    <div className="min-h-screen flex">
+    <main className="min-h-screen flex" id="main-content">
       <div className={cn("flex-1 flex items-center justify-center p-8", leftPanelClassName)}>
         <div className="w-full max-w-md space-y-8">
           <div className="flex items-center gap-3">
@@ -352,6 +354,6 @@ export function LoginScreen({
       </div>
 
       {rightPanel}
-    </div>
+    </main>
   );
 }

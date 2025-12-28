@@ -203,7 +203,7 @@ check_port_config() {
     local platform_frontend_port=$(grep "^PLATFORM_FRONTEND_PORT=" .env | cut -d'=' -f2)
 
     success "Platform backend port: ${platform_backend_port:-8001}"
-    success "Platform frontend port: ${platform_frontend_port:-3002}"
+    success "Platform frontend port: ${platform_frontend_port:-3000}"
 
     echo ""
 }
@@ -248,7 +248,7 @@ print_summary() {
         echo -e "${CYAN}Next steps:${NC}"
         echo "  1. make start-all"
         echo "  2. Wait for services to become healthy"
-        echo "  3. Access the platform at http://localhost:3002"
+        echo "  3. Access the platform at http://localhost:3000"
         return 0
     elif [[ $ERRORS -eq 0 ]]; then
         echo -e "${YELLOW}⚠ Validation completed with $WARNINGS warning(s)${NC}"

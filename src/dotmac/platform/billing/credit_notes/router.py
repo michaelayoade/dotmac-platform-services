@@ -186,7 +186,7 @@ async def list_credit_notes(
 
     # Calculate total available credit
     total_available = sum(
-        cn.remaining_credit_amount
+        cn.remaining_credit_amount or 0
         for cn in credit_notes
         if cn.status in [CreditNoteStatus.ISSUED, CreditNoteStatus.PARTIALLY_APPLIED]
     )

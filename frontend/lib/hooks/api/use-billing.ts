@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, normalizePaginatedResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import { getBillingDashboard } from "@/lib/api/billing";
 import type {
   Invoice,
   InvoiceStatus,
@@ -11,6 +12,7 @@ import type {
   PaymentMethod,
 } from "@/types/models";
 import type { PaginatedResponse, ListQueryParams, DateRange } from "@/types/api";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 // Types
 export interface BillingMetrics {
@@ -147,6 +149,15 @@ async function processPayment(data: PaymentData): Promise<{ success: boolean; tr
 }
 
 // Hooks
+
+export function useBillingDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.billing.dashboard(params),
+    queryFn: () => getBillingDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
 export function useBillingMetrics() {
   return useQuery({
     queryKey: queryKeys.billing.metrics(),
@@ -1042,6 +1053,42 @@ export function useDeleteDunningCampaign() {
 
   return useMutation({
     mutationFn: deleteDunningCampaign,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.billing.dunning.campaigns.all(),
+      });
+    },
+  });
+}
+
+export function useCloneDunningCampaign() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Fetch the campaign to clone
+      const campaign = await getDunningCampaign(id);
+      // Create a new campaign with the same data
+      const cloneData: CreateDunningCampaignData = {
+        name: `${campaign.name} (Copy)`,
+        description: campaign.description,
+        triggerDaysAfterDue: campaign.triggerDaysAfterDue,
+        steps: campaign.steps.map((step) => ({
+          order: step.order,
+          delayDays: step.delayDays,
+          action: step.action,
+          templateId: step.templateId,
+          subject: step.subject,
+          message: step.message,
+          webhookUrl: step.webhookUrl,
+        })),
+        autoSuspendAfterDays: campaign.autoSuspendAfterDays,
+        autoWriteOffAfterDays: campaign.autoWriteOffAfterDays,
+        excludeVipCustomers: campaign.excludeVipCustomers,
+        excludeAmountBelow: campaign.excludeAmountBelow,
+      };
+      return createDunningCampaign(cloneData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.billing.dunning.campaigns.all(),

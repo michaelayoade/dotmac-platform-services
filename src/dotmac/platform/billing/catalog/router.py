@@ -120,6 +120,7 @@ def _validate_product_identifier(product_id: str) -> None:
 
 
 router = APIRouter(
+    prefix="/catalog",
     tags=["Billing - Catalog"],
     dependencies=[Depends(_get_current_user_dependency)],  # All endpoints require authentication
 )

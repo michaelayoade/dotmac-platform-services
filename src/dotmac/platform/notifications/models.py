@@ -109,12 +109,12 @@ class Notification(BaseModel, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     # Notification details
     type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType, name="notificationtype"),
+        SQLEnum(NotificationType, name="notificationtype", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         index=True,
     )
     priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.MEDIUM,
         nullable=False,
         index=True,
@@ -188,7 +188,7 @@ class NotificationPreference(BaseModel, TimestampMixin, TenantMixin):
 
     # Priority filtering
     minimum_priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.LOW,
         nullable=False,
     )
@@ -215,7 +215,7 @@ class NotificationTemplate(BaseModel, TimestampMixin, TenantMixin):
 
     # Template identification
     type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType, name="notificationtype"),
+        SQLEnum(NotificationType, name="notificationtype", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         unique=True,
         index=True,
@@ -241,7 +241,7 @@ class NotificationTemplate(BaseModel, TimestampMixin, TenantMixin):
 
     # Default settings
     default_priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.MEDIUM,
         nullable=False,
     )

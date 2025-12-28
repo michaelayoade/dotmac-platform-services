@@ -85,22 +85,22 @@ class PricingModel(str, Enum):
 class BillingCycle(str, Enum):
     """Billing cycle options."""
 
-    MONTHLY = "MONTHLY"
-    QUARTERLY = "QUARTERLY"
-    ANNUALLY = "ANNUALLY"
-    BIENNIAL = "BIENNIAL"
-    TRIENNIAL = "TRIENNIAL"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ANNUALLY = "annually"
+    BIENNIAL = "biennial"
+    TRIENNIAL = "triennial"
 
 
 class SubscriptionStatus(str, Enum):
     """Subscription status."""
 
-    TRIAL = "TRIAL"
-    ACTIVE = "ACTIVE"
-    PAST_DUE = "PAST_DUE"
-    SUSPENDED = "SUSPENDED"
-    CANCELLED = "CANCELLED"
-    EXPIRED = "EXPIRED"
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    SUSPENDED = "suspended"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
 
 
 class EventType(str, Enum):
@@ -560,7 +560,7 @@ class TenantSubscription(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
     # Tenant
-    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
     # Plan relationship
     plan_id: Mapped[UUID] = mapped_column(
@@ -569,10 +569,15 @@ class TenantSubscription(Base):
 
     # Subscription details
     status: Mapped[SubscriptionStatus] = mapped_column(
-        SQLEnum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.TRIAL, index=True
+        SQLEnum(SubscriptionStatus, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=SubscriptionStatus.TRIAL,
+        index=True,
     )
     billing_cycle: Mapped[BillingCycle] = mapped_column(
-        SQLEnum(BillingCycle), nullable=False, default=BillingCycle.MONTHLY
+        SQLEnum(BillingCycle, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=BillingCycle.MONTHLY,
     )
 
     # Pricing (snapshot at time of subscription)

@@ -92,7 +92,7 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 bg-surface">
+    <main className="min-h-screen flex items-center justify-center p-8 bg-surface" id="main-content">
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="flex items-center gap-3 justify-center">
@@ -271,7 +271,7 @@ function VerifyEmailContent() {
           </a>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 

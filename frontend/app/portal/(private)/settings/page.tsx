@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Image from "next/image";
 import {
   Building2,
   Shield,
@@ -17,6 +18,9 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  Upload,
+  ImageIcon,
+  Palette,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/shared";
@@ -26,6 +30,7 @@ import {
   useApiKeys,
   useCreateApiKey,
   useDeleteApiKey,
+  useUploadTenantLogo,
 } from "@/lib/hooks/api/use-tenant-portal";
 import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -553,6 +558,211 @@ function ApiKeysSection() {
   );
 }
 
+function BrandingSettingsSection() {
+  const { data: settings } = useTenantSettings();
+  const updateSettings = useUpdateTenantSettings();
+  const uploadLogo = useUploadTenantLogo();
+
+  const currentSettings = settings ?? emptySettings;
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    currentSettings.branding.logoUrl ?? null
+  );
+  const [primaryColor, setPrimaryColor] = useState(
+    currentSettings.branding.primaryColor || "#6366f1"
+  );
+  const [accentColor, setAccentColor] = useState(
+    currentSettings.branding.accentColor || "#8b5cf6"
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      if (settings.branding.logoUrl) setLogoPreview(settings.branding.logoUrl);
+      if (settings.branding.primaryColor) setPrimaryColor(settings.branding.primaryColor);
+      if (settings.branding.accentColor) setAccentColor(settings.branding.accentColor);
+    }
+  }, [settings]);
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload
+    try {
+      await uploadLogo.mutateAsync({ file, type: "logo" });
+    } catch (error) {
+      console.error("Failed to upload logo:", error);
+    }
+  };
+
+  const handleSaveColors = async () => {
+    setIsSaving(true);
+    try {
+      await updateSettings.mutateAsync({
+        branding: {
+          primaryColor,
+          accentColor,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to save branding:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!settings) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">Branding</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Branding settings are not available yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface-elevated rounded-lg border border-border">
+      <div className="p-6 border-b border-border flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-accent/15 text-accent">
+          <ImageIcon className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-semibold text-text-primary">Branding</h2>
+          <p className="text-sm text-text-muted">Customize your organization&apos;s appearance</p>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-6">
+        {/* Logo Upload */}
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-3">
+            Organization Logo
+          </label>
+          <div className="flex items-start gap-6">
+            <div className="relative group">
+              <div className="w-32 h-32 rounded-lg border-2 border-dashed border-border bg-surface-overlay flex items-center justify-center overflow-hidden">
+                {logoPreview ? (
+                  <Image
+                    src={logoPreview}
+                    alt="Logo preview"
+                    width={128}
+                    height={128}
+                    className="max-w-full max-h-full object-contain"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="text-center p-4">
+                    <Upload className="w-8 h-8 mx-auto text-text-muted mb-2" />
+                    <p className="text-xs text-text-muted">
+                      Upload logo
+                    </p>
+                  </div>
+                )}
+              </div>
+              <label className="absolute inset-0 flex items-center justify-center bg-overlay/50 rounded-lg opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                <Upload className="w-6 h-6 text-text-inverse" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-text-secondary mb-2">
+                Upload your organization&apos;s logo
+              </p>
+              <p className="text-xs text-text-muted">
+                Recommended: PNG or JPG, at least 256x256 pixels, max 2MB
+              </p>
+              {uploadLogo.isPending && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-accent">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Uploading...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Colors */}
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-3">
+            Brand Colors
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-2">
+                Primary Color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="w-10 h-10 rounded cursor-pointer border-0"
+                />
+                <input
+                  type="text"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-surface border border-border rounded-md text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-text-muted mb-2">
+                Accent Color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="w-10 h-10 rounded cursor-pointer border-0"
+                />
+                <input
+                  type="text"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-surface border border-border rounded-md text-text-primary font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end pt-4">
+          <button
+            onClick={handleSaveColors}
+            disabled={isSaving}
+            className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save Branding
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
@@ -563,6 +773,7 @@ export default function SettingsPage() {
 
       <div className="space-y-6">
         <GeneralSettingsSection />
+        <BrandingSettingsSection />
         <SecuritySettingsSection />
         <ApiKeysSection />
       </div>

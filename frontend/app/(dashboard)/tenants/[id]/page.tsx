@@ -35,8 +35,8 @@ import {
   useSuspendTenant,
   useActivateTenant,
   useTenantStats,
+  useAdminTenantMembers,
 } from "@/lib/hooks/api/use-tenants";
-import { useTenantMembers } from "@/lib/hooks/api/use-tenant-portal";
 import { tenantPlans, tenantStatuses } from "@/lib/schemas/tenants";
 
 interface TenantDetailPageProps {
@@ -70,9 +70,7 @@ export default function TenantDetailPage({ params }: TenantDetailPageProps) {
   // Data fetching
   const { data: tenant, isLoading, error, refetch } = useTenant(id);
   const { data: stats } = useTenantStats(id);
-  // Note: useTenantMembers is for tenant portal context, not admin view
-  // TODO: Create admin-specific hook to fetch members for any tenant
-  const { data: members } = useTenantMembers();
+  const { data: membersData } = useAdminTenantMembers(id);
 
   // Mutations
   const updateTenant = useUpdateTenant();
@@ -419,9 +417,9 @@ export default function TenantDetailPage({ params }: TenantDetailPageProps) {
                 View All
               </Button>
             </div>
-            {members?.members && members.members.length > 0 ? (
+            {membersData?.members && membersData.members.length > 0 ? (
               <div className="space-y-3">
-                {members.members.slice(0, 5).map((member) => (
+                {membersData.members.slice(0, 5).map((member) => (
                   <div
                     key={member.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary"
@@ -429,11 +427,11 @@ export default function TenantDetailPage({ params }: TenantDetailPageProps) {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-accent-subtle flex items-center justify-center">
                         <span className="text-xs font-medium text-accent">
-                          {member.fullName.charAt(0).toUpperCase()}
+                          {(member.fullName ?? member.email)?.[0]?.toUpperCase() ?? "?"}
                         </span>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-text-primary">{member.fullName}</p>
+                        <p className="text-sm font-medium text-text-primary">{member.fullName ?? member.email}</p>
                         <p className="text-xs text-text-muted">{member.email}</p>
                       </div>
                     </div>

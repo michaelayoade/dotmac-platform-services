@@ -18,6 +18,7 @@ import {
   getEmailLog,
   resendEmail,
   getCommunicationStats,
+  getCommunicationsDashboard,
   type EmailRequest,
   type EmailResponse,
   type GetTemplatesParams,
@@ -29,6 +30,19 @@ import {
   type CommunicationStats,
 } from "@/lib/api/communications";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
+
+// ============================================================================
+// Communications Dashboard Hook
+// ============================================================================
+
+export function useCommunicationsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.communications.dashboard(params),
+    queryFn: () => getCommunicationsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Email Sending Hooks

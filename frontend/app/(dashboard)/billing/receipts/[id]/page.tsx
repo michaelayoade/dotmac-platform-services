@@ -293,7 +293,7 @@ export default function ReceiptDetailPage() {
             Payment Details
           </h3>
           <div className="bg-surface-overlay rounded-lg overflow-hidden">
-            <table className="data-table">
+            <table className="data-table" aria-label="Receipt payment details"><caption className="sr-only">Receipt payment details</caption>
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">

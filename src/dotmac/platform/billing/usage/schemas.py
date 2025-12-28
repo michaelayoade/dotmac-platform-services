@@ -17,7 +17,7 @@ class UsageRecordCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     subscription_id: str = Field(min_length=1, max_length=50)
-    customer_id: UUID
+    customer_id: str | None = None
     usage_type: UsageType
     quantity: Decimal = Field(decimal_places=6)
     unit: str = Field(min_length=1, max_length=20)
@@ -61,21 +61,21 @@ class UsageRecordResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: str
-    subscription_id: str
-    customer_id: UUID
+    tenant_id: str | None
+    subscription_id: str | None
+    customer_id: str | None
     usage_type: UsageType
     quantity: Decimal
-    unit: str
-    unit_price: Decimal
-    total_amount: int  # in cents
-    currency: str
-    period_start: datetime
-    period_end: datetime
+    unit: str | None
+    unit_price: Decimal | None
+    total_amount: int | None
+    currency: str | None
+    period_start: datetime | None
+    period_end: datetime | None
     billed_status: BilledStatus
     invoice_id: str | None
     billed_at: datetime | None
-    source_system: str
+    source_system: str | None
     source_record_id: str | None
     description: str | None
     device_id: str | None
@@ -90,15 +90,15 @@ class UsageAggregateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: str
+    tenant_id: str | None
     subscription_id: str | None
-    customer_id: UUID | None
+    customer_id: str | None
     usage_type: UsageType
     period_start: datetime
     period_end: datetime
     period_type: str
     total_quantity: Decimal
-    total_amount: int  # in cents
+    total_amount: int | None  # in cents
     record_count: int
     min_quantity: Decimal | None
     max_quantity: Decimal | None
@@ -138,7 +138,7 @@ class UsageReportRequest(BaseModel):
     model_config = ConfigDict()
 
     subscription_id: str | None = Field(default=None, max_length=50)
-    customer_id: UUID | None = None
+    customer_id: str | None = None
     period_start: datetime
     period_end: datetime
     usage_types: list[UsageType] | None = Field(

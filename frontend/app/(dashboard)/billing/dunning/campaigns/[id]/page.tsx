@@ -17,6 +17,7 @@ import {
   Play,
   Pause,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { Button, Card, Input, Select } from "@dotmac/core";
 import { useToast } from "@dotmac/core";
@@ -28,6 +29,7 @@ import {
   useUpdateDunningCampaign,
   useActivateDunningCampaign,
   usePauseDunningCampaign,
+  useCloneDunningCampaign,
   type DunningStepAction,
   type UpdateDunningCampaignData,
 } from "@/lib/hooks/api/use-billing";
@@ -69,6 +71,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
   const updateCampaign = useUpdateDunningCampaign();
   const activateCampaign = useActivateDunningCampaign();
   const pauseCampaign = usePauseDunningCampaign();
+  const cloneCampaign = useCloneDunningCampaign();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -200,6 +203,23 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
     }
   };
 
+  const handleClone = async () => {
+    try {
+      const cloned = await cloneCampaign.mutateAsync(id);
+      toast({
+        title: "Campaign cloned",
+        description: "A copy of the campaign has been created.",
+      });
+      router.push(`/billing/dunning/campaigns/${cloned.id}`);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to clone campaign.",
+        variant: "error",
+      });
+    }
+  };
+
   if (isLoading) {
     return <CampaignDetailSkeleton />;
   }
@@ -227,6 +247,19 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
         ]}
         actions={
           <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClone}
+              disabled={cloneCampaign.isPending}
+            >
+              {cloneCampaign.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Copy className="w-4 h-4 mr-2" />
+              )}
+              Clone
+            </Button>
             {campaign.status === "active" ? (
               <Button
                 type="button"

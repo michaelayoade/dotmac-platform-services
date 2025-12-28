@@ -325,7 +325,7 @@ export default function UsageBillingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Usage records"><caption className="sr-only">Usage records</caption>
               <thead>
                 <tr>
                   <th>Date</th>

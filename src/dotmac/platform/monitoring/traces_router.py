@@ -7,17 +7,23 @@ Provides REST endpoints for distributed tracing and metrics collection.
 import os
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
+from dotmac.platform.auth.platform_admin import is_platform_admin
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.db import get_async_session
 from dotmac.platform.monitoring.prometheus_client import PrometheusQueryError
 from dotmac.platform.settings import settings
 
 logger = structlog.get_logger(__name__)
+
+if TYPE_CHECKING:
+    from dotmac.platform.monitoring.prometheus_client import PrometheusClient
 
 
 # ============================================================
@@ -623,6 +629,17 @@ def get_observability_service() -> ObservabilityService:
     return _observability_service
 
 
+async def require_observability_access(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Any = Depends(get_async_session),
+) -> CurrentUser:
+    """Require observability permission or platform admin access."""
+    if is_platform_admin(current_user):
+        return current_user
+    checker = require_permission("monitoring.observability.read")
+    return await checker(current_user=current_user, db=db)
+
+
 # ============================================================
 # Endpoints
 # ============================================================
@@ -637,7 +654,7 @@ async def get_traces(
     end_time: datetime | None = Query(None, description="End of time range"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=500, description="Traces per page"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_observability_access),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> TracesResponse:
     """
@@ -665,7 +682,7 @@ async def get_traces(
 @traces_router.get("/traces/{trace_id}", response_model=TraceData)
 async def get_trace_details(
     trace_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_observability_access),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> TraceData:
     """Get detailed span information for a specific trace."""
@@ -685,7 +702,7 @@ async def get_metrics(
     metrics: str | None = Query(None, description="Comma-separated metric names"),
     start_time: datetime | None = Query(None, description="Start time"),
     end_time: datetime | None = Query(None, description="End time"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_observability_access),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> MetricsResponse:
     """
@@ -710,7 +727,7 @@ async def get_metrics(
 
 @traces_router.get("/service-map", response_model=ServiceMapResponse)
 async def get_service_map(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_observability_access),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> ServiceMapResponse:
     """Get service dependency map and health scores."""
@@ -721,7 +738,7 @@ async def get_service_map(
 
 @traces_router.get("/performance", response_model=PerformanceResponse)
 async def get_performance_metrics(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_observability_access),
     obs_service: ObservabilityService = Depends(get_observability_service),
 ) -> PerformanceResponse:
     """Get performance percentiles and slow endpoints."""

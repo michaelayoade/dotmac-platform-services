@@ -1,22 +1,20 @@
-import { Suspense, type ElementType } from "react";
+import { type ElementType } from "react";
 import Link from "next/link";
 import {
   Plus,
   Download,
-  ArrowLeft,
   CheckCircle,
   Clock,
   AlertCircle,
   XCircle,
   Receipt,
-  Filter,
-  Search,
 } from "lucide-react";
 import { Button } from "@/lib/dotmac/core";
 
 import { getInvoices, type Invoice } from "@/lib/api/billing";
 import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn } from "@/lib/utils";
+import { InvoiceFilters } from "./invoice-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +34,9 @@ interface PageProps {
 export default async function InvoicesPage({ searchParams }: PageProps) {
   const page = Number(searchParams.page) || 1;
   const status = searchParams.status as Invoice["status"] | undefined;
+  const search = searchParams.search;
 
-  const response = await fetchOrNull(() => getInvoices({ page, pageSize: 20, status }));
+  const response = await fetchOrNull(() => getInvoices({ page, pageSize: 20, status, search }));
   const invoices = response?.invoices ?? [];
   const totalCount = response?.totalCount ?? null;
   const pageCount = response?.pageCount ?? 1;
@@ -111,24 +110,7 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
       </div>
 
       {/* Filter Bar */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-            <input
-              type="text"
-              placeholder="Search invoices..."
-              className="w-full pl-10 pr-4 py-2 bg-surface-overlay border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusFilterButton status={undefined} label="All" currentStatus={status} />
-            <StatusFilterButton status="pending" label="Pending" currentStatus={status} />
-            <StatusFilterButton status="paid" label="Paid" currentStatus={status} />
-            <StatusFilterButton status="overdue" label="Overdue" currentStatus={status} />
-          </div>
-        </div>
-      </div>
+      <InvoiceFilters currentStatus={status} />
 
       {/* Invoices Table */}
       <div className="card overflow-hidden">
@@ -144,7 +126,7 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
             </p>
             <div className="flex items-center gap-2">
               {page > 1 && (
-                <Link href={`/billing/invoices?page=${page - 1}${status ? `&status=${status}` : ""}`}>
+                <Link href={`/billing/invoices?page=${page - 1}${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`}>
                   <Button variant="outline" size="sm">
                     Previous
                   </Button>
@@ -154,7 +136,7 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
                 Page {page} of {pageCount}
               </span>
               {page < pageCount && (
-                <Link href={`/billing/invoices?page=${page + 1}${status ? `&status=${status}` : ""}`}>
+                <Link href={`/billing/invoices?page=${page + 1}${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`}>
                   <Button variant="outline" size="sm">
                     Next
                   </Button>
@@ -168,32 +150,6 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
   );
 }
 
-function StatusFilterButton({
-  status,
-  label,
-  currentStatus,
-}: {
-  status: Invoice["status"] | undefined;
-  label: string;
-  currentStatus: Invoice["status"] | undefined;
-}) {
-  const isActive = status === currentStatus;
-  const href = status ? `/billing/invoices?status=${status}` : "/billing/invoices";
-
-  return (
-    <Link href={href}>
-      <Button
-        variant={isActive ? "default" : "outline"}
-        size="sm"
-        className={cn(
-          isActive && "shadow-glow-sm"
-        )}
-      >
-        {label}
-      </Button>
-    </Link>
-  );
-}
 
 function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
   const statusConfig: Record<
@@ -226,7 +182,7 @@ function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
   }
 
   return (
-    <table className="data-table">
+    <table className="data-table" aria-label="Invoices list"><caption className="sr-only">Invoices list</caption>
       <thead>
         <tr>
           <th>Invoice</th>

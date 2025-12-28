@@ -109,14 +109,6 @@ def create_default_registry(db_session: AsyncSession) -> ServiceRegistry:
 
     registry.register_factory("billing_service", billing_service_factory)
 
-    # License Management - Workflow Adapter
-    def license_service_factory(db: AsyncSession) -> Any:
-        from ..licensing.workflow_service import LicenseService
-
-        return LicenseService(db)
-
-    registry.register_factory("license_service", license_service_factory)
-
     # Deployment Orchestration - Workflow Adapter
     def deployment_service_factory(db: AsyncSession) -> Any:
         from ..deployment.workflow_service import WorkflowDeploymentService

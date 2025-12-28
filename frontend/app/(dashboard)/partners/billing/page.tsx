@@ -139,7 +139,7 @@ export default function PartnerBillingDashboardPage() {
           </div>
           <div className="overflow-x-auto">
             {summary?.revenueByTenant && summary.revenueByTenant.length > 0 ? (
-              <table className="data-table">
+              <table className="data-table" aria-label="Revenue by tenant"><caption className="sr-only">Revenue by tenant</caption>
                 <thead>
                   <tr>
                     <th>Tenant</th>
@@ -241,7 +241,7 @@ export default function PartnerBillingDashboardPage() {
         </div>
         <div className="overflow-x-auto">
           {summary?.recentInvoices && summary.recentInvoices.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Recent partner invoices"><caption className="sr-only">Recent partner invoices</caption>
               <thead>
                 <tr>
                   <th>Invoice</th>
@@ -260,7 +260,7 @@ export default function PartnerBillingDashboardPage() {
                     <tr key={invoice.id} className="group">
                       <td>
                         <Link
-                          href={`/billing/invoices/${invoice.id}`}
+                          href={`/partners/billing/invoices/${invoice.id}`}
                           className="font-mono text-sm text-accent hover:text-accent-hover"
                         >
                           {invoice.number}
@@ -287,7 +287,7 @@ export default function PartnerBillingDashboardPage() {
                       </td>
                       <td>
                         <Link
-                          href={`/billing/invoices/${invoice.id}`}
+                          href={`/partners/billing/invoices/${invoice.id}`}
                           className="text-sm text-text-muted hover:text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           View →

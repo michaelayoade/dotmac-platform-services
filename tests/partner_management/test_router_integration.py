@@ -4,6 +4,7 @@ Integration tests for partner management router with database.
 Tests router endpoints with actual database to cover response model mappings.
 """
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -203,6 +204,69 @@ class TestPartnerRouterIntegration:
 
         assert referral.contact_name == "Jane Smith"
         assert referral.partner_id == partner.id
+
+    async def test_accept_invitation_scopes_user_by_tenant(self, db_session, tenant_context):
+        """Ensure invitation acceptance does not attach to a user in another tenant."""
+        from dotmac.platform.auth.password import get_password_hash
+        from dotmac.platform.partner_management.models import PartnerUserInvitation
+        from dotmac.platform.partner_management.router import accept_partner_invitation
+        from dotmac.platform.partner_management.schemas import (
+            AcceptPartnerInvitationRequest,
+            PartnerCreate,
+        )
+        from dotmac.platform.partner_management.service import PartnerService
+        from dotmac.platform.user_management.models import User
+
+        service = PartnerService(db_session)
+        partner = await service.create_partner(
+            data=PartnerCreate(
+                company_name=f"Invite Partner {uuid4().hex[:8]}",
+                primary_email=f"invite-{uuid4().hex[:8]}@example.com",
+            ),
+        )
+
+        invitation_email = f"invitee-{uuid4().hex[:8]}@example.com"
+        other_tenant_id = "other-tenant"
+        invite_tenant_id = "invite-tenant"
+
+        existing_user = User(
+            email=invitation_email,
+            username=invitation_email,
+            password_hash=get_password_hash("ExistingPassword123!"),
+            is_active=True,
+            is_verified=True,
+            roles=["partner"],
+            tenant_id=other_tenant_id,
+        )
+        db_session.add(existing_user)
+        await db_session.flush()
+
+        invitation = PartnerUserInvitation(
+            partner_id=partner.id,
+            email=invitation_email,
+            role="account_manager",
+            invited_by=uuid4(),
+            token="test-token",
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+            tenant_id=invite_tenant_id,
+        )
+        db_session.add(invitation)
+        await db_session.commit()
+
+        response = await accept_partner_invitation(
+            data=AcceptPartnerInvitationRequest(
+                token="test-token",
+                first_name="Invitee",
+                last_name="User",
+                password="NewPassword123!",
+            ),
+            db=db_session,
+        )
+
+        invited_user = await db_session.get(User, response["user_id"])
+        assert invited_user is not None
+        assert invited_user.tenant_id == invite_tenant_id
+        assert invited_user.id != existing_user.id
 
     async def test_create_partner_account_with_metadata(self, db_session, tenant_context):
         """Test create partner account returns account with metadata mapping."""

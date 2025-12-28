@@ -326,7 +326,7 @@ export default async function BillingAnalyticsPage({ searchParams }: PageProps) 
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Revenue by plan"><caption className="sr-only">Revenue by plan</caption>
               <thead>
                 <tr>
                   <th>Plan</th>

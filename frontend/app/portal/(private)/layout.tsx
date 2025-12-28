@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PortalShell } from "@/components/layout/portal-shell";
-import { tenantPortalConfig } from "@/lib/config/tenant-portal";
+import { PortalShellWithConfig } from "@/components/layout/portal-shell";
 import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 const TENANT_ROLES = new Set([
@@ -40,8 +39,8 @@ export default async function TenantPrivateLayout({
   }
 
   return (
-    <PortalShell user={user} config={tenantPortalConfig}>
+    <PortalShellWithConfig user={user} configKey="tenant">
       {children}
-    </PortalShell>
+    </PortalShellWithConfig>
   );
 }

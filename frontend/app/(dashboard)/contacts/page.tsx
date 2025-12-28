@@ -247,7 +247,7 @@ export default function ContactsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Contacts list"><caption className="sr-only">Contacts list</caption>
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left px-4 py-3 w-12">

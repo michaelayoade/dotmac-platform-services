@@ -218,6 +218,40 @@ class AuthSettings(BaseModel):  # BaseModel resolves to Any in isolation
         description="Refresh token TTL in days",
     )
 
+    # Asymmetric Key Configuration (for JWKS/OIDC)
+    jwt_private_key: str | None = Field(
+        default_factory=lambda: os.getenv("JWT_PRIVATE_KEY"),
+        description="PEM-encoded private key for asymmetric JWT signing (from Vault)",
+    )
+    jwt_public_key: str | None = Field(
+        default_factory=lambda: os.getenv("JWT_PUBLIC_KEY"),
+        description="PEM-encoded public key for JWT verification",
+    )
+    jwt_key_id: str = Field(
+        default_factory=lambda: os.getenv("JWT_KEY_ID", "key-1"),
+        description="Current key ID for rotation support",
+    )
+    jwt_previous_public_keys: str = Field(
+        default_factory=lambda: os.getenv("JWT_PREVIOUS_PUBLIC_KEYS", ""),
+        description="Comma-separated previous public keys (kid:pem) for rotation window",
+    )
+    jwt_asymmetric_algorithm: str = Field(
+        default_factory=lambda: os.getenv("JWT_ASYMMETRIC_ALGORITHM", "RS256"),
+        description="Asymmetric algorithm: RS256 or ES256",
+    )
+    jwt_issuer: str = Field(
+        default_factory=lambda: os.getenv("JWT_ISSUER", "dotmac-platform"),
+        description="JWT issuer claim (iss)",
+    )
+    jwt_audience: str = Field(
+        default_factory=lambda: os.getenv("JWT_AUDIENCE", "dotmac-api"),
+        description="JWT audience claim (aud)",
+    )
+    jwt_use_asymmetric: bool = Field(
+        default_factory=lambda: os.getenv("JWT_USE_ASYMMETRIC", "false").lower() == "true",
+        description="Feature flag: use asymmetric signing (default: false for migration)",
+    )
+
     # Session Management
     session_redis_url: str = Field(
         default_factory=_default_session_redis_url,
@@ -249,10 +283,6 @@ class AuthSettings(BaseModel):  # BaseModel resolves to Any in isolation
         le=50,
         description="Maximum avatar upload size in MB",
     )
-
-    def __init__(self, **data: Any):
-        """Initialize with environment variable overrides."""
-        super().__init__(**data)
 
     @property
     def jwt_secret_key_bytes(self) -> bytes:
@@ -411,6 +441,21 @@ class Settings(BaseSettings):
         default_factory=lambda: ["127.0.0.1", "::1"],  # localhost only by default
         description="Trusted proxy IPs/networks (CIDR notation) for X-Forwarded-For validation",
     )
+
+    def __init__(self, **data: Any):
+        """Initialize with environment variable overrides."""
+        super().__init__(**data)
+        self._ensure_cors_frontend_origins()
+
+    def _ensure_cors_frontend_origins(self) -> None:
+        """Ensure frontend URLs are allowed by CORS when provided."""
+        if not self.cors or not self.cors.enabled:
+            return
+        frontend_url = getattr(self.external_services, "frontend_url", None)
+        frontend_admin_url = getattr(self.external_services, "frontend_admin_url", None)
+        for origin in (frontend_url, frontend_admin_url):
+            if origin and origin not in self.cors.origins:
+                self.cors.origins.append(origin)
 
     # ============================================================
     # Branding & Experience
@@ -836,7 +881,6 @@ class Settings(BaseSettings):
             origins=[
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "http://localhost:3002",
                 "http://localhost:8000",
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:8000",
@@ -1161,6 +1205,84 @@ class Settings(BaseSettings):
     storage: StorageSettings = StorageSettings()  # type: ignore[call-arg]
 
     # ============================================================
+    # TLS & Certificate Management
+    # ============================================================
+
+    class TLSSettings(BaseModel):  # BaseModel resolves to Any in isolation
+        """TLS and certificate management configuration for Kubernetes deployments."""
+
+        model_config = ConfigDict()
+
+        enabled: bool = Field(
+            default_factory=lambda: os.getenv("TLS_ENABLED", "true").lower() == "true",
+            description="Enable TLS for tenant ingress",
+        )
+        issuer_name: str = Field(
+            default_factory=lambda: os.getenv("TLS_ISSUER_NAME", "letsencrypt-prod"),
+            description="cert-manager ClusterIssuer name",
+        )
+        issuer_kind: str = Field(
+            default_factory=lambda: os.getenv("TLS_ISSUER_KIND", "ClusterIssuer"),
+            description="Issuer kind: ClusterIssuer or Issuer",
+        )
+        letsencrypt_email: str | None = Field(
+            default_factory=lambda: os.getenv("LETSENCRYPT_EMAIL"),
+            description="Email for Let's Encrypt ACME registration",
+        )
+        ingress_class: str = Field(
+            default_factory=lambda: os.getenv("TLS_INGRESS_CLASS", "nginx"),
+            description="Ingress class name for cert-manager",
+        )
+
+    tls: TLSSettings = TLSSettings()  # type: ignore[call-arg]
+
+    # ============================================================
+    # Network Policies
+    # ============================================================
+
+    class NetworkPolicySettings(BaseModel):  # BaseModel resolves to Any in isolation
+        """Kubernetes NetworkPolicy configuration for tenant isolation."""
+
+        model_config = ConfigDict()
+
+        enabled: bool = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_ENABLED", "true").lower() == "true",
+            description="Enable NetworkPolicies for tenant namespaces",
+        )
+        # Allowlist namespaces (configurable per deployment)
+        ingress_namespace: str = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_INGRESS_NS", "ingress-nginx"),
+            description="Namespace of ingress controller to allow inbound traffic",
+        )
+        vault_namespace: str = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_VAULT_NS", "vault"),
+            description="Namespace of Vault/secrets service",
+        )
+        redis_namespace: str = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_REDIS_NS", "redis"),
+            description="Namespace of Redis cache service",
+        )
+        database_namespace: str = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_DATABASE_NS", "database"),
+            description="Namespace of database service",
+        )
+        otel_namespace: str = Field(
+            default_factory=lambda: os.getenv("NETWORK_POLICY_OTEL_NS", "observability"),
+            description="Namespace of OpenTelemetry/observability services",
+        )
+        # Additional allowed egress CIDRs (e.g., external APIs)
+        allowed_egress_cidrs: list[str] = Field(
+            default_factory=lambda: [
+                cidr.strip()
+                for cidr in os.getenv("NETWORK_POLICY_ALLOWED_EGRESS_CIDRS", "").split(",")
+                if cidr.strip()
+            ],
+            description="Additional CIDRs to allow egress traffic (comma-separated)",
+        )
+
+    network_policy: NetworkPolicySettings = NetworkPolicySettings()  # type: ignore[call-arg]
+
+    # ============================================================
     # Billing & Payment Integration
     # ============================================================
 
@@ -1293,6 +1415,26 @@ class Settings(BaseSettings):
             default=False,
             description="Require authentication for frontend log ingestion (recommended for production)",
         )
+        frontend_log_jwt_secret: str | None = Field(
+            default=None,
+            description=(
+                "Shared HMAC secret for signed frontend log JWTs. "
+                "When set, X-Frontend-Log-Token is required."
+            ),
+        )
+        frontend_log_jwt_issuer: str = Field(
+            default="dotmac-frontend",
+            description="Expected issuer (iss) for frontend log JWTs.",
+        )
+        frontend_log_jwt_audience: str = Field(
+            default="frontend-logs",
+            description="Expected audience (aud) for frontend log JWTs.",
+        )
+        frontend_log_jwt_leeway_seconds: int = Field(
+            default=30,
+            ge=0,
+            description="Clock skew leeway for frontend log JWT validation.",
+        )
 
         # Audit retention
         audit_retention_days: int = Field(
@@ -1369,6 +1511,7 @@ class Settings(BaseSettings):
         dunning_enabled: bool = Field(True, description="Enable dunning workflows")
         ticketing_enabled: bool = Field(True, description="Enable ticketing system")
         notification_enabled: bool = Field(True, description="Enable notification center")
+        crm_enabled: bool = Field(True, description="Enable CRM features")
 
     features: FeatureFlags = FeatureFlags()  # type: ignore[call-arg]
 

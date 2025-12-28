@@ -389,18 +389,17 @@ async def get_security_metrics(
     period_days = _parse_time_range_to_days(timeRange)
     tenant_id = _resolve_tenant_id(request, current_user)
 
-    auth_data, api_key_data, secrets_data = await asyncio.gather(
-        _get_auth_metrics_cached(
-            period_days=period_days,
-            tenant_id=tenant_id,
-            session=session,
-        ),
-        _get_api_key_metrics_cached(period_days=period_days, tenant_id=tenant_id),
-        _get_secrets_metrics_cached(
-            period_days=period_days,
-            tenant_id=tenant_id,
-            session=session,
-        ),
+    # Run sequentially to avoid concurrent session access issues
+    auth_data = await _get_auth_metrics_cached(
+        period_days=period_days,
+        tenant_id=tenant_id,
+        session=session,
+    )
+    api_key_data = await _get_api_key_metrics_cached(period_days=period_days, tenant_id=tenant_id)
+    secrets_data = await _get_secrets_metrics_cached(
+        period_days=period_days,
+        tenant_id=tenant_id,
+        session=session,
     )
 
     return {

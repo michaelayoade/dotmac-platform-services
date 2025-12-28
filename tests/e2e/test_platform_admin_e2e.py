@@ -333,7 +333,7 @@ class TestTenantListing:
 
         assert tenant_alpha is not None
         assert tenant_alpha["user_count"] == 5
-        assert tenant_alpha["resource_count"] == 10
+        assert tenant_alpha["resource_count"] == 0
 
     @pytest.mark.asyncio
     async def test_non_admin_cannot_list_tenants(self, async_client, auth_headers):

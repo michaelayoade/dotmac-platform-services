@@ -40,7 +40,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <main className="min-h-screen flex" id="main-content">
       {/* Left side - Form */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-auto">
         <div className="w-full max-w-2xl space-y-8">
@@ -137,6 +137,6 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

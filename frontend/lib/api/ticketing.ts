@@ -5,6 +5,21 @@
  */
 
 import { api, normalizePaginatedResponse, ApiClientError } from "./client";
+import type { TicketsDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getTicketsDashboard(
+  params?: DashboardQueryParams
+): Promise<TicketsDashboardResponse> {
+  return api.get<TicketsDashboardResponse>("/api/v1/tickets/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
 
 // ============================================================================
 // Ticket Types

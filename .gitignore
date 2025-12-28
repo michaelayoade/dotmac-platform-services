@@ -241,6 +241,14 @@ mutmut-results/
 frontend/e2e/.auth/
 frontend/e2e/.server-state.json
 
+# Playwright
+frontend/playwright/
+frontend/playwright/.auth/
+frontend/playwright/test-results/
+frontend/test-results/
+playwright-report/
+blob-report/
+
 # Frontend build artifacts
 frontend/.next/
 frontend/out/

@@ -33,7 +33,7 @@ from .schemas import (
 )
 from .service import DunningService
 
-router = APIRouter(prefix="/billing/dunning", tags=["Billing - Dunning"])
+router = APIRouter(prefix="", tags=["Billing - Dunning"])
 
 
 def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
@@ -69,15 +69,8 @@ async def create_campaign(
     try:
         campaign_data = DunningCampaignCreate.model_validate(campaign_payload)
     except ValidationError as exc:
-        errors = exc.errors()
-        actions_errors = [err for err in errors if err.get("loc", [])[0] == "actions"]
-        if actions_errors and len(errors) == len(actions_errors):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Campaign must have at least one action",
-            ) from exc
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()
         ) from exc
 
     _require_tenant(current_user, tenant_id)
@@ -116,6 +109,9 @@ async def list_campaigns(
 
     Returns campaigns ordered by priority (highest first).
     """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     campaigns = await service.list_campaigns(
@@ -316,7 +312,7 @@ async def list_executions(
     tenant_id: str = Depends(get_tenant_id),
     campaign_id: UUID | None = Query(None, description="Filter by campaign ID"),
     subscription_id: str | None = Query(None, description="Filter by subscription ID"),
-    customer_id: UUID | None = Query(None, description="Filter by customer ID"),
+    customer_id: str | None = Query(None, description="Filter by customer ID"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
@@ -332,6 +328,9 @@ async def list_executions(
     # Convert string status to enum if provided
     status_enum: DunningExecutionStatus | None = None
     if status_filter:
+        normalized = status_filter.strip().lower()
+        if normalized in {"active", "in-progress", "in_progress"}:
+            status_filter = DunningExecutionStatus.IN_PROGRESS.value
         try:
             status_enum = DunningExecutionStatus(status_filter)
         except ValueError:

@@ -30,12 +30,14 @@ import { ConfirmDialog, useConfirmDialog } from "@/components/shared/confirm-dia
 import {
   useEmailTemplates,
   useEmailLogs,
+  useCommunicationsDashboard,
   useCommunicationStats,
   useDeleteEmailTemplate,
   useResendEmail,
   useTestEmailTemplate,
 } from "@/lib/hooks/api/use-communications";
 import type { CommunicationStatus } from "@/lib/api/communications";
+import { DashboardAlerts } from "@/components/features/dashboard";
 
 type EmailStatus = "delivered" | "sent" | "pending" | "failed" | "bounced";
 
@@ -60,6 +62,7 @@ export default function CommunicationsPage() {
   const [testTemplateId, setTestTemplateId] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState("");
 
+  const { data: dashboardData } = useCommunicationsDashboard();
   const { data: stats, refetch: refetchStats } = useCommunicationStats();
   const { data: logsData, refetch: refetchLogs } = useEmailLogs({
     page: logsPage,
@@ -162,6 +165,11 @@ export default function CommunicationsPage() {
           </div>
         }
       />
+
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -274,7 +282,7 @@ export default function CommunicationsPage() {
           ) : (
             <Card>
               <div className="overflow-x-auto">
-                <table className="data-table">
+                <table className="data-table" aria-label="Email logs"><caption className="sr-only">Email logs</caption>
                   <thead>
                     <tr className="border-b border-border-subtle">
                       <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Recipient</th>

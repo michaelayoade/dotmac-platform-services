@@ -28,10 +28,11 @@ import { LineChart, BarChart } from "@/lib/dotmac/charts";
 import { Button } from "@/lib/dotmac/core";
 import { DataTable, type ColumnDef } from "@/lib/dotmac/data-table";
 
-import { getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/billing";
+import { getBillingDashboard, getBillingMetrics, getRecentInvoices, type Invoice } from "@/lib/api/billing";
 import { getRevenueData, getRevenueBreakdown } from "@/lib/api/analytics";
 import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { cn } from "@/lib/utils";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -49,11 +50,15 @@ function EmptyChart({ height = 280, message = "No data available" }: { height?: 
 }
 
 export default async function BillingPage() {
-  const [metrics, recentInvoicesResponse] = await Promise.all([
+  // Use the consolidated dashboard endpoint for main data
+  const [dashboardData, metrics, recentInvoicesResponse] = await Promise.all([
+    fetchOrNull(() => getBillingDashboard({ periodMonths: 12 })),
     fetchOrNull(getBillingMetrics),
     fetchOrNull(() => getRecentInvoices()),
   ]);
   const recentInvoices = recentInvoicesResponse ?? [];
+  const alerts = dashboardData?.alerts ?? [];
+  const recentActivity = dashboardData?.recentActivity ?? [];
 
   return (
     <div className="space-y-6">
@@ -87,6 +92,11 @@ export default async function BillingPage() {
           </Link>
         </div>
       </div>
+
+      {/* Dashboard Alerts */}
+      {alerts.length > 0 && (
+        <DashboardAlerts alerts={alerts} className="animate-fade-up" />
+      )}
 
       {/* Revenue KPIs */}
       <section className="animate-fade-up">
@@ -200,26 +210,37 @@ export default async function BillingPage() {
         </div>
       </section>
 
-      {/* Subscription Stats */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up delay-450">
-        <SubscriptionCard
-          title="Active Subscriptions"
-          count={metrics?.activeSubscriptions ?? null}
-          change={metrics?.subscriptionChange}
-          breakdown={[]}
-        />
+      {/* Subscription Stats & Recent Activity */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-up delay-450">
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <SubscriptionCard
+            title="Active Subscriptions"
+            count={metrics?.activeSubscriptions ?? null}
+            change={metrics?.subscriptionChange}
+            breakdown={[]}
+          />
 
-        <SubscriptionCard
-          title="Churned This Month"
-          count={metrics?.churnedThisMonth ?? null}
-          breakdown={[]}
-        />
+          <SubscriptionCard
+            title="Churned This Month"
+            count={metrics?.churnedThisMonth ?? null}
+            breakdown={[]}
+          />
 
-        <SubscriptionCard
-          title="Upgrades This Month"
-          count={metrics?.upgradesThisMonth ?? null}
-          breakdown={[]}
-        />
+          <SubscriptionCard
+            title="Upgrades This Month"
+            count={metrics?.upgradesThisMonth ?? null}
+            breakdown={[]}
+          />
+        </div>
+
+        {/* Recent Activity Panel */}
+        {recentActivity.length > 0 && (
+          <DashboardRecentActivity
+            activities={recentActivity}
+            title="Recent Billing Activity"
+            maxItems={5}
+          />
+        )}
       </section>
     </div>
   );
@@ -239,7 +260,7 @@ function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
   };
 
   return (
-    <table className="data-table">
+    <table className="data-table" aria-label="Recent invoices"><caption className="sr-only">Recent invoices</caption>
       <thead>
         <tr>
           <th scope="col">Invoice</th>

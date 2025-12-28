@@ -321,7 +321,7 @@ export default function CreditNoteDetailPage({ params }: CreditNoteDetailPagePro
               <h3 className="text-lg font-semibold text-text-primary">Credit Items</h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table className="data-table" aria-label="Credit note line items"><caption className="sr-only">Credit note line items</caption>
                 <thead>
                   <tr>
                     <th className="w-1/2">Description</th>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   FileText,
   Download,
-  Calendar,
   DollarSign,
   CheckCircle,
   Clock,
@@ -14,6 +13,7 @@ import { PageHeader, StatusBadge, EmptyState } from "@/components/shared";
 import {
   usePartnerStatements,
   useDownloadStatement,
+  useExportStatements,
 } from "@/lib/hooks/api/use-partner-portal";
 import { cn } from "@/lib/utils";
 import type { Statement } from "@/types/partner-portal";
@@ -148,8 +148,11 @@ export default function StatementsPage() {
   const { data, isLoading, error } = usePartnerStatements({
     year: yearFilter,
   });
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Failed to load statements." : null;
 
   const downloadStatement = useDownloadStatement();
+  const exportStatements = useExportStatements();
 
   const statements = data?.statements ?? [];
   const hasStatements = data && statements.length > 0;
@@ -167,6 +170,22 @@ export default function StatementsPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to download statement:", error);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const blob = await exportStatements.mutateAsync({ year: yearFilter, format: "csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `statements-${yearFilter}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export statements:", error);
     }
   };
 
@@ -189,7 +208,25 @@ export default function StatementsPage() {
       <PageHeader
         title="Statements"
         description="Monthly commission statements and payout history"
+        actions={
+          hasStatements && (
+            <button
+              onClick={handleExportCSV}
+              disabled={exportStatements.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-overlay text-text-secondary hover:text-text-primary hover:bg-surface-overlay/80 transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {exportStatements.isPending ? "Exporting..." : "Export CSV"}
+            </button>
+          )
+        }
       />
+
+      {errorMessage && (
+        <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

@@ -53,6 +53,12 @@ export function PortalSidebar({
   const router = useRouter();
   const pathname = usePathname();
   const LogoIcon = config.logoIcon || Zap;
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
 
   const isActive = (href: string) => {
     // Handle base href (e.g., /partner or /portal)
@@ -73,7 +79,7 @@ export function PortalSidebar({
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen",
+        "fixed left-0 top-0 z-20 h-screen",
         "bg-surface-elevated border-r border-border",
         "flex flex-col",
         "transition-all duration-300 ease-in-out",
@@ -128,7 +134,7 @@ export function PortalSidebar({
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 px-2" aria-label="Main navigation">
         {config.navigation.map((section, sectionIdx) => (
           <div key={section.title || sectionIdx} className={cn(sectionIdx > 0 && "mt-6")}>
             {!collapsed && section.title && (
@@ -217,9 +223,7 @@ export function PortalSidebar({
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-              {user.fullName?.charAt(0).toUpperCase() ||
-                user.username?.charAt(0).toUpperCase() ||
-                "U"}
+              {userInitial}
             </div>
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full" />
           </div>

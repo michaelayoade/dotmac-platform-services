@@ -41,20 +41,52 @@ def _require_tenant_id(current_user: UserInfo) -> str:
     return current_user.tenant_id
 
 
-# TODO: Load from tenant settings or environment
-def get_ai_config() -> AIConfig:
-    """Get AI configuration."""
+async def get_ai_config_for_tenant(
+    current_user: Annotated[UserInfo, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AIConfig:
+    """
+    Get AI configuration, loading from tenant settings with fallback to environment.
+
+    Priority order:
+    1. Tenant-specific settings (stored in tenant.settings JSON)
+    2. Environment variables
+    """
     import os
+    from sqlalchemy import select
+    from dotmac.platform.tenant.models import Tenant
+
+    # Default config from environment
+    openai_key = os.getenv("OPENAI_API_KEY")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+    # Try to load tenant-specific config if tenant context exists
+    if current_user.tenant_id:
+        try:
+            result = await db.execute(
+                select(Tenant.settings).where(Tenant.id == current_user.tenant_id)
+            )
+            tenant_settings = result.scalar_one_or_none()
+
+            if tenant_settings:
+                ai_settings = tenant_settings.get("ai", {})
+                # Override with tenant-specific keys if present
+                if ai_settings.get("openai_api_key"):
+                    openai_key = ai_settings["openai_api_key"]
+                if ai_settings.get("anthropic_api_key"):
+                    anthropic_key = ai_settings["anthropic_api_key"]
+        except Exception as e:
+            logger.warning(f"Failed to load tenant AI config: {e}")
 
     return AIConfig(
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        openai_api_key=openai_key,
+        anthropic_api_key=anthropic_key,
     )
 
 
 def get_ai_service(
     db: Annotated[AsyncSession, Depends(get_db)],
-    config: Annotated[AIConfig, Depends(get_ai_config)],
+    config: Annotated[AIConfig, Depends(get_ai_config_for_tenant)],
 ) -> AIService:
     """Get AI service instance."""
     return AIService(session=db, config=config)

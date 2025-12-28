@@ -249,7 +249,7 @@ async def bulk_create_usage_records(
 @router.get("/records", response_model=UsageRecordListResponse)
 async def list_usage_records(
     request: Request,
-    customer_id: UUID | None = Query(None, description="Filter by customer ID"),
+    customer_id: str | None = Query(None, description="Filter by customer ID"),
     subscription_id: str | None = Query(None, description="Filter by subscription ID"),
     usage_type: UsageType | None = Query(None, description="Filter by usage type"),
     billed_status: BilledStatus | None = Query(None, description="Filter by billing status"),
@@ -417,7 +417,7 @@ async def get_usage_statistics(
     request: Request,
     period_start: datetime | None = Query(None, description="Start of period"),
     period_end: datetime | None = Query(None, description="End of period"),
-    customer_id: UUID | None = Query(None, description="Filter by customer"),
+    customer_id: str | None = Query(None, description="Filter by customer"),
     subscription_id: str | None = Query(None, description="Filter by subscription"),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(require_permission("billing.usage.view")),
@@ -456,7 +456,7 @@ async def list_usage_aggregates(
     request: Request,
     period_type: str | None = Query(None, description="Aggregation period: hourly, daily, monthly"),
     usage_type: UsageType | None = Query(None, description="Filter by usage type"),
-    customer_id: UUID | None = Query(None, description="Filter by customer"),
+    customer_id: str | None = Query(None, description="Filter by customer"),
     subscription_id: str | None = Query(None, description="Filter by subscription"),
     period_start: datetime | None = Query(None, description="Start of period"),
     period_end: datetime | None = Query(None, description="End of period"),
@@ -480,7 +480,7 @@ async def list_usage_aggregates(
         if usage_type:
             query = query.where(UsageAggregate.usage_type == usage_type)
         if customer_id:
-            query = query.where(UsageAggregate.customer_id == customer_id)
+            query = query.where(UsageAggregate.customer_id == str(customer_id))
         if subscription_id:
             query = query.where(UsageAggregate.subscription_id == subscription_id)
         if period_start:

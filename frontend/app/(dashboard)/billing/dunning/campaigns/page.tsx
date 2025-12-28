@@ -177,7 +177,7 @@ export default function DunningCampaignsPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           {filteredCampaigns.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Dunning campaigns"><caption className="sr-only">Dunning campaigns</caption>
               <thead>
                 <tr>
                   <th>Campaign</th>

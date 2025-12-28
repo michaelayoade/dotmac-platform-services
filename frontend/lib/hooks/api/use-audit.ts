@@ -10,6 +10,7 @@ import {
   logFrontendError,
   logFrontendErrors,
   getUserActivitySummary,
+  getAuditDashboard,
   type GetAuditParams,
   type AuditActivity,
   type AuditSearchQuery,
@@ -18,6 +19,19 @@ import {
   type UserActivitySummary,
 } from "@/lib/api/audit";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
+
+// ============================================================================
+// Audit Dashboard Hook
+// ============================================================================
+
+export function useAuditDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.audit.dashboard(params),
+    queryFn: () => getAuditDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Audit Activities Hooks

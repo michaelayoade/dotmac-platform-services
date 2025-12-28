@@ -2,10 +2,13 @@
 Invoice API router with tenant support
 """
 
+import structlog
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+
+logger = structlog.get_logger(__name__)
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -203,6 +206,7 @@ async def create_invoice(
     dependencies=[Depends(require_permission("billing.invoices.view"))],
 )
 async def list_invoices(
+    request: Request,
     tenant_id: str = Depends(get_tenant_id),
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     status: InvoiceStatus | None = Query(None, description="Filter by status"),
@@ -216,32 +220,42 @@ async def list_invoices(
 ) -> InvoiceListResponse:
     """List invoices with filtering and tenant isolation"""
 
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
-        invoices, total_count = await invoice_service.list_invoices_with_count(
-            tenant_id=tenant_id,
-            customer_id=customer_id,
-            status=status,
-            payment_status=payment_status,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit + 1,  # Fetch one extra to check if there are more
-            offset=offset,
-        )
-    except (AttributeError, TypeError):
-        invoices = await invoice_service.list_invoices(
-            tenant_id=tenant_id,
-            customer_id=customer_id,
-            status=status,
-            payment_status=payment_status,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit + 1,
-            offset=offset,
-        )
-        total_count = len(invoices)
+        try:
+            invoices, total_count = await invoice_service.list_invoices_with_count(
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                status=status,
+                payment_status=payment_status,
+                start_date=start_date,
+                end_date=end_date,
+                limit=limit + 1,  # Fetch one extra to check if there are more
+                offset=offset,
+            )
+        except (AttributeError, TypeError):
+            invoices = await invoice_service.list_invoices(
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                status=status,
+                payment_status=payment_status,
+                start_date=start_date,
+                end_date=end_date,
+                limit=limit + 1,
+                offset=offset,
+            )
+            total_count = len(invoices)
+    except Exception as e:
+        # Handle case where invoices table doesn't exist yet
+        if "UndefinedTableError" in str(type(e).__name__) or "does not exist" in str(e):
+            logger.warning("Invoices table not set up yet", error=str(e))
+            return InvoiceListResponse(invoices=[], total_count=0, has_more=False)
+        raise
 
     has_more = len(invoices) > limit
     if has_more:

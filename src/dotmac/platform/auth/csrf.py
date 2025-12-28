@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import secrets
+from urllib.parse import parse_qs
 from collections.abc import Awaitable, Callable
 
 import structlog
@@ -18,6 +20,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     """Require a CSRF token header when cookie-authenticated."""
 
     _SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+    _REFRESH_PATHS = {"/api/v1/auth/refresh", "/auth/refresh"}
 
     async def dispatch(self, request: Request, call_next: CallNext) -> Response:
         method = request.method.upper()
@@ -32,6 +35,25 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         access_cookie = request.cookies.get("access_token")
         if not access_cookie:
             return await call_next(request)
+
+        if request.url.path in self._REFRESH_PATHS:
+            body = await request.body()
+            request._body = body  # allow downstream handlers to read the body
+            refresh_token = None
+            if body:
+                content_type = (request.headers.get("Content-Type") or "").lower()
+                if "application/json" in content_type:
+                    try:
+                        payload = json.loads(body)
+                        if isinstance(payload, dict):
+                            refresh_token = payload.get("refresh_token")
+                    except json.JSONDecodeError:
+                        refresh_token = None
+                elif "application/x-www-form-urlencoded" in content_type:
+                    parsed = parse_qs(body.decode("utf-8", errors="ignore"))
+                    refresh_token = parsed.get("refresh_token", [None])[0]
+            if isinstance(refresh_token, str) and refresh_token.strip():
+                return await call_next(request)
 
         csrf_cookie = request.cookies.get("csrf_token")
         csrf_header = request.headers.get("X-CSRF-Token")

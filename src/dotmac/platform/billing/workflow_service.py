@@ -412,6 +412,8 @@ class BillingService:
 
         from sqlalchemy import select, update
         from dotmac.platform.tenant.models import Tenant
+        from dotmac.platform.tenant.models import Tenant
+        from dotmac.platform.tenant.models import Tenant
 
         logger.info(f"Extending subscription {subscription_id} by {extension_period} months")
 
@@ -738,6 +740,7 @@ class BillingService:
         """
 
         from sqlalchemy import select, update
+        from dotmac.platform.tenant.models import Tenant
 
         effective_tenant_id = tenant_id or str(customer_id)
         logger.info(

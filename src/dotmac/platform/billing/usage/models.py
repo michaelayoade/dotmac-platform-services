@@ -10,6 +10,7 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Index,
     Integer,
@@ -17,13 +18,27 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dotmac.platform.db import GUID, AuditMixin, Base, TenantMixin, TimestampMixin
 
 
-class UsageType(str, Enum):
+class CaseInsensitiveEnum(str, Enum):
+    """Enum that matches string values case-insensitively."""
+
+    @classmethod
+    def _missing_(cls, value: object) -> "CaseInsensitiveEnum | None":
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            for member in cls:
+                if isinstance(member.value, str) and member.value.lower() == candidate:
+                    return member
+        return None
+
+
+class UsageType(CaseInsensitiveEnum):
     """Types of usage that can be metered and billed."""
 
     DATA_TRANSFER = "data_transfer"  # Internet data usage
@@ -37,7 +52,7 @@ class UsageType(str, Enum):
     CUSTOM = "custom"  # Custom usage types
 
 
-class BilledStatus(str, Enum):
+class BilledStatus(CaseInsensitiveEnum):
     """Status of usage record in billing cycle."""
 
     PENDING = "pending"  # Not yet billed
@@ -46,7 +61,7 @@ class BilledStatus(str, Enum):
     EXCLUDED = "excluded"  # Excluded from billing (free tier, etc)
 
 
-class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignore[misc]  # Mixin has type Any
+class UsageRecord(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]  # Mixin has type Any
     """
     Individual usage record for metered billing.
 
@@ -59,14 +74,14 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
     id: Mapped[UUID] = mapped_column(GUID, primary_key=True, default=uuid4)
 
     # Foreign keys
-    subscription_id: Mapped[str] = mapped_column(
+    subscription_id: Mapped[str | None] = mapped_column(
         String(50),
-        nullable=False,
+        nullable=True,
         index=True,
         comment="Related subscription",
     )
-    customer_id: Mapped[UUID | None] = mapped_column(
-        GUID,
+    customer_id: Mapped[str | None] = mapped_column(
+        String(50),
         nullable=True,
         index=True,
         comment="Legacy billing account reference (tenant-scoped)",
@@ -76,7 +91,6 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
     usage_type: Mapped[UsageType] = mapped_column(
         SQLEnum(UsageType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        index=True,
         comment="Type of metered usage",
     )
     quantity: Mapped[Decimal] = mapped_column(
@@ -84,41 +98,38 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         nullable=False,
         comment="Usage quantity (e.g., 15.5 GB, 120 minutes)",
     )
-    unit: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
+    unit: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
         comment="Unit of measurement (GB, minutes, count, etc)",
     )
 
     # Pricing
-    unit_price: Mapped[Decimal] = mapped_column(
+    unit_price: Mapped[Decimal | None] = mapped_column(
         Numeric(12, 6),
-        nullable=False,
-        comment="Price per unit in major currency units (e.g., 0.10 USD/GB), not cents",
+        nullable=True,
+        comment="Price per unit in major currency units",
     )
-    total_amount: Mapped[int] = mapped_column(
+    total_amount: Mapped[int | None] = mapped_column(
         Integer,
-        nullable=False,
+        nullable=True,
         comment="Total charge in cents (quantity * unit_price)",
     )
-    currency: Mapped[str] = mapped_column(
+    currency: Mapped[str | None] = mapped_column(
         String(3),
-        nullable=False,
-        default="USD",
+        nullable=True,
         comment="Currency code (ISO 4217)",
     )
 
     # Billing period
-    period_start: Mapped[datetime] = mapped_column(
+    period_start: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
-        index=True,
+        nullable=True,
         comment="Start of usage period",
     )
-    period_end: Mapped[datetime] = mapped_column(
+    period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
-        index=True,
+        nullable=True,
         comment="End of usage period",
     )
 
@@ -127,13 +138,11 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         SQLEnum(BilledStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=BilledStatus.PENDING,
-        index=True,
         comment="Billing status",
     )
     invoice_id: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
-        index=True,
         comment="Invoice this usage was billed on",
     )
     billed_at: Mapped[datetime | None] = mapped_column(
@@ -143,47 +152,26 @@ class UsageRecord(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
     )
 
     # Source tracking
-    source_system: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        index=True,
+    source_system: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
         comment="Source system (api, webhook, import, etc)",
     )
     source_record_id: Mapped[str | None] = mapped_column(
-        String(100),
+        String(255),
         nullable=True,
         comment="External source record identifier",
     )
 
     # Additional metadata
-    description: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Human-readable description",
-    )
-    device_id: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        comment="Device/equipment identifier",
-    )
-    service_location: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="Service address if applicable",
-    )
-
-    __table_args__ = (
-        Index("ix_usage_tenant_subscription", "tenant_id", "subscription_id"),
-        Index("ix_usage_tenant_customer", "tenant_id", "customer_id"),
-        Index("ix_usage_tenant_period", "tenant_id", "period_start", "period_end"),
-        Index("ix_usage_billed_status_period", "billed_status", "period_end"),
-        Index("ix_usage_type_period", "usage_type", "period_start"),
-    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    service_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     def __repr__(self) -> str:
         return (
             f"<UsageRecord(id={self.id}, type={self.usage_type}, "
-            f"qty={self.quantity} {self.unit}, amount=${self.total_amount / 100:.2f})>"
+            f"qty={self.quantity} {self.unit})>"
         )
 
 
@@ -210,8 +198,8 @@ class UsageAggregate(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]  
         index=True,
         comment="Subscription-level aggregate (null = tenant-level)",
     )
-    customer_id: Mapped[UUID | None] = mapped_column(
-        GUID,
+    customer_id: Mapped[str | None] = mapped_column(
+        String(50),
         nullable=True,
         index=True,
         comment="Customer-level aggregate",
@@ -246,9 +234,9 @@ class UsageAggregate(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]  
         nullable=False,
         comment="Sum of quantity",
     )
-    total_amount: Mapped[int] = mapped_column(
+    total_amount: Mapped[int | None] = mapped_column(
         Integer,
-        nullable=False,
+        nullable=True,
         comment="Sum of total_amount in cents",
     )
     record_count: Mapped[int] = mapped_column(

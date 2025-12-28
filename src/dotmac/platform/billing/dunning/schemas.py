@@ -6,7 +6,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.billing.dunning.models import (
     DunningActionType,
@@ -78,7 +80,7 @@ class DunningCampaignResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: str
+    tenant_id: str | None
     name: str
     description: str | None
     trigger_after_days: int
@@ -107,34 +109,34 @@ class DunningExecutionResponse(BaseModel):
     id: UUID
     tenant_id: str
     campaign_id: UUID
-    subscription_id: str
-    customer_id: UUID
+    subscription_id: str | None
+    customer_id: str | None
     invoice_id: str | None
 
     # Status
     status: DunningExecutionStatus
-    current_step: int
-    total_steps: int
-    retry_count: int
+    current_step: int | None = None
+    total_steps: int | None = None
+    retry_count: int | None = None
 
     # Timing
-    started_at: datetime
+    started_at: datetime | None
     next_action_at: datetime | None
     completed_at: datetime | None
 
     # Amounts (in cents)
-    outstanding_amount: int
-    recovered_amount: int
+    outstanding_amount: int | None
+    recovered_amount: int | None
 
     # Execution log
-    execution_log: list[dict[str, Any]]
+    execution_log: list[dict[str, Any]] | None = None
 
     # Cancellation
     canceled_reason: str | None
-    canceled_by_user_id: UUID | None
+    canceled_by_user_id: str | None
 
     # Metadata
-    metadata: dict[str, Any] = Field(alias="metadata", validation_alias="metadata_")
+    metadata: dict[str, Any] = Field(default_factory=dict, alias="metadata", validation_alias="metadata_")
 
     # Timestamps
     created_at: datetime
@@ -186,10 +188,24 @@ class DunningExecutionStart(BaseModel):
 
     campaign_id: UUID
     subscription_id: str = Field(min_length=1, max_length=50)
-    customer_id: UUID
+    customer_id: str | None = None
     invoice_id: str | None = Field(None, max_length=50)
     outstanding_amount: int = Field(gt=0, description="Amount owed in cents")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    @field_validator("outstanding_amount", mode="before")
+    @classmethod
+    def normalize_outstanding_amount(cls, value: Any) -> int:
+        """Allow decimal-style amounts and convert to cents."""
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return int((Decimal(cleaned) * 100).to_integral_value())
+        if isinstance(value, float):
+            return int((Decimal(str(value)) * 100).to_integral_value())
+        if isinstance(value, Decimal):
+            return int((value * 100).to_integral_value())
+        return int(value)
 
 
 class DunningCampaignStats(BaseModel):

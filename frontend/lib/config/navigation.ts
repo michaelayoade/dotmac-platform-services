@@ -31,6 +31,7 @@ import {
   LineChart,
   Network,
   HardDrive,
+  Cog,
 } from "lucide-react";
 
 // ============================================================================
@@ -213,6 +214,15 @@ export const navigationSections: NavSection[] = [
     id: "system",
     title: "System",
     items: [
+      {
+        id: "admin-settings",
+        label: "System Settings",
+        href: "/admin/settings",
+        icon: Cog,
+        permission: "settings.read",
+        keywords: ["config", "smtp", "email", "database", "redis", "admin", "platform"],
+        description: "Configure platform settings and integrations",
+      },
       {
         id: "licensing",
         label: "Licensing",

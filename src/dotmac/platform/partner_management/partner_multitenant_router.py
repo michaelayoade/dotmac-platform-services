@@ -351,6 +351,7 @@ async def list_invoices(
     status: str | None = Query(None, description="Filter by invoice status"),
     from_date: datetime | None = Query(None, description="Filter by invoice date >= from_date"),
     to_date: datetime | None = Query(None, description="Filter by invoice date <= to_date"),
+    search: str | None = Query(None, description="Search by invoice number or tenant name"),
 ) -> InvoiceListResponse:
     """
     List invoices across all managed tenants.
@@ -387,6 +388,7 @@ async def list_invoices(
         status=status,
         from_date=from_date,
         to_date=to_date,
+        search=search,
         offset=offset,
         limit=limit,
     )
@@ -426,6 +428,7 @@ async def list_invoices(
             "status": status,
             "from_date": from_date,
             "to_date": to_date,
+            "search": search,
         },
     )
 
@@ -497,7 +500,7 @@ async def export_invoices(
         import csv
         import io
 
-        buffer = io.StringIO()
+        csv_buffer = io.StringIO()
         fieldnames = [
             "invoice_id",
             "tenant_id",
@@ -512,7 +515,7 @@ async def export_invoices(
             "is_overdue",
             "days_overdue",
         ]
-        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
         writer.writeheader()
         for invoice in invoices:
             row = {
@@ -521,7 +524,7 @@ async def export_invoices(
                 "due_date": invoice.get("due_date").isoformat() if invoice.get("due_date") else None,
             }
             writer.writerow(row)
-        file_bytes = buffer.getvalue().encode("utf-8")
+        file_bytes = csv_buffer.getvalue().encode("utf-8")
         file_name = f"invoices-{export_id}.csv"
         content_type = "text/csv"
     else:
@@ -530,8 +533,8 @@ async def export_invoices(
         from reportlab.lib.pagesizes import A4
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        pdf_buffer = BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
         table_data = [
             [
                 "Invoice #",
@@ -574,7 +577,7 @@ async def export_invoices(
             )
         )
         doc.build([table])
-        file_bytes = buffer.getvalue()
+        file_bytes = pdf_buffer.getvalue()
         file_name = f"invoices-{export_id}.pdf"
         content_type = "application/pdf"
 

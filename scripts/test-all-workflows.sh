@@ -27,7 +27,7 @@ echo -e "${BLUE}🔍 Checking Services...${NC}"
 echo ""
 
 ISP_OPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001)
-PLATFORM_ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002)
+PLATFORM_ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
 BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/v1/health)
 
 if [ "$ISP_OPS_STATUS" == "200" ]; then
@@ -37,7 +37,7 @@ else
 fi
 
 if [ "$PLATFORM_ADMIN_STATUS" == "200" ]; then
-    echo -e "${GREEN}✓ Platform Admin App running (port 3002)${NC}"
+    echo -e "${GREEN}✓ Platform Admin App running (port 3000)${NC}"
 else
     echo -e "${RED}✗ Platform Admin App not responding${NC}"
 fi
@@ -190,31 +190,31 @@ echo "────────────────────────�
 
 # Tenant Management
 echo -e "\n${CYAN}14. Tenant Management${NC}"
-test_workflow "Tenants" "http://localhost:3002/dashboard/platform-admin/tenants" "  Tenant List" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
-test_workflow "Tenants" "http://localhost:3002/dashboard/platform-admin/audit" "  Audit Logs" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Tenants" "http://localhost:3000/dashboard/platform-admin/tenants" "  Tenant List" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Tenants" "http://localhost:3000/dashboard/platform-admin/audit" "  Audit Logs" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
 TESTED=$((TESTED+2))
 
 # Security
 echo -e "\n${CYAN}15. Security & Access${NC}"
-test_workflow "Security" "http://localhost:3002/dashboard/security-access" "  Security Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
-test_workflow "Security" "http://localhost:3002/dashboard/security-access/users" "  User Management" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
-test_workflow "Security" "http://localhost:3002/dashboard/security-access/roles" "  Role Management" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Security" "http://localhost:3000/dashboard/security-access" "  Security Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Security" "http://localhost:3000/dashboard/security-access/users" "  User Management" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Security" "http://localhost:3000/dashboard/security-access/roles" "  Role Management" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
 TESTED=$((TESTED+3))
 
 # Licensing
 echo -e "\n${CYAN}16. Licensing${NC}"
-test_workflow "Licensing" "http://localhost:3002/dashboard/licensing" "  License Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Licensing" "http://localhost:3000/dashboard/licensing" "  License Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
 TESTED=$((TESTED+1))
 
 # Partners
 echo -e "\n${CYAN}17. Partner Management${NC}"
-test_workflow "Partners" "http://localhost:3002/dashboard/partners" "  Partner List" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Partners" "http://localhost:3000/dashboard/partners" "  Partner List" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
 TESTED=$((TESTED+1))
 
 # Tenant Portal
 echo -e "\n${CYAN}18. Tenant Portal${NC}"
-test_workflow "Tenant Portal" "http://localhost:3002/tenant-portal" "  Tenant Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
-test_workflow "Tenant Portal" "http://localhost:3002/tenant-portal/billing" "  Tenant Billing" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Tenant Portal" "http://localhost:3000/tenant-portal" "  Tenant Dashboard" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
+test_workflow "Tenant Portal" "http://localhost:3000/tenant-portal/billing" "  Tenant Billing" && PASSED=$((PASSED+1)) || FAILED=$((FAILED+1))
 TESTED=$((TESTED+2))
 
 # Summary

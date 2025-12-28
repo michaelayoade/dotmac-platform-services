@@ -21,7 +21,7 @@ export const inputVariants = cva(
     "flex w-full rounded-md border bg-transparent",
     "text-sm placeholder:text-muted-foreground",
     "transition-colors duration-200",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
     "disabled:cursor-not-allowed disabled:opacity-50",
     "file:border-0 file:bg-transparent file:text-sm file:font-medium",
   ],

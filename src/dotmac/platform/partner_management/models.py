@@ -9,10 +9,12 @@ Provides comprehensive partner relationship management with:
 - Referral lead tracking
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -34,10 +36,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from dotmac.platform.db import (
     AuditMixin,
     Base,
+    GUID,
     SoftDeleteMixin,
+    StrictTenantMixin,
     TenantMixin,
     TimestampMixin,
 )
+
+if TYPE_CHECKING:
+    from dotmac.platform.user_management.models import User
 
 
 class PartnerStatus(str, Enum):
@@ -99,6 +106,14 @@ class ReferralStatus(str, Enum):
     CONVERTED = "converted"  # Converted to paying customer
     LOST = "lost"  # Lost opportunity
     INVALID = "invalid"  # Invalid/duplicate lead
+
+
+class PartnerApplicationStatus(str, Enum):
+    """Status of partner applications."""
+
+    PENDING = "pending"  # Awaiting review
+    APPROVED = "approved"  # Application approved
+    REJECTED = "rejected"  # Application rejected
 
 
 class PartnerTenantAccessRole(str, Enum):
@@ -273,6 +288,81 @@ class Partner(Base, TimestampMixin, TenantMixin, SoftDeleteMixin, AuditMixin):  
         return (self.converted_referrals / self.total_referrals) * 100
 
 
+class PartnerApplication(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
+    """
+    Partner application for self-registration workflow.
+
+    This model stores applications from potential partners who want to join the
+    partner program. Applications are reviewed by platform administrators before
+    being approved or rejected.
+    """
+
+    __tablename__ = "partner_applications"
+    __table_args__ = (
+        Index("ix_partner_application_status", "status"),
+        Index("ix_partner_application_email", "contact_email"),
+        UniqueConstraint("contact_email", "tenant_id", name="uq_partner_application_email_tenant"),
+    )
+
+    # Primary identifier
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        nullable=False,
+    )
+
+    # Company information
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    business_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_referrals_monthly: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Application status
+    status: Mapped[str] = mapped_column(
+        SQLEnum(PartnerApplicationStatus, native_enum=False, length=20),
+        default=PartnerApplicationStatus.PENDING,
+        nullable=False,
+    )
+
+    # Review information
+    reviewed_by: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # If approved, link to the created partner
+    partner_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("partners.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Relationship to reviewer
+    reviewer: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[reviewed_by],
+        lazy="selectin",
+    )
+
+    # Relationship to partner (if approved)
+    partner: Mapped["Partner | None"] = relationship(
+        "Partner",
+        foreign_keys=[partner_id],
+        lazy="selectin",
+    )
+
+
 class PartnerUser(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type: ignore[misc]
     """
     Users within partner organizations with access to partner portal.
@@ -332,6 +422,107 @@ class PartnerUser(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):  # type: 
         return f"{self.first_name} {self.last_name}"
 
 
+class PartnerInvitationStatus(str, Enum):
+    """Partner user invitation status."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
+class PartnerUserRole(str, Enum):
+    """Roles within a partner organization."""
+
+    PARTNER_OWNER = "partner_owner"  # Full control
+    PARTNER_ADMIN = "partner_admin"  # Manage team and operations
+    ACCOUNT_MANAGER = "account_manager"  # Manage customers and referrals
+    FINANCE = "finance"  # View commissions/statements only
+
+
+class PartnerUserInvitation(Base, TimestampMixin, StrictTenantMixin):  # type: ignore[misc]
+    """
+    Partner user invitations.
+
+    Manages invitations to join a partner organization with portal access.
+    """
+
+    __tablename__ = "partner_user_invitations"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    partner_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("partners.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+
+    role: Mapped[str] = mapped_column(
+        String(50),
+        default=PartnerUserRole.ACCOUNT_MANAGER.value,
+        nullable=False,
+        comment="Role for the invited user within partner org",
+    )
+
+    invited_by: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        nullable=False,
+        comment="User ID of the person who sent the invitation",
+    )
+
+    status: Mapped[PartnerInvitationStatus] = mapped_column(
+        SQLEnum(PartnerInvitationStatus),
+        default=PartnerInvitationStatus.PENDING,
+        nullable=False,
+    )
+
+    # Token for accepting invitation
+    token: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    partner: Mapped["Partner"] = relationship("Partner")
+
+    __table_args__ = (
+        Index("ix_partner_invitation_partner_status", "partner_id", "status"),
+        Index("ix_partner_invitation_email", "email"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PartnerUserInvitation(id={self.id}, email={self.email}, status={self.status})>"
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if invitation has expired."""
+        now = datetime.now(UTC)
+        expires_at = self.expires_at
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if isinstance(expires_at, (int, float)):
+            expires_at = datetime.fromtimestamp(expires_at, UTC)
+        if isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            return now > expires_at
+        return False
+
+    @property
+    def is_pending(self) -> bool:
+        """Check if invitation is pending."""
+        return self.status == PartnerInvitationStatus.PENDING and not self.is_expired
+
+
 class PartnerAccount(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
     """
     Join table linking partners to tenant accounts they manage.
@@ -354,7 +545,7 @@ class PartnerAccount(Base, TimestampMixin, TenantMixin):  # type: ignore[misc]
 
     # No FK - customer_management removed
     customer_id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True),
+        GUID(),
         nullable=False,
         index=True,
     )
@@ -497,7 +688,7 @@ class PartnerCommissionEvent(Base, TimestampMixin, TenantMixin):  # type: ignore
     )
     # No FK - customer_management removed
     customer_id: Mapped[UUID | None] = mapped_column(
-        PostgresUUID(as_uuid=True),
+        GUID(),
         nullable=True,
     )
 
@@ -899,10 +1090,19 @@ class PartnerTenantLink(Base, TimestampMixin, AuditMixin):  # type: ignore[misc]
         if not self.end_date:
             return False
         # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        end_date = (
-            self.end_date.replace(tzinfo=UTC) if self.end_date.tzinfo is None else self.end_date
-        )
-        return datetime.now(UTC) > end_date
+        end_date = self.end_date
+        if isinstance(end_date, str):
+            try:
+                end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if isinstance(end_date, (int, float)):
+            end_date = datetime.fromtimestamp(end_date, UTC)
+        if isinstance(end_date, datetime):
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=UTC)
+            return datetime.now(UTC) > end_date
+        return False
 
     @property
     def is_valid(self) -> bool:

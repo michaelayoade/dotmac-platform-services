@@ -293,6 +293,7 @@ async def list_all_tenants(
         user_count_result = await db.execute(user_count_query)
         user_count = user_count_result.scalar() or 0
 
+        resource_count = 0
         tenants.append(
             TenantInfo(
                 tenant_id=tenant.id,
@@ -300,7 +301,7 @@ async def list_all_tenants(
                 created_at=tenant.created_at.isoformat(),
                 is_active=(tenant.status.value in ["active", "trial"] if tenant.status else False),
                 user_count=user_count,
-                resource_count=0,
+                resource_count=resource_count,
             )
         )
 

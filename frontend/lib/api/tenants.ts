@@ -7,6 +7,21 @@
 
 import { api, normalizePaginatedResponse } from "./client";
 import type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";
+import type { TenantDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getTenantsDashboard(
+  params?: DashboardQueryParams
+): Promise<TenantDashboardResponse> {
+  return api.get<TenantDashboardResponse>("/api/v1/tenants/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
 
 // Re-export Tenant from models for convenience
 export type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";

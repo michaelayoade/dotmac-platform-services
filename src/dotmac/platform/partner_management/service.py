@@ -19,6 +19,8 @@ from sqlalchemy.sql import Select
 from dotmac.platform.partner_management.models import (
     Partner,
     PartnerAccount,
+    PartnerApplication,
+    PartnerApplicationStatus,
     PartnerCommissionEvent,
     PartnerStatus,
     PartnerUser,
@@ -27,10 +29,12 @@ from dotmac.platform.partner_management.models import (
 )
 from dotmac.platform.partner_management.schemas import (
     PartnerAccountCreate,
+    PartnerApplicationCreate,
     PartnerCommissionEventCreate,
     PartnerCreate,
     PartnerUpdate,
     PartnerUserCreate,
+    PartnerUserUpdate,
     ReferralLeadCreate,
     ReferralLeadUpdate,
 )
@@ -146,6 +150,12 @@ class PartnerService:
         """Create a new partner."""
         partner_number = await self._generate_partner_number()
         tenant_id = self._resolve_tenant_id()
+
+        if not data.primary_email:
+            if data.billing_email:
+                data = data.model_copy(update={"primary_email": data.billing_email})
+            else:
+                raise ValueError("primary_email or billing_email is required")
 
         partner = Partner(
             partner_number=partner_number,
@@ -334,6 +344,245 @@ class PartnerService:
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def get_partner_user(
+        self,
+        partner_id: UUID | str,
+        user_id: UUID | str,
+    ) -> PartnerUser | None:
+        """Get a single partner user by ID."""
+        partner_id, tenant_id = self._validate_and_get_tenant(partner_id)
+        user_id = validate_uuid(user_id, "user_id")
+
+        query = select(PartnerUser).where(
+            and_(
+                PartnerUser.tenant_id == tenant_id,
+                PartnerUser.partner_id == partner_id,
+                PartnerUser.id == user_id,
+                PartnerUser.deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def update_partner_user(
+        self,
+        partner_id: UUID | str,
+        user_id: UUID | str,
+        data: PartnerUserUpdate,
+    ) -> PartnerUser | None:
+        """Update a partner user."""
+        user = await self.get_partner_user(partner_id, user_id)
+        if not user:
+            return None
+
+        # Apply updates
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(user, field, value)
+
+        await self.session.commit()
+        await self.session.refresh(user)
+
+        logger.info(
+            "Partner user updated",
+            user_id=str(user.id),
+            partner_id=str(user.partner_id),
+            updates=list(update_data.keys()),
+        )
+
+        return user
+
+    async def delete_partner_user(
+        self,
+        partner_id: UUID | str,
+        user_id: UUID | str,
+    ) -> bool:
+        """Soft delete a partner user (set is_active=False)."""
+        user = await self.get_partner_user(partner_id, user_id)
+        if not user:
+            return False
+
+        user.is_active = False
+        user.deleted_at = datetime.now(UTC)
+
+        await self.session.commit()
+
+        logger.info(
+            "Partner user deleted",
+            user_id=str(user.id),
+            partner_id=str(user.partner_id),
+        )
+
+        return True
+
+    # ========================================================================
+    # Partner Application Operations
+    # ========================================================================
+
+    async def create_partner_application(
+        self,
+        data: PartnerApplicationCreate,
+        tenant_id: str,
+    ) -> PartnerApplication:
+        """Create a new partner application (public endpoint)."""
+        application = PartnerApplication(
+            tenant_id=tenant_id,
+            **data.model_dump(),
+        )
+
+        self.session.add(application)
+        await self.session.commit()
+        await self.session.refresh(application)
+
+        logger.info(
+            "Partner application submitted",
+            application_id=str(application.id),
+            company_name=application.company_name,
+            contact_email=application.contact_email,
+        )
+
+        return application
+
+    async def list_partner_applications(
+        self,
+        status: PartnerApplicationStatus | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[PartnerApplication], int]:
+        """List partner applications with optional status filter."""
+        tenant_id = self._resolve_tenant_id()
+
+        query = select(PartnerApplication).where(
+            PartnerApplication.tenant_id == tenant_id,
+        )
+
+        if status:
+            query = query.where(PartnerApplication.status == status)
+
+        # Count total
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await self.session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Apply pagination and ordering
+        query = query.order_by(PartnerApplication.created_at.desc())
+        query = query.offset((page - 1) * page_size).limit(page_size)
+
+        result = await self.session.execute(query)
+        applications = list(result.scalars().all())
+
+        return applications, total
+
+    async def get_partner_application(
+        self,
+        application_id: UUID | str,
+    ) -> PartnerApplication | None:
+        """Get a single partner application by ID."""
+        tenant_id = self._resolve_tenant_id()
+        application_id = validate_uuid(application_id, "application_id")
+
+        query = select(PartnerApplication).where(
+            and_(
+                PartnerApplication.tenant_id == tenant_id,
+                PartnerApplication.id == application_id,
+            )
+        )
+
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def approve_partner_application(
+        self,
+        application_id: UUID | str,
+        reviewer_id: UUID | str,
+    ) -> tuple[PartnerApplication, Partner, PartnerUser]:
+        """
+        Approve a partner application.
+
+        Creates a Partner record and initial PartnerUser from the application data.
+        """
+        application = await self.get_partner_application(application_id)
+        if not application:
+            raise ValueError("Application not found")
+
+        if application.status != PartnerApplicationStatus.PENDING:
+            raise ValueError("Application is not pending")
+
+        # Create the Partner
+        partner_data = PartnerCreate(
+            company_name=application.company_name,
+            primary_email=application.contact_email,
+            phone=application.phone,
+            website=application.website,
+            description=application.business_description,
+        )
+        partner = await self.create_partner(partner_data)
+
+        # Create the primary PartnerUser
+        contact_parts = application.contact_name.split() if application.contact_name else []
+        first_name = contact_parts[0] if contact_parts else "Partner"
+        last_name = " ".join(contact_parts[1:]) if len(contact_parts) > 1 else "Owner"
+        user_data = PartnerUserCreate(
+            partner_id=partner.id,
+            first_name=first_name,
+            last_name=last_name,
+            email=application.contact_email,
+            phone=application.phone,
+            role="partner_owner",
+            is_primary_contact=True,
+        )
+        user = await self.create_partner_user(user_data)
+
+        # Update application status
+        application.status = PartnerApplicationStatus.APPROVED
+        application.reviewed_by = validate_uuid(reviewer_id, "reviewer_id")
+        application.reviewed_at = datetime.now(UTC)
+        application.partner_id = partner.id
+
+        await self.session.commit()
+        await self.session.refresh(application)
+
+        logger.info(
+            "Partner application approved",
+            application_id=str(application.id),
+            partner_id=str(partner.id),
+            reviewer_id=str(reviewer_id),
+        )
+
+        return application, partner, user
+
+    async def reject_partner_application(
+        self,
+        application_id: UUID | str,
+        reviewer_id: UUID | str,
+        rejection_reason: str,
+    ) -> PartnerApplication:
+        """Reject a partner application with a reason."""
+        application = await self.get_partner_application(application_id)
+        if not application:
+            raise ValueError("Application not found")
+
+        if application.status != PartnerApplicationStatus.PENDING:
+            raise ValueError("Application is not pending")
+
+        application.status = PartnerApplicationStatus.REJECTED
+        application.reviewed_by = validate_uuid(reviewer_id, "reviewer_id")
+        application.reviewed_at = datetime.now(UTC)
+        application.rejection_reason = rejection_reason
+
+        await self.session.commit()
+        await self.session.refresh(application)
+
+        logger.info(
+            "Partner application rejected",
+            application_id=str(application.id),
+            reviewer_id=str(reviewer_id),
+            rejection_reason=rejection_reason,
+        )
+
+        return application
 
     # ========================================================================
     # Partner Account Operations

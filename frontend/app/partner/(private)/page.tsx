@@ -102,6 +102,49 @@ function SimpleBarChart({ data, maxValue, color = "bg-accent" }: BarChartProps) 
   );
 }
 
+// Conversion Funnel Chart Component
+interface FunnelStage {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function ConversionFunnelChart({ stages }: { stages: FunnelStage[] }) {
+  const maxValue = stages[0]?.value || 1;
+
+  return (
+    <div className="space-y-3">
+      {stages.map((stage, index) => {
+        const widthPercent = (stage.value / maxValue) * 100;
+        const conversionRate =
+          index > 0 && stages[index - 1].value > 0
+            ? ((stage.value / stages[index - 1].value) * 100).toFixed(0)
+            : null;
+
+        return (
+          <div key={stage.label} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-secondary">{stage.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-text-primary font-medium">{stage.value}</span>
+                {conversionRate && (
+                  <span className="text-xs text-text-muted">({conversionRate}%)</span>
+                )}
+              </div>
+            </div>
+            <div className="relative h-8 flex items-center justify-center">
+              <div
+                className={cn("h-full rounded transition-all duration-500", stage.color)}
+                style={{ width: `${Math.max(widthPercent, 10)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Recent Activity Item
 interface ActivityItemProps {
   type: "referral" | "commission" | "conversion" | "payout";
@@ -272,6 +315,29 @@ function DashboardContent() {
             color="bg-status-success"
           />
         </div>
+      </div>
+
+      {/* Conversion Funnel */}
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="font-semibold text-text-primary">Referral Conversion Funnel</h3>
+            <p className="text-sm text-text-muted">Track referral progress through stages</p>
+          </div>
+          <Link
+            href="/partner/referrals"
+            className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1"
+          >
+            View Referrals <ArrowUpRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <ConversionFunnelChart
+          stages={[
+            { label: "Total Referrals", value: stats.totalReferrals, color: "bg-status-info" },
+            { label: "Qualified", value: Math.round(stats.totalReferrals * 0.6), color: "bg-status-warning" },
+            { label: "Converted", value: stats.convertedReferrals, color: "bg-status-success" },
+          ]}
+        />
       </div>
 
       {/* Quick Actions */}

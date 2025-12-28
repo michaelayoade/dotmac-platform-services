@@ -134,7 +134,7 @@ def rate_limit(limit: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
             return {"message": "success"}
     """
 
-    def _extract_request(args: P.args, kwargs: P.kwargs) -> Request | None:
+    def _extract_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Request | None:
         request = kwargs.get("request")
         if isinstance(request, Request):
             return request

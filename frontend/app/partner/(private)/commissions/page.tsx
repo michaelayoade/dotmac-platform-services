@@ -85,7 +85,7 @@ function CommissionsSkeleton() {
   return (
     <div className="bg-surface-elevated rounded-lg border border-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="data-table">
+        <table className="data-table" aria-label="Partner commissions loading"><caption className="sr-only">Partner commissions loading</caption>
           <thead>
             <tr className="border-b border-border bg-surface-overlay/50">
               <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -144,6 +144,8 @@ export default function CommissionsPage() {
   const { data, isLoading, error } = usePartnerCommissions({
     status: statusFilter !== "ALL" ? statusFilter : undefined,
   });
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Failed to load commissions." : null;
 
   const commissions = data?.commissions ?? [];
   const summary = data?.summary ?? null;
@@ -159,6 +161,12 @@ export default function CommissionsPage() {
         title="Commissions"
         description="Track your commission history and earnings"
       />
+
+      {errorMessage && (
+        <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -246,7 +254,7 @@ export default function CommissionsPage() {
       ) : (
         <div className="bg-surface-elevated rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table" aria-label="Partner commissions"><caption className="sr-only">Partner commissions</caption>
               <thead>
                 <tr className="border-b border-border bg-surface-overlay/50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">

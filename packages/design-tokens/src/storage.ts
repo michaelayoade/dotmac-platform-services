@@ -56,7 +56,7 @@ export function resolveThemePreference(
  * ```
  */
 export function generateThemeScript(): string {
-  return `(function(){try{var s=localStorage.getItem('${THEME_STORAGE_KEY}');var t='dark';if(s){var p=JSON.parse(s);var pref=p.state?.theme||'system';t=pref==='system'?window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light':pref}document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);document.documentElement.style.colorScheme=t}catch(e){document.documentElement.classList.add('dark')}})();`;
+  return `(function(){try{var s=localStorage.getItem('${THEME_STORAGE_KEY}');var pref='system';if(s){var p=JSON.parse(s);pref=p.state?.theme||'system'}var t=pref==='system'?(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):pref;document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);document.documentElement.style.colorScheme=t}catch(e){document.documentElement.classList.add('light')}})();`;
 }
 
 /**
@@ -66,24 +66,22 @@ export const themeScriptReadable = `
 (function() {
   try {
     var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
-    var theme = 'dark';
+    var preference = 'system';
 
     if (stored) {
       var parsed = JSON.parse(stored);
-      var preference = parsed.state?.theme || 'system';
-
-      if (preference === 'system') {
-        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      } else {
-        theme = preference;
-      }
+      preference = parsed.state?.theme || 'system';
     }
+
+    var theme = preference === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      : preference;
 
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
     document.documentElement.style.colorScheme = theme;
   } catch (e) {
-    document.documentElement.classList.add('dark');
+    document.documentElement.classList.add('light');
   }
 })();
 `;

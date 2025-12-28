@@ -9,9 +9,12 @@ export default async function AuthLayout({
   children: ReactNode;
 }) {
   const user = await getCurrentUserFromRequest();
+  const isTestMode =
+    process.env.PLAYWRIGHT_TEST_MODE === "true" ||
+    process.env.NEXT_PUBLIC_TEST_MODE === "true";
 
   // Redirect to dashboard if already logged in
-  if (user) {
+  if (user && !isTestMode) {
     redirect("/");
   }
 

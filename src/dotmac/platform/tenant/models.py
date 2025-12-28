@@ -193,13 +193,19 @@ class Tenant(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
         """Check if trial has expired."""
         if not self.trial_ends_at:
             return False
-        # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        trial_ends_at = (
-            self.trial_ends_at.replace(tzinfo=UTC)
-            if self.trial_ends_at.tzinfo is None
-            else self.trial_ends_at
-        )
-        return datetime.now(UTC) > trial_ends_at
+        trial_ends_at = self.trial_ends_at
+        if isinstance(trial_ends_at, str):
+            try:
+                trial_ends_at = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if isinstance(trial_ends_at, (int, float)):
+            trial_ends_at = datetime.fromtimestamp(trial_ends_at, UTC)
+        if isinstance(trial_ends_at, datetime):
+            if trial_ends_at.tzinfo is None:
+                trial_ends_at = trial_ends_at.replace(tzinfo=UTC)
+            return datetime.now(UTC) > trial_ends_at
+        return False
 
     @property
     def has_exceeded_user_limit(self) -> bool:
@@ -307,7 +313,9 @@ class TenantInvitation(Base, TimestampMixin):
     invited_by: Mapped[str] = mapped_column(String(255), nullable=False)
 
     status: Mapped[TenantInvitationStatus] = mapped_column(
-        Enum(TenantInvitationStatus), default=TenantInvitationStatus.PENDING, nullable=False
+        Enum(TenantInvitationStatus, values_callable=lambda x: [e.value for e in x]),
+        default=TenantInvitationStatus.PENDING,
+        nullable=False,
     )
 
     # Token for accepting invitation
@@ -325,13 +333,19 @@ class TenantInvitation(Base, TimestampMixin):
     def is_expired(self) -> bool:
         """Check if invitation has expired."""
         now = datetime.now(UTC)
-        # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        expires_at = (
-            self.expires_at.replace(tzinfo=UTC)
-            if self.expires_at.tzinfo is None
-            else self.expires_at
-        )
-        return now > expires_at
+        expires_at = self.expires_at
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if isinstance(expires_at, (int, float)):
+            expires_at = datetime.fromtimestamp(expires_at, UTC)
+        if isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            return now > expires_at
+        return False
 
     @property
     def is_pending(self) -> bool:
@@ -352,13 +366,13 @@ class TenantProvisioningJob(Base, TimestampMixin, AuditMixin):
         index=True,
     )
     status: Mapped[TenantProvisioningStatus] = mapped_column(
-        Enum(TenantProvisioningStatus),
+        Enum(TenantProvisioningStatus, values_callable=lambda x: [e.value for e in x]),
         default=TenantProvisioningStatus.QUEUED,
         nullable=False,
         index=True,
     )
     deployment_mode: Mapped[TenantDeploymentMode] = mapped_column(
-        Enum(TenantDeploymentMode), nullable=False
+        Enum(TenantDeploymentMode, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     awx_template_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     awx_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
@@ -447,13 +461,19 @@ class DomainVerificationAttempt(Base, TimestampMixin):
     def is_expired(self) -> bool:
         """Check if verification attempt has expired."""
         now = datetime.now(UTC)
-        # Handle both timezone-aware and naive datetimes (SQLite returns naive)
-        expires_at = (
-            self.expires_at.replace(tzinfo=UTC)
-            if self.expires_at.tzinfo is None
-            else self.expires_at
-        )
-        return now > expires_at
+        expires_at = self.expires_at
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if isinstance(expires_at, (int, float)):
+            expires_at = datetime.fromtimestamp(expires_at, UTC)
+        if isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            return now > expires_at
+        return False
 
     @property
     def is_pending(self) -> bool:

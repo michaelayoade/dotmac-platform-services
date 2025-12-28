@@ -326,6 +326,17 @@ async function request<T>(
     ...fetchOptions
   } = options;
   const method = (fetchOptions.method ?? "GET").toUpperCase();
+  const isTestMode =
+    process.env.PLAYWRIGHT_TEST_MODE === "true" ||
+    process.env.NEXT_PUBLIC_TEST_MODE === "true";
+
+  if (isTestMode && method === "GET") {
+    const { getTestMockResponse } = await import("./test-mocks");
+    const mocked = getTestMockResponse(endpoint);
+    if (mocked !== undefined) {
+      return mocked as T;
+    }
+  }
 
   // Build URL with query params
   const url = new URL(`${API_BASE_URL}${endpoint}`);

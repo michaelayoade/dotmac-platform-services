@@ -101,6 +101,10 @@ class AWXClient:
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client."""
         if self._client is None or self._client.is_closed:
+            base_url = self.base_url
+            if not base_url:
+                raise AWXClientError("AWX base URL is not configured")
+
             # Build auth headers
             headers = {
                 "Content-Type": "application/json",
@@ -114,7 +118,7 @@ class AWXClient:
                 auth = httpx.BasicAuth(self.username, self.password)
 
             self._client = httpx.AsyncClient(
-                base_url=self.base_url,
+                base_url=base_url,
                 headers=headers,
                 auth=auth,
                 verify=self.verify_ssl,

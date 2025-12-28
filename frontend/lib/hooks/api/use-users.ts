@@ -3,8 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, normalizePaginatedResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import { getUsersDashboard } from "@/lib/api/users";
 import type { User, UserStatus, UserRole } from "@/types/models";
 import type { PaginatedResponse, ListQueryParams } from "@/types/api";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 // Types
 export interface ListUsersParams extends ListQueryParams {
@@ -74,22 +76,31 @@ async function deleteUser(id: string): Promise<void> {
 }
 
 async function suspendUser(id: string): Promise<User> {
-  return api.post<User>(`/api/v1/users/${id}/suspend`);
+  return api.post<User>(`/api/v1/users/${id}/disable`);
 }
 
 async function activateUser(id: string): Promise<User> {
-  return api.post<User>(`/api/v1/users/${id}/activate`);
+  return api.post<User>(`/api/v1/users/${id}/enable`);
 }
 
 async function resendInvite(id: string): Promise<void> {
-  return api.post<void>(`/api/v1/users/${id}/resend-invite`);
+  return api.post<void>(`/api/v1/users/${id}/resend-verification`);
 }
 
 async function resetPassword(id: string): Promise<void> {
-  return api.post<void>(`/api/v1/users/${id}/reset-password`);
+  return api.post<void>(`/api/v1/auth/admin/password-reset/trigger`, { userId: id });
 }
 
 // Hooks
+
+export function useUsersDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.users.dashboard(params),
+    queryFn: () => getUsersDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
 export function useUsers(params?: ListUsersParams) {
   return useQuery({
     queryKey: queryKeys.users.list(params),
@@ -173,5 +184,84 @@ export function useResendInvite() {
 export function useResetPassword() {
   return useMutation({
     mutationFn: resetPassword,
+  });
+}
+
+// ========================================
+// Bulk Operations
+// ========================================
+
+interface BulkActionResponse {
+  success_count: number;
+  errors: Array<{ user_id: string; error: string }>;
+}
+
+async function bulkDeleteUsers(userIds: string[], hardDelete = false): Promise<BulkActionResponse> {
+  return api.post<BulkActionResponse>("/api/v1/users/bulk/delete", {
+    user_ids: userIds,
+    hard_delete: hardDelete,
+  });
+}
+
+async function bulkSuspendUsers(userIds: string[]): Promise<BulkActionResponse> {
+  return api.post<BulkActionResponse>("/api/v1/users/bulk/suspend", {
+    user_ids: userIds,
+  });
+}
+
+async function bulkActivateUsers(userIds: string[]): Promise<BulkActionResponse> {
+  return api.post<BulkActionResponse>("/api/v1/users/bulk/activate", {
+    user_ids: userIds,
+  });
+}
+
+async function bulkResendVerification(userIds: string[]): Promise<BulkActionResponse> {
+  return api.post<BulkActionResponse>("/api/v1/users/bulk/resend-verification", {
+    user_ids: userIds,
+  });
+}
+
+export function useBulkDeleteUsers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userIds, hardDelete = false }: { userIds: string[]; hardDelete?: boolean }) =>
+      bulkDeleteUsers(userIds, hardDelete),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+  });
+}
+
+export function useBulkSuspendUsers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userIds: string[]) => bulkSuspendUsers(userIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+  });
+}
+
+export function useBulkActivateUsers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userIds: string[]) => bulkActivateUsers(userIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+  });
+}
+
+export function useBulkResendVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userIds: string[]) => bulkResendVerification(userIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
   });
 }

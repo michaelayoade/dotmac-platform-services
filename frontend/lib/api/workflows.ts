@@ -5,6 +5,21 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { WorkflowsDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getWorkflowsDashboard(
+  params?: DashboardQueryParams
+): Promise<WorkflowsDashboardResponse> {
+  return api.get<WorkflowsDashboardResponse>("/api/v1/workflows/dashboard", {
+    params: {
+      period_days: params?.periodDays,
+    },
+  });
+}
 
 // ============================================================================
 // Workflow Types

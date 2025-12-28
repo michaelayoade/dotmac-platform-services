@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -14,6 +14,7 @@ import {
   Building2,
   Calendar,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button, Card, Input, Select } from "@dotmac/core";
@@ -25,6 +26,7 @@ import {
   usePartnerBillingSummary,
   useExportPartnerInvoices,
 } from "@/lib/hooks/api/use-partner-portal";
+import { useDebounce } from "@/lib/hooks/use-debounce";
 import type { PartnerInvoice, GetPartnerInvoicesParams } from "@/lib/api/partner-portal";
 
 const statusConfig = {
@@ -42,6 +44,7 @@ export default function PartnerInvoicesPage() {
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const debouncedSearch = useDebounce(searchTerm.trim(), 300);
 
   const { data: invoicesData, isLoading } = usePartnerInvoices(filters);
   const { data: summary } = usePartnerBillingSummary();
@@ -53,6 +56,20 @@ export default function PartnerInvoicesPage() {
 
   // Get unique tenants from summary for filter dropdown
   const tenants = summary?.revenueByTenant ?? [];
+
+  const isSearching = debouncedSearch !== (filters.search ?? "");
+  const isSearchingVisible = isSearching && searchTerm.trim().length > 0;
+
+  useEffect(() => {
+    if (debouncedSearch === (filters.search ?? "")) {
+      return;
+    }
+    setFilters((prev) => ({
+      ...prev,
+      search: debouncedSearch || undefined,
+      page: 1,
+    }));
+  }, [debouncedSearch, filters.search]);
 
   const handleFilterChange = (key: keyof GetPartnerInvoicesParams, value: string | undefined) => {
     setFilters((prev) => ({
@@ -166,6 +183,12 @@ export default function PartnerInvoicesPage() {
               />
             </div>
           </div>
+          {isSearchingVisible && (
+            <div className="text-xs text-text-muted inline-flex items-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Searching...
+            </div>
+          )}
 
           {/* Expanded Filters */}
           {showFilters && (
@@ -209,9 +232,10 @@ export default function PartnerInvoicesPage() {
               <div className="flex items-end">
                 <Button
                   variant="ghost"
-                  onClick={() =>
-                    setFilters({ page: 1, pageSize: 20 })
-                  }
+                  onClick={() => {
+                    setFilters({ page: 1, pageSize: 20 });
+                    setSearchTerm("");
+                  }}
                 >
                   Clear Filters
                 </Button>
@@ -225,7 +249,7 @@ export default function PartnerInvoicesPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           {invoices.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table" aria-label="Partner invoices"><caption className="sr-only">Partner invoices</caption>
               <thead>
                 <tr>
                   <th>Invoice</th>
@@ -250,7 +274,7 @@ export default function PartnerInvoicesPage() {
                 No invoices found
               </h3>
               <p className="text-text-muted">
-                {filters.status || filters.tenantId
+                {filters.status || filters.tenantId || filters.search
                   ? "Try adjusting your filters"
                   : "No invoices have been created yet"}
               </p>
@@ -337,7 +361,7 @@ function InvoiceRow({ invoice }: { invoice: PartnerInvoice }) {
     <tr className="group">
       <td>
         <Link
-          href={`/billing/invoices/${invoice.id}`}
+          href={`/partners/billing/invoices/${invoice.id}`}
           className="font-mono text-sm text-accent hover:text-accent-hover"
         >
           {invoice.number}
@@ -379,7 +403,7 @@ function InvoiceRow({ invoice }: { invoice: PartnerInvoice }) {
       </td>
       <td>
         <Link
-          href={`/billing/invoices/${invoice.id}`}
+          href={`/partners/billing/invoices/${invoice.id}`}
           className="text-sm text-text-muted hover:text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1"
         >
           View

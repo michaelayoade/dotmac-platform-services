@@ -69,6 +69,10 @@ class PermissionChecker:
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
             )
 
+        # Platform admins bypass permission checks
+        if getattr(current_user, "is_platform_admin", False):
+            return current_user
+
         if self._permissions_satisfied_by_claims(current_user):
             return current_user
 
@@ -132,6 +136,10 @@ class RoleChecker:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
             )
+
+        # Platform admins bypass role checks
+        if getattr(current_user, "is_platform_admin", False):
+            return current_user
 
         if self._roles_satisfied_by_claims(current_user):
             return current_user

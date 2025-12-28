@@ -20,7 +20,7 @@ from dotmac.platform.billing.settings.models import (
     TaxSettings,
 )
 from dotmac.platform.billing.settings.service import BillingSettingsService
-from dotmac.platform.db import get_db
+from dotmac.platform.database import get_async_session
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _require_tenant(current_user: UserInfo) -> str:
 @router.get("", response_model=BillingSettings)
 async def get_billing_settings(
     current_user: UserInfo = Depends(require_permission("billing.settings.view")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Get billing settings for the current tenant"""
     service = BillingSettingsService(db)
@@ -62,7 +62,7 @@ async def get_billing_settings(
 async def update_billing_settings(
     settings: BillingSettings,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update complete billing settings"""
     service = BillingSettingsService(db)
@@ -85,7 +85,7 @@ async def update_billing_settings(
 async def update_company_info(
     company_info: CompanyInfo,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update company information settings"""
     service = BillingSettingsService(db)
@@ -106,7 +106,7 @@ async def update_company_info(
 async def update_tax_settings(
     tax_settings: TaxSettings,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update tax settings"""
     service = BillingSettingsService(db)
@@ -127,7 +127,7 @@ async def update_tax_settings(
 async def update_payment_settings(
     payment_settings: PaymentSettings,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update payment settings"""
     service = BillingSettingsService(db)
@@ -148,7 +148,7 @@ async def update_payment_settings(
 async def update_invoice_settings(
     invoice_settings: InvoiceSettings,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update invoice settings"""
     service = BillingSettingsService(db)
@@ -169,7 +169,7 @@ async def update_invoice_settings(
 async def update_notification_settings(
     notification_settings: NotificationSettings,
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update notification settings"""
     service = BillingSettingsService(db)
@@ -192,7 +192,7 @@ async def update_notification_settings(
 async def update_feature_flags(
     features: dict[str, bool],
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Update feature flags"""
     service = BillingSettingsService(db)
@@ -212,7 +212,7 @@ async def update_feature_flags(
 @router.post("/reset", response_model=BillingSettings)
 async def reset_to_defaults(
     current_user: UserInfo = Depends(require_permission("billing.settings.manage")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> BillingSettings:
     """Reset billing settings to defaults"""
     service = BillingSettingsService(db)
@@ -232,7 +232,7 @@ async def reset_to_defaults(
 @router.get("/validate")
 async def validate_settings(
     current_user: UserInfo = Depends(require_permission("billing.settings.view")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """Validate current billing settings and return validation report"""
     service = BillingSettingsService(db)

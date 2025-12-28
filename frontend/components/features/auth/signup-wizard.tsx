@@ -297,7 +297,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
               <FormField name="industry" label="Industry">
                 <select
                   {...organizationForm.register("industry")}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                 >
                   {industries.map((industry) => (
                     <option key={industry.value} value={industry.value}>
@@ -310,7 +310,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
               <FormField name="companySize" label="Company Size">
                 <select
                   {...organizationForm.register("companySize")}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                 >
                   {companySizes.map((size) => (
                     <option key={size.value} value={size.value}>

@@ -15,7 +15,20 @@ from dotmac.platform.billing.models import BillingBaseModel
 from dotmac.platform.core.pydantic import AppBaseModel
 
 
-class BillingCycle(str, Enum):
+class CaseInsensitiveEnum(str, Enum):
+    """Enum that matches string values case-insensitively."""
+
+    @classmethod
+    def _missing_(cls, value: object) -> "CaseInsensitiveEnum | None":
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            for member in cls:
+                if isinstance(member.value, str) and member.value.lower() == candidate:
+                    return member
+        return None
+
+
+class BillingCycle(CaseInsensitiveEnum):
     """Subscription billing cycles."""
 
     MONTHLY = "monthly"
@@ -23,7 +36,7 @@ class BillingCycle(str, Enum):
     ANNUAL = "annual"
 
 
-class SubscriptionStatus(str, Enum):
+class SubscriptionStatus(CaseInsensitiveEnum):
     """Subscription status values."""
 
     INCOMPLETE = "incomplete"  # Payment method setup pending
@@ -35,7 +48,7 @@ class SubscriptionStatus(str, Enum):
     PAUSED = "paused"  # Temporarily suspended
 
 
-class SubscriptionEventType(str, Enum):
+class SubscriptionEventType(CaseInsensitiveEnum):
     """Subscription lifecycle events."""
 
     CREATED = "subscription.created"
@@ -53,7 +66,7 @@ class SubscriptionEventType(str, Enum):
     PAYMENT_SUCCEEDED = "subscription.payment_succeeded"
 
 
-class ProrationBehavior(str, Enum):
+class ProrationBehavior(CaseInsensitiveEnum):
     """How to handle mid-cycle plan changes."""
 
     NONE = "none"  # No proration, change at next cycle

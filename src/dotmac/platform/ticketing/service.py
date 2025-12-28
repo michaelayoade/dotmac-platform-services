@@ -691,13 +691,13 @@ class TicketService:
             select(
                 Ticket.assigned_to_user_id,
                 func.count(Ticket.id).label("total_assigned"),
-                func.sum(func.case((Ticket.status == TicketStatus.RESOLVED, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.RESOLVED, 1), else_=0)).label(
                     "total_resolved"
                 ),
-                func.sum(func.case((Ticket.status == TicketStatus.OPEN, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.OPEN, 1), else_=0)).label(
                     "total_open"
                 ),
-                func.sum(func.case((Ticket.status == TicketStatus.IN_PROGRESS, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.IN_PROGRESS, 1), else_=0)).label(
                     "total_in_progress"
                 ),
                 func.avg(Ticket.resolution_time_minutes).label("avg_resolution_time"),
@@ -710,12 +710,12 @@ class TicketService:
                     / 60
                 ).label("avg_first_response_time"),
                 func.sum(
-                    func.case(
+                    case(
                         (Ticket.sla_breached.is_(False), 1),
                         else_=0,
                     )
                 ).label("sla_met_count"),
-                func.sum(func.case((Ticket.escalation_level > 0, 1), else_=0)).label(
+                func.sum(case((Ticket.escalation_level > 0, 1), else_=0)).label(
                     "escalated_count"
                 ),
             )

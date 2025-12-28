@@ -83,9 +83,10 @@ async def get_my_availability(
     if not availability:
         # Create default availability record
         availability = AgentAvailability(
+            agent_id=current_user.user_id,  # Use user_id as agent_id
             user_id=current_user.user_id,
             tenant_id=tenant_id,
-            status=AgentStatus.AVAILABLE,
+            status="available",
             last_activity_at=datetime.now(timezone.utc),
         )
         session.add(availability)
@@ -115,19 +116,20 @@ async def update_my_availability(
     if not availability:
         # Create new availability record
         availability = AgentAvailability(
+            agent_id=current_user.user_id,  # Use user_id as agent_id
             user_id=current_user.user_id,
             tenant_id=tenant_id,
-            status=payload.status,
+            status=payload.status.value if hasattr(payload.status, 'value') else str(payload.status),
             status_message=payload.status_message,
-            last_activity_at=datetime.utcnow(),
+            last_activity_at=datetime.now(timezone.utc),
         )
         session.add(availability)
     else:
         # Update existing record
-        availability.status = payload.status
+        availability.status = payload.status.value if hasattr(payload.status, 'value') else str(payload.status)
         availability.status_message = payload.status_message
-        availability.last_activity_at = datetime.utcnow()
-        availability.updated_at = datetime.utcnow()
+        availability.last_activity_at = datetime.now(timezone.utc)
+        availability.updated_at = datetime.now(timezone.utc)
 
     await session.commit()
     await session.refresh(availability)

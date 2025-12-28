@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from dotmac.platform.auth.rbac_dependencies import get_current_active_user
+from dotmac.platform.auth.rbac_dependencies import get_current_active_user, require_permission
 from dotmac.platform.resilience.circuit_breaker import CircuitState
 from dotmac.platform.resilience.external_service_breakers import get_breaker_manager
 from dotmac.platform.user_management.models import User
@@ -135,13 +135,15 @@ async def get_circuit_breaker(
 )
 async def reset_circuit_breaker(
     service_name: str,
-    current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(require_permission("system.admin")),
 ) -> ResetResponse:
     """
     Manually reset a circuit breaker to closed state.
 
     This should be used with caution - only reset when you know
     the underlying service has been fixed.
+
+    **Required Permission:** system.admin
 
     Args:
         service_name: Name of the external service
@@ -152,10 +154,6 @@ async def reset_circuit_breaker(
     Raises:
         404: If circuit breaker not found
     """
-    # TODO: Add admin permission check
-    # from dotmac.platform.auth.rbac_dependencies import require_permission
-    # require_permission("system:circuit_breakers:reset")
-
     manager = get_breaker_manager()
     states = manager.get_all_states()
 
@@ -181,7 +179,7 @@ async def reset_circuit_breaker(
     description="Manually reset all circuit breakers to closed state (admin only)",
 )
 async def reset_all_circuit_breakers(
-    current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(require_permission("system.admin")),
 ) -> ResetResponse:
     """
     Manually reset all circuit breakers to closed state.
@@ -189,13 +187,11 @@ async def reset_all_circuit_breakers(
     This should be used with EXTREME caution - only reset when you know
     all underlying services have been fixed.
 
+    **Required Permission:** system.admin
+
     Returns:
         Reset operation result
     """
-    # TODO: Add admin permission check
-    # from dotmac.platform.auth.rbac_dependencies import require_permission
-    # require_permission("system:circuit_breakers:reset_all")
-
     manager = get_breaker_manager()
     manager.reset_all()
 

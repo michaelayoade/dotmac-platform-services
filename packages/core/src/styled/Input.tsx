@@ -13,15 +13,20 @@ import { cn } from "../utils/cn";
 
 // ============================================================================
 // Styled Variant Classes
+//
+// Token Mapping:
+// - input      → border color (maps to --color-border)
+// - background → surface color
+// - accent     → focus ring color
 // ============================================================================
 
 const styledVariantClasses = {
   default:
-    "border-input bg-background focus-visible:ring-ring",
+    "border-input bg-surface text-text-primary placeholder:text-text-muted focus-visible:ring-accent focus-visible:border-accent",
   filled:
-    "border-transparent bg-muted focus-visible:ring-ring",
+    "border-transparent bg-surface-overlay text-text-primary placeholder:text-text-muted focus-visible:ring-accent",
   flushed:
-    "border-b-input bg-transparent focus-visible:ring-0 focus-visible:border-b-primary",
+    "border-b-input bg-transparent text-text-primary placeholder:text-text-muted focus-visible:ring-0 focus-visible:border-b-accent",
 };
 
 // ============================================================================
