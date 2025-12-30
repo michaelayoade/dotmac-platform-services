@@ -12,10 +12,9 @@ import {
   ArrowLeft,
   Loader2,
 } from "lucide-react";
-import { Form, FormField, FormSubmitButton } from "@dotmac/forms";
+import { Form, FormField, FormSubmitButton, useForm } from "@dotmac/forms";
 import { Input, Button } from "@dotmac/core";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { cn } from "@/lib/utils";
@@ -177,7 +176,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
 
       {/* Error message */}
       {error && (
-        <div className="mb-6 flex items-center gap-3 p-4 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error">
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error">
           <p className="text-sm">{error}</p>
         </div>
       )}
@@ -298,7 +297,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
               <FormField name="industry" label="Industry">
                 <select
                   {...organizationForm.register("industry")}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                 >
                   {industries.map((industry) => (
                     <option key={industry.value} value={industry.value}>
@@ -311,7 +310,7 @@ export function SignupWizard({ onComplete, className }: SignupWizardProps) {
               <FormField name="companySize" label="Company Size">
                 <select
                   {...organizationForm.register("companySize")}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                 >
                   {companySizes.map((size) => (
                     <option key={size.value} value={size.value}>

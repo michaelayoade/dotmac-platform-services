@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth.core import UserInfo
 from ..auth.dependencies import get_current_user
@@ -44,7 +44,7 @@ class CreatePluginInstanceRequest(BaseModel):  # BaseModel resolves to Any in is
 
     plugin_name: str
     instance_name: str
-    configuration: dict[str, Any] = {}
+    configuration: dict[str, Any] = Field(default_factory=dict)
 
 
 class UpdatePluginConfigurationRequest(BaseModel):  # BaseModel resolves to Any in isolation
@@ -73,6 +73,32 @@ class PluginInfo(BaseModel):  # BaseModel resolves to Any in isolation
     description: str | None = None
     version: str | None = None
     enabled: bool = True
+
+
+class MessageResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Simple message response."""
+
+    model_config = ConfigDict()
+
+    message: str
+
+
+class PluginInstanceRefreshResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for plugin instance refresh."""
+
+    model_config = ConfigDict()
+
+    status: str
+    instance_id: str
+
+
+class PluginDiscoveryRefreshResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for plugin discovery refresh."""
+
+    model_config = ConfigDict()
+
+    message: str
+    available_plugins: int
 
 
 # Dependencies
@@ -267,13 +293,16 @@ async def get_plugin_configuration(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.put("/instances/{instance_id}/configuration", response_model=dict)
+@router.put(
+    "/instances/{instance_id}/configuration",
+    response_model=MessageResponse,
+)
 async def update_plugin_configuration(
     instance_id: UUID,
     request: UpdatePluginConfigurationRequest,
     registry: PluginRegistry = Depends(get_registry),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> MessageResponse:
     """
     Update plugin configuration.
 
@@ -286,7 +315,7 @@ async def update_plugin_configuration(
             instance_id=instance_id,
             configuration=request.configuration,
         )
-        return {"message": "Configuration updated successfully"}
+        return MessageResponse(message="Configuration updated successfully")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -351,13 +380,15 @@ async def test_plugin_connection(
 
 
 @router.post(
-    "/instances/{instance_id}/refresh", response_model=dict, status_code=status.HTTP_202_ACCEPTED
+    "/instances/{instance_id}/refresh",
+    response_model=PluginInstanceRefreshResponse,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def refresh_plugin_instance(
     instance_id: UUID,
     registry: PluginRegistry = Depends(get_registry),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, str]:
+) -> PluginInstanceRefreshResponse:
     """
     Frontend-friendly refresh endpoint that re-runs a connection test/health check.
     """
@@ -373,7 +404,10 @@ async def refresh_plugin_instance(
     except Exception as exc:
         logger.warning("Plugin refresh/test failed", instance_id=str(instance_id), error=str(exc))
 
-    return {"status": "refresh_triggered", "instance_id": str(instance_id)}
+    return PluginInstanceRefreshResponse(
+        status="refresh_triggered",
+        instance_id=str(instance_id),
+    )
 
 
 # Bulk operations
@@ -421,11 +455,11 @@ async def bulk_health_check(
 # Plugin discovery and management
 
 
-@router.post("/refresh", response_model=dict)
+@router.post("/refresh", response_model=PluginDiscoveryRefreshResponse)
 async def refresh_plugins(
     registry: PluginRegistry = Depends(get_registry),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> PluginDiscoveryRefreshResponse:
     """
     Refresh plugin discovery.
 
@@ -435,10 +469,10 @@ async def refresh_plugins(
     try:
         await registry._discover_plugins()  # Re-run discovery
         available_plugins = registry.list_available_plugins()
-        return {
-            "message": "Plugin discovery refreshed",
-            "available_plugins": len(available_plugins),
-        }
+        return PluginDiscoveryRefreshResponse(
+            message="Plugin discovery refreshed",
+            available_plugins=len(available_plugins),
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

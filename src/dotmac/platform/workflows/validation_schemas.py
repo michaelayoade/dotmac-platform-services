@@ -56,7 +56,7 @@ class NotifyTeamInput(BaseModel):
 class IssueLicenseInput(BaseModel):
     """Input schema for LicenseService.issue_license()"""
 
-    customer_id: str = Field(..., description="Customer ID (UUID or integer)")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     license_template_id: str = Field(..., description="License template ID (UUID)")
     tenant_id: str = Field(..., description="Tenant ID")
     issued_to: str | None = Field(None, description="Name of licensee")
@@ -69,7 +69,7 @@ class AllocateFromPartnerInput(BaseModel):
     """Input schema for LicenseService.allocate_from_partner()"""
 
     partner_id: str = Field(..., description="Partner ID (UUID)")
-    customer_id: str = Field(..., description="Customer ID (UUID)")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     license_template_id: str = Field(..., description="License template ID (UUID)")
     license_count: int = Field(1, ge=1, description="Number of licenses to allocate")
     tenant_id: str | None = Field(None, description="Tenant ID")
@@ -84,7 +84,7 @@ class AllocateFromPartnerInput(BaseModel):
 class CreateQuoteInput(BaseModel):
     """Input schema for SalesService.create_quote()"""
 
-    customer_id: str = Field(..., description="Customer ID")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     tenant_id: str = Field(..., description="Tenant ID")
     items: list[dict[str, Any]] = Field(..., min_length=1, description="Quote line items")
     valid_until: datetime | None = Field(None, description="Quote expiration date")
@@ -129,7 +129,7 @@ class ProcessRenewalInput(BaseModel):
 class GenerateInvoiceInput(BaseModel):
     """Input schema for BillingService.generate_invoice()"""
 
-    customer_id: str = Field(..., description="Customer ID")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     tenant_id: str = Field(..., description="Tenant ID")
     line_items: list[dict[str, Any]] = Field(..., min_length=1, description="Invoice line items")
     due_date: datetime | None = Field(None, description="Invoice due date")
@@ -155,7 +155,7 @@ class GenerateInvoiceInput(BaseModel):
 class ProvisionDeploymentInput(BaseModel):
     """Input schema for DeploymentService.provision_deployment()"""
 
-    customer_id: str = Field(..., description="Customer ID")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     tenant_id: str = Field(..., description="Tenant ID")
     deployment_template_id: str = Field(..., description="Deployment template ID")
     region: str | None = Field(None, description="Deployment region")
@@ -192,7 +192,7 @@ class CreatePartnerAccountInput(BaseModel):
     """Input schema for PartnerService.create_partner_account()"""
 
     partner_id: str = Field(..., description="Partner ID")
-    customer_id: str = Field(..., description="Customer ID")
+    customer_id: str = Field(..., description="Tenant ID (legacy field name)")
     tenant_id: str = Field(..., description="Tenant ID")
     engagement_type: str = Field(..., description="Engagement type")
     commission_rate: float | None = Field(
@@ -214,31 +214,6 @@ class CheckLicenseQuotaInput(BaseModel):
 # ============================================================================
 
 
-class CreateCustomerInput(BaseModel):
-    """Input schema for CustomerService.create_customer()"""
-
-    tenant_id: str = Field(..., description="Tenant ID")
-    email: EmailStr = Field(..., description="Customer email address")
-    first_name: str = Field(..., min_length=1, max_length=100, description="First name")
-    last_name: str = Field(..., min_length=1, max_length=100, description="Last name")
-    phone: str | None = Field(None, description="Phone number")
-    company: str | None = Field(None, description="Company name")
-    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
-
-
-class UpdateCustomerInput(BaseModel):
-    """Input schema for CustomerService.update_customer()"""
-
-    customer_id: str = Field(..., description="Customer ID")
-    tenant_id: str = Field(..., description="Tenant ID")
-    email: EmailStr | None = Field(None, description="Customer email address")
-    first_name: str | None = Field(None, min_length=1, max_length=100)
-    last_name: str | None = Field(None, min_length=1, max_length=100)
-    phone: str | None = Field(None, description="Phone number")
-    company: str | None = Field(None, description="Company name")
-    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
-
-
 # ============================================================================
 # Ticketing Workflow Schemas
 # ============================================================================
@@ -247,13 +222,13 @@ class UpdateCustomerInput(BaseModel):
 class CreateTicketInput(BaseModel):
     """Input schema for TicketingService.create_ticket()"""
 
-    customer_id: str = Field(..., description="Customer ID")
     tenant_id: str = Field(..., description="Tenant ID")
     title: str = Field(..., min_length=1, max_length=255, description="Ticket title")
     description: str = Field(..., min_length=1, description="Ticket description")
     priority: str = Field("medium", description="Ticket priority")
-    category: str | None = Field(None, description="Ticket category")
-    assigned_to: str | None = Field(None, description="Assigned user ID")
+    assigned_team: str | None = Field(None, description="Assigned team identifier")
+    ticket_type: str | None = Field(None, description="Ticket type")
+    service_address: str | None = Field(None, description="Service location")
 
     @field_validator("priority")
     @classmethod

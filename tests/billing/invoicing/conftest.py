@@ -272,13 +272,15 @@ def mock_current_user():
     return UserInfo(
         user_id="00000000-0000-0000-0000-000000000001",
         email="test@example.com",
-        tenant_id="1",
+        tenant_id="tenant-1",
         roles=["admin"],
         permissions=[
             "billing.invoices.read",
             "billing.invoices.create",
             "billing.invoices.update",
             "billing.invoices.delete",
+            "billing.invoices.view",
+            "billing.invoices.manage",
         ],
         is_platform_admin=False,
     )
@@ -321,7 +323,7 @@ async def async_client(mock_invoice_service, mock_current_user, mock_rbac_servic
         return MagicMock()
 
     def override_get_tenant_id():
-        return "1"
+        return "tenant-1"
 
     # Mock the service creation in the router
     # Since the router creates service inline, we'll mock at router module level

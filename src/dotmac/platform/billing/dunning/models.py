@@ -18,7 +18,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from dotmac.platform.db import AuditMixin, Base, TenantMixin, TimestampMixin
 
 
-class DunningActionType(str, Enum):
+class CaseInsensitiveEnum(str, Enum):
+    """Enum that matches string values case-insensitively."""
+
+    @classmethod
+    def _missing_(cls, value: object) -> "CaseInsensitiveEnum | None":
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            for member in cls:
+                if isinstance(member.value, str) and member.value.lower() == candidate:
+                    return member
+        return None
+
+
+class DunningActionType(CaseInsensitiveEnum):
     """Types of dunning actions."""
 
     EMAIL = "email"
@@ -29,7 +42,7 @@ class DunningActionType(str, Enum):
     CUSTOM = "custom"
 
 
-class DunningExecutionStatus(str, Enum):
+class DunningExecutionStatus(CaseInsensitiveEnum):
     """Status of dunning execution."""
 
     PENDING = "pending"
@@ -195,11 +208,11 @@ class DunningExecution(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: 
         index=True,
         comment="Billing subscription ID",
     )
-    customer_id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="CASCADE"),
-        nullable=False,
+    customer_id: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
         index=True,
+        comment="Legacy billing account reference (tenant-scoped)",
     )
     invoice_id: Mapped[str | None] = mapped_column(
         String(50),
@@ -283,9 +296,8 @@ class DunningExecution(Base, TimestampMixin, TenantMixin, AuditMixin):  # type: 
 
     # Cancellation details
     canceled_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    canceled_by_user_id: Mapped[UUID | None] = mapped_column(
-        PostgresUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
+    canceled_by_user_id: Mapped[str | None] = mapped_column(
+        String(255),
         nullable=True,
     )
 

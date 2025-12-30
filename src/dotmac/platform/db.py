@@ -404,18 +404,20 @@ def _apply_rls_context(
         return
     if connection.dialect.name != "postgresql":
         return
+    # SET LOCAL doesn't support parameterized queries in asyncpg
+    # Use literal values with proper quoting to prevent SQL injection
     if tenant_id:
-        connection.execute(
-            text("SET LOCAL app.current_tenant_id = :tenant_id"),
-            {"tenant_id": tenant_id},
-        )
+        # Sanitize tenant_id: only allow alphanumeric, underscore, hyphen
+        import re
+        if re.match(r"^[a-zA-Z0-9_-]+$", tenant_id):
+            connection.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'"))
+        else:
+            raise ValueError(f"Invalid tenant_id format: {tenant_id}")
     connection.execute(
-        text("SET LOCAL app.is_superuser = :is_superuser"),
-        {"is_superuser": str(is_superuser).lower()},
+        text(f"SET LOCAL app.is_superuser = '{str(is_superuser).lower()}'")
     )
     connection.execute(
-        text("SET LOCAL app.bypass_rls = :bypass_rls"),
-        {"bypass_rls": str(bypass_rls).lower()},
+        text(f"SET LOCAL app.bypass_rls = '{str(bypass_rls).lower()}'")
     )
 
 

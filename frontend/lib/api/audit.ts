@@ -5,6 +5,21 @@
  */
 
 import { api, ApiClientError, normalizePaginatedResponse } from "./client";
+import type { AuditDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getAuditDashboard(
+  params?: DashboardQueryParams
+): Promise<AuditDashboardResponse> {
+  return api.get<AuditDashboardResponse>("/api/v1/audit/dashboard", {
+    params: {
+      period_days: params?.periodDays,
+    },
+  });
+}
 
 // ============================================================================
 // Audit Types
@@ -192,6 +207,89 @@ export interface FrontendLogEntry {
   metadata?: Record<string, unknown>;
 }
 
+const FRONTEND_LOG_JWT_SECRET = process.env.NEXT_PUBLIC_FRONTEND_LOG_JWT_SECRET;
+const FRONTEND_LOG_JWT_ISSUER =
+  process.env.NEXT_PUBLIC_FRONTEND_LOG_JWT_ISSUER ?? "dotmac-frontend";
+const FRONTEND_LOG_JWT_AUDIENCE =
+  process.env.NEXT_PUBLIC_FRONTEND_LOG_JWT_AUDIENCE ?? "frontend-logs";
+const FRONTEND_LOG_JWT_CLIENT_ID = process.env.NEXT_PUBLIC_FRONTEND_LOG_JWT_CLIENT_ID;
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let base64: string;
+
+  if (typeof btoa === "function") {
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    base64 = btoa(binary);
+  } else {
+    base64 = Buffer.from(bytes).toString("base64");
+  }
+
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function encodeSegment(value: Record<string, unknown>): string {
+  const json = JSON.stringify(value);
+  const bytes = new TextEncoder().encode(json);
+  return base64UrlEncode(bytes);
+}
+
+function generateNonce(): string {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return base64UrlEncode(bytes);
+  }
+  return Math.random().toString(36).slice(2);
+}
+
+async function signFrontendLogToken(logCount: number): Promise<string | null> {
+  if (!FRONTEND_LOG_JWT_SECRET) {
+    return null;
+  }
+
+  if (typeof crypto === "undefined" || !crypto.subtle) {
+    return null;
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const payload: Record<string, unknown> = {
+    iss: FRONTEND_LOG_JWT_ISSUER,
+    aud: FRONTEND_LOG_JWT_AUDIENCE,
+    iat: nowSeconds,
+    exp: nowSeconds + 120,
+    nonce: generateNonce(),
+    log_count: logCount,
+  };
+
+  if (FRONTEND_LOG_JWT_CLIENT_ID) {
+    payload.client_id = FRONTEND_LOG_JWT_CLIENT_ID;
+  }
+
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = encodeSegment(header);
+  const encodedPayload = encodeSegment(payload);
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(FRONTEND_LOG_JWT_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(signingInput)
+  );
+  const encodedSignature = base64UrlEncode(new Uint8Array(signature));
+
+  return `${signingInput}.${encodedSignature}`;
+}
+
 function normalizeFrontendLog(entry: FrontendLogEntry) {
   const level = entry.level.toString().toUpperCase() as FrontendLogLevel;
   const metadata = {
@@ -216,17 +314,19 @@ export async function logFrontendError(entry: FrontendLogEntry): Promise<{
   logsReceived: number;
   logsStored: number;
 }> {
+  const token = await signFrontendLogToken(1);
   return api.post("/api/v1/audit/frontend-logs", {
     logs: [normalizeFrontendLog(entry)],
-  });
+  }, token ? { headers: { "X-Frontend-Log-Token": token } } : undefined);
 }
 
 export async function logFrontendErrors(
   entries: FrontendLogEntry[]
 ): Promise<{ status: string; logsReceived: number; logsStored: number }> {
+  const token = await signFrontendLogToken(entries.length);
   return api.post("/api/v1/audit/frontend-logs", {
     logs: entries.map(normalizeFrontendLog),
-  });
+  }, token ? { headers: { "X-Frontend-Log-Token": token } } : undefined);
 }
 
 // ============================================================================

@@ -2,8 +2,6 @@
 Tenant onboarding automation API router.
 """
 
-from __future__ import annotations
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession

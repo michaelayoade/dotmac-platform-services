@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pywebpush import WebPushException, webpush
 from sqlalchemy import select
@@ -24,6 +25,13 @@ class PushNotificationService:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    @staticmethod
+    def _normalize_user_id(user_id: str) -> UUID | str:
+        try:
+            return UUID(str(user_id))
+        except (ValueError, TypeError):
+            return str(user_id)
 
     async def save_subscription(
         self,
@@ -49,8 +57,9 @@ class PushNotificationService:
             Subscription ID
         """
         # Check if subscription already exists
+        normalized_user_id = self._normalize_user_id(user_id)
         stmt = select(PushSubscription).where(
-            PushSubscription.user_id == user_id,
+            PushSubscription.user_id == normalized_user_id,
             PushSubscription.endpoint == endpoint,
         )
         result = await self.session.execute(stmt)
@@ -58,10 +67,9 @@ class PushNotificationService:
 
         if existing:
             # Update existing subscription
-            existing.p256dh = p256dh
-            existing.auth = auth
-            existing.expiration_time = expiration_time
-            existing.active = True
+            existing.p256dh_key = p256dh
+            existing.auth_key = auth
+            existing.is_active = True
             existing.updated_at = datetime.utcnow()
 
             await self.session.commit()
@@ -69,13 +77,12 @@ class PushNotificationService:
 
         # Create new subscription
         subscription = PushSubscription(
-            user_id=user_id,
+            user_id=normalized_user_id,
             tenant_id=tenant_id,
             endpoint=endpoint,
-            p256dh=p256dh,
-            auth=auth,
-            expiration_time=expiration_time,
-            active=True,
+            p256dh_key=p256dh,
+            auth_key=auth,
+            is_active=True,
         )
 
         self.session.add(subscription)
@@ -95,15 +102,16 @@ class PushNotificationService:
         Returns:
             True if subscription was deactivated
         """
+        normalized_user_id = self._normalize_user_id(user_id)
         stmt = select(PushSubscription).where(
-            PushSubscription.user_id == user_id,
+            PushSubscription.user_id == normalized_user_id,
             PushSubscription.endpoint == endpoint,
         )
         result = await self.session.execute(stmt)
         subscription = result.scalar_one_or_none()
 
         if subscription:
-            subscription.active = False
+            subscription.is_active = False
             subscription.updated_at = datetime.utcnow()
             await self.session.commit()
             return True
@@ -120,9 +128,10 @@ class PushNotificationService:
         Returns:
             List of push subscriptions
         """
+        normalized_user_id = self._normalize_user_id(user_id)
         stmt = select(PushSubscription).where(
-            PushSubscription.user_id == user_id,
-            PushSubscription.active == True,  # noqa: E712
+            PushSubscription.user_id == normalized_user_id,
+            PushSubscription.is_active == True,  # noqa: E712
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -173,7 +182,7 @@ class PushNotificationService:
         """
         stmt = select(PushSubscription).where(
             PushSubscription.tenant_id == tenant_id,
-            PushSubscription.active == True,  # noqa: E712
+            PushSubscription.is_active == True,  # noqa: E712
         )
         result = await self.session.execute(stmt)
         subscriptions = list(result.scalars().all())
@@ -210,8 +219,8 @@ class PushNotificationService:
             subscription_info = {
                 "endpoint": subscription.endpoint,
                 "keys": {
-                    "p256dh": subscription.p256dh,
-                    "auth": subscription.auth,
+                    "p256dh": subscription.p256dh_key,
+                    "auth": subscription.auth_key,
                 },
             }
 
@@ -242,7 +251,7 @@ class PushNotificationService:
 
             # If subscription is expired or invalid, deactivate it
             if e.response and e.response.status_code in [404, 410]:
-                subscription.active = False
+                subscription.is_active = False
                 await self.session.commit()
 
             return False

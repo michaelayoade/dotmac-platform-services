@@ -273,7 +273,7 @@ class SearchService:
         """Setup search indices for business entities."""
         # Define index mappings for different entity types
         entity_types = [
-            "customer",
+            "tenant",
             "invoice",
             "subscription",
             "payment",

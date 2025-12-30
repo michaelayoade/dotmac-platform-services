@@ -5,6 +5,21 @@
  */
 
 import { api, ApiClientError, normalizePaginatedResponse } from "./client";
+import type { JobsDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getJobsDashboard(
+  params?: DashboardQueryParams
+): Promise<JobsDashboardResponse> {
+  return api.get<JobsDashboardResponse>("/api/v1/jobs/dashboard", {
+    params: {
+      period_days: params?.periodDays,
+    },
+  });
+}
 
 // ============================================================================
 // Job Types

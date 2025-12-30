@@ -6,27 +6,37 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
-    // Include component library
-    "../../dotmac-component-library/packages/*/src/**/*.{js,ts,jsx,tsx}",
+    // Include local workspace packages
+    "../packages/*/src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       // Platform-specific color palette - "Precision Control Room"
       // Uses CSS variables for theme switching support
+      //
+      // Token Mapping (design tokens → Tailwind):
+      // - accent     → primary action color (buttons, links)
+      // - status-*   → semantic feedback colors
+      // - surface-*  → background layers
+      // - text-*     → typography hierarchy
+      // - border-*   → dividers and outlines
       colors: {
         // Base surfaces - dynamic via CSS variables
+        background: "hsl(var(--color-background))",
         surface: {
           DEFAULT: "hsl(var(--color-surface))",
           elevated: "hsl(var(--color-surface-elevated))",
           overlay: "hsl(var(--color-surface-overlay))",
           subtle: "hsl(var(--color-surface-subtle))",
         },
+        overlay: "hsl(var(--color-overlay))",
         // Borders and dividers
         border: {
           DEFAULT: "hsl(var(--color-border))",
           subtle: "hsl(var(--color-border-subtle))",
           strong: "hsl(var(--color-border-strong))",
         },
+        input: "hsl(var(--color-border))",
         // Text hierarchy
         text: {
           primary: "hsl(var(--color-text-primary))",
@@ -34,31 +44,56 @@ const config: Config = {
           muted: "hsl(var(--color-text-muted))",
           inverse: "hsl(var(--color-text-inverse))",
         },
-        // Status accents - sharp, intentional
+        // Foreground colors (for component text on colored backgrounds)
+        foreground: "hsl(var(--color-text-primary))",
+        "muted-foreground": "hsl(var(--color-text-muted))",
+        // Status accents - sharp, intentional (semantic colors)
         status: {
           success: "hsl(var(--color-status-success))",
           warning: "hsl(var(--color-status-warning))",
           error: "hsl(var(--color-status-error))",
           info: "hsl(var(--color-status-info))",
         },
-        // Primary accent - electric cyan for command authority
+        // Primary action color - maps to accent
+        primary: {
+          DEFAULT: "hsl(var(--color-accent))",
+          foreground: "hsl(var(--color-text-inverse))",
+        },
+        // Secondary action color - subtle variant
+        secondary: {
+          DEFAULT: "hsl(var(--color-surface-overlay))",
+          foreground: "hsl(var(--color-text-primary))",
+        },
+        // Destructive action color - maps to status-error
+        destructive: {
+          DEFAULT: "hsl(var(--color-status-error))",
+          foreground: "hsl(var(--color-text-inverse))",
+        },
+        // Accent color - primary brand color
         accent: {
           DEFAULT: "hsl(var(--color-accent))",
           subtle: "var(--color-accent-subtle)",
           hover: "hsl(var(--color-accent-hover))",
           muted: "hsl(var(--color-accent-muted))",
+          foreground: "hsl(var(--color-text-inverse))",
         },
         // Secondary accent - amber for highlights
         highlight: {
           DEFAULT: "hsl(var(--color-highlight))",
           subtle: "hsl(var(--color-highlight) / 0.15)",
         },
+        // Portal-specific colors
+        "portal-admin": "hsl(var(--color-portal-admin))",
+        "portal-tenant": "hsl(var(--color-portal-tenant))",
+        "portal-reseller": "hsl(var(--color-portal-reseller))",
+        "portal-technician": "hsl(var(--color-portal-technician))",
+        "portal-management": "hsl(var(--color-portal-management))",
       },
       // Typography - authoritative yet modern
       fontFamily: {
-        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
-        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        sans: ["var(--font-family-sans)", "var(--font-geist-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-family-mono)", "var(--font-geist-mono)", "ui-monospace", "monospace"],
+        display: ["var(--font-display)", "var(--font-family-sans)", "system-ui", "sans-serif"],
       },
       fontSize: {
         // Precise type scale

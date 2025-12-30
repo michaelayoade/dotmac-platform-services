@@ -6,8 +6,8 @@
 
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useMemo, type ReactNode } from "react";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 interface UsePermissionReturn {
   hasPermission: (permission: string) => boolean;
@@ -19,21 +19,25 @@ interface UsePermissionReturn {
 }
 
 export function usePermission(): UsePermissionReturn {
-  const { data: session, status } = useSession();
+  const { data: user, isLoading } = useCurrentUser();
 
   const permissions = useMemo(() => {
-    if (!session?.user?.permissions) return [];
-    return session.user.permissions as string[];
-  }, [session?.user?.permissions]);
+    if (!user?.permissions) return [];
+    return user.permissions as string[];
+  }, [user?.permissions]);
 
-  const role = session?.user?.role as string | null;
+  const role = (user?.roles?.[0] ?? null) as string | null;
 
   const hasPermission = (permission: string): boolean => {
     // Admins have all permissions
-    if (role === "admin" || role === "platform_admin") return true;
+    if (role === "admin" || role === "platform_admin" || role === "super_admin") {
+      return true;
+    }
 
     // Check explicit permission
-    if (permissions.includes(permission)) return true;
+    if (permissions.includes(permission) || permissions.includes("*") || permissions.includes("*:*")) {
+      return true;
+    }
 
     // Check wildcard permissions
     const [resource, action] = permission.split(":");
@@ -57,7 +61,7 @@ export function usePermission(): UsePermissionReturn {
     hasAllPermissions,
     permissions,
     role,
-    isLoading: status === "loading",
+    isLoading,
   };
 }
 
@@ -84,7 +88,8 @@ export function PermissionGate({
   const { hasPermission, hasAnyPermission, hasAllPermissions, isLoading } =
     usePermission();
 
-  if (isLoading) return null;
+  // While loading, avoid rendering gated content until permissions resolve
+  if (isLoading) return <>{fallback ?? null}</>;
 
   let hasAccess = true;
 

@@ -6,10 +6,10 @@ Request and response models following Pydantic v2 patterns.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import (
     BillingCycle,
@@ -275,6 +275,25 @@ class TenantUsageCreate(BaseModel):  # BaseModel resolves to Any in isolation
     active_users: int = Field(default=0, ge=0)
     bandwidth_gb: float = Field(default=0, ge=0)
     metrics: dict[str, Any] = Field(default_factory=lambda: {})
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_usage_payload(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        now = datetime.now(UTC)
+        if data.get("period_start") is None:
+            data["period_start"] = now
+        if data.get("period_end") is None:
+            data["period_end"] = data.get("period_start", now)
+        if "storage_gb" not in data and "storage_bytes" in data:
+            try:
+                data["storage_gb"] = float(data["storage_bytes"]) / (1024**3)
+            except (TypeError, ValueError):
+                pass
+        if "active_users" not in data and "users_active" in data:
+            data["active_users"] = data["users_active"]
+        return data
 
 
 class TenantUsageResponse(BaseModel):  # BaseModel resolves to Any in isolation

@@ -280,7 +280,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                 <AlertCircle className="w-5 h-5 text-status-error" />
                 <h3 className="text-lg font-semibold text-status-error">Error Details</h3>
               </div>
-              <pre className="bg-status-error/10 p-4 rounded-lg text-sm text-status-error overflow-auto">
+              <pre className="bg-status-error/15 p-4 rounded-lg text-sm text-status-error overflow-auto">
                 {execution.error}
               </pre>
             </Card>

@@ -1,0 +1,68 @@
+{
+  "name": "@dotmac/forms",
+  "version": "1.0.0",
+  "description": "Form components with pluggable validation (Zod/Yup), controlled/uncontrolled APIs, and async submission",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./zod": {
+      "import": "./dist/zod.mjs",
+      "require": "./dist/zod.js",
+      "types": "./dist/zod.d.ts"
+    },
+    "./yup": {
+      "import": "./dist/yup.mjs",
+      "require": "./dist/yup.js",
+      "types": "./dist/yup.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dotmac/core": "workspace:*",
+    "@dotmac/design-tokens": "workspace:*",
+    "@hookform/resolvers": "^3.3.4",
+    "clsx": "^2.1.0",
+    "react-hook-form": "^7.50.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "yup": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "peerDependenciesMeta": {
+    "yup": { "optional": true },
+    "zod": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "zod": "^3.22.4",
+    "yup": "^1.3.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dotmac/component-library",
+    "directory": "packages/forms"
+  }
+}

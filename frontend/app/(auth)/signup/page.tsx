@@ -40,7 +40,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <main className="min-h-screen flex" id="main-content">
       {/* Left side - Form */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-auto">
         <div className="w-full max-w-2xl space-y-8">
@@ -89,8 +89,8 @@ export default function SignupPage() {
         <div className="absolute inset-0 bg-grid opacity-[0.03]" />
 
         {/* Gradient orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-highlight/15 rounded-full blur-3xl" />
 
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center p-16">
@@ -137,6 +137,6 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

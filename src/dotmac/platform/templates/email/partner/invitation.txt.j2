@@ -1,0 +1,20 @@
+You've been invited to join {{ partner_name }}
+
+{{ inviter_name }} has invited you to join {{ partner_name }} on the {{ branding.product_name | default('DotMac') }} Partner Portal.
+
+PARTNER PORTAL ACCESS
+As a partner, you'll have access to referral management, commission tracking, and partner resources.
+
+Partner Organization: {{ partner_name }}
+Your Role: {{ role | title | replace('_', ' ') }}
+
+This invitation expires in 7 days.
+
+Accept your invitation by visiting:
+{{ accept_url }}
+
+If you didn't expect this invitation, you can safely ignore this email.
+
+---
+{{ branding.company_name | default(branding.product_name) | default('DotMac Platform') }}
+{% if branding.support_email %}Need help? Contact {{ branding.support_email }}{% endif %}

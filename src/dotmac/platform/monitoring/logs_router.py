@@ -4,12 +4,12 @@ Logs API router.
 Provides REST endpoints for application log retrieval and filtering.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, cast
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,17 +108,9 @@ logs_router = APIRouter(prefix="/monitoring", tags=["Logs"])
 class LogsService:
     """Service for fetching and filtering logs from audit activities."""
 
-    def __init__(
-        self,
-        session: AsyncSession | Any | None = None,
-        *,
-        sample_logs: list[LogEntry] | None = None,
-    ) -> None:
+    def __init__(self, session: AsyncSession | Any | None = None) -> None:
         self.logger = structlog.get_logger(__name__)
         self.session = session if session is not None else None
-        # Provide deterministic sample data for environments without a database session.
-        source_logs = sample_logs or _default_sample_logs()
-        self._sample_logs = [log.model_copy(deep=True) for log in source_logs]
 
     def _use_database(self) -> bool:
         """Return True when we have a real session capable of executing queries."""
@@ -149,21 +141,15 @@ class LogsService:
         Returns:
             LogsResponse with filtered logs from database
         """
-        if self._use_database():
-            if current_user is None:
-                raise ValueError("current_user is required when querying logs from the database")
-            return await self._get_logs_from_database(
-                current_user=current_user,
-                level=level,
-                service=service,
-                search=search,
-                start_time=start_time,
-                end_time=end_time,
-                page=page,
-                page_size=page_size,
+        if not self._use_database():
+            raise HTTPException(
+                status_code=503,
+                detail="Logs unavailable. Database connection required.",
             )
-
-        return self._get_logs_from_sample(
+        if current_user is None:
+            raise ValueError("current_user is required when querying logs from the database")
+        return await self._get_logs_from_database(
+            current_user=current_user,
             level=level,
             service=service,
             search=search,
@@ -180,33 +166,33 @@ class LogsService:
         end_time: datetime | None = None,
     ) -> LogStats:
         """Get log statistics from audit activities."""
-        if self._use_database():
-            if current_user is None:
-                raise ValueError(
-                    "current_user is required when retrieving log statistics from the database"
-                )
-            return await self._get_log_stats_from_database(
-                current_user=current_user,
-                start_time=start_time,
-                end_time=end_time,
+        if not self._use_database():
+            raise HTTPException(
+                status_code=503,
+                detail="Log statistics unavailable. Database connection required.",
             )
-
-        return self._get_log_stats_from_sample(
+        if current_user is None:
+            raise ValueError(
+                "current_user is required when retrieving log statistics from the database"
+            )
+        return await self._get_log_stats_from_database(
+            current_user=current_user,
             start_time=start_time,
             end_time=end_time,
         )
 
     async def get_available_services(self, current_user: UserInfo | None = None) -> list[str]:
         """Return list of available service names."""
-        if self._use_database():
-            if current_user is None:
-                raise ValueError(
-                    "current_user is required when retrieving log services from the database"
-                )
-            return await self._get_available_services_from_database(current_user=current_user)
-
-        services = {log.service for log in self._sample_logs}
-        return sorted(services)
+        if not self._use_database():
+            raise HTTPException(
+                status_code=503,
+                detail="Log services unavailable. Database connection required.",
+            )
+        if current_user is None:
+            raise ValueError(
+                "current_user is required when retrieving log services from the database"
+            )
+        return await self._get_available_services_from_database(current_user=current_user)
 
     async def _get_logs_from_database(
         self,
@@ -347,38 +333,6 @@ class LogsService:
                 has_more=False,
             )
 
-    def _get_logs_from_sample(
-        self,
-        *,
-        level: LogLevel | None,
-        service: str | None,
-        search: str | None,
-        start_time: datetime | None,
-        end_time: datetime | None,
-        page: int,
-        page_size: int,
-    ) -> LogsResponse:
-        logs = self._filter_sample_logs(
-            level=level,
-            service=service,
-            search=search,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-        total = len(logs)
-        start_index = max((page - 1) * page_size, 0)
-        end_index = start_index + page_size
-        paginated = logs[start_index:end_index]
-
-        return LogsResponse(
-            logs=[log.model_copy(deep=True) for log in paginated],
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=end_index < total,
-        )
-
     async def _get_log_stats_from_database(
         self,
         *,
@@ -485,43 +439,6 @@ class LogsService:
                 },
             )
 
-    def _get_log_stats_from_sample(
-        self,
-        *,
-        start_time: datetime | None,
-        end_time: datetime | None,
-    ) -> LogStats:
-        logs = self._filter_sample_logs(
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-        total = len(logs)
-        by_level: dict[str, int] = {}
-        by_service: dict[str, int] = {}
-
-        for log in logs:
-            by_level[log.level.value] = by_level.get(log.level.value, 0) + 1
-            by_service[log.service] = by_service.get(log.service, 0) + 1
-
-        if logs:
-            start = min(log.timestamp for log in logs)
-            end = max(log.timestamp for log in logs)
-        else:
-            now = datetime.now(UTC)
-            start = start_time or now
-            end = end_time or now
-
-        return LogStats(
-            total=total,
-            by_level=by_level,
-            by_service=by_service,
-            time_range={
-                "start": start.isoformat(),
-                "end": end.isoformat(),
-            },
-        )
-
     async def _get_available_services_from_database(self, current_user: UserInfo) -> list[str]:
         session = cast(AsyncSession, self.session)
         try:
@@ -554,66 +471,14 @@ class LogsService:
             self.logger.error("Failed to fetch available services", error=str(e))
             return []
 
-    def _filter_sample_logs(
-        self,
-        *,
-        level: LogLevel | None = None,
-        service: str | None = None,
-        search: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-    ) -> list[LogEntry]:
-        logs = [log.model_copy(deep=True) for log in self._sample_logs]
-
-        if level:
-            logs = [log for log in logs if log.level == level]
-
-        if service:
-            service_name = service.casefold()
-            logs = [log for log in logs if log.service.casefold() == service_name]
-
-        if search:
-            term = search.casefold()
-            filtered: list[LogEntry] = []
-            for log in logs:
-                if term in log.message.casefold():
-                    filtered.append(log)
-                    continue
-
-                metadata_values = [
-                    log.service,
-                    log.metadata.user_id or "",
-                    log.metadata.tenant_id or "",
-                    log.metadata.ip or "",
-                ]
-                if any(term in value.casefold() for value in metadata_values if value):
-                    filtered.append(log)
-            logs = filtered
-
-        if start_time:
-            logs = [log for log in logs if log.timestamp >= start_time]
-
-        if end_time:
-            logs = [log for log in logs if log.timestamp <= end_time]
-
-        # Sort by timestamp descending to mimic database ordering
-        logs.sort(key=lambda entry: entry.timestamp, reverse=True)
-        return logs
-
-
-_DEFAULT_LOG_SERVICE_SINGLETON: LogsService | None = None
-
-
 def get_logs_service(session: AsyncSession | Any = Depends(get_session_dependency)) -> LogsService:
     """Get logs service instance with database session."""
-    global _DEFAULT_LOG_SERVICE_SINGLETON
-
     if isinstance(session, AsyncSession) or hasattr(session, "execute"):
         return LogsService(session=session)
-
-    if _DEFAULT_LOG_SERVICE_SINGLETON is None:
-        _DEFAULT_LOG_SERVICE_SINGLETON = LogsService()
-    return _DEFAULT_LOG_SERVICE_SINGLETON
+    raise HTTPException(
+        status_code=503,
+        detail="Logs unavailable. Database connection required.",
+    )
 
 
 # ============================================================
@@ -709,40 +574,4 @@ async def get_available_services(
     return services
 
 
-def _default_sample_logs() -> list[LogEntry]:
-    """Provide deterministic sample logs for tests and fallback scenarios."""
-    now = datetime.now(UTC)
-    return [
-        LogEntry(
-            id="sample-1",
-            timestamp=now - timedelta(minutes=5),
-            level=LogLevel.INFO,
-            service="api-gateway",
-            message="User login successful",
-            metadata=LogMetadata(user_id="user-123", tenant_id="tenant-001", ip="10.0.0.1"),
-        ),
-        LogEntry(
-            id="sample-2",
-            timestamp=now - timedelta(minutes=15),
-            level=LogLevel.ERROR,
-            service="billing-service",
-            message="Database timeout when processing invoice",
-            metadata=LogMetadata(user_id="user-456", tenant_id="tenant-002", ip="10.0.0.2"),
-        ),
-        LogEntry(
-            id="sample-3",
-            timestamp=now - timedelta(hours=1),
-            level=LogLevel.WARNING,
-            service="analytics",
-            message="Delayed event ingestion detected",
-            metadata=LogMetadata(user_id="user-789", tenant_id="tenant-001", ip="10.0.0.3"),
-        ),
-        LogEntry(
-            id="sample-4",
-            timestamp=now - timedelta(hours=2),
-            level=LogLevel.CRITICAL,
-            service="api-gateway",
-            message="Circuit breaker opened for upstream service",
-            metadata=LogMetadata(user_id="user-321", tenant_id="tenant-003", ip="10.0.0.4"),
-        ),
-    ]
+ 

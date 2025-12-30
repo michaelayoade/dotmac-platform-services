@@ -500,6 +500,14 @@ def get_billing_cache() -> BillingCache:
     global _billing_cache
     if _billing_cache is None:
         _billing_cache = BillingCache()
+        return _billing_cache
+
+    current_config = BillingCacheConfig()
+    if (
+        _billing_cache.config.ENABLE_L1_CACHE != current_config.ENABLE_L1_CACHE
+        or _billing_cache.config.ENABLE_L2_CACHE != current_config.ENABLE_L2_CACHE
+    ):
+        _billing_cache = BillingCache()
     return _billing_cache
 
 

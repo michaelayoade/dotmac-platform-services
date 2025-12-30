@@ -1,21 +1,24 @@
 """
-Billing and Customer Metrics Router.
+Billing Metrics Router.
 
 Provides comprehensive metrics endpoints for billing overview, payment history,
-and customer insights with caching and tenant isolation.
+and tenant insights with caching and tenant isolation.
 """
 
 from datetime import UTC, datetime, timedelta
+from inspect import isawaitable
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.billing._typing_helpers import CacheTier, cached_result
 from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
@@ -23,7 +26,6 @@ from dotmac.platform.billing.core.entities import (
 )
 from dotmac.platform.billing.core.models import PaymentStatus
 from dotmac.platform.billing.models import BillingSubscriptionTable
-from dotmac.platform.customer_management.models import Customer, CustomerStatus
 from dotmac.platform.db import get_session_dependency
 
 logger = structlog.get_logger(__name__)
@@ -31,10 +33,6 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(
     prefix="",
     tags=["Billing Metrics"],
-)
-customer_metrics_router = APIRouter(
-    prefix="",
-    tags=["Customer Metrics"],
 )
 
 
@@ -88,7 +86,7 @@ class PaymentListItem(BaseModel):
     amount: float = Field(description="Amount in major currency units")
     currency: str
     status: str
-    customer_id: str
+    tenant_id: str
     payment_method_type: str
     provider: str
     created_at: datetime
@@ -105,34 +103,6 @@ class PaymentListResponse(BaseModel):
     total_count: int = Field(description="Total number of payments")
     limit: int = Field(description="Result limit applied")
     timestamp: datetime = Field(description="Response generation timestamp")
-
-
-class CustomerMetricsResponse(BaseModel):
-    """Customer metrics overview response."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    # Customer counts
-    total_customers: int = Field(description="Total customers")
-    active_customers: int = Field(description="Active customers")
-    new_customers_this_month: int = Field(description="New customers this month")
-    churned_customers_this_month: int = Field(description="Churned customers this month")
-
-    # Growth metrics
-    customer_growth_rate: float = Field(description="Month-over-month growth rate (%)")
-    churn_rate: float = Field(description="Monthly churn rate (%)")
-
-    # Status breakdown
-    customers_by_status: dict[str, int] = Field(
-        description="Customer count by status", default_factory=dict
-    )
-
-    # At-risk customers
-    at_risk_customers: int = Field(description="Customers at risk of churning", default=0)
-
-    # Time period
-    period: str = Field(description="Metrics calculation period")
-    timestamp: datetime = Field(description="Metrics generation timestamp")
 
 
 # ============================================================================
@@ -250,117 +220,6 @@ async def _get_billing_metrics_cached(
 
 
 @cached_result(  # type: ignore[misc]  # Cache decorator is untyped
-    ttl=METRICS_CACHE_TTL,
-    key_prefix="customer:metrics",
-    key_params=["period_days", "tenant_id"],
-    tier=CacheTier.L2_REDIS,
-)
-async def _get_customer_metrics_cached(
-    period_days: int,
-    tenant_id: str | None,
-    session: AsyncSession,
-) -> dict[str, Any]:
-    """
-    Cached helper function for customer metrics calculation.
-    """
-    now = datetime.now(UTC)
-    period_start = now - timedelta(days=period_days)
-
-    # Query total and active customers
-    total_customers_query = select(func.count(Customer.id))
-    active_customers_query = select(func.count(Customer.id)).where(
-        Customer.status == CustomerStatus.ACTIVE
-    )
-
-    if tenant_id:
-        total_customers_query = total_customers_query.where(Customer.tenant_id == tenant_id)
-        active_customers_query = active_customers_query.where(Customer.tenant_id == tenant_id)
-
-    total_customers_result = await session.execute(total_customers_query)
-    active_customers_result = await session.execute(active_customers_query)
-
-    total_customers = total_customers_result.scalar() or 0
-    active_customers = active_customers_result.scalar() or 0
-
-    # Query new customers in period
-    new_customers_query = select(func.count(Customer.id)).where(Customer.created_at >= period_start)
-
-    if tenant_id:
-        new_customers_query = new_customers_query.where(Customer.tenant_id == tenant_id)
-
-    new_customers_result = await session.execute(new_customers_query)
-    new_customers_this_period = new_customers_result.scalar() or 0
-
-    # Calculate growth rate
-    previous_period_start = period_start - timedelta(days=period_days)
-    previous_customers_query = select(func.count(Customer.id)).where(
-        and_(
-            Customer.created_at >= previous_period_start,
-            Customer.created_at < period_start,
-        )
-    )
-
-    if tenant_id:
-        previous_customers_query = previous_customers_query.where(Customer.tenant_id == tenant_id)
-
-    previous_customers_result = await session.execute(previous_customers_query)
-    previous_customers = previous_customers_result.scalar() or 0
-
-    if previous_customers > 0:
-        growth_rate = ((new_customers_this_period - previous_customers) / previous_customers) * 100
-    else:
-        growth_rate = 0.0 if new_customers_this_period == 0 else 100.0
-
-    # Query churned customers (customers who became inactive)
-    churned_customers_query = select(func.count(Customer.id)).where(
-        and_(
-            Customer.status.in_([CustomerStatus.INACTIVE, CustomerStatus.CHURNED]),
-            Customer.updated_at >= period_start,
-        )
-    )
-
-    if tenant_id:
-        churned_customers_query = churned_customers_query.where(Customer.tenant_id == tenant_id)
-
-    churned_customers_result = await session.execute(churned_customers_query)
-    churned_customers_this_period = churned_customers_result.scalar() or 0
-
-    if active_customers > 0:
-        churn_rate = (
-            churned_customers_this_period / (active_customers + churned_customers_this_period)
-        ) * 100
-    else:
-        churn_rate = 0.0
-
-    # Query customers by status
-    status_query = select(
-        Customer.status,
-        func.count(Customer.id).label("count"),
-    ).group_by(Customer.status)
-
-    if tenant_id:
-        status_query = status_query.where(Customer.tenant_id == tenant_id)
-
-    status_result = await session.execute(status_query)
-    status_rows = status_result.all()
-
-    customers_by_status = {str(row.status): row.count for row in status_rows}
-
-    return {
-        "total_customers": total_customers,
-        "active_customers": active_customers,
-        "new_customers_this_month": new_customers_this_period,
-        "churned_customers_this_month": churned_customers_this_period,
-        "customer_growth_rate": round(growth_rate, 2),
-        "churn_rate": round(churn_rate, 2),
-        "customers_by_status": customers_by_status,
-        "at_risk_customers": 0,  # Placeholder - would require more complex analysis
-        "period": f"{period_days}d",
-        "timestamp": now,
-    }
-
-
-@cached_result(  # type: ignore[misc]  # Cache decorator is untyped
     ttl=EXPIRING_SUBS_CACHE_TTL,
     key_prefix="billing:expiring_subs",
     key_params=["days", "limit", "tenant_id"],
@@ -396,7 +255,12 @@ async def _get_expiring_subscriptions_cached(
     query = query.limit(limit)
 
     result = await session.execute(query)
-    subscriptions = result.scalars().all()
+    scalars_result = result.scalars()
+    if isawaitable(scalars_result):
+        scalars_result = await scalars_result
+    subscriptions = scalars_result.all()
+    if isawaitable(subscriptions):
+        subscriptions = await subscriptions
 
     subscription_items = []
     for sub in subscriptions:
@@ -404,7 +268,7 @@ async def _get_expiring_subscriptions_cached(
         subscription_items.append(
             {
                 "subscription_id": sub.subscription_id,
-                "customer_id": sub.customer_id,
+                "tenant_id": getattr(sub, "tenant_id", tenant_id),
                 "plan_id": sub.plan_id,
                 "current_period_end": sub.current_period_end,
                 "days_until_expiry": days_until_expiry,
@@ -430,7 +294,7 @@ async def _get_expiring_subscriptions_cached(
 async def get_billing_metrics(
     period_days: int = Query(default=30, ge=1, le=365, description="Time period in days"),
     session: AsyncSession = Depends(get_session_dependency),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.metrics.view")),
 ) -> BillingMetricsResponse:
     """
     Get comprehensive billing metrics overview with Redis caching.
@@ -439,11 +303,17 @@ async def get_billing_metrics(
     for the specified time period with tenant isolation.
 
     **Caching**: Results cached for 5 minutes per tenant/period combination.
-    **Required Permission**: billing:metrics:read (enforced by get_current_user)
+    **Required Permission**: billing.metrics.view
     """
-    try:
-        tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant context is required",
+        )
+    enforce_tenant_access(tenant_id, current_user)
 
+    try:
         # Use cached helper function
         metrics_data = await _get_billing_metrics_cached(
             period_days=period_days,
@@ -485,7 +355,7 @@ async def get_recent_payments(
     offset: int = Query(default=0, ge=0, description="Number of payments to skip"),
     status: str | None = Query(default=None, description="Filter by payment status"),
     session: AsyncSession = Depends(get_session_dependency),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.payments.view")),
 ) -> PaymentListResponse:
     """
     Get list of recent payments with optional filtering.
@@ -493,12 +363,17 @@ async def get_recent_payments(
     Returns paginated list of payments ordered by creation date (newest first)
     with tenant isolation.
 
-    **Required Permission**: billing:payments:read (enforced by get_current_user)
+    **Required Permission**: billing.payments.view
     """
-    try:
-        # Get tenant_id from current_user if available
-        tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant context is required",
+        )
+    enforce_tenant_access(tenant_id, current_user)
 
+    try:
         # Build query
         query = select(PaymentEntity).order_by(PaymentEntity.created_at.desc())
 
@@ -532,7 +407,7 @@ async def get_recent_payments(
                 amount=float(p.amount) / 100,  # Convert to major units
                 currency=p.currency,
                 status=p.status.value if hasattr(p.status, "value") else str(p.status),
-                customer_id=p.customer_id,
+                tenant_id=p.tenant_id,
                 payment_method_type=(
                     p.payment_method_type.value
                     if hasattr(p.payment_method_type, "value")
@@ -565,55 +440,6 @@ async def get_recent_payments(
 
 
 # ============================================================================
-# Customer Metrics Endpoint
-# ============================================================================
-
-
-@customer_metrics_router.get("/overview", response_model=CustomerMetricsResponse)
-async def get_customer_metrics_overview(
-    period_days: int = Query(default=30, ge=1, le=365, description="Time period in days"),
-    session: AsyncSession = Depends(get_session_dependency),
-    current_user: UserInfo = Depends(get_current_user),
-) -> CustomerMetricsResponse:
-    """
-    Get customer metrics overview with growth and churn analysis and Redis caching.
-
-    Returns customer counts, growth rates, churn rates, and status breakdown
-    with tenant isolation.
-
-    **Caching**: Results cached for 5 minutes per tenant/period combination.
-    **Required Permission**: customers:metrics:read (enforced by get_current_user)
-    """
-    try:
-        tenant_id = getattr(current_user, "tenant_id", None)
-
-        # Use cached helper function
-        metrics_data = await _get_customer_metrics_cached(
-            period_days=period_days,
-            tenant_id=tenant_id,
-            session=session,
-        )
-
-        return CustomerMetricsResponse(**metrics_data)
-
-    except Exception as e:
-        logger.error("Failed to fetch customer metrics", error=str(e), exc_info=True)
-        # Return safe defaults on error
-        return CustomerMetricsResponse(
-            total_customers=0,
-            active_customers=0,
-            new_customers_this_month=0,
-            churned_customers_this_month=0,
-            customer_growth_rate=0.0,
-            churn_rate=0.0,
-            customers_by_status={},
-            at_risk_customers=0,
-            period=f"{period_days}d",
-            timestamp=datetime.now(UTC),
-        )
-
-
-# ============================================================================
 # Expiring Subscriptions Endpoint
 # ============================================================================
 
@@ -624,7 +450,7 @@ class ExpiringSubscriptionItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     subscription_id: str
-    customer_id: str
+    tenant_id: str
     plan_id: str
     current_period_end: datetime
     days_until_expiry: int
@@ -661,7 +487,7 @@ async def get_expiring_subscriptions(
         default=50, ge=1, le=500, description="Maximum number of subscriptions to return"
     ),
     session: AsyncSession = Depends(get_session_dependency),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.metrics.view")),
 ) -> ExpiringSubscriptionsResponse:
     """
     Get subscriptions expiring within the specified number of days with Redis caching.
@@ -670,11 +496,17 @@ async def get_expiring_subscriptions(
     with tenant isolation.
 
     **Caching**: Results cached for 10 minutes per tenant/days/limit combination.
-    **Required Permission**: billing:subscriptions:read (enforced by get_current_user)
+    **Required Permission**: billing.metrics.view
     """
-    try:
-        tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = getattr(current_user, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant context is required",
+        )
+    enforce_tenant_access(tenant_id, current_user)
 
+    try:
         # Use cached helper function
         data = await _get_expiring_subscriptions_cached(
             days=days,
@@ -704,4 +536,4 @@ async def get_expiring_subscriptions(
         )
 
 
-__all__ = ["router", "customer_metrics_router"]
+__all__ = ["router"]

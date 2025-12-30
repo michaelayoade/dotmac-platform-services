@@ -94,8 +94,8 @@ export function SearchInput({
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cn(
-          "w-full rounded-md bg-surface-overlay border border-border text-text-primary placeholder:text-text-muted",
-          "focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent",
+          "w-full rounded-md bg-surface border border-border text-text-primary placeholder:text-text-muted",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:border-transparent",
           "transition-all duration-200",
           sizeClasses[size]
         )}

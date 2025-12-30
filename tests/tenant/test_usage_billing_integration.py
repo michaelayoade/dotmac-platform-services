@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.dotmac.platform.billing.catalog.models import UsageType
-from src.dotmac.platform.tenant.models import TenantPlanType
-from src.dotmac.platform.tenant.schemas import TenantCreate, TenantUsageCreate
+from dotmac.platform.billing.catalog.models import UsageType
+from dotmac.platform.tenant.models import TenantPlanType
+from dotmac.platform.tenant.schemas import TenantCreate, TenantUsageCreate
 
 # Fixtures are in conftest.py
 

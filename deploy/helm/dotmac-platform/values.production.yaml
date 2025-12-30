@@ -1,0 +1,184 @@
+image:
+  backend: ghcr.io/dotmactech/dotmac-platform-backend:0.1.0
+  frontend: ghcr.io/dotmactech/dotmac-platform-frontend:0.1.0
+  worker: ghcr.io/dotmactech/dotmac-platform-backend:0.1.0
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: ghcr-pull
+
+replicaCount:
+  backend: 2
+  frontend: 2
+  worker: 1
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  backend:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  worker:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+probes:
+  backend:
+    readiness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    liveness:
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  frontend:
+    readiness:
+      path: /
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    liveness:
+      path: /
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  worker:
+    readiness:
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+terminationGracePeriodSeconds:
+  backend: 30
+  frontend: 30
+  worker: 60
+
+strategy:
+  backend:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  frontend:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  worker:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+
+autoscaling:
+  backend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  frontend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  worker:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+pdb:
+  backend:
+    enabled: true
+    minAvailable: 1
+  frontend:
+    enabled: true
+    minAvailable: 1
+  worker:
+    enabled: true
+    maxUnavailable: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+env:
+  environment: production
+  logLevel: info
+  logFormat: json
+  corsOrigins: '["https://admin.dotmac.io","https://dotmac.io"]'
+
+endpoints:
+  apiBaseUrl: https://api.dotmac.io
+  wsUrl: wss://api.dotmac.io
+  nextAuthUrl: https://admin.dotmac.io
+
+service:
+  backendPort: 8000
+  frontendPort: 3000
+
+secrets:
+  name: dotmac-platform-secrets
+  checksum: ""
+
+migrations:
+  enabled: false
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 300
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    api: api.dotmac.io
+    admin: admin.dotmac.io
+  tls:
+    enabled: true
+    secretName: dotmac-tls

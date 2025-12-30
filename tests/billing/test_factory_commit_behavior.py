@@ -42,20 +42,19 @@ class TestFactoryCommitBehavior:
         # Fixture teardown should not raise InvalidRequestError
         # (guarded by transaction.is_active check)
 
-    async def test_customer_factory_with_commit(
+    async def test_tenant_factory_with_commit(
         self,
-        customer_factory,
+        tenant_factory,
         async_db_session: AsyncSession,
     ):
-        """Test that customer_factory with _commit=True works without errors."""
+        """Test that tenant_factory with _commit=True works without errors."""
 
-        # Create customer with commit
-        customer = await customer_factory(first_name="John", last_name="Doe", _commit=True)
+        # Create tenant with commit
+        tenant = await tenant_factory(name="Commit Tenant", _commit=True)
 
-        # Verify customer was created
-        assert customer.id is not None
-        assert customer.first_name == "John"
-        assert customer.last_name == "Doe"
+        # Verify tenant was created
+        assert tenant.id is not None
+        assert tenant.name == "Commit Tenant"
 
     async def test_payment_factory_with_commit_chain(
         self,
@@ -100,14 +99,14 @@ class TestFactoryCommitBehavior:
 
     async def test_mixed_commit_and_flush(
         self,
-        customer_factory,
+        tenant_factory,
         subscription_plan_factory,
         async_db_session: AsyncSession,
     ):
         """Test that mixing commit and flush operations works correctly."""
 
-        # Create customer with commit
-        customer = await customer_factory(first_name="Alice", _commit=True)
+        # Create tenant with commit
+        tenant = await tenant_factory(name="Mixed Commit Tenant", _commit=True)
 
         # Create plan without commit (default flush)
         plan = await subscription_plan_factory(
@@ -117,10 +116,10 @@ class TestFactoryCommitBehavior:
         )
 
         # Both should exist
-        assert customer.id is not None
+        assert tenant.id is not None
         assert plan.plan_id is not None
 
-        # Customer was committed, plan was flushed
+        # Tenant was committed, plan was flushed
         # Fixture should handle teardown correctly
 
     async def test_commit_makes_data_visible_to_new_session(

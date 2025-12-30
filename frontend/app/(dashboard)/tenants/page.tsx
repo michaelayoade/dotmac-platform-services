@@ -18,9 +18,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/lib/dotmac/core";
 
-import { getTenants, type Tenant } from "@/lib/api/tenants";
-import { safeApi } from "@/lib/api/safe-api";
-import { cn } from "@/lib/utils";
+import { getTenants, getTenantsDashboard, type Tenant } from "@/lib/api/tenants";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
+import { cn, getPlanName } from "@/lib/utils";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 export const metadata = {
   title: "Tenants",
@@ -33,18 +34,26 @@ export default async function TenantsPage({
   searchParams: { view?: string; status?: string };
 }) {
   const view = searchParams.view || "grid";
-  const { tenants, stats } = await safeApi(
-    getTenants,
-    {
-      tenants: [],
-      stats: { total: 0, totalChange: 0, active: 0, trial: 0, suspended: 0 },
-      totalCount: 0,
-      pageCount: 1,
-    }
-  );
+  const [tenantsResponse, dashboardData] = await Promise.all([
+    fetchOrNull(getTenants),
+    fetchOrNull(() => getTenantsDashboard({ periodMonths: 6 })),
+  ]);
+  const tenants = tenantsResponse?.tenants ?? [];
+  const stats = tenantsResponse?.stats ?? null;
+  const alerts = dashboardData?.alerts ?? [];
+  const recentActivity = dashboardData?.recentActivity ?? [];
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-text-muted">
+        <Link href="/" className="hover:text-text-secondary">
+          Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-text-primary">Tenants</span>
+      </nav>
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -61,29 +70,34 @@ export default async function TenantsPage({
         </Link>
       </div>
 
+      {/* Dashboard Alerts */}
+      {alerts.length > 0 && (
+        <DashboardAlerts alerts={alerts} />
+      )}
+
       {/* Stats Cards */}
       <div className="quick-stats">
         <StatCard
           label="Total Tenants"
-          value={stats.total}
+          value={stats?.total ?? null}
           icon={Building2}
-          trend={stats.totalChange}
+          trend={stats?.totalChange}
         />
         <StatCard
           label="Active"
-          value={stats.active}
+          value={stats?.active ?? null}
           icon={CheckCircle}
           iconColor="text-status-success"
         />
         <StatCard
           label="Trial"
-          value={stats.trial}
+          value={stats?.trial ?? null}
           icon={Clock}
           iconColor="text-status-warning"
         />
         <StatCard
           label="Suspended"
-          value={stats.suspended}
+          value={stats?.suspended ?? null}
           icon={AlertTriangle}
           iconColor="text-status-error"
         />
@@ -117,29 +131,56 @@ export default async function TenantsPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <select className="h-9 px-3 rounded-md bg-surface-overlay border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="trial">Trial</option>
-            <option value="suspended">Suspended</option>
-          </select>
-          <select className="h-9 px-3 rounded-md bg-surface-overlay border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
-            <option value="">All Plans</option>
-            <option value="enterprise">Enterprise</option>
-            <option value="professional">Professional</option>
-            <option value="starter">Starter</option>
-          </select>
+          <div>
+            <label htmlFor="status-filter" className="sr-only">Filter by status</label>
+            <select
+              id="status-filter"
+              className="h-9 px-3 rounded-md bg-surface-overlay border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="trial">Trial</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="plan-filter" className="sr-only">Filter by plan</label>
+            <select
+              id="plan-filter"
+              className="h-9 px-3 rounded-md bg-surface-overlay border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">All Plans</option>
+              <option value="enterprise">Enterprise</option>
+              <option value="professional">Professional</option>
+              <option value="starter">Starter</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Tenant Grid */}
-      <Suspense fallback={<TenantGridSkeleton />}>
-        {view === "grid" ? (
-          <TenantGrid tenants={tenants} />
-        ) : (
-          <TenantList tenants={tenants} />
+      {/* Tenant Grid & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Suspense fallback={<TenantGridSkeleton />}>
+            {view === "grid" ? (
+              <TenantGrid tenants={tenants} />
+            ) : (
+              <TenantList tenants={tenants} />
+            )}
+          </Suspense>
+        </div>
+
+        {/* Recent Activity Sidebar */}
+        {recentActivity.length > 0 && (
+          <div className="lg:col-span-1">
+            <DashboardRecentActivity
+              activities={recentActivity}
+              title="Recent Tenant Activity"
+              maxItems={8}
+            />
+          </div>
         )}
-      </Suspense>
+      </div>
     </div>
   );
 }
@@ -152,7 +193,7 @@ function StatCard({
   trend,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   icon: ElementType;
   iconColor?: string;
   trend?: number;
@@ -161,7 +202,7 @@ function StatCard({
     <div className="quick-stat">
       <div className="flex items-center justify-between mb-2">
         <Icon className={cn("w-5 h-5", iconColor)} />
-        {trend !== undefined && (
+        {trend !== undefined && value !== null && (
           <span
             className={cn(
               "text-xs font-medium",
@@ -173,7 +214,7 @@ function StatCard({
           </span>
         )}
       </div>
-      <p className="metric-value text-2xl">{value}</p>
+      <p className="metric-value text-2xl">{value === null ? "—" : value}</p>
       <p className="metric-label">{label}</p>
     </div>
   );
@@ -195,9 +236,10 @@ function TenantCard({ tenant, index }: { tenant: Tenant; index: number }) {
     trial: { class: "status-badge--warning", label: "Trial", icon: Clock },
     suspended: { class: "status-badge--error", label: "Suspended", icon: AlertTriangle },
     inactive: { class: "bg-surface-overlay text-text-muted", label: "Inactive", icon: XCircle },
+    pending: { class: "status-badge--warning", label: "Pending", icon: Clock },
   };
 
-  const config = statusConfig[tenant.status] || statusConfig.inactive;
+  const config = statusConfig[tenant.status] ?? statusConfig.inactive;
   const StatusIcon = config.icon;
 
   return (
@@ -231,7 +273,7 @@ function TenantCard({ tenant, index }: { tenant: Tenant; index: number }) {
           {config.label}
         </span>
         <span className="text-xs text-text-muted px-2 py-0.5 rounded-full bg-surface-overlay">
-          {tenant.plan}
+          {getPlanName(tenant.plan)}
         </span>
       </div>
 
@@ -245,13 +287,13 @@ function TenantCard({ tenant, index }: { tenant: Tenant; index: number }) {
         </div>
         <div>
           <p className="text-lg font-semibold text-text-primary tabular-nums">
-            ${(tenant.mrr / 100).toLocaleString()}
+            ${((tenant.mrr ?? 0) / 100).toLocaleString()}
           </p>
           <p className="text-2xs text-text-muted uppercase tracking-wider">MRR</p>
         </div>
         <div>
           <p className="text-lg font-semibold text-text-primary tabular-nums">
-            {tenant.deploymentCount}
+            {tenant.deploymentCount ?? 0}
           </p>
           <p className="text-2xs text-text-muted uppercase tracking-wider">Deploys</p>
         </div>
@@ -279,11 +321,12 @@ function TenantList({ tenants }: { tenants: Tenant[] }) {
     trial: { class: "status-badge--warning", label: "Trial" },
     suspended: { class: "status-badge--error", label: "Suspended" },
     inactive: { class: "bg-surface-overlay text-text-muted", label: "Inactive" },
+    pending: { class: "status-badge--warning", label: "Pending" },
   };
 
   return (
     <div className="card overflow-hidden">
-      <table className="data-table">
+      <table className="data-table" aria-label="Tenants list"><caption className="sr-only">Tenants list</caption>
         <thead>
           <tr>
             <th>Organization</th>
@@ -322,7 +365,7 @@ function TenantList({ tenants }: { tenants: Tenant[] }) {
                   </span>
                 </td>
                 <td>
-                  <span className="text-sm text-text-secondary">{tenant.plan}</span>
+                  <span className="text-sm text-text-secondary">{getPlanName(tenant.plan)}</span>
                 </td>
                 <td>
                   <span className="text-sm text-text-primary tabular-nums">
@@ -331,7 +374,7 @@ function TenantList({ tenants }: { tenants: Tenant[] }) {
                 </td>
                 <td>
                   <span className="text-sm font-medium text-text-primary tabular-nums">
-                    ${(tenant.mrr / 100).toLocaleString()}
+                    ${((tenant.mrr ?? 0) / 100).toLocaleString()}
                   </span>
                 </td>
                 <td>

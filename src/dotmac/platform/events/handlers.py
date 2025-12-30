@@ -139,53 +139,6 @@ async def handle_subscription_cancelled(event: Event) -> None:
     )
 
 
-# Customer Events
-
-
-@subscribe("customer.created")  # Custom decorator is untyped
-async def handle_customer_created(event: Event) -> None:
-    """
-    Handle customer created event.
-
-    Triggered when a new customer is registered.
-    Sets up onboarding, sends welcome emails.
-    """
-    customer_id = event.payload.get("customer_id")
-    email = event.payload.get("email")
-
-    logger.info(
-        "Customer created",
-        customer_id=customer_id,
-        email=email,
-        tenant_id=event.metadata.tenant_id,
-    )
-
-    # Example: Send welcome email
-    # await email_service.send_welcome_email(customer_id)
-
-    # Example: Trigger onboarding workflow
-    # await onboarding_service.start_onboarding(customer_id)
-
-
-@subscribe("customer.updated")  # Custom decorator is untyped
-async def handle_customer_updated(event: Event) -> None:
-    """
-    Handle customer updated event.
-
-    Triggered when customer information is modified.
-    Updates related records, invalidates caches.
-    """
-    customer_id = event.payload.get("customer_id")
-    updated_fields = event.payload.get("updated_fields", [])
-
-    logger.info(
-        "Customer updated",
-        customer_id=customer_id,
-        fields=updated_fields,
-        tenant_id=event.metadata.tenant_id,
-    )
-
-
 # Auth Events
 
 

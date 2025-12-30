@@ -5,23 +5,19 @@ Demo Data Seeding Script
 Seeds the staging database with realistic demo data for:
 - Demo tenant
 - User accounts (various roles)
-- Sample customers
-- Sample subscriptions
 - Sample invoices
 - Network infrastructure
 """
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import hash_password
-from dotmac.platform.customer_management.models import Customer, CustomerStatus
 from dotmac.platform.db import AsyncSessionLocal
 from dotmac.platform.tenant.models import Tenant, TenantStatus
 from dotmac.platform.user_management.models import User, UserRole, UserStatus
@@ -77,65 +73,6 @@ DEMO_USERS = [
         "password": "Customer123!",
         "role": UserRole.USER,
         "is_platform_admin": False,
-    },
-]
-
-# Demo customers
-DEMO_CUSTOMERS = [
-    {
-        "first_name": "John",
-        "last_name": "Smith",
-        "email": "john.smith@example.com",
-        "phone": "+1-555-0101",
-        "service_address": "123 Main St, Apt 4B",
-        "service_city": "New York",
-        "service_state": "NY",
-        "service_zip": "10001",
-        "connection_type": "fiber",
-    },
-    {
-        "first_name": "Sarah",
-        "last_name": "Johnson",
-        "email": "sarah.j@example.com",
-        "phone": "+1-555-0102",
-        "service_address": "456 Oak Avenue",
-        "service_city": "Brooklyn",
-        "service_state": "NY",
-        "service_zip": "11201",
-        "connection_type": "fiber",
-    },
-    {
-        "first_name": "Michael",
-        "last_name": "Chen",
-        "email": "m.chen@example.com",
-        "phone": "+1-555-0103",
-        "service_address": "789 Elm Street, Suite 200",
-        "service_city": "Queens",
-        "service_state": "NY",
-        "service_zip": "11355",
-        "connection_type": "wireless",
-    },
-    {
-        "first_name": "Emily",
-        "last_name": "Williams",
-        "email": "emily.w@example.com",
-        "phone": "+1-555-0104",
-        "service_address": "321 Pine Road",
-        "service_city": "Manhattan",
-        "service_state": "NY",
-        "service_zip": "10002",
-        "connection_type": "fiber",
-    },
-    {
-        "first_name": "David",
-        "last_name": "Martinez",
-        "email": "d.martinez@example.com",
-        "phone": "+1-555-0105",
-        "service_address": "555 Maple Drive",
-        "service_city": "Bronx",
-        "service_state": "NY",
-        "service_zip": "10451",
-        "connection_type": "fiber",
     },
 ]
 
@@ -230,127 +167,6 @@ async def create_demo_users(db: AsyncSession) -> list[User]:
     return users
 
 
-async def create_demo_customers(db: AsyncSession) -> list[Customer]:
-    """Create demo customers."""
-    customers = []
-
-    for customer_data in DEMO_CUSTOMERS:
-        # Check if customer already exists
-        stmt = select(Customer).where(
-            Customer.email == customer_data["email"],
-            Customer.tenant_id == DEMO_TENANT_ID,
-        )
-        result = await db.execute(stmt)
-        existing_customer = result.scalar_one_or_none()
-
-        if existing_customer:
-            logger.info(f"Customer already exists: {customer_data['email']}")
-            customers.append(existing_customer)
-            continue
-
-        # Create new customer
-        customer = Customer(
-            id=uuid4(),
-            tenant_id=DEMO_TENANT_ID,
-            first_name=customer_data["first_name"],
-            last_name=customer_data["last_name"],
-            email=customer_data["email"],
-            phone=customer_data["phone"],
-            status=CustomerStatus.ACTIVE,
-            # Service location fields
-            service_address=customer_data["service_address"],
-            service_city=customer_data["service_city"],
-            service_state=customer_data["service_state"],
-            service_zip=customer_data["service_zip"],
-            connection_type=customer_data["connection_type"],
-            installation_status="completed",
-            service_plan_speed="100 Mbps",
-            # Standard fields
-            billing_address=customer_data["service_address"],
-            billing_city=customer_data["service_city"],
-            billing_state=customer_data["service_state"],
-            billing_postal_code=customer_data["service_zip"],
-            billing_country="US",
-        )
-
-        db.add(customer)
-        customers.append(customer)
-        logger.info(f"Created customer: {customer.email}")
-
-    await db.commit()
-    return customers
-
-
-async def create_demo_subscriptions(db: AsyncSession, customers: list[Customer]):
-    """Create demo subscriptions for customers."""
-    try:
-        from dotmac.platform.billing.subscriptions.models import (
-            BillingCycle,
-            Subscription,
-            SubscriptionStatus,
-        )
-
-        subscriptions = []
-
-        plans = [
-            {
-                "name": "Fiber 100 Mbps",
-                "amount": Decimal("49.99"),
-                "speed": "100 Mbps",
-            },
-            {
-                "name": "Fiber 500 Mbps",
-                "amount": Decimal("79.99"),
-                "speed": "500 Mbps",
-            },
-            {
-                "name": "Fiber 1 Gbps",
-                "amount": Decimal("99.99"),
-                "speed": "1 Gbps",
-            },
-            {
-                "name": "Wireless 50 Mbps",
-                "amount": Decimal("39.99"),
-                "speed": "50 Mbps",
-            },
-        ]
-
-        for i, customer in enumerate(customers[:4]):  # First 4 customers
-            plan = plans[i % len(plans)]
-
-            subscription = Subscription(
-                id=uuid4(),
-                tenant_id=DEMO_TENANT_ID,
-                customer_id=customer.id,
-                plan_name=plan["name"],
-                status=SubscriptionStatus.ACTIVE,
-                amount=plan["amount"],
-                billing_cycle=BillingCycle.MONTHLY,
-                start_date=datetime.now(UTC) - timedelta(days=30),
-                current_period_start=datetime.now(UTC).replace(day=1),
-                current_period_end=(
-                    datetime.now(UTC).replace(day=1) + timedelta(days=32)
-                ).replace(day=1) - timedelta(days=1),
-                metadata={
-                    "service_plan_speed": plan["speed"],
-                    "connection_type": customer.connection_type,
-                },
-            )
-
-            db.add(subscription)
-            subscriptions.append(subscription)
-            logger.info(
-                f"Created subscription for {customer.email}: {plan['name']} - ${plan['amount']}/month"
-            )
-
-        await db.commit()
-        return subscriptions
-
-    except ImportError:
-        logger.warning("Subscription models not available, skipping subscription creation")
-        return []
-
-
 async def main():
     """Main seeding function."""
     logger.info("=" * 60)
@@ -367,20 +183,13 @@ async def main():
             logger.info("\n2. Creating demo users...")
             users = await create_demo_users(db)
 
-            # Create demo customers
-            logger.info("\n3. Creating demo customers...")
-            customers = await create_demo_customers(db)
-
-            # Create demo subscriptions
-            logger.info("\n4. Creating demo subscriptions...")
-            subscriptions = await create_demo_subscriptions(db, customers)
+            subscriptions: list[object] = []
 
             logger.info("\n" + "=" * 60)
             logger.info("Demo Data Seeding Complete!")
             logger.info("=" * 60)
             logger.info(f"\nTenant: {tenant.name}")
             logger.info(f"Users: {len(users)}")
-            logger.info(f"Customers: {len(customers)}")
             logger.info(f"Subscriptions: {len(subscriptions)}")
 
             logger.info("\n📝 Demo Accounts:")

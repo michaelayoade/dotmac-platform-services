@@ -8,6 +8,11 @@ This is a stub module - implement actual OSS integrations as needed.
 from typing import Any
 
 import structlog
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+
+from dotmac.platform.tenant.models import Tenant
 
 logger = structlog.get_logger(__name__)
 
@@ -39,6 +44,7 @@ async def update_service_config(
     tenant_id: str,
     service_name: str,
     config: dict[str, Any],
+    session: AsyncSession,
 ) -> dict[str, Any]:
     """
     Update configuration for a specific OSS service.
@@ -57,12 +63,27 @@ async def update_service_config(
         service=service_name,
     )
 
-    # TODO: Implement actual OSS service configuration
-    # This would typically store in database or external config store
+    result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = result.scalar_one_or_none()
+
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    settings = dict(tenant.settings or {})
+    oss_config = dict(settings.get("oss") or {})
+    service_config = dict(oss_config.get(service_name) or {})
+    service_config.update(config)
+    oss_config[service_name] = service_config
+    settings["oss"] = oss_config
+
+    tenant.settings = settings
+    flag_modified(tenant, "settings")
+    await session.commit()
+    await session.refresh(tenant)
 
     return {
         "tenant_id": tenant_id,
         "service": service_name,
-        "config": config,
+        "config": service_config,
         "status": "configured",
     }

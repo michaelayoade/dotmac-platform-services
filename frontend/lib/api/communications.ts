@@ -5,6 +5,21 @@
  */
 
 import { api, ApiClientError, normalizePaginatedResponse } from "./client";
+import type { CommunicationsDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getCommunicationsDashboard(
+  params?: DashboardQueryParams
+): Promise<CommunicationsDashboardResponse> {
+  return api.get<CommunicationsDashboardResponse>("/api/v1/communications/dashboard", {
+    params: {
+      period_days: params?.periodDays,
+    },
+  });
+}
 
 // ============================================================================
 // Email Types

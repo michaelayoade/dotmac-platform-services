@@ -171,6 +171,8 @@ def process_export_job(
             )
         )
 
+        if isinstance(e, NotImplementedError):
+            raise
         # Retry with exponential backoff
         raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
 
@@ -298,6 +300,8 @@ def process_import_job(
             )
         )
 
+        if isinstance(e, NotImplementedError):
+            raise
         # Retry with exponential backoff
         raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
 
@@ -322,46 +326,10 @@ async def _perform_export(
     - Write to target destination
     - Track progress
     """
-    # Simulate work with progress updates
-    import asyncio
-
-    logger.info("Simulating export processing...")
-
-    # Simulate processing in batches
-    total_records = 1000  # Mock data
-    batch_size = request.batch_size
-    records_processed = 0
-
-    for i in range(0, total_records, batch_size):
-        # Simulate batch processing delay
-        await asyncio.sleep(0.1)
-
-        batch_count = min(batch_size, total_records - i)
-        records_processed += batch_count
-
-        # Update progress
-        progress = (records_processed / total_records) * 100
-        await _update_job_status(
-            job_id,
-            TransferStatus.RUNNING,
-            tenant_id,
-            progress_percentage=progress,
-            processed_records=records_processed,
-        )
-
-        logger.debug(
-            "Export progress",
-            job_id=job_id,
-            progress=f"{progress:.1f}%",
-        )
-
-    return {
-        "records_processed": records_processed,
-        "format": request.format.value,
-        "target_type": request.target_type.value,
-        "target_path": request.target_path,
-        "file_size_bytes": records_processed * 100,  # Mock size
-    }
+    raise NotImplementedError(
+        "Export pipeline not configured. Implement exporters to handle data extraction, "
+        "transform, and delivery before running exports."
+    )
 
 
 async def _perform_import(
@@ -379,54 +347,10 @@ async def _perform_import(
     - Insert into database
     - Track progress
     """
-    # Simulate work with progress updates
-    import asyncio
-
-    logger.info("Simulating import processing...")
-
-    # Simulate processing in batches
-    total_records = 500  # Mock data
-    batch_size = request.batch_size
-    records_processed = 0
-    records_failed = 0
-
-    for i in range(0, total_records, batch_size):
-        # Simulate batch processing delay
-        await asyncio.sleep(0.1)
-
-        batch_count = min(batch_size, total_records - i)
-
-        # Simulate some failures if skip_errors is enabled
-        if request.skip_errors and i % 100 == 0:
-            records_failed += 1
-            batch_count -= 1
-
-        records_processed += batch_count
-
-        # Update progress
-        progress = ((records_processed + records_failed) / total_records) * 100
-        await _update_job_status(
-            job_id,
-            TransferStatus.RUNNING,
-            tenant_id,
-            progress_percentage=progress,
-            processed_records=records_processed,
-            failed_records=records_failed,
-        )
-
-        logger.debug(
-            "Import progress",
-            job_id=job_id,
-            progress=f"{progress:.1f}%",
-        )
-
-    return {
-        "records_processed": records_processed,
-        "records_failed": records_failed,
-        "format": request.format.value,
-        "source_type": request.source_type.value,
-        "source_path": request.source_path,
-    }
+    raise NotImplementedError(
+        "Import pipeline not configured. Implement importers to fetch, validate, and "
+        "load data before running imports."
+    )
 
 
 async def _publish_export_webhook(

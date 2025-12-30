@@ -224,3 +224,32 @@ export function useDeleteApiKey() {
     },
   });
 }
+
+// Logo Upload
+export function useUploadTenantLogo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ file, type }: { file: File; type: "logo" | "favicon" }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
+
+      const response = await fetch("/api/portal/settings/branding/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload logo");
+      }
+
+      return response.json() as Promise<{ url: string }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenantPortal.settings(),
+      });
+    },
+  });
+}

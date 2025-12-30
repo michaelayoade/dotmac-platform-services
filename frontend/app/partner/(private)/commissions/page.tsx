@@ -30,69 +30,6 @@ const statusLabels: Record<CommissionStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
-// Demo data
-const demoCommissions: Commission[] = [
-  {
-    id: "1",
-    customerId: "c1",
-    customerName: "Acme Corporation",
-    period: "December 2024",
-    baseAmount: 4500,
-    commissionRate: 15,
-    commissionAmount: 675,
-    status: "PENDING",
-    createdAt: "2024-12-01T00:00:00Z",
-  },
-  {
-    id: "2",
-    customerId: "c2",
-    customerName: "CloudNine Solutions",
-    period: "December 2024",
-    baseAmount: 2800,
-    commissionRate: 20,
-    commissionAmount: 560,
-    status: "PENDING",
-    createdAt: "2024-12-01T00:00:00Z",
-  },
-  {
-    id: "3",
-    customerId: "c1",
-    customerName: "Acme Corporation",
-    period: "November 2024",
-    baseAmount: 4500,
-    commissionRate: 15,
-    commissionAmount: 675,
-    status: "APPROVED",
-    approvedAt: "2024-12-05T10:00:00Z",
-    createdAt: "2024-11-01T00:00:00Z",
-  },
-  {
-    id: "4",
-    customerId: "c2",
-    customerName: "CloudNine Solutions",
-    period: "November 2024",
-    baseAmount: 2800,
-    commissionRate: 20,
-    commissionAmount: 560,
-    status: "PAID",
-    approvedAt: "2024-12-05T10:00:00Z",
-    paidAt: "2024-12-15T14:00:00Z",
-    createdAt: "2024-11-01T00:00:00Z",
-  },
-  {
-    id: "5",
-    customerId: "c3",
-    customerName: "DataFlow Systems",
-    period: "October 2024",
-    baseAmount: 3200,
-    commissionRate: 15,
-    commissionAmount: 480,
-    status: "PAID",
-    approvedAt: "2024-11-05T10:00:00Z",
-    paidAt: "2024-11-15T14:00:00Z",
-    createdAt: "2024-10-01T00:00:00Z",
-  },
-];
 
 function CommissionRow({ commission }: { commission: Commission }) {
   const formatDate = (dateString: string) => {
@@ -107,7 +44,7 @@ function CommissionRow({ commission }: { commission: Commission }) {
       <td className="px-4 py-4">
         <div>
           <p className="font-medium text-text-primary">
-            {commission.customerName}
+            {commission.tenantName}
           </p>
           <p className="text-sm text-text-muted">{commission.period}</p>
         </div>
@@ -148,11 +85,11 @@ function CommissionsSkeleton() {
   return (
     <div className="bg-surface-elevated rounded-lg border border-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="data-table" aria-label="Partner commissions loading"><caption className="sr-only">Partner commissions loading</caption>
           <thead>
             <tr className="border-b border-border bg-surface-overlay/50">
               <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                Customer
+                Tenant
               </th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
                 Base Amount
@@ -207,19 +144,11 @@ export default function CommissionsPage() {
   const { data, isLoading, error } = usePartnerCommissions({
     status: statusFilter !== "ALL" ? statusFilter : undefined,
   });
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Failed to load commissions." : null;
 
-  const commissions = data?.commissions || demoCommissions;
-  const summary = data?.summary || {
-    totalPending: demoCommissions
-      .filter((c) => c.status === "PENDING")
-      .reduce((sum, c) => sum + c.commissionAmount, 0),
-    totalApproved: demoCommissions
-      .filter((c) => c.status === "APPROVED")
-      .reduce((sum, c) => sum + c.commissionAmount, 0),
-    totalPaid: demoCommissions
-      .filter((c) => c.status === "PAID")
-      .reduce((sum, c) => sum + c.commissionAmount, 0),
-  };
+  const commissions = data?.commissions ?? [];
+  const summary = data?.summary ?? null;
 
   const filteredCommissions =
     statusFilter === "ALL"
@@ -233,43 +162,49 @@ export default function CommissionsPage() {
         description="Track your commission history and earnings"
       />
 
+      {errorMessage && (
+        <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+          {errorMessage}
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500">
+            <div className="p-2 rounded-lg bg-status-warning/15 text-status-warning">
               <Clock className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Pending</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${summary.totalPending.toLocaleString()}
+                {summary ? `$${summary.totalPending.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+            <div className="p-2 rounded-lg bg-status-info/15 text-status-info">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Approved</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${summary.totalApproved.toLocaleString()}
+                {summary ? `$${summary.totalApproved.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-status-success/10 text-status-success">
+            <div className="p-2 rounded-lg bg-status-success/15 text-status-success">
               <CheckCircle className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Paid to Date</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${summary.totalPaid.toLocaleString()}
+                {summary ? `$${summary.totalPaid.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
@@ -283,7 +218,7 @@ export default function CommissionsPage() {
           className={cn(
             "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
             statusFilter === "ALL"
-              ? "bg-accent text-white"
+              ? "bg-accent text-text-inverse"
               : "bg-surface-overlay text-text-secondary hover:text-text-primary"
           )}
         >
@@ -297,7 +232,7 @@ export default function CommissionsPage() {
               className={cn(
                 "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                 statusFilter === status
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-text-inverse"
                   : "bg-surface-overlay text-text-secondary hover:text-text-primary"
               )}
             >
@@ -314,16 +249,16 @@ export default function CommissionsPage() {
         <EmptyState
           icon={DollarSign}
           title="No commissions found"
-          description="Commissions from your referred customers will appear here"
+          description="Commissions from your referred tenants will appear here"
         />
       ) : (
         <div className="bg-surface-elevated rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table" aria-label="Partner commissions"><caption className="sr-only">Partner commissions</caption>
               <thead>
                 <tr className="border-b border-border bg-surface-overlay/50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Customer
+                    Tenant
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
                     Base Amount

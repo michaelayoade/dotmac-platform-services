@@ -401,7 +401,7 @@ class KubernetesAdapter(DeploymentAdapter):
         return context.namespace
 
     def _build_helm_values(self, context: ExecutionContext) -> dict[str, Any]:
-        """Build Helm values from context"""
+        """Build Helm values from context including TLS configuration."""
         values = {
             "tenant": {
                 "id": context.tenant_id,
@@ -424,6 +424,31 @@ class KubernetesAdapter(DeploymentAdapter):
                 "size": f"{context.storage_gb or 20}Gi",
             },
         }
+
+        # Add TLS/Ingress configuration if available
+        try:
+            from ..settings import settings
+
+            if settings.tls.enabled:
+                domain = context.config.get("domain") or f"{context.namespace}.example.com"
+                issuer_kind = settings.tls.issuer_kind
+                issuer_annotation = (
+                    "cert-manager.io/issuer"
+                    if issuer_kind and issuer_kind.lower() == "issuer"
+                    else "cert-manager.io/cluster-issuer"
+                )
+                values["ingress"] = {
+                    "enabled": True,
+                    "className": settings.tls.ingress_class,
+                    "annotations": {
+                        issuer_annotation: settings.tls.issuer_name,
+                        "kubernetes.io/tls-acme": "true",
+                    },
+                    "hosts": [{"host": domain, "paths": [{"path": "/", "pathType": "Prefix"}]}],
+                    "tls": [{"secretName": f"{context.namespace}-tls", "hosts": [domain]}],
+                }
+        except Exception:
+            pass  # TLS settings not available
 
         # Merge with context config
         values.update(context.config)
@@ -453,9 +478,28 @@ class KubernetesAdapter(DeploymentAdapter):
         await self._kubectl(["delete", "namespace", namespace, "--wait=true"])
 
     async def _apply_network_policies(self, context: ExecutionContext) -> None:
-        """Apply network policies for tenant isolation"""
-        # Default deny all ingress
-        policy = {
+        """Apply network policies for tenant isolation.
+
+        Creates a comprehensive set of policies:
+        1. Default deny all ingress (existing)
+        2. Default deny all egress (NEW)
+        3. Allow ingress from ingress controller (NEW)
+        4. Allow egress to DNS (kube-system) (NEW)
+        5. Allow egress to infrastructure services (Vault, Redis, Database, OTLP) (NEW)
+        6. Allow intra-namespace pod-to-pod (NEW)
+        """
+        try:
+            from ..settings import settings
+
+            if not settings.network_policy.enabled:
+                return
+
+            np_settings = settings.network_policy
+        except Exception:
+            np_settings = None
+
+        # 1. Default deny all ingress (existing)
+        deny_ingress = {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "NetworkPolicy",
             "metadata": {"name": "deny-all-ingress", "namespace": context.namespace},
@@ -464,8 +508,143 @@ class KubernetesAdapter(DeploymentAdapter):
                 "policyTypes": ["Ingress"],
             },
         }
+        await self._kubectl_apply(deny_ingress)
 
-        await self._kubectl_apply(policy)
+        # 2. Default deny all egress (NEW)
+        deny_egress = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "deny-all-egress", "namespace": context.namespace},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Egress"],
+            },
+        }
+        await self._kubectl_apply(deny_egress)
+
+        # 3. Allow ingress from ingress controller
+        ingress_ns = np_settings.ingress_namespace if np_settings else "ingress-nginx"
+        allow_ingress = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "allow-ingress-controller", "namespace": context.namespace},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Ingress"],
+                "ingress": [
+                    {
+                    "from": [
+                        {
+                            "namespaceSelector": {
+                                "matchLabels": {"kubernetes.io/metadata.name": ingress_ns}
+                            }
+                        }
+                    ]
+                    }
+                ],
+            },
+        }
+        await self._kubectl_apply(allow_ingress)
+
+        # 4. Allow egress to DNS (kube-system)
+        allow_dns = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "allow-egress-dns", "namespace": context.namespace},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Egress"],
+                "egress": [
+                    {
+                        "to": [
+                            {
+                                "namespaceSelector": {
+                                    "matchLabels": {"kubernetes.io/metadata.name": "kube-system"}
+                                }
+                            }
+                        ],
+                        "ports": [
+                            {"protocol": "UDP", "port": 53},
+                            {"protocol": "TCP", "port": 53},
+                        ],
+                    }
+                ],
+            },
+        }
+        await self._kubectl_apply(allow_dns)
+
+        # 5. Allow egress to infrastructure services
+        infra_namespaces = []
+        if np_settings:
+            infra_namespaces = [
+                np_settings.vault_namespace,
+                np_settings.redis_namespace,
+                np_settings.database_namespace,
+                np_settings.otel_namespace,
+            ]
+        else:
+            infra_namespaces = ["vault", "redis", "database", "observability"]
+
+        for ns in infra_namespaces:
+            allow_service = {
+                "apiVersion": "networking.k8s.io/v1",
+                "kind": "NetworkPolicy",
+                "metadata": {
+                    "name": f"allow-egress-{ns}",
+                    "namespace": context.namespace,
+                },
+                "spec": {
+                    "podSelector": {},
+                    "policyTypes": ["Egress"],
+                    "egress": [
+                        {
+                            "to": [
+                                {
+                                    "namespaceSelector": {
+                                        "matchLabels": {"kubernetes.io/metadata.name": ns}
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                },
+            }
+            await self._kubectl_apply(allow_service)
+
+        # 6. Allow intra-namespace pod-to-pod communication
+        allow_intra = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "allow-intra-namespace", "namespace": context.namespace},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Ingress", "Egress"],
+                "ingress": [{"from": [{"podSelector": {}}]}],
+                "egress": [{"to": [{"podSelector": {}}]}],
+            },
+        }
+        await self._kubectl_apply(allow_intra)
+
+        # 7. Allow additional egress CIDRs if configured
+        if np_settings and np_settings.allowed_egress_cidrs:
+            cidr_egress = []
+            for cidr in np_settings.allowed_egress_cidrs:
+                cidr_egress.append({"ipBlock": {"cidr": cidr}})
+
+            allow_cidrs = {
+                "apiVersion": "networking.k8s.io/v1",
+                "kind": "NetworkPolicy",
+                "metadata": {
+                    "name": "allow-egress-external-cidrs",
+                    "namespace": context.namespace,
+                },
+                "spec": {
+                    "podSelector": {},
+                    "policyTypes": ["Egress"],
+                    "egress": [{"to": cidr_egress}],
+                },
+            }
+            await self._kubectl_apply(allow_cidrs)
 
     async def _apply_resource_quotas(self, context: ExecutionContext) -> None:
         """Apply resource quotas to namespace"""

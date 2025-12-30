@@ -209,7 +209,6 @@ Response + Headers
 | Users/Teams | `/api/v1/users`, `/api/v1/teams` | 2 |
 | Partners | `/api/v1/partners/*` | 4 |
 | Partner Portal | `/api/v1/partners/portal/*` | 1 |
-| Customers | `/api/v1/customers/*` | 2 |
 | Monitoring | `/api/v1/monitoring/*` | 4 |
 | Analytics | `/api/v1/analytics/*` | 2 |
 | Workflows/Jobs | `/api/v1/workflows`, `/api/v1/jobs` | 3 |
@@ -264,7 +263,7 @@ Content-Type: application/json
 origins: [
     "http://localhost:3000",    # Frontend dev
     "http://localhost:3001",    # Admin dev
-    "http://localhost:3002",    # Partner portal
+    "http://localhost:3000",    # Partner portal
     "http://localhost:8000",    # API dev
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000"

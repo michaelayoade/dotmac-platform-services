@@ -296,11 +296,11 @@ class TestEventBus:
 
         # Handlers execute synchronously
         await event_bus.publish(event_type="billing.invoice.created", payload={})
-        await event_bus.publish(event_type="customer.created", payload={})
+        await event_bus.publish(event_type="tenant.created", payload={})
 
         # Handlers should have completed
         assert wildcard_calls == ["billing.invoice.created"]
-        assert catch_all_calls == ["billing.invoice.created", "customer.created"]
+        assert catch_all_calls == ["billing.invoice.created", "tenant.created"]
 
     @pytest.mark.asyncio
     async def test_query_events_by_status(self, event_bus):

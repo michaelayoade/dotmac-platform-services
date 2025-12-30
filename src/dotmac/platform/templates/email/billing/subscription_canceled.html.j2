@@ -1,0 +1,43 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">Subscription Canceled</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">We're sorry to see you go. Your subscription has been canceled.</p>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Cancellation Details:</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Plan:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ plan_name }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Access Until:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ access_until_date | format_date }}</td>
+    </tr>
+    {% if refund_amount > 0 %}
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Refund Amount:</td>
+        <td style="padding: 12px; text-align: right; color: #059669;">{{ refund_formatted }}</td>
+    </tr>
+    {% endif %}
+</table>
+
+<div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+    <p style="margin: 0; color: #92400e;">
+        <strong>Data Retention:</strong> Your data will be retained for 30 days. You can reactivate your subscription within this period to restore full access.
+    </p>
+</div>
+
+{% if feedback_reason %}
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Your Feedback</h3>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-style: italic;">
+    "{{ feedback_reason }}"
+</p>
+{% endif %}
+
+{% if reactivate_url %}
+<p style="text-align: center; margin: 0;">
+    <a href="{{ reactivate_url }}" class="button">Reactivate Subscription</a>
+</p>
+{% endif %}
+{% endblock %}

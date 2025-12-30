@@ -17,6 +17,19 @@ from pydantic import (
     field_validator,
 )
 
+
+def _normalize_rate(value: Decimal | None) -> Decimal | None:
+    """Normalize commission rates to 0-1 decimal when provided as 0-100 percent."""
+    if value is None:
+        return None
+    if value > Decimal("1"):
+        if value > Decimal("100"):
+            raise ValueError("Commission rate must be between 0 and 100")
+        return value / Decimal("100")
+    if value < Decimal("0"):
+        raise ValueError("Commission rate must be between 0 and 100")
+    return value
+
 from dotmac.platform.partner_management.models import (
     CommissionModel,
     CommissionStatus,
@@ -51,12 +64,12 @@ class PartnerBase(BaseModel):  # BaseModel resolves to Any in isolation
     default_commission_rate: Decimal | None = Field(
         None,
         ge=Decimal("0"),
-        le=Decimal("1"),
-        description="Commission rate (0-1, e.g., 0.15 for 15%)",
+        le=Decimal("100"),
+        description="Commission rate (0-1 or 0-100, e.g., 0.15 or 15 for 15%)",
     )
 
     # Contact information
-    primary_email: EmailStr
+    primary_email: EmailStr | None = None
     billing_email: EmailStr | None = None
     support_email: EmailStr | None = None
     phone: str | None = Field(None, max_length=30)
@@ -92,6 +105,11 @@ class PartnerBase(BaseModel):  # BaseModel resolves to Any in isolation
             raise ValueError("Phone number must contain only digits, +, -, and spaces")
         return v
 
+    @field_validator("default_commission_rate")
+    @classmethod
+    def normalize_default_commission_rate(cls, v: Decimal | None) -> Decimal | None:
+        return _normalize_rate(v)
+
 
 class PartnerCreate(PartnerBase):  # PartnerBase resolves to Any in isolation
     """Schema for creating a new partner."""
@@ -108,6 +126,7 @@ class PartnerUpdate(BaseModel):  # BaseModel resolves to Any in isolation
         str_strip_whitespace=True,
         validate_assignment=True,
         extra="forbid",
+        from_attributes=True,
     )
 
     # All fields optional for partial updates
@@ -119,7 +138,7 @@ class PartnerUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     status: PartnerStatus | None = None
     tier: PartnerTier | None = None
     commission_model: CommissionModel | None = None
-    default_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    default_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
 
     # Contact information
     primary_email: EmailStr | None = None
@@ -153,6 +172,11 @@ class PartnerUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     metadata: dict[str, Any] | None = None
     custom_fields: dict[str, Any] | None = None
 
+    @field_validator("default_commission_rate")
+    @classmethod
+    def normalize_update_commission_rate(cls, v: Decimal | None) -> Decimal | None:
+        return _normalize_rate(v)
+
 
 class PartnerResponse(PartnerBase):  # PartnerBase resolves to Any in isolation
     """Schema for partner response."""
@@ -170,7 +194,7 @@ class PartnerResponse(PartnerBase):  # PartnerBase resolves to Any in isolation
     updated_at: datetime
 
     # Metrics
-    total_customers: int
+    total_tenants: int
     total_revenue_generated: Decimal
     total_commissions_earned: Decimal
     total_commissions_paid: Decimal
@@ -224,7 +248,7 @@ class PartnerUserBase(BaseModel):  # BaseModel resolves to Any in isolation
 class PartnerUserCreate(PartnerUserBase):  # PartnerUserBase resolves to Any in isolation
     """Schema for creating a partner user."""
 
-    partner_id: UUID
+    partner_id: UUID | None = None
     user_id: UUID | None = Field(None, description="Link to auth user account")
 
 
@@ -270,13 +294,19 @@ class PartnerAccountBase(BaseModel):  # BaseModel resolves to Any in isolation
         validate_assignment=True,
         extra="forbid",
         from_attributes=True,
+        populate_by_name=True,
     )
 
     partner_id: UUID
-    customer_id: UUID
+    tenant_id: UUID = Field(..., alias="customer_id")
     engagement_type: str = Field(min_length=1, max_length=50)
-    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
     notes: str | None = None
+
+    @field_validator("custom_commission_rate")
+    @classmethod
+    def normalize_custom_commission_rate(cls, v: Decimal | None) -> Decimal | None:
+        return _normalize_rate(v)
 
 
 class PartnerAccountCreate(PartnerAccountBase):  # PartnerAccountBase resolves to Any in isolation
@@ -295,11 +325,16 @@ class PartnerAccountUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     )
 
     engagement_type: str | None = Field(None, min_length=1, max_length=50)
-    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    custom_commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
     is_active: bool | None = None
     end_date: datetime | None = None
     notes: str | None = None
     metadata: dict[str, Any] | None = None
+
+    @field_validator("custom_commission_rate")
+    @classmethod
+    def normalize_account_update_rate(cls, v: Decimal | None) -> Decimal | None:
+        return _normalize_rate(v)
 
 
 class PartnerAccountResponse(PartnerAccountBase):  # PartnerAccountBase resolves to Any in isolation
@@ -315,7 +350,7 @@ class PartnerAccountResponse(PartnerAccountBase):  # PartnerAccountBase resolves
 
 
 class PartnerAccountListResponse(BaseModel):  # BaseModel resolves to Any in isolation
-    """List response for partner customer accounts."""
+    """List response for partner tenant accounts."""
 
     model_config = ConfigDict()
 
@@ -353,10 +388,15 @@ class PartnerCommissionEventCreate(
     """Schema for creating commission event."""
 
     invoice_id: UUID | None = None
-    customer_id: UUID | None = None
+    tenant_id: UUID | None = Field(None, alias="customer_id")
     base_amount: Decimal | None = Field(None, ge=Decimal("0"))
-    commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("1"))
+    commission_rate: Decimal | None = Field(None, ge=Decimal("0"), le=Decimal("100"))
     notes: str | None = None
+
+    @field_validator("commission_rate")
+    @classmethod
+    def normalize_commission_rate(cls, v: Decimal | None) -> Decimal | None:
+        return _normalize_rate(v)
     metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
 
 
@@ -381,7 +421,7 @@ class PartnerCommissionEventResponse(
 
     id: UUID
     invoice_id: UUID | None = None
-    customer_id: UUID | None = None
+    tenant_id: UUID | None = None
     base_amount: Decimal | None = None
     commission_rate: Decimal | None = None
     status: CommissionStatus
@@ -438,9 +478,9 @@ class PartnerCommissionRuleBase(BaseModel):  # BaseModel resolves to Any in isol
         None,
         description="List of product IDs this rule applies to (empty = all products)",
     )
-    applies_to_customers: list[str] | None = Field(
+    applies_to_tenants: list[str] | None = Field(
         None,
-        description="List of customer IDs this rule applies to (empty = all customers)",
+        description="List of tenant IDs this rule applies to (empty = all tenants)",
     )
     effective_from: datetime
     effective_to: datetime | None = None
@@ -476,7 +516,7 @@ class PartnerCommissionRuleUpdate(BaseModel):  # BaseModel resolves to Any in is
     flat_fee_amount: Decimal | None = Field(None, ge=Decimal("0"))
     tier_config: dict[str, Any] | None = None
     applies_to_products: list[str] | None = None
-    applies_to_customers: list[str] | None = None
+    applies_to_tenants: list[str] | None = None
     effective_from: datetime | None = None
     effective_to: datetime | None = None
     is_active: bool | None = None
@@ -558,7 +598,7 @@ class ReferralLeadUpdate(BaseModel):  # BaseModel resolves to Any in isolation
     estimated_value: Decimal | None = Field(None, ge=Decimal("0"))
     status: ReferralStatus | None = None
     notes: str | None = None
-    converted_customer_id: UUID | None = None
+    converted_tenant_id: UUID | None = None
     conversion_date: datetime | None = None
     actual_value: Decimal | None = Field(None, ge=Decimal("0"))
     first_contact_date: datetime | None = None
@@ -572,7 +612,7 @@ class ReferralLeadResponse(ReferralLeadBase):  # ReferralLeadBase resolves to An
     id: UUID
     status: ReferralStatus
     submitted_date: datetime
-    converted_customer_id: UUID | None = None
+    converted_tenant_id: UUID | None = None
     conversion_date: datetime | None = None
     actual_value: Decimal | None = None
     first_contact_date: datetime | None = None
@@ -610,7 +650,7 @@ class PartnerSummary(BaseModel):  # BaseModel resolves to Any in isolation
     tier: PartnerTier
 
     # Counts
-    active_customers: int
+    active_tenants: int
     total_referrals: int
     converted_referrals: int
 
@@ -740,8 +780,8 @@ class PartnerRevenueDashboard(BaseModel):  # BaseModel resolves to Any in isolat
     active_referrals: int = 0
 
     # Customers
-    total_customers: int = 0
-    active_customers: int = 0
+    total_tenants: int = 0
+    active_tenants: int = 0
 
     # Activity
     recent_commissions: list[PartnerCommissionEventResponse] = Field(default_factory=lambda: [])
@@ -765,3 +805,134 @@ class PartnerStatementResponse(BaseModel):  # BaseModel resolves to Any in isola
     adjustments_total: Decimal = Field(default=Decimal("0.00"))
     status: PayoutStatus
     download_url: str | None = None
+
+
+# =============================================================================
+# Partner User Invitation Schemas
+# =============================================================================
+
+
+class PartnerUserInvitationCreate(BaseModel):  # BaseModel resolves to Any in isolation
+    """Schema for creating a partner user invitation."""
+
+    model_config = ConfigDict()
+
+    email: EmailStr = Field(..., description="Email address of invitee")
+    role: str = Field(
+        default="account_manager",
+        description="Role within partner org (partner_owner, partner_admin, account_manager, finance)",
+    )
+    send_email: bool = Field(default=True, description="Whether to send invitation email")
+
+
+class PartnerUserInvitationResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Schema for partner user invitation response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    partner_id: UUID
+    email: str
+    role: str
+    invited_by: UUID
+    status: str
+    token: str
+    expires_at: datetime
+    accepted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    # Computed properties
+    is_expired: bool = False
+    is_pending: bool = True
+
+
+class PartnerUserInvitationListResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Paginated list of partner user invitations."""
+
+    model_config = ConfigDict()
+
+    invitations: list[PartnerUserInvitationResponse]
+    total: int
+    page: int = 1
+    page_size: int = 20
+
+
+class AcceptPartnerInvitationRequest(BaseModel):  # BaseModel resolves to Any in isolation
+    """Request body for accepting a partner invitation."""
+
+    model_config = ConfigDict()
+
+    token: str = Field(..., description="Invitation token")
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=8, description="Password for new user account")
+
+
+# =============================================================================
+# Partner Application Schemas
+# =============================================================================
+
+
+class PartnerApplicationCreate(BaseModel):  # BaseModel resolves to Any in isolation
+    """Schema for submitting a partner application."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    company_name: str = Field(..., min_length=1, max_length=255, description="Company name")
+    contact_name: str = Field(..., min_length=1, max_length=255, description="Contact person name")
+    contact_email: EmailStr = Field(..., description="Contact email address")
+    phone: str | None = Field(None, max_length=30, description="Contact phone number")
+    website: str | None = Field(None, max_length=255, description="Company website URL")
+    business_description: str | None = Field(
+        None, description="Description of the business and partnership interest"
+    )
+    expected_referrals_monthly: int | None = Field(
+        None, ge=0, description="Expected number of monthly referrals"
+    )
+
+
+class PartnerApplicationResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Schema for partner application response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    company_name: str
+    contact_name: str
+    contact_email: str
+    phone: str | None = None
+    website: str | None = None
+    business_description: str | None = None
+    expected_referrals_monthly: int | None = None
+    status: str
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
+    rejection_reason: str | None = None
+    notes: str | None = None
+    partner_id: UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PartnerApplicationListResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Paginated list of partner applications."""
+
+    model_config = ConfigDict()
+
+    applications: list[PartnerApplicationResponse]
+    total: int
+    page: int = 1
+    page_size: int = 20
+
+
+class PartnerApplicationRejectRequest(BaseModel):  # BaseModel resolves to Any in isolation
+    """Request body for rejecting a partner application."""
+
+    model_config = ConfigDict()
+
+    rejection_reason: str = Field(..., min_length=1, description="Reason for rejection")

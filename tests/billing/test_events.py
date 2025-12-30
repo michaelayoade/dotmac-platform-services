@@ -51,9 +51,6 @@ class TestBillingEvents:
 
     def test_customer_event_types(self):
         """Test customer event type constants."""
-        assert BillingEvents.CUSTOMER_CREATED == "customer.created"
-        assert BillingEvents.CUSTOMER_UPDATED == "customer.updated"
-        assert BillingEvents.CUSTOMER_DELETED == "customer.deleted"
 
     def test_product_event_types(self):
         """Test product event type constants."""

@@ -27,6 +27,14 @@ import {
 
 import { cn } from "@/lib/utils";
 import { type User } from "@/lib/api/users";
+import {
+  useDeleteUser,
+  useBulkDeleteUsers,
+  useBulkSuspendUsers,
+  useBulkActivateUsers,
+  useBulkResendVerification,
+} from "@/lib/hooks/api/use-users";
+import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface UsersTableClientProps {
   initialUsers: User[];
@@ -48,7 +56,13 @@ export function UsersTableClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const deleteUser = useDeleteUser();
+  const bulkDelete = useBulkDeleteUsers();
+  const bulkSuspend = useBulkSuspendUsers();
+  const bulkActivate = useBulkActivateUsers();
+  const bulkResendVerification = useBulkResendVerification();
 
   // Update URL params for server-side pagination
   const updateParams = useCallback(
@@ -68,7 +82,7 @@ export function UsersTableClient({
 
   // Handle user actions
   const handleUserAction = useCallback(
-    (action: string, user: User) => {
+    async (action: string, user: User) => {
       switch (action) {
         case "view":
           router.push(`/users/${user.id}`);
@@ -76,12 +90,33 @@ export function UsersTableClient({
         case "edit":
           router.push(`/users/${user.id}/edit`);
           break;
-        case "delete":
-          // Handle delete
+        case "delete": {
+          const confirmed = await confirm({
+            title: "Delete User",
+            description: `Are you sure you want to delete "${user.name}"? This action cannot be undone.`,
+            variant: "danger",
+          });
+          if (confirmed) {
+            try {
+              await deleteUser.mutateAsync(user.id);
+              toast({
+                title: "User deleted",
+                description: `User "${user.name}" has been deleted.`,
+                variant: "success",
+              });
+            } catch {
+              toast({
+                title: "Failed to delete user",
+                description: "An error occurred while deleting the user. Please try again.",
+                variant: "error",
+              });
+            }
+          }
           break;
+        }
       }
     },
-    [router]
+    [router, confirm, toast, deleteUser]
   );
 
   // Column definitions
@@ -96,7 +131,7 @@ export function UsersTableClient({
               {/* Avatar */}
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/80 to-highlight/80 flex items-center justify-center text-sm font-semibold text-text-inverse">
-                  {user.name
+                  {(user.name || user.email || "U")
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -228,6 +263,7 @@ export function UsersTableClient({
       label: "Send Email",
       icon: Mail,
       action: async (users) => {
+        // Email functionality would need a dedicated endpoint
         toast({
           title: "Email sent",
           description: `Email sent to ${users.length} user(s)`,
@@ -239,24 +275,96 @@ export function UsersTableClient({
       label: "Activate",
       icon: UserCheck,
       action: async (users) => {
-        toast({
-          title: "Users activated",
-          description: `${users.length} user(s) activated`,
-          variant: "success",
-        });
+        try {
+          const result = await bulkActivate.mutateAsync(users.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) activated, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users activated",
+              description: `${result.success_count} user(s) activated`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to activate users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       disabled: (users) => users.every((u) => u.status === "active"),
+    },
+    {
+      label: "Resend Verification",
+      icon: Mail,
+      action: async (users) => {
+        try {
+          const pendingUsers = users.filter((u) => u.status === "pending");
+          if (pendingUsers.length === 0) {
+            toast({
+              title: "No pending users",
+              description: "None of the selected users need verification",
+              variant: "warning",
+            });
+            return;
+          }
+          const result = await bulkResendVerification.mutateAsync(pendingUsers.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `Sent ${result.success_count} email(s), ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Verification emails sent",
+              description: `Sent ${result.success_count} verification email(s)`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to send verification emails",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
+      },
+      disabled: (users) => users.every((u) => u.status !== "pending"),
     },
     {
       label: "Suspend",
       icon: UserX,
       variant: "destructive",
       action: async (users) => {
-        toast({
-          title: "Users suspended",
-          description: `${users.length} user(s) suspended`,
-          variant: "warning",
-        });
+        try {
+          const result = await bulkSuspend.mutateAsync(users.map((u) => u.id));
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) suspended, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users suspended",
+              description: `${result.success_count} user(s) suspended`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to suspend users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       confirm: {
         title: "Suspend Users",
@@ -269,11 +377,28 @@ export function UsersTableClient({
       icon: Trash2,
       variant: "destructive",
       action: async (users) => {
-        toast({
-          title: "Users deleted",
-          description: `${users.length} user(s) deleted`,
-          variant: "error",
-        });
+        try {
+          const result = await bulkDelete.mutateAsync({ userIds: users.map((u) => u.id) });
+          if (result.errors.length > 0) {
+            toast({
+              title: "Partial success",
+              description: `${result.success_count} user(s) deleted, ${result.errors.length} failed`,
+              variant: "warning",
+            });
+          } else {
+            toast({
+              title: "Users deleted",
+              description: `${result.success_count} user(s) deleted`,
+              variant: "success",
+            });
+          }
+        } catch {
+          toast({
+            title: "Failed to delete users",
+            description: "An error occurred. Please try again.",
+            variant: "error",
+          });
+        }
       },
       confirm: {
         title: "Delete Users",
@@ -338,11 +463,18 @@ export function UsersTableClient({
     description: string;
     confirmLabel?: string;
   }) => {
-    return window.confirm(`${options.title}\n\n${options.description}`);
+    return confirm({
+      title: options.title,
+      description: options.description,
+      variant: "warning",
+    });
   };
 
   return (
     <div className="card overflow-hidden animate-fade-up">
+      {/* Confirm Dialog */}
+      {dialog}
+
       <DataTable
         columns={columns}
         data={initialUsers}
@@ -404,6 +536,7 @@ function UserActionsMenu({
   onAction: (action: string, user: User) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const menuId = `user-actions-menu-${user.id}`;
 
   return (
     <div className="relative" onClick={(event) => event.stopPropagation()}>
@@ -413,8 +546,12 @@ function UserActionsMenu({
           setIsOpen(!isOpen);
         }}
         className="p-1.5 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+        aria-label={`Actions for ${user.name}`}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-controls={isOpen ? menuId : undefined}
       >
-        <MoreHorizontal className="w-4 h-4" />
+        <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
       </button>
 
       {isOpen && (
@@ -423,47 +560,56 @@ function UserActionsMenu({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-1 w-40 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden z-20 animate-fade-in">
+          <div
+            id={menuId}
+            role="menu"
+            aria-label={`Actions for ${user.name}`}
+            className="absolute right-0 mt-1 w-40 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden z-20 animate-fade-in"
+          >
             <div className="py-1">
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("view", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="w-4 h-4" aria-hidden="true" />
                 View
               </button>
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("edit", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Edit className="w-4 h-4" />
+                <Edit className="w-4 h-4" aria-hidden="true" />
                 Edit
               </button>
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("email", user);
                   setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
               >
-                <Mail className="w-4 h-4" />
+                <Mail className="w-4 h-4" aria-hidden="true" />
                 Send Email
               </button>
-              <div className="border-t border-border my-1" />
+              <div className="border-t border-border my-1" role="separator" />
               <button
+                role="menuitem"
                 onClick={() => {
                   onAction("delete", user);
                   setIsOpen(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-status-error hover:bg-status-error/10"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-status-error hover:bg-status-error/15"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
                 Delete
               </button>
             </div>

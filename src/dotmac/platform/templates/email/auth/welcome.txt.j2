@@ -1,0 +1,19 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Welcome, {{ user_name }}!
+
+Your account has been successfully created.
+
+Registered email: {{ email }}
+
+To get started:
+1. Complete your profile
+2. Explore our features
+3. Configure your settings
+
+{% if login_url %}Get Started: {{ login_url }}
+
+{% endif %}
+If you didn't create this account, please contact support immediately.
+{% endblock %}

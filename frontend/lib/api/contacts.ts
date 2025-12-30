@@ -15,7 +15,7 @@ export type ContactStage =
   | "prospect"
   | "lead"
   | "opportunity"
-  | "customer"
+  | "account"
   | "partner"
   | "vendor"
   | "other";
@@ -80,7 +80,6 @@ export interface ContactLabelDefinition {
 export interface Contact {
   id: string;
   tenantId: string;
-  customerId?: string | null;
   firstName?: string | null;
   middleName?: string | null;
   lastName?: string | null;
@@ -132,7 +131,6 @@ export interface GetContactsParams {
   status?: ContactStatus;
   stage?: ContactStage;
   type?: ContactStage; // Alias for stage
-  customerId?: string;
   ownerId?: string;
   tags?: string[];
   labelIds?: string[];
@@ -152,7 +150,6 @@ export async function getContacts(params: GetContactsParams = {}): Promise<{
     search,
     status,
     stage,
-    customerId,
     ownerId,
     tags,
     labelIds,
@@ -163,7 +160,6 @@ export async function getContacts(params: GetContactsParams = {}): Promise<{
     query: search,
     status,
     stage,
-    customerId,
     ownerId,
     tags,
     labelIds,
@@ -218,7 +214,6 @@ export interface CreateContactData {
   preferredContactMethod?: ContactMethodType;
   preferredLanguage?: string;
   timezone?: string;
-  customerId?: string;
   contactMethods?: ContactMethodInput[];
   labelIds?: string[];
   email?: string;
@@ -264,7 +259,6 @@ export async function deleteContact(id: string, hardDelete?: boolean): Promise<v
 
 export interface ContactSearchQuery {
   query?: string;
-  customerId?: string;
   status?: ContactStatus;
   stage?: ContactStage;
   ownerId?: string;
@@ -288,7 +282,6 @@ export async function searchContacts(query: ContactSearchQuery): Promise<{
     search: query.query,
     status: query.status,
     stage: query.stage,
-    customerId: query.customerId,
     ownerId: query.ownerId,
     tags: query.tags,
     labelIds: query.labelIds,
@@ -575,7 +568,7 @@ export interface ContactStats {
   byStage: Record<ContactStage, number>;
   // Additional computed fields for UI
   totalContacts: number;
-  customerCount: number;
+  accountCount: number;
   leadCount: number;
   partnerCount: number;
   newLast30Days: number;

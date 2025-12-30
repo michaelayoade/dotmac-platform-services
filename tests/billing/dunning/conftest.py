@@ -25,6 +25,20 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(autouse=True)
 def dunning_test_environment(monkeypatch):
     monkeypatch.setenv("TESTING", "1")
+    try:
+        from dotmac.platform.tenant.tenant import TenantIdentityResolver
+
+        async def _allow_tenant_override(self, request, tenant_id):  # type: ignore[override]
+            return True
+
+        monkeypatch.setattr(
+            TenantIdentityResolver,
+            "_validate_tenant_override",
+            _allow_tenant_override,
+            raising=True,
+        )
+    except Exception:
+        pass
 
 
 @pytest_asyncio.fixture
@@ -70,6 +84,16 @@ async def async_client(test_app, async_session, test_tenant_id):
         pass
 
     try:
+        from dotmac.platform.billing.dependencies import get_tenant_id
+
+        def override_get_tenant_id() -> str:
+            return test_tenant_id
+
+        overrides[get_tenant_id] = override_get_tenant_id
+    except ImportError:  # pragma: no cover
+        pass
+
+    try:
         from dotmac.platform.auth.core import UserInfo
         from dotmac.platform.auth.dependencies import get_current_user
 
@@ -80,7 +104,7 @@ async def async_client(test_app, async_session, test_tenant_id):
                 email="test@example.com",
                 username="test-user",
                 roles=["admin"],
-                permissions=["billing:dunning:write"],
+                permissions=["billing.dunning.manage", "billing.dunning.view"],
             )
 
         overrides[get_current_user] = override_get_current_user

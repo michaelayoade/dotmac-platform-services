@@ -1348,7 +1348,11 @@ class SubscriptionService:
         tenant_id: str = str(db_subscription.tenant_id)
         customer_id: str = str(db_subscription.customer_id)
         plan_id: str = str(db_subscription.plan_id)
-        status_value: str = str(db_subscription.status)
+        status_value: str = (
+            str(db_subscription.status)
+            if getattr(db_subscription, "status", None)
+            else SubscriptionStatus.ACTIVE.value
+        )
         cancel_at_period_end: bool = bool(db_subscription.cancel_at_period_end)
 
         # Handle datetime columns
@@ -1366,11 +1370,6 @@ class SubscriptionService:
 
         current_period_start = ensure_tz_aware(current_period_start_raw)
         current_period_end = ensure_tz_aware(current_period_end_raw)
-
-        if current_period_start is None:
-            raise ValueError("current_period_start cannot be None")
-        if current_period_end is None:
-            raise ValueError("current_period_end cannot be None")
 
         # Handle optional fields
         custom_price: Decimal | None = getattr(db_subscription, "custom_price", None)
@@ -1390,6 +1389,16 @@ class SubscriptionService:
         if updated_at is None:
             updated_at = datetime.now(UTC)
 
+        if current_period_start is None:
+            current_period_start = created_at
+        if current_period_end is None:
+            current_period_end = current_period_start
+
+        try:
+            status = SubscriptionStatus(status_value)
+        except ValueError:
+            status = SubscriptionStatus.ACTIVE
+
         return Subscription(
             subscription_id=subscription_id,
             tenant_id=tenant_id,
@@ -1397,7 +1406,7 @@ class SubscriptionService:
             plan_id=plan_id,
             current_period_start=current_period_start,
             current_period_end=current_period_end,
-            status=SubscriptionStatus(status_value),
+            status=status,
             trial_end=ensure_tz_aware(trial_end_raw),
             cancel_at_period_end=cancel_at_period_end,
             canceled_at=ensure_tz_aware(canceled_at_raw),
@@ -1436,6 +1445,170 @@ class SubscriptionService:
             is_in_trial=subscription.is_in_trial(),
             days_until_renewal=subscription.days_until_renewal(),
         )
+
+    # ========================================
+    # Grace Period Enforcement
+    # ========================================
+
+    def is_grace_period_expired(self, subscription: Subscription) -> bool:
+        """Check if subscription is past its grace period after payment failure.
+
+        A subscription's grace period expires when:
+        1. Status is PAST_DUE (payment failed)
+        2. Current period end + grace_period_days has passed
+
+        Args:
+            subscription: The subscription to check
+
+        Returns:
+            True if grace period has expired, False otherwise
+        """
+        from dotmac.platform.settings import settings
+
+        if subscription.status != SubscriptionStatus.PAST_DUE:
+            return False
+
+        grace_period = timedelta(days=settings.billing.grace_period_days)
+        # Grace period starts from when the payment was due (period end)
+        grace_period_end = subscription.current_period_end + grace_period
+
+        return datetime.now(UTC) > grace_period_end
+
+    async def suspend_for_nonpayment(
+        self,
+        subscription_id: str,
+        tenant_id: str,
+    ) -> Subscription:
+        """Suspend subscription after grace period expires due to non-payment.
+
+        This method:
+        1. Validates the grace period has actually expired
+        2. Updates subscription status to PAUSED
+        3. Records the suspension event
+        4. Publishes webhook for downstream notification
+
+        Args:
+            subscription_id: The subscription to suspend
+            tenant_id: The tenant ID
+
+        Returns:
+            The updated subscription
+
+        Raises:
+            SubscriptionError: If grace period has not expired
+            SubscriptionNotFoundError: If subscription not found
+        """
+        subscription = await self.get_subscription(subscription_id, tenant_id)
+
+        if not self.is_grace_period_expired(subscription):
+            raise SubscriptionError(
+                "Cannot suspend subscription - grace period has not expired. "
+                f"Subscription status: {subscription.status.value}"
+            )
+
+        # Get the database record for update
+        stmt = select(BillingSubscriptionTable).where(
+            and_(
+                BillingSubscriptionTable.subscription_id == subscription_id,
+                BillingSubscriptionTable.tenant_id == tenant_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        db_subscription = result.scalar_one_or_none()
+
+        if db_subscription is None:
+            raise SubscriptionNotFoundError(f"Subscription {subscription_id} not found")
+
+        now = datetime.now(UTC)
+
+        # Suspend the subscription
+        db_subscription.status = SubscriptionStatus.PAUSED.value
+        db_subscription.metadata_json = {
+            **(db_subscription.metadata_json or {}),
+            "paused_at": now.isoformat(),
+            "pause_reason": "grace_period_expired",
+        }
+
+        await self.db.commit()
+        await self.db.refresh(db_subscription)
+
+        suspended_subscription = self._db_to_pydantic_subscription(db_subscription)
+
+        # Create suspension event
+        await self._create_event(
+            subscription_id,
+            SubscriptionEventType.PAUSED,
+            {
+                "reason": "grace_period_expired",
+                "paused_at": now.isoformat(),
+                "previous_status": subscription.status.value,
+                "period_end": subscription.current_period_end.isoformat(),
+            },
+            tenant_id,
+            user_id=None,  # System-initiated
+        )
+
+        # Publish webhook event
+        try:
+            await get_event_bus().publish(
+                event_type=WebhookEvent.SUBSCRIPTION_PAUSED.value,
+                event_data={
+                    "subscription_id": subscription_id,
+                    "customer_id": suspended_subscription.customer_id,
+                    "plan_id": suspended_subscription.plan_id,
+                    "status": suspended_subscription.status.value,
+                    "reason": "grace_period_expired",
+                    "paused_at": now.isoformat(),
+                    "previous_status": subscription.status.value,
+                },
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+        except Exception as e:
+            logger.warning("Failed to publish subscription.paused event", error=str(e))
+
+        logger.info(
+            "Subscription suspended for non-payment",
+            subscription_id=subscription_id,
+            customer_id=suspended_subscription.customer_id,
+            previous_status=subscription.status.value,
+            tenant_id=tenant_id,
+        )
+
+        return suspended_subscription
+
+    async def get_subscriptions_past_grace_period(
+        self,
+        tenant_id: str | None = None,
+    ) -> list[Subscription]:
+        """Get all subscriptions that are past due and have exceeded their grace period.
+
+        Args:
+            tenant_id: Optional tenant filter. If None, checks all tenants.
+
+        Returns:
+            List of subscriptions that should be suspended
+        """
+        from dotmac.platform.settings import settings
+
+        grace_period = timedelta(days=settings.billing.grace_period_days)
+        cutoff_date = datetime.now(UTC) - grace_period
+
+        # Find PAST_DUE subscriptions where period_end + grace_period has passed
+        stmt = select(BillingSubscriptionTable).where(
+            and_(
+                BillingSubscriptionTable.status == SubscriptionStatus.PAST_DUE.value,
+                BillingSubscriptionTable.current_period_end <= cutoff_date,
+            )
+        )
+
+        if tenant_id:
+            stmt = stmt.where(BillingSubscriptionTable.tenant_id == tenant_id)
+
+        result = await self.db.execute(stmt)
+        db_subscriptions = result.scalars().all()
+
+        return [self._db_to_pydantic_subscription(db_sub) for db_sub in db_subscriptions]
 
     async def _update_subscription_status(
         self, subscription_id: str, status: SubscriptionStatus, tenant_id: str

@@ -7,7 +7,6 @@ Provides billing capabilities including:
 - Usage-based billing
 - Pricing rules and discounts
 - Invoice and payment processing
-- Money-aware models with accurate currency handling
 - PDF invoice generation
 
 Integrated with DotMac platform services.
@@ -93,9 +92,6 @@ if not _SKIP_BILLING_MODELS:
         BillingSubscriptionPlanTable,
         BillingSubscriptionTable,
     )
-    from dotmac.platform.billing.invoicing.money_service import MoneyInvoiceService
-    from dotmac.platform.billing.money_migration import BatchMigrationService, InvoiceMigrationAdapter
-    from dotmac.platform.billing.money_models import MoneyField, MoneyInvoice, MoneyInvoiceLineItem
     from dotmac.platform.billing.money_utils import create_money, format_money, money_handler
     from dotmac.platform.billing.pdf_generator_reportlab import ReportLabInvoiceGenerator
 
@@ -132,15 +128,9 @@ if not _SKIP_BILLING_MODELS:
         "BillingPricingRuleTable",
         "BillingRuleUsageTable",
         "BillingSettingsTable",
-        # Money-aware models and utilities
-        "MoneyInvoice",
-        "MoneyInvoiceLineItem",
-        "MoneyField",
+        # Money utilities
         "money_handler",
         "create_money",
         "format_money",
-        "InvoiceMigrationAdapter",
-        "BatchMigrationService",
-        "MoneyInvoiceService",
         "ReportLabInvoiceGenerator",
     ]

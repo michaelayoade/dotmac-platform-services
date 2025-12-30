@@ -8,8 +8,10 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useSession } from "next-auth/react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 interface Tenant {
   id: string;
@@ -48,21 +50,59 @@ interface UseTenantReturn {
 }
 
 export function useTenant(): UseTenantReturn {
-  const { data: session, status } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const shouldFetchUser = useMemo(() => {
+    // Don't fetch user if pathname is not yet available (SSR/hydration)
+    if (!pathname) return false;
+    // Don't fetch user on auth pages
+    return !(
+      pathname === "/login" ||
+      pathname === "/signup" ||
+      pathname === "/forgot-password" ||
+      pathname === "/reset-password" ||
+      pathname === "/verify-email" ||
+      pathname === "/portal/login" ||
+      pathname === "/partner/login"
+    );
+  }, [pathname]);
+  const queryClient = useQueryClient();
+  const { data: user, isLoading } = useCurrentUser({ enabled: shouldFetchUser });
   const { currentTenantId, tenants, setCurrentTenantId, setTenants } =
     useTenantStore();
 
-  // Sync tenants from session
+  // Sync tenant context from current user
   useEffect(() => {
-    if (session?.user?.tenants) {
-      setTenants(session.user.tenants as Tenant[]);
+    const activeOrg = user?.activeOrganization;
+    if (activeOrg?.id && activeOrg?.name) {
+      const derivedTenant: Tenant = {
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug ?? activeOrg.id,
+        status: "active",
+        plan: "standard",
+      };
+      setTenants([derivedTenant]);
+      if (!currentTenantId) {
+        setCurrentTenantId(derivedTenant.id);
+      }
+      return;
+    }
 
-      // Set default tenant if none selected
-      if (!currentTenantId && session.user.tenants.length > 0) {
-        setCurrentTenantId((session.user.tenants[0] as Tenant).id);
+    if (user?.tenantId) {
+      const fallbackTenant: Tenant = {
+        id: user.tenantId,
+        name: user.tenantId,
+        slug: user.tenantId,
+        status: "active",
+        plan: "standard",
+      };
+      setTenants([fallbackTenant]);
+      if (!currentTenantId) {
+        setCurrentTenantId(fallbackTenant.id);
       }
     }
-  }, [session?.user?.tenants, currentTenantId, setTenants, setCurrentTenantId]);
+  }, [user, currentTenantId, setTenants, setCurrentTenantId]);
 
   const currentTenant =
     tenants.find((t) => t.id === currentTenantId) || null;
@@ -72,18 +112,20 @@ export function useTenant(): UseTenantReturn {
       const tenant = tenants.find((t) => t.id === tenantId);
       if (tenant) {
         setCurrentTenantId(tenantId);
-        // Optionally trigger a page refresh or data refetch
-        window.location.reload();
+        // Invalidate all queries to refetch with new tenant context
+        queryClient.invalidateQueries();
+        // Refresh server components
+        router.refresh();
       }
     },
-    [tenants, setCurrentTenantId]
+    [tenants, setCurrentTenantId, queryClient, router]
   );
 
   return {
     currentTenant,
     tenants,
     switchTenant,
-    isLoading: status === "loading",
+    isLoading,
   };
 }
 

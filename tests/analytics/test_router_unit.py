@@ -244,7 +244,7 @@ class TestSecurityAndOperationsEndpoints:
 
     async def test_operations_metrics_combines_sources(self):
         with patch(
-            "dotmac.platform.analytics.router._get_customer_metrics_cached", new_callable=AsyncMock
+            "dotmac.platform.analytics.router._get_tenant_metrics_cached", new_callable=AsyncMock
         ) as mock_customers, patch(
             "dotmac.platform.analytics.router._get_communication_stats_cached",
             new_callable=AsyncMock,
@@ -255,10 +255,10 @@ class TestSecurityAndOperationsEndpoints:
             new_callable=AsyncMock,
         ) as mock_monitoring:
             mock_customers.return_value = {
-                "total_customers": 100,
-                "new_customers_this_month": 5,
-                "customer_growth_rate": 2.5,
-                "at_risk_customers": 4,
+                "total_tenants": 100,
+                "new_tenants_this_month": 5,
+                "tenant_growth_rate": 2.5,
+                "at_risk_tenants": 4,
             }
             mock_comms.return_value = {
                 "total_sent": 200,
@@ -285,16 +285,16 @@ class TestSecurityAndOperationsEndpoints:
                 session=AsyncMock(),
                 current_user=user,
             )
-            assert data["customers"]["total"] == 100
-            assert data["customers"]["churnRisk"] == pytest.approx(4.0)
+            assert data["tenants"]["total"] == 100
+            assert data["tenants"]["churnRisk"] == pytest.approx(4.0)
             assert data["communications"]["totalSent"] == 200
             assert data["files"]["totalSize"] == 123.4
             assert data["activity"]["eventsPerHour"] == pytest.approx(10.0)
             # Flattened aliases for legacy callers
-            assert data["totalCustomers"] == 100
-            assert data["newCustomersThisMonth"] == 5
-            assert data["customerGrowthRate"] == 2.5
-            assert data["customersAtRisk"] == pytest.approx(4.0)
+            assert data["totalTenants"] == 100
+            assert data["newTenantsThisMonth"] == 5
+            assert data["tenantGrowthRate"] == 2.5
+            assert data["tenantsAtRisk"] == pytest.approx(4.0)
             assert data["totalCommunications"] == 200
             assert data["totalFiles"] == 50
             assert data["eventsPerHour"] == pytest.approx(10.0)

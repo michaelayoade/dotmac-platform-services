@@ -6,26 +6,27 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";
+import type { TenantDashboardResponse, DashboardQueryParams } from "./types/dashboard";
 
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  status: "active" | "trial" | "suspended" | "inactive";
-  plan: "Enterprise" | "Professional" | "Starter" | "Free";
-  userCount: number;
-  mrr: number; // in cents
-  deploymentCount: number;
-  domain?: string;
-  createdAt: string;
-  updatedAt: string;
-  settings?: {
-    features: string[];
-    limits: Record<string, number>;
-  };
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getTenantsDashboard(
+  params?: DashboardQueryParams
+): Promise<TenantDashboardResponse> {
+  return api.get<TenantDashboardResponse>("/api/v1/tenants/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
 }
 
-export interface TenantStats {
+// Re-export Tenant from models for convenience
+export type { Tenant, TenantStatus, TenantPlanType } from "@/types/models";
+
+export interface TenantListStats {
   total: number;
   totalChange: number;
   active: number;
@@ -37,15 +38,15 @@ export interface GetTenantsParams {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: Tenant["status"];
-  plan?: Tenant["plan"];
+  status?: TenantStatus;
+  plan?: TenantPlanType;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }
 
 export async function getTenants(params: GetTenantsParams = {}): Promise<{
   tenants: Tenant[];
-  stats: TenantStats;
+  stats: TenantListStats;
   totalCount: number;
   pageCount: number;
 }> {
@@ -63,8 +64,8 @@ export async function getTenants(params: GetTenantsParams = {}): Promise<{
     },
   });
   const normalized = normalizePaginatedResponse<Tenant>(response);
-  const responseStats = (response as { stats?: TenantStats }).stats;
-  const derivedStats: TenantStats = {
+  const responseStats = (response as { stats?: TenantListStats }).stats;
+  const derivedStats: TenantListStats = {
     total: normalized.total,
     totalChange: 0,
     active: normalized.items.filter((tenant) => tenant.status === "active").length,
@@ -140,7 +141,7 @@ export async function updateTenantSettings(
 export interface CreateTenantData {
   name: string;
   slug: string;
-  plan: Tenant["plan"];
+  plan: TenantPlanType;
   ownerEmail: string;
   ownerName: string;
 }
@@ -179,7 +180,7 @@ export interface TenantMember {
   id: string;
   userId: string;
   email: string;
-  name: string;
+  fullName: string;
   role: "owner" | "admin" | "member" | "viewer";
   joinedAt: string;
 }
@@ -205,4 +206,109 @@ export async function updateTenantMemberRole(
 
 export async function removeTenantMember(tenantId: string, memberId: string): Promise<void> {
   return api.delete(`/api/v1/tenants/${tenantId}/members/${memberId}`);
+}
+
+// Domain Verification
+export type VerificationMethod = "dns_txt" | "dns_cname";
+export type DomainStatus = "pending" | "verified" | "failed" | "expired";
+
+export interface DomainVerification {
+  domain: string;
+  method: VerificationMethod;
+  status: DomainStatus;
+  verificationRecord: string;
+  verificationValue: string;
+  instructions: string;
+  expiresAt: string;
+  verifiedAt?: string;
+  createdAt: string;
+}
+
+export interface DomainVerificationResult {
+  success: boolean;
+  domain: string;
+  status: DomainStatus;
+  message: string;
+  verifiedAt?: string;
+}
+
+export async function initiateDomainVerification(
+  tenantId: string,
+  domain: string,
+  method: VerificationMethod
+): Promise<DomainVerification> {
+  return api.post<DomainVerification>(
+    `/api/v1/tenants/${tenantId}/domains/verify`,
+    { domain, method }
+  );
+}
+
+export async function checkDomainVerification(
+  tenantId: string,
+  domain: string
+): Promise<DomainVerificationResult> {
+  return api.post<DomainVerificationResult>(
+    `/api/v1/tenants/${tenantId}/domains/check`,
+    { domain }
+  );
+}
+
+export async function getDomainStatus(tenantId: string): Promise<{
+  domain?: string;
+  status: DomainStatus | "none";
+  verification?: DomainVerification;
+}> {
+  return api.get(`/api/v1/tenants/${tenantId}/domains/status`);
+}
+
+export async function removeDomain(tenantId: string): Promise<void> {
+  return api.delete(`/api/v1/tenants/${tenantId}/domains`);
+}
+
+// Branding
+export interface TenantBranding {
+  logoUrl?: string;
+  faviconUrl?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  productName: string;
+  tagline?: string;
+  supportEmail?: string;
+  customCss?: string;
+  emailTemplateConfig?: {
+    headerLogoUrl?: string;
+    footerText?: string;
+  };
+}
+
+export async function getBranding(tenantId: string): Promise<TenantBranding> {
+  return api.get<TenantBranding>(`/api/v1/tenants/${tenantId}/branding`);
+}
+
+export async function updateBranding(
+  tenantId: string,
+  data: Partial<TenantBranding>
+): Promise<TenantBranding> {
+  return api.put<TenantBranding>(`/api/v1/tenants/${tenantId}/branding`, data);
+}
+
+export async function uploadBrandingLogo(
+  tenantId: string,
+  file: File,
+  type: "logo" | "favicon"
+): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("type", type);
+
+  return api.post<{ url: string }>(
+    `/api/v1/tenants/${tenantId}/branding/upload`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
 }

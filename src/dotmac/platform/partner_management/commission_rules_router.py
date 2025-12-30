@@ -4,7 +4,7 @@ Commission Rules Router - RESTful endpoints for partner commission rules managem
 Provides CRUD operations for managing commission calculation rules.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
@@ -27,6 +27,16 @@ from dotmac.platform.partner_management.schemas import (
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/commission-rules", tags=["Commission Rules"])
+
+def _convert_rule_to_response(rule: Any) -> PartnerCommissionRuleResponse:
+    """Convert commission rule model to response schema."""
+    rule_dict: dict[str, Any] = {}
+    for key in PartnerCommissionRuleResponse.model_fields:
+        if key == "applies_to_tenants":
+            rule_dict[key] = getattr(rule, "applies_to_customers", None)
+        elif hasattr(rule, key):
+            rule_dict[key] = getattr(rule, key)
+    return PartnerCommissionRuleResponse.model_validate(rule_dict)
 
 
 # Dependency
@@ -73,7 +83,7 @@ async def create_commission_rule(
             data=data,
             created_by=UUID(current_user.user_id),
         )
-        return PartnerCommissionRuleResponse.model_validate(rule, from_attributes=True)
+        return _convert_rule_to_response(rule)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -116,7 +126,7 @@ async def get_commission_rule(
             detail=f"Commission rule {rule_id} not found",
         )
 
-    return PartnerCommissionRuleResponse.model_validate(rule, from_attributes=True)
+    return _convert_rule_to_response(rule)
 
 
 @router.get("/", response_model=PartnerCommissionRuleListResponse)
@@ -154,9 +164,7 @@ async def list_commission_rules(
     )
 
     # Convert to response models
-    rule_responses = [
-        PartnerCommissionRuleResponse.model_validate(r, from_attributes=True) for r in rules
-    ]
+    rule_responses = [_convert_rule_to_response(r) for r in rules]
 
     return PartnerCommissionRuleListResponse(
         rules=rule_responses,
@@ -202,7 +210,7 @@ async def update_commission_rule(
                 detail=f"Commission rule {rule_id} not found",
             )
 
-        return PartnerCommissionRuleResponse.model_validate(rule, from_attributes=True)
+        return _convert_rule_to_response(rule)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -259,7 +267,7 @@ async def get_applicable_rules(
     service: Annotated[CommissionRulesService, Depends(get_commission_rules_service)],
     current_user: Annotated[UserInfo, Depends(get_current_user)],
     product_id: str | None = Query(None, description="Product ID to match"),
-    customer_id: str | None = Query(None, description="Customer ID to match"),
+    tenant_id: str | None = Query(None, description="Tenant ID to match"),
 ) -> list[PartnerCommissionRuleResponse]:
     """
     Get applicable commission rules for a scenario.
@@ -273,7 +281,7 @@ async def get_applicable_rules(
         service: Commission rules service
         current_user: Current authenticated user
         product_id: Optional product ID to match
-        customer_id: Optional customer ID to match
+        tenant_id: Optional tenant ID to match
 
     Returns:
         List of applicable rules in priority order
@@ -281,7 +289,7 @@ async def get_applicable_rules(
     rules = await service.get_applicable_rules(
         partner_id=partner_id,
         product_id=product_id,
-        customer_id=customer_id,
+        tenant_id=tenant_id,
     )
 
     return [PartnerCommissionRuleResponse.model_validate(r, from_attributes=True) for r in rules]

@@ -20,6 +20,7 @@ import {
   getJobStats,
   getJobQueues,
   purgeQueue,
+  getJobsDashboard,
   type GetJobsParams,
   type Job,
   type JobProgress,
@@ -31,9 +32,22 @@ import {
   type JobQueue,
 } from "@/lib/api/jobs";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 type JobStatsParams = Parameters<typeof getJobStats> extends [infer P] ? P : undefined;
 type JobStatsArgs = Parameters<typeof getJobStats>;
+
+// ============================================================================
+// Jobs Dashboard Hook
+// ============================================================================
+
+export function useJobsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.jobs.dashboard(params),
+    queryFn: () => getJobsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Jobs Hooks

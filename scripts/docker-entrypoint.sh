@@ -84,14 +84,14 @@ main() {
             fi
 
             # Start API with Gunicorn
-            exec gunicorn dotmac.platform.main:app \
+            exec python -m gunicorn dotmac.platform.main:app \
                 --worker-class ${GUNICORN_WORKER_CLASS} \
                 --workers ${GUNICORN_WORKERS} \
                 --bind ${GUNICORN_BIND} \
                 --max-requests ${GUNICORN_MAX_REQUESTS} \
                 --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER} \
                 --timeout ${GUNICORN_TIMEOUT} \
-                --keepalive ${GUNICORN_KEEPALIVE} \
+                --keep-alive ${GUNICORN_KEEPALIVE} \
                 --access-logfile ${GUNICORN_ACCESS_LOG} \
                 --error-logfile ${GUNICORN_ERROR_LOG} \
                 --log-level ${GUNICORN_LOG_LEVEL}

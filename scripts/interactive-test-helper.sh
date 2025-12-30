@@ -16,7 +16,7 @@ NC='\033[0m'
 
 # Configuration
 ISP_OPS_URL="http://localhost:3001"
-PLATFORM_ADMIN_URL="http://localhost:3002"
+PLATFORM_ADMIN_URL="http://localhost:3000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_header() {
@@ -31,7 +31,7 @@ print_menu() {
     echo -e "${BLUE}What would you like to test?${NC}"
     echo ""
     echo "  1) Test ISP Ops App (port 3001)"
-    echo "  2) Test Platform Admin App (port 3002)"
+    echo "  2) Test Platform Admin App (port 3000)"
     echo "  3) Run comprehensive E2E tests"
     echo "  4) Check if apps are running"
     echo "  5) Open browser inspector"
@@ -154,7 +154,7 @@ generate_test_report() {
 
         echo "App Status:"
         curl -s -o /dev/null -w "ISP Ops (3001): HTTP %{http_code}\n" "$ISP_OPS_URL"
-        curl -s -o /dev/null -w "Platform Admin (3002): HTTP %{http_code}\n" "$PLATFORM_ADMIN_URL"
+        curl -s -o /dev/null -w "Platform Admin (3000): HTTP %{http_code}\n" "$PLATFORM_ADMIN_URL"
         echo ""
 
         echo "Page Accessibility:"
@@ -209,7 +209,7 @@ while true; do
             echo ""
             echo "Which app?"
             echo "  1) ISP Ops (3001)"
-            echo "  2) Platform Admin (3002)"
+            echo "  2) Platform Admin (3000)"
             read -p "Select: " app_choice
 
             case $app_choice in

@@ -320,16 +320,6 @@ class TestInvoiceImportIntegration:
         assert hasattr(InvoiceMapper, "validate_import_row")
         assert hasattr(InvoiceMapper, "from_import_to_model")
 
-    def test_invoice_import_schema_matches_customer_pattern(self):
-        """Test that InvoiceImportSchema follows same pattern as CustomerImportSchema."""
-        # Both should have validate_import_row and from_import_to_model
-        from dotmac.platform.customer_management.mappers import CustomerMapper
-
-        assert hasattr(InvoiceMapper, "validate_import_row")
-        assert hasattr(InvoiceMapper, "from_import_to_model")
-        assert hasattr(CustomerMapper, "validate_import_row")
-        assert hasattr(CustomerMapper, "from_import_to_model")
-
     async def test_import_job_type_invoice_supported(self):
         """Test that ImportJobType.INVOICES is supported."""
         # Verify the enum value exists

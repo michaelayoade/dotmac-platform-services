@@ -20,8 +20,9 @@ import { useToast } from "@dotmac/core";
 
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
-import { useJobs, useJobStats, useJobQueues, useRetryJob, useCancelJob } from "@/lib/hooks/api/use-jobs";
+import { useJobs, useJobsDashboard, useJobStats, useJobQueues, useRetryJob, useCancelJob } from "@/lib/hooks/api/use-jobs";
 import type { JobSummary } from "@/lib/api/jobs";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -45,6 +46,7 @@ export default function JobsPage() {
     pageSize: 20,
     jobStatus: statusFilter !== "all" ? statusFilter : undefined,
   });
+  const { data: dashboardData } = useJobsDashboard();
   const { data: stats } = useJobStats();
   const { data: queues } = useJobQueues();
 
@@ -104,6 +106,11 @@ export default function JobsPage() {
           </div>
         }
       />
+
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -199,7 +206,7 @@ export default function JobsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table" aria-label="Background jobs"><caption className="sr-only">Background jobs</caption>
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Job ID</th>

@@ -4,10 +4,11 @@ Invoice service with tenant support and idempotency
 
 import os
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 import structlog
-from sqlalchemy import and_, select, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,7 +26,10 @@ from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
 from dotmac.platform.billing.currency.service import CurrencyRateService
 from dotmac.platform.billing.metrics import get_billing_metrics
 from dotmac.platform.billing.money_utils import money_handler
+from dotmac.platform.billing.pdf_generator_reportlab import ReportLabInvoiceGenerator
 from dotmac.platform.communications.email_service import EmailMessage, EmailService
+from dotmac.platform.communications.template_context import TemplateContextBuilder
+from dotmac.platform.communications.template_service import get_tenant_template_service
 from dotmac.platform.settings import settings
 from dotmac.platform.webhooks.events import get_event_bus
 from dotmac.platform.webhooks.models import WebhookEvent
@@ -45,6 +49,7 @@ class InvoiceService:
     def __init__(self, db_session: AsyncSession) -> None:
         self.db = db_session
         self.metrics = get_billing_metrics()
+        self.pdf_generator = ReportLabInvoiceGenerator()
 
     async def _normalize_currency_components(
         self,
@@ -57,7 +62,7 @@ class InvoiceService:
         in_test_env = testing_flag in {"true", "1", "yes"}
         enable_multi_currency = getattr(settings.billing, "enable_multi_currency", False)
 
-        if not enable_multi_currency and not in_test_env:
+        if not enable_multi_currency:
             logger.info(
                 "currency.normalization.disabled",
                 enable_multi_currency=enable_multi_currency,
@@ -338,6 +343,47 @@ class InvoiceService:
                 invoice.extra_data = {}
 
         return [Invoice.model_validate(invoice) for invoice in invoices]
+
+    async def list_invoices_with_count(
+        self,
+        tenant_id: str,
+        customer_id: str | None = None,
+        status: InvoiceStatus | None = None,
+        payment_status: PaymentStatus | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[Invoice], int]:
+        """List invoices with filtering and return a total count for pagination."""
+        query = select(InvoiceEntity).where(InvoiceEntity.tenant_id == tenant_id)
+
+        if customer_id:
+            query = query.where(InvoiceEntity.customer_id == customer_id)
+        if status:
+            query = query.where(InvoiceEntity.status == status)
+        if payment_status:
+            query = query.where(InvoiceEntity.payment_status == payment_status)
+        if start_date:
+            query = query.where(InvoiceEntity.issue_date >= start_date)
+        if end_date:
+            query = query.where(InvoiceEntity.issue_date <= end_date)
+
+        count_stmt = select(func.count()).select_from(query.subquery())
+        total_raw = await self.db.scalar(count_stmt)
+        total_count = int(total_raw or 0)
+
+        query = query.order_by(InvoiceEntity.created_at.desc()).limit(limit).offset(offset)
+        query = query.options(selectinload(InvoiceEntity.line_items))
+
+        result = await self.db.execute(query)
+        invoices = result.scalars().all()
+
+        for invoice in invoices:
+            if invoice.extra_data is None:
+                invoice.extra_data = {}
+
+        return [Invoice.model_validate(invoice) for invoice in invoices], total_count
 
     async def finalize_invoice(self, tenant_id: str, invoice_id: str) -> Invoice:
         """Finalize a draft invoice to open status"""
@@ -643,6 +689,146 @@ class InvoiceService:
 
         return Invoice.model_validate(invoice)
 
+    async def generate_invoice_pdf(
+        self,
+        tenant_id: str,
+        invoice_id: str,
+        company_info: dict[str, Any] | None = None,
+        customer_info: dict[str, Any] | None = None,
+        payment_instructions: str | None = None,
+        locale: str = "en_US",
+        output_path: str | None = None,
+    ) -> bytes:
+        """Generate PDF for an invoice using the ReportLab generator."""
+        invoice = await self.get_invoice(tenant_id, invoice_id, include_line_items=True)
+        if not invoice:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        pdf_bytes: bytes = self.pdf_generator.generate_invoice_pdf(
+            invoice=invoice,
+            company_info=company_info,
+            customer_info=customer_info,
+            payment_instructions=payment_instructions,
+            locale=locale,
+            output_path=output_path,
+        )
+        return pdf_bytes
+
+    async def generate_batch_invoices_pdf(
+        self,
+        tenant_id: str,
+        invoice_ids: list[str],
+        output_dir: str,
+        company_info: dict[str, Any] | None = None,
+        locale: str = "en_US",
+    ) -> list[str]:
+        """Generate PDF files for multiple invoices."""
+        invoices: list[Invoice] = []
+        for invoice_id in invoice_ids:
+            invoice = await self.get_invoice(tenant_id, invoice_id, include_line_items=True)
+            if invoice:
+                invoices.append(invoice)
+
+        if not invoices:
+            return []
+
+        output_paths: list[str] = self.pdf_generator.generate_batch_invoices(
+            invoices=invoices,
+            output_dir=output_dir,
+            company_info=company_info,
+            locale=locale,
+        )
+        return output_paths
+
+    async def apply_percentage_discount(
+        self,
+        tenant_id: str,
+        invoice_id: str,
+        discount_percentage: float,
+        reason: str | None = None,
+    ) -> Invoice:
+        """Apply a percentage discount to an invoice."""
+        invoice_entity = await self._get_invoice_entity(tenant_id, invoice_id)
+        if not invoice_entity:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        subtotal_minor = int(invoice_entity.subtotal or 0)
+        discount_rate = Decimal(str(discount_percentage)) / Decimal("100")
+        discount_minor = int(
+            (Decimal(subtotal_minor) * discount_rate).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+
+        invoice_entity.discount_amount = discount_minor
+        invoice_entity.total_amount = max(
+            0, subtotal_minor + int(invoice_entity.tax_amount or 0) - discount_minor
+        )
+
+        credits = int(invoice_entity.total_credits_applied or 0)
+        invoice_entity.remaining_balance = max(0, invoice_entity.total_amount - credits)
+
+        if reason:
+            note = f"Discount applied ({discount_percentage}%): {reason}"
+            if invoice_entity.internal_notes:
+                invoice_entity.internal_notes += f"\n{note}"
+            else:
+                invoice_entity.internal_notes = note
+
+        invoice_entity.updated_at = datetime.now(UTC)
+
+        await self.db.commit()
+        await self.db.refresh(invoice_entity, attribute_names=["line_items"])
+
+        if invoice_entity.extra_data is None:
+            invoice_entity.extra_data = {}
+
+        return Invoice.model_validate(invoice_entity)
+
+    async def calculate_tax_for_jurisdiction(
+        self,
+        tenant_id: str,
+        invoice_id: str,
+        tax_jurisdiction: str,
+        tax_rates: dict[str, float],
+    ) -> Invoice:
+        """Recalculate tax for an invoice based on jurisdiction."""
+        invoice_entity = await self._get_invoice_entity_with_items(tenant_id, invoice_id)
+        if not invoice_entity:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        rate_percent = Decimal(str(tax_rates.get("default", 0.0)))
+        total_tax = 0
+        subtotal = 0
+
+        for line_item in invoice_entity.line_items:
+            subtotal += int(line_item.total_price or 0)
+            tax_amount = int(
+                (Decimal(int(line_item.total_price or 0)) * rate_percent / Decimal("100")).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                )
+            )
+            line_item.tax_rate = float(rate_percent)
+            line_item.tax_amount = tax_amount
+            total_tax += tax_amount
+
+        invoice_entity.subtotal = subtotal
+        invoice_entity.tax_amount = total_tax
+        discount_amount = int(invoice_entity.discount_amount or 0)
+        invoice_entity.total_amount = max(0, subtotal + total_tax - discount_amount)
+
+        credits = int(invoice_entity.total_credits_applied or 0)
+        invoice_entity.remaining_balance = max(0, invoice_entity.total_amount - credits)
+        invoice_entity.updated_at = datetime.now(UTC)
+
+        await self.db.commit()
+        await self.db.refresh(invoice_entity, attribute_names=["line_items"])
+
+        if invoice_entity.extra_data is None:
+            invoice_entity.extra_data = {}
+
+        return Invoice.model_validate(invoice_entity)
+
     async def send_invoice_email(
         self, tenant_id: str, invoice_id: str, recipient_email: str | None = None
     ) -> bool:
@@ -675,46 +861,39 @@ class InvoiceService:
             return False
 
         try:
-            # Use communications module to send email
-            from dotmac.platform.communications.email_service import EmailMessage, get_email_service
-            from dotmac.platform.settings import settings
+            from dotmac.platform.communications.email_service import get_email_service
 
-            app_name = getattr(settings, "app_name", "DotMac Platform")
-            subject = f"Invoice {invoice.invoice_number} from {app_name}"
+            payment_method = "payment method on file"
+            if invoice.extra_data:
+                payment_method = (
+                    invoice.extra_data.get("payment_method_label")
+                    or invoice.extra_data.get("payment_method")
+                    or payment_method
+                )
 
-            # Create email content
-            content = f"""
-Dear Customer,
-
-Please find your invoice details below:
-
-Invoice Number: {invoice.invoice_number}
-Amount Due: {invoice.currency} {invoice.total_amount}
-Due Date: {invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "N/A"}
-Status: {invoice.status.value}
-
-{f"Notes: {invoice.notes}" if invoice.notes else ""}
-
-Thank you for your business!
-
-Best regards,
-{app_name} Team
-""".strip()
-
-            html_content = f"""
-<h2>Invoice {invoice.invoice_number}</h2>
-<p><strong>Amount Due:</strong> {invoice.currency} {invoice.total_amount}</p>
-<p><strong>Due Date:</strong> {invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "N/A"}</p>
-<p><strong>Status:</strong> {invoice.status.value}</p>
-{f"<p><strong>Notes:</strong> {invoice.notes}</p>" if invoice.notes else ""}
-<p>Thank you for your business!</p>
-""".strip()
+            template_service = get_tenant_template_service()
+            context = TemplateContextBuilder.invoice_generated(
+                invoice_number=invoice.invoice_number or invoice.invoice_id or "N/A",
+                issue_date=invoice.issue_date,
+                due_date=invoice.due_date,
+                amount=invoice.total_amount,
+                payment_method=str(payment_method),
+                invoice_url=_build_invoice_url(invoice.invoice_id or ""),
+                notes=invoice.notes,
+                currency=invoice.currency,
+            )
+            rendered = await template_service.render_email(
+                template_key="email.billing.invoice_generated",
+                context=context,
+                tenant_id=tenant_id,
+                db=self.db,
+            )
 
             message = EmailMessage(
                 to=[email],
-                subject=subject,
-                text_body=content,
-                html_body=html_content,
+                subject=rendered.subject or f"Invoice {invoice.invoice_number}",
+                text_body=rendered.text_body,
+                html_body=rendered.html_body,
             )
 
             email_service = get_email_service()
@@ -790,78 +969,31 @@ Best regards,
             return False
 
         try:
-            # Use communications module to send email
-            from dotmac.platform.communications.email_service import EmailMessage, get_email_service
-            from dotmac.platform.settings import settings
+            from dotmac.platform.communications.email_service import get_email_service
 
-            app_name = getattr(settings, "app_name", "DotMac Platform")
-            subject = f"Payment Reminder: Invoice {invoice.invoice_number}"
-
-            # Determine urgency based on status
-            urgency_note = ""
-            if invoice.status == InvoiceStatus.OVERDUE:
-                urgency_note = "\n\n⚠️ URGENT: This invoice is now OVERDUE. Please arrange payment immediately to avoid service interruption."
-
-            # Build custom message section
-            custom_msg_section = ""
-            if custom_message:
-                custom_msg_section = f"\n\nMessage from billing team:\n{custom_message}\n"
-
-            # Create email content
-            content = f"""
-Dear Customer,
-
-This is a friendly reminder that you have an outstanding invoice:
-
-Invoice Number: {invoice.invoice_number}
-Amount Due: {invoice.currency} {invoice.remaining_balance or invoice.total_amount}
-Original Amount: {invoice.currency} {invoice.total_amount}
-Due Date: {invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "N/A"}
-Status: {invoice.status.value.upper()}{urgency_note}{custom_msg_section}
-
-Please arrange payment at your earliest convenience.
-
-If you have already made payment, please disregard this reminder.
-
-Thank you for your business!
-
-Best regards,
-{app_name} Team
-""".strip()
-
-            html_urgency = ""
-            if invoice.status == InvoiceStatus.OVERDUE:
-                html_urgency = '<p style="color: #dc2626; font-weight: bold;">⚠️ URGENT: This invoice is now OVERDUE. Please arrange payment immediately to avoid service interruption.</p>'
-
-            html_custom_msg = ""
-            if custom_message:
-                html_custom_msg = f'<div style="margin: 20px 0; padding: 15px; background-color: #f3f4f6; border-left: 4px solid #3b82f6;"><strong>Message from billing team:</strong><p>{custom_message}</p></div>'
-
-            html_content = f"""
-<h2>Payment Reminder</h2>
-<p>This is a friendly reminder that you have an outstanding invoice:</p>
-
-<table style="margin: 20px 0; border-collapse: collapse;">
-    <tr><td style="padding: 8px; font-weight: bold;">Invoice Number:</td><td style="padding: 8px;">{invoice.invoice_number}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold;">Amount Due:</td><td style="padding: 8px;">{invoice.currency} {invoice.remaining_balance or invoice.total_amount}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold;">Original Amount:</td><td style="padding: 8px;">{invoice.currency} {invoice.total_amount}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold;">Due Date:</td><td style="padding: 8px;">{invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "N/A"}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold;">Status:</td><td style="padding: 8px;">{invoice.status.value.upper()}</td></tr>
-</table>
-
-{html_urgency}
-{html_custom_msg}
-
-<p>Please arrange payment at your earliest convenience.</p>
-<p><em>If you have already made payment, please disregard this reminder.</em></p>
-<p>Thank you for your business!</p>
-""".strip()
+            amount_due = invoice.remaining_balance or invoice.total_amount
+            template_service = get_tenant_template_service()
+            context = TemplateContextBuilder.payment_reminder(
+                invoice_number=invoice.invoice_number or invoice.invoice_id or "N/A",
+                due_date=invoice.due_date,
+                amount_due=amount_due,
+                invoice_url=_build_invoice_url(invoice.invoice_id or ""),
+                status=invoice.status.value,
+                custom_message=custom_message,
+                currency=invoice.currency,
+            )
+            rendered = await template_service.render_email(
+                template_key="email.billing.payment_reminder",
+                context=context,
+                tenant_id=tenant_id,
+                db=self.db,
+            )
 
             message = EmailMessage(
                 to=[email],
-                subject=subject,
-                text_body=content,
-                html_body=html_content,
+                subject=rendered.subject or f"Payment Reminder: Invoice {invoice.invoice_number}",
+                text_body=rendered.text_body,
+                html_body=rendered.html_body,
             )
 
             email_service = get_email_service()
@@ -1024,6 +1156,18 @@ Best regards,
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def _get_invoice_entity_with_items(
+        self, tenant_id: str, invoice_id: str
+    ) -> InvoiceEntity | None:
+        """Get invoice entity with line items for update operations."""
+        query = (
+            select(InvoiceEntity)
+            .where(and_(InvoiceEntity.tenant_id == tenant_id, InvoiceEntity.invoice_id == invoice_id))
+            .options(selectinload(InvoiceEntity.line_items))
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def _get_invoice_by_idempotency_key(
         self, tenant_id: str, idempotency_key: str
     ) -> InvoiceEntity | None:
@@ -1157,12 +1301,6 @@ Best regards,
                     invoice_id=str(invoice.invoice_id),
                 )
                 return
-            # Initialize email service with default settings
-            email_service = EmailService()
-
-            invoice_url = _build_invoice_url(invoice.invoice_id)
-            amount_display = f"{invoice.currency} {invoice.total_amount / 100:.2f}"
-
             company_info = billing_settings.company_info
             if not invoice.billing_email:
                 logger.warning(
@@ -1172,81 +1310,44 @@ Best regards,
                 )
                 return
 
+            payment_method = "payment method on file"
+            extra_data = dict(invoice.extra_data or {})
+            payment_method = extra_data.get("payment_method_label") or payment_method
+
+            template_service = get_tenant_template_service()
+            context = TemplateContextBuilder.invoice_generated(
+                invoice_number=invoice.invoice_number or invoice.invoice_id or "N/A",
+                issue_date=invoice.issue_date,
+                due_date=invoice.due_date,
+                amount=int(invoice.total_amount or 0),
+                payment_method=str(payment_method),
+                invoice_url=_build_invoice_url(invoice.invoice_id),
+                notes=invoice.notes,
+                currency=invoice.currency,
+            )
+            rendered = await template_service.render_email(
+                template_key="email.billing.invoice_generated",
+                context=context,
+                tenant_id=tenant_id,
+                db=self.db,
+            )
+
+            email_service = EmailService()
             sender_email_value = company_info.email or email_service.default_from
-            sender_email = sender_email_value  # EmailStr is a type annotation, not a constructor
+            sender_email = sender_email_value
             sender_name = company_info.name or "DotMac Billing"
             reply_to_email = sender_email
 
-            recipient_email = (
-                invoice.billing_email
-            )  # EmailStr is a type annotation, not a constructor
+            recipient_email = invoice.billing_email
 
             email_message = EmailMessage(
                 from_email=sender_email,
                 from_name=sender_name,
                 reply_to=reply_to_email,
                 to=[recipient_email],
-                subject=f"Invoice #{invoice.invoice_number} - {amount_display}",
-                html_body=f"""
-                <html>
-                <body style="font-family: Arial, sans-serif; color: #333;">
-                    <h2>Invoice #{invoice.invoice_number}</h2>
-
-                    <p>Dear Customer,</p>
-
-                    <p>Your invoice has been finalized and is ready for your review.</p>
-
-                    <div style="background-color: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px;">
-                        <h3>Invoice Details:</h3>
-                        <p><strong>Invoice Number:</strong> {invoice.invoice_number}</p>
-                        <p><strong>Issue Date:</strong> {invoice.issue_date.strftime("%B %d, %Y")}</p>
-                        <p><strong>Due Date:</strong> {invoice.due_date.strftime("%B %d, %Y")}</p>
-                        <p><strong>Amount Due:</strong> {amount_display}</p>
-                    </div>
-
-                    <p>You can view and download your invoice at:</p>
-                    <p><a href="{invoice_url}" style="color: #007bff;">{invoice_url}</a></p>
-
-                    {f"<p><strong>Notes:</strong> {invoice.notes}</p>" if invoice.notes else ""}
-
-                    <p>If you have any questions about this invoice, please don't hesitate to contact our support team.</p>
-
-                    <p>Thank you for your business!</p>
-
-                    <hr style="margin-top: 40px; border: none; border-top: 1px solid #ddd;">
-                    <p style="color: #666; font-size: 12px;">
-                        This is an automated notification from DotMac Platform Billing.<br>
-                        Please do not reply to this email.
-                    </p>
-                </body>
-                </html>
-                """,
-                text_body=f"""
-Invoice #{invoice.invoice_number}
-
-Dear Customer,
-
-Your invoice has been finalized and is ready for your review.
-
-Invoice Details:
-- Invoice Number: {invoice.invoice_number}
-- Issue Date: {invoice.issue_date.strftime("%B %d, %Y")}
-- Due Date: {invoice.due_date.strftime("%B %d, %Y")}
-- Amount Due: {amount_display}
-
-You can view and download your invoice at:
-{invoice_url}
-
-{f"Notes: {invoice.notes}" if invoice.notes else ""}
-
-If you have any questions about this invoice, please don't hesitate to contact our support team.
-
-Thank you for your business!
-
----
-This is an automated notification from DotMac Platform Billing.
-Please do not reply to this email.
-                """,
+                subject=rendered.subject or f"Invoice #{invoice.invoice_number}",
+                html_body=rendered.html_body,
+                text_body=rendered.text_body,
             )
 
             # Send the email

@@ -356,17 +356,17 @@ class TestPartnerAccountSchema:
     def test_valid_partner_account_create(self):
         """Test creating valid partner account assignment."""
         partner_id = uuid4()
-        customer_id = uuid4()
+        tenant_id = uuid4()
 
         account = PartnerAccountCreate(
             partner_id=partner_id,
-            customer_id=customer_id,
+            tenant_id=tenant_id,
             engagement_type="managed",
             custom_commission_rate=Decimal("0.20"),
         )
 
         assert account.partner_id == partner_id
-        assert account.customer_id == customer_id
+        assert account.tenant_id == tenant_id
         assert account.engagement_type == "managed"
         assert account.custom_commission_rate == Decimal("0.20")
 
@@ -374,7 +374,7 @@ class TestPartnerAccountSchema:
         """Test partner account without custom commission rate."""
         account = PartnerAccountCreate(
             partner_id=uuid4(),
-            customer_id=uuid4(),
+            tenant_id=uuid4(),
             engagement_type="referral",
         )
 
@@ -385,7 +385,7 @@ class TestPartnerAccountSchema:
         with pytest.raises(ValidationError):
             PartnerAccountCreate(
                 partner_id=uuid4(),
-                customer_id=uuid4(),
+                tenant_id=uuid4(),
                 engagement_type="managed",
                 custom_commission_rate=Decimal("1.5"),  # > 100%
             )
@@ -424,18 +424,18 @@ class TestCommissionEventSchema:
         assert event.event_type == "invoice_paid"
 
     def test_commission_event_with_references(self):
-        """Test commission event with invoice and customer references."""
+        """Test commission event with invoice and tenant references."""
         event = PartnerCommissionEventCreate(
             partner_id=uuid4(),
             invoice_id=uuid4(),
-            customer_id=uuid4(),
+            tenant_id=uuid4(),
             commission_amount=Decimal("200.00"),
             currency="USD",
             event_type="invoice_paid",
         )
 
         assert event.invoice_id is not None
-        assert event.customer_id is not None
+        assert event.tenant_id is not None
 
     def test_commission_event_negative_amount(self):
         """Test validation fails with negative commission amount."""
@@ -548,19 +548,19 @@ class TestReferralLeadSchema:
 
     def test_referral_lead_update(self):
         """Test referral lead update schema."""
-        customer_id = uuid4()
+        tenant_id = uuid4()
         now = datetime.now(UTC)
 
         update = ReferralLeadUpdate(
             status=ReferralStatus.CONVERTED,
-            converted_customer_id=customer_id,
+            converted_tenant_id=tenant_id,
             conversion_date=now,
             actual_value=Decimal("75000.00"),
             notes="Successfully converted!",
         )
 
         assert update.status == ReferralStatus.CONVERTED
-        assert update.converted_customer_id == customer_id
+        assert update.converted_tenant_id == tenant_id
         assert update.actual_value == Decimal("75000.00")
 
     def test_referral_lead_status_progression(self):

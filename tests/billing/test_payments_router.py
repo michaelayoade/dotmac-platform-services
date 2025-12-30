@@ -216,7 +216,10 @@ class TestGetFailedPayments:
         app.include_router(router, prefix="/billing")
 
         test_client = TestClient(app)
-        response = test_client.get("/billing/payments/failed")
+        response = test_client.get(
+            "/billing/payments/failed",
+            headers={"X-Tenant-ID": "test-tenant"},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -239,7 +242,7 @@ class TestGetFailedPayments:
         response = test_client.get("/billing/payments/failed")
 
         # Should fail without authentication
-        assert response.status_code in [401, 422]  # Unauthorized or validation error
+        assert response.status_code in [401, 403]
 
 
 @pytest_asyncio.fixture(autouse=True)

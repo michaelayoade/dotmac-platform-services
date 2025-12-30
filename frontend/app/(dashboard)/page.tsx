@@ -17,9 +17,9 @@ import {
   Server,
   Activity,
   ArrowUpRight,
+  AlertTriangle,
 } from "lucide-react";
-
-import { safeApi } from "@/lib/api/safe-api";
+import { fetchOrNull } from "@/lib/api/fetch-or-null";
 import { getDashboardMetrics } from "@/lib/api/dashboard";
 import {
   getRevenueData,
@@ -37,55 +37,16 @@ export const metadata = {
   title: "Dashboard",
 };
 
-const fallbackMetrics = {
-  users: { total: 0, active: 0, change: 0 },
-  tenants: { total: 0, trial: 0, change: 0 },
-  revenue: { current: 0, change: 0, trend: [] },
-  deployments: { active: 0, pending: 0, change: 0 },
-};
-
-const fallbackUserAnalytics = {
-  totalUsers: 0,
-  activeUsers: 0,
-  newUsersThisMonth: 0,
-  userGrowth: 0,
-  usersByRole: [],
-  usersByTenant: [],
-  loginActivity: [],
-};
-
-const fallbackTenantAnalytics = {
-  totalTenants: 0,
-  activeTenants: 0,
-  trialTenants: 0,
-  tenantGrowth: 0,
-  tenantsByPlan: [],
-  topTenants: [],
-  conversionRate: 0,
-  churnRate: 0,
-};
-
-const fallbackPerformanceMetrics = {
-  responseTime: { p50: 0, p95: 0, p99: 0, average: 0 },
-  errorRate: 0,
-  requestsPerSecond: 0,
-  byEndpoint: [],
-  byTime: [],
-};
-
-const buildEmptyRevenueData = (months: number) => {
-  const now = new Date();
-  return Array.from({ length: months }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (months - 1 - index), 1);
-    return {
-      month: date.toLocaleString("en-US", { month: "short" }),
-      revenue: 0,
-    };
-  });
-};
+function EmptyChart({ height = 280, message = "No data available" }: { height?: number; message?: string }) {
+  return (
+    <div className="flex items-center justify-center text-sm text-text-muted" style={{ height }}>
+      {message}
+    </div>
+  );
+}
 
 export default async function DashboardPage() {
-  const metrics = await safeApi(getDashboardMetrics, fallbackMetrics);
+  const metrics = await fetchOrNull(getDashboardMetrics);
 
   return (
     <div className="space-y-8">
@@ -100,40 +61,77 @@ export default async function DashboardPage() {
         <QuickActions />
       </div>
 
+      {/* Error Banner - shown when metrics fail to load */}
+      {!metrics && (
+        <div
+          role="alert"
+          className="flex items-center gap-3 p-3 bg-status-warning/15 border border-status-warning/30 rounded-lg text-sm animate-fade-up"
+        >
+          <AlertTriangle className="w-4 h-4 text-status-warning flex-shrink-0" aria-hidden="true" />
+          <span className="text-text-primary">
+            Some dashboard data could not be loaded. Metrics may be incomplete.
+          </span>
+        </div>
+      )}
+
       {/* KPI Grid */}
       <section className="animate-fade-up">
         <KPIGrid>
           <KPITile
             title="Total Users"
-            value={metrics.users.total.toLocaleString()}
-            change={metrics.users.change}
-            changeType={metrics.users.change >= 0 ? "increase" : "decrease"}
+            value={metrics?.users?.total?.toLocaleString() ?? "—"}
+            change={metrics?.users?.change}
+            changeType={
+              metrics?.users?.change !== undefined
+                ? metrics.users.change >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<Users className="w-5 h-5" />}
-            description={`${metrics.users.active} active this month`}
+            changeLabel={metrics?.users?.active !== undefined ? `${metrics.users.active} active this month` : undefined}
           />
           <KPITile
             title="Active Tenants"
-            value={metrics.tenants.total.toLocaleString()}
-            change={metrics.tenants.change}
-            changeType={metrics.tenants.change >= 0 ? "increase" : "decrease"}
+            value={metrics?.tenants?.total?.toLocaleString() ?? "—"}
+            change={metrics?.tenants?.change}
+            changeType={
+              metrics?.tenants?.change !== undefined
+                ? metrics.tenants.change >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<Building2 className="w-5 h-5" />}
-            description={`${metrics.tenants.trial} in trial`}
+            changeLabel={metrics?.tenants?.trial !== undefined ? `${metrics.tenants.trial} in trial` : undefined}
           />
           <KPITile
             title="Monthly Revenue"
-            value={`$${(metrics.revenue.current / 100).toLocaleString()}`}
-            change={metrics.revenue.change}
-            changeType={metrics.revenue.change >= 0 ? "increase" : "decrease"}
+            value={metrics?.revenue?.current !== undefined ? `$${(metrics.revenue.current / 100).toLocaleString()}` : "—"}
+            change={metrics?.revenue?.change}
+            changeType={
+              metrics?.revenue?.change !== undefined
+                ? metrics.revenue.change >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<CreditCard className="w-5 h-5" />}
-            description="vs. last month"
+            changeLabel="vs. last month"
           />
           <KPITile
             title="Active Deployments"
-            value={metrics.deployments.active.toLocaleString()}
-            change={metrics.deployments.change}
-            changeType={metrics.deployments.change >= 0 ? "increase" : "decrease"}
+            value={metrics?.deployments?.active?.toLocaleString() ?? "—"}
+            change={metrics?.deployments?.change}
+            changeType={
+              metrics?.deployments?.change !== undefined
+                ? metrics.deployments.change >= 0
+                  ? "increase"
+                  : "decrease"
+                : undefined
+            }
             icon={<Server className="w-5 h-5" />}
-            description={`${metrics.deployments.pending} pending`}
+            changeLabel={metrics?.deployments?.pending !== undefined ? `${metrics.deployments.pending} pending` : undefined}
           />
         </KPIGrid>
       </section>
@@ -143,8 +141,8 @@ export default async function DashboardPage() {
         <ChartGrid columns={2}>
           <ChartCard
             title="Revenue Trend"
-            description="Monthly recurring revenue over time"
-            action={
+            subtitle="Monthly recurring revenue over time"
+            actions={
               <button className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1">
                 View Details <ArrowUpRight className="w-3 h-3" />
               </button>
@@ -157,8 +155,8 @@ export default async function DashboardPage() {
 
           <ChartCard
             title="User Growth"
-            description="New user registrations by week"
-            action={
+            subtitle="New user registrations by week"
+            actions={
               <button className="text-sm text-accent hover:text-accent-hover inline-flex items-center gap-1">
                 View Details <ArrowUpRight className="w-3 h-3" />
               </button>
@@ -203,19 +201,19 @@ export default async function DashboardPage() {
       {/* Tenant Distribution Chart */}
       <section className="animate-fade-up delay-450">
         <ChartGrid columns={3}>
-          <ChartCard title="Tenant Distribution" description="By subscription plan">
+          <ChartCard title="Tenant Distribution" subtitle="By subscription plan">
             <Suspense fallback={<ChartSkeleton />}>
               <TenantDistributionChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="API Traffic" description="Requests per hour (24h)">
+          <ChartCard title="API Traffic" subtitle="Requests per hour (24h)">
             <Suspense fallback={<ChartSkeleton />}>
               <APITrafficChart />
             </Suspense>
           </ChartCard>
 
-          <ChartCard title="Error Rate" description="Last 7 days">
+          <ChartCard title="Error Rate" subtitle="Last 7 days">
             <Suspense fallback={<ChartSkeleton />}>
               <ErrorRateChart />
             </Suspense>
@@ -229,8 +227,12 @@ export default async function DashboardPage() {
 // Async chart components that fetch their own data
 
 async function RevenueChart() {
-  const revenueData = await safeApi(() => getRevenueData("12m"), buildEmptyRevenueData(12));
-  const data = revenueData.map((item) => ({
+  const revenueData = await fetchOrNull(() => getRevenueData("12m"));
+  const safeRevenueData = Array.isArray(revenueData) ? revenueData : [];
+  if (safeRevenueData.length === 0) {
+    return <EmptyChart />;
+  }
+  const data = safeRevenueData.map((item) => ({
     month: item.month,
     revenue: item.revenue / 100, // Convert cents to dollars
   }));
@@ -241,16 +243,19 @@ async function RevenueChart() {
       dataKey="revenue"
       xAxisKey="month"
       height={280}
-      color="hsl(185, 85%, 50%)"
+      color="hsl(var(--color-accent))"
       gradient
     />
   );
 }
 
 async function UserGrowthChart() {
-  const userAnalytics = await safeApi(getUserAnalytics, fallbackUserAnalytics);
-  // Use login activity as a proxy for user growth
-  const data = userAnalytics.loginActivity.slice(-8).map((item, index) => ({
+  const userAnalytics = await fetchOrNull(getUserAnalytics);
+  const loginActivity = userAnalytics?.loginActivity ?? [];
+  if (loginActivity.length === 0) {
+    return <EmptyChart />;
+  }
+  const data = loginActivity.slice(-8).map((item, index) => ({
     week: `W${index + 1}`,
     users: item.logins,
   }));
@@ -261,14 +266,18 @@ async function UserGrowthChart() {
       dataKey="users"
       xAxisKey="week"
       height={280}
-      color="hsl(45, 95%, 55%)"
+      color="hsl(var(--color-highlight))"
     />
   );
 }
 
 async function TenantDistributionChart() {
-  const tenantAnalytics = await safeApi(getTenantAnalytics, fallbackTenantAnalytics);
-  const data = tenantAnalytics.tenantsByPlan.map((item) => ({
+  const tenantAnalytics = await fetchOrNull(getTenantAnalytics);
+  const tenantsByPlan = tenantAnalytics?.tenantsByPlan ?? [];
+  if (tenantsByPlan.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const data = tenantsByPlan.map((item) => ({
     name: item.plan,
     value: item.count,
   }));
@@ -277,11 +286,12 @@ async function TenantDistributionChart() {
 }
 
 async function APITrafficChart() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("24h"),
-    fallbackPerformanceMetrics
-  );
-  const data = performanceData.byTime.slice(-24).map((item) => {
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("24h"));
+  const byTime = performanceData?.byTime ?? [];
+  if (byTime.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const data = byTime.slice(-24).map((item) => {
     const date = new Date(item.timestamp);
     return {
       hour: `${date.getHours()}:00`,
@@ -295,18 +305,19 @@ async function APITrafficChart() {
       dataKey="requests"
       xAxisKey="hour"
       height={200}
-      color="hsl(145, 72%, 45%)"
+      color="hsl(var(--color-status-success))"
     />
   );
 }
 
 async function ErrorRateChart() {
-  const performanceData = await safeApi(
-    () => getPerformanceMetrics("7d"),
-    fallbackPerformanceMetrics
-  );
+  const performanceData = await fetchOrNull(() => getPerformanceMetrics("7d"));
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const data = performanceData.byTime.slice(-7).map((item) => {
+  const byTime = performanceData?.byTime ?? [];
+  if (byTime.length === 0) {
+    return <EmptyChart height={200} />;
+  }
+  const data = byTime.slice(-7).map((item) => {
     const date = new Date(item.timestamp);
     return {
       day: days[date.getDay()],
@@ -320,7 +331,7 @@ async function ErrorRateChart() {
       dataKey="rate"
       xAxisKey="day"
       height={200}
-      color="hsl(0, 75%, 55%)"
+      color="hsl(var(--color-status-error))"
     />
   );
 }

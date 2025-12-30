@@ -96,7 +96,7 @@ class VersionedRoute:
 class VersioningStrategy(str, Enum):
     """Version detection strategy."""
 
-    URL_PATH = "url_path"  # /v1/customers, /v2/customers
+    URL_PATH = "url_path"  # /v1/tenants, /v2/tenants
     HEADER = "header"  # X-API-Version: v1
     QUERY_PARAM = "query_param"  # ?version=v1
     ACCEPT_HEADER = "accept_header"  # Accept: application/vnd.api+json; version=1

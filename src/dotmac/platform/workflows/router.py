@@ -5,12 +5,16 @@ REST API endpoints for workflow management and execution.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.rbac_dependencies import require_permission
-from ..db import get_async_db
+from ..database import get_async_session
 from .builtin_workflows import get_all_builtin_workflows
 from .models import WorkflowStatus
 from .schemas import (
@@ -30,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workflows", tags=["Workflows"])
 
 
-def get_workflow_service(db: AsyncSession = Depends(get_async_db)) -> WorkflowService:
+def get_workflow_service(db: AsyncSession = Depends(get_async_session)) -> WorkflowService:
     """Dependency to get workflow service instance"""
     return WorkflowService(db)
 
@@ -406,3 +410,262 @@ async def get_workflow_stats_by_id(
         tenant_id=tenant_id,
     )
     return WorkflowStatsResponse(**stats)
+
+
+# =============================================================================
+# Dashboard Endpoint
+# =============================================================================
+
+
+class WorkflowDashboardSummary(BaseModel):
+    """Summary statistics for workflow dashboard."""
+
+    model_config = ConfigDict()
+
+    total_workflows: int = Field(description="Total workflow templates")
+    active_workflows: int = Field(description="Active workflow templates")
+    total_executions: int = Field(description="Total executions")
+    pending_executions: int = Field(description="Pending executions")
+    running_executions: int = Field(description="Running executions")
+    completed_executions: int = Field(description="Completed executions")
+    failed_executions: int = Field(description="Failed executions")
+    success_rate_pct: float = Field(description="Execution success rate")
+
+
+class WorkflowChartDataPoint(BaseModel):
+    """Single data point for workflow charts."""
+
+    model_config = ConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowCharts(BaseModel):
+    """Chart data for workflow dashboard."""
+
+    model_config = ConfigDict()
+
+    executions_by_status: list[WorkflowChartDataPoint] = Field(description="Executions by status")
+    executions_by_workflow: list[WorkflowChartDataPoint] = Field(description="Executions by workflow")
+    executions_trend: list[WorkflowChartDataPoint] = Field(description="Daily execution trend")
+    success_trend: list[WorkflowChartDataPoint] = Field(description="Daily success rate trend")
+
+
+class WorkflowAlert(BaseModel):
+    """Alert item for workflow dashboard."""
+
+    model_config = ConfigDict()
+
+    type: str = Field(description="Alert type: warning, error, info")
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class WorkflowRecentActivity(BaseModel):
+    """Recent activity item for workflow dashboard."""
+
+    model_config = ConfigDict()
+
+    id: str
+    type: str = Field(description="Activity type: execution, workflow")
+    description: str
+    status: str
+    timestamp: datetime
+    workflow_id: int | None = None
+    tenant_id: str | None = None
+
+
+class WorkflowDashboardResponse(BaseModel):
+    """Consolidated workflow dashboard response."""
+
+    model_config = ConfigDict()
+
+    summary: WorkflowDashboardSummary
+    charts: WorkflowCharts
+    alerts: list[WorkflowAlert]
+    recent_activity: list[WorkflowRecentActivity]
+    generated_at: datetime
+
+
+@router.get(
+    "/dashboard",
+    response_model=WorkflowDashboardResponse,
+    summary="Get workflow dashboard data",
+    description="Returns consolidated workflow metrics, charts, and alerts for the dashboard",
+    dependencies=[Depends(require_permission("workflows:read"))],
+)
+async def get_workflow_dashboard(
+    period_days: int = Query(30, ge=1, le=90, description="Days of trend data"),
+    filter_tenant_id: str | None = Query(None, alias="tenant_id", description="Filter by tenant ID"),
+    service: WorkflowService = Depends(get_workflow_service),
+    db: AsyncSession = Depends(get_async_session),
+) -> WorkflowDashboardResponse:
+    """
+    Get consolidated workflow dashboard data including:
+    - Summary statistics (workflow counts, execution stats)
+    - Chart data (trends, breakdowns)
+    - Alerts (failed executions)
+    - Recent activity
+    """
+    from .models import Workflow, WorkflowExecution
+
+    try:
+        now = datetime.now(timezone.utc)
+
+        # ========== SUMMARY STATS ==========
+        # Workflow template counts
+        workflow_counts_query = select(
+            func.count(Workflow.id).label("total"),
+            func.sum(case((Workflow.is_active.is_(True), 1), else_=0)).label("active"),
+        )
+        workflow_counts_result = await db.execute(workflow_counts_query)
+        workflow_counts = workflow_counts_result.one()
+
+        # Execution counts
+        exec_counts_query = select(
+            func.count(WorkflowExecution.id).label("total"),
+            func.sum(case((WorkflowExecution.status == WorkflowStatus.PENDING, 1), else_=0)).label("pending"),
+            func.sum(case((WorkflowExecution.status == WorkflowStatus.RUNNING, 1), else_=0)).label("running"),
+            func.sum(case((WorkflowExecution.status == WorkflowStatus.COMPLETED, 1), else_=0)).label("completed"),
+            func.sum(case((WorkflowExecution.status == WorkflowStatus.FAILED, 1), else_=0)).label("failed"),
+        )
+        if filter_tenant_id:
+            exec_counts_query = exec_counts_query.where(WorkflowExecution.tenant_id == filter_tenant_id)
+        exec_counts_result = await db.execute(exec_counts_query)
+        exec_counts = exec_counts_result.one()
+
+        # Calculate success rate
+        total_finished = (exec_counts.completed or 0) + (exec_counts.failed or 0)
+        success_rate = ((exec_counts.completed or 0) / total_finished * 100) if total_finished > 0 else 0.0
+
+        summary = WorkflowDashboardSummary(
+            total_workflows=workflow_counts.total or 0,
+            active_workflows=workflow_counts.active or 0,
+            total_executions=exec_counts.total or 0,
+            pending_executions=exec_counts.pending or 0,
+            running_executions=exec_counts.running or 0,
+            completed_executions=exec_counts.completed or 0,
+            failed_executions=exec_counts.failed or 0,
+            success_rate_pct=round(success_rate, 2),
+        )
+
+        # ========== CHART DATA ==========
+        # Executions by status
+        status_query = select(
+            WorkflowExecution.status,
+            func.count(WorkflowExecution.id),
+        )
+        if filter_tenant_id:
+            status_query = status_query.where(WorkflowExecution.tenant_id == filter_tenant_id)
+        status_query = status_query.group_by(WorkflowExecution.status)
+        status_result = await db.execute(status_query)
+        executions_by_status = [
+            WorkflowChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+            for row in status_result.all()
+        ]
+
+        # Executions by workflow
+        workflow_query = select(
+            Workflow.name,
+            func.count(WorkflowExecution.id),
+        ).join(Workflow, WorkflowExecution.workflow_id == Workflow.id)
+        if filter_tenant_id:
+            workflow_query = workflow_query.where(WorkflowExecution.tenant_id == filter_tenant_id)
+        workflow_query = workflow_query.group_by(Workflow.name).limit(10)
+        workflow_result = await db.execute(workflow_query)
+        executions_by_workflow = [
+            WorkflowChartDataPoint(label=row[0] if row[0] else "Unknown", value=row[1])
+            for row in workflow_result.all()
+        ]
+
+        # Execution trend (daily)
+        executions_trend = []
+        success_trend = []
+        for i in range(min(period_days, 14) - 1, -1, -1):
+            day_date = now - timedelta(days=i)
+            next_day = day_date + timedelta(days=1)
+
+            day_count_query = select(func.count(WorkflowExecution.id)).where(
+                WorkflowExecution.created_at >= day_date.replace(hour=0, minute=0, second=0),
+                WorkflowExecution.created_at < next_day.replace(hour=0, minute=0, second=0),
+            )
+            if filter_tenant_id:
+                day_count_query = day_count_query.where(WorkflowExecution.tenant_id == filter_tenant_id)
+            day_count_result = await db.execute(day_count_query)
+            day_count = day_count_result.scalar() or 0
+
+            executions_trend.append(WorkflowChartDataPoint(
+                label=day_date.strftime("%b %d"),
+                value=day_count,
+            ))
+            success_trend.append(WorkflowChartDataPoint(
+                label=day_date.strftime("%b %d"),
+                value=success_rate,
+            ))
+
+        charts = WorkflowCharts(
+            executions_by_status=executions_by_status,
+            executions_by_workflow=executions_by_workflow,
+            executions_trend=executions_trend,
+            success_trend=success_trend,
+        )
+
+        # ========== ALERTS ==========
+        alerts = []
+
+        if exec_counts.failed and exec_counts.failed > 0:
+            alerts.append(WorkflowAlert(
+                type="error",
+                title="Failed Executions",
+                message=f"{exec_counts.failed} workflow execution(s) have failed",
+                count=exec_counts.failed,
+                action_url="/workflows/executions?status=failed",
+            ))
+
+        if exec_counts.running and exec_counts.running > 10:
+            alerts.append(WorkflowAlert(
+                type="warning",
+                title="High Execution Load",
+                message=f"{exec_counts.running} executions currently running",
+                count=exec_counts.running,
+                action_url="/workflows/executions?status=running",
+            ))
+
+        # ========== RECENT ACTIVITY ==========
+        recent_executions = await service.list_executions(
+            tenant_id=filter_tenant_id,
+            limit=10,
+            offset=0,
+        )
+
+        recent_activity = [
+            WorkflowRecentActivity(
+                id=str(e.id),
+                type="execution",
+                description=f"Execution: {e.workflow.name if e.workflow else 'Unknown Workflow'}",
+                status=e.status.value if e.status else "unknown",
+                timestamp=e.created_at,
+                workflow_id=e.workflow_id,
+                tenant_id=e.tenant_id,
+            )
+            for e in recent_executions
+        ]
+
+        return WorkflowDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate workflow dashboard: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate workflow dashboard: {str(e)}",
+        )

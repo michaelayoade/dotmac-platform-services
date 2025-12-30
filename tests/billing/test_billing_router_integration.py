@@ -356,23 +356,16 @@ class TestInvoiceRouter:
             "currency": "USD",
         }
 
-        # Try creating invoice (may not exist)
-        try:
-            response = await router_client.post(
-                "/api/v1/billing/invoices",
-                json=invoice_data,
-                headers=auth_headers,
-            )
+        response = await router_client.post(
+            "/api/v1/billing/invoices",
+            json=invoice_data,
+            headers=auth_headers,
+        )
 
-            # If endpoint exists, verify response
-            if response.status_code != status.HTTP_404_NOT_FOUND:
-                assert response.status_code in [
-                    status.HTTP_201_CREATED,
-                    status.HTTP_200_OK,
-                ]
-        except Exception:
-            # Endpoint may not exist, skip
-            pytest.skip("Invoice endpoint not implemented")
+        assert response.status_code in [
+            status.HTTP_201_CREATED,
+            status.HTTP_200_OK,
+        ]
 
 
 @pytest.mark.asyncio

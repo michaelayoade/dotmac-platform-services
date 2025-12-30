@@ -75,7 +75,7 @@ class TestTenantMiddlewareFailFast:
 
         # Create request without tenant_id
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {}  # No tenant header
         mock_request.query_params = {}  # No tenant query param
@@ -111,7 +111,7 @@ class TestTenantMiddlewareFailFast:
 
         # Create request with tenant_id in header
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {"X-Tenant-ID": "tenant-123"}  # Valid tenant
         mock_request.query_params = {}
@@ -139,7 +139,7 @@ class TestTenantMiddlewareFailFast:
 
         # Create request with tenant_id in query param
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {}
         mock_request.query_params = {"tenant_id": "tenant-456"}  # Query param
@@ -227,7 +227,7 @@ class TestTenantMiddlewareOptionalMode:
 
         # Create request without tenant_id
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {}
         mock_request.query_params = {}
@@ -255,7 +255,7 @@ class TestTenantMiddlewareOptionalMode:
 
         # Create request with tenant_id
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.headers = {"X-Tenant-ID": "tenant-999"}
         mock_request.query_params = {}
         mock_request.state = SimpleNamespace()
@@ -278,7 +278,7 @@ class TestTenantMiddlewareOptionalMode:
         )
 
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "POST"
         mock_request.headers = {"Authorization": "Bearer jwt-token"}
         mock_request.query_params = {}
@@ -308,7 +308,7 @@ class TestTenantMiddlewareOptionalMode:
         )
 
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "POST"
         mock_request.headers = {
             "Authorization": "Bearer jwt-token",
@@ -379,7 +379,7 @@ class TestTenantMiddlewarePlatformAdmin:
 
         # Create request with platform admin targeting specific tenant
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {
             "X-Target-Tenant-ID": "tenant-target-123",  # Platform admin impersonation
@@ -423,7 +423,7 @@ class TestTenantMiddlewarePlatformAdmin:
         # This simulates is_platform_admin_request check but without actual user auth
         # In production, this would be validated by auth middleware
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.method = "GET"
         mock_request.headers = {}  # No X-Target-Tenant-ID
         mock_request.query_params = {}
@@ -453,7 +453,7 @@ class TestTenantMiddlewareSingleTenant:
 
         # Create request without any tenant identifier
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.headers = {}
         mock_request.query_params = {}
         mock_request.state = SimpleNamespace()
@@ -479,7 +479,7 @@ class TestTenantMiddlewareSingleTenant:
 
         # Create request with tenant_id (should be ignored)
         mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/v1/customers"
+        mock_request.url.path = "/api/v1/tenants"
         mock_request.headers = {"X-Tenant-ID": "some-other-tenant"}
         mock_request.query_params = {}
         mock_request.state = SimpleNamespace()
@@ -566,7 +566,7 @@ class TestTenantMiddlewareSecurityRegression:
 
         # Request 1: Tenant A
         mock_request_a = MagicMock(spec=Request)
-        mock_request_a.url.path = "/api/v1/customers"
+        mock_request_a.url.path = "/api/v1/tenants"
         mock_request_a.headers = {"X-Tenant-ID": "tenant-a"}
         mock_request_a.query_params = {}
         mock_request_a.state = SimpleNamespace()
@@ -575,7 +575,7 @@ class TestTenantMiddlewareSecurityRegression:
 
         # Request 2: Tenant B
         mock_request_b = MagicMock(spec=Request)
-        mock_request_b.url.path = "/api/v1/customers"
+        mock_request_b.url.path = "/api/v1/tenants"
         mock_request_b.headers = {"X-Tenant-ID": "tenant-b"}
         mock_request_b.query_params = {}
         mock_request_b.state = SimpleNamespace()

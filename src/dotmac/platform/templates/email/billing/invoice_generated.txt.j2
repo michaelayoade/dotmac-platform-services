@@ -1,0 +1,21 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+New Invoice Available
+
+A new invoice has been generated for your subscription.
+
+Invoice Summary:
+- Invoice Number: #{{ invoice_number }}
+- Issue Date: {{ issue_date | format_date }}
+- Due Date: {{ due_date | format_date }}
+- Amount Due: {{ amount_formatted }}
+
+Payment will be automatically charged to your {{ payment_method }} on {{ due_date | format_date }}.
+
+{% if has_notes %}
+Notes: {{ notes }}
+{% endif %}
+
+View Invoice: {{ invoice_url }}
+{% endblock %}

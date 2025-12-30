@@ -11,7 +11,6 @@ import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .. import tenant as tenant_module
 from ..tenant import get_tenant_context
 
 logger = structlog.get_logger(__name__)
@@ -81,12 +80,12 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
 
             if jwt_token or api_key:
                 # Import here to avoid circular dependency
-                from ..auth.core import api_key_service, jwt_service
+                from ..auth.core import TokenType, api_key_service, jwt_service
 
                 # Extract user info from JWT token (header or cookie)
                 if jwt_token:
                     try:
-                        claims = jwt_service.verify_token(jwt_token)
+                        claims = jwt_service.verify_token(jwt_token, TokenType.ACCESS)
                         user_id = claims.get("sub")
                         username = claims.get("username")
                         email = claims.get("email")
@@ -97,13 +96,36 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                         # Partner multi-tenant context
                         partner_id = claims.get("partner_id")
                         managed_tenant_ids = claims.get("managed_tenant_ids", [])
-                        active_managed_tenant_id = request.headers.get("X-Active-Tenant-Id")
+                        active_managed_tenant_id = None
+                        requested_active_tenant_id = request.headers.get("X-Active-Tenant-Id")
+                        if isinstance(requested_active_tenant_id, str):
+                            requested_active_tenant_id = requested_active_tenant_id.strip()
+                        if (
+                            partner_id
+                            and isinstance(requested_active_tenant_id, str)
+                            and requested_active_tenant_id
+                        ):
+                            if (
+                                isinstance(managed_tenant_ids, list)
+                                and requested_active_tenant_id in managed_tenant_ids
+                            ):
+                                active_managed_tenant_id = requested_active_tenant_id
+                            else:
+                                logger.warning(
+                                    "active_tenant_header_unauthorized",
+                                    requested_tenant=requested_active_tenant_id,
+                                    managed_tenants=managed_tenant_ids,
+                                )
 
                         # Set individual fields for backward compatibility
                         request.state.user_id = user_id
                         request.state.username = username
                         request.state.email = email
-                        request.state.tenant_id = tenant_id_claim
+                        existing_tenant_id = getattr(request.state, "tenant_id", None)
+                        if not existing_tenant_id:
+                            request.state.tenant_id = (
+                                active_managed_tenant_id or tenant_id_claim
+                            )
                         request.state.roles = roles
 
                         # Set partner context fields for audit logging
@@ -130,11 +152,11 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                         # Determine effective tenant ID (for partner cross-tenant access)
                         effective_tenant_id = active_managed_tenant_id or tenant_id_claim
 
-                        if effective_tenant_id and effective_tenant_id != get_tenant_context():
+                        state_tenant_id = getattr(request.state, "tenant_id", None)
+                        if state_tenant_id and state_tenant_id != get_tenant_context():
                             from ..tenant import set_current_tenant_id as set_tenant_id
 
-                            set_tenant_id(effective_tenant_id)
-                            tenant_module._tenant_context.set(effective_tenant_id)
+                            set_tenant_id(state_tenant_id)
                             tenant_overridden = True
 
                         # Log cross-tenant access for audit trail
@@ -165,7 +187,9 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                             # Set individual fields for backward compatibility
                             request.state.user_id = user_id
                             request.state.username = username
-                            request.state.tenant_id = tenant_id_claim
+                            existing_tenant_id = getattr(request.state, "tenant_id", None)
+                            if not existing_tenant_id:
+                                request.state.tenant_id = tenant_id_claim
                             request.state.roles = roles
 
                             # Create user object for AppBoundaryMiddleware
@@ -179,11 +203,11 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
                                     scopes=scopes,
                                 )
 
-                            if tenant_id_claim and tenant_id_claim != get_tenant_context():
+                            state_tenant_id = getattr(request.state, "tenant_id", None)
+                            if state_tenant_id and state_tenant_id != get_tenant_context():
                                 from ..tenant import set_current_tenant_id as set_tenant_id
 
-                                set_tenant_id(tenant_id_claim)
-                                tenant_module._tenant_context.set(tenant_id_claim)
+                                set_tenant_id(state_tenant_id)
                                 tenant_overridden = True
                     except Exception as e:
                         logger.debug("Failed to extract user from API key", error=str(e))
@@ -196,7 +220,9 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         finally:
             if tenant_overridden:
-                tenant_module._tenant_context.set(original_tenant)
+                from ..tenant import set_current_tenant_id
+
+                set_current_tenant_id(original_tenant)
 
         return response
 

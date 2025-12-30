@@ -37,6 +37,7 @@ from dotmac.platform.billing.catalog.models import (
     UsageType,
 )
 from dotmac.platform.billing.catalog.service import ProductService
+from dotmac.platform.billing.dependencies import enforce_tenant_access
 from dotmac.platform.billing.exceptions import (
     CategoryNotFoundError,
     ProductError,
@@ -59,7 +60,10 @@ async def _get_current_user_dependency(
     # Honor those overrides first to keep tests simple.
     override = request.app.dependency_overrides.get(auth_dependencies.get_current_user)
     if override is not None:
-        value = override(request)
+        try:
+            value = override(request)
+        except TypeError:
+            value = override()
         if inspect.isawaitable(value):
             value = await value
         return value
@@ -116,16 +120,21 @@ def _validate_product_identifier(product_id: str) -> None:
 
 
 router = APIRouter(
+    prefix="/catalog",
     tags=["Billing - Catalog"],
     dependencies=[Depends(_get_current_user_dependency)],  # All endpoints require authentication
 )
+
+
+def _ensure_tenant_access(tenant_id: str, current_user: UserInfo) -> None:
+    enforce_tenant_access(tenant_id, current_user)
 
 
 @router.post(
     "/categories",
     response_model=ProductCategoryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("billing:catalog:write"))],
+    dependencies=[Depends(require_permission("billing.catalog.manage"))],
 )
 async def create_product_category(
     category_data: ProductCategoryCreateRequest,
@@ -136,10 +145,11 @@ async def create_product_category(
     """
     Create a new product category.
 
-    Requires authentication and billing:catalog:write permission.
+    Requires authentication and billing.catalog.manage permission.
     Categories are tenant-isolated.
     """
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -172,6 +182,7 @@ async def create_product_category(
 async def list_product_categories(
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> list[ProductCategoryResponse]:
     """
     List all product categories for the current tenant.
@@ -179,6 +190,7 @@ async def list_product_categories(
     Categories are returned sorted by sort_order, then by name.
     """
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
     categories = await service.list_categories(tenant_id)
 
@@ -202,9 +214,11 @@ async def get_product_category(
     category_id: str,
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> ProductCategoryResponse:
     """Get a specific product category by ID."""
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -229,7 +243,7 @@ async def get_product_category(
     "/products",
     response_model=ProductResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("billing:catalog:write"))],
+    dependencies=[Depends(require_permission("billing.catalog.manage"))],
 )
 async def create_product(
     product_data: ProductCreateRequest,
@@ -240,10 +254,11 @@ async def create_product(
     """
     Create a new product.
 
-    Requires authentication and billing:catalog:write permission.
+    Requires authentication and billing.catalog.manage permission.
     SKUs must be unique within the tenant. Usage-based products require usage_type.
     """
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -293,6 +308,7 @@ async def list_products(
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> list[ProductResponse]:
     """
     List products with filtering and pagination.
@@ -301,6 +317,7 @@ async def list_products(
     Also supports text search across name, description, and SKU.
     """
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     filters = ProductFilters(
@@ -340,6 +357,7 @@ async def list_products(
 async def list_usage_products(
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> list[ProductResponse]:
     """
     Get products configured for usage-based billing.
@@ -348,6 +366,7 @@ async def list_usage_products(
     Useful for usage tracking and billing integrations.
     """
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
     products = await service.get_usage_products(tenant_id)
 
@@ -379,11 +398,13 @@ async def get_product(
     product_id: str,
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> ProductResponse:
     """Get a specific product by ID."""
 
     _validate_product_identifier(product_id)
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -415,7 +436,7 @@ async def get_product(
 @router.put(
     "/products/{product_id}",
     response_model=ProductResponse,
-    dependencies=[Depends(require_permission("billing:catalog:write"))],
+    dependencies=[Depends(require_permission("billing.catalog.manage"))],
 )
 async def update_product(
     product_id: str,
@@ -427,12 +448,13 @@ async def update_product(
     """
     Update a product.
 
-    Requires authentication and billing:catalog:write permission.
+    Requires authentication and billing.catalog.manage permission.
     Only provided fields will be updated. Product type and usage type cannot be changed.
     """
 
     _validate_product_identifier(product_id)
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -473,7 +495,7 @@ async def update_product(
 
 @router.patch(
     "/products/{product_id}/price",
-    dependencies=[Depends(require_permission("billing:catalog:write"))],
+    dependencies=[Depends(require_permission("billing.catalog.manage"))],
 )
 async def update_product_price(
     product_id: str,
@@ -485,13 +507,14 @@ async def update_product_price(
     """
     Update product price.
 
-    Requires authentication and billing:catalog:write permission.
+    Requires authentication and billing.catalog.manage permission.
     Simple price update endpoint for quick price changes.
     Price should be provided in major currency units (e.g., dollars, not cents).
     """
 
     _validate_product_identifier(product_id)
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -527,7 +550,7 @@ async def update_product_price(
 
 @router.delete(
     "/products/{product_id}",
-    dependencies=[Depends(require_permission("billing:catalog:write"))],
+    dependencies=[Depends(require_permission("billing.catalog.manage"))],
 )
 async def deactivate_product(
     product_id: str,
@@ -538,13 +561,14 @@ async def deactivate_product(
     """
     Deactivate a product (soft delete).
 
-    Requires authentication and billing:catalog:write permission.
+    Requires authentication and billing.catalog.manage permission.
     Products are not physically deleted but marked as inactive.
     This preserves data integrity for existing invoices and subscriptions.
     """
 
     _validate_product_identifier(product_id)
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
 
     try:
@@ -570,9 +594,11 @@ async def list_products_by_category(
     active_only: bool = Query(True, description="Only return active products"),
     tenant_id: str = Depends(_get_current_tenant_dependency),
     db_session: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(require_permission("billing.catalog.view")),
 ) -> list[ProductResponse]:
     """Get all products in a specific category."""
 
+    _ensure_tenant_access(tenant_id, current_user)
     service = ProductService(db_session)
     products = await service.get_products_by_category(category, tenant_id, active_only)
 

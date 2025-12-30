@@ -1,0 +1,20 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Subscription Canceled
+
+We're sorry to see you go. Your subscription has been canceled.
+
+Cancellation Details:
+- Plan: {{ plan_name }}
+- Access Until: {{ access_until_date | format_date }}
+{% if refund_amount > 0 %}- Refund Amount: {{ refund_formatted }}
+{% endif %}
+
+Data Retention: Your data will be retained for 30 days. You can reactivate your subscription within this period.
+
+{% if feedback_reason %}Your Feedback: {{ feedback_reason }}
+
+{% endif %}
+{% if reactivate_url %}Reactivate: {{ reactivate_url }}{% endif %}
+{% endblock %}

@@ -101,22 +101,6 @@ def create_default_registry(db_session: AsyncSession) -> ServiceRegistry:
     # Register service factories for lazy initialization
     # These will be created on-demand when first requested
 
-    # Customer Management - Workflow Adapter
-    def customer_service_factory(db: AsyncSession) -> Any:
-        from ..customer_management.workflow_service import CustomerService
-
-        return CustomerService(db)
-
-    registry.register_factory("customer_service", customer_service_factory)
-
-    # CRM (Leads, Quotes, Site Surveys) - Workflow Adapter
-    def crm_service_factory(db: AsyncSession) -> Any:
-        from ..crm.workflow_service import CRMService
-
-        return CRMService(db)
-
-    registry.register_factory("crm_service", crm_service_factory)
-
     # Billing & Subscriptions - Workflow Adapter
     def billing_service_factory(db: AsyncSession) -> Any:
         from ..billing.workflow_service import BillingService
@@ -124,14 +108,6 @@ def create_default_registry(db_session: AsyncSession) -> ServiceRegistry:
         return BillingService(db)
 
     registry.register_factory("billing_service", billing_service_factory)
-
-    # License Management - Workflow Adapter
-    def license_service_factory(db: AsyncSession) -> Any:
-        from ..licensing.workflow_service import LicenseService
-
-        return LicenseService(db)
-
-    registry.register_factory("license_service", license_service_factory)
 
     # Deployment Orchestration - Workflow Adapter
     def deployment_service_factory(db: AsyncSession) -> Any:

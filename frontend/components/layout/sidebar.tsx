@@ -1,213 +1,193 @@
 "use client";
 
+import { memo, useMemo, useCallback, useLayoutEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import type { Session } from "next-auth";
-import type { ElementType } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  CreditCard,
-  BarChart3,
-  UserCircle,
-  Server,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Zap,
-  Shield,
-  Bell,
-  HelpCircle,
-  LogOut,
-  MessageSquare,
-  Layers,
-  GitBranch,
-  Activity,
-  Contact,
-  Handshake,
-  Mail,
-  Key,
-  Puzzle,
-  Package,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/hooks/use-permission";
+import {
+  navigationSections,
+  footerNavItem,
+  filterNavByPermissions,
+  isPathActive,
+} from "@/lib/config/navigation";
+import type { PlatformUser } from "@/types/auth";
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
-  session: Session;
+  user: PlatformUser;
+  isHydrated: boolean;
 }
 
-interface NavItem {
-  label: string;
+// ============================================================================
+// Hooks
+// ============================================================================
+
+/**
+ * Hook to persist sidebar collapse state to localStorage
+ */
+export function useSidebarState() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Load from localStorage on mount
+  useLayoutEffect(() => {
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (saved !== null) {
+      setCollapsed(saved === "true");
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save to localStorage when changed
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  return { collapsed, toggleCollapsed, isHydrated };
+}
+
+// ============================================================================
+// Components
+// ============================================================================
+
+const NavLink = memo(function NavLink({
+  href,
+  label,
+  icon: Icon,
+  badge,
+  active,
+  collapsed,
+  external,
+}: {
   href: string;
-  icon: ElementType;
-  permission?: string;
+  label: string;
+  icon: React.ElementType;
   badge?: string | number;
-}
+  active: boolean;
+  collapsed: boolean;
+  external?: boolean;
+}) {
+  const className = cn(
+    "relative flex items-center gap-3 rounded-md transition-all duration-150",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+    collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
+    active
+      ? "bg-accent-subtle text-accent"
+      : "text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
+  );
 
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
+  const content = (
+    <>
+      {/* Active indicator */}
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-accent rounded-r" />
+      )}
 
-const navigation: NavSection[] = [
-  {
-    title: "Overview",
-    items: [
-      { label: "Dashboard", href: "/", icon: LayoutDashboard },
-      { label: "Analytics", href: "/analytics", icon: BarChart3 },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      {
-        label: "Users",
-        href: "/users",
-        icon: Users,
-        permission: "users:read",
-      },
-      {
-        label: "Tenants",
-        href: "/tenants",
-        icon: Building2,
-        permission: "tenants:read",
-      },
-      {
-        label: "Customers",
-        href: "/customers",
-        icon: UserCircle,
-        permission: "customers:read",
-      },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      {
-        label: "Billing",
-        href: "/billing",
-        icon: CreditCard,
-        permission: "billing:read",
-      },
-      {
-        label: "Product Catalog",
-        href: "/catalog",
-        icon: Package,
-        permission: "billing:catalog:read",
-      },
-      {
-        label: "Deployments",
-        href: "/deployments",
-        icon: Server,
-        permission: "deployments:read",
-      },
-      {
-        label: "Tickets",
-        href: "/tickets",
-        icon: MessageSquare,
-        permission: "tickets:read",
-      },
-      {
-        label: "Jobs",
-        href: "/jobs",
-        icon: Layers,
-        permission: "jobs:read",
-      },
-      {
-        label: "Workflows",
-        href: "/workflows",
-        icon: GitBranch,
-        permission: "workflows:read",
-      },
-    ],
-  },
-  {
-    title: "Monitoring",
-    items: [
-      {
-        label: "Overview",
-        href: "/monitoring",
-        icon: Activity,
-        permission: "monitoring:read",
-      },
-    ],
-  },
-  {
-    title: "CRM",
-    items: [
-      {
-        label: "Contacts",
-        href: "/contacts",
-        icon: Contact,
-        permission: "contacts:read",
-      },
-      {
-        label: "Partners",
-        href: "/partners",
-        icon: Handshake,
-        permission: "partners:read",
-      },
-      {
-        label: "Communications",
-        href: "/communications",
-        icon: Mail,
-        permission: "communications:read",
-      },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      {
-        label: "Licensing",
-        href: "/licensing",
-        icon: Key,
-        permission: "licensing:read",
-      },
-      {
-        label: "Plugins",
-        href: "/plugins",
-        icon: Puzzle,
-        permission: "plugins:read",
-      },
-      {
-        label: "Security",
-        href: "/security",
-        icon: Shield,
-        permission: "security:read",
-      },
-      {
-        label: "Notifications",
-        href: "/notifications",
-        icon: Bell,
-        badge: 3,
-      },
-      { label: "Settings", href: "/settings", icon: Settings },
-    ],
-  },
-];
+      <Icon className={cn("w-5 h-5 flex-shrink-0", active && "text-accent")} />
 
-export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
+      {!collapsed && (
+        <>
+          <span className="text-sm font-medium">{label}</span>
+          {external && (
+            <ExternalLink className="w-3.5 h-3.5 text-text-muted ml-auto" aria-hidden="true" />
+          )}
+          {badge !== undefined && (
+            <span
+              className={cn("inline-flex items-center justify-center w-5 h-5 text-2xs font-semibold rounded-full bg-status-error text-text-inverse", !external && "ml-auto")}
+              role="status"
+              aria-label={`${badge} notifications`}
+            >
+              {badge}
+            </span>
+          )}
+        </>
+      )}
+
+      {collapsed && badge !== undefined && (
+        <span
+          className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-status-error text-text-inverse"
+          role="status"
+          aria-label={`${badge} notifications`}
+        >
+          {badge}
+        </span>
+      )}
+    </>
+  );
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+        title={collapsed ? `${label} (opens in new tab)` : undefined}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      prefetch={true}
+      className={className}
+      title={collapsed ? label : undefined}
+      aria-current={active ? "page" : undefined}
+    >
+      {content}
+    </Link>
+  );
+});
+
+export const Sidebar = memo(function Sidebar({
+  collapsed,
+  onToggle,
+  user,
+  isHydrated,
+}: SidebarProps) {
   const pathname = usePathname();
-  const { hasPermission } = usePermission();
+  const { hasPermission, isLoading } = usePermission();
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
-  };
+  // Filter navigation by permissions - memoized
+  const filteredSections = useMemo(
+    () => filterNavByPermissions(navigationSections, hasPermission),
+    [hasPermission]
+  );
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen",
+        "fixed left-0 top-0 z-20 h-screen",
         "bg-surface-elevated border-r border-border",
         "flex flex-col",
-        "transition-all duration-300 ease-in-out",
+        isHydrated ? "transition-all duration-300 ease-in-out" : "transition-none",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -218,7 +198,7 @@ export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
           collapsed ? "justify-center" : "justify-between"
         )}
       >
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" prefetch={true} className="flex items-center gap-3">
           <div className="relative w-8 h-8 flex items-center justify-center">
             <Zap className="w-6 h-6 text-accent" />
             <div className="absolute inset-0 bg-accent/20 rounded-lg blur-sm" />
@@ -232,7 +212,7 @@ export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
         {!collapsed && (
           <button
             onClick={onToggle}
-            className="p-1.5 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+            className="p-1.5 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             aria-label="Collapse sidebar"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -244,7 +224,7 @@ export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
       {collapsed && (
         <button
           onClick={onToggle}
-          className="flex items-center justify-center h-10 mx-2 mt-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+          className="flex items-center justify-center h-10 mx-2 mt-2 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           aria-label="Expand sidebar"
         >
           <ChevronRight className="w-4 h-4" />
@@ -252,86 +232,67 @@ export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
-        {navigation.map((section, sectionIdx) => (
-          <div key={section.title} className={cn(sectionIdx > 0 && "mt-6")}>
-            {!collapsed && (
-              <h3 className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider text-text-muted">
-                {section.title}
-              </h3>
-            )}
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                // Check permission
-                if (item.permission && !hasPermission(item.permission)) {
-                  return null;
-                }
-
-                const Icon = item.icon;
-                const active = isActive(item.href);
-
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "relative flex items-center gap-3 rounded-md transition-all duration-150",
-                        collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
-                        active
-                          ? "bg-accent-subtle text-accent"
-                          : "text-text-secondary hover:bg-surface-overlay hover:text-text-primary"
-                      )}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      {/* Active indicator */}
-                      {active && (
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-accent rounded-r" />
-                      )}
-
-                      <Icon
-                        className={cn("w-5 h-5 flex-shrink-0", active && "text-accent")}
-                      />
-
-                      {!collapsed && (
-                        <>
-                          <span className="text-sm font-medium">{item.label}</span>
-                          {item.badge && (
-                            <span className="ml-auto inline-flex items-center justify-center w-5 h-5 text-2xs font-semibold rounded-full bg-status-error text-white">
-                              {item.badge}
-                            </span>
-                          )}
-                        </>
-                      )}
-
-                      {collapsed && item.badge && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-status-error text-white">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+      <nav
+        className="flex-1 overflow-y-auto py-4 px-2"
+        aria-label="Main navigation"
+      >
+        {isLoading ? (
+          <div className="space-y-4 px-2">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div
+                key={`sidebar-skeleton-${idx}`}
+                className={cn("h-4 rounded bg-surface-overlay/70 animate-pulse")}
+                style={{ width: collapsed ? "1.5rem" : `${60 + idx * 5}%` }}
+              />
+            ))}
           </div>
-        ))}
+        ) : (
+          filteredSections.map((section, sectionIdx) => (
+            <div key={section.id} className={cn(sectionIdx > 0 && "mt-6")}>
+              {!collapsed && (
+                <h3 className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider text-text-muted">
+                  {section.title}
+                </h3>
+              )}
+              <ul className="space-y-1">
+                {section.items.map((item) => (
+                  <li key={item.id}>
+                    <NavLink
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      badge={item.badge}
+                      active={!item.external && isPathActive(item.href, pathname)}
+                      collapsed={collapsed}
+                      external={item.external}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
       </nav>
 
       {/* Footer actions */}
       <div className="border-t border-border p-2">
         {/* Help */}
         <Link
-          href="/help"
+          href={footerNavItem.href}
+          prefetch={true}
           className={cn(
             "flex items-center gap-3 rounded-md px-3 py-2.5",
             "text-text-muted hover:text-text-secondary hover:bg-surface-overlay",
             "transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
             collapsed && "justify-center px-2"
           )}
-          title={collapsed ? "Help & Support" : undefined}
+          title={collapsed ? footerNavItem.label : undefined}
         >
-          <HelpCircle className="w-5 h-5" />
-          {!collapsed && <span className="text-sm font-medium">Help & Support</span>}
+          <footerNavItem.icon className="w-5 h-5" />
+          {!collapsed && (
+            <span className="text-sm font-medium">{footerNavItem.label}</span>
+          )}
         </Link>
 
         {/* User profile */}
@@ -344,23 +305,29 @@ export function Sidebar({ collapsed, onToggle, session }: SidebarProps) {
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-              {session.user?.name?.charAt(0).toUpperCase() || "U"}
+              {userInitial}
             </div>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full" />
+            <span
+              className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full"
+              role="status"
+              aria-label="Online"
+            >
+              <span className="sr-only">Status: Online</span>
+            </span>
           </div>
 
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">
-                {session.user?.name}
+                {user.fullName || user.username}
               </p>
-              <p className="text-2xs text-text-muted truncate">
-                {session.user?.email}
-              </p>
+              <p className="text-2xs text-text-muted truncate">{user.email}</p>
             </div>
           )}
         </div>
       </div>
     </aside>
   );
-}
+});
+
+export default Sidebar;

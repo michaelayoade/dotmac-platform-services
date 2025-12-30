@@ -4,7 +4,7 @@ RBAC Service Layer - Handles role and permission management
 
 from __future__ import annotations
 
-import logging
+import structlog
 from collections.abc import Iterable, Iterator
 from datetime import datetime, timezone
 from typing import Any
@@ -30,6 +30,7 @@ from dotmac.platform.auth.rbac_audit import rbac_audit_logger
 from dotmac.platform.core.caching import cache_delete, cache_get, cache_set
 from dotmac.platform.db import get_async_session
 from dotmac.platform.tenant import get_current_tenant_id
+from dotmac.platform.user_management.models import User
 
 # Python 3.9/3.10 compatibility: datetime.UTC was added in 3.11
 try:
@@ -37,7 +38,7 @@ try:
 except AttributeError:  # pragma: no cover - older Python versions
     UTC = timezone.utc  # noqa: UP017 - fallback for Python <3.11
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class PermissionSnapshot(Iterable[str]):
@@ -65,6 +66,11 @@ class PermissionSnapshot(Iterable[str]):
     def __contains__(self, item: object) -> bool:
         return item in self.allows
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PermissionSnapshot):
+            return False
+        return self.allows == other.allows and self.denies == other.denies
+
     def _prune_conflicting_allows(self) -> None:
         """Remove allow-listed permissions that are explicitly denied."""
         to_remove = {perm for perm in self.allows if self.is_denied(perm)}
@@ -86,6 +92,8 @@ class PermissionSnapshot(Iterable[str]):
             return cls(set(payload.get("allows", [])), set(payload.get("denies", [])))
         if isinstance(payload, list):
             # Backwards compatibility with older cache entries that only stored allows.
+            return cls(set(payload), set())
+        if isinstance(payload, set):
             return cls(set(payload), set())
         return None
 
@@ -182,7 +190,7 @@ class RBACService:
                 permissions.discard(perm_name)  # Revoke permission
                 denied_permissions.add(perm_name)
 
-        permissions = await self._include_parent_permissions(permissions)
+        permissions = await self._expand_permissions(permissions)
 
         snapshot = PermissionSnapshot(permissions, denied_permissions)
 
@@ -239,10 +247,13 @@ class RBACService:
         return all(self._permission_matches(user_perms, perm) for perm in permissions)
 
     @staticmethod
-    def _permission_matches(snapshot: PermissionSnapshot, permission: str) -> bool:
+    def _permission_matches(snapshot: PermissionSnapshot | set[str], permission: str) -> bool:
         """Evaluate whether a permission is satisfied by a user's permission set."""
         if not snapshot:
             return False
+
+        if isinstance(snapshot, set):
+            snapshot = PermissionSnapshot(snapshot, set())
 
         if snapshot.is_denied(permission):
             return False
@@ -306,6 +317,12 @@ class RBACService:
             logger.info(f"Role {role_name} already assigned to user {user_id}")
             return
 
+        user_exists = await self.db.get(User, user_id)
+        if not user_exists:
+            logger.warning("Role assignment skipped for missing user", user_id=str(user_id))
+            self._invalidate_user_permission_cache(user_id)
+            return
+
         # Assign role
         await self.db.execute(
             user_roles.insert().values(
@@ -364,6 +381,12 @@ class RBACService:
         if not role:
             raise AuthorizationError(f"Role '{role_name}' not found")
 
+        user_exists = await self.db.get(User, user_id)
+        if not user_exists:
+            logger.warning("Role revocation skipped for missing user", user_id=str(user_id))
+            self._invalidate_user_permission_cache(user_id)
+            return
+
         # Remove role assignment
         result: Result[Any] = await self.db.execute(
             user_roles.delete().where(
@@ -420,6 +443,12 @@ class RBACService:
         permission = await self._get_permission_by_name(permission_name)
         if not permission:
             raise AuthorizationError(f"Permission '{permission_name}' not found")
+
+        user_exists = await self.db.get(User, user_id)
+        if not user_exists:
+            logger.warning("Permission grant skipped for missing user", user_id=str(user_id))
+            self._invalidate_user_permission_cache(user_id)
+            return
 
         # Check if already granted
         existing = await self.db.execute(
@@ -509,6 +538,12 @@ class RBACService:
         permission = await self._get_permission_by_name(permission_name)
         if not permission:
             raise AuthorizationError(f"Permission '{permission_name}' not found")
+
+        user_exists = await self.db.get(User, user_id)
+        if not user_exists:
+            logger.warning("Permission revocation skipped for missing user", user_id=str(user_id))
+            self._invalidate_user_permission_cache(user_id)
+            return
 
         # Remove the permission grant
         result: Result[Any] = await self.db.execute(
@@ -677,6 +712,24 @@ class RBACService:
                     expanded.add(parent.name)
 
         return expanded
+
+    async def _expand_permissions(self, permissions: set[str]) -> set[str]:
+        """Expand permissions with parent hierarchy and wildcard variants."""
+        expanded = set(permissions)
+
+        for perm_name in list(permissions):
+            if not perm_name or "." not in perm_name:
+                continue
+
+            parts = perm_name.split(".")
+            if parts[-1] == "all":
+                base = ".".join(parts[:-1])
+                if base:
+                    expanded.add(f"{base}.*")
+                if parts[0]:
+                    expanded.add(f"{parts[0]}.*")
+
+        return await self._include_parent_permissions(expanded)
 
     async def _log_permission_grant(
         self,

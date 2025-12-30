@@ -64,7 +64,6 @@ class ContactService:
         # Create contact
         contact = Contact(
             tenant_id=tenant_id,
-            customer_id=contact_data.customer_id,
             first_name=contact_data.first_name,
             middle_name=contact_data.middle_name,
             last_name=contact_data.last_name,
@@ -294,7 +293,6 @@ class ContactService:
 
     def _build_attribute_conditions(
         self,
-        customer_id: UUID | None,
         status: ContactStatus | None,
         stage: ContactStage | None,
         owner_id: UUID | None,
@@ -302,8 +300,6 @@ class ContactService:
         """Build attribute filter conditions."""
         conditions = []
 
-        if customer_id:
-            conditions.append(Contact.customer_id == customer_id)
         if status:
             conditions.append(Contact.status == status)
         if stage:
@@ -326,7 +322,6 @@ class ContactService:
         self,
         tenant_id: UUID,
         query: str | None = None,
-        customer_id: UUID | None = None,
         status: ContactStatus | None = None,
         stage: ContactStage | None = None,
         owner_id: UUID | None = None,
@@ -345,7 +340,7 @@ class ContactService:
             conditions.append(self._build_text_search_condition(query))
 
         # Add attribute filters
-        conditions.extend(self._build_attribute_conditions(customer_id, status, stage, owner_id))
+        conditions.extend(self._build_attribute_conditions(status, stage, owner_id))
 
         # Add tag filters
         if tags:

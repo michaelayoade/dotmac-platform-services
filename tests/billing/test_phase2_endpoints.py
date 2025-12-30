@@ -15,6 +15,7 @@ from dotmac.platform.billing.metrics_router import (
     ExpiringSubscriptionsResponse,
     get_expiring_subscriptions,
 )
+from tests.fixtures.async_db import AsyncSessionShim
 
 try:
     UTC = datetime.UTC  # type: ignore[attr-defined]
@@ -29,13 +30,15 @@ def reset_billing_cache(monkeypatch):
     """Provide a fresh billing cache instance for each test to avoid cross-test leaks."""
 
     from dotmac.platform.billing.cache import BillingCache
-    from dotmac.platform.core.caching import cache_clear
+    from dotmac.platform.core.caching import cache_clear, set_redis_client
+    from tests.fixtures.app_stubs import create_mock_redis
 
     cache = BillingCache()
     monkeypatch.setattr(
         "dotmac.platform.billing.cache.get_billing_cache",
         lambda: cache,
     )
+    set_redis_client(create_mock_redis())
     cache_clear()
     yield
 
@@ -45,6 +48,12 @@ def mock_session():
     """Create mock database session."""
     session = AsyncMock()
     return session
+
+
+@pytest.fixture
+def async_db_session(db_session):
+    """Provide async-compatible session for billing autouse fixtures."""
+    return AsyncSessionShim(db_session)
 
 
 @pytest.fixture
@@ -75,6 +84,7 @@ class TestExpiringSubscriptionsEndpoint:
         mock_subscriptions = [
             Mock(
                 subscription_id=f"sub_{i}",
+                tenant_id="test-tenant",
                 customer_id=f"cust_{i}",
                 plan_id=f"plan_{i}",
                 current_period_end=now + timedelta(days=5 + i),
@@ -126,6 +136,7 @@ class TestExpiringSubscriptionsEndpoint:
         mock_subscriptions = [
             Mock(
                 subscription_id="sub_urgent",
+                tenant_id="test-tenant",
                 customer_id="cust_123",
                 plan_id="plan_premium",
                 current_period_end=now + timedelta(days=3),

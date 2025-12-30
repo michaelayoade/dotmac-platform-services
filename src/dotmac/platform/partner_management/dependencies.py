@@ -123,6 +123,12 @@ async def get_portal_partner(
     * Platform administrators must specify the partner via query param or header.
     """
 
+    if not request.headers.get("Authorization"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
     tenant_id = get_current_tenant_id()
 
     if is_platform_admin(current_user):

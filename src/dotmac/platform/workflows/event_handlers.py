@@ -75,100 +75,13 @@ class WorkflowEventHandler:
             logger.error(f"Failed to handle quote.accepted event: {e}", exc_info=True)
             raise
 
-    async def handle_lead_qualified(self, event: Any) -> None:
-        """
-        Handle lead.qualified event by triggering lead-to-customer workflow.
-
-        Event payload expected:
-        {
-            "lead_id": int,
-            "customer_email": str,
-            "customer_name": str,
-            "tenant_id": str,
-            "plan_id": int,
-            "license_template_id": int,
-            "deployment_type": str  # "kubernetes", "docker", "aws", etc.
-        }
-        """
-        logger.info(f"Handling lead.qualified event: {event.event_id}")
-
-        try:
-            payload = event.payload
-            context = {
-                "lead_id": payload.get("lead_id"),
-                "tenant_id": payload.get("tenant_id"),
-                "plan_id": payload.get("plan_id"),
-                "license_template_id": payload.get("license_template_id"),
-                "deployment_type": payload.get("deployment_type", "kubernetes"),
-                "customer_email": payload.get("customer_email"),
-                "customer_name": payload.get("customer_name"),
-            }
-
-            # Execute the lead-to-customer workflow
-            execution = await self.workflow_service.execute_workflow(
-                workflow_name="lead_to_customer_onboarding",
-                context=context,
-                trigger_type="event",
-                trigger_source=event.event_type,
-                tenant_id=context.get("tenant_id"),
-            )
-
-            logger.info(
-                f"Lead-to-customer workflow started: execution_id={execution.id}, "
-                f"lead_id={context['lead_id']}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to handle lead.qualified event: {e}", exc_info=True)
-            raise
-
-    async def handle_partner_customer_created(self, event: Any) -> None:
-        """
-        Handle partner.customer.created event for partner provisioning.
-
-        Event payload expected:
-        {
-            "partner_id": int,
-            "customer_data": dict,
-            "license_count": int,
-            "white_label_config": dict,
-            "commission_amount": float,
-            "partner_email": str
-        }
-        """
-        logger.info(f"Handling partner.customer.created event: {event.event_id}")
-
-        try:
-            payload = event.payload
-            context = payload.copy()
-
-            # Execute the partner provisioning workflow
-            execution = await self.workflow_service.execute_workflow(
-                workflow_name="partner_customer_provisioning",
-                context=context,
-                trigger_type="event",
-                trigger_source=event.event_type,
-                tenant_id=payload.get("tenant_id"),
-            )
-
-            logger.info(
-                f"Partner provisioning workflow started: execution_id={execution.id}, "
-                f"partner_id={context['partner_id']}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to handle partner.customer.created event: {e}", exc_info=True)
-            raise
-
     async def handle_subscription_expiring(self, event: Any) -> None:
         """
         Handle subscription.expiring event to trigger renewal workflow.
 
         Event payload expected:
         {
-            "customer_id": int,
             "subscription_id": int,
-            "customer_email": str,
             "renewal_term": int,  # months
             "expiry_date": str (ISO format),
             "tenant_id": str
@@ -180,18 +93,9 @@ class WorkflowEventHandler:
             payload = event.payload
             context = payload.copy()
 
-            # Execute the renewal workflow
-            execution = await self.workflow_service.execute_workflow(
-                workflow_name="customer_renewal_process",
-                context=context,
-                trigger_type="event",
-                trigger_source=event.event_type,
-                tenant_id=payload.get("tenant_id"),
-            )
-
             logger.info(
-                f"Renewal workflow started: execution_id={execution.id}, "
-                f"subscription_id={context['subscription_id']}"
+                "Subscription expiry received (no default renewal workflow)",
+                subscription_id=context.get("subscription_id"),
             )
 
         except Exception as e:
@@ -223,8 +127,6 @@ class WorkflowEventHandler:
 # Event handler registration mapping
 EVENT_HANDLER_MAP = {
     "quote.accepted": "handle_quote_accepted",
-    "lead.qualified": "handle_lead_qualified",
-    "partner.customer.created": "handle_partner_customer_created",
     "subscription.expiring": "handle_subscription_expiring",
     "workflow.execution.completed": "handle_workflow_completed",
     "workflow.execution.failed": "handle_workflow_failed",

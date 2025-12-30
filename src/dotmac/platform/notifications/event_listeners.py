@@ -7,9 +7,7 @@ Listens to domain events and creates notifications automatically.
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select
 
-from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.database import get_async_session
 from dotmac.platform.events import Event, subscribe
 from dotmac.platform.notifications.models import NotificationPriority, NotificationType
@@ -28,22 +26,15 @@ async def on_invoice_created(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             invoice_number = event_data["payload"]["invoice_number"]
             amount = event_data["payload"]["amount"]
             currency = event_data["payload"]["currency"]
 
-            # Get customer to find user_id
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.INVOICE_GENERATED,
                     title=f"New Invoice #{invoice_number}",
                     message=f"A new invoice for {currency} {amount:.2f} has been generated for your account.",
@@ -69,22 +60,16 @@ async def on_invoice_finalized(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             invoice_number = event_data["payload"]["invoice_number"]
             amount = event_data["payload"]["amount"]
             due_date = event_data["payload"].get("due_date")
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 due_message = f" Payment is due by {due_date}." if due_date else ""
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.INVOICE_DUE,
                     title=f"Invoice #{invoice_number} Due",
                     message=f"Your invoice for {amount:.2f} is now due.{due_message}",
@@ -110,21 +95,15 @@ async def on_payment_received(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             amount = event_data["payload"]["amount"]
             currency = event_data["payload"].get("currency", "USD")
             payment_method = event_data["payload"].get("payment_method", "card")
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.PAYMENT_RECEIVED,
                     title="Payment Received",
                     message=f"We've received your payment of {currency} {amount:.2f} via {payment_method}. Thank you!",
@@ -150,20 +129,14 @@ async def on_payment_failed(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             amount = event_data["payload"]["amount"]
             error_message = event_data["payload"].get("error_message", "Payment declined")
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.PAYMENT_FAILED,
                     title="Payment Failed",
                     message=f"Your payment of {amount:.2f} could not be processed. Reason: {error_message}. Please update your payment method.",
@@ -189,20 +162,14 @@ async def on_subscription_renewed(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             plan_name = event_data["payload"].get("plan_name", "Your subscription")
             next_billing_date = event_data["payload"].get("next_billing_date")
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.SUBSCRIPTION_RENEWED,
                     title="Subscription Renewed",
                     message=f"{plan_name} has been renewed successfully. Next billing date: {next_billing_date}",
@@ -228,21 +195,15 @@ async def on_dunning_reminder(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             invoice_number = event_data["payload"].get("invoice_number")
             amount_due = event_data["payload"].get("amount_due")
             days_overdue = event_data["payload"].get("days_overdue", 0)
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.DUNNING_REMINDER,
                     title=f"Payment Reminder: Invoice #{invoice_number}",
                     message=f"Your invoice of {amount_due} is {days_overdue} days overdue. Please make payment to avoid service interruption.",
@@ -268,20 +229,14 @@ async def on_dunning_suspension_warning(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"]["customer_id"]
+            user_id = event_data["payload"].get("user_id")
             days_until_suspension = event_data["payload"].get("days_until_suspension", 3)
             amount_due = event_data["payload"].get("amount_due")
 
-            stmt = select(Customer).where(
-                Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
-            )
-            result = await session.execute(stmt)
-            customer = result.scalar_one_or_none()
-
-            if customer and customer.user_id:
+            if user_id:
                 await notification_service.create_notification(
                     tenant_id=tenant_id,
-                    user_id=customer.user_id,
+                    user_id=user_id,
                     notification_type=NotificationType.DUNNING_SUSPENSION_WARNING,
                     title="⚠️ Service Suspension Warning",
                     message=f"Your service will be suspended in {days_until_suspension} days if payment of {amount_due} is not received. Please pay immediately to avoid interruption.",
@@ -308,33 +263,28 @@ async def on_ticket_created(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"].get("customer_id")
+            user_id = event_data["payload"].get("origin_user_id") or event_data["payload"].get(
+                "user_id"
+            )
             ticket_number = event_data["payload"]["ticket_number"]
             subject = event_data["payload"]["subject"]
             event_data["payload"].get("created_by_id")
 
-            if customer_id:
-                stmt = select(Customer).where(
-                    Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
+            if user_id:
+                await notification_service.create_notification(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    notification_type=NotificationType.TICKET_CREATED,
+                    title=f"Support Ticket Created #{ticket_number}",
+                    message=f"Your support ticket '{subject}' has been created. We'll respond shortly.",
+                    priority=NotificationPriority.MEDIUM,
+                    action_url=f"/dashboard/support/tickets/{event_data['payload']['ticket_id']}",
+                    action_label="View Ticket",
+                    related_entity_type="ticket",
+                    related_entity_id=event_data["payload"]["ticket_id"],
                 )
-                result = await session.execute(stmt)
-                customer = result.scalar_one_or_none()
-
-                if customer and customer.user_id:
-                    await notification_service.create_notification(
-                        tenant_id=tenant_id,
-                        user_id=customer.user_id,
-                        notification_type=NotificationType.TICKET_CREATED,
-                        title=f"Support Ticket Created #{ticket_number}",
-                        message=f"Your support ticket '{subject}' has been created. We'll respond shortly.",
-                        priority=NotificationPriority.MEDIUM,
-                        action_url=f"/dashboard/support/tickets/{event_data['payload']['ticket_id']}",
-                        action_label="View Ticket",
-                        related_entity_type="ticket",
-                        related_entity_id=event_data["payload"]["ticket_id"],
-                    )
-                    await session.commit()
-                    logger.info("Ticket created notification sent", ticket_number=ticket_number)
+                await session.commit()
+                logger.info("Ticket created notification sent", ticket_number=ticket_number)
     except Exception as e:
         logger.error("Failed to send ticket created notification", error=str(e))
 
@@ -380,32 +330,27 @@ async def on_ticket_resolved(event: Event) -> None:
             notification_service = NotificationService(session)
 
             tenant_id = event_data["metadata"]["tenant_id"]
-            customer_id = event_data["payload"].get("customer_id")
+            user_id = event_data["payload"].get("origin_user_id") or event_data["payload"].get(
+                "user_id"
+            )
             ticket_number = event_data["payload"]["ticket_number"]
             subject = event_data["payload"]["subject"]
 
-            if customer_id:
-                stmt = select(Customer).where(
-                    Customer.tenant_id == tenant_id, Customer.id == UUID(customer_id)
+            if user_id:
+                await notification_service.create_notification(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    notification_type=NotificationType.TICKET_RESOLVED,
+                    title=f"Ticket Resolved #{ticket_number}",
+                    message=f"Your support ticket '{subject}' has been resolved.",
+                    priority=NotificationPriority.MEDIUM,
+                    action_url=f"/dashboard/support/tickets/{event_data['payload']['ticket_id']}",
+                    action_label="View Resolution",
+                    related_entity_type="ticket",
+                    related_entity_id=event_data["payload"]["ticket_id"],
                 )
-                result = await session.execute(stmt)
-                customer = result.scalar_one_or_none()
-
-                if customer and customer.user_id:
-                    await notification_service.create_notification(
-                        tenant_id=tenant_id,
-                        user_id=customer.user_id,
-                        notification_type=NotificationType.TICKET_RESOLVED,
-                        title=f"Ticket Resolved #{ticket_number}",
-                        message=f"Your support ticket '{subject}' has been resolved.",
-                        priority=NotificationPriority.MEDIUM,
-                        action_url=f"/dashboard/support/tickets/{event_data['payload']['ticket_id']}",
-                        action_label="View Resolution",
-                        related_entity_type="ticket",
-                        related_entity_id=event_data["payload"]["ticket_id"],
-                    )
-                    await session.commit()
-                    logger.info("Ticket resolved notification sent", ticket_number=ticket_number)
+                await session.commit()
+                logger.info("Ticket resolved notification sent", ticket_number=ticket_number)
     except Exception as e:
         logger.error("Failed to send ticket resolved notification", error=str(e))
 

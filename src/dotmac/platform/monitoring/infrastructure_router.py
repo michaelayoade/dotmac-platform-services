@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.dependencies import CurrentUser, get_current_user
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.infrastructure_health import HealthStatus, check_all_infrastructure_health
 from dotmac.platform.monitoring.metrics_router import _get_monitoring_metrics_cached
 
 logger = structlog.get_logger(__name__)
@@ -48,43 +49,67 @@ def _period_to_days(period: str | None) -> int:
         return 1
 
 
-def _build_infrastructure_metrics() -> dict[str, Any]:
-    """Return synthetic infrastructure metrics compatible with the frontend interface."""
-    uptime = 99.9
+async def _build_infrastructure_metrics() -> dict[str, Any]:
+    """Build infrastructure metrics from health checks."""
+    results = await check_all_infrastructure_health()
+    latencies = [r.response_time_ms for r in results if r.response_time_ms is not None]
+    latencies_sorted = sorted(latencies)
+
+    avg_latency = sum(latencies_sorted) / len(latencies_sorted) if latencies_sorted else None
+    p99_latency = (
+        latencies_sorted[max(int(len(latencies_sorted) * 0.99) - 1, 0)]
+        if latencies_sorted
+        else None
+    )
+
+    healthy_count = sum(1 for r in results if r.status == HealthStatus.HEALTHY)
+    degraded_count = sum(1 for r in results if r.status == HealthStatus.DEGRADED)
+    unhealthy_count = sum(1 for r in results if r.status == HealthStatus.UNHEALTHY)
+
+    overall_status = "healthy"
+    if unhealthy_count:
+        overall_status = "critical"
+    elif degraded_count:
+        overall_status = "degraded"
+
     return {
         "health": {
-            "status": "healthy",
-            "uptime": uptime,
+            "status": overall_status,
+            "uptime": None,
             "services": [
-                {"name": "api", "status": "healthy", "latency": 12.5, "uptime": uptime},
-                {"name": "db", "status": "healthy", "latency": 18.2, "uptime": uptime},
-                {"name": "redis", "status": "healthy", "latency": 6.4, "uptime": uptime},
+                {
+                    "name": r.service,
+                    "status": r.status.value,
+                    "latency": r.response_time_ms,
+                    "uptime": None,
+                }
+                for r in results
             ],
         },
         "performance": {
-            "avgLatency": 12.5,
-            "p99Latency": 48.1,
-            "throughput": 1240,
-            "errorRate": 0.05,
-            "requestsPerSecond": 320,
+            "avgLatency": avg_latency,
+            "p99Latency": p99_latency,
+            "throughput": None,
+            "errorRate": None,
+            "requestsPerSecond": None,
         },
         "logs": {
-            "totalLogs": 12500,
-            "errors": 18,
-            "warnings": 94,
+            "totalLogs": None,
+            "errors": None,
+            "warnings": None,
         },
-        "uptime": uptime,
+        "uptime": None,
         "services": {
-            "total": 5,
-            "healthy": 5,
-            "degraded": 0,
-            "critical": 0,
+            "total": len(results),
+            "healthy": healthy_count,
+            "degraded": degraded_count,
+            "critical": unhealthy_count,
         },
         "resources": {
-            "cpu": 62.5,
-            "memory": 71.2,
-            "disk": 55.3,
-            "network": 38.7,
+            "cpu": None,
+            "memory": None,
+            "disk": None,
+            "network": None,
         },
         "timestamp": datetime.now(UTC),
     }
@@ -147,7 +172,7 @@ async def get_infrastructure_metrics(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Expose infrastructure metrics under /monitoring for frontend dashboards."""
-    return _build_infrastructure_metrics()
+    return await _build_infrastructure_metrics()
 
 
 __all__ = ["router"]

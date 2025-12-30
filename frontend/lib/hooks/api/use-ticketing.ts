@@ -17,17 +17,32 @@ import {
   linkTickets,
   getTicketStats,
   getAgentPerformance,
+  getTicketsDashboard,
   type GetTicketsParams,
   type Ticket,
   type TicketMessage,
   type TicketStatus,
   type CreateTicketData,
+  type UpdateTicketData,
   type TicketStats,
   type AgentPerformance,
 } from "@/lib/api/ticketing";
 import { queryKeys } from "@/lib/api/query-keys";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 type TicketStatsParams = Parameters<typeof getTicketStats> extends [infer P] ? P : undefined;
+
+// ============================================================================
+// Ticketing Dashboard Hook
+// ============================================================================
+
+export function useTicketsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.ticketing.dashboard(params),
+    queryFn: () => getTicketsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
 
 // ============================================================================
 // Tickets Hooks
@@ -69,7 +84,7 @@ export function useUpdateTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreateTicketData> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateTicketData }) =>
       updateTicket(id, data),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.ticketing.tickets.detail(data.id), data);

@@ -32,12 +32,11 @@ class TestContactCreation:
     """Test contact creation using shared helpers."""
 
     @pytest.mark.asyncio
-    async def test_create_contact_success(self, tenant_id, customer_id, user_id):
+    async def test_create_contact_success(self, tenant_id, user_id):
         """Test successful contact creation."""
         service = ContactService(build_mock_db_session())
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="John",
             last_name="Doe",
             display_name="John Doe",
@@ -63,13 +62,12 @@ class TestContactCreation:
         assert contact is not None
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_auto_display_name(self, tenant_id, customer_id):
+    async def test_create_contact_with_auto_display_name(self, tenant_id):
         """Test contact creation with auto-generated display name."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="Jane",
             last_name="Smith",
             # No display_name provided - will be auto-generated
@@ -88,13 +86,12 @@ class TestContactCreation:
         assert added_contact.display_name == "Jane Smith"
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_company_fallback_name(self, tenant_id, customer_id):
+    async def test_create_contact_with_company_fallback_name(self, tenant_id):
         """Test contact creation with company name fallback."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             company="TechCorp Inc",
             # No first_name, last_name - company name used
         )
@@ -113,13 +110,12 @@ class TestContactCreation:
         assert added_contact.display_name == "TechCorp Inc"
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_contact_methods(self, tenant_id, customer_id):
+    async def test_create_contact_with_contact_methods(self, tenant_id):
         """Test contact creation with contact methods."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="John",
             last_name="Doe",
             contact_methods=[
@@ -151,13 +147,12 @@ class TestContactCreation:
         assert mock_db.add.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_address_method(self, tenant_id, customer_id):
+    async def test_create_contact_with_address_method(self, tenant_id):
         """Test contact creation with address contact method."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="John",
             last_name="Doe",
             contact_methods=[
@@ -188,16 +183,13 @@ class TestContactCreation:
         assert mock_db.add.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_labels(
-        self, tenant_id, customer_id, sample_label_definition
-    ):
+    async def test_create_contact_with_labels(self, tenant_id, sample_label_definition):
         """Test contact creation with labels."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         label_ids = [sample_label_definition.id]
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="John",
             last_name="Doe",
             label_ids=label_ids,

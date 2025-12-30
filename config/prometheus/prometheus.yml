@@ -9,18 +9,19 @@ global:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ['dotmac-alertmanager:9093']
 
 # Load rules once and periodically evaluate them
 rule_files:
-  # - "alerts/*.yml"
+  - "/etc/prometheus/alerts.yml"
 
 # Scrape configurations
 scrape_configs:
   # Platform backend
   - job_name: 'platform-backend'
+    metrics_path: '/metrics'
     static_configs:
-      - targets: ['host.docker.internal:8001']
+      - targets: ['dotmac-platform-backend:8000']
         labels:
           service: 'platform-backend'
 
@@ -29,12 +30,24 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Redis
-  - job_name: 'redis'
+  # Jaeger
+  - job_name: 'jaeger'
     static_configs:
-      - targets: ['redis:6379']
+      - targets: ['dotmac-jaeger:14269']
+        labels:
+          service: 'jaeger'
 
-  # PostgreSQL (requires postgres_exporter)
-  # - job_name: 'postgres'
-  #   static_configs:
-  #     - targets: ['postgres-exporter:9187']
+  # Grafana
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['dotmac-grafana:3000']
+        labels:
+          service: 'grafana'
+
+  # MinIO
+  - job_name: 'minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    static_configs:
+      - targets: ['dotmac-minio:9000']
+        labels:
+          service: 'minio'

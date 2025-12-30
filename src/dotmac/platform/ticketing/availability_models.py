@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, String, Text
+from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dotmac.platform.database import Base
@@ -27,18 +28,28 @@ class AgentAvailability(Base):
     __tablename__ = "agent_availability"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(index=True, unique=True)
-    tenant_id: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
-    status: Mapped[AgentStatus] = mapped_column(
-        Enum(AgentStatus), default=AgentStatus.AVAILABLE, index=True
+    tenant_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    agent_id: Mapped[UUID] = mapped_column(index=True)  # Required by DB schema
+    user_id: Mapped[UUID | None] = mapped_column(index=True, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(50), default="available", nullable=False
     )
     status_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_activity_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    capacity: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    current_load: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    skills: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    last_activity_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     def __repr__(self) -> str:

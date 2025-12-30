@@ -548,7 +548,8 @@ class TestUserManagementEndpoints:
         )
 
         # Assert
-        assert "disabled successfully" in response["message"]
+        assert response.user_id == str(sample_user.id)
+        assert response.is_active is False
         mock_user_service.update_user.assert_called_once_with(
             user_id=str(sample_user.id), tenant_id=admin_user.tenant_id, is_active=False
         )
@@ -586,7 +587,8 @@ class TestUserManagementEndpoints:
         )
 
         # Assert
-        assert "enabled successfully" in response["message"]
+        assert response.user_id == str(sample_user.id)
+        assert response.is_active is True
         mock_user_service.update_user.assert_called_once_with(
             user_id=str(sample_user.id), tenant_id=admin_user.tenant_id, is_active=True
         )

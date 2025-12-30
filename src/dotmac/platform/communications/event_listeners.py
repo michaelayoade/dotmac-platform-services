@@ -7,8 +7,6 @@ modules (e.g., billing) and trigger appropriate communications.
 
 from datetime import UTC, datetime
 from smtplib import SMTPException
-from urllib.parse import urlencode
-
 import structlog
 
 from dotmac.platform.communications.branding_utils import (
@@ -19,19 +17,10 @@ from dotmac.platform.communications.email_service import EmailMessage, EmailServ
 from dotmac.platform.db import get_async_session
 from dotmac.platform.events import subscribe
 from dotmac.platform.events.models import Event
-from dotmac.platform.settings import settings
 from dotmac.platform.tenant.schemas import TenantBrandingConfig
 from dotmac.platform.tenant.service import TenantNotFoundError, TenantService
 
 logger = structlog.get_logger(__name__)
-
-
-def _build_exit_survey_url(survey_token: str, customer_id: str | None) -> str:
-    """Construct fully-qualified survey URL with query parameters."""
-    base_url = settings.urls.exit_survey_base_url or "https://survey.dotmac.com/exit"
-    separator = "&" if "?" in base_url else "?"
-    query = urlencode({"token": survey_token, "customer": customer_id or "unknown"})
-    return f"{base_url}{separator}{query}"
 
 
 def _email_html_message(recipient: str, subject: str, html_body: str) -> EmailMessage:
@@ -502,172 +491,6 @@ async def send_trial_ending_reminder(event: Event) -> None:
 
 
 # ============================================================================
-# Customer Event Handlers
-# ============================================================================
-
-
-@subscribe("customer.churned")  # type: ignore[misc]
-async def send_exit_survey_email(event: Event) -> None:
-    """
-    Send exit survey email when a customer churns.
-
-    This enhances customer experience during churn by collecting feedback
-    that can be used to improve the product and reduce future churn.
-
-    Args:
-        event: Customer churned event
-    """
-
-    from dotmac.platform.communications.models import ExitSurveyResponse
-    from dotmac.platform.db import get_session_dependency
-
-    customer_id = event.payload.get("customer_id")
-    customer_email = event.payload.get("customer_email")
-    previous_status = event.payload.get("previous_status")
-    new_status = event.payload.get("new_status")
-    subscriptions_canceled = event.payload.get("subscriptions_canceled", 0)
-    churned_at_str = event.payload.get("churned_at")
-
-    logger.info(
-        "Processing customer.churned event for exit survey",
-        customer_id=customer_id,
-        subscriptions_canceled=subscriptions_canceled,
-        event_id=event.event_id,
-    )
-
-    # Skip if no email provided
-    if not customer_email:
-        logger.warning(
-            "No customer email available for exit survey",
-            customer_id=customer_id,
-        )
-        return
-
-    try:
-        # Parse churned_at timestamp
-        churned_at = None
-        if churned_at_str:
-            try:
-                churned_at = datetime.fromisoformat(churned_at_str.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                churned_at = datetime.now(UTC)
-
-        # Generate unique survey link
-        survey_token = event.event_id[:16]  # Use event ID prefix as token
-        survey_url = _build_exit_survey_url(survey_token, customer_id)
-
-        # Create survey response record in database
-        async for db_session in get_session_dependency():
-            try:
-                survey_response = ExitSurveyResponse(
-                    survey_token=survey_token,
-                    customer_id=customer_id,
-                    customer_email=customer_email,
-                    churned_at=churned_at,
-                    previous_status=previous_status,
-                    subscriptions_canceled=subscriptions_canceled,
-                    survey_sent_at=datetime.now(UTC),
-                    metadata_={
-                        "event_id": event.event_id,
-                        "new_status": new_status,
-                        "survey_url": survey_url,
-                    },
-                )
-
-                db_session.add(survey_response)
-                await db_session.commit()
-
-                logger.info(
-                    "Exit survey response record created",
-                    survey_token=survey_token,
-                    customer_id=customer_id,
-                )
-            except Exception as db_error:
-                logger.error(
-                    "Failed to create survey response record",
-                    customer_id=customer_id,
-                    error=str(db_error),
-                )
-                # Continue with email sending even if DB insert fails
-
-            # Exit the async generator after first iteration
-            break
-
-        email_service = EmailService()
-        branding = await _resolve_branding_for_event(event)
-        product_name, company_name, support_email = derive_brand_tokens(branding)
-
-        # Create personalized HTML email with exit survey
-        message = _email_html_message(
-            recipient=customer_email,
-            subject=f"We Value Your Feedback - {product_name}",
-            html_body=render_branded_email_html(
-                branding,
-                f"""
-                <h2>We're Sorry to See You Go</h2>
-                <p>Dear Valued Customer,</p>
-
-                <p>We noticed that you recently canceled your subscription with us. While we're sorry to see you leave,
-                we'd greatly appreciate your feedback to help us improve our service for future customers.</p>
-
-                <p><strong>Your feedback matters!</strong> Please take 2 minutes to complete our exit survey.</p>
-
-                <div style="text-align: center; margin: 20px 0;">
-                    <a href="{survey_url}" style="display:inline-block;background-color:#2563eb;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;">Take the Exit Survey</a>
-                </div>
-
-                <div style="background-color:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
-                    <p><strong>The survey will help us understand:</strong></p>
-                    <ul>
-                        <li>Why you decided to leave</li>
-                        <li>What we could have done better</li>
-                        <li>What features or improvements would bring you back</li>
-                        <li>Your overall experience with our service</li>
-                    </ul>
-                </div>
-
-                <p><strong>Your responses are anonymous and confidential.</strong> We review all feedback carefully
-                to continuously improve our product and service.</p>
-
-                <p>If you have any immediate concerns or would like to discuss your experience,
-                please don't hesitate to contact our support team at {support_email}.</p>
-
-                <p><strong>Thinking of coming back?</strong> You're always welcome to reactivate your account
-                anytime. We'd love to have you back!</p>
-
-                <p>Thank you for being part of our community. We wish you all the best.</p>
-
-                <p>Best regards,<br>
-                <strong>The {company_name} Team</strong></p>
-
-                <p style="font-size:12px;color:#94a3b8;">This email was sent because your account status changed to: {new_status}.<br>
-                Customer ID: {customer_id}</p>
-                """,
-            ),
-        )
-
-        await email_service.send_email(message)
-
-        logger.info(
-            "Exit survey email sent successfully",
-            customer_id=customer_id,
-            customer_email=customer_email,
-            survey_url=survey_url,
-        )
-
-    except (SMTPException, OSError, RuntimeError, ValueError) as e:
-        logger.error(
-            "Failed to send exit survey email",
-            customer_id=customer_id,
-            customer_email=customer_email,
-            error=str(e),
-            exc_info=True,
-        )
-        # Don't raise - we don't want to fail the churn process if email fails
-        # Just log the error for monitoring
-
-
-# ============================================================================
 # Initialization
 # ============================================================================
 
@@ -689,7 +512,6 @@ def init_communications_event_listeners() -> None:
             "send_subscription_welcome_email",
             "send_subscription_cancelled_email",
             "send_trial_ending_reminder",
-            "send_exit_survey_email",
         ],
     )
 

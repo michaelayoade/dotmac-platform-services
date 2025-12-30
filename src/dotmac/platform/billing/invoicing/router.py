@@ -2,10 +2,13 @@
 Invoice API router with tenant support
 """
 
+import structlog
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+
+logger = structlog.get_logger(__name__)
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +21,7 @@ from dotmac.platform.billing.core.exceptions import (
     InvoiceNotFoundError,
 )
 from dotmac.platform.billing.core.models import Invoice
-from dotmac.platform.billing.dependencies import get_tenant_id
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.billing.invoicing.service import InvoiceService
 from dotmac.platform.database import get_async_session
 
@@ -111,34 +114,42 @@ class InvoiceListResponse(BaseModel):
     has_more: bool
 
 
+class PDFGenerationRequest(BaseModel):
+    """PDF generation options."""
+
+    model_config = ConfigDict()
+
+    company_info: dict[str, Any] | None = Field(None, description="Company information")
+    customer_info: dict[str, Any] | None = Field(None, description="Additional customer info")
+    payment_instructions: str | None = Field(None, description="Payment instructions text")
+    locale: str = Field("en_US", description="Locale for currency formatting")
+    include_qr_code: bool = Field(False, description="Include QR code for payment")
+
+
+class BatchPDFRequest(BaseModel):
+    """Batch PDF generation request."""
+
+    model_config = ConfigDict()
+
+    invoice_ids: list[str] = Field(..., min_length=1, max_length=100)
+    company_info: dict[str, Any] | None = None
+    locale: str = Field("en_US")
+
+
+class InvoiceDiscountRequest(BaseModel):
+    """Apply discount to invoice."""
+
+    model_config = ConfigDict()
+
+    discount_percentage: float = Field(..., gt=0, le=100, description="Discount percentage")
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
 # ============================================================================
 # Router Definition
 # ============================================================================
 
 router = APIRouter(prefix="/invoices", tags=["Billing - Invoices"])
-
-
-def get_tenant_id_from_request(request: Request) -> str:
-    """Extract tenant ID from request"""
-    # Check request state (set by middleware)
-    if hasattr(request.state, "tenant_id"):
-        tenant_id: str = request.state.tenant_id
-        return tenant_id
-
-    # Check header
-    tenant_id_header = request.headers.get("X-Tenant-ID")
-    if tenant_id_header:
-        return tenant_id_header
-
-    # Check query parameter
-    tenant_id_query = request.query_params.get("tenant_id")
-    if tenant_id_query:
-        return tenant_id_query
-
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Tenant ID is required. Provide via X-Tenant-ID header or tenant_id query param.",
-    )
 
 
 # ============================================================================
@@ -150,7 +161,7 @@ def get_tenant_id_from_request(request: Request) -> str:
     "",
     response_model=Invoice,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("billing:invoices:write"))],
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
 )
 async def create_invoice(
     invoice_data: CreateInvoiceRequest,
@@ -158,8 +169,9 @@ async def create_invoice(
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
-    """Create a new invoice with tenant isolation. Requires billing:invoices:write permission."""
+    """Create a new invoice with tenant isolation. Requires billing.invoices.manage permission."""
 
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
@@ -179,6 +191,7 @@ async def create_invoice(
             idempotency_key=invoice_data.idempotency_key,
             extra_data=invoice_data.extra_data,
         )
+        invoice.internal_notes = None
         return invoice
     except Exception as e:
         raise HTTPException(
@@ -187,11 +200,16 @@ async def create_invoice(
         )
 
 
-@router.get("", response_model=InvoiceListResponse)
+@router.get(
+    "",
+    response_model=InvoiceListResponse,
+    dependencies=[Depends(require_permission("billing.invoices.view"))],
+)
 async def list_invoices(
     request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     customer_id: str | None = Query(None, description="Filter by customer ID"),
-    status: InvoiceStatus | None = Query(None, description="Filter by status"),
+    invoice_status: InvoiceStatus | None = Query(None, description="Filter by status"),
     payment_status: PaymentStatus | None = Query(None, description="Filter by payment status"),
     start_date: datetime | None = Query(None, description="Filter by start date"),
     end_date: datetime | None = Query(None, description="Filter by end date"),
@@ -202,69 +220,103 @@ async def list_invoices(
 ) -> InvoiceListResponse:
     """List invoices with filtering and tenant isolation"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
-    invoices = await invoice_service.list_invoices(
-        tenant_id=tenant_id,
-        customer_id=customer_id,
-        status=status,
-        payment_status=payment_status,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit + 1,  # Fetch one extra to check if there are more
-        offset=offset,
-    )
+    try:
+        try:
+            invoices, total_count = await invoice_service.list_invoices_with_count(
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                status=invoice_status,
+                payment_status=payment_status,
+                start_date=start_date,
+                end_date=end_date,
+                limit=limit + 1,  # Fetch one extra to check if there are more
+                offset=offset,
+            )
+        except (AttributeError, TypeError):
+            invoices = await invoice_service.list_invoices(
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                status=status,
+                payment_status=payment_status,
+                start_date=start_date,
+                end_date=end_date,
+                limit=limit + 1,
+                offset=offset,
+            )
+            total_count = len(invoices)
+    except Exception as e:
+        # Handle case where invoices table doesn't exist yet
+        if "UndefinedTableError" in str(type(e).__name__) or "does not exist" in str(e):
+            logger.warning("Invoices table not set up yet", error=str(e))
+            return InvoiceListResponse(invoices=[], total_count=0, has_more=False)
+        raise
 
     has_more = len(invoices) > limit
     if has_more:
         invoices = invoices[:limit]
 
+    for invoice in invoices:
+        invoice.internal_notes = None
+
     return InvoiceListResponse(
         invoices=invoices,
-        total_count=len(invoices),
+        total_count=total_count,
         has_more=has_more,
     )
 
-
-@router.get("/{invoice_id}", response_model=Invoice)
+@router.get(
+    "/{invoice_id}",
+    response_model=Invoice,
+    dependencies=[Depends(require_permission("billing.invoices.view"))],
+)
 async def get_invoice(
     invoice_id: str,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Get invoice by ID with tenant isolation"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     invoice = await invoice_service.get_invoice(tenant_id, invoice_id)
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
+    invoice.internal_notes = None
     return invoice
 
 
 @router.post(
     "/{invoice_id}/finalize",
     response_model=Invoice,
-    dependencies=[Depends(require_permission("billing:invoices:write"))],
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
 )
 async def finalize_invoice(
     invoice_id: str,
     finalize_data: FinalizeInvoiceRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
-    """Finalize a draft invoice to open status. Requires billing:invoices:write permission."""
+    """Finalize a draft invoice to open status. Requires billing.invoices.manage permission."""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
         invoice = await invoice_service.finalize_invoice(tenant_id, invoice_id)
+        invoice.internal_notes = None
         return invoice
     except InvoiceNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
@@ -275,24 +327,25 @@ async def finalize_invoice(
 @router.post(
     "/{invoice_id}/void",
     response_model=Invoice,
-    dependencies=[Depends(require_permission("billing:invoices:write"))],
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
 )
 async def void_invoice(
     invoice_id: str,
     void_data: VoidInvoiceRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
-    """Void an invoice. Requires billing:invoices:write permission."""
+    """Void an invoice. Requires billing.invoices.manage permission."""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
         invoice = await invoice_service.void_invoice(
             tenant_id, invoice_id, reason=void_data.reason, voided_by=current_user.user_id
         )
+        invoice.internal_notes = None
         return invoice
     except InvoiceNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
@@ -300,17 +353,21 @@ async def void_invoice(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/{invoice_id}/send", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{invoice_id}/send",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
 async def send_invoice_email(
     invoice_id: str,
     send_data: SendInvoiceEmailRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Send invoice email to customer"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
@@ -337,17 +394,21 @@ async def send_invoice_email(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
-@router.post("/{invoice_id}/remind", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{invoice_id}/remind",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
 async def send_payment_reminder(
     invoice_id: str,
     reminder_data: SendPaymentReminderRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Send payment reminder for invoice"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
@@ -376,60 +437,286 @@ async def send_payment_reminder(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/{invoice_id}/mark-paid", response_model=Invoice)
+@router.post(
+    "/{invoice_id}/pdf",
+    dependencies=[Depends(require_permission("billing.invoices.download"))],
+)
+async def generate_invoice_pdf(
+    invoice_id: str,
+    pdf_options: PDFGenerationRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> Response:
+    """Generate PDF for an invoice."""
+    enforce_tenant_access(tenant_id, current_user)
+    service = InvoiceService(db)
+
+    try:
+        pdf_bytes = await service.generate_invoice_pdf(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            company_info=pdf_options.company_info,
+            customer_info=pdf_options.customer_info,
+            payment_instructions=pdf_options.payment_instructions,
+            locale=pdf_options.locale,
+        )
+
+        invoice = await service.get_invoice(tenant_id, invoice_id)
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Invoice {invoice_id} not found",
+            )
+        filename = f"invoice_{invoice.invoice_number or invoice.invoice_id}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate PDF: {str(e)}",
+        )
+
+
+@router.get(
+    "/{invoice_id}/pdf/preview",
+    dependencies=[Depends(require_permission("billing.invoices.download"))],
+)
+async def preview_invoice_pdf(
+    invoice_id: str,
+    locale: str = Query("en_US"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> Response:
+    """Preview invoice PDF in browser."""
+    enforce_tenant_access(tenant_id, current_user)
+    service = InvoiceService(db)
+
+    try:
+        pdf_bytes = await service.generate_invoice_pdf(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            locale=locale,
+        )
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "inline"},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate PDF preview: {str(e)}",
+        )
+
+
+@router.post(
+    "/batch/pdf",
+    dependencies=[Depends(require_permission("billing.invoices.download"))],
+)
+async def generate_batch_pdfs(
+    batch_request: BatchPDFRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Generate PDFs for multiple invoices.
+    """
+    enforce_tenant_access(tenant_id, current_user)
+    service = InvoiceService(db)
+
+    import os
+    import tempfile
+
+    temp_dir = tempfile.mkdtemp(prefix="invoice_batch_")
+
+    try:
+        output_paths = await service.generate_batch_invoices_pdf(
+            tenant_id=tenant_id,
+            invoice_ids=batch_request.invoice_ids,
+            output_dir=temp_dir,
+            company_info=batch_request.company_info,
+            locale=batch_request.locale,
+        )
+
+        return {
+            "success": True,
+            "count": len(output_paths),
+            "message": f"Generated {len(output_paths)} PDF files",
+            "temp_directory": temp_dir,
+            "files": [os.path.basename(path) for path in output_paths],
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate batch PDFs: {str(e)}",
+        )
+
+
+@router.post(
+    "/{invoice_id}/discount",
+    response_model=Invoice,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
+async def apply_discount(
+    invoice_id: str,
+    discount_request: InvoiceDiscountRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> Invoice:
+    """Apply a percentage discount to an invoice."""
+    enforce_tenant_access(tenant_id, current_user)
+    service = InvoiceService(db)
+
+    try:
+        await service.apply_percentage_discount(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            discount_percentage=discount_request.discount_percentage,
+            reason=discount_request.reason,
+        )
+        invoice = await service.get_invoice(tenant_id, invoice_id)
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found"
+            )
+        invoice.internal_notes = None
+        return invoice
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to apply discount: {str(e)}",
+        )
+
+
+@router.post(
+    "/{invoice_id}/recalculate-tax",
+    response_model=Invoice,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
+async def recalculate_tax(
+    invoice_id: str,
+    tax_jurisdiction: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: UserInfo = Depends(get_current_user),
+) -> Invoice:
+    """Recalculate tax for an invoice based on jurisdiction."""
+    enforce_tenant_access(tenant_id, current_user)
+    service = InvoiceService(db)
+
+    tax_rates = {
+        "default": 10.0,
+        "CA": 8.75,
+        "NY": 8.0,
+        "TX": 6.25,
+    }
+
+    try:
+        await service.calculate_tax_for_jurisdiction(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            tax_jurisdiction=tax_jurisdiction,
+            tax_rates={"default": tax_rates.get(tax_jurisdiction, 10.0)},
+        )
+        invoice = await service.get_invoice(tenant_id, invoice_id)
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found"
+            )
+        invoice.internal_notes = None
+        return invoice
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to recalculate tax: {str(e)}",
+        )
+
+
+@router.post(
+    "/{invoice_id}/mark-paid",
+    response_model=Invoice,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
 async def mark_invoice_paid(
     invoice_id: str,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     payment_id: str | None = Query(None, description="Associated payment ID"),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Mark invoice as paid"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
         invoice = await invoice_service.mark_invoice_paid(
             tenant_id, invoice_id, payment_id=payment_id
         )
+        invoice.internal_notes = None
         return invoice
     except InvoiceNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
-@router.post("/{invoice_id}/apply-credit", response_model=Invoice)
+@router.post(
+    "/{invoice_id}/apply-credit",
+    response_model=Invoice,
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
 async def apply_credit_to_invoice(
     invoice_id: str,
     credit_data: ApplyCreditRequest,
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> Invoice:
     """Apply credit to invoice"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     try:
         invoice = await invoice_service.apply_credit_to_invoice(
             tenant_id, invoice_id, credit_data.credit_amount, credit_data.credit_application_id
         )
+        invoice.internal_notes = None
         return invoice
     except InvoiceNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
 
-@router.post("/check-overdue", response_model=list[Invoice])
+@router.post(
+    "/check-overdue",
+    response_model=list[Invoice],
+    dependencies=[Depends(require_permission("billing.invoices.manage"))],
+)
 async def check_overdue_invoices(
-    request: Request,
+    tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_async_session),
     current_user: UserInfo = Depends(get_current_user),
 ) -> list[Invoice]:
     """Check for overdue invoices and update their status"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     invoice_service = InvoiceService(db)
 
     overdue_invoices: list[Invoice] = await invoice_service.check_overdue_invoices(tenant_id)
+    for invoice in overdue_invoices:
+        invoice.internal_notes = None
     return overdue_invoices

@@ -68,7 +68,6 @@ def mock_contact_response(sample_contact_id, sample_tenant_id):
     return ContactResponse(
         id=sample_contact_id,
         tenant_id=sample_tenant_id,
-        customer_id=None,
         first_name="John",
         middle_name=None,
         last_name="Doe",

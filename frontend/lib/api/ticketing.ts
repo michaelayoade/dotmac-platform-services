@@ -5,6 +5,21 @@
  */
 
 import { api, normalizePaginatedResponse, ApiClientError } from "./client";
+import type { TicketsDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getTicketsDashboard(
+  params?: DashboardQueryParams
+): Promise<TicketsDashboardResponse> {
+  return api.get<TicketsDashboardResponse>("/api/v1/tickets/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
 
 // ============================================================================
 // Ticket Types
@@ -154,6 +169,7 @@ export async function createTicket(data: CreateTicketData): Promise<Ticket> {
 
 export interface UpdateTicketData {
   subject?: string;
+  description?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
   category?: TicketCategory;
@@ -164,6 +180,7 @@ export interface UpdateTicketData {
 export async function updateTicket(id: string, data: UpdateTicketData): Promise<Ticket> {
   return api.patch<Ticket>(`/api/v1/tickets/${id}`, {
     subject: data.subject,
+    description: data.description,
     status: data.status,
     priority: data.priority,
     category: data.category,

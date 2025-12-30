@@ -46,11 +46,6 @@ class TestWebhookEvent:
         assert WebhookEvent.PAYMENT_SUCCEEDED == "payment.succeeded"
         assert WebhookEvent.SUBSCRIPTION_CREATED == "subscription.created"
 
-    def test_webhook_event_customer(self):
-        """Test customer event values."""
-        assert WebhookEvent.CUSTOMER_CREATED == "customer.created"
-        assert WebhookEvent.CUSTOMER_UPDATED == "customer.updated"
-
     def test_webhook_event_user(self):
         """Test user event values."""
         assert WebhookEvent.USER_REGISTERED == "user.registered"

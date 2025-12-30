@@ -1,22 +1,21 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
-import { authOptions } from "@/lib/auth/config";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { getCurrentUserFromRequest } from "@/lib/auth/server";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const user = await getCurrentUserFromRequest();
 
-  if (!session) {
+  if (!user) {
     redirect("/login");
   }
 
-  return <DashboardShell session={session}>{children}</DashboardShell>;
+  return <DashboardShell user={user}>{children}</DashboardShell>;
 }

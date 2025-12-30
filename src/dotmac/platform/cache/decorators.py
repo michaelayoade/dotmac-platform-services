@@ -34,10 +34,10 @@ def cached(
     Decorator to cache function results.
 
     Usage:
-        @cached(ttl=3600, namespace=CacheNamespace.CUSTOMER)
-        async def get_customer(customer_id: UUID):
+        @cached(ttl=3600, namespace=CacheNamespace.TENANT)
+        async def get_tenant(tenant_id: UUID):
             # Expensive operation
-            return customer
+            return tenant
 
     Args:
         ttl: Time-to-live in seconds
@@ -144,9 +144,9 @@ def cache_aside(
     Check cache first, if miss load from source and cache.
 
     Usage:
-        @cache_aside(ttl=3600, namespace=CacheNamespace.CUSTOMER)
-        async def get_customer_by_id(db: AsyncSession, customer_id: UUID):
-            stmt = select(Customer).where(Customer.id == customer_id)
+        @cache_aside(ttl=3600, namespace=CacheNamespace.TENANT)
+        async def get_tenant_by_id(db: AsyncSession, tenant_id: UUID):
+            stmt = select(Tenant).where(Tenant.id == tenant_id)
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
     """
@@ -163,12 +163,12 @@ def invalidate_cache(
 
     Usage:
         @invalidate_cache(
-            namespace=CacheNamespace.CUSTOMER,
-            key_pattern="get_customer:*"
+            namespace=CacheNamespace.TENANT,
+            key_pattern="get_tenant:*"
         )
-        async def update_customer(customer_id: UUID, data: dict[str, Any]):
-            # Update customer
-            return customer
+        async def update_tenant(tenant_id: UUID, data: dict[str, Any]):
+            # Update tenant
+            return tenant
 
     Args:
         namespace: Cache namespace to invalidate

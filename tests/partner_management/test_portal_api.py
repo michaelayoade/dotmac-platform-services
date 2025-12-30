@@ -49,11 +49,11 @@ class TestPortalDashboard:
         )
 
         # Create some data
-        customer_id = uuid4()
+        tenant_id = uuid4()
         await service.create_partner_account(
             PartnerAccountCreate(
                 partner_id=partner.id,
-                customer_id=customer_id,
+                tenant_id=tenant_id,
                 engagement_type="direct",
             ),
         )
@@ -63,7 +63,7 @@ class TestPortalDashboard:
         await service.create_commission_event(
             PartnerCommissionEventCreate(
                 partner_id=partner.id,
-                customer_id=customer_id,
+                tenant_id=tenant_id,
                 event_type="revenue_share",
                 commission_amount=base_amount * rate,
                 base_amount=base_amount,
@@ -84,7 +84,7 @@ class TestPortalDashboard:
 
         stats = await get_dashboard_stats(partner=partner, db=async_db_session)
 
-        assert stats.total_customers == 1
+        assert stats.total_tenants == 1
         assert stats.total_revenue_generated == Decimal("1000.00")
         assert stats.total_commissions_earned == Decimal("200.00")
         assert stats.pending_commissions == Decimal("200.00")
@@ -253,7 +253,7 @@ class TestPortalCommissions:
             await service.create_commission_event(
                 PartnerCommissionEventCreate(
                     partner_id=partner.id,
-                    customer_id=uuid4(),
+                    tenant_id=uuid4(),
                     event_type="revenue_share",
                     commission_amount=amount * rate,
                     base_amount=amount,
@@ -271,40 +271,40 @@ class TestPortalCommissions:
 
 
 @pytest.mark.asyncio
-class TestPortalCustomers:
-    """Test partner customer listing."""
+class TestPortalTenants:
+    """Test partner tenant listing."""
 
-    async def test_list_customers(self, async_db_session, test_tenant_id):
-        """Test listing partner customers."""
+    async def test_list_tenants(self, async_db_session, test_tenant_id):
+        """Test listing partner tenants."""
         from dotmac.platform.partner_management.service import PartnerService
 
         service = PartnerService(async_db_session)
 
         partner = await service.create_partner(
             PartnerCreate(
-                company_name="Customers Test Partner",
+                company_name="Tenants Test Partner",
                 primary_email="test@partner.com",
             ),
         )
 
-        # Create customer accounts
+        # Create tenant accounts
         for i in range(2):
             await service.create_partner_account(
                 PartnerAccountCreate(
                     partner_id=partner.id,
-                    customer_id=uuid4(),
+                    tenant_id=uuid4(),
                     engagement_type="direct" if i == 0 else "referral",
                 ),
             )
 
-        # List customers
-        from dotmac.platform.partner_management.portal_router import list_partner_customers
+        # List tenants
+        from dotmac.platform.partner_management.portal_router import list_partner_tenants
 
-        customers = await list_partner_customers(partner=partner, db=async_db_session)
+        tenants = await list_partner_tenants(partner=partner, db=async_db_session)
 
-        assert len(customers) == 2
-        assert all(c.is_active for c in customers)
-        assert customers[0].engagement_type in ["direct", "referral"]
+        assert len(tenants) == 2
+        assert all(c.is_active for c in tenants)
+        assert tenants[0].engagement_type in ["direct", "referral"]
 
 
 @pytest.mark.asyncio
@@ -352,7 +352,7 @@ class TestPortalStatements:
             event = await service.create_commission_event(
                 PartnerCommissionEventCreate(
                     partner_id=partner.id,
-                    customer_id=uuid4(),
+                    tenant_id=uuid4(),
                     event_type="revenue_share",
                     commission_amount=commission_amount,
                     base_amount=base_amount,

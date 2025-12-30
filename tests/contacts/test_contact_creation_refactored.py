@@ -29,13 +29,12 @@ class TestContactCreationRefactored:
     """Test contact creation using shared helpers."""
 
     @pytest.mark.asyncio
-    async def test_create_contact_success(self, tenant_id, customer_id, user_id):
+    async def test_create_contact_success(self, tenant_id, user_id):
         """Test successful contact creation - REFACTORED."""
         # Arrange
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="John",
             last_name="Doe",
             email="john.doe@example.com",
@@ -63,13 +62,12 @@ class TestContactCreationRefactored:
         assert contact is not None
 
     @pytest.mark.asyncio
-    async def test_create_contact_minimal_data(self, tenant_id, customer_id, user_id):
+    async def test_create_contact_minimal_data(self, tenant_id, user_id):
         """Test contact creation with minimal required data - REFACTORED."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="Jane",
         )
 
@@ -86,13 +84,12 @@ class TestContactCreationRefactored:
         assert contact is not None
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_methods(self, tenant_id, customer_id, user_id):
+    async def test_create_contact_with_methods(self, tenant_id, user_id):
         """Test contact creation with contact methods - REFACTORED."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="Bob",
             last_name="Smith",
             contact_methods=[
@@ -127,13 +124,12 @@ class TestContactCreationRefactored:
         assert mock_db.add.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_create_contact_with_custom_fields(self, tenant_id, customer_id, user_id):
+    async def test_create_contact_with_custom_fields(self, tenant_id, user_id):
         """Test contact creation with custom fields - REFACTORED."""
         mock_db = build_mock_db_session()
         service = ContactService(mock_db)
 
         contact_data = ContactCreate(
-            customer_id=customer_id,
             first_name="Alice",
             last_name="Johnson",
             custom_fields={

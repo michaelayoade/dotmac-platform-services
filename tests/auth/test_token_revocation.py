@@ -529,3 +529,404 @@ class TestIntegrationTokenRevocation:
                 mock_session_client.setex.assert_called()
                 mock_jwt_client.setex.assert_called()
                 assert mock_session_client.delete.call_count == 3  # 2 sessions + 1 set
+
+
+class TestSessionEnforcement:
+    """Test that tokens are rejected when their session is deleted."""
+
+    @pytest.fixture
+    def jwt_service(self):
+        """Create JWT service for testing."""
+        return JWTService(secret="test-secret", redis_url="redis://localhost:6379")
+
+    @pytest.fixture
+    def session_manager(self):
+        """Create session manager for testing."""
+        return SessionManager(redis_url="redis://localhost:6379", fallback_enabled=True)
+
+    @pytest.mark.asyncio
+    async def test_token_rejected_when_session_deleted(self, jwt_service, session_manager):
+        """Test that access tokens fail if their session is missing."""
+        from dotmac.platform.auth.core import _ensure_session_active
+
+        # Create a token with session_id claim
+        session_id = "test-session-123"
+        token = jwt_service.create_access_token(
+            "user123",
+            additional_claims={"session_id": session_id},
+        )
+        claims = jwt_service.verify_token(token)
+
+        # Mock session manager to return None (session deleted)
+        with patch("dotmac.platform.auth.core.session_manager") as mock_sm:
+            mock_sm.get_session = AsyncMock(return_value=None)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _ensure_session_active(claims)
+
+            assert exc_info.value.status_code == 401
+            assert "Session has been revoked" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_token_rejected_when_session_user_mismatch(self, jwt_service):
+        """Test that tokens fail if session user_id doesn't match token subject."""
+        from dotmac.platform.auth.core import _ensure_session_active
+
+        session_id = "test-session-456"
+        claims = {
+            "sub": "user123",
+            "session_id": session_id,
+        }
+
+        # Mock session with different user_id
+        with patch("dotmac.platform.auth.core.session_manager") as mock_sm:
+            mock_sm.get_session = AsyncMock(
+                return_value={"user_id": "different_user", "session_id": session_id}
+            )
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _ensure_session_active(claims)
+
+            assert exc_info.value.status_code == 401
+            assert "Session has been revoked" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_token_accepted_when_session_valid(self, jwt_service):
+        """Test that tokens work when session exists and matches."""
+        from dotmac.platform.auth.core import _ensure_session_active
+
+        session_id = "test-session-789"
+        user_id = "user123"
+        claims = {
+            "sub": user_id,
+            "session_id": session_id,
+        }
+
+        # Mock valid session
+        with patch("dotmac.platform.auth.core.session_manager") as mock_sm:
+            mock_sm.get_session = AsyncMock(
+                return_value={"user_id": user_id, "session_id": session_id}
+            )
+
+            # Should not raise
+            await _ensure_session_active(claims)
+
+    @pytest.mark.asyncio
+    async def test_token_without_session_id_passes(self, jwt_service):
+        """Test that tokens without session_id claim are not rejected."""
+        from dotmac.platform.auth.core import _ensure_session_active
+
+        claims = {"sub": "user123"}  # No session_id
+
+        # Should not raise and should not call session_manager
+        with patch("dotmac.platform.auth.core.session_manager") as mock_sm:
+            await _ensure_session_active(claims)
+            mock_sm.get_session.assert_not_called()
+
+
+class TestUserWideRevocation:
+    """Test user-wide token revocation using the revocation marker."""
+
+    @pytest.fixture
+    def jwt_service(self):
+        """Create JWT service for testing."""
+        return JWTService(secret="test-secret", redis_url="redis://localhost:6379")
+
+    @pytest.fixture
+    def mock_redis(self):
+        """Create mock Redis client."""
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_revoke_user_tokens_sets_marker(self, jwt_service, mock_redis):
+        """Test that revoke_user_tokens sets the user_revoked marker in Redis."""
+        user_id = "user123"
+
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            mock_redis.setex = AsyncMock(return_value=True)
+
+            result = await jwt_service.revoke_user_tokens(user_id)
+
+            assert result == 1
+            # Verify Redis setex was called with correct key
+            mock_redis.setex.assert_called_once()
+            call_args = mock_redis.setex.call_args
+            assert call_args[0][0] == f"user_revoked:{user_id}"
+            # TTL should be refresh token expiry (7 days in seconds)
+            assert call_args[0][1] == 7 * 24 * 60 * 60
+
+    @pytest.mark.asyncio
+    async def test_old_token_rejected_after_user_revocation(self, jwt_service, mock_redis):
+        """Test that tokens issued before revocation are rejected."""
+        import time
+
+        user_id = "user123"
+
+        # Create token with iat in the past
+        old_iat = int(time.time()) - 100  # 100 seconds ago
+        token = jwt_service.create_access_token(user_id, additional_claims={"iat": old_iat})
+
+        # Mock revocation that happened after the token was issued
+        revoked_at = int(time.time()) - 50  # 50 seconds ago (after token creation)
+
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            with patch.object(jwt_service, "is_token_revoked", return_value=False):
+                mock_redis.get = AsyncMock(return_value=str(revoked_at))
+
+                with pytest.raises(HTTPException) as exc_info:
+                    await jwt_service.verify_token_async(token)
+
+                assert exc_info.value.status_code == 401
+                assert "revoked" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_new_token_works_after_user_revocation(self, jwt_service, mock_redis):
+        """Test that tokens issued after revocation are still valid."""
+        import time
+
+        user_id = "user123"
+
+        # Revocation happened 100 seconds ago
+        revoked_at = int(time.time()) - 100
+
+        # Create a new token (iat will be now, after revocation)
+        token = jwt_service.create_access_token(user_id)
+
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            with patch.object(jwt_service, "is_token_revoked", return_value=False):
+                mock_redis.get = AsyncMock(return_value=str(revoked_at))
+
+                # Should not raise - token was issued after revocation
+                claims = await jwt_service.verify_token_async(token)
+                assert claims["sub"] == user_id
+
+    @pytest.mark.asyncio
+    async def test_no_revocation_marker_allows_token(self, jwt_service, mock_redis):
+        """Test that tokens work when no user revocation marker exists."""
+        user_id = "user123"
+        token = jwt_service.create_access_token(user_id)
+
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            with patch.object(jwt_service, "is_token_revoked", return_value=False):
+                # No revocation marker
+                mock_redis.get = AsyncMock(return_value=None)
+
+                claims = await jwt_service.verify_token_async(token)
+                assert claims["sub"] == user_id
+
+    def test_is_token_revoked_by_user_with_old_iat(self, jwt_service):
+        """Test _is_token_revoked_by_user returns True for old tokens."""
+        import time
+
+        revoked_at = int(time.time())
+        claims = {"iat": revoked_at - 100}  # Token issued 100s before revocation
+
+        result = jwt_service._is_token_revoked_by_user(claims, revoked_at)
+        assert result is True
+
+    def test_is_token_revoked_by_user_with_new_iat(self, jwt_service):
+        """Test _is_token_revoked_by_user returns False for new tokens."""
+        import time
+
+        revoked_at = int(time.time()) - 100  # Revoked 100s ago
+        claims = {"iat": int(time.time())}  # Token issued now
+
+        result = jwt_service._is_token_revoked_by_user(claims, revoked_at)
+        assert result is False
+
+    def test_is_token_revoked_by_user_with_equal_iat(self, jwt_service):
+        """Test _is_token_revoked_by_user returns True when iat equals revoked_at."""
+        import time
+
+        revoked_at = int(time.time())
+        claims = {"iat": revoked_at}  # Same timestamp
+
+        # Edge case: token issued at exact revocation time should be revoked
+        result = jwt_service._is_token_revoked_by_user(claims, revoked_at)
+        assert result is True
+
+    def test_is_token_revoked_by_user_with_missing_iat(self, jwt_service):
+        """Test _is_token_revoked_by_user returns True when iat is missing."""
+        import time
+
+        revoked_at = int(time.time())
+        claims = {}  # No iat claim
+
+        # Missing iat should be treated as revoked (fail-safe)
+        result = jwt_service._is_token_revoked_by_user(claims, revoked_at)
+        assert result is True
+
+    def test_normalize_timestamp_with_int(self, jwt_service):
+        """Test _normalize_timestamp handles int values."""
+        assert jwt_service._normalize_timestamp(12345) == 12345
+
+    def test_normalize_timestamp_with_float(self, jwt_service):
+        """Test _normalize_timestamp handles float values."""
+        assert jwt_service._normalize_timestamp(12345.6) == 12345
+
+    def test_normalize_timestamp_with_string(self, jwt_service):
+        """Test _normalize_timestamp handles string digit values."""
+        assert jwt_service._normalize_timestamp("12345") == 12345
+        assert jwt_service._normalize_timestamp(" 12345 ") == 12345
+
+    def test_normalize_timestamp_with_datetime(self, jwt_service):
+        """Test _normalize_timestamp handles datetime values."""
+        dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        result = jwt_service._normalize_timestamp(dt)
+        assert result == int(dt.timestamp())
+
+    def test_normalize_timestamp_with_invalid(self, jwt_service):
+        """Test _normalize_timestamp returns None for invalid values."""
+        assert jwt_service._normalize_timestamp("not-a-number") is None
+        assert jwt_service._normalize_timestamp(None) is None
+        assert jwt_service._normalize_timestamp({}) is None
+
+
+class TestLogoutWithoutAccessToken:
+    """Test logout works when access token is missing or invalid."""
+
+    @pytest.fixture
+    def test_client(self):
+        """Create test client for the auth router."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from dotmac.platform.auth.router import auth_router
+
+        app = FastAPI()
+        app.include_router(auth_router)
+        return TestClient(app)
+
+    @pytest.fixture
+    def mock_jwt_service(self):
+        """Create mock JWT service."""
+        service = MagicMock()
+        service.revoke_token = AsyncMock(return_value=True)
+        service.revoke_user_tokens = AsyncMock(return_value=1)
+        return service
+
+    @pytest.fixture
+    def mock_session_manager(self):
+        """Create mock session manager."""
+        manager = AsyncMock()
+        manager.delete_user_sessions = AsyncMock(return_value=2)
+        return manager
+
+    def test_logout_revokes_refresh_token_without_access_token(
+        self, test_client, mock_jwt_service, mock_session_manager
+    ):
+        """Test logout revokes refresh token even when no access token provided."""
+        with patch("dotmac.platform.auth.router.jwt_service", mock_jwt_service):
+            with patch("dotmac.platform.auth.router.session_manager", mock_session_manager):
+                # Set refresh token cookie but no access token
+                test_client.cookies.set("refresh_token", "test-refresh-token")
+
+                response = test_client.post("/auth/logout")
+
+                assert response.status_code == 200
+                # Verify refresh token was revoked
+                mock_jwt_service.revoke_token.assert_called_once_with("test-refresh-token")
+
+    def test_logout_with_invalid_access_token_still_revokes_refresh(
+        self, test_client, mock_jwt_service, mock_session_manager
+    ):
+        """Test logout handles invalid access token and still revokes refresh token."""
+        # Make verify_token raise an exception (invalid token)
+        mock_jwt_service.verify_token.side_effect = Exception("Invalid token")
+
+        with patch("dotmac.platform.auth.router.jwt_service", mock_jwt_service):
+            with patch("dotmac.platform.auth.router.session_manager", mock_session_manager):
+                test_client.cookies.set("access_token", "invalid-access-token")
+                test_client.cookies.set("refresh_token", "valid-refresh-token")
+
+                response = test_client.post("/auth/logout")
+
+                assert response.status_code == 200
+                assert response.json()["message"] == "Logout completed"
+
+    def test_logout_clears_cookies_even_without_tokens(self, test_client):
+        """Test logout clears cookies even when no tokens present."""
+        response = test_client.post("/auth/logout")
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "Logout completed"
+        # Cookies should be cleared (set-cookie headers with max-age=0)
+
+
+class TestRefreshTokenRevocationOnLogout:
+    """Test that refresh tokens are unusable after logout."""
+
+    @pytest.fixture
+    def jwt_service(self):
+        """Create real JWT service for integration testing."""
+        return JWTService(secret="test-secret", redis_url="redis://localhost:6379")
+
+    @pytest.fixture
+    def mock_redis(self):
+        """Create mock Redis for token operations."""
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_rejected_after_user_revocation(self, jwt_service, mock_redis):
+        """Test refresh token fails after revoke_user_tokens is called."""
+        from dotmac.platform.auth.core import TokenType
+
+        user_id = "user123"
+
+        # Create refresh token
+        refresh_token = jwt_service.create_refresh_token(user_id)
+
+        # Simulate user logout which calls revoke_user_tokens
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            mock_redis.setex = AsyncMock(return_value=True)
+            await jwt_service.revoke_user_tokens(user_id)
+
+        # Now try to use the refresh token
+        import time
+
+        revoked_at = int(time.time())
+
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            with patch.object(jwt_service, "is_token_revoked", return_value=False):
+                mock_redis.get = AsyncMock(return_value=str(revoked_at))
+
+                with pytest.raises(HTTPException) as exc_info:
+                    await jwt_service.verify_token_async(refresh_token, TokenType.REFRESH)
+
+                assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_full_logout_flow_invalidates_all_tokens(self, jwt_service, mock_redis):
+        """Test complete logout flow: access token, refresh token, and sessions all invalidated."""
+        user_id = "user123"
+        session_id = "session-abc"
+
+        # Create both tokens with session binding
+        access_token = jwt_service.create_access_token(
+            user_id, additional_claims={"session_id": session_id}
+        )
+        refresh_token = jwt_service.create_refresh_token(
+            user_id, additional_claims={"session_id": session_id}
+        )
+
+        # Simulate logout
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            mock_redis.setex = AsyncMock(return_value=True)
+
+            # Revoke individual tokens
+            await jwt_service.revoke_token(access_token)
+            await jwt_service.revoke_token(refresh_token)
+
+            # Revoke all user tokens (belt and suspenders)
+            await jwt_service.revoke_user_tokens(user_id)
+
+        # Verify both tokens would be rejected
+        with patch.object(jwt_service, "_get_redis", return_value=mock_redis):
+            # Mock JTI blacklist check - tokens are individually revoked
+            mock_redis.exists = AsyncMock(return_value=True)
+
+            with pytest.raises(HTTPException):
+                await jwt_service.verify_token_async(access_token)
+
+            with pytest.raises(HTTPException):
+                await jwt_service.verify_token_async(refresh_token)

@@ -136,6 +136,26 @@ class BulkFlagUpdateRequest(BaseModel):  # BaseModel resolves to Any in isolatio
         return v
 
 
+class BulkFlagUpdateFailure(BaseModel):  # BaseModel resolves to Any in isolation
+    """Represents a failed bulk flag update."""
+
+    model_config = ConfigDict()
+
+    flag: str
+    error: str
+
+
+class BulkFlagUpdateResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response model for bulk flag updates."""
+
+    model_config = ConfigDict()
+
+    message: str
+    success_count: int
+    failed_count: int
+    failed_flags: list[BulkFlagUpdateFailure]
+
+
 # API Endpoints
 # NOTE: Specific routes MUST come before parameterized routes to avoid conflicts
 
@@ -168,11 +188,11 @@ async def check_flag(
         )
 
 
-@feature_flags_router.post("/flags/bulk", response_model=dict[str, Any])
+@feature_flags_router.post("/flags/bulk", response_model=BulkFlagUpdateResponse)
 async def bulk_update_flags(
     request: BulkFlagUpdateRequest,
     current_user: UserInfo | None = Depends(get_current_user_optional),
-) -> dict[str, Any]:
+) -> BulkFlagUpdateResponse:
     """Bulk create/update feature flags (admin only)."""
     try:
         user = _require_authenticated_user(current_user)
@@ -232,12 +252,15 @@ async def bulk_update_flags(
             user=user.user_id,
         )
 
-        return {
-            "message": f"Bulk update completed: {success_count} succeeded, {len(failed_flags)} failed",
-            "success_count": success_count,
-            "failed_count": len(failed_flags),
-            "failed_flags": failed_flags,
-        }
+        return BulkFlagUpdateResponse(
+            message=(
+                f"Bulk update completed: {success_count} succeeded, "
+                f"{len(failed_flags)} failed"
+            ),
+            success_count=success_count,
+            failed_count=len(failed_flags),
+            failed_flags=failed_flags,
+        )
 
     except HTTPException:
         raise

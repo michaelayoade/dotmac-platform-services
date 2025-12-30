@@ -129,9 +129,9 @@ class Ticket(BaseModel, TimestampMixin, TenantMixin, AuditMixin):  # type: ignor
         nullable=True,
         index=True,
     )
+    # No FK - customer_management removed
     customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -277,9 +277,9 @@ class TicketMessage(BaseModel, TimestampMixin, TenantMixin, AuditMixin):  # type
         ForeignKey("partners.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # No FK - customer_management removed
     customer_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
-        ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
     )
 

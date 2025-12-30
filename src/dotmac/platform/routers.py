@@ -1,7 +1,8 @@
 """
 Centralized router registration for all API endpoints.
 
-All routes except /health, /ready, and /metrics require authentication.
+Several routes are intentionally public (health, auth, platform config,
+billing webhooks, audit frontend logs, public catalog, alert webhooks).
 """
 
 import importlib
@@ -44,6 +45,7 @@ class RouterConfig:
     tags: Sequence[str | Enum] | None
     requires_auth: bool = True
     description: str = ""
+    include_in_schema: bool = True
 
 
 # Define router configurations - Platform Services Only
@@ -66,6 +68,17 @@ ROUTER_CONFIGS = [
         tags=["Platform"],
         requires_auth=False,
         description="Platform configuration and health endpoints",
+    ),
+    # ===========================================
+    # OIDC Discovery (at root, not /api/v1)
+    # ===========================================
+    RouterConfig(
+        module_path="dotmac.platform.auth.oidc_router",
+        router_name="oidc_router",
+        prefix="",
+        tags=["OIDC Discovery"],
+        requires_auth=False,
+        description="OIDC discovery endpoints (JWKS, OpenID Configuration)",
     ),
     # ===========================================
     # Authentication & Authorization
@@ -101,14 +114,6 @@ ROUTER_CONFIGS = [
         tags=["Platform Administration"],
         requires_auth=True,
         description="Cross-tenant platform administration (super admin only)",
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.auth.platform_admin_router",
-        router_name="router",
-        prefix="/api/v1/platform-admin",
-        tags=["Platform Administration"],
-        requires_auth=True,
-        description="Legacy platform administration path (deprecated)",
     ),
     RouterConfig(
         module_path="dotmac.platform.platform_admin",
@@ -164,6 +169,25 @@ ROUTER_CONFIGS = [
     # ===========================================
     # Tenant Management
     # ===========================================
+    # NOTE: Portal router MUST be registered BEFORE main tenant router
+    # to prevent /{tenant_id}/... from catching /portal/... paths
+    RouterConfig(
+        module_path="dotmac.platform.tenant.portal_router",
+        router_name="router",
+        prefix="/api/v1",
+        tags=["Tenant Portal"],
+        description="Tenant self-service portal (legacy /api/v1/portal)",
+        requires_auth=True,
+        include_in_schema=False,
+    ),
+    RouterConfig(
+        module_path="dotmac.platform.tenant.portal_router",
+        router_name="router",
+        prefix="/api/v1/tenants",
+        tags=["Tenant Portal"],
+        description="Tenant self-service portal",
+        requires_auth=True,
+    ),
     RouterConfig(
         module_path="dotmac.platform.tenant.router",
         router_name="router",
@@ -204,14 +228,6 @@ ROUTER_CONFIGS = [
         description="Usage tracking and billing integration",
         requires_auth=True,
     ),
-    RouterConfig(
-        module_path="dotmac.platform.tenant.portal_router",
-        router_name="router",
-        prefix="/api/v1/tenants",
-        tags=["Tenant Portal"],
-        description="Tenant self-service portal",
-        requires_auth=True,
-    ),
     # ===========================================
     # Billing & Payments
     # ===========================================
@@ -224,108 +240,12 @@ ROUTER_CONFIGS = [
         description="Billing and payment management",
     ),
     RouterConfig(
-        module_path="dotmac.platform.billing.catalog.router",
-        router_name="router",
-        prefix="/api/v1/billing/catalog",
-        tags=["Billing - Catalog"],
-        description="Product catalog management",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.subscriptions.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Billing - Subscriptions"],
-        description="Subscription management",
-        requires_auth=True,
-    ),
-    RouterConfig(
         module_path="dotmac.platform.billing.pricing.router",
         router_name="router",
         prefix="/api/v1",
         tags=["Billing - Pricing"],
-        description="Pricing engine and rules",
         requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.bank_accounts.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Billing - Bank Accounts"],
-        description="Bank accounts and manual payments",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.settings.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Settings"],
-        description="Billing configuration and settings",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.reconciliation_router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Reconciliation"],
-        description="Payment reconciliation and recovery",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.dunning.router",
-        router_name="router",
-        prefix="/api/v1",
-        tags=["Billing - Dunning"],
-        description="Dunning and collections management",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.invoicing.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Invoices"],
-        description="Invoice creation and management",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.invoicing.money_router",
-        router_name="router",
-        prefix="/api/v1/billing/invoices",
-        tags=["Billing - Invoices (Money)"],
-        description="Money-based invoice operations with PDF generation",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.payments.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Payments"],
-        description="Payment processing and tracking",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.receipts.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Receipts"],
-        description="Payment receipts and documentation",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.credit_notes.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Credit Notes"],
-        description="Credit notes and refunds",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.webhooks.router",
-        router_name="router",
-        prefix="/api/v1/billing",
-        tags=["Billing - Webhooks"],
-        description="Billing webhook handlers (Stripe, etc.)",
-        requires_auth=False,
+        description="Pricing rules and price calculation",
     ),
     RouterConfig(
         module_path="dotmac.platform.billing.metrics_router",
@@ -333,25 +253,6 @@ ROUTER_CONFIGS = [
         prefix="/api/v1",
         tags=["Billing Metrics"],
         description="Billing overview metrics (MRR, ARR, invoices, payments)",
-        requires_auth=True,
-    ),
-    RouterConfig(
-        module_path="dotmac.platform.billing.metrics_router",
-        router_name="customer_metrics_router",
-        prefix="/api/v1",
-        tags=["Customer Metrics"],
-        description="Customer metrics with growth and churn analysis",
-        requires_auth=True,
-    ),
-    # ===========================================
-    # Licensing
-    # ===========================================
-    RouterConfig(
-        module_path="dotmac.platform.licensing.router",
-        router_name="router",
-        prefix="",
-        tags=["Licensing"],
-        description="Software licensing, activation, and compliance management",
         requires_auth=True,
     ),
     RouterConfig(
@@ -365,14 +266,6 @@ ROUTER_CONFIGS = [
     # ===========================================
     # Customer Management
     # ===========================================
-    RouterConfig(
-        module_path="dotmac.platform.customer_management.router",
-        router_name="router",
-        prefix="/api/v1/customers",
-        tags=["Customer Management"],
-        requires_auth=True,
-        description="Customer relationship management",
-    ),
     RouterConfig(
         module_path="dotmac.platform.contacts.router",
         router_name="router",
@@ -771,6 +664,7 @@ def _register_router(app: FastAPI, config: RouterConfig) -> bool:
             prefix=config.prefix,
             tags=router_tags,
             dependencies=dependencies,
+            include_in_schema=config.include_in_schema,
         )
 
         tag_label = config.description or (config.tags[0] if config.tags else config.module_path)
@@ -836,12 +730,36 @@ def get_api_info() -> dict[str, Any]:
     Returns:
         Dictionary containing API version, endpoints, and configuration.
     """
+    effective_prefixes: dict[str, str] = {}
+
+    def _resolve_effective_prefix(config: RouterConfig) -> str:
+        cache_key = f"{config.module_path}:{config.router_name}"
+        cached = effective_prefixes.get(cache_key)
+        if cached is not None:
+            return cached
+        if config.prefix:
+            effective_prefixes[cache_key] = config.prefix
+            return config.prefix
+        try:
+            module = importlib.import_module(config.module_path)
+            router = getattr(module, config.router_name)
+            prefix = getattr(router, "prefix", "") or ""
+            effective_prefixes[cache_key] = prefix
+            return prefix
+        except Exception:
+            effective_prefixes[cache_key] = ""
+            return ""
+
     # Build endpoints dict from router configs
     endpoints: dict[str, str | dict[str, str]] = {}
+    non_versioned_endpoints: list[str] = []
     for config in ROUTER_CONFIGS:
         # Extract endpoint name from prefix
-        prefix = config.prefix
+        prefix = _resolve_effective_prefix(config)
+        if not prefix:
+            continue
         if not prefix.startswith("/api/v1"):
+            non_versioned_endpoints.append(prefix)
             continue
 
         trimmed = prefix.replace("/api/v1/", "", 1).lstrip("/")
@@ -871,6 +789,7 @@ def get_api_info() -> dict[str, Any]:
         "version": "v1",
         "base_path": "/api/v1",
         "endpoints": endpoints,
+        "non_versioned_endpoints": sorted(set(non_versioned_endpoints)),
         "public_endpoints": [
             "/health",
             "/ready",
@@ -880,9 +799,17 @@ def get_api_info() -> dict[str, Any]:
             "/openapi.json",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
+            "/api/v1/audit/frontend-logs",
+            "/api/v1/billing/webhooks",
+            "/api/v1/catalog",
+            "/api/v1/monitoring/alerts/webhook",
+            "/api/v1/platform/config",
+            "/api/v1/platform/runtime-config",
         ],
         "authenticated_endpoints": [
-            config.prefix for config in ROUTER_CONFIGS if config.requires_auth
+            _resolve_effective_prefix(config)
+            for config in ROUTER_CONFIGS
+            if config.requires_auth and _resolve_effective_prefix(config)
         ],
     }
 

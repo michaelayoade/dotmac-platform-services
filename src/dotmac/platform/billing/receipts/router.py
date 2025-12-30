@@ -4,14 +4,19 @@ Receipt API router
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
-from dotmac.platform.billing.invoicing.router import get_tenant_id_from_request
+from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.dependencies import (
+    enforce_tenant_access,
+    get_tenant_id,
+    get_tenant_id_from_request,
+)
 from dotmac.platform.billing.receipts.models import Receipt
 from dotmac.platform.billing.receipts.service import ReceiptService
 from dotmac.platform.database import get_async_session
@@ -68,13 +73,13 @@ router = APIRouter(prefix="/receipts", tags=["Billing - Receipts"])
 @router.post("/generate/payment", response_model=Receipt, status_code=status.HTTP_201_CREATED)
 async def generate_receipt_for_payment(
     receipt_data: GenerateReceiptForPaymentRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.download")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> Receipt:
     """Generate receipt for a payment"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     try:
@@ -101,13 +106,13 @@ async def generate_receipt_for_payment(
 @router.post("/generate/invoice", response_model=Receipt, status_code=status.HTTP_201_CREATED)
 async def generate_receipt_for_invoice(
     receipt_data: GenerateReceiptForInvoiceRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.download")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> Receipt:
     """Generate receipt for an invoice payment"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     try:
@@ -134,13 +139,13 @@ async def generate_receipt_for_invoice(
 @router.get("/{receipt_id}", response_model=Receipt)
 async def get_receipt(
     receipt_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> Receipt:
     """Get receipt by ID"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     receipt = await service.get_receipt(tenant_id, receipt_id)
@@ -155,18 +160,18 @@ async def get_receipt(
 
 @router.get("", response_model=ReceiptListResponse)
 async def list_receipts(
-    request: Request,
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     payment_id: str | None = Query(None, description="Filter by payment ID"),
     invoice_id: str | None = Query(None, description="Filter by invoice ID"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> ReceiptListResponse:
     """List receipts with filtering"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     receipts = await service.list_receipts(
@@ -192,13 +197,13 @@ async def list_receipts(
 @router.get("/{receipt_id}/html", response_class=HTMLResponse)
 async def get_receipt_html(
     receipt_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> HTMLResponse:
     """Get receipt as HTML"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     receipt = await service.get_receipt(tenant_id, receipt_id)
@@ -218,13 +223,13 @@ async def get_receipt_html(
 @router.get("/{receipt_id}/pdf")
 async def get_receipt_pdf(
     receipt_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.receipts.download")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> Response:
     """Get receipt as PDF"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = ReceiptService(db)
 
     receipt = await service.get_receipt(tenant_id, receipt_id)

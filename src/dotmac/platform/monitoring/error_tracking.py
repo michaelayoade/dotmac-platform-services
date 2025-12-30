@@ -394,8 +394,8 @@ def track_errors(
     Decorator to automatically track exceptions in functions.
 
     Usage:
-        @track_errors(module="customer_management", endpoint="/api/v1/customers")
-        async def get_customer(customer_id: str):
+        @track_errors(module="tenant_management", endpoint="/api/v1/tenants")
+        async def get_tenant(tenant_id: str):
             ...
 
     Args:

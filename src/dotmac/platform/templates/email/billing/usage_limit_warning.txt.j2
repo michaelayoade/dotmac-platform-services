@@ -1,0 +1,20 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Usage Limit Warning
+
+You're approaching your {{ metric_name }} limit for the current billing period.
+
+Current Usage:
+- {{ metric_name }}: {{ current_usage }} of {{ limit }} ({{ percentage }}% used)
+- Billing Period: {{ period_start | format_date }} - {{ period_end | format_date }}
+- Remaining: {{ remaining }} {{ unit }}
+
+What happens if I exceed my limit?
+Depending on your plan:
+- Service may be temporarily paused
+- Overage charges may apply
+- You may be prompted to upgrade
+
+Consider upgrading your plan: {{ upgrade_url }}
+{% endblock %}

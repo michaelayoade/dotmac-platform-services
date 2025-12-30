@@ -61,13 +61,6 @@ PLATFORM_ROUTER_CONFIGS = [
     },
     # Licensing
     {
-        "module_path": "dotmac.platform.licensing.router",
-        "router_name": "router",
-        "prefix": "/licensing",  # Module has /api/licensing, we override to /licensing
-        "tags": ["Platform - Licensing"],
-        "description": "SaaS licensing and activation management",
-    },
-    {
         "module_path": "dotmac.platform.licensing.router_framework",
         "router_name": "router",
         "prefix": "/licensing/framework",  # Composable licensing

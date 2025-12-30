@@ -380,34 +380,6 @@ async def smoke_test_technician(async_session, smoke_test_tenant):
     return technician
 
 
-@pytest_asyncio.fixture
-async def smoke_test_customer(async_session, smoke_test_tenant):
-    """Create smoke test customer for Phase 1 smoke tests.
-
-    Generates unique customer for each test run to ensure proper isolation.
-    """
-    from uuid import uuid4
-
-    from dotmac.platform.customer_management.models import Customer
-
-    # Generate unique ID for this customer
-    customer_id = uuid4()
-    unique_suffix = uuid4().hex[:8]
-
-    customer = Customer(
-        id=customer_id,
-        tenant_id=smoke_test_tenant.id,
-        customer_number=f"CUST-SMOKE-{unique_suffix.upper()}",
-        email=f"customer-{unique_suffix}@smoke-test.com",
-        first_name="Test",
-        last_name="Customer",
-        phone="+1234567890",
-        created_by=str(customer_id),
-    )
-    async_session.add(customer)
-    await async_session.flush()
-    return customer
-
 
 @pytest_asyncio.fixture
 async def async_client(test_tenant_id, test_tenant, mock_user_info, async_session):

@@ -68,7 +68,7 @@ main() {
             echo "Queues: ${CELERY_QUEUES}"
             echo "Concurrency: ${CELERY_CONCURRENCY}"
 
-            exec celery -A ${CELERY_APP} worker \
+            exec python -m celery -A ${CELERY_APP} worker \
                 --loglevel=${CELERY_LOGLEVEL} \
                 --concurrency=${CELERY_CONCURRENCY} \
                 --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD} \
@@ -80,7 +80,7 @@ main() {
 
         beat)
             echo "Starting Celery Beat..."
-            exec celery -A ${CELERY_APP} beat \
+            exec python -m celery -A ${CELERY_APP} beat \
                 --loglevel=${CELERY_LOGLEVEL} \
                 --pidfile=/tmp/celerybeat.pid \
                 --schedule=/tmp/celerybeat-schedule.db
@@ -88,7 +88,7 @@ main() {
 
         flower)
             echo "Starting Celery Flower..."
-            exec celery -A ${CELERY_APP} flower \
+            exec python -m celery -A ${CELERY_APP} flower \
                 --port=5555 \
                 --loglevel=${CELERY_LOGLEVEL}
             ;;

@@ -34,7 +34,6 @@ else:
 class ImportJobType(str, Enum):
     """Type of data being imported."""
 
-    CUSTOMERS = "customers"
     INVOICES = "invoices"
     SUBSCRIPTIONS = "subscriptions"
     PAYMENTS = "payments"

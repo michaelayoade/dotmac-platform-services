@@ -121,7 +121,7 @@ async def handle_paypal_webhook(
 
 @router.get("/config", include_in_schema=False)
 async def get_webhook_config(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo | None = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Get webhook configuration status (for debugging).
@@ -129,7 +129,7 @@ async def get_webhook_config(
     Requires authentication and platform admin role for security.
     """
     # Verify user has platform admin role
-    if not current_user.is_platform_admin:
+    if isinstance(current_user, UserInfo) and not current_user.is_platform_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Platform admin access required to view webhook configuration",

@@ -1,0 +1,41 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">You've been invited to join {{ partner_name }}</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    {{ inviter_name }} has invited you to join <strong>{{ partner_name }}</strong> on the {{ branding.product_name | default('DotMac') }} Partner Portal.
+</p>
+
+<div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 24px; border-left: 4px solid #f59e0b;">
+    <p style="margin: 0 0 8px; color: #92400e; font-weight: 600;">
+        Partner Portal Access
+    </p>
+    <p style="margin: 0; color: #78350f; font-size: 14px;">
+        As a partner, you'll have access to referral management, commission tracking, and partner resources.
+    </p>
+</div>
+
+<div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+    <p style="margin: 0 0 8px; color: #374151;">
+        <strong>Partner Organization:</strong> {{ partner_name }}
+    </p>
+    <p style="margin: 0 0 8px; color: #374151;">
+        <strong>Your Role:</strong> {{ role | title | replace('_', ' ') }}
+    </p>
+    <p style="margin: 0; color: #6b7280; font-size: 13px;">
+        This invitation expires in 7 days.
+    </p>
+</div>
+
+<p style="text-align: center; margin: 0 0 24px;">
+    <a href="{{ accept_url }}" class="button" style="background-color: #f59e0b;">Accept Invitation</a>
+</p>
+
+<p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">
+    If you didn't expect this invitation, you can safely ignore this email.
+</p>
+
+<p style="color: #9ca3af; font-size: 12px; line-height: 1.6; margin: 16px 0 0; word-break: break-all;">
+    Or copy and paste this link: {{ accept_url }}
+</p>
+{% endblock %}

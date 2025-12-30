@@ -45,11 +45,11 @@ export async function getSecurityMetrics(
 }
 
 // ============================================================================
-// Operations Metrics (Customers + Communications + Files + Monitoring)
+// Operations Metrics (Tenants + Communications + Files + Monitoring)
 // ============================================================================
 
 export interface OperationsMetrics {
-  customers: {
+  tenants: {
     total: number;
     newThisMonth: number;
     growthRate: number;

@@ -13,6 +13,8 @@ import structlog
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.requests import Request
+from fastapi import HTTPException, status
 
 logger = structlog.get_logger(__name__)
 
@@ -132,13 +134,31 @@ def rate_limit(limit: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
             return {"message": "success"}
     """
 
+    def _extract_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Request | None:
+        request = kwargs.get("request")
+        if isinstance(request, Request):
+            return request
+        for arg in args:
+            if isinstance(arg, Request):
+                return arg
+        return None
+
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         if inspect.iscoroutinefunction(func):
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 limited_callable = get_limiter().limit(limit)(func)
-                result = limited_callable(*args, **kwargs)
+                try:
+                    result = limited_callable(*args, **kwargs)
+                except RateLimitExceeded as exc:
+                    request = _extract_request(args, kwargs)
+                    if request is not None:
+                        return cast(R, _rate_limit_exceeded_handler(request, exc))
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="Rate limit exceeded",
+                    )
                 if inspect.isawaitable(result):
                     return cast(R, await result)
                 return cast(R, result)
@@ -148,7 +168,16 @@ def rate_limit(limit: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
         @wraps(func)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             limited_callable = get_limiter().limit(limit)(func)
-            return cast(R, limited_callable(*args, **kwargs))
+            try:
+                return cast(R, limited_callable(*args, **kwargs))
+            except RateLimitExceeded as exc:
+                request = _extract_request(args, kwargs)
+                if request is not None:
+                    return cast(R, _rate_limit_exceeded_handler(request, exc))
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Rate limit exceeded",
+                )
 
         return cast(Callable[P, R], sync_wrapper)
 

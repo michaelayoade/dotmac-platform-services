@@ -6,12 +6,13 @@ import csv
 import io
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing.core.enums import CreditNoteStatus, CreditReason
 from dotmac.platform.billing.core.exceptions import (
     CreditNoteNotFoundError,
@@ -20,7 +21,7 @@ from dotmac.platform.billing.core.exceptions import (
 )
 from dotmac.platform.billing.core.models import CreditNote
 from dotmac.platform.billing.credit_notes.service import CreditNoteService
-from dotmac.platform.billing.invoicing.router import get_tenant_id_from_request
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.billing.money_utils import format_money, money_handler
 from dotmac.platform.database import get_async_session
 
@@ -99,13 +100,13 @@ router = APIRouter(prefix="/credit-notes", tags=["Billing - Credit Notes"])
 @router.post("", response_model=CreditNote, status_code=status.HTTP_201_CREATED)
 async def create_credit_note(
     credit_data: CreateCreditNoteRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNote:
     """Create a new credit note"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     try:
@@ -135,13 +136,13 @@ async def create_credit_note(
 @router.get("/{credit_note_id}", response_model=CreditNote)
 async def get_credit_note(
     credit_note_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNote:
     """Get credit note by ID"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     credit_note = await service.get_credit_note(tenant_id, credit_note_id)
@@ -156,18 +157,18 @@ async def get_credit_note(
 
 @router.get("", response_model=CreditNoteListResponse)
 async def list_credit_notes(
-    request: Request,
     customer_id: str | None = Query(None, description="Filter by customer ID"),
     invoice_id: str | None = Query(None, description="Filter by invoice ID"),
     status: CreditNoteStatus | None = Query(None, description="Filter by status"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number to return"),
     offset: int = Query(0, ge=0, description="Number to skip"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNoteListResponse:
     """List credit notes with filtering"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     credit_notes = await service.list_credit_notes(
@@ -185,7 +186,7 @@ async def list_credit_notes(
 
     # Calculate total available credit
     total_available = sum(
-        cn.remaining_credit_amount
+        cn.remaining_credit_amount or 0
         for cn in credit_notes
         if cn.status in [CreditNoteStatus.ISSUED, CreditNoteStatus.PARTIALLY_APPLIED]
     )
@@ -201,13 +202,13 @@ async def list_credit_notes(
 @router.get("/{credit_note_id}/download")
 async def download_credit_note(
     credit_note_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> Response:
     """Download a credit note summary as CSV."""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     credit_note = await service.get_credit_note(tenant_id, credit_note_id)
@@ -290,13 +291,13 @@ async def download_credit_note(
 async def issue_credit_note(
     credit_note_id: str,
     issue_data: IssueCreditNoteRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNote:
     """Issue a draft credit note"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     try:
@@ -318,13 +319,13 @@ async def issue_credit_note(
 async def void_credit_note(
     credit_note_id: str,
     void_data: VoidCreditNoteRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNote:
     """Void a credit note"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     try:
@@ -351,13 +352,13 @@ async def void_credit_note(
 async def apply_credit_note(
     credit_note_id: str,
     apply_data: ApplyCreditRequest,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> CreditNote:
     """Apply credit note to an invoice"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     try:
@@ -383,13 +384,13 @@ async def apply_credit_note(
 @router.get("/customer/{customer_id}/available", response_model=list[CreditNote])
 async def get_available_credits(
     customer_id: str,
-    request: Request,
     db: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: UserInfo = Depends(require_permission("billing.credit_notes.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> list[CreditNote]:
     """Get available credit notes for a customer"""
 
-    tenant_id = get_tenant_id_from_request(request)
+    enforce_tenant_access(tenant_id, current_user)
     service = CreditNoteService(db)
 
     credit_notes: list[CreditNote] = await service.get_available_credits(tenant_id, customer_id)

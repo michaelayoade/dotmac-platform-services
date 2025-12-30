@@ -1,0 +1,168 @@
+/**
+ * Styled Card
+ *
+ * Pre-styled card component with DotMac design system
+ */
+
+"use client";
+
+import { forwardRef } from "react";
+
+import {
+  Card as CardPrimitive,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  cardVariants,
+  type CardProps,
+} from "../primitives/Card";
+import { cn } from "../utils/cn";
+
+// ============================================================================
+// Styled Card Component
+// ============================================================================
+
+export const StyledCard = forwardRef<HTMLDivElement, CardProps>(
+  ({ className, variant = "default", ...props }, ref) => {
+    return (
+      <CardPrimitive
+        ref={ref}
+        variant={variant}
+        className={cn(
+          "bg-surface-elevated text-text-primary border-border",
+          className
+        )}
+        {...props}
+      />
+    );
+  }
+);
+
+StyledCard.displayName = "StyledCard";
+
+// ============================================================================
+// Metric Card (for dashboards)
+// ============================================================================
+
+export interface MetricCardProps extends CardProps {
+  title: string;
+  value: string | number;
+  change?: {
+    value: number;
+    type: "increase" | "decrease" | "neutral";
+  };
+  icon?: React.ReactNode;
+  trend?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
+  ({ className, title, value, change, icon, trend, footer, ...props }, ref) => {
+    const changeColors = {
+      increase: "text-status-success",
+      decrease: "text-status-error",
+      neutral: "text-text-muted",
+    };
+
+    return (
+      <StyledCard ref={ref} className={cn("", className)} {...props}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-text-muted">{title}</p>
+              <p className="text-2xl font-bold text-text-primary">{value}</p>
+            </div>
+            {icon && (
+              <div className="rounded-full bg-accent/15 p-3 text-accent border border-accent/30">
+                {icon}
+              </div>
+            )}
+          </div>
+
+          {(change || trend) && (
+            <div className="mt-4 flex items-center gap-2">
+              {change && (
+                <span className={cn("text-sm font-medium", changeColors[change.type])}>
+                  {change.type === "increase" ? "+" : change.type === "decrease" ? "-" : ""}
+                  {Math.abs(change.value)}%
+                </span>
+              )}
+              {trend && <span className="text-sm text-text-muted">{trend}</span>}
+            </div>
+          )}
+        </CardContent>
+        {footer && <CardFooter className="border-t pt-4">{footer}</CardFooter>}
+      </StyledCard>
+    );
+  }
+);
+
+MetricCard.displayName = "MetricCard";
+
+// ============================================================================
+// Status Card
+// ============================================================================
+
+export interface StatusCardProps extends CardProps {
+  title: string;
+  status: "online" | "offline" | "degraded" | "maintenance" | "unknown";
+  description?: string;
+  lastUpdated?: string;
+}
+
+const statusConfig = {
+  online: { color: "bg-status-success", label: "Online" },
+  offline: { color: "bg-status-error", label: "Offline" },
+  degraded: { color: "bg-status-warning", label: "Degraded" },
+  maintenance: { color: "bg-status-info", label: "Maintenance" },
+  unknown: { color: "bg-text-muted", label: "Unknown" },
+};
+
+export const StatusCard = forwardRef<HTMLDivElement, StatusCardProps>(
+  ({ className, title, status, description, lastUpdated, ...props }, ref) => {
+    const config = statusConfig[status];
+
+    return (
+      <StyledCard ref={ref} className={cn("", className)} {...props}>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <span
+              className={cn("h-3 w-3 rounded-full", config.color)}
+              aria-hidden="true"
+            />
+            <CardTitle className="text-base">{title}</CardTitle>
+          </div>
+          <CardDescription>{config.label}</CardDescription>
+        </CardHeader>
+        {(description || lastUpdated) && (
+          <CardContent>
+            {description && (
+              <p className="text-sm text-text-muted">{description}</p>
+            )}
+            {lastUpdated && (
+              <p className="mt-2 text-xs text-text-muted">
+                Last updated: {lastUpdated}
+              </p>
+            )}
+          </CardContent>
+        )}
+      </StyledCard>
+    );
+  }
+);
+
+StatusCard.displayName = "StatusCard";
+
+// Re-export primitives for convenience
+export {
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  cardVariants,
+};
+export type { CardProps };
+export default StyledCard;

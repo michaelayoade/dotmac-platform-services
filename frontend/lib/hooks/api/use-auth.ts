@@ -3,6 +3,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import {
+  requestPasswordReset,
+  confirmPasswordReset,
+  regenerateBackupCodes,
+  revokeAllSessions,
+  getLoginHistory,
+  type PasswordResetRequestData,
+  type PasswordResetConfirmData,
+  type LoginHistoryParams,
+} from "@/lib/api/auth";
 import type { PlatformUser, SessionInfo } from "@/types/auth";
 
 // Types
@@ -59,11 +69,12 @@ async function disableMfa(code: string): Promise<void> {
 }
 
 // Hooks
-export function useCurrentUser() {
+export function useCurrentUser(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.auth.me(),
     queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -127,5 +138,44 @@ export function useDisableMfa() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
     },
+  });
+}
+
+// Password Reset Hooks
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: (data: PasswordResetRequestData) => requestPasswordReset(data),
+  });
+}
+
+export function useConfirmPasswordReset() {
+  return useMutation({
+    mutationFn: (data: PasswordResetConfirmData) => confirmPasswordReset(data),
+  });
+}
+
+// Session Management Hooks
+export function useRevokeAllSessions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: revokeAllSessions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
+    },
+  });
+}
+
+export function useRegenerateBackupCodes() {
+  return useMutation({
+    mutationFn: regenerateBackupCodes,
+  });
+}
+
+// Login History Hook
+export function useLoginHistory(params?: LoginHistoryParams) {
+  return useQuery({
+    queryKey: queryKeys.auth.loginHistory(params),
+    queryFn: () => getLoginHistory(params),
   });
 }

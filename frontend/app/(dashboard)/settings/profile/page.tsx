@@ -3,15 +3,22 @@
 import { useState, type ChangeEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useEffect } from "react";
 import { ArrowLeft, Camera, Check } from "lucide-react";
-import { Form, FormField, FormSubmitButton, FormResetButton, FormActions } from "@dotmac/forms";
+import {
+  Form,
+  FormField,
+  FormSubmitButton,
+  FormResetButton,
+  FormActions,
+  useForm,
+} from "@dotmac/forms";
 import { Input, Button, useToast } from "@dotmac/core";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/hooks/api/use-auth";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -43,21 +50,35 @@ const languages = [
 ];
 
 export default function ProfileSettingsPage() {
-  const { data: session } = useSession();
+  const { data: user } = useCurrentUser();
   const { toast } = useToast();
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: session?.user?.name || "",
-      email: session?.user?.email || "",
+      name: user?.fullName || user?.username || "",
+      email: user?.email || "",
       phone: "",
       timezone: "America/New_York",
       language: "en",
       bio: "",
     },
   });
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    form.reset({
+      name: user.fullName || user.username || "",
+      email: user.email || "",
+      phone: "",
+      timezone: "America/New_York",
+      language: "en",
+      bio: "",
+    });
+  }, [user, form]);
 
   const onSubmit = async (data: ProfileFormData) => {
     // Simulate API call
@@ -116,11 +137,11 @@ export default function ProfileSettingsPage() {
                   unoptimized
                 />
               ) : (
-                session?.user?.name?.charAt(0).toUpperCase() || "U"
+                user?.fullName?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || "U"
               )}
             </div>
-            <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-              <Camera className="w-5 h-5 text-white" />
+            <label className="absolute inset-0 flex items-center justify-center bg-overlay/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+              <Camera className="w-5 h-5 text-text-inverse" />
               <input
                 type="file"
                 accept="image/*"

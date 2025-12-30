@@ -84,6 +84,16 @@ from .utils import (
     validate_and_clean_file,
 )
 
+# Backup/Restore (v0)
+from .backup_service import (
+    BackupError,
+    BackupService,
+    RestoreError,
+    create_backup,
+    list_backups,
+    restore_backup,
+)
+
 __version__ = get_version()
 __author__ = "DotMac Team"
 
@@ -164,4 +174,11 @@ __all__ = [
     "create_csv_exporter",
     "create_excel_importer",
     "create_excel_exporter",
+    # Backup/Restore
+    "BackupService",
+    "BackupError",
+    "RestoreError",
+    "create_backup",
+    "restore_backup",
+    "list_backups",
 ]

@@ -6,6 +6,25 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { BillingDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getBillingDashboard(
+  params?: DashboardQueryParams
+): Promise<BillingDashboardResponse> {
+  return api.get<BillingDashboardResponse>("/api/v1/billing/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
+
+// ============================================================================
+// Metrics
+// ============================================================================
 
 export interface BillingMetrics {
   mrr: number; // Monthly Recurring Revenue (in cents)
@@ -68,6 +87,7 @@ export interface GetInvoicesParams {
   customerId?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
 }
 
 export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
@@ -75,7 +95,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
   totalCount: number;
   pageCount: number;
 }> {
-  const { page = 1, pageSize = 20, status, customerId, startDate, endDate } = params;
+  const { page = 1, pageSize = 20, status, customerId, startDate, endDate, search } = params;
 
   const response = await api.get<unknown>("/api/v1/billing/invoices", {
     params: {
@@ -85,6 +105,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
       customer_id: customerId,
       start_date: startDate,
       end_date: endDate,
+      search,
     },
   });
   const normalized = normalizePaginatedResponse<Invoice>(response);
@@ -275,4 +296,125 @@ export async function setDefaultPaymentMethod(id: string): Promise<PaymentMethod
 
 export async function deletePaymentMethod(id: string): Promise<void> {
   return api.delete(`/api/v1/billing/payment-methods/${id}`);
+}
+
+// Credit Note types
+export type CreditNoteStatus = "draft" | "issued" | "applied" | "voided";
+
+export interface CreditNote {
+  id: string;
+  number: string;
+  customerId: string;
+  customerName: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  amount: number; // in cents
+  currency: string;
+  status: CreditNoteStatus;
+  reason: string;
+  lineItems: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
+  appliedAmount: number;
+  remainingAmount: number;
+  issueDate?: string;
+  voidedDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GetCreditNotesParams {
+  page?: number;
+  pageSize?: number;
+  status?: CreditNoteStatus;
+  customerId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export async function getCreditNotes(params: GetCreditNotesParams = {}): Promise<{
+  creditNotes: CreditNote[];
+  totalCount: number;
+  pageCount: number;
+}> {
+  const { page = 1, pageSize = 20, status, customerId, startDate, endDate } = params;
+
+  const response = await api.get<unknown>("/api/v1/billing/credit-notes", {
+    params: {
+      page,
+      page_size: pageSize,
+      status,
+      customer_id: customerId,
+      start_date: startDate,
+      end_date: endDate,
+    },
+  });
+  const normalized = normalizePaginatedResponse<CreditNote>(response);
+
+  return {
+    creditNotes: normalized.items,
+    totalCount: normalized.total,
+    pageCount: normalized.totalPages,
+  };
+}
+
+export async function getCreditNote(id: string): Promise<CreditNote> {
+  return api.get<CreditNote>(`/api/v1/billing/credit-notes/${id}`);
+}
+
+export interface CreateCreditNoteData {
+  customerId: string;
+  invoiceId?: string;
+  reason: string;
+  lineItems: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+}
+
+export async function createCreditNote(data: CreateCreditNoteData): Promise<CreditNote> {
+  return api.post<CreditNote>("/api/v1/billing/credit-notes", {
+    customer_id: data.customerId,
+    invoice_id: data.invoiceId,
+    reason: data.reason,
+    line_items: data.lineItems.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+    })),
+  });
+}
+
+export async function issueCreditNote(id: string): Promise<CreditNote> {
+  return api.post<CreditNote>(`/api/v1/billing/credit-notes/${id}/issue`);
+}
+
+export async function voidCreditNote(id: string): Promise<CreditNote> {
+  return api.post<CreditNote>(`/api/v1/billing/credit-notes/${id}/void`);
+}
+
+export async function applyCreditNote(
+  id: string,
+  invoiceId: string,
+  amount: number
+): Promise<CreditNote> {
+  return api.post<CreditNote>(`/api/v1/billing/credit-notes/${id}/apply`, {
+    invoice_id: invoiceId,
+    amount,
+  });
+}
+
+export async function getCustomerOpenInvoices(customerId: string): Promise<Invoice[]> {
+  const response = await api.get<unknown>(`/api/v1/billing/customers/${customerId}/invoices`, {
+    params: {
+      status: "pending",
+    },
+  });
+  const normalized = normalizePaginatedResponse<Invoice>(response);
+  return normalized.items;
 }

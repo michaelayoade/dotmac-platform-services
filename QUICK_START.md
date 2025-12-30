@@ -11,29 +11,23 @@
 # Frontend (requires network access)
 cd frontend
 pnpm install
-pnpm build:admin  # ✅ Platform Admin: 175 pages, 0 warnings
+pnpm build
 
 # Docker Compose - Platform (Admin + Backend)
 cd ..
 
-# Step 1: Check if external services are reachable
-./scripts/check-external-services.sh
+# Step 1: Start shared infrastructure (Postgres, Redis, MinIO, observability)
+./scripts/infra.sh infra start
 
-# Step 2: (Linux only) If host.docker.internal doesn't resolve, see DOCKER_COMPOSE_LINUX_COMPATIBILITY.md
-
-# Step 3: Start the stack
-docker compose -f docker-compose.base.yml up -d
-# Platform backend: http://localhost:8001
-# Platform frontend: http://localhost:3002
+# Step 2: Start platform backend + admin UI
+./scripts/infra.sh platform start
+# Platform backend: http://localhost:8000
+# Platform frontend: http://localhost:3000
 ```
 
 > Note: An ISP-specific Docker Compose stack is not included in this repository; the supported Compose path is the platform stack above.
 
-> ⚠️ **External Dependencies Required**: The simplified compose files assume PostgreSQL (5432), Redis (6379), MinIO (9000), Vault (8200), and OTLP (4317) are reachable at `host.docker.internal`.
->
-> - **Run pre-flight check**: `./scripts/check-external-services.sh`
-> - **Linux users**: See `DOCKER_COMPOSE_LINUX_COMPATIBILITY.md` if `host.docker.internal` doesn't resolve
-> - **Override defaults**: Create a `.env` file with `DATABASE__HOST`, `REDIS__HOST`, `STORAGE__ENDPOINT`, etc.
+> Optional: If you run PostgreSQL/Redis/MinIO outside Docker, run `./scripts/check-external-services.sh` and override `DATABASE__HOST`, `REDIS__HOST`, `STORAGE__ENDPOINT`, etc. in a `.env` file.
 
 ---
 
@@ -50,7 +44,7 @@ Running backend directly on your host (not in Docker):
 # Or manually
 cp .env.local.example .env.local  # first run only
 source .env.local
-cd frontend && pnpm dev:backend   # delegates to scripts/quick-backend-start.sh
+./scripts/quick-backend-start.sh
 ```
 
 📖 See **LOCAL_DEVELOPMENT.md** for complete guide on:
@@ -86,4 +80,4 @@ cd frontend && pnpm dev:backend   # delegates to scripts/quick-backend-start.sh
 
 ---
 
-For detailed information, see **FINAL_IMPLEMENTATION_SUMMARY.md** 🚀
+For detailed information, see **docs/INDEX.md** 🚀

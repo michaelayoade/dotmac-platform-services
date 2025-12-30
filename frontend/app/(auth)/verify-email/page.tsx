@@ -92,7 +92,7 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 bg-surface">
+    <main className="min-h-screen flex items-center justify-center p-8 bg-surface" id="main-content">
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="flex items-center gap-3 justify-center">
@@ -110,7 +110,7 @@ function VerifyEmailContent() {
           {/* Pending State - Waiting for user to check email */}
           {state === "pending" && (
             <>
-              <div className="w-16 h-16 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-accent/15 rounded-full flex items-center justify-center">
                 <Mail className="w-8 h-8 text-accent" />
               </div>
 
@@ -167,7 +167,7 @@ function VerifyEmailContent() {
           {/* Verifying State */}
           {state === "verifying" && (
             <>
-              <div className="w-16 h-16 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-accent/15 rounded-full flex items-center justify-center">
                 <Loader2 className="w-8 h-8 text-accent animate-spin" />
               </div>
 
@@ -185,7 +185,7 @@ function VerifyEmailContent() {
           {/* Success State */}
           {state === "success" && (
             <>
-              <div className="w-16 h-16 mx-auto bg-status-success/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-status-success/15 rounded-full flex items-center justify-center">
                 <CheckCircle className="w-8 h-8 text-status-success" />
               </div>
 
@@ -209,7 +209,7 @@ function VerifyEmailContent() {
           {/* Error State */}
           {state === "error" && (
             <>
-              <div className="w-16 h-16 mx-auto bg-status-error/10 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-status-error/15 rounded-full flex items-center justify-center">
                 <XCircle className="w-8 h-8 text-status-error" />
               </div>
 
@@ -254,7 +254,7 @@ function VerifyEmailContent() {
 
           {/* Error message */}
           {error && state === "pending" && (
-            <div className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error text-sm">
+            <div className="p-3 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error text-sm">
               {error}
             </div>
           )}
@@ -271,7 +271,7 @@ function VerifyEmailContent() {
           </a>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 

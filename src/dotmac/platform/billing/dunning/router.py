@@ -13,10 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
+from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.billing._typing_helpers import rate_limit
+from dotmac.platform.billing.dependencies import enforce_tenant_access, get_tenant_id
 from dotmac.platform.core.exceptions import EntityNotFoundError
 from dotmac.platform.db import get_async_session
-from dotmac.platform.tenant import get_current_tenant_id
 
 from .models import DunningExecutionStatus
 from .schemas import (
@@ -32,7 +33,11 @@ from .schemas import (
 )
 from .service import DunningService
 
-router = APIRouter(prefix="/billing/dunning", tags=["Billing - Dunning"])
+router = APIRouter(prefix="", tags=["Billing - Dunning"])
+
+
+def _require_tenant(current_user: UserInfo, tenant_id: str) -> None:
+    enforce_tenant_access(tenant_id, current_user)
 
 
 # Campaign Management
@@ -48,8 +53,8 @@ async def create_campaign(
     request: Request,
     campaign_payload: dict[str, Any],
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Create a new dunning campaign.
@@ -64,17 +69,11 @@ async def create_campaign(
     try:
         campaign_data = DunningCampaignCreate.model_validate(campaign_payload)
     except ValidationError as exc:
-        errors = exc.errors()
-        actions_errors = [err for err in errors if err.get("loc", [])[0] == "actions"]
-        if actions_errors and len(errors) == len(actions_errors):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Campaign must have at least one action",
-            ) from exc
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()
         ) from exc
 
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         campaign = await service.create_campaign(
@@ -99,8 +98,8 @@ async def create_campaign(
 async def list_campaigns(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
     active_only: bool = Query(True, description="Show only active campaigns"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
@@ -110,6 +109,10 @@ async def list_campaigns(
 
     Returns campaigns ordered by priority (highest first).
     """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     campaigns = await service.list_campaigns(
         tenant_id=tenant_id,
@@ -126,10 +129,11 @@ async def get_campaign(
     request: Request,
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Get a specific dunning campaign by ID."""
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         campaign = await service.get_campaign(campaign_id=campaign_id, tenant_id=tenant_id)
@@ -153,8 +157,8 @@ async def update_campaign(
     campaign_id: UUID,
     campaign_data: DunningCampaignUpdate,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Update a dunning campaign.
@@ -162,6 +166,7 @@ async def update_campaign(
     Can modify campaign settings, actions, exclusion rules, and active status.
     Changes only affect future executions, not in-progress ones.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         campaign = await service.update_campaign(
@@ -190,8 +195,8 @@ async def delete_campaign(
     request: Request,
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> None:
     """
     Delete a dunning campaign.
@@ -199,6 +204,7 @@ async def delete_campaign(
     This is a soft delete. The campaign is marked as inactive.
     In-progress executions will be canceled.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         success = await service.delete_campaign(
@@ -222,14 +228,15 @@ async def get_campaign_stats(
     request: Request,
     campaign_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Get statistics for a specific campaign.
 
     Returns execution counts, success rates, recovery amounts, and completion times.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
 
     # First verify campaign exists and belongs to tenant
@@ -260,8 +267,8 @@ async def start_execution(
     request: Request,
     execution_data: DunningExecutionStart,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Start a new dunning execution for a subscription.
@@ -271,6 +278,7 @@ async def start_execution(
 
     Returns 400 if an active execution already exists for the subscription.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         execution = await service.start_execution(
@@ -300,11 +308,11 @@ async def start_execution(
 async def list_executions(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
     campaign_id: UUID | None = Query(None, description="Filter by campaign ID"),
     subscription_id: str | None = Query(None, description="Filter by subscription ID"),
-    customer_id: UUID | None = Query(None, description="Filter by customer ID"),
+    customer_id: str | None = Query(None, description="Filter by customer ID"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
@@ -314,11 +322,15 @@ async def list_executions(
 
     Returns executions ordered by creation date (most recent first).
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
 
     # Convert string status to enum if provided
     status_enum: DunningExecutionStatus | None = None
     if status_filter:
+        normalized = status_filter.strip().lower()
+        if normalized in {"active", "in-progress", "in_progress"}:
+            status_filter = DunningExecutionStatus.IN_PROGRESS.value
         try:
             status_enum = DunningExecutionStatus(status_filter)
         except ValueError:
@@ -346,10 +358,11 @@ async def get_execution(
     request: Request,
     execution_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """Get a specific dunning execution by ID with full details."""
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         execution = await service.get_execution(execution_id=execution_id, tenant_id=tenant_id)
@@ -377,8 +390,8 @@ async def cancel_execution(
     execution_id: UUID,
     cancel_data: DunningCancelRequest,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Cancel an active dunning execution.
@@ -388,6 +401,7 @@ async def cancel_execution(
 
     Returns 400 if execution is already completed or canceled.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     try:
         try:
@@ -433,8 +447,8 @@ async def get_execution_logs(
     request: Request,
     execution_id: UUID,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> list[dict[str, Any]]:
     """
     Get action logs for a specific execution.
@@ -442,6 +456,7 @@ async def get_execution_logs(
     Returns detailed audit trail of all actions attempted/executed
     in the dunning workflow.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
 
     # First verify execution exists and belongs to tenant
@@ -466,8 +481,8 @@ async def get_execution_logs(
 async def get_tenant_stats(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.view")),
+    tenant_id: str = Depends(get_tenant_id),
 ) -> dict[str, Any]:
     """
     Get overall dunning statistics for the tenant.
@@ -475,6 +490,7 @@ async def get_tenant_stats(
     Returns aggregate metrics across all campaigns and executions including
     recovery rates, success rates, and outstanding amounts.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     stats = await service.get_tenant_stats(tenant_id=tenant_id)
     return stats.model_dump(mode="json")  # type: ignore[no-any-return]
@@ -488,8 +504,8 @@ async def get_tenant_stats(
 async def get_pending_actions(
     request: Request,
     db_session: AsyncSession = Depends(get_async_session),
-    current_user: UserInfo = Depends(get_current_user),
-    tenant_id: str = Depends(get_current_tenant_id),
+    current_user: UserInfo = Depends(require_permission("billing.dunning.manage")),
+    tenant_id: str = Depends(get_tenant_id),
     limit: int = Query(100, ge=1, le=1000, description="Maximum executions to return"),
 ) -> list[dict[str, Any]]:
     """
@@ -500,6 +516,7 @@ async def get_pending_actions(
 
     Returns executions where next_action_at is in the past.
     """
+    _require_tenant(current_user, tenant_id)
     service = DunningService(db_session)
     executions = await service.get_pending_actions(tenant_id=tenant_id, limit=limit)
     return [DunningExecutionResponse.model_validate(e).model_dump(mode="json") for e in executions]

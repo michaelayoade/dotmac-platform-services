@@ -28,18 +28,20 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ConfirmDialog, useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   usePartners,
+  usePartnersDashboard,
   useDeletePartner,
   useActivatePartner,
   useDeactivatePartner,
 } from "@/lib/hooks/api/use-partners";
 import type { PartnerStatus, PartnerTier } from "@/lib/api/partners";
+import { DashboardAlerts, DashboardRecentActivity } from "@/components/features/dashboard";
 
 const tierConfig: Record<PartnerTier, { label: string; color: string }> = {
   bronze: { label: "Bronze", color: "bg-surface-overlay text-text-secondary" },
-  silver: { label: "Silver", color: "bg-gray-200 text-gray-700" },
-  gold: { label: "Gold", color: "bg-yellow-100 text-yellow-700" },
-  platinum: { label: "Platinum", color: "bg-purple-100 text-purple-700" },
-  direct: { label: "Direct", color: "bg-emerald-100 text-emerald-700" },
+  silver: { label: "Silver", color: "bg-surface-overlay text-text-secondary" },
+  gold: { label: "Gold", color: "bg-highlight/15 text-highlight" },
+  platinum: { label: "Platinum", color: "bg-status-info/15 text-status-info" },
+  direct: { label: "Direct", color: "bg-status-success/15 text-status-success" },
 };
 
 const statusConfig: Record<PartnerStatus, { label: string; color: string }> = {
@@ -66,6 +68,7 @@ export default function PartnersPage() {
     status: statusFilter !== "all" ? statusFilter : undefined,
     tier: tierFilter !== "all" ? tierFilter : undefined,
   });
+  const { data: dashboardData } = usePartnersDashboard();
   const deletePartner = useDeletePartner();
   const activatePartner = useActivatePartner();
   const deactivatePartner = useDeactivatePartner();
@@ -152,6 +155,11 @@ export default function PartnersPage() {
           </div>
         }
       />
+
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

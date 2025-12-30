@@ -6,7 +6,7 @@ from typing import Any
 
 import structlog
 
-from .base import BaseAnalyticsCollector
+from .base import BaseAnalyticsCollector, Metric, MetricType
 from .otel_collector import create_otel_collector
 
 logger = structlog.get_logger(__name__)
@@ -90,6 +90,39 @@ class AnalyticsService:
             labels=labels,
         )
 
+    def _summarize_metrics(self, metrics: list[Metric]) -> dict[str, Any]:
+        summary: dict[str, Any] = {
+            "tenant": getattr(self.collector, "tenant_id", None),
+            "counters": {},
+            "gauges": {},
+            "histograms": {},
+        }
+
+        if not metrics:
+            return summary
+
+        latest_timestamp = max(metric.timestamp for metric in metrics)
+        summary["timestamp"] = latest_timestamp
+
+        for metric in metrics:
+            name = metric.name
+            if metric.type == MetricType.COUNTER:
+                delta = getattr(metric, "delta", metric.value or 0)
+                summary["counters"][name] = summary["counters"].get(name, 0) + float(delta)
+            elif metric.type == MetricType.GAUGE:
+                summary["gauges"][name] = {
+                    "value": float(metric.value),
+                    "labels": metric.attributes,
+                }
+            elif metric.type == MetricType.HISTOGRAM:
+                bucket = summary["histograms"].setdefault(
+                    name, {"count": 0, "sum": 0.0}
+                )
+                bucket["count"] += 1
+                bucket["sum"] += float(metric.value or 0)
+
+        return summary
+
     async def query_events(self, **kwargs: Any) -> Any:
         """Query stored events."""
         from datetime import datetime
@@ -153,17 +186,26 @@ class AnalyticsService:
         # If no metric_name filter, return everything
         metric_name_filter = kwargs.get("metric_name")
         if not metric_name_filter:
-            # Note: start_date, end_date, aggregation, interval are not yet supported
-            # without time-series storage. For now, return the current snapshot.
-            if kwargs.get("start_date") or kwargs.get("end_date"):
-                # Log warning that time-series filtering is not implemented
+            start_date = kwargs.get("start_date")
+            end_date = kwargs.get("end_date")
+            metrics_store = getattr(self.collector, "metrics_store", None)
+            if (start_date or end_date) and isinstance(metrics_store, list):
+                filtered = [
+                    metric
+                    for metric in metrics_store
+                    if (start_date is None or metric.timestamp >= start_date)
+                    and (end_date is None or metric.timestamp <= end_date)
+                ]
+                return self._summarize_metrics(filtered)
+
+            if start_date or end_date:
                 import structlog
 
                 logger = structlog.get_logger(__name__)
                 logger.warning(
-                    "Time-series filtering not yet implemented in query_metrics",
-                    start_date=kwargs.get("start_date"),
-                    end_date=kwargs.get("end_date"),
+                    "Time-series filtering not available for this collector",
+                    start_date=start_date,
+                    end_date=end_date,
                     note="Returning current snapshot only",
                 )
             return summary
@@ -177,6 +219,20 @@ class AnalyticsService:
             "gauges": {},
             "histograms": {},
         }
+
+        metrics_store = getattr(self.collector, "metrics_store", None)
+        if isinstance(metrics_store, list):
+            start_date = kwargs.get("start_date")
+            end_date = kwargs.get("end_date")
+            name_filter = metric_name_filter.lower()
+            filtered = [
+                metric
+                for metric in metrics_store
+                if name_filter in metric.name.lower()
+                and (start_date is None or metric.timestamp >= start_date)
+                and (end_date is None or metric.timestamp <= end_date)
+            ]
+            return self._summarize_metrics(filtered)
 
         metric_name_lower = metric_name_filter.lower()
 

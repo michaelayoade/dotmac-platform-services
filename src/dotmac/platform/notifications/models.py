@@ -29,10 +29,6 @@ class NotificationType(str, Enum):
     """Types of notifications."""
 
     # Service lifecycle
-    CUSTOMER_ACTIVATED = "customer_activated"
-    CUSTOMER_DEACTIVATED = "customer_deactivated"
-    CUSTOMER_SUSPENDED = "customer_suspended"
-    CUSTOMER_REACTIVATED = "customer_reactivated"
     SERVICE_ACTIVATED = "service_activated"
     SERVICE_FAILED = "service_failed"
 
@@ -58,14 +54,6 @@ class NotificationType(str, Enum):
     DUNNING_REMINDER = "dunning_reminder"
     DUNNING_SUSPENSION_WARNING = "dunning_suspension_warning"
     DUNNING_FINAL_NOTICE = "dunning_final_notice"
-
-    # CRM events
-    LEAD_ASSIGNED = "lead_assigned"
-    QUOTE_SENT = "quote_sent"
-    QUOTE_ACCEPTED = "quote_accepted"
-    QUOTE_REJECTED = "quote_rejected"
-    SITE_SURVEY_SCHEDULED = "site_survey_scheduled"
-    SITE_SURVEY_COMPLETED = "site_survey_completed"
 
     # Ticketing events
     TICKET_CREATED = "ticket_created"
@@ -121,12 +109,12 @@ class Notification(BaseModel, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     # Notification details
     type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType, name="notificationtype"),
+        SQLEnum(NotificationType, name="notificationtype", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         index=True,
     )
     priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.MEDIUM,
         nullable=False,
         index=True,
@@ -200,7 +188,7 @@ class NotificationPreference(BaseModel, TimestampMixin, TenantMixin):
 
     # Priority filtering
     minimum_priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.LOW,
         nullable=False,
     )
@@ -227,7 +215,7 @@ class NotificationTemplate(BaseModel, TimestampMixin, TenantMixin):
 
     # Template identification
     type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType, name="notificationtype"),
+        SQLEnum(NotificationType, name="notificationtype", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         unique=True,
         index=True,
@@ -253,7 +241,7 @@ class NotificationTemplate(BaseModel, TimestampMixin, TenantMixin):
 
     # Default settings
     default_priority: Mapped[NotificationPriority] = mapped_column(
-        SQLEnum(NotificationPriority, name="notificationpriority"),
+        SQLEnum(NotificationPriority, name="notificationpriority", values_callable=lambda x: [e.value for e in x]),
         default=NotificationPriority.MEDIUM,
         nullable=False,
     )

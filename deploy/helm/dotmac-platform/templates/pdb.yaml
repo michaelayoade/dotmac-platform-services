@@ -1,0 +1,56 @@
+{{- if .Values.pdb.backend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-backend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: dotmac-backend
+  {{- if .Values.pdb.backend.minAvailable }}
+  minAvailable: {{ .Values.pdb.backend.minAvailable }}
+  {{- end }}
+  {{- if .Values.pdb.backend.maxUnavailable }}
+  maxUnavailable: {{ .Values.pdb.backend.maxUnavailable }}
+  {{- end }}
+---
+{{- end }}
+{{- if .Values.pdb.frontend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-frontend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: dotmac-frontend
+  {{- if .Values.pdb.frontend.minAvailable }}
+  minAvailable: {{ .Values.pdb.frontend.minAvailable }}
+  {{- end }}
+  {{- if .Values.pdb.frontend.maxUnavailable }}
+  maxUnavailable: {{ .Values.pdb.frontend.maxUnavailable }}
+  {{- end }}
+---
+{{- end }}
+{{- if .Values.pdb.worker.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-worker
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: dotmac-worker
+  {{- if .Values.pdb.worker.minAvailable }}
+  minAvailable: {{ .Values.pdb.worker.minAvailable }}
+  {{- end }}
+  {{- if .Values.pdb.worker.maxUnavailable }}
+  maxUnavailable: {{ .Values.pdb.worker.maxUnavailable }}
+  {{- end }}
+{{- end }}

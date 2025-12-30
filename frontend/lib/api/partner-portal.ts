@@ -10,7 +10,7 @@ import type {
   Referral,
   ReferralsResponse,
   CreateReferralRequest,
-  PartnerCustomersResponse,
+  PartnerTenantsResponse,
   CommissionsResponse,
   StatementsResponse,
   PayoutsResponse,
@@ -66,17 +66,36 @@ export async function updateReferral(
   return api.patch<Referral>(`/api/v1/partners/portal/referrals/${id}`, data);
 }
 
-// Customers
-export interface GetCustomersParams {
+export async function deleteReferral(id: string): Promise<void> {
+  return api.delete(`/api/v1/partners/portal/referrals/${id}`);
+}
+
+export interface ReferralLink {
+  code: string;
+  url: string;
+  createdAt: string;
+  usageCount: number;
+}
+
+export async function getReferralLink(): Promise<ReferralLink> {
+  return api.get<ReferralLink>("/api/v1/partners/portal/referral-link");
+}
+
+export async function generateReferralLink(): Promise<ReferralLink> {
+  return api.post<ReferralLink>("/api/v1/partners/portal/referral-link");
+}
+
+// Tenants
+export interface GetTenantsParams {
   page?: number;
   pageSize?: number;
   status?: string;
   search?: string;
 }
 
-export async function getPartnerCustomers(
-  params?: GetCustomersParams
-): Promise<PartnerCustomersResponse> {
+export async function getPartnerTenants(
+  params?: GetTenantsParams
+): Promise<PartnerTenantsResponse> {
   const query: Record<string, string | number | boolean | undefined> | undefined = params
     ? {
         page: params.page,
@@ -86,7 +105,7 @@ export async function getPartnerCustomers(
       }
     : undefined;
 
-  return api.get<PartnerCustomersResponse>("/api/v1/partners/portal/customers", {
+  return api.get<PartnerTenantsResponse>("/api/v1/partners/portal/tenants", {
     params: query,
   });
 }
@@ -151,6 +170,20 @@ export async function downloadStatement(id: string): Promise<Blob> {
   return api.getBlob(`/api/v1/partners/portal/statements/${id}/download`);
 }
 
+export interface ExportStatementsParams {
+  year?: number;
+  format?: "csv" | "pdf";
+}
+
+export async function exportStatements(params?: ExportStatementsParams): Promise<Blob> {
+  return api.getBlob("/api/v1/partners/portal/statements/export", {
+    params: {
+      year: params?.year,
+      format: params?.format || "csv",
+    },
+  });
+}
+
 export async function getPartnerPayouts(): Promise<PayoutsResponse> {
   return api.get<PayoutsResponse>("/api/v1/partners/portal/payouts");
 }
@@ -164,4 +197,149 @@ export async function updatePartnerProfile(
   data: UpdatePartnerProfileRequest
 ): Promise<PartnerProfile> {
   return api.patch<PartnerProfile>("/api/v1/partners/portal/profile", data);
+}
+
+// ============================================
+// Partner Billing (Multi-Tenant)
+// ============================================
+
+export interface PartnerBillingSummary {
+  totalRevenue: number;
+  totalOutstanding: number;
+  totalPaidThisMonth: number;
+  activeTenants: number;
+  revenueByTenant: Array<{
+    tenantId: string;
+    tenantName: string;
+    revenue: number;
+    outstanding: number;
+  }>;
+  paymentStatusBreakdown: {
+    paid: number;
+    pending: number;
+    overdue: number;
+  };
+  recentInvoices: Array<{
+    id: string;
+    number: string;
+    tenantName: string;
+    amount: number;
+    status: string;
+    dueDate: string;
+  }>;
+}
+
+export async function getPartnerBillingSummary(): Promise<PartnerBillingSummary> {
+  return api.get<PartnerBillingSummary>("/api/v1/partner/billing/summary");
+}
+
+export interface PartnerInvoice {
+  id: string;
+  number: string;
+  tenantId: string;
+  tenantName: string;
+  amount: number;
+  currency: string;
+  status: "draft" | "pending" | "paid" | "overdue" | "cancelled";
+  dueDate: string;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export interface GetPartnerInvoicesParams {
+  page?: number;
+  pageSize?: number;
+  tenantId?: string;
+  status?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+export interface PartnerInvoicesResponse {
+  items: PartnerInvoice[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getPartnerInvoices(
+  params?: GetPartnerInvoicesParams
+): Promise<PartnerInvoicesResponse> {
+  const query: Record<string, string | number | boolean | undefined> | undefined = params
+    ? {
+        page: params.page,
+        page_size: params.pageSize,
+        tenant_id: params.tenantId,
+        status: params.status,
+        search: params.search,
+        start_date: params.startDate,
+        end_date: params.endDate,
+        min_amount: params.minAmount,
+        max_amount: params.maxAmount,
+      }
+    : undefined;
+
+  return api.get<PartnerInvoicesResponse>("/api/v1/partner/billing/invoices", {
+    params: query,
+  });
+}
+
+export interface ExportPartnerInvoicesRequest {
+  startDate: string;
+  endDate: string;
+  tenantIds?: string[];
+  format: "csv" | "pdf" | "excel";
+}
+
+export interface ExportJob {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  format: string;
+  createdAt: string;
+  completedAt?: string;
+  downloadUrl?: string;
+  error?: string;
+}
+
+export async function exportPartnerInvoices(
+  data: ExportPartnerInvoicesRequest
+): Promise<ExportJob> {
+  return api.post<ExportJob>("/api/v1/partner/billing/invoices/export", {
+    start_date: data.startDate,
+    end_date: data.endDate,
+    tenant_ids: data.tenantIds,
+    format: data.format,
+  });
+}
+
+export interface GetExportHistoryParams {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ExportHistoryResponse {
+  items: ExportJob[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getPartnerExportHistory(
+  params?: GetExportHistoryParams
+): Promise<ExportHistoryResponse> {
+  return api.get<ExportHistoryResponse>("/api/v1/partner/billing/exports", {
+    params: {
+      page: params?.page,
+      page_size: params?.pageSize,
+    },
+  });
+}
+
+export async function downloadExport(exportId: string): Promise<Blob> {
+  return api.getBlob(`/api/v1/partner/billing/exports/${exportId}/download`);
 }

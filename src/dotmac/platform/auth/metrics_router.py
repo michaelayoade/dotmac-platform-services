@@ -85,10 +85,12 @@ async def _get_auth_metrics_cached(
     """
     now = datetime.now(UTC)
     period_start = now - timedelta(days=period_days)
+    # Use naive datetime for columns stored without timezone (last_login)
+    period_start_naive = period_start.replace(tzinfo=None)
 
     # Query total and active users
     total_users_query = select(func.count(User.id))
-    active_users_query = select(func.count(User.id)).where(User.last_login >= period_start)
+    active_users_query = select(func.count(User.id)).where(User.last_login >= period_start_naive)
 
     if tenant_id:
         total_users_query = total_users_query.where(User.tenant_id == tenant_id)

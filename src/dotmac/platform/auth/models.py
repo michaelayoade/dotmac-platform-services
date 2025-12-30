@@ -110,7 +110,6 @@ class PermissionCategory(str, Enum):
     """Categories for organizing permissions"""
 
     USER = "user"
-    CUSTOMER = "customer"
     TICKET = "ticket"
     BILLING = "billing"
     SECURITY = "security"
@@ -267,6 +266,39 @@ class RoleHierarchy(Base):
     )
 
 
+class ApiKey(Base):
+    """API Key entity for persistent storage"""
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    prefix: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    key_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    scopes: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_api_keys_tenant_name"),
+        Index("ix_api_keys_tenant_id", "tenant_id", "is_active"),
+        Index("ix_api_keys_user_id", "user_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ApiKey(id='{self.id}', name='{self.name}', prefix='{self.prefix}')>"
+
+
 class PermissionGrant(Base):
     """Audit trail for permission grants/revokes"""
 
@@ -314,6 +346,7 @@ __all__ = [
     "Permission",
     "Role",
     "RoleHierarchy",
+    "ApiKey",
     "PermissionGrant",
     "User",
 ]

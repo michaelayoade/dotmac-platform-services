@@ -154,7 +154,6 @@ async def search_contacts(
     contacts, total = await service.search_contacts(
         tenant_id=tenant_id,
         query=search_request.query,
-        customer_id=search_request.customer_id,
         status=search_request.status,
         stage=search_request.stage,
         owner_id=search_request.owner_id,

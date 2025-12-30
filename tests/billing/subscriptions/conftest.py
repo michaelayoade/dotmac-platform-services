@@ -64,6 +64,8 @@ def mock_current_user():
         tenant_id="1",
         roles=["admin"],
         permissions=[
+            "billing.subscription.manage",
+            "billing.subscription.view",
             "billing.subscriptions.read",
             "billing.subscriptions.create",
             "billing.subscriptions.update",
@@ -183,19 +185,14 @@ def sample_subscription():
 @pytest.fixture
 def sample_proration_result():
     """Sample proration result for testing."""
-    return MockObject(
+    from dotmac.platform.billing.subscriptions.models import ProrationResult
+
+    return ProrationResult(
         proration_amount=Decimal("25.50"),
         proration_description="Prorated charge for plan upgrade",
         old_plan_unused_amount=Decimal("49.50"),
         new_plan_prorated_amount=Decimal("75.00"),
         days_remaining=15,
-        model_dump=lambda mode=None: {
-            "proration_amount": "25.50",
-            "proration_description": "Prorated charge for plan upgrade",
-            "old_plan_unused_amount": "49.50",
-            "new_plan_prorated_amount": "75.00",
-            "days_remaining": 15,
-        },
     )
 
 
@@ -207,6 +204,7 @@ async def async_client(
     import dotmac.platform.auth.rbac_dependencies
     from dotmac.platform.auth.core import get_current_user as core_get_current_user
     from dotmac.platform.auth.dependencies import get_current_user as dep_get_current_user
+    from dotmac.platform.billing.dependencies import get_tenant_id
     from dotmac.platform.billing.subscriptions.router import router as subscriptions_router
     from dotmac.platform.db import get_async_session
     from dotmac.platform.tenant import get_current_tenant_id
@@ -251,13 +249,18 @@ async def async_client(
     app.dependency_overrides[dep_get_current_user] = override_get_current_user
     app.dependency_overrides[get_async_session] = override_get_async_session
     app.dependency_overrides[get_current_tenant_id] = override_get_tenant_id
+    app.dependency_overrides[get_tenant_id] = override_get_tenant_id
 
     # The subscriptions router has prefix="/subscriptions", so we include it under /api/v1/billing
     # to get the full path: /api/v1/billing/subscriptions/...
     app.include_router(subscriptions_router, prefix="/api/v1/billing")
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers={"X-Tenant-ID": "1", "Authorization": "Bearer test-token"},
+    ) as client:
         yield client
 
 

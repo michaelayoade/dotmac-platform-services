@@ -1,0 +1,46 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #111827; font-size: 20px;">Payment Reminder</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+    This is a friendly reminder that you have an outstanding invoice.
+</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Invoice Number:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">#{{ invoice_number }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Amount Due:</td>
+        <td style="padding: 12px; text-align: right; color: #111827; font-weight: 600; font-size: 18px;">
+            {{ amount_due_formatted }}
+        </td>
+    </tr>
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Due Date:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ due_date | format_date }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Status:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ status | upper }}</td>
+    </tr>
+</table>
+
+{% if status | lower == "overdue" %}
+<p style="color: #dc2626; font-weight: bold; margin: 0 0 16px;">
+    ⚠️ This invoice is overdue. Please arrange payment immediately.
+</p>
+{% endif %}
+
+{% if has_custom_message %}
+<div style="margin: 20px 0; padding: 15px; background-color: #f3f4f6; border-left: 4px solid {{ branding.primary_color | default('#0070f3') }};">
+    <strong>Message from billing team:</strong>
+    <p style="margin: 8px 0 0;">{{ custom_message }}</p>
+</div>
+{% endif %}
+
+<p style="text-align: center; margin: 0;">
+    <a href="{{ invoice_url }}" class="button">View Invoice</a>
+</p>
+{% endblock %}

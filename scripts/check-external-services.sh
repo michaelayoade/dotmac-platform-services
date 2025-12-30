@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 #
-# check-external-services.sh - Verify external services are reachable before launching compose stacks
+# check-external-services.sh - Verify external services are reachable for external-host setups
 #
-# The simplified Docker Compose files (base.yml, isp.yml) expect external services
-# to be running on the host at host.docker.internal:
+# Use this when running docker-compose.base.yml against services outside Docker
+# (not docker-compose.infra.yml). By default, the compose stack expects:
+#   - docker-compose.infra.yml to be running on the same Docker network, or
+#   - DATABASE__HOST/REDIS__HOST/STORAGE__ENDPOINT overrides pointing to external services.
+#
+# External services commonly run on the host at host.docker.internal:
 #   - PostgreSQL (5432)
 #   - Redis (6379)
 #   - MinIO (9000)
@@ -184,6 +188,6 @@ if [[ "$ALL_REQUIRED_OK" == false ]]; then
   exit 1
 else
   echo -e "${GREEN}Pre-flight check PASSED${NC}"
-  echo "Ready to run: docker compose -f docker-compose.base.yml up -d"
+  echo "Ready to run: docker compose -f docker-compose.base.yml --env-file .env up -d platform-backend platform-frontend"
   exit 0
 fi

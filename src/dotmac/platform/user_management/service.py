@@ -93,8 +93,12 @@ class UserService:
         query = select(User).where(User.email == email.lower())
         if tenant_id is not None:
             query = query.where(User.tenant_id == tenant_id)
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        try:
+            result = await self.session.execute(query)
+            return result.scalar_one_or_none()
+        except MultipleResultsFound:
+            result = await self.session.execute(query.limit(1))
+            return result.scalars().first()
 
     async def create_user(
         self,

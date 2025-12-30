@@ -1,33 +1,53 @@
 """Partner Portal Router - Self-service endpoints for partners."""
 
-from datetime import datetime
+import secrets
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dotmac.platform.auth.core import UserInfo, ensure_uuid, get_current_user
+from dotmac.platform.communications.email_service import EmailMessage, get_email_service
+from dotmac.platform.communications.template_service import (
+    BrandingConfig,
+    get_tenant_template_service,
+)
 from dotmac.platform.db import get_session_dependency
 from dotmac.platform.partner_management.dependencies import get_portal_partner
 from dotmac.platform.partner_management.models import (
     Partner,
     PartnerAccount,
     PartnerCommissionEvent,
+    PartnerInvitationStatus,
     PartnerPayout,
+    PartnerUser,
+    PartnerUserInvitation,
     ReferralLead,
     ReferralStatus,
 )
+from dotmac.platform.tenant.models import Tenant
 from dotmac.platform.partner_management.schemas import (
     PartnerCommissionEventResponse,
     PartnerPayoutResponse,
     PartnerResponse,
     PartnerStatementResponse,
     PartnerUpdate,
+    PartnerUserInvitationCreate,
+    PartnerUserInvitationListResponse,
+    PartnerUserInvitationResponse,
     ReferralLeadCreate,
     ReferralLeadResponse,
 )
+from dotmac.platform.settings import settings
+from dotmac.platform.user_management.models import User
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/portal", tags=["Partner Portal"])
 
@@ -38,16 +58,139 @@ def _statement_download_url(statement_id: UUID) -> str:
     return f"/api/v1/partners/portal/statements/{statement_id}/download"
 
 
+def _normalize_datetime(value: datetime | str | int | float | None) -> datetime | None:
+    """Normalize sqlite/postgres datetime values for API responses."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, UTC)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _convert_referral_to_response(referral: ReferralLead) -> ReferralLeadResponse:
+    """Convert referral model to response schema."""
+    data: dict[str, Any] = {}
+    for key in ReferralLeadResponse.model_fields:
+        if key == "metadata":
+            data["metadata"] = referral.metadata_ if hasattr(referral, "metadata_") else {}
+        elif key == "converted_tenant_id":
+            data["converted_tenant_id"] = getattr(referral, "converted_customer_id", None)
+        elif hasattr(referral, key):
+            data[key] = getattr(referral, key)
+    return ReferralLeadResponse.model_validate(data)
+
+
+def _serialize_partner_user(user: PartnerUser) -> dict[str, Any]:
+    """Serialize a partner user for portal responses."""
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "full_name": user.full_name,
+        "role": user.role,
+        "phone": user.phone,
+        "is_primary_contact": user.is_primary_contact,
+        "is_active": user.is_active,
+        "user_id": str(user.user_id) if user.user_id else None,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+async def _send_partner_invitation_email(
+    invitation: PartnerUserInvitation,
+    partner: Partner,
+    inviter_user_id: UUID,
+    db: AsyncSession,
+) -> None:
+    """Send invitation email to the invitee."""
+    try:
+        # Look up inviter name
+        inviter_name = "A partner admin"
+        inviter_result = await db.execute(
+            select(User).where(User.id == inviter_user_id)
+        )
+        inviter = inviter_result.scalar_one_or_none()
+        if inviter:
+            inviter_name = inviter.full_name or inviter.username or inviter.email
+
+        # Build accept URL
+        frontend_url = getattr(settings, "frontend_url", "http://localhost:3000")
+        accept_url = f"{frontend_url}/partner/accept-invite?token={invitation.token}"
+
+        # Build branding config
+        branding = BrandingConfig(
+            product_name=settings.brand.product_name or "DotMac Platform",
+            company_name=settings.brand.company_name,
+            support_email=settings.brand.support_email,
+            primary_color="#f59e0b",  # Amber color for partner portal
+        )
+
+        # Render email template
+        template_service = get_tenant_template_service()
+        rendered = await template_service.render_email(
+            template_key="email.partner.invitation",
+            context={
+                "partner_name": partner.company_name,
+                "inviter_name": inviter_name,
+                "role": invitation.role,
+                "accept_url": accept_url,
+            },
+            tenant_id=str(partner.tenant_id) if partner.tenant_id else None,
+            branding=branding,
+            db=db,
+        )
+
+        # Send email
+        email_service = get_email_service()
+        message = EmailMessage(
+            to=[invitation.email],
+            subject=rendered.subject,
+            html_body=rendered.html_body,
+            text_body=rendered.text_body,
+        )
+
+        await email_service.send_email(
+            message,
+            tenant_id=str(partner.tenant_id) if partner.tenant_id else "system",
+            db=db,
+        )
+
+        logger.info(
+            "partner.invitation_email_sent",
+            partner_id=str(partner.id),
+            invitation_id=str(invitation.id),
+            email=invitation.email,
+        )
+
+    except Exception as e:
+        logger.error(
+            "partner.invitation_email_failed",
+            partner_id=str(partner.id),
+            invitation_id=str(invitation.id),
+            email=invitation.email,
+            error=str(e),
+        )
+        # Don't raise - invitation was created, email failure is logged
+
+
 # Portal-specific schemas
 class PartnerDashboardStats(BaseModel):  # BaseModel resolves to Any in isolation
     """Dashboard statistics for partner portal."""
 
     model_config = ConfigDict()
 
-    total_customers: int = Field(default=0, description="Total customers assigned")
-    active_customers: int = Field(default=0, description="Currently active customers")
+    total_tenants: int = Field(default=0, description="Total tenants assigned")
+    active_tenants: int = Field(default=0, description="Currently active tenants")
     total_revenue_generated: Decimal = Field(
-        default=Decimal("0"), description="Total revenue from customers"
+        default=Decimal("0"), description="Total revenue from tenants"
     )
     total_commissions_earned: Decimal = Field(
         default=Decimal("0"), description="Total commissions earned"
@@ -67,14 +210,14 @@ class PartnerDashboardStats(BaseModel):  # BaseModel resolves to Any in isolatio
     default_commission_rate: Decimal = Field(description="Default commission rate")
 
 
-class PartnerCustomerResponse(BaseModel):  # BaseModel resolves to Any in isolation
-    """Partner customer information for portal."""
+class PartnerTenantResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Partner tenant information for portal."""
 
     model_config = ConfigDict()
 
     id: UUID
-    customer_id: UUID
-    customer_name: str
+    tenant_id: str
+    tenant_name: str
     engagement_type: str
     custom_commission_rate: Decimal | None = None
     total_revenue: Decimal
@@ -84,6 +227,15 @@ class PartnerCustomerResponse(BaseModel):  # BaseModel resolves to Any in isolat
     is_active: bool
 
 
+class PartnerPortalUserUpdate(BaseModel):  # BaseModel resolves to Any in isolation
+    """Update partner portal team member details."""
+
+    model_config = ConfigDict()
+
+    role: str | None = None
+    is_active: bool | None = None
+
+
 @router.get("/dashboard", response_model=PartnerDashboardStats)
 async def get_dashboard_stats(
     partner: Partner = Depends(get_portal_partner),
@@ -91,13 +243,13 @@ async def get_dashboard_stats(
 ) -> PartnerDashboardStats:
     """Get dashboard statistics for partner portal."""
 
-    # Count active customers
-    active_customers_result = await db.execute(
+    # Count active tenants
+    active_tenants_result = await db.execute(
         select(func.count(PartnerAccount.id))
         .where(PartnerAccount.partner_id == partner.id)
         .where(PartnerAccount.is_active)
     )
-    active_customers = active_customers_result.scalar() or 0
+    active_tenants = active_tenants_result.scalar() or 0
 
     # Count pending referrals
     pending_referrals_result = await db.execute(
@@ -120,8 +272,8 @@ async def get_dashboard_stats(
         conversion_rate = (partner.converted_referrals / partner.total_referrals) * 100
 
     return PartnerDashboardStats(
-        total_customers=partner.total_customers,
-        active_customers=active_customers,
+        total_tenants=partner.total_customers,
+        active_tenants=active_tenants,
         total_revenue_generated=partner.total_revenue_generated,
         total_commissions_earned=partner.total_commissions_earned,
         total_commissions_paid=partner.total_commissions_paid,
@@ -190,10 +342,7 @@ async def list_partner_referrals(
     )
 
     referrals = list(result.scalars().all())
-    # Set metadata attribute from metadata_ for Pydantic validation
-    for r in referrals:
-        r.metadata = r.metadata_
-    return [ReferralLeadResponse.model_validate(r, from_attributes=True) for r in referrals]
+    return [_convert_referral_to_response(r) for r in referrals]
 
 
 @router.post("/referrals", response_model=ReferralLeadResponse, status_code=status.HTTP_201_CREATED)
@@ -201,7 +350,7 @@ async def submit_referral(
     data: ReferralLeadCreate,
     partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
-) -> ReferralLead:
+ ) -> ReferralLeadResponse:
     """Submit a new referral."""
 
     referral = ReferralLead(
@@ -218,7 +367,7 @@ async def submit_referral(
     await db.commit()
     await db.refresh(referral)
 
-    return referral
+    return _convert_referral_to_response(referral)
 
 
 @router.get("/commissions", response_model=list[PartnerCommissionEventResponse])
@@ -239,17 +388,44 @@ async def list_partner_commissions(
     )
 
     events = list(result.scalars().all())
-    return [PartnerCommissionEventResponse.model_validate(e, from_attributes=True) for e in events]
+    responses: list[PartnerCommissionEventResponse] = []
+    for event in events:
+        responses.append(
+            PartnerCommissionEventResponse(
+                id=event.id,
+                partner_id=event.partner_id,
+                invoice_id=event.invoice_id,
+                tenant_id=event.customer_id,
+                base_amount=event.base_amount,
+                commission_rate=event.commission_rate,
+                commission_amount=event.commission_amount,
+                currency=event.currency,
+                status=event.status,
+                event_type=event.event_type,
+                event_date=_normalize_datetime(event.event_date) or datetime.now(UTC),
+                payout_id=event.payout_id,
+                paid_at=_normalize_datetime(event.paid_at),
+                notes=event.notes,
+                metadata_=(
+                    event.metadata_
+                    if hasattr(event, "metadata_") and isinstance(event.metadata_, dict)
+                    else {}
+                ),
+                created_at=_normalize_datetime(event.created_at) or datetime.now(UTC),
+                updated_at=_normalize_datetime(event.updated_at) or datetime.now(UTC),
+            )
+        )
+    return responses
 
 
-@router.get("/customers", response_model=list[PartnerCustomerResponse])
-async def list_partner_customers(
+@router.get("/tenants", response_model=list[PartnerTenantResponse])
+async def list_partner_tenants(
     partner: Partner = Depends(get_portal_partner),
     db: AsyncSession = Depends(get_session_dependency),
     limit: int = 100,
     offset: int = 0,
-) -> list[PartnerCustomerResponse]:
-    """List all customers assigned to partner."""
+) -> list[PartnerTenantResponse]:
+    """List all tenants assigned to partner."""
 
     result = await db.execute(
         select(PartnerAccount)
@@ -261,8 +437,15 @@ async def list_partner_customers(
 
     accounts = list(result.scalars().all())
 
+    tenant_ids = [str(account.customer_id) for account in accounts]
+    tenant_name_map: dict[str, str] = {}
+    if tenant_ids:
+        tenant_rows = await db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids)))
+        for tenant in tenant_rows.scalars().all():
+            tenant_name_map[tenant.id] = tenant.name
+
     # Transform to response format with aggregated financials
-    customer_responses: list[PartnerCustomerResponse] = []
+    tenant_responses: list[PartnerTenantResponse] = []
     for account in accounts:
         # Aggregate revenue and commissions from commission events
         commission_result = await db.execute(
@@ -275,11 +458,12 @@ async def list_partner_customers(
         )
         aggregates = commission_result.one()
 
-        customer_responses.append(
-            PartnerCustomerResponse(
+        tenant_id = str(account.customer_id)
+        tenant_responses.append(
+            PartnerTenantResponse(
                 id=account.id,
-                customer_id=account.customer_id,
-                customer_name=f"Customer {str(account.customer_id)[:8]}",  # Placeholder - in production join with customer table
+                tenant_id=tenant_id,
+                tenant_name=tenant_name_map.get(tenant_id, f"Tenant {tenant_id[:8]}"),
                 engagement_type=account.engagement_type or "direct",
                 custom_commission_rate=account.custom_commission_rate,
                 total_revenue=aggregates.total_revenue or Decimal("0.00"),
@@ -290,7 +474,7 @@ async def list_partner_customers(
             )
         )
 
-    return customer_responses
+    return tenant_responses
 
 
 @router.get("/statements", response_model=list[PartnerStatementResponse])
@@ -430,7 +614,7 @@ async def download_partner_statement(
         csv_lines.append(f"Payment Reference,{payout.payment_reference}")
 
     csv_lines.append("")  # Blank line before event details
-    csv_lines.append("Event ID,Customer ID,Base Amount,Commission Amount,Status,Event Date")
+    csv_lines.append("Event ID,Tenant ID,Base Amount,Commission Amount,Status,Event Date")
 
     for event in events:
         csv_lines.append(
@@ -457,3 +641,321 @@ async def download_partner_statement(
             "Content-Length": str(len(csv_data.encode("utf-8"))),
         },
     )
+
+
+# =============================================================================
+# Team Management Endpoints
+# =============================================================================
+
+
+@router.get("/team", response_model=list[dict[str, Any]])
+async def list_team_members(
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
+    """List all team members for the partner."""
+    query = select(PartnerUser).where(PartnerUser.partner_id == partner.id)
+    if active_only:
+        query = query.where(PartnerUser.is_active == True)
+    query = query.order_by(PartnerUser.created_at.desc())
+
+    result = await db.execute(query)
+    users = list(result.scalars().all())
+
+    return [_serialize_partner_user(user) for user in users]
+
+
+@router.get("/users", response_model=dict[str, list[dict[str, Any]]])
+async def list_portal_users(
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+    active_only: bool = True,
+) -> dict[str, list[dict[str, Any]]]:
+    """List partner users for portal UI."""
+    users = await list_team_members(
+        partner=partner,
+        db=db,
+        active_only=active_only,
+    )
+    return {"users": users}
+
+
+@router.patch("/users/{user_id}", response_model=dict[str, Any])
+async def update_portal_user(
+    user_id: UUID,
+    data: PartnerPortalUserUpdate,
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> dict[str, Any]:
+    """Update a partner user from the portal."""
+    result = await db.execute(
+        select(PartnerUser).where(
+            and_(
+                PartnerUser.id == user_id,
+                PartnerUser.partner_id == partner.id,
+                PartnerUser.deleted_at.is_(None),
+            )
+        )
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partner user not found",
+        )
+
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No updates provided",
+        )
+
+    for field, value in update_data.items():
+        setattr(user, field, value)
+    user.updated_at = datetime.now(UTC)
+
+    await db.commit()
+    await db.refresh(user)
+
+    return _serialize_partner_user(user)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_portal_user(
+    user_id: UUID,
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> None:
+    """Remove a partner user from the portal."""
+    result = await db.execute(
+        select(PartnerUser).where(
+            and_(
+                PartnerUser.id == user_id,
+                PartnerUser.partner_id == partner.id,
+                PartnerUser.deleted_at.is_(None),
+            )
+        )
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Partner user not found",
+        )
+
+    user.is_active = False
+    user.deleted_at = datetime.now(UTC)
+    user.updated_at = datetime.now(UTC)
+
+    await db.commit()
+
+
+@router.get("/invitations", response_model=PartnerUserInvitationListResponse)
+async def list_invitations(
+    partner: Partner = Depends(get_portal_partner),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> PartnerUserInvitationListResponse:
+    """List all pending invitations for the partner."""
+    result = await db.execute(
+        select(PartnerUserInvitation)
+        .where(PartnerUserInvitation.partner_id == partner.id)
+        .where(PartnerUserInvitation.status == PartnerInvitationStatus.PENDING)
+        .order_by(PartnerUserInvitation.created_at.desc())
+    )
+    invitations = list(result.scalars().all())
+
+    responses = []
+    for inv in invitations:
+        response = PartnerUserInvitationResponse.model_validate(inv)
+        response.is_expired = inv.is_expired
+        response.is_pending = inv.is_pending
+        responses.append(response)
+
+    return PartnerUserInvitationListResponse(
+        invitations=responses,
+        total=len(responses),
+    )
+
+
+@router.post(
+    "/invitations",
+    response_model=PartnerUserInvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_invitation(
+    data: PartnerUserInvitationCreate,
+    partner: Partner = Depends(get_portal_partner),
+    current_user: UserInfo = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> PartnerUserInvitationResponse:
+    """Invite a new team member to the partner organization."""
+    # Check if email already has a pending invitation
+    existing = await db.execute(
+        select(PartnerUserInvitation).where(
+            and_(
+                PartnerUserInvitation.partner_id == partner.id,
+                PartnerUserInvitation.email == data.email,
+                PartnerUserInvitation.status == PartnerInvitationStatus.PENDING,
+            )
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An invitation is already pending for this email address",
+        )
+
+    # Check if email already belongs to a team member
+    existing_user = await db.execute(
+        select(PartnerUser).where(
+            and_(
+                PartnerUser.partner_id == partner.id,
+                PartnerUser.email == data.email,
+                PartnerUser.is_active == True,
+            )
+        )
+    )
+    if existing_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This email is already associated with a team member",
+        )
+
+    # Create invitation
+    token = secrets.token_urlsafe(32)
+    invitation = PartnerUserInvitation(
+        partner_id=partner.id,
+        email=data.email,
+        role=data.role,
+        invited_by=ensure_uuid(current_user.user_id),
+        token=token,
+        expires_at=datetime.now(UTC) + timedelta(days=7),
+        tenant_id=str(partner.tenant_id) if partner.tenant_id else "system",
+    )
+
+    db.add(invitation)
+    await db.commit()
+    await db.refresh(invitation)
+
+    logger.info(
+        "partner.invitation_created",
+        partner_id=str(partner.id),
+        email=data.email,
+        role=data.role,
+        invited_by=str(current_user.user_id),
+    )
+
+    # Send invitation email if requested
+    if data.send_email:
+        await _send_partner_invitation_email(
+            invitation=invitation,
+            partner=partner,
+            inviter_user_id=ensure_uuid(current_user.user_id),
+            db=db,
+        )
+
+    response = PartnerUserInvitationResponse.model_validate(invitation)
+    response.is_expired = invitation.is_expired
+    response.is_pending = invitation.is_pending
+    return response
+
+
+@router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_invitation(
+    invitation_id: UUID,
+    partner: Partner = Depends(get_portal_partner),
+    current_user: UserInfo = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> None:
+    """Cancel a pending invitation."""
+    result = await db.execute(
+        select(PartnerUserInvitation).where(
+            and_(
+                PartnerUserInvitation.id == invitation_id,
+                PartnerUserInvitation.partner_id == partner.id,
+            )
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found",
+        )
+
+    if invitation.status != PartnerInvitationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending invitations can be cancelled",
+        )
+
+    invitation.status = PartnerInvitationStatus.REVOKED
+    invitation.updated_at = datetime.now(UTC)
+    await db.commit()
+
+    logger.info(
+        "partner.invitation_cancelled",
+        partner_id=str(partner.id),
+        invitation_id=str(invitation_id),
+        cancelled_by=str(current_user.user_id),
+    )
+
+
+@router.post("/invitations/{invitation_id}/resend", response_model=PartnerUserInvitationResponse)
+async def resend_invitation(
+    invitation_id: UUID,
+    partner: Partner = Depends(get_portal_partner),
+    current_user: UserInfo = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session_dependency),
+) -> PartnerUserInvitationResponse:
+    """Resend an invitation email."""
+    result = await db.execute(
+        select(PartnerUserInvitation).where(
+            and_(
+                PartnerUserInvitation.id == invitation_id,
+                PartnerUserInvitation.partner_id == partner.id,
+            )
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found",
+        )
+
+    if invitation.status != PartnerInvitationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending invitations can be resent",
+        )
+
+    # Reset expiration
+    invitation.expires_at = datetime.now(UTC) + timedelta(days=7)
+    invitation.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(invitation)
+
+    # Send invitation email
+    await _send_partner_invitation_email(
+        invitation=invitation,
+        partner=partner,
+            inviter_user_id=ensure_uuid(current_user.user_id),
+        db=db,
+    )
+
+    logger.info(
+        "partner.invitation_resent",
+        partner_id=str(partner.id),
+        invitation_id=str(invitation_id),
+        resent_by=str(current_user.user_id),
+    )
+
+    response = PartnerUserInvitationResponse.model_validate(invitation)
+    response.is_expired = invitation.is_expired
+    response.is_pending = invitation.is_pending
+    return response

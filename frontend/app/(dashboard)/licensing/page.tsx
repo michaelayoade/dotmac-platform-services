@@ -29,6 +29,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useLicenses,
+  useLicensingDashboard,
   useLicenseTemplates,
   useDeleteLicense,
   useSuspendLicense,
@@ -36,6 +37,7 @@ import {
   useValidateLicense,
 } from "@/lib/hooks/api/use-licensing";
 import type { LicenseStatus, LicenseType } from "@/lib/api/licensing";
+import { DashboardAlerts } from "@/components/features/dashboard";
 
 const statusConfig: Record<LicenseStatus, { label: string; color: string; icon: React.ElementType }> = {
   active: { label: "Active", color: "bg-status-success/15 text-status-success", icon: CheckCircle2 },
@@ -70,6 +72,7 @@ export default function LicensingPage() {
     status: statusFilter !== "all" ? statusFilter : undefined,
     type: typeFilter !== "all" ? typeFilter : undefined,
   });
+  const { data: dashboardData } = useLicensingDashboard();
   const { data: templates } = useLicenseTemplates();
 
   const deleteLicense = useDeleteLicense();
@@ -169,6 +172,11 @@ export default function LicensingPage() {
         }
       />
 
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4">
@@ -235,7 +243,7 @@ export default function LicensingPage() {
               setSearchQuery(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by key or customer..."
+            placeholder="Search by key or tenant..."
             className="pl-10"
           />
         </div>
@@ -293,13 +301,13 @@ export default function LicensingPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table" aria-label="Software licenses"><caption className="sr-only">Software licenses</caption>
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">License Key</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Type</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Status</th>
-                  <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Customer</th>
+                  <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Tenant</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Seats</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Expires</th>
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Actions</th>
@@ -339,7 +347,7 @@ export default function LicensingPage() {
                       </td>
                       <td className="px-4 py-3">
                         {license.customerName ? (
-                          <Link href={`/customers/${license.customerId}`} className="text-sm text-accent hover:underline">
+                          <Link href={`/tenants/${license.customerId}`} className="text-sm text-accent hover:underline">
                             {license.customerName}
                           </Link>
                         ) : (

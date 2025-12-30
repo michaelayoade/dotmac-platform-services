@@ -8,11 +8,10 @@ Create Date: 2025-12-17 10:00:00.000000
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "a1b2c3d4e5f6"
-down_revision = None
+down_revision = "9f8e7d6c5b4a"
 branch_labels = None
 depends_on = None
 
@@ -118,49 +117,26 @@ def upgrade() -> None:
         ),
     )
 
-    # Create indexes
-    # NOTE: the slug column is declared with unique=True and index=True above which may
-    # result in the table creation step already creating the underlying unique index.
-    # To avoid DuplicateTable errors when running migrations against a DB that may
-    # already have the index, only create the slug index if it does not already exist.
-    # Guard index creation with an existence check to avoid aborting the transaction
-    conn = op.get_bind()
-    exists = conn.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
-        {"name": "ix_platform_products_slug"},
-    ).first()
-    if not exists:
-        op.create_index(
-            "ix_platform_products_slug",
-            "platform_products",
-            ["slug"],
-            unique=True,
-        )
-    exists = conn.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
-        {"name": "ix_platform_products_is_active"},
-    ).first()
-    if not exists:
+    # Create indexes (skip if they already exist)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_indexes = {
+        index["name"] for index in inspector.get_indexes("platform_products")
+    }
+
+    if "ix_platform_products_is_active" not in existing_indexes:
         op.create_index(
             "ix_platform_products_is_active",
             "platform_products",
             ["is_active"],
         )
-    exists = conn.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
-        {"name": "ix_platform_products_is_public"},
-    ).first()
-    if not exists:
+    if "ix_platform_products_is_public" not in existing_indexes:
         op.create_index(
             "ix_platform_products_is_public",
             "platform_products",
             ["is_public"],
         )
-    exists = conn.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
-        {"name": "ix_platform_products_template_id"},
-    ).first()
-    if not exists:
+    if "ix_platform_products_template_id" not in existing_indexes:
         op.create_index(
             "ix_platform_products_template_id",
             "platform_products",
@@ -170,8 +146,20 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop platform_products table."""
-    op.drop_index("ix_platform_products_template_id", table_name="platform_products")
-    op.drop_index("ix_platform_products_is_public", table_name="platform_products")
-    op.drop_index("ix_platform_products_is_active", table_name="platform_products")
-    op.drop_index("ix_platform_products_slug", table_name="platform_products")
+    try:
+        op.drop_index("ix_platform_products_template_id", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_is_public", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_is_active", table_name="platform_products")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_platform_products_slug", table_name="platform_products")
+    except Exception:
+        pass
     op.drop_table("platform_products")

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.core import UserInfo, get_current_user
@@ -20,6 +21,136 @@ from .usage_billing_integration import (
 )
 
 router = APIRouter(prefix="", tags=["Tenant Usage Billing"])
+
+
+class BillingRecordEntryResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response entry for a billing record update."""
+
+    model_config = ConfigDict()
+
+    type: str
+    quantity: int | float
+    recorded: bool
+
+
+class RecordUsageWithBillingResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for recording tenant usage with billing integration."""
+
+    model_config = ConfigDict()
+
+    tenant_usage_id: str
+    tenant_id: str
+    period_start: datetime
+    period_end: datetime
+    billing_records: list[BillingRecordEntryResponse]
+    subscription_id: str | None
+
+
+class SyncTenantUsageBillingResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for syncing tenant usage counters to billing."""
+
+    model_config = ConfigDict()
+
+    synced: bool
+    tenant_id: str
+    subscription_id: str | None = None
+    reason: str | None = None
+    metrics_synced: list[BillingRecordEntryResponse] | None = None
+
+
+class UsageOverageDetailResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Details for a specific usage overage."""
+
+    model_config = ConfigDict()
+
+    metric: str
+    limit: int | float
+    usage: int | float
+    overage: int | float
+    rate: str
+    charge: str
+
+
+class UsageOverageSummaryResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Summary response for overage calculations."""
+
+    model_config = ConfigDict()
+
+    tenant_id: str
+    period_start: datetime | None
+    period_end: datetime | None
+    has_overages: bool
+    overages: list[UsageOverageDetailResponse]
+    total_overage_charge: str
+    currency: str
+
+
+class UsageMetricResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Usage metric value vs. limit summary."""
+
+    model_config = ConfigDict()
+
+    current: int | float
+    limit: int | float
+    percentage: float
+
+
+class UsageSummaryResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Aggregate usage summary for billing previews."""
+
+    model_config = ConfigDict()
+
+    api_calls: UsageMetricResponse
+    storage_gb: UsageMetricResponse
+    users: UsageMetricResponse
+
+
+class BillingPreviewResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Billing preview response."""
+
+    model_config = ConfigDict()
+
+    tenant_id: str
+    plan_type: str
+    billing_cycle: str
+    base_subscription_cost: str
+    usage_summary: UsageSummaryResponse
+    total_estimated_charge: str
+    overages: UsageOverageSummaryResponse | None = None
+
+
+class UsageLimitStatusResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Usage limit status details."""
+
+    model_config = ConfigDict()
+
+    current: int | float
+    limit: int | float
+    percentage: float
+    exceeded: bool
+
+
+class BillingRecommendationResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Recommendation response entry for billing status."""
+
+    model_config = ConfigDict()
+
+    metric: str
+    message: str
+    severity: str
+
+
+class UsageBillingStatusResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Comprehensive usage and billing status response."""
+
+    model_config = ConfigDict()
+
+    tenant_id: str
+    plan_type: Any
+    status: Any
+    usage: dict[str, UsageLimitStatusResponse]
+    recommendations: list[BillingRecommendationResponse]
+    requires_action: bool
 
 
 # Dependencies
@@ -48,7 +179,7 @@ async def get_usage_billing_integration(
 
 @router.post(
     "/{tenant_id}/usage/record-with-billing",
-    response_model=dict[str, Any],
+    response_model=RecordUsageWithBillingResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def record_usage_with_billing(
@@ -59,7 +190,7 @@ async def record_usage_with_billing(
     ),
     current_user: UserInfo = Depends(get_current_user),
     integration: TenantUsageBillingIntegration = Depends(get_usage_billing_integration),
-) -> dict[str, Any]:
+) -> RecordUsageWithBillingResponse:
     """
     Record usage in both tenant tracking and billing system.
 
@@ -80,7 +211,7 @@ async def record_usage_with_billing(
             usage_data=usage_data,
             subscription_id=subscription_id,
         )
-        return result
+        return RecordUsageWithBillingResponse.model_validate(result)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -88,13 +219,16 @@ async def record_usage_with_billing(
         )
 
 
-@router.post("/{tenant_id}/usage/sync-billing", response_model=dict[str, Any])
+@router.post(
+    "/{tenant_id}/usage/sync-billing",
+    response_model=SyncTenantUsageBillingResponse,
+)
 async def sync_tenant_usage_to_billing(
     tenant_id: str,
     subscription_id: str | None = Query(None, description="Subscription ID"),
     current_user: UserInfo = Depends(get_current_user),
     integration: TenantUsageBillingIntegration = Depends(get_usage_billing_integration),
-) -> dict[str, Any]:
+) -> SyncTenantUsageBillingResponse:
     """
     Sync current tenant usage counters to billing system.
 
@@ -107,17 +241,17 @@ async def sync_tenant_usage_to_billing(
         tenant_id=tenant_id,
         subscription_id=subscription_id,
     )
-    return result
+    return SyncTenantUsageBillingResponse.model_validate(result)
 
 
-@router.get("/{tenant_id}/usage/overages", response_model=dict[str, Any])
+@router.get("/{tenant_id}/usage/overages", response_model=UsageOverageSummaryResponse)
 async def get_usage_overages(
     tenant_id: str,
     period_start: datetime | None = Query(None, description="Period start"),
     period_end: datetime | None = Query(None, description="Period end"),
     current_user: UserInfo = Depends(get_current_user),
     integration: TenantUsageBillingIntegration = Depends(get_usage_billing_integration),
-) -> dict[str, Any]:
+) -> UsageOverageSummaryResponse:
     """
     Calculate overage charges for tenant exceeding plan limits.
 
@@ -132,16 +266,16 @@ async def get_usage_overages(
         period_start=period_start,
         period_end=period_end,
     )
-    return dict(result)
+    return UsageOverageSummaryResponse.model_validate(result)
 
 
-@router.get("/{tenant_id}/billing/preview", response_model=dict[str, Any])
+@router.get("/{tenant_id}/billing/preview", response_model=BillingPreviewResponse)
 async def get_billing_preview(
     tenant_id: str,
     include_overages: bool = Query(True, description="Include overage calculations"),
     current_user: UserInfo = Depends(get_current_user),
     integration: TenantUsageBillingIntegration = Depends(get_usage_billing_integration),
-) -> dict[str, Any]:
+) -> BillingPreviewResponse:
     """
     Get preview of upcoming billing charges.
 
@@ -161,15 +295,18 @@ async def get_billing_preview(
         tenant_id=tenant_id,
         include_overages=include_overages,
     )
-    return dict(result)
+    return BillingPreviewResponse.model_validate(result)
 
 
-@router.get("/{tenant_id}/usage/billing-status", response_model=dict[str, Any])
+@router.get(
+    "/{tenant_id}/usage/billing-status",
+    response_model=UsageBillingStatusResponse,
+)
 async def get_usage_billing_status(
     tenant_id: str,
     current_user: UserInfo = Depends(get_current_user),
     tenant_service: TenantService = Depends(get_tenant_service),
-) -> dict[str, Any]:
+) -> UsageBillingStatusResponse:
     """
     Get comprehensive usage and billing status for tenant.
 
@@ -239,11 +376,11 @@ async def get_usage_billing_status(
             }
         )
 
-    return {
-        "tenant_id": tenant_id,
-        "plan_type": tenant.plan_type,
-        "status": tenant.status,
-        "usage": {
+    return UsageBillingStatusResponse(
+        tenant_id=tenant_id,
+        plan_type=tenant.plan_type,
+        status=tenant.status,
+        usage={
             "api_calls": {
                 "current": tenant.current_api_calls,
                 "limit": tenant.max_api_calls_per_month,
@@ -263,6 +400,6 @@ async def get_usage_billing_status(
                 "exceeded": tenant.has_exceeded_user_limit,
             },
         },
-        "recommendations": recommendations,
-        "requires_action": len([r for r in recommendations if r["severity"] == "high"]) > 0,
-    }
+        recommendations=recommendations,
+        requires_action=len([r for r in recommendations if r["severity"] == "high"]) > 0,
+    )

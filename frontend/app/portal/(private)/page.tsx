@@ -43,15 +43,15 @@ function UsageGauge({
   return (
     <div className="bg-surface-elevated rounded-lg border border-border p-5">
       <div className="flex items-start justify-between mb-4">
-        <div className="p-2 rounded-lg bg-accent/10 text-accent">{icon}</div>
+        <div className="p-2 rounded-lg bg-accent/15 text-accent">{icon}</div>
         <span
           className={cn(
             "text-xs font-medium px-2 py-0.5 rounded-full",
             isCritical
-              ? "bg-status-error/10 text-status-error"
+              ? "bg-status-error/15 text-status-error"
               : isWarning
-                ? "bg-status-warning/10 text-status-warning"
-                : "bg-status-success/10 text-status-success"
+                ? "bg-status-warning/15 text-status-warning"
+                : "bg-status-success/15 text-status-success"
           )}
         >
           {percentage.toFixed(0)}%
@@ -101,11 +101,11 @@ function ActivityItem({ type, description, userName, time }: ActivityItemProps) 
   };
 
   const colorMap: Record<string, string> = {
-    user_joined: "bg-status-success/10 text-status-success",
-    user_removed: "bg-status-error/10 text-status-error",
-    role_changed: "bg-blue-500/10 text-blue-500",
-    settings_updated: "bg-purple-500/10 text-purple-500",
-    plan_upgraded: "bg-highlight/10 text-highlight",
+    user_joined: "bg-status-success/15 text-status-success",
+    user_removed: "bg-status-error/15 text-status-error",
+    role_changed: "bg-status-info/15 text-status-info",
+    settings_updated: "bg-status-info/15 text-status-info",
+    plan_upgraded: "bg-highlight/15 text-highlight",
   };
 
   return (
@@ -142,49 +142,36 @@ function DashboardSkeleton() {
   );
 }
 
-// Demo data
-const demoData = {
-  stats: {
-    activeUsers: 8,
-    maxUsers: 10,
-    apiCallsThisMonth: 45230,
-    apiCallsLimit: 100000,
-    storageUsedMb: 2340,
-    storageLimitMb: 5000,
-    daysUntilRenewal: 18,
-    planName: "Professional",
-    planType: "PROFESSIONAL" as const,
-  },
-  recentActivity: [
-    {
-      id: "1",
-      type: "user_joined",
-      description: "Sarah Johnson joined the team",
-      userName: "Admin",
-      createdAt: "2024-12-22T14:30:00Z",
-    },
-    {
-      id: "2",
-      type: "role_changed",
-      description: "Michael Chen's role changed to Admin",
-      userName: "Admin",
-      createdAt: "2024-12-21T10:15:00Z",
-    },
-    {
-      id: "3",
-      type: "settings_updated",
-      description: "Security settings updated",
-      userName: "Admin",
-      createdAt: "2024-12-20T16:45:00Z",
-    },
-    {
-      id: "4",
-      type: "plan_upgraded",
-      description: "Plan upgraded to Professional",
-      createdAt: "2024-12-15T09:00:00Z",
-    },
-  ],
-};
+function EmptyDashboardState() {
+  return (
+    <div className="space-y-6">
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Usage data will appear here
+        </h2>
+        <p className="text-sm text-text-muted mt-2">
+          Invite your team and configure billing to start tracking usage and activity.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/portal/team?action=invite"
+            className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors inline-flex items-center gap-2"
+          >
+            Invite Team
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/portal/billing"
+            className="px-4 py-2 rounded-md border border-border text-text-primary hover:border-accent transition-colors inline-flex items-center gap-2"
+          >
+            Set Up Billing
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DashboardContent() {
   const { data, isLoading, error } = useTenantDashboard();
@@ -193,8 +180,11 @@ function DashboardContent() {
     return <DashboardSkeleton />;
   }
 
-  const dashboardData = data || demoData;
-  const { stats, recentActivity } = dashboardData;
+  if (error || !data) {
+    return <EmptyDashboardState />;
+  }
+
+  const { stats, recentActivity } = data;
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -227,7 +217,7 @@ function DashboardContent() {
           </div>
           <Link
             href="/portal/billing"
-            className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors inline-flex items-center gap-2"
+            className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors inline-flex items-center gap-2"
           >
             Manage Plan
             <ArrowUpRight className="w-4 h-4" />
@@ -262,7 +252,7 @@ function DashboardContent() {
         />
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-start justify-between mb-4">
-            <div className="p-2 rounded-lg bg-accent/10 text-accent">
+            <div className="p-2 rounded-lg bg-accent/15 text-accent">
               <Clock className="w-5 h-5" />
             </div>
           </div>
@@ -291,7 +281,7 @@ function DashboardContent() {
             className="block bg-surface-elevated rounded-lg border border-border p-5 hover:border-accent transition-colors group"
           >
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-accent/10 text-accent group-hover:bg-accent group-hover:text-white transition-colors">
+              <div className="p-3 rounded-lg bg-accent/15 text-accent group-hover:bg-accent group-hover:text-text-inverse transition-colors">
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
@@ -308,7 +298,7 @@ function DashboardContent() {
             className="block bg-surface-elevated rounded-lg border border-border p-5 hover:border-accent transition-colors group"
           >
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-highlight/10 text-highlight group-hover:bg-highlight group-hover:text-white transition-colors">
+              <div className="p-3 rounded-lg bg-highlight/15 text-highlight group-hover:bg-highlight group-hover:text-text-inverse transition-colors">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
@@ -323,7 +313,7 @@ function DashboardContent() {
             className="block bg-surface-elevated rounded-lg border border-border p-5 hover:border-accent transition-colors group"
           >
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-status-success/10 text-status-success group-hover:bg-status-success group-hover:text-white transition-colors">
+              <div className="p-3 rounded-lg bg-status-success/15 text-status-success group-hover:bg-status-success group-hover:text-text-inverse transition-colors">
                 <BarChart3 className="w-5 h-5" />
               </div>
               <div>

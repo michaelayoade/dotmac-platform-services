@@ -29,6 +29,13 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
         """Initialize middleware."""
         super().__init__(app)
 
+    @staticmethod
+    def _route_path(request: Request) -> str:
+        """Prefer the route template to reduce label cardinality."""
+        route = request.scope.get("route")
+        template = getattr(route, "path", None) if route else None
+        return template or request.url.path
+
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
@@ -49,7 +56,7 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
                 # Track the error
                 track_http_error(
                     method=request.method,
-                    endpoint=request.url.path,
+                    endpoint=self._route_path(request),
                     status_code=response.status_code,
                     tenant_id=tenant_id,
                 )
@@ -74,7 +81,7 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
             track_exception(
                 exception=e,
                 module="api",
-                endpoint=request.url.path,
+                endpoint=self._route_path(request),
                 tenant_id=tenant_id,
             )
 
@@ -120,6 +127,7 @@ class RequestMetricsMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         """Track request metrics."""
         start_time = time.time()
+        endpoint = ErrorTrackingMiddleware._route_path(request)
 
         try:
             response = await call_next(request)
@@ -132,14 +140,14 @@ class RequestMetricsMiddleware(BaseHTTPMiddleware):
             # Track metrics
             self.requests_total.labels(
                 method=request.method,
-                endpoint=request.url.path,
+                endpoint=endpoint,
                 status_code=response.status_code,
                 tenant_id=tenant_id,
             ).inc()
 
             self.request_duration.labels(
                 method=request.method,
-                endpoint=request.url.path,
+                endpoint=endpoint,
                 tenant_id=tenant_id,
             ).observe(duration)
 
@@ -153,14 +161,14 @@ class RequestMetricsMiddleware(BaseHTTPMiddleware):
             # Track as 500 error
             self.requests_total.labels(
                 method=request.method,
-                endpoint=request.url.path,
+                endpoint=endpoint,
                 status_code=500,
                 tenant_id=tenant_id,
             ).inc()
 
             self.request_duration.labels(
                 method=request.method,
-                endpoint=request.url.path,
+                endpoint=endpoint,
                 tenant_id=tenant_id,
             ).observe(duration)
 

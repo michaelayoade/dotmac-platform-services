@@ -13,6 +13,7 @@ from uuid import UUID
 
 import structlog
 from celery import Task
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.celery_app import celery_app
@@ -280,14 +281,18 @@ async def _execute_action(
                 set_session_rls_context(session, tenant_id=None, bypass_rls=True)
             service = DunningService(session)
 
-            # Get execution details
-            if tenant_id:
+            # Get execution details (prefer service for tenant validation)
+            execution = None
+            try:
                 execution = await service.get_execution(
                     execution_id=execution_id,
-                    tenant_id=tenant_id,
+                    tenant_id=tenant_id or "",
                 )
-            else:
-                execution = await session.get(DunningExecution, execution_id)
+            except Exception:
+                if not tenant_id:
+                    execution = await session.get(DunningExecution, execution_id)
+                else:
+                    raise
 
             if not execution:
                 result["status"] = "failed"
@@ -317,14 +322,14 @@ async def _execute_action(
                 from .models import DunningActionLog
 
                 action_log = DunningActionLog(
+                    tenant_id=execution.tenant_id,
                     execution_id=execution_id,
                     action_type=action_type,
                     action_config=action_config,
                     step_number=step_number,
-                    attempted_at=executed_at,
-                    completed_at=datetime.now(UTC),
-                    success=result.get("status") == "success",
-                    response_data=result.get("details", {}),
+                    executed_at=executed_at,
+                    status="success" if result.get("status") == "success" else "failed",
+                    result=result.get("details", {}),
                     error_message=result.get("error"),
                     external_id=result.get("external_id"),
                 )
@@ -332,7 +337,8 @@ async def _execute_action(
 
                 # Update execution progress
                 execution.current_step = step_number + 1
-                execution.execution_log.append(
+                execution_log = list(execution.execution_log or [])
+                execution_log.append(
                     {
                         "step": step_number,
                         "action": action_type.value,
@@ -340,6 +346,7 @@ async def _execute_action(
                         "timestamp": executed_at.isoformat(),
                     }
                 )
+                execution.execution_log = execution_log
 
                 # Calculate next action time if there are more steps
                 campaign = await service.get_campaign(
@@ -393,7 +400,7 @@ async def _send_dunning_email(
     logger.info(
         "dunning.email.sending",
         execution_id=execution.id,
-        customer_id=execution.customer_id,
+        tenant_id=execution.tenant_id,
         template=action_config.get("template"),
     )
 
@@ -401,24 +408,28 @@ async def _send_dunning_email(
         # Import communications service
         from dotmac.platform.communications.task_service import send_single_email_task
 
-        # Get customer email - would need to query customer service
+        # Resolve billing email from tenant record
         async with async_session_maker() as session:
             set_session_rls_context(session, tenant_id=execution.tenant_id)
-            from dotmac.platform.customer_management.service import CustomerService
+            from dotmac.platform.tenant.models import Tenant
 
-            customer_service = CustomerService(session)
             previous_tenant = _set_tenant_context(execution.tenant_id)
             try:
-                customer = await customer_service.get_customer(customer_id=execution.customer_id)
+                result = await session.execute(
+                    select(Tenant)
+                    .where(Tenant.id == execution.tenant_id, Tenant.deleted_at.is_(None))
+                    .limit(1)
+                )
+                tenant = result.scalar_one_or_none()
             finally:
                 set_current_tenant_id(previous_tenant)
 
-            if not customer or not customer.email:
+            if not tenant or not (tenant.billing_email or tenant.email):
                 return {
                     "status": "failed",
                     "action_type": "email",
-                    "error": "Customer email not found",
-                    "details": {"customer_id": str(execution.customer_id)},
+                    "error": "Tenant billing email not found",
+                    "details": {"tenant_id": str(execution.tenant_id)},
                 }
 
             # Prepare email data
@@ -426,12 +437,14 @@ async def _send_dunning_email(
             subject = action_config.get("subject", "Payment Reminder")
 
             # Send email asynchronously via Celery
+            tenant_email = tenant.billing_email or tenant.email
+            tenant_name = tenant.name or tenant_email
             task = send_single_email_task.delay(
-                to_email=customer.email,
+                to_email=tenant_email,
                 subject=subject,
                 template_name=template_name,
                 context={
-                    "customer_name": customer.name,
+                    "customer_name": tenant_name,
                     "outstanding_amount": str(execution.outstanding_amount),
                     "subscription_id": execution.subscription_id,
                     "due_date": execution.created_at.isoformat(),
@@ -444,8 +457,8 @@ async def _send_dunning_email(
                 "action_type": "email",
                 "details": {
                     "template": template_name,
-                    "customer_id": str(execution.customer_id),
-                    "customer_email": customer.email,
+                    "tenant_id": str(execution.tenant_id),
+                    "customer_email": tenant_email,
                     "subject": subject,
                 },
                 "external_id": task.id,
@@ -462,7 +475,7 @@ async def _send_dunning_email(
             "status": "failed",
             "action_type": "email",
             "error": str(e),
-            "details": {"customer_id": str(execution.customer_id)},
+            "details": {"tenant_id": str(execution.tenant_id)},
         }
 
 
@@ -478,28 +491,32 @@ async def _send_dunning_sms(
     logger.info(
         "dunning.sms.sending",
         execution_id=execution.id,
-        customer_id=execution.customer_id,
+        tenant_id=execution.tenant_id,
     )
 
     try:
-        # Get customer phone number
+        # Get tenant phone number
         async with async_session_maker() as session:
             set_session_rls_context(session, tenant_id=execution.tenant_id)
-            from dotmac.platform.customer_management.service import CustomerService
+            from dotmac.platform.tenant.models import Tenant
 
-            customer_service = CustomerService(session)
             previous_tenant = _set_tenant_context(execution.tenant_id)
             try:
-                customer = await customer_service.get_customer(customer_id=execution.customer_id)
+                result = await session.execute(
+                    select(Tenant)
+                    .where(Tenant.id == execution.tenant_id, Tenant.deleted_at.is_(None))
+                    .limit(1)
+                )
+                tenant = result.scalar_one_or_none()
             finally:
                 set_current_tenant_id(previous_tenant)
 
-            if not customer or not customer.phone:
+            if not tenant or not tenant.phone:
                 return {
                     "status": "failed",
                     "action_type": "sms",
-                    "error": "Customer phone not found",
-                    "details": {"customer_id": str(execution.customer_id)},
+                    "error": "Tenant phone not found",
+                    "details": {"tenant_id": str(execution.tenant_id)},
                 }
 
             # Get SMS integration
@@ -512,7 +529,7 @@ async def _send_dunning_sms(
                     "status": "failed",
                     "action_type": "sms",
                     "error": "SMS integration not configured",
-                    "details": {"customer_id": str(execution.customer_id)},
+                    "details": {"tenant_id": str(execution.tenant_id)},
                 }
 
             # Send SMS
@@ -522,14 +539,14 @@ async def _send_dunning_sms(
                 f"Please update your payment method.",
             )
 
-            result = await sms_integration.send_sms(to=customer.phone, message=message_text)
+            result = await sms_integration.send_sms(to=tenant.phone, message=message_text)
 
             return {
                 "status": result.get("status", "success"),
                 "action_type": "sms",
                 "details": {
-                    "customer_id": str(execution.customer_id),
-                    "phone": customer.phone,
+                    "tenant_id": str(execution.tenant_id),
+                    "phone": tenant.phone,
                     "message_length": len(message_text),
                 },
                 "external_id": result.get("message_id", f"sms_{execution.id}"),
@@ -546,7 +563,7 @@ async def _send_dunning_sms(
             "status": "failed",
             "action_type": "sms",
             "error": str(e),
-            "details": {"customer_id": str(execution.customer_id)},
+            "details": {"tenant_id": str(execution.tenant_id)},
         }
 
 
@@ -791,7 +808,7 @@ async def _trigger_webhook(
             "timestamp": datetime.now(UTC).isoformat(),
             "data": {
                 "execution_id": str(execution.id),
-                "customer_id": str(execution.customer_id),
+                "billing_account_id": str(execution.tenant_id),
                 "subscription_id": execution.subscription_id,
                 "outstanding_amount": str(execution.outstanding_amount),
                 "recovered_amount": str(execution.recovered_amount),

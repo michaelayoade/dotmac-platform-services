@@ -231,12 +231,11 @@ with patch("module.cache_get", mock_get):
 **BEFORE (Original Pattern - 177 lines):**
 ```python
 @pytest.mark.asyncio
-async def test_create_contact_success(self, mock_db_session, tenant_id, customer_id, user_id):
+async def test_create_contact_success(self, mock_db_session, tenant_id, user_id):
     """Test successful contact creation."""
     service = ContactService(mock_db_session)
 
     contact_data = ContactCreate(
-        customer_id=customer_id,
         first_name="John",
         last_name="Doe",
         email="john.doe@example.com",
@@ -272,13 +271,12 @@ async def test_create_contact_success(self, mock_db_session, tenant_id, customer
 from tests.helpers import create_entity_test_helper, build_mock_db_session
 
 @pytest.mark.asyncio
-async def test_create_contact_success(self, tenant_id, customer_id, user_id):
+async def test_create_contact_success(self, tenant_id, user_id):
     """Test successful contact creation - REFACTORED."""
     mock_db = build_mock_db_session()
     service = ContactService(mock_db)
 
     contact_data = ContactCreate(
-        customer_id=customer_id,
         first_name="John",
         last_name="Doe",
         email="john.doe@example.com",

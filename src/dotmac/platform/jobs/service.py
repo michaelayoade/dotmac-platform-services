@@ -19,8 +19,31 @@ from dotmac.platform.jobs.schemas import (
     JobSummary,
     JobUpdate,
 )
-from dotmac.platform.realtime import publish_job_update
 from dotmac.platform.redis_client import RedisClientType
+
+
+async def publish_job_update(
+    redis_client: RedisClientType,
+    *,
+    tenant_id: str,
+    job_id: str,
+    job_type: str,
+    status: str,
+    progress_percent: int = 0,
+    items_total: int | None = None,
+    items_processed: int | None = None,
+    items_succeeded: int | None = None,
+    items_failed: int | None = None,
+    current_item: str | None = None,
+    error_message: str | None = None,
+) -> None:
+    """
+    Stub for realtime job updates.
+
+    The realtime module was removed. This is a no-op placeholder.
+    To restore realtime updates, implement WebSocket/SSE broadcasting here.
+    """
+    pass
 
 logger = structlog.get_logger(__name__)
 

@@ -10,13 +10,18 @@ Provides REST endpoints for:
 - Quota tracking and enforcement
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+logger = structlog.get_logger(__name__)
 
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
@@ -63,6 +68,8 @@ from dotmac.platform.licensing.schemas_framework import (
     ServicePlanUpdate,
     # Subscription schemas
     SubscriptionCreate,
+    SubscriptionModuleResponse,
+    SubscriptionQuotaResponse,
     TenantSubscriptionResponse,
 )
 from dotmac.platform.licensing.service_framework import (
@@ -75,6 +82,72 @@ from dotmac.platform.tenant.dependencies import get_current_tenant
 from dotmac.platform.tenant.models import Tenant
 
 router = APIRouter(prefix="/licensing", tags=["Licensing Framework"])
+
+
+def _build_subscription_response(subscription: TenantSubscription) -> TenantSubscriptionResponse:
+    plan = subscription.plan
+    plan_name = plan.plan_name if plan else ""
+    custom_config = getattr(subscription, "custom_config", None)
+    if custom_config is None:
+        custom_config = getattr(subscription, "extra_metadata", {}) or {}
+
+    modules: list[SubscriptionModuleResponse] = []
+    for sub_module in subscription.active_modules or []:
+        module = sub_module.module
+        modules.append(
+            SubscriptionModuleResponse(
+                id=sub_module.id,
+                module_id=sub_module.module_id,
+                module_name=module.module_name if module else "",
+                module_code=module.module_code if module else "",
+                is_enabled=sub_module.is_enabled,
+                source=sub_module.source,
+                addon_price=sub_module.addon_price,
+                expires_at=sub_module.expires_at,
+                config=sub_module.config or {},
+            )
+        )
+
+    quotas: list[SubscriptionQuotaResponse] = []
+    for quota_usage in subscription.quota_usage or []:
+        quota = quota_usage.quota
+        quotas.append(
+            SubscriptionQuotaResponse(
+                id=quota_usage.id,
+                quota_id=quota_usage.quota_id,
+                quota_name=quota.quota_name if quota else "",
+                quota_code=quota.quota_code if quota else "",
+                unit_name=quota.unit_name if quota else "",
+                period_start=quota_usage.period_start,
+                period_end=quota_usage.period_end,
+                allocated_quantity=quota_usage.allocated_quantity,
+                current_usage=quota_usage.current_usage,
+                overage_quantity=quota_usage.overage_quantity,
+                overage_charges=quota_usage.overage_charges,
+            )
+        )
+
+    return TenantSubscriptionResponse(
+        id=subscription.id,
+        tenant_id=subscription.tenant_id,
+        plan_id=subscription.plan_id,
+        plan_name=plan_name,
+        status=subscription.status,
+        billing_cycle=subscription.billing_cycle,
+        monthly_price=subscription.monthly_price,
+        annual_price=subscription.annual_price,
+        trial_start=subscription.trial_start,
+        trial_end=subscription.trial_end,
+        current_period_start=subscription.current_period_start,
+        current_period_end=subscription.current_period_end,
+        stripe_customer_id=getattr(subscription, "stripe_customer_id", None),
+        stripe_subscription_id=getattr(subscription, "stripe_subscription_id", None),
+        custom_config=custom_config,
+        modules=modules,
+        quotas=quotas,
+        created_at=subscription.created_at,
+        updated_at=subscription.updated_at,
+    )
 
 
 # ========================================================================
@@ -563,7 +636,7 @@ async def duplicate_service_plan(
 )
 async def calculate_plan_pricing(
     plan_id: UUID,
-    billing_cycle: str = Query("MONTHLY"),
+    billing_cycle: str = Query("monthly"),
     addon_modules: str | None = Query(None, description="Comma-separated addon module IDs"),
     db: AsyncSession = Depends(get_async_session),
 ) -> Any:
@@ -584,7 +657,7 @@ async def calculate_plan_pricing(
             )
 
     try:
-        cycle = BillingCycle(billing_cycle)
+        cycle = BillingCycle(billing_cycle.strip().lower())
         pricing = await service.calculate_plan_price(plan_id, cycle, addon_module_ids)
         return PlanPricingResponse(**pricing)
     except ValueError as e:
@@ -637,7 +710,7 @@ async def create_subscription(
         )
         subscription = result.scalar_one()
 
-        return TenantSubscriptionResponse.model_validate(subscription)
+        return _build_subscription_response(subscription)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -659,15 +732,17 @@ async def get_current_subscription(
         .options(
             selectinload(TenantSubscription.plan),
             selectinload(TenantSubscription.active_modules).selectinload(SubscriptionModule.module),
-            selectinload(TenantSubscription.quota_usage),
+            selectinload(TenantSubscription.quota_usage).selectinload(
+                SubscriptionQuotaUsage.quota
+            ),
         )
         .where(
             TenantSubscription.tenant_id == tenant.id,
             TenantSubscription.status.in_(
                 [
-                    SubscriptionStatus.TRIAL,
-                    SubscriptionStatus.ACTIVE,
-                    SubscriptionStatus.PAST_DUE,
+                    SubscriptionStatus.TRIAL.value,
+                    SubscriptionStatus.ACTIVE.value,
+                    SubscriptionStatus.PAST_DUE.value,
                 ]
             ),
         )
@@ -681,7 +756,7 @@ async def get_current_subscription(
             detail="No active subscription found",
         )
 
-    return TenantSubscriptionResponse.model_validate(subscription)
+    return _build_subscription_response(subscription)
 
 
 @router.post(
@@ -707,8 +782,8 @@ async def add_addon_to_current_subscription(
             TenantSubscription.tenant_id == tenant.id,
             TenantSubscription.status.in_(
                 [
-                    SubscriptionStatus.TRIAL,
-                    SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.TRIAL.value,
+                    SubscriptionStatus.ACTIVE.value,
                 ]
             ),
         )
@@ -743,7 +818,7 @@ async def add_addon_to_current_subscription(
         )
         subscription = result.scalar_one()
 
-        return TenantSubscriptionResponse.model_validate(subscription)
+        return _build_subscription_response(subscription)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -772,8 +847,8 @@ async def remove_addon_from_current_subscription(
             TenantSubscription.tenant_id == tenant.id,
             TenantSubscription.status.in_(
                 [
-                    SubscriptionStatus.TRIAL,
-                    SubscriptionStatus.ACTIVE,
+                    SubscriptionStatus.TRIAL.value,
+                    SubscriptionStatus.ACTIVE.value,
                 ]
             ),
         )
@@ -808,7 +883,7 @@ async def remove_addon_from_current_subscription(
         )
         subscription = result.scalar_one()
 
-        return TenantSubscriptionResponse.model_validate(subscription)
+        return _build_subscription_response(subscription)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -954,3 +1029,283 @@ async def release_quota(
     )
 
     return {"status": "released"}
+
+
+# ========================================================================
+# LICENSING DASHBOARD
+# ========================================================================
+
+
+class LicensingSummary(BaseModel):
+    """Summary statistics for licensing dashboard."""
+
+    model_config = ConfigDict()
+
+    total_modules: int = Field(description="Total feature modules")
+    active_modules: int = Field(description="Active feature modules")
+    total_plans: int = Field(description="Total service plans")
+    active_plans: int = Field(description="Active service plans")
+    public_plans: int = Field(description="Public service plans")
+    total_quotas: int = Field(description="Total quota definitions")
+    total_subscriptions: int = Field(description="Total tenant subscriptions")
+    active_subscriptions: int = Field(description="Active tenant subscriptions")
+    trial_subscriptions: int = Field(description="Trial tenant subscriptions")
+
+
+class LicensingChartDataPoint(BaseModel):
+    """Single data point for licensing charts."""
+
+    model_config = ConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LicensingCharts(BaseModel):
+    """Chart data for licensing dashboard."""
+
+    model_config = ConfigDict()
+
+    subscriptions_by_status: list[LicensingChartDataPoint] = Field(description="Subscriptions by status")
+    subscriptions_by_plan: list[LicensingChartDataPoint] = Field(description="Subscriptions by plan")
+    modules_by_category: list[LicensingChartDataPoint] = Field(description="Modules by category")
+    subscription_trend: list[LicensingChartDataPoint] = Field(description="Monthly subscription trend")
+
+
+class LicensingAlert(BaseModel):
+    """Alert item for licensing dashboard."""
+
+    model_config = ConfigDict()
+
+    type: str = Field(description="Alert type: warning, error, info")
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class LicensingRecentActivity(BaseModel):
+    """Recent activity item for licensing dashboard."""
+
+    model_config = ConfigDict()
+
+    id: str
+    type: str = Field(description="Activity type: subscription, plan, module")
+    description: str
+    status: str
+    timestamp: datetime
+    tenant_id: str | None = None
+
+
+class LicensingDashboardResponse(BaseModel):
+    """Consolidated licensing dashboard response."""
+
+    model_config = ConfigDict()
+
+    summary: LicensingSummary
+    charts: LicensingCharts
+    alerts: list[LicensingAlert]
+    recent_activity: list[LicensingRecentActivity]
+    generated_at: datetime
+
+
+@router.get(
+    "/dashboard",
+    response_model=LicensingDashboardResponse,
+    summary="Get licensing dashboard data",
+    description="Returns consolidated licensing metrics, charts, and alerts for the dashboard",
+    dependencies=[Depends(require_platform_admin)],
+)
+async def get_licensing_dashboard(
+    period_months: int = Query(6, ge=1, le=24, description="Months of trend data"),
+    db: AsyncSession = Depends(get_async_session),
+) -> LicensingDashboardResponse:
+    """
+    Get consolidated licensing dashboard data including:
+    - Summary statistics (modules, plans, quotas, subscriptions)
+    - Chart data (trends, breakdowns)
+    - Alerts (expiring trials, etc.)
+    - Recent activity
+    """
+    try:
+        from dotmac.platform.licensing.framework import SubscriptionStatus
+
+        now = datetime.now(timezone.utc)
+
+        # ========== SUMMARY STATS ==========
+        # Module counts
+        module_counts_query = select(
+            func.count(FeatureModule.id).label("total"),
+            func.sum(case((FeatureModule.is_active.is_(True), 1), else_=0)).label("active"),
+        )
+        module_counts_result = await db.execute(module_counts_query)
+        module_counts = module_counts_result.one()
+
+        # Plan counts
+        plan_counts_query = select(
+            func.count(ServicePlan.id).label("total"),
+            func.sum(case((ServicePlan.is_active.is_(True), 1), else_=0)).label("active"),
+            func.sum(case((ServicePlan.is_public.is_(True), 1), else_=0)).label("public"),
+        )
+        plan_counts_result = await db.execute(plan_counts_query)
+        plan_counts = plan_counts_result.one()
+
+        # Quota counts
+        quota_counts_query = select(func.count(QuotaDefinition.id))
+        quota_counts_result = await db.execute(quota_counts_query)
+        total_quotas = quota_counts_result.scalar() or 0
+
+        # Subscription counts
+        subscription_counts_query = select(
+            func.count(TenantSubscription.id).label("total"),
+            func.sum(case((TenantSubscription.status == SubscriptionStatus.ACTIVE.value, 1), else_=0)).label("active"),
+            func.sum(case((TenantSubscription.status == SubscriptionStatus.TRIAL.value, 1), else_=0)).label("trial"),
+        )
+        subscription_counts_result = await db.execute(subscription_counts_query)
+        subscription_counts = subscription_counts_result.one()
+
+        summary = LicensingSummary(
+            total_modules=module_counts.total or 0,
+            active_modules=module_counts.active or 0,
+            total_plans=plan_counts.total or 0,
+            active_plans=plan_counts.active or 0,
+            public_plans=plan_counts.public or 0,
+            total_quotas=total_quotas,
+            total_subscriptions=subscription_counts.total or 0,
+            active_subscriptions=subscription_counts.active or 0,
+            trial_subscriptions=subscription_counts.trial or 0,
+        )
+
+        # ========== CHART DATA ==========
+        # Subscriptions by status
+        status_query = select(
+            TenantSubscription.status,
+            func.count(TenantSubscription.id),
+        ).group_by(TenantSubscription.status)
+        status_result = await db.execute(status_query)
+        subscriptions_by_status = [
+            LicensingChartDataPoint(label=row[0] if row[0] else "unknown", value=row[1])
+            for row in status_result.all()
+        ]
+
+        # Subscriptions by plan
+        plan_query = select(
+            ServicePlan.plan_name,
+            func.count(TenantSubscription.id),
+        ).join(ServicePlan, TenantSubscription.plan_id == ServicePlan.id).group_by(ServicePlan.plan_name)
+        plan_result = await db.execute(plan_query)
+        subscriptions_by_plan = [
+            LicensingChartDataPoint(label=row[0] if row[0] else "Unknown Plan", value=row[1])
+            for row in plan_result.all()
+        ]
+
+        # Modules by category
+        category_query = select(
+            FeatureModule.category,
+            func.count(FeatureModule.id),
+        ).where(FeatureModule.is_active.is_(True)).group_by(FeatureModule.category)
+        category_result = await db.execute(category_query)
+        modules_by_category = [
+            LicensingChartDataPoint(label=row[0] if row[0] else "uncategorized", value=row[1])
+            for row in category_result.all()
+        ]
+
+        # Subscription trend (monthly)
+        subscription_trend = []
+        for i in range(period_months - 1, -1, -1):
+            month_date = (now - timedelta(days=i * 30)).replace(day=1)
+            next_month = (month_date + timedelta(days=32)).replace(day=1)
+
+            month_count_query = select(func.count(TenantSubscription.id)).where(
+                TenantSubscription.created_at >= month_date,
+                TenantSubscription.created_at < next_month,
+            )
+            month_count_result = await db.execute(month_count_query)
+            month_count = month_count_result.scalar() or 0
+
+            subscription_trend.append(LicensingChartDataPoint(
+                label=month_date.strftime("%b %Y"),
+                value=month_count,
+            ))
+
+        charts = LicensingCharts(
+            subscriptions_by_status=subscriptions_by_status,
+            subscriptions_by_plan=subscriptions_by_plan,
+            modules_by_category=modules_by_category,
+            subscription_trend=subscription_trend,
+        )
+
+        # ========== ALERTS ==========
+        alerts = []
+
+        # Expiring trials in next 7 days
+        trial_expiring_query = select(func.count(TenantSubscription.id)).where(
+            TenantSubscription.status == SubscriptionStatus.TRIAL.value,
+            TenantSubscription.trial_end <= now + timedelta(days=7),
+            TenantSubscription.trial_end > now,
+        )
+        trial_expiring_result = await db.execute(trial_expiring_query)
+        expiring_trials = trial_expiring_result.scalar() or 0
+
+        if expiring_trials > 0:
+            alerts.append(LicensingAlert(
+                type="warning",
+                title="Expiring Trials",
+                message=f"{expiring_trials} trial(s) expiring in the next 7 days",
+                count=expiring_trials,
+                action_url="/licensing/subscriptions?status=trial",
+            ))
+
+        # Past due subscriptions
+        past_due_query = select(func.count(TenantSubscription.id)).where(
+            TenantSubscription.status == SubscriptionStatus.PAST_DUE.value,
+        )
+        past_due_result = await db.execute(past_due_query)
+        past_due_count = past_due_result.scalar() or 0
+
+        if past_due_count > 0:
+            alerts.append(LicensingAlert(
+                type="error",
+                title="Past Due Subscriptions",
+                message=f"{past_due_count} subscription(s) are past due",
+                count=past_due_count,
+                action_url="/licensing/subscriptions?status=past_due",
+            ))
+
+        # ========== RECENT ACTIVITY ==========
+        recent_subscriptions_query = (
+            select(TenantSubscription)
+            .options(selectinload(TenantSubscription.plan))
+            .order_by(TenantSubscription.created_at.desc())
+            .limit(10)
+        )
+        recent_subscriptions_result = await db.execute(recent_subscriptions_query)
+        recent_subscriptions = recent_subscriptions_result.scalars().all()
+
+        recent_activity = [
+            LicensingRecentActivity(
+                id=str(sub.id),
+                type="subscription",
+                description=f"Subscription: {sub.plan.plan_name if sub.plan else 'Unknown Plan'}",
+                status=sub.status if sub.status else "unknown",
+                timestamp=sub.created_at,
+                tenant_id=sub.tenant_id,
+            )
+            for sub in recent_subscriptions
+        ]
+
+        return LicensingDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate licensing dashboard", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate licensing dashboard: {str(e)}",
+        )

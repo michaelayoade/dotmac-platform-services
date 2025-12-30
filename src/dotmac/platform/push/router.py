@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.token_with_rbac import get_current_user_with_rbac
-from dotmac.platform.db import get_db_session
+from dotmac.platform.user_management.models import User
+from dotmac.platform.database import get_async_session
 from dotmac.platform.push.service import PushNotificationService
 
 router = APIRouter(prefix="/api/v1/push", tags=["push-notifications"])
@@ -64,7 +65,7 @@ class PushSubscriptionResponse(BaseModel):
 async def subscribe_to_push_notifications(
     subscription: PushSubscriptionCreate,
     current_user: dict = Depends(get_current_user_with_rbac),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_async_session),
 ) -> PushSubscriptionResponse:
     """
     Subscribe to push notifications
@@ -96,7 +97,7 @@ async def subscribe_to_push_notifications(
 async def unsubscribe_from_push_notifications(
     subscription: PushSubscriptionCreate,
     current_user: dict = Depends(get_current_user_with_rbac),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """
     Unsubscribe from push notifications
@@ -120,7 +121,7 @@ async def send_push_notification(
     notification: PushNotificationCreate,
     user_id: str | None = None,
     current_user: dict = Depends(get_current_user_with_rbac),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_async_session),
 ) -> dict[str, Any]:
     """
     Send push notification
@@ -170,8 +171,8 @@ async def send_push_notification(
 
 @router.get("/subscriptions")
 async def list_push_subscriptions(
-    current_user: dict = Depends(get_current_user_with_rbac),
-    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user_with_rbac),
+    db: AsyncSession = Depends(get_async_session),
 ) -> dict[str, list[PushSubscriptionResponse]]:
     """
     List push subscriptions
@@ -179,7 +180,7 @@ async def list_push_subscriptions(
     Returns all active push subscriptions for the current user.
     """
     service = PushNotificationService(db)
-    user_id = current_user["user_id"]
+    user_id = str(current_user.id)
 
     subscriptions = await service.get_user_subscriptions(user_id=user_id)
 
@@ -188,7 +189,7 @@ async def list_push_subscriptions(
             PushSubscriptionResponse(
                 id=str(sub.id),
                 endpoint=sub.endpoint,
-                active=sub.active,
+                active=sub.is_active,
             )
             for sub in subscriptions
         ]

@@ -21,7 +21,6 @@ from sqlalchemy.orm import selectinload
 
 from dotmac.platform.auth.core import UserInfo, ensure_uuid
 from dotmac.platform.auth.platform_admin import is_platform_admin
-from dotmac.platform.customer_management.models import Customer
 from dotmac.platform.partner_management.models import Partner, PartnerStatus, PartnerUser
 
 from .events import (
@@ -66,7 +65,6 @@ class TicketActorContext:
 
 
 ALLOWED_TARGETS: dict[TicketActorType, set[TicketActorType]] = {
-    TicketActorType.CUSTOMER: {TicketActorType.TENANT},
     TicketActorType.TENANT: {TicketActorType.PARTNER, TicketActorType.PLATFORM},
     TicketActorType.PARTNER: {TicketActorType.PLATFORM, TicketActorType.TENANT},
     TicketActorType.PLATFORM: {TicketActorType.TENANT, TicketActorType.PARTNER},
@@ -141,7 +139,7 @@ class TicketService:
             sender_user_id=context.user_uuid,
             tenant_id=tenant_scope,
             partner_id=partner_id if context.actor_type == TicketActorType.PARTNER else None,
-            customer_id=customer_id if context.actor_type == TicketActorType.CUSTOMER else None,
+            customer_id=None,
             body=data.message.strip(),
             attachments=list(data.attachments or []),
         )
@@ -205,11 +203,7 @@ class TicketService:
             query = query.options(selectinload(Ticket.messages))
 
         if not context.is_platform_admin:
-            if context.actor_type == TicketActorType.CUSTOMER:
-                if not context.customer_id:
-                    return []
-                query = query.where(Ticket.customer_id == context.customer_id)
-            elif context.actor_type == TicketActorType.PARTNER:
+            if context.actor_type == TicketActorType.PARTNER:
                 if not context.partner_id:
                     return []
                 query = query.where(Ticket.partner_id == context.partner_id)
@@ -286,9 +280,7 @@ class TicketService:
             partner_id=(
                 context.partner_id if context.actor_type == TicketActorType.PARTNER else None
             ),
-            customer_id=(
-                context.customer_id if context.actor_type == TicketActorType.CUSTOMER else None
-            ),
+            customer_id=None,
             body=data.message.strip(),
             attachments=list(data.attachments or []),
         )
@@ -443,9 +435,6 @@ class TicketService:
         ticket = await self.get_ticket(ticket_id, current_user, tenant_id, include_messages=True)
         context = await self._resolve_actor_context(current_user, tenant_id)
 
-        if context.actor_type == TicketActorType.CUSTOMER:
-            raise TicketAccessDeniedError("Customers cannot update ticket metadata.")
-
         updated = False
         old_status = ticket.status
         old_assigned = ticket.assigned_to_user_id
@@ -589,7 +578,7 @@ class TicketService:
                 is_platform_admin=True,
             )
 
-        # Partner users take precedence over customers
+        # Partner users take precedence
         if user_uuid:
             partner_user = await self._fetch_partner_user(user_uuid, tenant_scope)
             if partner_user:
@@ -598,25 +587,6 @@ class TicketService:
                     user_uuid=user_uuid,
                     tenant_id=partner_user.tenant_id or tenant_scope,
                     partner_id=partner_user.partner_id,
-                    customer_id=None,
-                )
-
-            customer = await self._fetch_customer(user_uuid, tenant_scope)
-            if customer:
-                return TicketActorContext(
-                    actor_type=TicketActorType.CUSTOMER,
-                    user_uuid=user_uuid,
-                    tenant_id=customer.tenant_id or tenant_scope,
-                    partner_id=None,
-                    customer_id=customer.id,
-                )
-            # Fall back to role-based customer context when no DB record is linked
-            if "customer" in (current_user.roles or []):
-                return TicketActorContext(
-                    actor_type=TicketActorType.CUSTOMER,
-                    user_uuid=user_uuid,
-                    tenant_id=tenant_scope,
-                    partner_id=None,
                     customer_id=None,
                 )
 
@@ -657,9 +627,7 @@ class TicketService:
         return result_id
 
     async def _resolve_customer_id(self, context: TicketActorContext) -> UUID | None:
-        """Determine associated customer if the actor is a customer."""
-        if context.actor_type == TicketActorType.CUSTOMER:
-            return context.customer_id
+        """Customer context is not used for tenant-scoped ticketing."""
         return None
 
     def _validate_target(self, origin: TicketActorType, target: TicketActorType) -> None:
@@ -673,11 +641,6 @@ class TicketService:
     def _ensure_access(self, context: TicketActorContext, ticket: Ticket) -> None:
         """Assert that the current actor can access the ticket."""
         if context.is_platform_admin:
-            return
-
-        if context.actor_type == TicketActorType.CUSTOMER:
-            if ticket.customer_id != context.customer_id:
-                raise TicketAccessDeniedError("Customer does not have access to this ticket.")
             return
 
         if context.actor_type == TicketActorType.PARTNER:
@@ -706,21 +669,6 @@ class TicketService:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def _fetch_customer(
-        self,
-        user_uuid: UUID,
-        tenant_scope: str | None,
-    ) -> Customer | None:
-        query = select(Customer).where(
-            Customer.user_id == user_uuid,
-            Customer.deleted_at.is_(None),
-        )
-        if tenant_scope:
-            query = query.where(Customer.tenant_id == tenant_scope)
-
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
-
     async def _fetch_partner(self, partner_id: UUID) -> Partner | None:
         query = select(Partner).where(
             Partner.id == partner_id,
@@ -743,13 +691,13 @@ class TicketService:
             select(
                 Ticket.assigned_to_user_id,
                 func.count(Ticket.id).label("total_assigned"),
-                func.sum(func.case((Ticket.status == TicketStatus.RESOLVED, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.RESOLVED, 1), else_=0)).label(
                     "total_resolved"
                 ),
-                func.sum(func.case((Ticket.status == TicketStatus.OPEN, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.OPEN, 1), else_=0)).label(
                     "total_open"
                 ),
-                func.sum(func.case((Ticket.status == TicketStatus.IN_PROGRESS, 1), else_=0)).label(
+                func.sum(case((Ticket.status == TicketStatus.IN_PROGRESS, 1), else_=0)).label(
                     "total_in_progress"
                 ),
                 func.avg(Ticket.resolution_time_minutes).label("avg_resolution_time"),
@@ -762,12 +710,12 @@ class TicketService:
                     / 60
                 ).label("avg_first_response_time"),
                 func.sum(
-                    func.case(
+                    case(
                         (Ticket.sla_breached.is_(False), 1),
                         else_=0,
                     )
                 ).label("sla_met_count"),
-                func.sum(func.case((Ticket.escalation_level > 0, 1), else_=0)).label(
+                func.sum(case((Ticket.escalation_level > 0, 1), else_=0)).label(
                     "escalated_count"
                 ),
             )

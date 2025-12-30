@@ -162,7 +162,7 @@ class TestAppBoundaryMiddleware:
     @pytest.mark.asyncio
     async def test_tenant_route_requires_authentication(self, middleware, mock_request):
         """Test that tenant routes require authentication."""
-        mock_request.url.path = "/api/tenant/v1/customers"
+        mock_request.url.path = "/api/tenant/v1/contacts"
         mock_request.state.user = None
         mock_request.state.tenant_id = None
 
@@ -192,7 +192,7 @@ class TestAppBoundaryMiddleware:
     @pytest.mark.asyncio
     async def test_tenant_route_requires_tenant_scope(self, middleware, mock_request):
         """Test that tenant routes require tenant-level scopes."""
-        mock_request.url.path = "/api/tenant/v1/customers"
+        mock_request.url.path = "/api/tenant/v1/contacts"
         mock_user = Mock()
         mock_user.id = "user-123"
         mock_user.scopes = ["public:read"]  # No tenant scopes
@@ -223,7 +223,7 @@ class TestAppBoundaryMiddleware:
     @pytest.mark.asyncio
     async def test_tenant_route_accepts_platform_scope(self, middleware, mock_request):
         """Test that tenant routes accept platform scopes (for support)."""
-        mock_request.url.path = "/api/tenant/v1/customers"
+        mock_request.url.path = "/api/tenant/v1/contacts"
         mock_user = Mock()
         mock_user.id = "support-123"
         mock_user.scopes = ["platform_support"]  # Platform scope
@@ -240,7 +240,7 @@ class TestAppBoundaryMiddleware:
             ["tenant_admin:*"],
             ["network:read"],
             ["billing:write"],
-            ["customer:*"],
+            ["contacts:*"],
             ["services:read"],
             ["reseller:write"],
             ["support:*"],
@@ -253,7 +253,7 @@ class TestAppBoundaryMiddleware:
             ["audit:read"],
         ]
 
-        mock_request.url.path = "/api/tenant/v1/customers"
+        mock_request.url.path = "/api/tenant/v1/contacts"
         mock_user = Mock()
         mock_user.id = "user-123"
         mock_request.state.user = mock_user
@@ -301,12 +301,12 @@ class TestAppBoundaryMiddleware:
         """Test platform route detection."""
         assert middleware._is_platform_route("/api/platform/v1/admin")
         assert middleware._is_platform_route("/api/platform/v1/tenants")
-        assert not middleware._is_platform_route("/api/tenant/v1/customers")
+        assert not middleware._is_platform_route("/api/tenant/v1/contacts")
         assert not middleware._is_platform_route("/api/v1/users")
 
     def test_is_tenant_route(self, middleware):
         """Test tenant route detection."""
-        assert middleware._is_tenant_route("/api/tenant/v1/customers")
+        assert middleware._is_tenant_route("/api/tenant/v1/contacts")
         assert middleware._is_tenant_route("/api/tenant/v1/billing/invoices")
         assert not middleware._is_tenant_route("/api/platform/v1/admin")
         assert not middleware._is_tenant_route("/api/v1/users")
@@ -368,7 +368,7 @@ class TestSingleTenantMiddleware:
         """Create mock Request object."""
         request = Mock(spec=Request)
         request.url = Mock()
-        request.url.path = "/api/tenant/v1/customers"
+        request.url.path = "/api/tenant/v1/contacts"
         request.state = Mock()
         return request
 
@@ -458,14 +458,14 @@ class TestMiddlewareIntegration:
             mock_settings.TENANT_ID = "fixed-tenant-123"
 
             # Step 1: SingleTenantMiddleware sets tenant_id
-            mock_request.url.path = "/api/tenant/v1/customers"
+            mock_request.url.path = "/api/tenant/v1/contacts"
             await tenant_middleware.dispatch(mock_request, self.call_next)
             assert mock_request.state.tenant_id == "fixed-tenant-123"
 
             # Step 2: AppBoundaryMiddleware validates tenant route
             mock_user = Mock()
             mock_user.id = "user-456"
-            mock_user.scopes = ["customer:read"]
+            mock_user.scopes = ["contacts:read"]
             mock_request.state.user = mock_user
 
             response = await app_middleware.dispatch(mock_request, self.call_next)
@@ -495,7 +495,7 @@ class TestMiddlewareIntegration:
             mock_settings.DEPLOYMENT_MODE = "hybrid"
 
             # Platform support user accessing tenant route with tenant context
-            mock_request.url.path = "/api/tenant/v1/customers"
+            mock_request.url.path = "/api/tenant/v1/contacts"
             mock_user = Mock()
             mock_user.id = "support-123"
             mock_user.scopes = ["platform_support"]

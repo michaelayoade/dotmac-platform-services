@@ -63,9 +63,8 @@ class ChatSession(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     tenant_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     user_id: Mapped[UUID | None] = mapped_column(GUID, ForeignKey("users.id"), nullable=True)
-    customer_id: Mapped[UUID | None] = mapped_column(
-        GUID, ForeignKey("customers.id"), nullable=True
-    )
+    # No FK - customer_management removed
+    customer_id: Mapped[UUID | None] = mapped_column(GUID, nullable=True)
 
     # Session metadata
     session_type: Mapped[str] = mapped_column(

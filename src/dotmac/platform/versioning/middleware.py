@@ -24,7 +24,7 @@ class APIVersionMiddleware(BaseHTTPMiddleware):
     Middleware for API version detection and validation.
 
     Detects API version from various sources based on configured strategy:
-    - URL path: /v1/customers, /v2/customers
+    - URL path: /v1/tenants, /v2/tenants
     - Header: X-API-Version: v1
     - Query parameter: ?version=v1
     - Accept header: Accept: application/vnd.api+json; version=1

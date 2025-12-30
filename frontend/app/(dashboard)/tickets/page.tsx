@@ -23,8 +23,9 @@ import { Button, Card, Input } from "@dotmac/core";
 
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
-import { useTickets, useTicketStats } from "@/lib/hooks/api/use-ticketing";
+import { useTickets, useTicketsDashboard, useTicketStats } from "@/lib/hooks/api/use-ticketing";
 import type { Ticket, TicketPriority, TicketStatus } from "@/lib/api/ticketing";
+import { DashboardAlerts } from "@/components/features/dashboard";
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; icon: React.ElementType }> = {
   open: { label: "Open", color: "bg-status-info/15 text-status-info", icon: Circle },
@@ -54,6 +55,7 @@ export default function TicketsPage() {
     status: statusFilter === "all" ? undefined : statusFilter,
     priority: priorityFilter === "all" ? undefined : priorityFilter,
   });
+  const { data: dashboardData } = useTicketsDashboard();
   const { data: stats } = useTicketStats();
 
   const tickets: Ticket[] = data?.tickets || [];
@@ -74,7 +76,7 @@ export default function TicketsPage() {
     <div className="space-y-8 animate-fade-up">
       <PageHeader
         title="Tickets"
-        description="Manage support tickets and customer inquiries"
+        description="Manage support tickets and tenant inquiries"
         actions={
           <Link href="/tickets/new">
             <Button>
@@ -84,6 +86,11 @@ export default function TicketsPage() {
           </Link>
         }
       />
+
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
 
       {/* Stats */}
       {stats && (

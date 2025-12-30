@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect, type ElementType } from "react";
 import { Sun, Moon, Monitor, Check } from "lucide-react";
-import { useThemeStore, type Theme } from "@/lib/stores/theme-store";
+import { useTheme } from "@/lib/dotmac/core";
 import { cn } from "@/lib/utils";
 
-const themeOptions: { value: Theme; label: string; icon: ElementType }[] = [
+type ColorScheme = "light" | "dark" | "system";
+
+const themeOptions: { value: ColorScheme; label: string; icon: ElementType }[] = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
   { value: "system", label: "System", icon: Monitor },
@@ -16,7 +18,7 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const { theme, resolvedTheme, setTheme } = useThemeStore();
+  const { config, resolvedColorScheme, setColorScheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +48,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     }
   }, [isOpen]);
 
-  const CurrentIcon = resolvedTheme === "dark" ? Moon : Sun;
+  const CurrentIcon = resolvedColorScheme === "dark" ? Moon : Sun;
 
   return (
     <div ref={dropdownRef} className={cn("relative", className)}>
@@ -82,13 +84,13 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
         >
           {themeOptions.map((option) => {
             const Icon = option.icon;
-            const isSelected = theme === option.value;
+            const isSelected = config.colorScheme === option.value;
 
             return (
               <button
                 key={option.value}
                 onClick={() => {
-                  setTheme(option.value);
+                  setColorScheme(option.value);
                   setIsOpen(false);
                 }}
                 className={cn(
@@ -116,10 +118,10 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 
 // Simple toggle button variant (just switches between light/dark)
 export function ThemeToggleSimple({ className }: ThemeToggleProps) {
-  const { resolvedTheme, setTheme } = useThemeStore();
+  const { resolvedColorScheme, setColorScheme } = useTheme();
 
   const toggleTheme = () => {
-    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    setColorScheme(resolvedColorScheme === "dark" ? "light" : "dark");
   };
 
   return (
@@ -133,14 +135,14 @@ export function ThemeToggleSimple({ className }: ThemeToggleProps) {
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         className
       )}
-      aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
+      aria-label={`Switch to ${resolvedColorScheme === "dark" ? "light" : "dark"} mode`}
     >
       <div className="relative w-5 h-5">
         {/* Sun icon */}
         <Sun
           className={cn(
             "absolute inset-0 w-5 h-5 transition-all duration-300",
-            resolvedTheme === "dark"
+            resolvedColorScheme === "dark"
               ? "opacity-0 rotate-90 scale-0"
               : "opacity-100 rotate-0 scale-100"
           )}
@@ -149,7 +151,7 @@ export function ThemeToggleSimple({ className }: ThemeToggleProps) {
         <Moon
           className={cn(
             "absolute inset-0 w-5 h-5 transition-all duration-300",
-            resolvedTheme === "dark"
+            resolvedColorScheme === "dark"
               ? "opacity-100 rotate-0 scale-100"
               : "opacity-0 -rotate-90 scale-0"
           )}

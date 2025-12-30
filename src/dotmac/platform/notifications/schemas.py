@@ -5,10 +5,10 @@ Pydantic models for notification API request/response validation.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from dotmac.platform.notifications.models import (
     NotificationChannel,
@@ -16,16 +16,18 @@ from dotmac.platform.notifications.models import (
     NotificationType,
 )
 
+METADATA_ALIAS = cast(Any, AliasChoices("notification_metadata", "metadata"))
+
 
 # Notification Schemas
 class NotificationResponse(BaseModel):  # BaseModel resolves to Any in isolation
     """Response schema for notification."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: str
     tenant_id: str
-    user_id: UUID
+    user_id: str
     type: NotificationType
     priority: NotificationPriority
     title: str
@@ -45,9 +47,19 @@ class NotificationResponse(BaseModel):  # BaseModel resolves to Any in isolation
     sms_sent_at: datetime | None
     push_sent: bool
     push_sent_at: datetime | None
-    notification_metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias=METADATA_ALIAS,
+        serialization_alias="metadata",
+    )
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "user_id", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else ""
 
 
 class NotificationCreateRequest(BaseModel):  # BaseModel resolves to Any in isolation
@@ -84,9 +96,9 @@ class NotificationPreferenceResponse(BaseModel):  # BaseModel resolves to Any in
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: str
     tenant_id: str
-    user_id: UUID
+    user_id: str
     enabled: bool
     email_enabled: bool
     sms_enabled: bool
@@ -101,6 +113,12 @@ class NotificationPreferenceResponse(BaseModel):  # BaseModel resolves to Any in
     email_digest_frequency: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "user_id", mode="before")
+    @classmethod
+    def convert_uuids(cls, v: Any) -> str:
+        """Convert UUIDs to string."""
+        return str(v) if v is not None else ""
 
 
 class NotificationPreferenceUpdateRequest(BaseModel):  # BaseModel resolves to Any in isolation

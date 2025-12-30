@@ -58,7 +58,7 @@ async def webhook_subscription(db_session):
         tenant_id="e2e-test-tenant",
         url="https://example.com/webhook",
         description="Test webhook subscription",
-        events=["invoice.created", "invoice.paid", "customer.created"],
+        events=["invoice.created", "invoice.paid", "user.registered"],
         secret="test-secret-key",
         headers={"Authorization": "Bearer test-token"},
         is_active=True,
@@ -514,7 +514,7 @@ class TestWebhookEventBus:
         event_types = [evt["event_type"] for evt in data["events"]]
         assert "invoice.created" in event_types
         assert "invoice.paid" in event_types
-        assert "customer.created" in event_types
+        assert "user.registered" in event_types
 
     async def test_get_event_details(self, async_client, auth_headers):
         """Test getting details for a specific event type."""

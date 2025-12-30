@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { Session } from "next-auth";
 
 import { PortalSidebar, type PortalConfig } from "./portal-sidebar";
+import { partnerPortalConfig } from "@/lib/config/partner-portal";
+import { tenantPortalConfig } from "@/lib/config/tenant-portal";
 import { cn } from "@/lib/utils";
+import type { PlatformUser } from "@/types/auth";
 
 interface PortalShellProps {
   children: ReactNode;
-  session: Session;
+  user: PlatformUser;
   config: PortalConfig;
 }
 
-export function PortalShell({ children, session, config }: PortalShellProps) {
+export function PortalShell({ children, user, config }: PortalShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
@@ -21,7 +23,7 @@ export function PortalShell({ children, session, config }: PortalShellProps) {
       <PortalSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        session={session}
+        user={user}
         config={config}
       />
 
@@ -48,5 +50,27 @@ export function PortalShell({ children, session, config }: PortalShellProps) {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-highlight/5 rounded-full blur-3xl" />
       </div>
     </div>
+  );
+}
+
+type PortalConfigKey = "partner" | "tenant";
+
+interface PortalShellWithConfigProps {
+  children: ReactNode;
+  user: PlatformUser;
+  configKey: PortalConfigKey;
+}
+
+export function PortalShellWithConfig({
+  children,
+  user,
+  configKey,
+}: PortalShellWithConfigProps) {
+  const config = configKey === "partner" ? partnerPortalConfig : tenantPortalConfig;
+
+  return (
+    <PortalShell user={user} config={config}>
+      {children}
+    </PortalShell>
   );
 }

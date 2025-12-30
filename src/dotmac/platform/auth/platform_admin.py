@@ -235,16 +235,16 @@ async def get_effective_tenant_id(
         Tenant ID to use, or None for cross-tenant operations
 
     Example:
-        >>> @router.get("/customers")
-        >>> async def list_customers(
+        >>> @router.get("/tenants")
+        >>> async def list_tenants(
         >>>     tenant_id: Optional[str] = Depends(get_effective_tenant_id),
         >>> ):
         >>>     if tenant_id:
         >>>         # Tenant-scoped query
-        >>>         return await get_customers(tenant_id=tenant_id)
+        >>>         return await get_tenants(tenant_id=tenant_id)
         >>>     else:
         >>>         # Cross-tenant query (platform admin only)
-        >>>         return await get_all_customers()
+        >>>         return await get_all_tenants()
     """
     return get_target_tenant_id(request, current_user)
 

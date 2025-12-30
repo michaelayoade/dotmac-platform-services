@@ -29,6 +29,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ConfirmDialog, useConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   useWorkflows,
+  useWorkflowsDashboard,
   useWorkflowStats,
   useDeleteWorkflow,
   usePublishWorkflow,
@@ -36,6 +37,7 @@ import {
   useCloneWorkflow,
   useExecuteWorkflow,
 } from "@/lib/hooks/api/use-workflows";
+import { DashboardAlerts } from "@/components/features/dashboard";
 
 export default function WorkflowsPage() {
   const { toast } = useToast();
@@ -54,6 +56,7 @@ export default function WorkflowsPage() {
     search: searchQuery || undefined,
     isActive: statusFilter === "all" ? undefined : statusFilter === "active",
   });
+  const { data: dashboardData } = useWorkflowsDashboard();
   const { data: stats } = useWorkflowStats();
 
   const deleteWorkflow = useDeleteWorkflow();
@@ -150,6 +153,11 @@ export default function WorkflowsPage() {
           </div>
         }
       />
+
+      {/* Dashboard Alerts */}
+      {dashboardData?.alerts && dashboardData.alerts.length > 0 && (
+        <DashboardAlerts alerts={dashboardData.alerts} />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

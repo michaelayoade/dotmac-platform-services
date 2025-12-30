@@ -393,7 +393,7 @@ class TestStripePaymentProvider:
         with patch.dict("sys.modules", {"stripe": mock_stripe_module}):
             # Setup other event
             mock_event = MagicMock()
-            mock_event.type = "customer.created"
+            mock_event.type = "product.created"
             mock_customer = MagicMock()
             mock_customer.id = "cus_test_123"
             mock_event.data.object = mock_customer
@@ -403,7 +403,7 @@ class TestStripePaymentProvider:
 
             result = await provider.handle_webhook({}, "signature")
 
-            assert result["event_type"] == "customer.created"
+            assert result["event_type"] == "product.created"
             assert result["data"] == mock_customer
 
     @pytest.mark.asyncio

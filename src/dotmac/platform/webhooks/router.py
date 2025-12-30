@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user
 from dotmac.platform.auth.rbac_dependencies import require_permission
-from dotmac.platform.db import get_async_db
+from dotmac.platform.database import get_async_session as get_async_db
 
 from .delivery import WebhookDeliveryService
 from .events import get_event_bus

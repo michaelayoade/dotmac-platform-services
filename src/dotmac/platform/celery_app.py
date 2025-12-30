@@ -22,7 +22,10 @@ celery_app = Celery(
         "dotmac.platform.tasks",
         "dotmac.platform.communications.task_service",
         "dotmac.platform.billing.dunning.tasks",
+        "dotmac.platform.billing.subscriptions.tasks",
         "dotmac.platform.data_transfer.tasks",
+        "dotmac.platform.data_transfer.backup_tasks",
+        "dotmac.platform.secrets.rotation_tasks",
     ],  # Auto-discover task modules
 )
 

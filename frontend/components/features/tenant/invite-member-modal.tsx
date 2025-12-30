@@ -75,7 +75,7 @@ export function InviteMemberModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-overlay/50 backdrop-blur-sm"
         onClick={handleClose}
       />
 
@@ -114,7 +114,7 @@ export function InviteMemberModal({
                 placeholder="colleague@company.com"
                 className={cn(
                   "w-full pl-10 pr-3 py-2 rounded-md border bg-surface text-text-primary placeholder:text-text-muted",
-                  "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   errors.email ? "border-status-error" : "border-border"
                 )}
               />
@@ -178,7 +178,7 @@ export function InviteMemberModal({
 
           {/* Error Message */}
           {inviteMember.isError && (
-            <div className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error text-sm">
+            <div className="p-3 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error text-sm">
               Failed to send invitation. Please try again.
             </div>
           )}
@@ -195,7 +195,7 @@ export function InviteMemberModal({
             <button
               type="submit"
               disabled={isSubmitting || inviteMember.isPending}
-              className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
             >
               {(isSubmitting || inviteMember.isPending) && (
                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -210,8 +210,16 @@ class RateLimitService:
         for rule in all_rules:
             if rule.endpoint_pattern is None or rule.scope == RateLimitScope.GLOBAL:
                 applicable_rules.append(rule)
-            elif re.match(rule.endpoint_pattern, endpoint):
-                applicable_rules.append(rule)
+                continue
+            try:
+                if re.match(rule.endpoint_pattern, endpoint):
+                    applicable_rules.append(rule)
+            except re.error:
+                logger.warning(
+                    "rate_limit.invalid_pattern",
+                    rule_id=str(rule.id),
+                    endpoint_pattern=rule.endpoint_pattern,
+                )
 
         return applicable_rules
 

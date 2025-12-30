@@ -26,7 +26,7 @@ class TestWorkflowEngineParameterResolution:
     def test_resolve_context_reference(self):
         """Test resolving ${context.var} syntax"""
         engine = WorkflowEngine(db_session=MagicMock())
-        context = {"lead_id": "123", "customer_name": "Test Customer"}
+        context = {"lead_id": "123", "tenant_name": "Test Customer"}
 
         result = engine._resolve_params("${lead_id}", context)
         assert result == "123"
@@ -34,16 +34,16 @@ class TestWorkflowEngineParameterResolution:
     def test_resolve_dict_with_templates(self):
         """Test resolving dictionary values with templates"""
         engine = WorkflowEngine(db_session=MagicMock())
-        context = {"customer_id": "cust-001", "amount": 100.50}
+        context = {"tenant_id": "cust-001", "amount": 100.50}
 
         params = {
-            "customer_id": "${customer_id}",
+            "tenant_id": "${tenant_id}",
             "fixed_value": "test",
             "amount": "${amount}",
         }
 
         result = engine._resolve_params(params, context)
-        assert result["customer_id"] == "cust-001"
+        assert result["tenant_id"] == "cust-001"
         assert result["fixed_value"] == "test"
         assert result["amount"] == 100.50
 
@@ -61,12 +61,12 @@ class TestWorkflowEngineParameterResolution:
         """Test resolving nested context values"""
         engine = WorkflowEngine(db_session=MagicMock())
         context = {
-            "customer": {"id": "123", "name": "Test"},
+            "tenant": {"id": "123", "name": "Test"},
             "order": {"amount": 500},
         }
 
         # Simplified - just test flat access for now
-        result = engine._resolve_params("${customer}", context)
+        result = engine._resolve_params("${tenant}", context)
         assert result == {"id": "123", "name": "Test"}
 
     def test_get_nested_value(self):
@@ -74,20 +74,20 @@ class TestWorkflowEngineParameterResolution:
         engine = WorkflowEngine(db_session=MagicMock())
 
         obj = {
-            "customer": {"id": "123", "details": {"email": "test@example.com"}},
+            "tenant": {"id": "123", "details": {"email": "test@example.com"}},
             "amount": 100,
         }
 
-        assert engine._get_nested_value(obj, "customer.id") == "123"
+        assert engine._get_nested_value(obj, "tenant.id") == "123"
         assert engine._get_nested_value(obj, "amount") == 100
-        assert engine._get_nested_value(obj, "customer.details.email") == "test@example.com"
+        assert engine._get_nested_value(obj, "tenant.details.email") == "test@example.com"
 
     def test_get_nested_value_missing_key(self):
         """Test getting nested value with missing key returns None"""
         engine = WorkflowEngine(db_session=MagicMock())
-        obj = {"customer": {"id": "123"}}
+        obj = {"tenant": {"id": "123"}}
 
-        result = engine._get_nested_value(obj, "customer.missing")
+        result = engine._get_nested_value(obj, "tenant.missing")
         assert result is None
 
     def test_resolve_nonexistent_context_var(self):

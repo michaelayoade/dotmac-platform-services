@@ -288,7 +288,12 @@ def ensure_uuid(value: str | UUID) -> UUID:
 
 
 class JWTService:
-    """Simplified JWT service using Authlib with token revocation support."""
+    """Simplified JWT service using Authlib with token revocation support.
+
+    Supports dual-stack verification:
+    - Asymmetric (RS256/ES256) with kid-based key lookup for JWKS/OIDC
+    - Symmetric (HS256) for legacy tokens and fallback
+    """
 
     def __init__(
         self, secret: str | None = None, algorithm: str | None = None, redis_url: str | None = None
@@ -298,19 +303,36 @@ class JWTService:
         self.header = {"alg": self.algorithm}
         self.redis_url = redis_url or REDIS_URL
         self._redis: Any | None = None
+        self._redis_sync: Any | None = None
+
+        # JWKS/Asymmetric key support
+        self._key_manager: Any | None = None
+        try:
+            from .keys import get_key_manager
+
+            self._key_manager = get_key_manager()
+        except Exception as e:
+            logger.debug("key_manager.not_available", error=str(e))
+
+    @property
+    def key_manager(self) -> Any | None:
+        """Get the key manager (lazy loaded)."""
+        return self._key_manager
 
     def create_access_token(
         self,
         subject: str,
         additional_claims: dict[str, Any] | None = None,
         expire_minutes: int | None = None,
+        expires_delta: timedelta | None = None,
     ) -> str:
         """Create access token."""
         data = {"sub": subject, "type": TokenType.ACCESS.value}
         if additional_claims:
             data.update(additional_claims)
 
-        expires_delta = timedelta(minutes=expire_minutes or ACCESS_TOKEN_EXPIRE_MINUTES)
+        if expires_delta is None:
+            expires_delta = timedelta(minutes=expire_minutes or ACCESS_TOKEN_EXPIRE_MINUTES)
         return self._create_token(data, expires_delta)
 
     def create_refresh_token(
@@ -341,19 +363,72 @@ class JWTService:
         return self.verify_token(token)
 
     def _create_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:
-        """Internal token creation."""
+        """Internal token creation with OIDC claims support.
+
+        Adds iss/aud claims for OIDC compliance.
+        Uses asymmetric signing when feature-flagged and keys are available.
+        """
         to_encode = data.copy()
         expire = datetime.now(UTC) + expires_delta
 
-        to_encode.update(
-            {"exp": expire, "iat": datetime.now(UTC), "jti": secrets.token_urlsafe(16)}
-        )
+        to_encode["exp"] = expire
+        if "iat" not in to_encode:
+            to_encode["iat"] = datetime.now(UTC)
+        if "jti" not in to_encode:
+            to_encode["jti"] = secrets.token_urlsafe(16)
 
+        # Add OIDC claims (issuer and audience)
+        try:
+            from ..settings import settings
+
+            to_encode["iss"] = settings.auth.jwt_issuer
+            to_encode["aud"] = settings.auth.jwt_audience
+        except Exception:
+            pass  # Settings not available, skip OIDC claims
+
+        # Feature-flagged asymmetric signing
+        try:
+            from ..settings import settings
+
+            use_asymmetric = (
+                settings.auth.jwt_use_asymmetric
+                and self._key_manager is not None
+                and self._key_manager.is_signing_available
+            )
+
+            if use_asymmetric:
+                key_manager = self._key_manager
+                if key_manager is None:
+                    raise RuntimeError("Key manager unavailable for asymmetric signing")
+                private_key, kid = key_manager.get_signing_key()
+                header = {"alg": settings.auth.jwt_asymmetric_algorithm, "kid": kid}
+                token = jwt.encode(header, to_encode, private_key)
+                return token.decode("utf-8") if isinstance(token, bytes) else token
+        except Exception as e:
+            logger.debug("jwt.asymmetric_signing_fallback", error=str(e))
+
+        # Default: HS256 symmetric signing
         token = jwt.encode(self.header, to_encode, self.secret)
         return token.decode("utf-8") if isinstance(token, bytes) else token
 
+    def _get_claims_options(self) -> dict[str, Any] | None:
+        """Build claims validation options for issuer/audience."""
+        try:
+            from ..settings import settings
+
+            return {
+                "iss": {"essential": True, "value": settings.auth.jwt_issuer},
+                "aud": {"essential": True, "value": settings.auth.jwt_audience},
+            }
+        except Exception:
+            return None
+
     def verify_token(self, token: str, expected_type: TokenType | None = None) -> dict[str, Any]:
-        """Verify and decode token with sync blacklist check.
+        """Verify and decode token with dual-stack support (HS256 + RS/ES256).
+
+        Verification order:
+        1. If token has 'kid' header, try asymmetric verification with key lookup
+        2. Fall back to HS256 symmetric verification
 
         Args:
             token: JWT token to verify
@@ -366,9 +441,20 @@ class JWTService:
             HTTPException: If token is invalid, revoked, or has wrong type
         """
         try:
-            claims_raw = jwt.decode(token, self.secret)
-            claims_raw.validate()
-            claims = cast(dict[str, Any], dict(claims_raw))
+            claims: dict[str, Any] | None = None
+            claims_options = self._get_claims_options()
+
+            # Try asymmetric verification first if kid is present
+            claims = self._try_asymmetric_verification(token, claims_options)
+
+            # Fall back to HS256 if asymmetric failed or not applicable
+            if claims is None:
+                if claims_options:
+                    claims_raw = jwt.decode(token, self.secret, claims_options=claims_options)
+                else:
+                    claims_raw = jwt.decode(token, self.secret)
+                claims_raw.validate()
+                claims = cast(dict[str, Any], dict(claims_raw))
 
             # Validate token type if specified
             if expected_type:
@@ -383,6 +469,12 @@ class JWTService:
             if jti and self.is_token_revoked_sync(jti):
                 raise JoseError("Token has been revoked")
 
+            user_id = claims.get("sub")
+            if user_id:
+                revoked_at = self._get_user_revoked_at_sync(user_id)
+                if revoked_at is not None and self._is_token_revoked_by_user(claims, revoked_at):
+                    raise JoseError("Token has been revoked")
+
             return claims
         except JoseError as e:
             raise HTTPException(
@@ -391,6 +483,61 @@ class JWTService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    def _try_asymmetric_verification(
+        self,
+        token: str,
+        claims_options: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Try to verify token using asymmetric keys.
+
+        Returns claims if successful, None if not applicable or failed.
+        Supports key rotation by trying current key first, then previous keys.
+        """
+        if self._key_manager is None or not self._key_manager.is_asymmetric_available:
+            return None
+
+        try:
+            # Decode header without verification to get kid
+            parts = token.split(".")
+            if len(parts) != 3:
+                return None
+
+            import base64
+            import json
+
+            # Decode header (add padding if needed)
+            header_b64 = parts[0]
+            padding = 4 - len(header_b64) % 4
+            if padding != 4:
+                header_b64 += "=" * padding
+            header_bytes = base64.urlsafe_b64decode(header_b64)
+            header = json.loads(header_bytes)
+
+            kid = header.get("kid")
+            alg = header.get("alg", "")
+
+            # Only try asymmetric if kid is present and algorithm is RS*/ES*
+            if not kid or not (alg.startswith("RS") or alg.startswith("ES")):
+                return None
+
+            # Look up key by kid
+            public_key = self._key_manager.get_key_by_kid(kid)
+            if public_key is None:
+                logger.debug("jwt.kid_not_found", kid=kid)
+                return None
+
+            # Verify with the asymmetric key
+            if claims_options:
+                claims_raw = jwt.decode(token, public_key, claims_options=claims_options)
+            else:
+                claims_raw = jwt.decode(token, public_key)
+            claims_raw.validate()
+            return cast(dict[str, Any], dict(claims_raw))
+
+        except Exception as e:
+            logger.debug("jwt.asymmetric_verification_failed", error=str(e))
+            return None
+
     async def _get_redis(self) -> Any | None:
         """Get Redis connection."""
         if not REDIS_AVAILABLE:
@@ -398,6 +545,19 @@ class JWTService:
         if self._redis is None and redis_async is not None:
             self._redis = redis_async.from_url(self.redis_url, decode_responses=True)
         return self._redis
+
+    def _get_redis_sync(self) -> Any | None:
+        """Get Redis connection (sync)."""
+        if self._redis_sync is not None:
+            return self._redis_sync
+        try:
+            import redis
+
+            self._redis_sync = redis.Redis.from_url(self.redis_url, decode_responses=True)
+            return self._redis_sync
+        except Exception:
+            self._redis_sync = None
+            return None
 
     async def revoke_token(self, token: str) -> bool:
         """Revoke a token by adding its JTI to blacklist."""
@@ -429,9 +589,15 @@ class JWTService:
     def is_token_revoked_sync(self, jti: str) -> bool:
         """Check if token is revoked (sync version)."""
         try:
-            from dotmac.platform.core.caching import get_redis
+            redis_client = None
+            try:
+                from dotmac.platform.core.caching import get_redis
 
-            redis_client = get_redis()
+                redis_client = get_redis()
+            except Exception:
+                redis_client = None
+            if not redis_client:
+                redis_client = self._get_redis_sync()
             if not redis_client:
                 return False
             return bool(redis_client.exists(f"blacklist:{jti}"))
@@ -482,6 +648,12 @@ class JWTService:
             if jti and await self.is_token_revoked(jti):
                 raise JoseError("Token has been revoked")
 
+            user_id = claims.get("sub")
+            if user_id:
+                revoked_at = await self._get_user_revoked_at(user_id)
+                if revoked_at is not None and self._is_token_revoked_by_user(claims, revoked_at):
+                    raise JoseError("Token has been revoked")
+
             return claims
         except JoseError as e:
             raise HTTPException(
@@ -491,29 +663,58 @@ class JWTService:
             )
 
     async def revoke_user_tokens(self, user_id: str) -> int:
-        """Revoke all tokens associated with a user by removing any active JTIs.
-
-        This scans the redis blacklist/current tokens namespace for keys tagged with
-        the user ID and deletes them. Returns the count of revoked tokens.
-        """
+        """Revoke all tokens associated with a user by setting a user-wide revocation marker."""
         redis_client = await self._get_redis()
         if not redis_client:
             logger.warning("Redis not available, cannot revoke user tokens")
             return 0
 
-        revoked = 0
         try:
-            pattern = f"tokens:{user_id}:*"
-            async for key in redis_client.scan_iter(match=pattern):
-                jti = await redis_client.get(key)
-                if jti:
-                    await redis_client.delete(f"blacklist:{jti}")
-                await redis_client.delete(key)
-                revoked += 1
+            revoked_at = int(datetime.now(UTC).timestamp())
+            ttl = int(REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
+            await redis_client.setex(self._user_revoked_key(user_id), ttl, revoked_at)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to revoke user tokens", user_id=user_id, error=str(exc))
 
-        return revoked
+        return 1
+
+    def _user_revoked_key(self, user_id: str) -> str:
+        return f"user_revoked:{user_id}"
+
+    def _normalize_timestamp(self, value: Any) -> int | None:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, datetime):
+            return int(value.timestamp())
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return None
+
+    def _is_token_revoked_by_user(self, claims: dict[str, Any], revoked_at: int) -> bool:
+        iat = self._normalize_timestamp(claims.get("iat"))
+        if iat is None:
+            return True
+        return iat <= revoked_at
+
+    async def _get_user_revoked_at(self, user_id: str) -> int | None:
+        redis_client = await self._get_redis()
+        if not redis_client:
+            return None
+        try:
+            value = await redis_client.get(self._user_revoked_key(user_id))
+            return self._normalize_timestamp(value)
+        except Exception:
+            return None
+
+    def _get_user_revoked_at_sync(self, user_id: str) -> int | None:
+        redis_client = self._get_redis_sync()
+        if not redis_client:
+            return None
+        try:
+            value = redis_client.get(self._user_revoked_key(user_id))
+            return self._normalize_timestamp(value)
+        except Exception:
+            return None
 
 
 # ============================================
@@ -1065,6 +1266,7 @@ async def get_current_user(
     if credentials and credentials.credentials:
         try:
             claims = await _verify_token_with_fallback(credentials.credentials, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1073,6 +1275,7 @@ async def get_current_user(
     if token:
         try:
             claims = await _verify_token_with_fallback(token, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1082,6 +1285,7 @@ async def get_current_user(
     if access_token:
         try:
             claims = await _verify_token_with_fallback(access_token, TokenType.ACCESS)
+            await _ensure_session_active(claims)
             return _claims_to_user_with_context(request, claims)
         except HTTPException:
             pass
@@ -1143,6 +1347,20 @@ def _claims_to_user_with_context(request: Request, claims: dict[str, Any]) -> Us
     return user_info
 
 
+async def _ensure_session_active(claims: dict[str, Any]) -> None:
+    """Reject tokens tied to a server-side session that no longer exists."""
+    session_id = claims.get("session_id")
+    if not session_id:
+        return
+    session = await session_manager.get_session(session_id)
+    if not session or session.get("user_id") != claims.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 def _apply_active_tenant_context(request: Request, user_info: UserInfo) -> None:
     """
     Attach active managed tenant context from request state or headers.
@@ -1170,7 +1388,7 @@ def _apply_active_tenant_context(request: Request, user_info: UserInfo) -> None:
         return
 
     managed_ids = user_info.managed_tenant_ids or []
-    if managed_ids and active_tenant not in managed_ids:
+    if not managed_ids or active_tenant not in managed_ids:
         return
 
     user_info.active_managed_tenant_id = active_tenant

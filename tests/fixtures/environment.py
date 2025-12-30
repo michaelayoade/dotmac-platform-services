@@ -39,6 +39,9 @@ _migrations_applied = False
 
 logger = logging.getLogger(__name__)
 
+# Allow registration flows in tests unless explicitly disabled.
+os.environ.setdefault("ALLOW_SELF_REGISTRATION", "true")
+
 
 def _env_flag(name: str, default: bool = True) -> bool:
     value = os.getenv(name)
@@ -611,7 +614,6 @@ def _import_base_and_models():
 
     model_modules = [
         "dotmac.platform.contacts.models",
-        "dotmac.platform.customer_management.models",
         "dotmac.platform.data_transfer.db_models",
         "dotmac.platform.communications.models",
         "dotmac.platform.partner_management.models",

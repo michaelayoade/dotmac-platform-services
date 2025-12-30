@@ -14,7 +14,7 @@ from celery.exceptions import CeleryError
 from fastapi import APIRouter, Depends, HTTPException
 from jinja2 import TemplateSyntaxError, UndefinedError
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
-from sqlalchemy import and_, func, select
+from sqlalchemy import String, and_, cast, func, literal, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from dotmac.platform.auth.dependencies import UserInfo, get_current_user
@@ -80,6 +80,22 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except Exception:
         return None
+
+
+def _normalize_datetime(value: datetime | str | int | float | None) -> datetime | None:
+    """Normalize datetime values (including sqlite timestamp floats)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, UTC)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _render_from_strings(
@@ -185,7 +201,7 @@ class SendEmailResponseSchema(BaseModel):  # BaseModel resolves to Any in isolat
 @router.post("/email/send", response_model=SendEmailResponseSchema)
 async def send_email_endpoint(
     request: EmailRequest,
-    current_user: UserInfo | None = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Any:
     """Send a single email immediately."""
     try:
@@ -290,7 +306,7 @@ async def send_email_endpoint(
 @router.post("/email/queue")
 async def queue_email_endpoint(
     request: EmailRequest,
-    current_user: UserInfo | None = Depends(get_current_user),
+    current_user: UserInfo = Depends(get_current_user),
 ) -> Any:
     """Queue an email for background sending."""
     try:
@@ -345,6 +361,9 @@ class TemplateRequest(BaseModel):  # BaseModel resolves to Any in isolation
     model_config = ConfigDict()
 
     name: str | None = Field(None, min_length=1, description="Template name")
+    template_key: str | None = Field(
+        None, description="Standardized template key (e.g., email.auth.welcome)"
+    )
     description: str | None = Field(None, description="Template description")
     # Back-compat fields (frontend uses subject/body_html/body_text)
     subject_template: str | None = Field(None, description="Subject template")
@@ -366,6 +385,7 @@ class TemplateResponse(BaseModel):  # BaseModel resolves to Any in isolation
 
     id: str
     name: str
+    template_key: str | None = None
     description: str | None = None
     channel: str | None = None
     subject: str | None = None
@@ -406,6 +426,7 @@ async def create_template_endpoint(
         subject_template = request.subject_template or request.subject or ""
         text_template = request.text_template or request.body_text
         html_template = request.html_template or request.body_html
+        template_key = request.template_key or request.name
         tenant_id = getattr(current_user, "tenant_id", None)
 
         # Try DB-backed creation first
@@ -413,6 +434,7 @@ async def create_template_endpoint(
             async with get_async_session_context() as db:
                 obj = CommunicationTemplate(
                     name=request.name,
+                    template_key=template_key,
                     description=request.description,
                     type=CommunicationType.EMAIL,
                     subject_template=subject_template,
@@ -431,6 +453,7 @@ async def create_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel="email",
                     subject=obj.subject_template,
@@ -460,13 +483,14 @@ async def create_template_endpoint(
         return TemplateResponse(
             id=template.id,
             name=template.name,
+            template_key=template_key,
             description=request.description,
             channel=request.channel or "email",
             subject=template.subject_template,
             subject_template=template.subject_template,
             body_text=template.text_template,
             body_html=template.html_template,
-            variables=request.variables or [],
+            variables=template.variables or request.variables or [],
             metadata=request.metadata or {},
             is_active=request.is_active if request.is_active is not None else True,
             usage_count=0,
@@ -484,7 +508,7 @@ async def create_template_endpoint(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/templates", response_model=TemplateListResponse)
+@router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates_endpoint(
     channel: str | None = None,
     is_active: bool | None = None,
@@ -492,7 +516,7 @@ async def list_templates_endpoint(
     page: int = 1,
     page_size: int = 50,
     current_user: UserInfo = Depends(get_current_user),
-) -> TemplateListResponse:
+) -> list[TemplateResponse]:
     """List templates (paginated)."""
     tenant_id = getattr(current_user, "tenant_id", None)
     # Try DB-backed listing
@@ -534,6 +558,7 @@ async def list_templates_endpoint(
                 TemplateResponse(
                     id=str(tpl.id),
                     name=tpl.name,
+                    template_key=tpl.template_key,
                     description=tpl.description,
                     channel=tpl.type.value if hasattr(tpl, "type") else "email",
                     subject=tpl.subject_template,
@@ -553,12 +578,7 @@ async def list_templates_endpoint(
                 for tpl in templates_db
             ]
 
-            return TemplateListResponse(
-                templates=resp_templates,
-                total=_total,
-                page=page,
-                page_size=page_size,
-            )
+            return resp_templates
     except Exception as exc:
         logger.warning("DB template list failed, falling back to in-memory", error=str(exc))
 
@@ -585,6 +605,7 @@ async def list_templates_endpoint(
             TemplateResponse(
                 id=template.id,
                 name=template.name,
+                template_key=template.name,
                 description=None,
                 channel="email",
                 subject=template.subject_template,
@@ -602,12 +623,7 @@ async def list_templates_endpoint(
             )
         )
 
-    return TemplateListResponse(
-        templates=resp_templates,
-        total=len(filtered),
-        page=page,
-        page_size=page_size,
-    )
+    return resp_templates
 
 
 @router.get("/templates/{template_id}", response_model=TemplateResponse)
@@ -632,6 +648,7 @@ async def get_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel=obj.type.value if hasattr(obj, "type") else "email",
                     subject=obj.subject_template,
@@ -662,6 +679,7 @@ async def get_template_endpoint(
     return TemplateResponse(
         id=template.id,
         name=template.name,
+        template_key=template.name,
         description=None,
         channel="email",
         subject=template.subject_template,
@@ -691,6 +709,7 @@ async def update_template_endpoint(
     subject_template = request.subject_template or request.subject
     text_template = request.text_template or request.body_text
     html_template = request.html_template or request.body_html
+    template_key = request.template_key
 
     # Try DB-backed update first
     try:
@@ -706,8 +725,13 @@ async def update_template_endpoint(
             result = await db.execute(stmt)
             obj = result.scalar_one_or_none()
             if obj:
+                original_name = obj.name
                 if request.name:
                     obj.name = request.name
+                if template_key is not None:
+                    obj.template_key = template_key
+                elif request.name and (obj.template_key is None or obj.template_key == original_name):
+                    obj.template_key = obj.name
                 if request.description is not None:
                     obj.description = request.description
                 if subject_template is not None:
@@ -729,6 +753,7 @@ async def update_template_endpoint(
                 return TemplateResponse(
                     id=str(obj.id),
                     name=obj.name,
+                    template_key=obj.template_key,
                     description=obj.description,
                     channel=obj.type.value if hasattr(obj, "type") else "email",
                     subject=obj.subject_template,
@@ -763,6 +788,7 @@ async def update_template_endpoint(
     return TemplateResponse(
         id=updated.id,
         name=updated.name,
+        template_key=template_key or updated.name,
         description=request.description,
         channel=request.channel or "email",
         subject=updated.subject_template,
@@ -795,6 +821,39 @@ class RenderVariablesRequest(BaseModel):  # BaseModel resolves to Any in isolati
     model_config = ConfigDict()
 
     variables: dict[str, Any] = Field(default_factory=dict, description="Template variables")
+
+
+class RenderedTemplateCompatResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Compatibility response for template rendering."""
+
+    model_config = ConfigDict()
+
+    subject: str
+    text: str
+    html: str
+    variables: list[Any]
+
+
+class CommunicationStatsResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Communication stats response."""
+
+    model_config = ConfigDict()
+
+    sent: int
+    delivered: int
+    failed: int
+    pending: int
+    total_sent: int
+    total_delivered: int
+    total_failed: int
+    total_opened: int
+    total_clicked: int
+    delivery_rate: float
+    open_rate: float
+    click_rate: float
+    by_channel: dict[str, Any]
+    by_status: dict[str, Any]
+    recent_activity: list[Any]
 
 
 @router.post("/templates/render", response_model=RenderedTemplate)
@@ -845,12 +904,12 @@ async def render_template_endpoint(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/templates/{template_id}/render", response_model=dict)
+@router.post("/templates/{template_id}/render", response_model=RenderedTemplateCompatResponse)
 async def render_template_by_id(
     template_id: str,
     request: RenderVariablesRequest,
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> RenderedTemplateCompatResponse:
     """Compatibility endpoint: render template by ID with variables key."""
     try:
         tenant_id = getattr(current_user, "tenant_id", None)
@@ -873,22 +932,22 @@ async def render_template_by_id(
                         html_body=obj.html_template,
                         data=request.variables,
                     )
-                    return {
-                        "subject": rendered["subject"],
-                        "text": rendered.get("text_body", ""),
-                        "html": rendered.get("html_body", ""),
-                        "variables": [],
-                    }
+                    return RenderedTemplateCompatResponse(
+                        subject=rendered["subject"],
+                        text=rendered.get("text_body", ""),
+                        html=rendered.get("html_body", ""),
+                        variables=[],
+                    )
         except Exception:
             logger.warning("DB render failed, fallback to in-memory")
 
         result = render_template(template_id, request.variables)
-        return {
-            "subject": result.subject,
-            "text": result.text_body,
-            "html": result.html_body,
-            "variables": result.variables_used,
-        }
+        return RenderedTemplateCompatResponse(
+            subject=result.subject,
+            text=result.text_body,
+            html=result.html_body,
+            variables=result.variables_used,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (TemplateSyntaxError, UndefinedError) as exc:
@@ -1175,7 +1234,7 @@ async def get_bulk_email_status(
     job_id: str, current_user: UserInfo = Depends(get_current_user)
 ) -> Any:
     """Get bulk email job status."""
-    user_id, tenant_id = _safe_user_context(current_user)
+    _, tenant_id = _safe_user_context(current_user)
     try:
         task_service = get_task_service()
         status = task_service.get_task_status(job_id)
@@ -1195,7 +1254,7 @@ async def cancel_bulk_email_job(
     job_id: str, current_user: UserInfo = Depends(get_current_user)
 ) -> Any:
     """Cancel a bulk email job."""
-    user_id, tenant_id = _safe_user_context(current_user)
+    _, tenant_id = _safe_user_context(current_user)
     try:
         task_service = get_task_service()
         cancelled = task_service.cancel_task(job_id)
@@ -1361,15 +1420,15 @@ def _log_to_schema(log: CommunicationLog) -> CommunicationLogSchema:
         body_html=log.html_body,
         template_id=log.template_id,
         status=log.status.value if hasattr(log, "status") else "sent",
-        sent_at=log.sent_at,
-        delivered_at=log.delivered_at,
+        sent_at=_normalize_datetime(log.sent_at),
+        delivered_at=_normalize_datetime(log.delivered_at),
         opened_at=None,
         clicked_at=None,
-        failed_at=log.failed_at,
+        failed_at=_normalize_datetime(log.failed_at),
         error_message=log.error_message,
         metadata=getattr(log, "metadata_", {}) or {},
-        created_at=log.created_at or datetime.now(UTC),
-        updated_at=log.updated_at or datetime.now(UTC),
+        created_at=_normalize_datetime(log.created_at) or datetime.now(UTC),
+        updated_at=_normalize_datetime(log.updated_at) or datetime.now(UTC),
     )
 
 
@@ -1409,13 +1468,13 @@ class MetricsResponse(BaseModel):  # BaseModel resolves to Any in isolation
     cached_at: str
 
 
-@router.get("/stats", response_model=dict)
+@router.get("/stats", response_model=CommunicationStatsResponse)
 async def get_communication_stats(
     date_from: str | None = None,
     date_to: str | None = None,
     channel: str | None = None,
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> CommunicationStatsResponse:
     """Get communication statistics."""
     user_id, tenant_id = _safe_user_context(current_user)
     stats_data: dict[str, Any] = {}
@@ -1425,15 +1484,11 @@ async def get_communication_stats(
             metrics_service = get_metrics_service(db)
             stats_data = await metrics_service.get_stats(tenant_id=tenant_id)
     except (SQLAlchemyError, RuntimeError) as db_error:
-        logger.warning("Database not available, returning mock stats", error=str(db_error))
-        stats_data = {
-            "sent": 1234,
-            "delivered": 1156,
-            "failed": 23,
-            "pending": 55,
-            "opened": 600,
-            "clicked": 200,
-        }
+        logger.warning("Database not available for communication stats", error=str(db_error))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication stats unavailable. Database connection required.",
+        ) from db_error
 
     total_sent = stats_data.get("sent", 0)
     total_delivered = stats_data.get("delivered", 0)
@@ -1445,23 +1500,23 @@ async def get_communication_stats(
     open_rate = (total_opened / total_sent) if total_sent else 0
     click_rate = (total_clicked / total_sent) if total_sent else 0
 
-    return {
-        "sent": total_sent,
-        "delivered": total_delivered,
-        "failed": total_failed,
-        "pending": pending,
-        "total_sent": total_sent,
-        "total_delivered": total_delivered,
-        "total_failed": total_failed,
-        "total_opened": total_opened,
-        "total_clicked": total_clicked,
-        "delivery_rate": delivery_rate,
-        "open_rate": open_rate,
-        "click_rate": click_rate,
-        "by_channel": stats_data.get("by_channel", {"email": total_sent}),
-        "by_status": stats_data.get("by_status", {}),
-        "recent_activity": stats_data.get("recent_activity", []),
-    }
+    return CommunicationStatsResponse(
+        sent=total_sent,
+        delivered=total_delivered,
+        failed=total_failed,
+        pending=pending,
+        total_sent=total_sent,
+        total_delivered=total_delivered,
+        total_failed=total_failed,
+        total_opened=total_opened,
+        total_clicked=total_clicked,
+        delivery_rate=delivery_rate,
+        open_rate=open_rate,
+        click_rate=click_rate,
+        by_channel=stats_data.get("by_channel", {"email": total_sent}),
+        by_status=stats_data.get("by_status", {}),
+        recent_activity=stats_data.get("recent_activity", []),
+    )
 
 
 @router.get("/metrics", response_model=MetricsResponse)
@@ -1515,8 +1570,8 @@ async def get_communications_metrics(
                 if row.template_id
             ]
 
-            # Recent failures
-            failure_conditions = [CommunicationLog.status == CommunicationStatus.FAILED]
+            # Recent failures - cast column to String to match literal string
+            failure_conditions = [cast(CommunicationLog.status, String) == "failed"]
             if tenant_id:
                 failure_conditions.append(CommunicationLog.tenant_id == tenant_id)
             failures_query = (
@@ -1644,32 +1699,11 @@ async def get_communications_metrics(
                 **({"bulk_jobs": bulk_summary} if bulk_summary else {}),
             )
     except Exception as exc:
-        logger.warning(
-            "Communications metrics unavailable; returning synthetic metrics.", error=str(exc)
-        )
-
-    stats_block = {
-        "total_sent": 100,
-        "total_delivered": 95,
-        "total_failed": 5,
-        "total_opened": 60,
-        "total_clicked": 20,
-        "delivery_rate": 0.95,
-        "open_rate": 0.6,
-        "click_rate": 0.2,
-        "by_channel": {"email": 100},
-        "by_status": {"sent": 80, "failed": 5, "pending": 15},
-        "recent_activity": [],
-    }
-
-    return MetricsResponse(
-        total_logs=100,
-        total_templates=5,
-        stats=stats_block,
-        top_templates=[],
-        recent_failures=[],
-        cached_at=now,
-    )
+        logger.warning("Communications metrics unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communications metrics unavailable. Database connection required.",
+        ) from exc
 
 
 @router.get("/activity", response_model=list[CommunicationActivity])
@@ -1707,7 +1741,7 @@ async def get_recent_activity(
                     recipient=log.recipient,
                     subject=log.subject,
                     status=log.status.value,
-                    timestamp=log.created_at or datetime.now(UTC),
+                    timestamp=_normalize_datetime(log.created_at) or datetime.now(UTC),
                     metadata=log.metadata_ or {},
                 )
                 for log in logs
@@ -1720,68 +1754,11 @@ async def get_recent_activity(
             )
             return activities
     except (SQLAlchemyError, RuntimeError) as db_error:
-        logger.warning("Database not available, returning mock activity", error=str(db_error))
-
-    # Return mock data when database is not available
-    activities = [
-        CommunicationActivity(
-            id="act_1",
-            type="email",
-            recipient="user@example.com",
-            subject="Welcome to DotMac Platform",
-            status="delivered",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_2",
-            type="webhook",
-            recipient="https://api.example.com/webhook",
-            subject="User Registration Event",
-            status="sent",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_3",
-            type="email",
-            recipient="admin@example.com",
-            subject="Password Reset Request",
-            status="delivered",
-            timestamp=datetime.now(UTC),
-        ),
-        CommunicationActivity(
-            id="act_4",
-            type="sms",
-            recipient="+1234567890",
-            subject="Verification Code: 123456",
-            status="pending",
-            timestamp=datetime.now(UTC),
-        ),
-    ]
-
-    if type_filter:
-        activities = [a for a in activities if a.type == type_filter]
-
-    activities = activities[offset : offset + limit]
-
-    _points = [  # noqa: F841
-        ActivityPoint(
-            date=activity.timestamp.date().isoformat(),
-            sent=1,
-            delivered=1 if activity.status == "delivered" else 0,
-            failed=1 if activity.status == "failed" else 0,
-            opened=0,
-            clicked=0,
-        )
-        for activity in activities
-    ]
-
-    logger.info(
-        "Communication activity retrieved (mock data)",
-        count=len(activities),
-        user_id=user_id or "unknown",
-        tenant_id=tenant_id,
-    )
-    return activities
+        logger.warning("Database not available for communication activity", error=str(db_error))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication activity unavailable. Database connection required.",
+        ) from db_error
 
 
 class BulkJobListResponse(BaseModel):  # BaseModel resolves to Any in isolation
@@ -1988,29 +1965,6 @@ async def get_bulk_job(
         raise HTTPException(status_code=500, detail="Failed to retrieve bulk job")
 
 
-# === Logs Endpoints (compatibility) ===
-
-
-def _make_mock_log(idx: int = 1) -> CommunicationLogSchema:
-    now = datetime.now(UTC)
-    return CommunicationLogSchema(
-        id=f"log_{idx}",
-        tenant_id="default",
-        channel="email",
-        recipient_email=f"user{idx}@example.com",
-        recipient_name=f"User {idx}",
-        subject=f"Test Message {idx}",
-        body_text="Hello world",
-        body_html="<p>Hello world</p>",
-        template_id="template_1",
-        status="sent",
-        sent_at=now,
-        delivered_at=now,
-        created_at=now,
-        updated_at=now,
-    )
-
-
 @router.get("/logs")
 async def list_logs(
     channel: str | None = None,
@@ -2079,11 +2033,11 @@ async def list_logs(
                 "total": int(total),
             }
     except Exception as exc:
-        logger.warning("Falling back to synthetic logs", error=str(exc))
-
-    # Fallback synthetic
-    logs = [_make_mock_log(i) for i in range(1, 6)]
-    return {"logs": [log.model_dump() for log in logs], "total": len(logs)}
+        logger.warning("Communication logs unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication logs unavailable. Database connection required.",
+        ) from exc
 
 
 @router.get("/logs/{log_id}", response_model=CommunicationLogSchema)
@@ -2110,8 +2064,11 @@ async def get_log(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("Falling back to synthetic log", error=str(exc))
-    return _make_mock_log(1).model_copy(update={"id": log_id})
+        logger.warning("Communication log lookup failed", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Communication log unavailable. Database connection required.",
+        ) from exc
 
 
 @router.post("/logs/{log_id}/retry")
@@ -2120,3 +2077,284 @@ async def retry_log(
 ) -> dict[str, Any]:
     """Retry a failed communication (stub)."""
     return {"log_id": log_id, "status": "queued"}
+
+
+# =============================================================================
+# Dashboard Endpoint
+# =============================================================================
+
+
+from datetime import timedelta
+from pydantic import ConfigDict as PydanticConfigDict
+from sqlalchemy import case
+
+
+class CommsDashboardSummary(BaseModel):
+    """Summary statistics for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    total_sent: int = Field(description="Total communications sent")
+    sent_today: int = Field(description="Communications sent today")
+    sent_this_week: int = Field(description="Communications sent this week")
+    delivered: int = Field(description="Successfully delivered")
+    failed: int = Field(description="Failed communications")
+    pending: int = Field(description="Pending communications")
+    delivery_rate_pct: float = Field(description="Delivery success rate")
+    total_templates: int = Field(description="Total templates")
+    active_templates: int = Field(description="Active templates")
+
+
+class CommsChartDataPoint(BaseModel):
+    """Single data point for communications charts."""
+
+    model_config = PydanticConfigDict()
+
+    label: str
+    value: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CommsCharts(BaseModel):
+    """Chart data for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    by_status: list[CommsChartDataPoint] = Field(description="Communications by status")
+    by_type: list[CommsChartDataPoint] = Field(description="Communications by type")
+    daily_trend: list[CommsChartDataPoint] = Field(description="Daily communication trend")
+    top_templates: list[CommsChartDataPoint] = Field(description="Top templates by usage")
+
+
+class CommsAlert(BaseModel):
+    """Alert item for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    type: str = Field(description="Alert type: warning, error, info")
+    title: str
+    message: str
+    count: int = 0
+    action_url: str | None = None
+
+
+class CommsRecentActivity(BaseModel):
+    """Recent activity item for communications dashboard."""
+
+    model_config = PydanticConfigDict()
+
+    id: str
+    type: str = Field(description="Communication type")
+    recipient: str
+    subject: str | None
+    status: str
+    timestamp: datetime
+    tenant_id: str | None = None
+
+
+class CommsDashboardResponse(BaseModel):
+    """Consolidated communications dashboard response."""
+
+    model_config = PydanticConfigDict()
+
+    summary: CommsDashboardSummary
+    charts: CommsCharts
+    alerts: list[CommsAlert]
+    recent_activity: list[CommsRecentActivity]
+    generated_at: datetime
+
+
+@router.get(
+    "/dashboard",
+    response_model=CommsDashboardResponse,
+    summary="Get communications dashboard data",
+    description="Returns consolidated communications metrics, charts, and alerts for the dashboard",
+)
+async def get_communications_dashboard(
+    period_days: int = 30,
+    current_user: UserInfo = Depends(get_current_user),
+) -> CommsDashboardResponse:
+    """
+    Get consolidated communications dashboard data including:
+    - Summary statistics (sent, delivered, failed)
+    - Chart data (trends, breakdowns)
+    - Alerts (failed communications, delivery issues)
+    - Recent activity
+    """
+    try:
+        tenant_id = getattr(current_user, "tenant_id", None)
+        now = datetime.now(UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=7)
+
+        async with get_async_session_context() as db:
+            # ========== SUMMARY STATS ==========
+            # Communication log counts
+            log_counts_query = select(
+                func.count(CommunicationLog.id).label("total"),
+                func.sum(case((CommunicationLog.created_at >= today_start, 1), else_=0)).label("today"),
+                func.sum(case((CommunicationLog.created_at >= week_start, 1), else_=0)).label("this_week"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.DELIVERED, 1), else_=0)).label("delivered"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.FAILED, 1), else_=0)).label("failed"),
+                func.sum(case((CommunicationLog.status == CommunicationStatus.PENDING, 1), else_=0)).label("pending"),
+            )
+            if tenant_id:
+                log_counts_query = log_counts_query.where(CommunicationLog.tenant_id == tenant_id)
+            log_counts_result = await db.execute(log_counts_query)
+            log_counts = log_counts_result.one()
+
+            # Template counts
+            template_counts_query = select(
+                func.count(CommunicationTemplate.id).label("total"),
+                func.sum(case((CommunicationTemplate.is_active.is_(True), 1), else_=0)).label("active"),
+            )
+            if tenant_id:
+                template_counts_query = template_counts_query.where(CommunicationTemplate.tenant_id == tenant_id)
+            template_counts_result = await db.execute(template_counts_query)
+            template_counts = template_counts_result.one()
+
+            # Calculate delivery rate
+            total_attempted = (log_counts.delivered or 0) + (log_counts.failed or 0)
+            delivery_rate = ((log_counts.delivered or 0) / total_attempted * 100) if total_attempted > 0 else 0.0
+
+            summary = CommsDashboardSummary(
+                total_sent=log_counts.total or 0,
+                sent_today=log_counts.today or 0,
+                sent_this_week=log_counts.this_week or 0,
+                delivered=log_counts.delivered or 0,
+                failed=log_counts.failed or 0,
+                pending=log_counts.pending or 0,
+                delivery_rate_pct=round(delivery_rate, 2),
+                total_templates=template_counts.total or 0,
+                active_templates=template_counts.active or 0,
+            )
+
+            # ========== CHART DATA ==========
+            # By status
+            status_query = select(
+                CommunicationLog.status,
+                func.count(CommunicationLog.id),
+            )
+            if tenant_id:
+                status_query = status_query.where(CommunicationLog.tenant_id == tenant_id)
+            status_query = status_query.group_by(CommunicationLog.status)
+            status_result = await db.execute(status_query)
+            by_status = [
+                CommsChartDataPoint(label=row[0].value if row[0] else "unknown", value=row[1])
+                for row in status_result.all()
+            ]
+
+            # By type
+            type_query = select(
+                CommunicationLog.type,
+                func.count(CommunicationLog.id),
+            )
+            if tenant_id:
+                type_query = type_query.where(CommunicationLog.tenant_id == tenant_id)
+            type_query = type_query.group_by(CommunicationLog.type)
+            type_result = await db.execute(type_query)
+            by_type = [
+                CommsChartDataPoint(label=row[0].value if row[0] else "email", value=row[1])
+                for row in type_result.all()
+            ]
+
+            # Daily trend
+            daily_trend = []
+            for i in range(min(period_days, 14) - 1, -1, -1):
+                day_date = now - timedelta(days=i)
+                next_day = day_date + timedelta(days=1)
+
+                day_count_query = select(func.count(CommunicationLog.id)).where(
+                    CommunicationLog.created_at >= day_date.replace(hour=0, minute=0, second=0),
+                    CommunicationLog.created_at < next_day.replace(hour=0, minute=0, second=0),
+                )
+                if tenant_id:
+                    day_count_query = day_count_query.where(CommunicationLog.tenant_id == tenant_id)
+                day_count_result = await db.execute(day_count_query)
+                day_count = day_count_result.scalar() or 0
+
+                daily_trend.append(CommsChartDataPoint(
+                    label=day_date.strftime("%b %d"),
+                    value=day_count,
+                ))
+
+            # Top templates
+            top_templates_query = select(
+                CommunicationTemplate.name,
+                CommunicationTemplate.usage_count,
+            ).where(CommunicationTemplate.usage_count > 0)
+            if tenant_id:
+                top_templates_query = top_templates_query.where(CommunicationTemplate.tenant_id == tenant_id)
+            top_templates_query = top_templates_query.order_by(CommunicationTemplate.usage_count.desc()).limit(10)
+            top_templates_result = await db.execute(top_templates_query)
+            top_templates = [
+                CommsChartDataPoint(label=row[0] if row[0] else "Unknown", value=row[1] or 0)
+                for row in top_templates_result.all()
+            ]
+
+            charts = CommsCharts(
+                by_status=by_status,
+                by_type=by_type,
+                daily_trend=daily_trend,
+                top_templates=top_templates,
+            )
+
+            # ========== ALERTS ==========
+            alerts = []
+
+            if log_counts.failed and log_counts.failed > 0:
+                alerts.append(CommsAlert(
+                    type="error",
+                    title="Failed Communications",
+                    message=f"{log_counts.failed} communication(s) failed to deliver",
+                    count=log_counts.failed,
+                    action_url="/communications/logs?status=failed",
+                ))
+
+            if delivery_rate < 90.0 and total_attempted > 10:
+                alerts.append(CommsAlert(
+                    type="warning",
+                    title="Low Delivery Rate",
+                    message=f"Delivery rate is {delivery_rate:.1f}% (below 90%)",
+                    count=0,
+                    action_url="/communications/logs",
+                ))
+
+            # ========== RECENT ACTIVITY ==========
+            recent_logs_query = (
+                select(CommunicationLog)
+                .order_by(CommunicationLog.created_at.desc())
+                .limit(10)
+            )
+            if tenant_id:
+                recent_logs_query = recent_logs_query.where(CommunicationLog.tenant_id == tenant_id)
+            recent_logs_result = await db.execute(recent_logs_query)
+            recent_logs = recent_logs_result.scalars().all()
+
+            recent_activity = [
+                CommsRecentActivity(
+                    id=str(log.id),
+                    type=log.type.value if log.type else "email",
+                    recipient=log.recipient or "",
+                    subject=log.subject,
+                    status=log.status.value if log.status else "unknown",
+                    timestamp=_normalize_datetime(log.created_at) or datetime.now(UTC),
+                    tenant_id=log.tenant_id,
+                )
+                for log in recent_logs
+            ]
+
+        return CommsDashboardResponse(
+            summary=summary,
+            charts=charts,
+            alerts=alerts,
+            recent_activity=recent_activity,
+            generated_at=now,
+        )
+
+    except Exception as e:
+        logger.error("Failed to generate communications dashboard", error=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to generate communications dashboard: {str(e)}",
+        )

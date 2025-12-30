@@ -8,16 +8,20 @@ import {
   getReferralById,
   createReferral,
   updateReferral,
-  getPartnerCustomers,
+  deleteReferral,
+  getReferralLink,
+  generateReferralLink,
+  getPartnerTenants,
   getPartnerCommissions,
   getPartnerStatements,
   getStatementById,
   downloadStatement,
+  exportStatements,
   getPartnerPayouts,
   getPartnerProfile,
   updatePartnerProfile,
   type GetReferralsParams,
-  type GetCustomersParams,
+  type GetTenantsParams,
   type GetCommissionsParams,
   type GetStatementsParams,
 } from "@/lib/api/partner-portal";
@@ -85,11 +89,45 @@ export function useUpdateReferral() {
   });
 }
 
-// Customers
-export function usePartnerCustomers(params?: GetCustomersParams) {
+export function useDeleteReferral() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteReferral(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.referrals.all(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.dashboard(),
+      });
+    },
+  });
+}
+
+export function useReferralLink() {
   return useQuery({
-    queryKey: queryKeys.partnerPortal.customers.list(params),
-    queryFn: () => getPartnerCustomers(params),
+    queryKey: ["partnerPortal", "referralLink"],
+    queryFn: getReferralLink,
+  });
+}
+
+export function useGenerateReferralLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: generateReferralLink,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["partnerPortal", "referralLink"], data);
+    },
+  });
+}
+
+// Tenants
+export function usePartnerTenants(params?: GetTenantsParams) {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.tenants.list(params),
+    queryFn: () => getPartnerTenants(params),
     placeholderData: (previousData) => previousData,
   });
 }
@@ -126,6 +164,12 @@ export function useDownloadStatement() {
   });
 }
 
+export function useExportStatements() {
+  return useMutation({
+    mutationFn: exportStatements,
+  });
+}
+
 export function usePartnerPayouts() {
   return useQuery({
     queryKey: queryKeys.partnerPortal.payouts(),
@@ -149,5 +193,63 @@ export function useUpdatePartnerProfile() {
     onSuccess: (updatedProfile) => {
       queryClient.setQueryData(queryKeys.partnerPortal.profile(), updatedProfile);
     },
+  });
+}
+
+// ============================================
+// Partner Billing (Multi-Tenant)
+// ============================================
+
+import {
+  getPartnerBillingSummary,
+  getPartnerInvoices,
+  exportPartnerInvoices,
+  getPartnerExportHistory,
+  downloadExport,
+  type GetPartnerInvoicesParams,
+  type GetExportHistoryParams,
+  type ExportPartnerInvoicesRequest,
+} from "@/lib/api/partner-portal";
+
+export function usePartnerBillingSummary() {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.summary(),
+    queryFn: getPartnerBillingSummary,
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+export function usePartnerInvoices(params?: GetPartnerInvoicesParams) {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.invoices.list(params),
+    queryFn: () => getPartnerInvoices(params),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
+export function useExportPartnerInvoices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: ExportPartnerInvoicesRequest) => exportPartnerInvoices(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.partnerPortal.billing.exports.all(),
+      });
+    },
+  });
+}
+
+export function usePartnerExportHistory(params?: GetExportHistoryParams) {
+  return useQuery({
+    queryKey: queryKeys.partnerPortal.billing.exports.list(params),
+    queryFn: () => getPartnerExportHistory(params),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
+export function useDownloadExport() {
+  return useMutation({
+    mutationFn: downloadExport,
   });
 }

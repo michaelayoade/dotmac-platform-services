@@ -3,8 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, normalizePaginatedResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { Tenant, TenantStatus, TenantSettings } from "@/types/models";
+import { getTenantsDashboard } from "@/lib/api/tenants";
+import type { Tenant, TenantStatus, TenantSettings, TenantPlanType } from "@/types/models";
 import type { PaginatedResponse, ListQueryParams } from "@/types/api";
+import type { DashboardQueryParams } from "@/lib/api/types/dashboard";
 
 // Types
 export interface ListTenantsParams extends ListQueryParams {
@@ -16,9 +18,12 @@ export interface ListTenantsParams extends ListQueryParams {
 export interface CreateTenantData {
   name: string;
   slug: string;
-  planType?: string;
+  plan?: TenantPlanType;
+  planType?: string; // Deprecated - use plan
   billingCycle?: "month" | "year";
   domain?: string;
+  ownerEmail?: string;
+  ownerName?: string;
 }
 
 export interface UpdateTenantData {
@@ -36,6 +41,7 @@ export interface TenantStats {
   apiCallsLimit: number;
   deploymentsActive: number;
   deploymentsLimit: number;
+  mrr?: number; // Monthly recurring revenue in cents
 }
 
 type TenantsResponse = PaginatedResponse<Tenant>;
@@ -118,6 +124,15 @@ async function updateTenantSettings({
 }
 
 // Hooks
+
+export function useTenantsDashboard(params?: DashboardQueryParams) {
+  return useQuery({
+    queryKey: queryKeys.tenants.dashboard(params),
+    queryFn: () => getTenantsDashboard(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
 export function useTenants(params?: ListTenantsParams) {
   return useQuery({
     queryKey: queryKeys.tenants.list(params),
@@ -244,5 +259,165 @@ export function useUpdateTenantSettings() {
     onSuccess: (data, { id }) => {
       queryClient.setQueryData(queryKeys.tenants.settings(id), data);
     },
+  });
+}
+
+// Domain Verification Hooks
+import {
+  getDomainStatus,
+  initiateDomainVerification,
+  checkDomainVerification,
+  removeDomain,
+  type VerificationMethod,
+  type DomainVerification,
+} from "@/lib/api/tenants";
+
+export function useDomainStatus(tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.tenants.domainStatus(tenantId),
+    queryFn: () => getDomainStatus(tenantId),
+    enabled: !!tenantId,
+  });
+}
+
+export function useInitiateDomainVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      domain,
+      method,
+    }: {
+      tenantId: string;
+      domain: string;
+      method: VerificationMethod;
+    }) => initiateDomainVerification(tenantId, domain, method),
+    onSuccess: (_, { tenantId }) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.domainStatus(tenantId),
+      });
+    },
+  });
+}
+
+export function useCheckDomainVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tenantId, domain }: { tenantId: string; domain: string }) =>
+      checkDomainVerification(tenantId, domain),
+    onSuccess: (_, { tenantId }) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.domainStatus(tenantId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.detail(tenantId),
+      });
+    },
+  });
+}
+
+export function useRemoveDomain() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (tenantId: string) => removeDomain(tenantId),
+    onSuccess: (_, tenantId) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.domainStatus(tenantId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.detail(tenantId),
+      });
+    },
+  });
+}
+
+// Branding Hooks
+import {
+  getBranding,
+  updateBranding,
+  uploadBrandingLogo,
+  type TenantBranding,
+} from "@/lib/api/tenants";
+
+export function useBranding(tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.tenants.branding(tenantId),
+    queryFn: () => getBranding(tenantId),
+    enabled: !!tenantId,
+  });
+}
+
+export function useUpdateBranding() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      data,
+    }: {
+      tenantId: string;
+      data: Partial<TenantBranding>;
+    }) => updateBranding(tenantId, data),
+    onSuccess: (data, { tenantId }) => {
+      queryClient.setQueryData(queryKeys.tenants.branding(tenantId), data);
+    },
+  });
+}
+
+export function useUploadBrandingLogo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      file,
+      type,
+    }: {
+      tenantId: string;
+      file: File;
+      type: "logo" | "favicon";
+    }) => uploadBrandingLogo(tenantId, file, type),
+    onSuccess: (_, { tenantId }) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tenants.branding(tenantId),
+      });
+    },
+  });
+}
+
+// ========================================
+// Admin Tenant Members
+// ========================================
+
+export interface TenantMember {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: string;
+  status: string;
+  isActive: boolean;
+  createdAt: string | null;
+  lastLogin: string | null;
+}
+
+export interface TenantMembersResponse {
+  members: TenantMember[];
+  total: number;
+  page?: number;
+  pageSize?: number;
+}
+
+async function getTenantMembers(tenantId: string): Promise<TenantMembersResponse> {
+  return api.get<TenantMembersResponse>(`/api/v1/tenants/${tenantId}/members`);
+}
+
+export function useAdminTenantMembers(tenantId: string) {
+  return useQuery({
+    queryKey: [...queryKeys.tenants.detail(tenantId), "members"],
+    queryFn: () => getTenantMembers(tenantId),
+    enabled: !!tenantId,
   });
 }

@@ -5,6 +5,21 @@
  */
 
 import { api, normalizePaginatedResponse } from "./client";
+import type { LicensingDashboardResponse, DashboardQueryParams } from "./types/dashboard";
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export async function getLicensingDashboard(
+  params?: DashboardQueryParams
+): Promise<LicensingDashboardResponse> {
+  return api.get<LicensingDashboardResponse>("/api/v1/licensing/dashboard", {
+    params: {
+      period_months: params?.periodMonths,
+    },
+  });
+}
 
 // ============================================================================
 // License Types

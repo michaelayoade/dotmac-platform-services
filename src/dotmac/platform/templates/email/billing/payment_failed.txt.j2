@@ -1,0 +1,18 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Payment Failed - Action Required
+
+We were unable to process your payment for {{ amount_formatted }}.
+
+Details:
+- Amount: {{ amount_formatted }}
+- Payment Method: {{ payment_method }}
+- Failure Reason: {{ failure_reason }}
+- Retry Date: {{ retry_date }}
+
+What happens next?
+We'll automatically retry the payment {{ retry_date }}. Please update your payment method if needed.
+
+Update Payment Method: {{ update_payment_url }}
+{% endblock %}

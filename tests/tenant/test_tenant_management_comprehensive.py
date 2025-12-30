@@ -10,19 +10,19 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from src.dotmac.platform.tenant.models import (
+from dotmac.platform.tenant.models import (
     TenantInvitationStatus,
     TenantPlanType,
     TenantStatus,
 )
-from src.dotmac.platform.tenant.schemas import (
+from dotmac.platform.tenant.schemas import (
     TenantCreate,
     TenantInvitationCreate,
     TenantSettingCreate,
     TenantUpdate,
     TenantUsageCreate,
 )
-from src.dotmac.platform.tenant.service import (
+from dotmac.platform.tenant.service import (
     TenantAlreadyExistsError,
     TenantNotFoundError,
     TenantService,

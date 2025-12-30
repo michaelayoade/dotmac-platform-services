@@ -6,18 +6,13 @@ batch processing, and error handling.
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from unittest.mock import mock_open, patch
 
 import pytest
-from moneyed import Money
 from reportlab.lib.pagesizes import LETTER
 
-from dotmac.platform.billing.money_models import (
-    MoneyField,
-    MoneyInvoice,
-    MoneyInvoiceLineItem,
-)
+from dotmac.platform.billing.core.models import Invoice, InvoiceLineItem
 from dotmac.platform.billing.pdf_generator_reportlab import (
     DEFAULT_MARGINS,
     DEFAULT_PAGE_SIZE,
@@ -31,33 +26,33 @@ def create_test_line_item(
     description: str,
     quantity: int = 1,
     unit_price_amount: str = "100.00",
-    tax_rate: str = "0.10",
+    tax_rate: str = "10.0",
     currency: str = "USD",
-) -> "MoneyInvoiceLineItem":
+) -> InvoiceLineItem:
     """Helper to create test line items with all required fields."""
-    from decimal import Decimal
-
-    from moneyed import Money
-
-    from dotmac.platform.billing.money_models import MoneyField, MoneyInvoiceLineItem
-
-    unit_price = Money(unit_price_amount, currency)
     tax_rate_decimal = Decimal(tax_rate)
 
-    # Calculate values
-    subtotal = Money(str(Decimal(unit_price_amount) * quantity), currency)
-    tax = Money(str(Decimal(str(subtotal.amount)) * tax_rate_decimal), currency)
-    total = Money(str(subtotal.amount + tax.amount), currency)
+    unit_price_minor = int(
+        (Decimal(unit_price_amount) * Decimal("100")).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+    )
+    subtotal_minor = unit_price_minor * quantity
+    tax_minor = int(
+        (Decimal(subtotal_minor) * tax_rate_decimal / Decimal("100")).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+    )
 
-    return MoneyInvoiceLineItem(
+    return InvoiceLineItem(
         description=description,
         quantity=quantity,
-        unit_price=MoneyField.from_money(unit_price),
-        tax_rate=tax_rate_decimal,
-        tax_amount=MoneyField.from_money(tax),
-        total_price=MoneyField.from_money(total),
-        discount_percentage=Decimal("0"),
-        discount_amount=MoneyField.from_money(Money("0", currency)),
+        unit_price=unit_price_minor,
+        tax_rate=float(tax_rate_decimal),
+        tax_amount=tax_minor,
+        total_price=subtotal_minor,
+        discount_percentage=0.0,
+        discount_amount=0,
     )
 
 
@@ -65,29 +60,29 @@ def create_test_line_item(
 def sample_invoice():
     """Create a sample invoice for testing."""
     line_items = [
-        MoneyInvoiceLineItem(
+        InvoiceLineItem(
             description="Premium Subscription",
             quantity=1,
-            unit_price=MoneyField.from_money(Money("99.00", "USD")),
-            tax_rate=Decimal("0.10"),
-            tax_amount=MoneyField.from_money(Money("9.90", "USD")),
-            discount_percentage=Decimal("0"),
-            discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-            total_price=MoneyField.from_money(Money("108.90", "USD")),
+            unit_price=9900,
+            tax_rate=10.0,
+            tax_amount=990,
+            discount_percentage=0.0,
+            discount_amount=0,
+            total_price=9900,
         ),
-        MoneyInvoiceLineItem(
+        InvoiceLineItem(
             description="Additional User Licenses",
             quantity=5,
-            unit_price=MoneyField.from_money(Money("10.00", "USD")),
-            tax_rate=Decimal("0.10"),
-            tax_amount=MoneyField.from_money(Money("5.00", "USD")),
-            discount_percentage=Decimal("0"),
-            discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-            total_price=MoneyField.from_money(Money("55.00", "USD")),
+            unit_price=1000,
+            tax_rate=10.0,
+            tax_amount=500,
+            discount_percentage=0.0,
+            discount_amount=0,
+            total_price=5000,
         ),
     ]
 
-    invoice = MoneyInvoice(
+    invoice = Invoice(
         invoice_number="INV-2025-001",
         customer_id="cust-123",
         tenant_id="tenant-123",
@@ -98,11 +93,11 @@ def sample_invoice():
         issue_date=datetime.now(UTC),
         due_date=datetime.now(UTC),
         line_items=line_items,
-        subtotal=MoneyField.from_money(Money("149.00", "USD")),
-        tax_amount=MoneyField.from_money(Money("14.90", "USD")),
-        discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-        total_amount=MoneyField.from_money(Money("163.90", "USD")),
-        remaining_balance=MoneyField.from_money(Money("163.90", "USD")),
+        subtotal=14900,
+        tax_amount=1490,
+        discount_amount=0,
+        total_amount=16390,
+        remaining_balance=16390,
         notes="Thank you for your business!",
     )
 
@@ -236,7 +231,7 @@ class TestPDFGeneration:
 
     def test_generate_with_notes(self, company_info, customer_info):
         """Test generating invoice with notes."""
-        invoice = MoneyInvoice(
+        invoice = Invoice(
             invoice_number="INV-2025-002",
             customer_id="cust-456",
             tenant_id="tenant-123",
@@ -246,11 +241,11 @@ class TestPDFGeneration:
             payment_status="pending",
             issue_date=datetime.now(UTC),
             line_items=[],
-            subtotal=MoneyField.from_money(Money("100.00", "USD")),
-            tax_amount=MoneyField.from_money(Money("0.00", "USD")),
-            discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-            total_amount=MoneyField.from_money(Money("100.00", "USD")),
-            remaining_balance=MoneyField.from_money(Money("100.00", "USD")),
+            subtotal=10000,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=10000,
+            remaining_balance=10000,
             notes="This is a test invoice with important notes.",
         )
 
@@ -399,7 +394,7 @@ class TestLineItemsTable:
 
     def test_line_items_with_tax(self):
         """Test line items table with tax amounts."""
-        invoice = MoneyInvoice(
+        invoice = Invoice(
             invoice_number="INV-TAX-001",
             customer_id="cust-789",
             tenant_id="tenant-123",
@@ -409,22 +404,22 @@ class TestLineItemsTable:
             payment_status="pending",
             issue_date=datetime.now(UTC),
             line_items=[
-                MoneyInvoiceLineItem(
+                InvoiceLineItem(
                     description="Taxable Item",
                     quantity=1,
-                    unit_price=MoneyField.from_money(Money("100.00", "USD")),
-                    tax_rate=Decimal("0.0825"),
-                    tax_amount=MoneyField.from_money(Money("8.25", "USD")),
-                    discount_percentage=Decimal("0"),
-                    discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-                    total_price=MoneyField.from_money(Money("108.25", "USD")),
+                    unit_price=10000,
+                    tax_rate=8.25,
+                    tax_amount=825,
+                    discount_percentage=0.0,
+                    discount_amount=0,
+                    total_price=10000,
                 ),
             ],
-            subtotal=MoneyField.from_money(Money("100.00", "USD")),
-            tax_amount=MoneyField.from_money(Money("8.25", "USD")),
-            discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-            total_amount=MoneyField.from_money(Money("108.25", "USD")),
-            remaining_balance=MoneyField.from_money(Money("108.25", "USD")),
+            subtotal=10000,
+            tax_amount=825,
+            discount_amount=0,
+            total_amount=10825,
+            remaining_balance=10825,
         )
 
         generator = ReportLabInvoiceGenerator()
@@ -447,7 +442,7 @@ class TestTotalsSection:
 
     def test_totals_with_discount(self):
         """Test totals section with discount."""
-        invoice = MoneyInvoice(
+        invoice = Invoice(
             invoice_number="INV-DISC-001",
             customer_id="cust-discount",
             tenant_id="tenant-123",
@@ -457,11 +452,11 @@ class TestTotalsSection:
             payment_status="pending",
             issue_date=datetime.now(UTC),
             line_items=[],
-            subtotal=MoneyField.from_money(Money("100.00", "USD")),
-            tax_amount=MoneyField.from_money(Money("0.00", "USD")),
-            discount_amount=MoneyField.from_money(Money("10.00", "USD")),
-            total_amount=MoneyField.from_money(Money("90.00", "USD")),
-            remaining_balance=MoneyField.from_money(Money("90.00", "USD")),
+            subtotal=10000,
+            tax_amount=0,
+            discount_amount=1000,
+            total_amount=9000,
+            remaining_balance=9000,
         )
 
         generator = ReportLabInvoiceGenerator()
@@ -471,7 +466,7 @@ class TestTotalsSection:
 
     def test_totals_with_credits(self):
         """Test totals section with applied credits."""
-        invoice = MoneyInvoice(
+        invoice = Invoice(
             invoice_number="INV-CRED-001",
             customer_id="cust-credit",
             tenant_id="tenant-123",
@@ -481,12 +476,12 @@ class TestTotalsSection:
             payment_status="pending",
             issue_date=datetime.now(UTC),
             line_items=[],
-            subtotal=MoneyField.from_money(Money("100.00", "USD")),
-            tax_amount=MoneyField.from_money(Money("0.00", "USD")),
-            discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-            total_amount=MoneyField.from_money(Money("100.00", "USD")),
-            total_credits_applied=MoneyField.from_money(Money("20.00", "USD")),
-            remaining_balance=MoneyField.from_money(Money("80.00", "USD")),
+            subtotal=10000,
+            tax_amount=0,
+            discount_amount=0,
+            total_amount=10000,
+            total_credits_applied=2000,
+            remaining_balance=8000,
         )
 
         generator = ReportLabInvoiceGenerator()
@@ -548,7 +543,7 @@ class TestBatchGeneration:
         """Test generating multiple invoices in batch."""
         invoices = []
         for i in range(3):
-            invoice = MoneyInvoice(
+            invoice = Invoice(
                 invoice_number=f"INV-BATCH-{i:03d}",
                 customer_id=f"cust-{i}",
                 tenant_id="tenant-123",
@@ -558,11 +553,11 @@ class TestBatchGeneration:
                 payment_status="pending",
                 issue_date=datetime.now(UTC),
                 line_items=[],
-                subtotal=MoneyField.from_money(Money("100.00", "USD")),
-                tax_amount=MoneyField.from_money(Money("0.00", "USD")),
-                discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-                total_amount=MoneyField.from_money(Money("100.00", "USD")),
-                remaining_balance=MoneyField.from_money(Money("100.00", "USD")),
+                subtotal=10000,
+                tax_amount=0,
+                discount_amount=0,
+                total_amount=10000,
+                remaining_balance=10000,
             )
             invoices.append(invoice)
 
@@ -585,7 +580,7 @@ class TestBatchGeneration:
     def test_batch_with_company_info(self, tmp_path, company_info):
         """Test batch generation with company info."""
         invoices = [
-            MoneyInvoice(
+            Invoice(
                 invoice_number="INV-BATCH-COMPANY-001",
                 customer_id="cust-batch",
                 tenant_id="tenant-123",
@@ -595,11 +590,11 @@ class TestBatchGeneration:
                 payment_status="pending",
                 issue_date=datetime.now(UTC),
                 line_items=[],
-                subtotal=MoneyField.from_money(Money("50.00", "USD")),
-                tax_amount=MoneyField.from_money(Money("0.00", "USD")),
-                discount_amount=MoneyField.from_money(Money("0.00", "USD")),
-                total_amount=MoneyField.from_money(Money("50.00", "USD")),
-                remaining_balance=MoneyField.from_money(Money("50.00", "USD")),
+                subtotal=5000,
+                tax_amount=0,
+                discount_amount=0,
+                total_amount=5000,
+                remaining_balance=5000,
             ),
         ]
 

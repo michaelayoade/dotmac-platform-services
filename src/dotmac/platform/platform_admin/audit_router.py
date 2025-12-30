@@ -19,6 +19,7 @@ from dotmac.platform.audit.models import AuditActivity
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.rbac_dependencies import require_permission
 from dotmac.platform.database import get_async_session
+from dotmac.platform.tenant.models import Tenant
 
 logger = structlog.get_logger(__name__)
 
@@ -36,12 +37,12 @@ class CrossTenantAuditLogResponse(BaseModel):
     model_config = ConfigDict()
 
     id: str
-    tenant_id: str
+    tenant_id: str | None = None
     tenant_name: str | None = None
     user_id: str | None = None
     user_email: str | None = None
     action: str
-    resource_type: str
+    resource_type: str | None = None
     resource_id: str | None = None
     status: str
     ip_address: str | None = None
@@ -161,13 +162,21 @@ async def list_all_audit_logs(
         result = await session.execute(query)
         logs = result.scalars().all()
 
+        # Fetch tenant names for all logs
+        tenant_ids = list(set(log.tenant_id for log in logs if log.tenant_id))
+        tenant_names: dict[str, str] = {}
+        if tenant_ids:
+            tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            tenant_result = await session.execute(tenant_query)
+            tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+
         # Convert to response model
         log_responses = []
         for log in logs:
             log_response = CrossTenantAuditLogResponse(
                 id=str(log.id),
                 tenant_id=log.tenant_id,
-                tenant_name=None,  # TODO: Join with tenant table
+                tenant_name=tenant_names.get(log.tenant_id) if log.tenant_id else None,
                 user_id=log.user_id,
                 user_email=getattr(log, "user_email", None),
                 action=log.action,
@@ -284,6 +293,15 @@ async def get_audit_summary_by_tenant(
                 or row.last_activity > tenant_data[t_id]["last_activity"]
             ):
                 tenant_data[t_id]["last_activity"] = row.last_activity
+
+        # Populate tenant names in batch
+        if tenant_data:
+            tenant_ids = list(tenant_data.keys())
+            tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            tenant_result = await session.execute(tenant_query)
+            tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+            for t_id, t_data in tenant_data.items():
+                t_data["tenant_name"] = tenant_names.get(t_id)
 
         # Filter by min_events and convert to response model
         summaries = [

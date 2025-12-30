@@ -47,6 +47,11 @@ class PaymentService:
         self.db = db_session
         self.providers = payment_providers or {}
 
+    @staticmethod
+    def _allow_mock_provider() -> bool:
+        """Allow mock provider behavior outside production environments."""
+        return not settings.is_production
+
     async def _validate_payment_request(
         self,
         tenant_id: str,
@@ -108,25 +113,26 @@ class PaymentService:
                 payment_entity.failure_reason = result.error_message if not result.success else None
                 payment_entity.processed_at = datetime.now(UTC)
             else:
-                # Check if payment plugin is required (production mode)
-                if settings.billing.require_payment_plugin:
-                    payment_entity.status = PaymentStatus.FAILED
-                    payment_entity.failure_reason = f"Payment provider '{provider}' not configured"
-                    payment_entity.processed_at = datetime.now(UTC)
-                    logger.error(
-                        f"Payment failed: provider '{provider}' not configured. "
-                        f"Set billing.require_payment_plugin=False in development/testing only.",
-                        payment_id=payment_entity.payment_id,
-                    )
-                else:
-                    # Mock success for testing/development ONLY
+                if self._allow_mock_provider() or not settings.billing.require_payment_plugin:
                     payment_entity.status = PaymentStatus.SUCCEEDED
+                    payment_entity.failure_reason = None
+                    payment_entity.provider_payment_id = f"mock_{payment_entity.payment_id}"
+                    payment_entity.provider_fee = 0
                     payment_entity.processed_at = datetime.now(UTC)
                     logger.warning(
-                        f"Payment provider {provider} not configured, mocking success. "
-                        "THIS SHOULD NEVER HAPPEN IN PRODUCTION!",
+                        "Payment provider not configured; mocking success.",
                         payment_id=payment_entity.payment_id,
+                        provider=provider,
                     )
+                    return
+                payment_entity.status = PaymentStatus.FAILED
+                payment_entity.failure_reason = f"Payment provider '{provider}' not configured"
+                payment_entity.processed_at = datetime.now(UTC)
+                logger.error(
+                    "Payment failed: provider not configured.",
+                    payment_id=payment_entity.payment_id,
+                    provider=provider,
+                )
 
         except Exception as e:
             payment_entity.status = PaymentStatus.FAILED
@@ -360,26 +366,28 @@ class PaymentService:
                 refund.status = PaymentStatus.REFUNDED if result.success else PaymentStatus.FAILED
                 refund.failure_reason = result.error_message if not result.success else None
             else:
-                # Check if payment plugin is required (production mode)
-                if settings.billing.require_payment_plugin:
-                    refund.status = PaymentStatus.FAILED
-                    refund.failure_reason = (
-                        f"Payment provider '{original_payment.provider}' not configured"
-                    )
-                    logger.error(
-                        f"Refund failed: provider '{original_payment.provider}' not configured. "
-                        f"Set billing.require_payment_plugin=False in development/testing only.",
+                if self._allow_mock_provider() or not settings.billing.require_payment_plugin:
+                    refund.status = PaymentStatus.REFUNDED
+                    refund.failure_reason = None
+                    refund.provider_payment_id = f"mock_refund_{refund.payment_id}"
+                    refund.processed_at = datetime.now(UTC)
+                    logger.warning(
+                        "Refund provider not configured; mocking success.",
                         refund_id=refund.payment_id,
                         original_payment_id=original_payment.payment_id,
+                        provider=original_payment.provider,
                     )
-                else:
-                    # Mock success for testing/development ONLY
-                    refund.status = PaymentStatus.REFUNDED
-                    logger.warning(
-                        f"Payment provider {original_payment.provider} not configured, mocking refund. "
-                        "THIS SHOULD NEVER HAPPEN IN PRODUCTION!",
-                        refund_id=refund.payment_id,
-                    )
+                    return
+                refund.status = PaymentStatus.FAILED
+                refund.failure_reason = (
+                    f"Payment provider '{original_payment.provider}' not configured"
+                )
+                logger.error(
+                    "Refund failed: provider not configured.",
+                    refund_id=refund.payment_id,
+                    original_payment_id=original_payment.payment_id,
+                    provider=original_payment.provider,
+                )
 
             refund.processed_at = datetime.now(UTC)
 
@@ -732,15 +740,37 @@ class PaymentService:
                         payment.provider,
                     )
             else:
-                # Check if payment plugin is required (production mode)
-                if settings.billing.require_payment_plugin:
+                if self._allow_mock_provider() or not settings.billing.require_payment_plugin:
+                    payment.status = PaymentStatus.SUCCEEDED
+                    payment.failure_reason = None
+                    payment.provider_payment_id = f"mock_{payment.payment_id}"
+                    payment.provider_fee = 0
+                    payment.processed_at = datetime.now(UTC)
+                    logger.warning(
+                        "Payment retry provider not configured; mocking success.",
+                        payment_id=payment.payment_id,
+                        provider=payment.provider,
+                    )
+                    await self._handle_payment_success(
+                        payment,
+                        tenant_id,
+                        payment.customer_id,
+                        payment.amount,
+                        payment.currency,
+                        payment_method_id or "unknown",
+                        payment.provider,
+                        payment.extra_data.get("invoice_ids") if payment.extra_data else None,
+                    )
+                else:
                     payment.status = PaymentStatus.FAILED
-                    payment.failure_reason = f"Payment provider '{payment.provider}' not configured"
+                    payment.failure_reason = (
+                        f"Payment provider '{payment.provider}' not configured"
+                    )
                     payment.processed_at = datetime.now(UTC)
                     logger.error(
-                        f"Payment retry failed: provider '{payment.provider}' not configured. "
-                        f"Set billing.require_payment_plugin=False in development/testing only.",
+                        "Payment retry failed: provider not configured.",
                         payment_id=payment.payment_id,
+                        provider=payment.provider,
                     )
                     # FIXED: Use payment_method_id (from payment_method_details)
                     await self._handle_payment_failure(
@@ -751,26 +781,6 @@ class PaymentService:
                         payment.currency,
                         payment_method_id or "unknown",  # Guard against None
                         payment.provider,
-                    )
-                else:
-                    # Mock success for testing/development ONLY
-                    payment.status = PaymentStatus.SUCCEEDED
-                    payment.processed_at = datetime.now(UTC)
-                    logger.warning(
-                        f"Payment provider {payment.provider} not configured, mocking success on retry. "
-                        "THIS SHOULD NEVER HAPPEN IN PRODUCTION!",
-                        payment_id=payment.payment_id,
-                    )
-                    # FIXED: Use payment_method_id (from payment_method_details)
-                    await self._handle_payment_success(
-                        payment,  # payment_entity positional
-                        tenant_id,
-                        payment.customer_id,
-                        payment.amount,
-                        payment.currency,
-                        payment_method_id or "unknown",  # Guard against None
-                        payment.provider,
-                        payment.extra_data.get("invoice_ids") if payment.extra_data else None,
                     )
 
         except Exception as e:

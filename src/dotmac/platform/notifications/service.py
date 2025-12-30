@@ -156,28 +156,10 @@ class NotificationService:
         if not template:
             raise NotFoundError(f"Template for {notification_type.value} not found")
 
-        # Render templates using TemplateService
-        # Create temporary in-memory templates for rendering
-        from jinja2 import DictLoader, Environment, select_autoescape
-
-        env = Environment(
-            loader=DictLoader(
-                {
-                    "title": template.title_template,
-                    "message": template.message_template,
-                    "action_url": template.action_url_template or "",
-                }
-            ),
-            autoescape=select_autoescape(
-                enabled_extensions=("html", "xml"),
-                default_for_string=True,
-            ),
-        )
-
-        title = env.get_template("title").render(**variables)
-        message = env.get_template("message").render(**variables)
+        title = self.template_service.render_inline(template.title_template, variables)
+        message = self.template_service.render_inline(template.message_template, variables)
         action_url = (
-            env.get_template("action_url").render(**variables)
+            self.template_service.render_inline(template.action_url_template, variables)
             if template.action_url_template
             else None
         )

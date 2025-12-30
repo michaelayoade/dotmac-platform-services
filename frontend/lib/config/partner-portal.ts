@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  Users2,
   HandCoins,
   FileText,
   Settings,
@@ -34,8 +35,8 @@ export const partnerPortalConfig: PortalConfig = {
           icon: UserPlus,
         },
         {
-          label: "Customers",
-          href: "/partner/customers",
+          label: "Tenants",
+          href: "/partner/tenants",
           icon: Users,
         },
         {
@@ -53,6 +54,11 @@ export const partnerPortalConfig: PortalConfig = {
     {
       title: "Account",
       items: [
+        {
+          label: "Team",
+          href: "/partner/team",
+          icon: Users2,
+        },
         {
           label: "Settings",
           href: "/partner/settings",

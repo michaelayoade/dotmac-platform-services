@@ -1,0 +1,54 @@
+{
+  "name": "@dotmac/dashboards",
+  "version": "1.0.0",
+  "description": "Dashboard layout patterns - filters, KPI tiles, chart grids, and drill-down panels",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dotmac/charts": "workspace:*",
+    "@dotmac/core": "workspace:*",
+    "@dotmac/data-table": "workspace:*",
+    "@dotmac/design-tokens": "workspace:*",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.363.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dotmac/component-library",
+    "directory": "packages/dashboards"
+  }
+}

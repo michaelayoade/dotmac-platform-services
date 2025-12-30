@@ -5,7 +5,7 @@ Provides cross-tenant access to analytics data for platform administrators.
 All endpoints require platform.admin permission.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 import structlog
@@ -107,11 +107,12 @@ async def get_platform_analytics_summary(
     - Activity metrics by tenant
     """
     try:
-        from dotmac.platform.auth.models import User
+        from dotmac.platform.audit.models import AuditActivity
+        from dotmac.platform.user_management.models import User
         from dotmac.platform.tenant.models import Tenant
 
-        period_start = datetime.utcnow() - timedelta(days=period_days)
-        period_end = datetime.utcnow()
+        period_start = datetime.now(timezone.utc) - timedelta(days=period_days)
+        period_end = datetime.now(timezone.utc)
 
         # Count total tenants
         tenant_count_query = select(func.count(Tenant.id))
@@ -130,8 +131,12 @@ async def get_platform_analytics_summary(
         user_count_result = await session.execute(user_count_query)
         total_users = user_count_result.scalar_one() or 0
 
-        # TODO: Add analytics events table query when available
-        total_events = 0
+        # Query audit activity as proxy for analytics events
+        event_count_query = select(func.count(AuditActivity.id)).where(
+            AuditActivity.timestamp >= period_start
+        )
+        event_count_result = await session.execute(event_count_query)
+        total_events = event_count_result.scalar_one() or 0
 
         metrics = {
             "average_users_per_tenant": round(total_users / total_tenants, 2)
@@ -180,10 +185,11 @@ async def get_tenant_activity_summary(
     **Returns:** List of tenant activity summaries sorted by event count
     """
     try:
+        from dotmac.platform.audit.models import AuditActivity
         from dotmac.platform.auth.models import User
         from dotmac.platform.tenant.models import Tenant
 
-        period_start = datetime.utcnow() - timedelta(days=period_days)
+        period_start = datetime.now(timezone.utc) - timedelta(days=period_days)
 
         # Get tenants with user counts and last activity
         tenant_query = (
@@ -200,6 +206,18 @@ async def get_tenant_activity_summary(
         tenant_result = await session.execute(tenant_query)
         tenant_rows = tenant_result.all()
 
+        # Get event counts per tenant from audit activity
+        event_query = (
+            select(
+                AuditActivity.tenant_id,
+                func.count(AuditActivity.id).label("event_count"),
+            )
+            .where(AuditActivity.timestamp >= period_start)
+            .group_by(AuditActivity.tenant_id)
+        )
+        event_result = await session.execute(event_query)
+        event_counts = {str(row.tenant_id): row.event_count for row in event_result.all()}
+
         summaries = []
         for row in tenant_rows:
             # Determine status
@@ -207,11 +225,11 @@ async def get_tenant_activity_summary(
             if row.last_activity:
                 if row.last_activity >= period_start:
                     status = "active"
-                elif row.last_activity >= datetime.utcnow() - timedelta(days=7):
+                elif row.last_activity >= datetime.now(timezone.utc) - timedelta(days=7):
                     status = "new"
 
-            # TODO: Get actual event count from analytics events table
-            event_count = 0
+            # Get event count from audit activity
+            event_count = event_counts.get(str(row.id), 0)
 
             if event_count >= min_activity:
                 summaries.append(
@@ -264,10 +282,16 @@ async def aggregate_metric_across_tenants(
 
     **Returns:** Aggregated metric with per-tenant breakdown
     """
-    try:
-        # TODO: Implement metric aggregation based on metric_name
-        # For now, return a sample response structure
+    async def _get_tenant_names(tenant_ids: list[str]) -> dict[str, str]:
+        if not tenant_ids:
+            return {}
+        from dotmac.platform.tenant.models import Tenant
 
+        tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+        tenant_result = await session.execute(tenant_query)
+        return {str(row.id): row.name for row in tenant_result.all()}
+
+    try:
         if metric_name == "user_count":
             from dotmac.platform.auth.models import User
 
@@ -283,12 +307,16 @@ async def aggregate_metric_across_tenants(
             result = await session.execute(query)
             rows = result.all()
 
+            # Fetch tenant names
+            tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
+            tenant_names = await _get_tenant_names(tenant_ids)
+
             by_tenant = [
                 TenantMetric(
                     tenant_id=row.tenant_id,
-                    tenant_name=None,  # TODO: Join with tenant table
+                    tenant_name=tenant_names.get(row.tenant_id) if row.tenant_id else None,
                     value=cast(float, row.count),
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                 )
                 for row in rows
             ]
@@ -300,14 +328,111 @@ async def aggregate_metric_across_tenants(
                 total_value=total_value,
                 tenant_count=len(by_tenant),
                 by_tenant=by_tenant,
-                aggregation_time=datetime.utcnow(),
+                aggregation_time=datetime.now(timezone.utc),
             )
 
-        else:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported metric: {metric_name}. Supported: user_count",
+        if metric_name == "login_count":
+            from dotmac.platform.audit.models import ActivityType, AuditActivity
+
+            filters = [
+                AuditActivity.activity_type == ActivityType.USER_LOGIN.value,
+                AuditActivity.action.in_(["login_success", "login"]),
+            ]
+
+            if tenant_id:
+                filters.append(AuditActivity.tenant_id == tenant_id)
+            if period_start:
+                filters.append(AuditActivity.timestamp >= period_start)
+            if period_end:
+                filters.append(AuditActivity.timestamp <= period_end)
+
+            query = (
+                select(
+                    AuditActivity.tenant_id,
+                    func.count(AuditActivity.id).label("count"),
+                )
+                .where(*filters)
+                .group_by(AuditActivity.tenant_id)
             )
+
+            result = await session.execute(query)
+            rows = result.all()
+
+            tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
+            tenant_names = await _get_tenant_names(tenant_ids)
+
+            by_tenant = [
+                TenantMetric(
+                    tenant_id=row.tenant_id,
+                    tenant_name=tenant_names.get(row.tenant_id) if row.tenant_id else None,
+                    value=cast(float, row.count),
+                    timestamp=datetime.now(timezone.utc),
+                )
+                for row in rows
+            ]
+
+            total_value = sum(metric.value for metric in by_tenant)
+
+            return CrossTenantMetricResponse(
+                metric_name=metric_name,
+                total_value=total_value,
+                tenant_count=len(by_tenant),
+                by_tenant=by_tenant,
+                aggregation_time=datetime.now(timezone.utc),
+            )
+
+        if metric_name == "revenue":
+            from dotmac.platform.billing.core.entities import InvoiceEntity
+
+            revenue_expr = InvoiceEntity.total_amount - InvoiceEntity.remaining_balance
+            filters = [InvoiceEntity.tenant_id.is_not(None)]
+
+            if tenant_id:
+                filters.append(InvoiceEntity.tenant_id == tenant_id)
+            if period_start:
+                filters.append(InvoiceEntity.paid_at >= period_start)
+            if period_end:
+                filters.append(InvoiceEntity.paid_at <= period_end)
+
+            query = (
+                select(
+                    InvoiceEntity.tenant_id,
+                    func.sum(revenue_expr).label("total"),
+                )
+                .where(*filters)
+                .group_by(InvoiceEntity.tenant_id)
+            )
+
+            result = await session.execute(query)
+            rows = result.all()
+
+            tenant_ids = [row.tenant_id for row in rows if row.tenant_id]
+            tenant_names = await _get_tenant_names(tenant_ids)
+
+            by_tenant = [
+                TenantMetric(
+                    tenant_id=row.tenant_id,
+                    tenant_name=tenant_names.get(row.tenant_id) if row.tenant_id else None,
+                    value=float(row.total or 0),
+                    timestamp=datetime.now(timezone.utc),
+                )
+                for row in rows
+            ]
+
+            total_value = sum(metric.value for metric in by_tenant)
+
+            return CrossTenantMetricResponse(
+                metric_name=metric_name,
+                total_value=total_value,
+                tenant_count=len(by_tenant),
+                by_tenant=by_tenant,
+                aggregation_time=datetime.now(timezone.utc),
+            )
+
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported metric. Supported: user_count, login_count, revenue",
+        )
 
     except HTTPException:
         raise

@@ -73,7 +73,7 @@ class CommissionRulesService:
             flat_fee_amount=data.flat_fee_amount,
             tier_config=data.tier_config,
             applies_to_products=data.applies_to_products,
-            applies_to_customers=data.applies_to_customers,
+            applies_to_customers=data.applies_to_tenants,
             effective_from=data.effective_from,
             effective_to=data.effective_to,
             is_active=data.is_active,
@@ -213,7 +213,7 @@ class CommissionRulesService:
                 tier_config=data.tier_config if data.tier_config is not None else rule.tier_config,
                 effective_from=data.effective_from or rule.effective_from,
                 applies_to_products=data.applies_to_products,
-                applies_to_customers=data.applies_to_customers,
+                applies_to_customers=data.applies_to_tenants,
             )
             self._validate_commission_config(temp_data)
 
@@ -271,7 +271,7 @@ class CommissionRulesService:
         self,
         partner_id: UUID,
         product_id: str | None = None,
-        customer_id: str | None = None,
+        tenant_id: str | None = None,
         evaluation_date: datetime | None = None,
     ) -> Sequence[PartnerCommission]:
         """
@@ -282,7 +282,7 @@ class CommissionRulesService:
         Args:
             partner_id: Partner ID
             product_id: Optional product ID to match
-            customer_id: Optional customer ID to match
+            tenant_id: Optional tenant ID to match
             evaluation_date: Date to evaluate rules (defaults to now)
 
         Returns:
@@ -304,7 +304,7 @@ class CommissionRulesService:
             )
         )
 
-        # Apply product/customer filters
+        # Apply product/tenant filters
         filters = []
         if product_id:
             filters.append(
@@ -313,11 +313,11 @@ class CommissionRulesService:
                     PartnerCommission.applies_to_products.contains([product_id]),
                 )
             )
-        if customer_id:
+        if tenant_id:
             filters.append(
                 or_(
                     PartnerCommission.applies_to_customers.is_(None),
-                    PartnerCommission.applies_to_customers.contains([customer_id]),
+                    PartnerCommission.applies_to_customers.contains([tenant_id]),
                 )
             )
 

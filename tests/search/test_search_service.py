@@ -472,48 +472,48 @@ class TestSearchService:
 
     async def test_index_business_entity(self, search_service, mock_backend):
         """Test indexing a business entity."""
-        entity_data = {"name": "Test Customer", "email": "test@example.com"}
-        result = await search_service.index_business_entity("customer", "cust1", entity_data)
+        entity_data = {"name": "Test Tenant", "email": "test@example.com"}
+        result = await search_service.index_business_entity("tenant", "cust1", entity_data)
 
         assert result is True
-        mock_backend.index.assert_called_once_with("business_customer", "cust1", entity_data)
+        mock_backend.index.assert_called_once_with("business_tenant", "cust1", entity_data)
 
     async def test_search_business_entities(self, search_service, mock_backend):
         """Test searching business entities."""
-        query = SearchQuery(query="test customer", limit=10)
-        response = await search_service.search_business_entities("customer", query)
+        query = SearchQuery(query="test tenant", limit=10)
+        response = await search_service.search_business_entities("tenant", query)
 
         assert isinstance(response, SearchResponse)
-        mock_backend.search.assert_called_once_with("business_customer", query)
+        mock_backend.search.assert_called_once_with("business_tenant", query)
 
     async def test_delete_business_entity(self, search_service, mock_backend):
         """Test deleting a business entity."""
-        result = await search_service.delete_business_entity("customer", "cust1")
+        result = await search_service.delete_business_entity("tenant", "cust1")
 
         assert result is True
-        mock_backend.delete.assert_called_once_with("business_customer", "cust1")
+        mock_backend.delete.assert_called_once_with("business_tenant", "cust1")
 
     async def test_update_business_entity(self, search_service, mock_backend):
         """Test updating a business entity."""
         updates = {"email": "updated@example.com"}
-        result = await search_service.update_business_entity("customer", "cust1", updates)
+        result = await search_service.update_business_entity("tenant", "cust1", updates)
 
         assert result is True
-        mock_backend.update.assert_called_once_with("business_customer", "cust1", updates)
+        mock_backend.update.assert_called_once_with("business_tenant", "cust1", updates)
 
     async def test_reindex_entity_type(self, search_service, mock_backend):
         """Test reindexing all entities of a type."""
         entities = [
-            {"id": "cust1", "name": "Customer 1"},
-            {"id": "cust2", "name": "Customer 2"},
+            {"id": "cust1", "name": "Tenant 1"},
+            {"id": "cust2", "name": "Tenant 2"},
         ]
 
-        count = await search_service.reindex_entity_type("customer", entities)
+        count = await search_service.reindex_entity_type("tenant", entities)
 
         assert count == 5  # Mock returns 5
-        mock_backend.delete_index.assert_called_once_with("business_customer")
-        mock_backend.create_index.assert_called_once_with("business_customer", None)
-        mock_backend.bulk_index.assert_called_once_with("business_customer", entities)
+        mock_backend.delete_index.assert_called_once_with("business_tenant")
+        mock_backend.create_index.assert_called_once_with("business_tenant", None)
+        mock_backend.bulk_index.assert_called_once_with("business_tenant", entities)
 
     async def test_setup_indices(self, search_service, mock_backend):
         """Test setting up search indices."""
@@ -521,7 +521,7 @@ class TestSearchService:
 
         # Should create indices for all entity types
         expected_calls = [
-            "business_customer",
+            "business_tenant",
             "business_invoice",
             "business_subscription",
             "business_payment",
@@ -580,57 +580,57 @@ class TestSearchServiceIntegration:
         await memory_service.setup_indices()
 
         # Index some entities
-        customer_data = {"name": "John Doe", "email": "john@example.com", "status": "active"}
-        await memory_service.index_business_entity("customer", "cust1", customer_data)
+        tenant_data = {"name": "John Doe", "email": "john@example.com", "status": "active"}
+        await memory_service.index_business_entity("tenant", "cust1", tenant_data)
 
-        invoice_data = {"number": "INV-001", "amount": 100.0, "customer_id": "cust1"}
+        invoice_data = {"number": "INV-001", "amount": 100.0, "tenant_id": "cust1"}
         await memory_service.index_business_entity("invoice", "inv1", invoice_data)
 
-        # Search for customers
+        # Search for tenants
         query = SearchQuery(query="John", limit=10)
-        response = await memory_service.search_business_entities("customer", query)
+        response = await memory_service.search_business_entities("tenant", query)
 
         assert len(response.results) == 1
         assert response.results[0].id == "cust1"
         assert response.results[0].data["name"] == "John Doe"
 
-        # Update customer
+        # Update tenant
         updates = {"status": "inactive"}
-        await memory_service.update_business_entity("customer", "cust1", updates)
+        await memory_service.update_business_entity("tenant", "cust1", updates)
 
         # Search again to verify update
-        response = await memory_service.search_business_entities("customer", query)
+        response = await memory_service.search_business_entities("tenant", query)
         assert response.results[0].data["status"] == "inactive"
 
-        # Delete customer
-        await memory_service.delete_business_entity("customer", "cust1")
+        # Delete tenant
+        await memory_service.delete_business_entity("tenant", "cust1")
 
         # Search should return no results
-        response = await memory_service.search_business_entities("customer", query)
+        response = await memory_service.search_business_entities("tenant", query)
         assert len(response.results) == 0
 
     async def test_bulk_reindexing(self, memory_service):
         """Test bulk reindexing functionality."""
         # Create initial data
         entities = [
-            {"id": "cust1", "name": "Customer 1", "status": "active"},
-            {"id": "cust2", "name": "Customer 2", "status": "active"},
-            {"id": "cust3", "name": "Customer 3", "status": "inactive"},
+            {"id": "cust1", "name": "Tenant 1", "status": "active"},
+            {"id": "cust2", "name": "Tenant 2", "status": "active"},
+            {"id": "cust3", "name": "Tenant 3", "status": "inactive"},
         ]
 
         # Bulk reindex
-        count = await memory_service.reindex_entity_type("customer", entities)
+        count = await memory_service.reindex_entity_type("tenant", entities)
         assert count == 3
 
         # Verify all entities are indexed
-        query = SearchQuery(query="Customer", limit=10)
-        response = await memory_service.search_business_entities("customer", query)
+        query = SearchQuery(query="Tenant", limit=10)
+        response = await memory_service.search_business_entities("tenant", query)
         assert len(response.results) == 3
 
         # Test filtered search
         filter_active = SearchFilter(field="status", operator="eq", value="active")
         query = SearchQuery(query="", filters=[filter_active], limit=10)
-        response = await memory_service.search_business_entities("customer", query)
+        response = await memory_service.search_business_entities("tenant", query)
         assert len(response.results) == 2
 
 

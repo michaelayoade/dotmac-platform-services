@@ -7,7 +7,7 @@ Provides endpoints for system observability, error monitoring, and performance m
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dotmac.platform.auth.core import UserInfo
 from dotmac.platform.auth.dependencies import get_current_user
 from dotmac.platform.db import get_session_dependency
+from dotmac.platform.audit.models import ActivitySeverity
 
 logger = structlog.get_logger(__name__)
 
@@ -63,13 +64,24 @@ async def get_error_rate(
         error_query = select(func.count(AuditActivity.id)).where(
             and_(
                 AuditActivity.created_at >= window_start,
-                AuditActivity.severity.in_(["ERROR", "CRITICAL"]),
+                AuditActivity.severity.in_(
+                    [ActivitySeverity.HIGH.value, ActivitySeverity.CRITICAL.value]
+                ),
             )
         )
 
         total_query = select(func.count(AuditActivity.id)).where(
             AuditActivity.created_at >= window_start
         )
+        tenant_id = getattr(current_user, "tenant_id", None)
+        if not getattr(current_user, "is_platform_admin", False):
+            if not tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Tenant context required for monitoring metrics",
+                )
+            error_query = error_query.where(AuditActivity.tenant_id == tenant_id)
+            total_query = total_query.where(AuditActivity.tenant_id == tenant_id)
 
         error_result = await session.execute(error_query)
         total_result = await session.execute(total_query)
@@ -149,6 +161,14 @@ async def get_latency_metrics(
                 AuditActivity.details.isnot(None),
             )
         )
+        tenant_id = getattr(current_user, "tenant_id", None)
+        if not getattr(current_user, "is_platform_admin", False):
+            if not tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Tenant context required for monitoring metrics",
+                )
+            query = query.where(AuditActivity.tenant_id == tenant_id)
 
         result = await session.execute(query)
         details_list = result.scalars().all()

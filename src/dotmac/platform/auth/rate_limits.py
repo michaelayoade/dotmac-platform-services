@@ -11,10 +11,10 @@ from typing import Any
 # These are applied in production via the app configuration
 
 AUTH_RATE_LIMITS = {
-    "/auth/login": "5/minute",  # Prevent brute force attacks
-    "/auth/register": "3/minute",  # Prevent mass account creation
-    "/auth/refresh": "10/minute",  # Reasonable limit for token refresh
-    "/auth/password-reset": "3/minute",  # Prevent abuse of password reset
+    "/auth/login": "60/minute",  # Relaxed for development
+    "/auth/register": "30/minute",  # Relaxed for development
+    "/auth/refresh": "60/minute",  # Relaxed for development
+    "/auth/password-reset": "30/minute",  # Relaxed for development
 }
 
 

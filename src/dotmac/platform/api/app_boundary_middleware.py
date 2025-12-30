@@ -224,7 +224,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
                 detail={
                     "error": "Insufficient permissions for tenant operations",
                     "path": path,
-                    "required_scopes": ["tenant_admin:*", "network:*", "billing:*", "customer:*"],
+                    "required_scopes": ["tenant_admin:*", "network:*", "billing:*", "contacts:*"],
                     "help": "Contact your tenant administrator for access",
                 },
             )
@@ -304,7 +304,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
         - tenant_admin:*
         - network:*
         - billing:*
-        - customer:*
+        - contacts:*
         - services:*
         - reseller:*
         - support:*
@@ -334,7 +334,7 @@ class AppBoundaryMiddleware(BaseHTTPMiddleware):
             "tenant_admin:",
             "network:",
             "billing:",
-            "customer:",
+            "contacts:",
             "services:",
             "reseller:",
             "support:",

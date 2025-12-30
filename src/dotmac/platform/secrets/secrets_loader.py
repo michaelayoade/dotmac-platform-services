@@ -43,6 +43,10 @@ SECRETS_MAPPING = {
     # Authentication & JWT (RESTRICTED)
     # ============================================================
     "jwt.secret_key": "auth/jwt_secret",
+    "auth.jwt_private_key": "jwt/current#private_key",
+    "auth.jwt_public_key": "jwt/current#public_key",
+    "auth.jwt_key_id": "jwt/current#key_id",
+    "auth.jwt_asymmetric_algorithm": "jwt/current#algorithm",
     # ============================================================
     # Email/SMTP Credentials (CONFIDENTIAL)
     # ============================================================
@@ -143,7 +147,7 @@ def get_nested_attr(obj: Any, path: str, default: Any | None = None) -> Any:
         return default
 
 
-def _extract_secret_value(secret_data: Any) -> str | None:
+def _extract_secret_value(secret_data: Any, key: str | None = None) -> str | None:
     """
     Extract secret value from various Vault data formats.
 
@@ -154,6 +158,10 @@ def _extract_secret_value(secret_data: Any) -> str | None:
         Extracted secret value or None
     """
     if isinstance(secret_data, dict):
+        if key is not None and key in secret_data:
+            value = secret_data.get(key)
+            return str(value) if value is not None else None
+
         if "value" in secret_data:
             value = secret_data["value"]
             return str(value) if value is not None else None
@@ -171,6 +179,17 @@ def _extract_secret_value(secret_data: Any) -> str | None:
     return None
 
 
+def _split_vault_path(vault_path: str) -> tuple[str, str | None]:
+    """Split a vault mapping path into path and optional subkey.
+
+    Format: "path#key" where "key" is extracted from the secret dict.
+    """
+    if "#" in vault_path:
+        path, key = vault_path.split("#", 1)
+        return path, key
+    return vault_path, None
+
+
 def _update_settings_with_secrets(settings_obj: Settings, secrets: dict[str, Any]) -> int:
     """
     Update settings object with fetched secrets.
@@ -184,8 +203,9 @@ def _update_settings_with_secrets(settings_obj: Settings, secrets: dict[str, Any
     """
     updated_count = 0
     for setting_path, vault_path in SECRETS_MAPPING.items():
-        secret_data = secrets.get(vault_path, {})
-        secret_value = _extract_secret_value(secret_data)
+        path, subkey = _split_vault_path(vault_path)
+        secret_data = secrets.get(path, {})
+        secret_value = _extract_secret_value(secret_data, key=subkey)
 
         if secret_value:
             try:
@@ -267,7 +287,9 @@ async def load_secrets_from_vault(
             return
 
         # Collect all Vault paths to fetch
-        vault_paths = list(set(SECRETS_MAPPING.values()))
+        vault_paths = list(
+            set(_split_vault_path(path)[0] for path in SECRETS_MAPPING.values())
+        )
         logger.info(f"Fetching {len(vault_paths)} secrets from Vault")
 
         # Fetch all secrets in parallel
@@ -322,7 +344,9 @@ def load_secrets_from_vault_sync(
             logger.error("Vault health check failed, using default settings")
             return
 
-        vault_paths = list(set(SECRETS_MAPPING.values()))
+        vault_paths = list(
+            set(_split_vault_path(path)[0] for path in SECRETS_MAPPING.values())
+        )
         logger.info(f"Fetching {len(vault_paths)} secrets from Vault")
 
         secrets = vault_client.get_secrets(vault_paths)

@@ -40,7 +40,6 @@ src/dotmac/platform/
 ├── billing/           # Billing system (53 files, 10+ submodules)
 ├── tenant/            # Multi-tenancy (21 files)
 ├── partner_management/ # Partner program + portal APIs (15 files)
-├── customer_management/ # Customer CRM workflows (7 files)
 ├── user_management/   # User/team management (7 files)
 ├── core/              # Shared infrastructure (22 files)
 ├── api/               # API gateway & middleware (6 files)
@@ -92,7 +91,6 @@ FastAPI  Business   SQLAlchemy
 
 **Domain Events** (`src/dotmac/platform/core/events.py`):
 ```python
-CustomerCreatedEvent
 InvoicePaymentReceivedEvent
 SubscriptionRenewedEvent
 PaymentFailedEvent
@@ -108,7 +106,7 @@ Found in `billing/domain/repositories.py`:
 ```python
 class InvoiceRepository(BaseRepository):
     async def find_by_id(id: str) -> Invoice
-    async def find_by_customer(customer_id: str) -> list[Invoice]
+    async def find_by_tenant(tenant_id: str) -> list[Invoice]
     async def save(invoice: Invoice) -> None
     async def delete(id: str) -> None
 ```
@@ -149,7 +147,7 @@ async def create_invoice(
 | Users | `User`, `Team`, `TeamMember` |
 | Tenants | `Tenant` |
 | Auth | `Permission`, `Role`, `APIKey` |
-| Billing | `Customer`, `Invoice`, `Payment`, `Subscription`, `LineItem` |
+| Billing | `Invoice`, `Payment`, `Subscription`, `LineItem` |
 | Products | `PlatformProduct` |
 | Audit | `AuditLog` |
 
@@ -241,12 +239,6 @@ billing/
 - Partner lifecycle management (tiers, commission models)
 - Referral tracking, commissions, payouts
 - Self-service portal endpoints under `/api/v1/partners/portal/*`
-
-### Customer Management (`customer_management/`)
-
-**Capabilities:**
-- Customer lifecycle workflows and CRM-style automation
-- Integrates with billing, tenant provisioning, and audit trails
 
 ### Observability (`analytics/`, `monitoring/`)
 

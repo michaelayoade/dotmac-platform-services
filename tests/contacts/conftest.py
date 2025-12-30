@@ -49,18 +49,11 @@ def user_id():
 
 
 @pytest.fixture
-def customer_id():
-    """Fixture for customer ID."""
-    return uuid4()
-
-
-@pytest.fixture
-def sample_contact(tenant_id, customer_id, user_id):
+def sample_contact(tenant_id, user_id):
     """Create a sample contact entity."""
     contact = Mock(spec=Contact)
     contact.id = uuid4()
     contact.tenant_id = tenant_id
-    contact.customer_id = customer_id
     contact.first_name = "John"
     contact.middle_name = "Q"
     contact.last_name = "Doe"
@@ -71,7 +64,7 @@ def sample_contact(tenant_id, customer_id, user_id):
     contact.job_title = "CEO"
     contact.department = "Executive"
     contact.status = ContactStatus.ACTIVE
-    contact.stage = ContactStage.CUSTOMER
+    contact.stage = ContactStage.ACCOUNT
     contact.owner_id = user_id
     contact.assigned_team_id = None
     contact.notes = "Important client"

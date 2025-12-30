@@ -30,7 +30,7 @@ logger = structlog.get_logger(__name__)
 search_router = APIRouter()
 
 # Default entity types searched when no type filter provided
-_DEFAULT_ENTITY_TYPES = {"customer", "invoice", "ticket", "user"}
+_DEFAULT_ENTITY_TYPES = {"tenant", "invoice", "ticket", "user"}
 
 
 class _SearchBackendState:

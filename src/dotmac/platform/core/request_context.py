@@ -175,6 +175,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             # Process request
             response = await call_next(request)
 
+            # Refresh user/tenant context after auth middleware/dependencies run
+            if hasattr(request.state, "user_id"):
+                set_user_id(request.state.user_id)
+            if hasattr(request.state, "tenant_id"):
+                set_tenant_id(request.state.tenant_id)
+
             # Calculate request duration
             duration = time.time() - start_time
 
@@ -206,6 +212,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             # Log exception with full context
             duration = time.time() - start_time
+
+            if hasattr(request.state, "user_id"):
+                set_user_id(request.state.user_id)
+            if hasattr(request.state, "tenant_id"):
+                set_tenant_id(request.state.tenant_id)
 
             logger.exception(
                 f"Request failed: {request.method} {request.url.path}",

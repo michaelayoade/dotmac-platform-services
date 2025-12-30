@@ -83,7 +83,7 @@ class DeploymentTemplateUpdate(BaseModel):
 class DeploymentTemplateResponse(DeploymentTemplateBase):
     """Schema for deployment template response"""
 
-    id: int
+    id: str
     cpu_cores: int | None = None
     memory_gb: int | None = None
     storage_gb: int | None = None
@@ -107,6 +107,12 @@ class DeploymentTemplateResponse(DeploymentTemplateBase):
 
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_id(cls, v: Any) -> str:
+        """Convert ID to string."""
+        return str(v) if v is not None else ""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -152,13 +158,17 @@ class DeploymentInstanceUpdate(BaseModel):
 class DeploymentInstanceResponse(DeploymentInstanceBase):
     """Schema for deployment instance response"""
 
-    id: int
-    tenant_id: int
+    id: str
+    tenant_id: str
     state: DeploymentState
     state_reason: str | None = None
     last_state_change: datetime
     secrets_path: str | None = None
     version: str
+
+    # Additional fields for frontend compatibility
+    name: str | None = None
+    replicas: int = 1
 
     endpoints: dict[str, str] | None = None
     namespace: str | None = None
@@ -184,6 +194,12 @@ class DeploymentInstanceResponse(DeploymentInstanceBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("id", "tenant_id", mode="before")
+    @classmethod
+    def convert_ids(cls, v: Any) -> str:
+        """Convert IDs to string."""
+        return str(v) if v is not None else ""
+
 
 # ============================================================================
 # Execution Schemas
@@ -203,8 +219,8 @@ class DeploymentExecutionCreate(BaseModel):
 class DeploymentExecutionResponse(BaseModel):
     """Schema for deployment execution response"""
 
-    id: int
-    instance_id: int
+    id: str
+    instance_id: str
     operation: str
     state: str
     started_at: datetime
@@ -221,7 +237,7 @@ class DeploymentExecutionResponse(BaseModel):
 
     result: str | None = None
     error_message: str | None = None
-    rollback_execution_id: int | None = None
+    rollback_execution_id: str | None = None
 
     triggered_by: int | None = None
     trigger_type: str | None = None
@@ -230,6 +246,12 @@ class DeploymentExecutionResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("id", "instance_id", "rollback_execution_id", mode="before")
+    @classmethod
+    def convert_ids(cls, v: Any) -> str | None:
+        """Convert IDs to string."""
+        return str(v) if v is not None else None
 
 
 # ============================================================================

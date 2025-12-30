@@ -5,14 +5,36 @@ import inspect
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dotmac.platform.database import get_session
 
 from .core import UserInfo, api_key_service, get_current_user
+from .models import ApiKey
 
 router = APIRouter(prefix="/auth/api-keys", tags=["API Keys"])
+
+
+class ScopeDetail(BaseModel):  # BaseModel resolves to Any in isolation
+    """API key scope detail."""
+
+    model_config = ConfigDict()
+
+    name: str
+    description: str
+
+
+class AvailableScopesResponse(BaseModel):  # BaseModel resolves to Any in isolation
+    """Response for available API key scopes."""
+
+    model_config = ConfigDict()
+
+    scopes: dict[str, ScopeDetail]
 
 
 # ============================================
@@ -116,6 +138,7 @@ async def _enhanced_create_api_key(
     expires_at: datetime | None = None,
     description: str | None = None,
     tenant_id: str | None = None,
+    session: AsyncSession | None = None,
 ) -> tuple[str, str]:
     """Create API key with enhanced metadata and tenant binding.
 
@@ -128,19 +151,42 @@ async def _enhanced_create_api_key(
         expires_at: Optional expiration timestamp
         description: Optional key description
         tenant_id: Tenant ID for multi-tenant isolation (REQUIRED for production)
+        session: Database session for persistence
 
     Returns:
         Tuple of (api_key, key_id)
     """
-    key_id = str(uuid4())
+    key_id = uuid4()
     api_key = await api_key_service.create_api_key(user_id, name, scopes, tenant_id)
 
-    # Store enhanced metadata
+    # SECURITY: Hash the API key before storing
+    api_key_hash = _hash_api_key(api_key)
+    prefix = api_key[:8]
+
+    # Persist to database if session provided
+    if session:
+        api_key_entity = ApiKey(
+            id=key_id,
+            user_id=UUID(user_id),
+            tenant_id=UUID(tenant_id) if tenant_id else None,
+            name=name,
+            prefix=prefix,
+            key_hash=api_key_hash,
+            scopes=scopes or [],
+            description=description,
+            is_active=True,
+            expires_at=expires_at,
+        )
+        session.add(api_key_entity)
+        await session.flush()
+
+    # Also cache to Redis for fast lookup
     client = await api_key_service._get_redis()
     enhanced_data = {
-        "id": key_id,
+        "id": str(key_id),
         "user_id": user_id,
         "name": name,
+        "prefix": prefix,
         "scopes": scopes or [],
         "tenant_id": tenant_id,  # SECURITY: Bind API key to tenant
         "created_at": datetime.now(UTC).isoformat(),
@@ -150,23 +196,18 @@ async def _enhanced_create_api_key(
         "is_active": True,
     }
 
-    # SECURITY: Hash the API key before storing for lookup
-    # This prevents exposure of live credentials if Redis is compromised
-    api_key_hash = _hash_api_key(api_key)
-
     fallback_allowed = getattr(api_key_service, "_fallback_allowed", True)
 
     if client:
         await client.set(f"api_key_meta:{key_id}", api_key_service._serialize(enhanced_data))
-        # Store hash -> key_id mapping instead of plaintext -> key_id
-        await client.set(f"api_key_lookup:{api_key_hash}", key_id)
-    else:
+        await client.set(f"api_key_lookup:{api_key_hash}", str(key_id))
+    elif not session:
+        # Only use memory fallback if no database session
         if not fallback_allowed:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="API key service unavailable. Redis connectivity is required.",
             )
-        # Fallback to memory
         memory_meta = getattr(api_key_service, "_memory_meta", None)
         if memory_meta is None:
             memory_meta = {}
@@ -176,17 +217,46 @@ async def _enhanced_create_api_key(
             memory_lookup = {}
             api_key_service._memory_lookup = memory_lookup
 
-        memory_meta[key_id] = enhanced_data
-        memory_lookup[api_key_hash] = key_id
+        memory_meta[str(key_id)] = enhanced_data
+        memory_lookup[api_key_hash] = str(key_id)
 
-    return api_key, key_id
+    return api_key, str(key_id)
 
 
-async def _list_user_api_keys(user_id: str) -> list[dict[str, Any]]:
-    """List all API keys for a user."""
-    client = await api_key_service._get_redis()
+async def _list_user_api_keys(user_id: str, session: AsyncSession | None = None) -> list[dict[str, Any]]:
+    """List all API keys for a user.
+
+    Queries database first if session provided, otherwise falls back to Redis/memory.
+    """
     keys: list[dict[str, Any]] = []
 
+    # Try database first if session provided
+    if session:
+        result = await session.execute(
+            select(ApiKey)
+            .where(ApiKey.user_id == UUID(user_id))
+            .where(ApiKey.is_active == True)  # noqa: E712
+            .order_by(ApiKey.created_at.desc())
+        )
+        db_keys = result.scalars().all()
+        for key in db_keys:
+            keys.append({
+                "id": str(key.id),
+                "user_id": str(key.user_id),
+                "tenant_id": str(key.tenant_id) if key.tenant_id else None,
+                "name": key.name,
+                "prefix": key.prefix,
+                "scopes": key.scopes or [],
+                "created_at": key.created_at.isoformat() if key.created_at else None,
+                "expires_at": key.expires_at.isoformat() if key.expires_at else None,
+                "description": key.description,
+                "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+                "is_active": key.is_active,
+            })
+        return keys
+
+    # Fall back to Redis/memory for backwards compatibility
+    client = await api_key_service._get_redis()
     fallback_allowed = getattr(api_key_service, "_fallback_allowed", True)
 
     if client:
@@ -212,8 +282,31 @@ async def _list_user_api_keys(user_id: str) -> list[dict[str, Any]]:
     return keys
 
 
-async def _get_api_key_by_id(key_id: str) -> dict[str, Any] | None:
+async def _get_api_key_by_id(key_id: str, session: AsyncSession | None = None) -> dict[str, Any] | None:
     """Get API key metadata by ID."""
+    # Try database first if session provided
+    if session:
+        result = await session.execute(
+            select(ApiKey).where(ApiKey.id == UUID(key_id))
+        )
+        key = result.scalar_one_or_none()
+        if key:
+            return {
+                "id": str(key.id),
+                "user_id": str(key.user_id),
+                "tenant_id": str(key.tenant_id) if key.tenant_id else None,
+                "name": key.name,
+                "prefix": key.prefix,
+                "scopes": key.scopes or [],
+                "created_at": key.created_at.isoformat() if key.created_at else None,
+                "expires_at": key.expires_at.isoformat() if key.expires_at else None,
+                "description": key.description,
+                "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+                "is_active": key.is_active,
+            }
+        return None
+
+    # Fall back to Redis/memory
     client = await api_key_service._get_redis()
 
     if client:
@@ -229,8 +322,41 @@ async def _get_api_key_by_id(key_id: str) -> dict[str, Any] | None:
         return getattr(api_key_service, "_memory_meta", {}).get(key_id)
 
 
-async def _update_api_key_metadata(key_id: str, updates: dict[str, Any]) -> bool:
+async def _update_api_key_metadata(key_id: str, updates: dict[str, Any], session: AsyncSession | None = None) -> bool:
     """Update API key metadata."""
+    # Try database first if session provided
+    if session:
+        result = await session.execute(
+            select(ApiKey).where(ApiKey.id == UUID(key_id))
+        )
+        key = result.scalar_one_or_none()
+        if not key:
+            return False
+
+        # Update allowed fields
+        if "name" in updates:
+            key.name = updates["name"]
+        if "scopes" in updates:
+            key.scopes = updates["scopes"]
+        if "description" in updates:
+            key.description = updates["description"]
+        if "is_active" in updates:
+            key.is_active = updates["is_active"]
+
+        await session.flush()
+
+        # Also update Redis cache if available
+        client = await api_key_service._get_redis()
+        if client:
+            data_str = await client.get(f"api_key_meta:{key_id}")
+            if data_str:
+                data = api_key_service._deserialize(data_str)
+                data.update(updates)
+                await client.set(f"api_key_meta:{key_id}", api_key_service._serialize(data))
+
+        return True
+
+    # Fall back to Redis/memory
     client = await api_key_service._get_redis()
 
     if client:
@@ -256,13 +382,56 @@ async def _update_api_key_metadata(key_id: str, updates: dict[str, Any]) -> bool
         return False
 
 
-async def _revoke_api_key_by_id(key_id: str) -> bool:
+async def _revoke_api_key_by_id(key_id: str, session: AsyncSession | None = None) -> bool:
     """
     Revoke API key by ID.
 
-    SECURITY FIX: Since we store hashed keys in lookup, we need to use
-    revoke_api_key_by_hash() to avoid double-hashing.
+    Soft-deletes in database if session provided, also cleans up Redis cache.
     """
+    # Try database first if session provided
+    if session:
+        result = await session.execute(
+            select(ApiKey).where(ApiKey.id == UUID(key_id))
+        )
+        key = result.scalar_one_or_none()
+        if not key:
+            return False
+
+        # Soft delete by setting is_active = False
+        key.is_active = False
+        await session.flush()
+
+        # Also clean up Redis cache
+        client = await api_key_service._get_redis()
+        if client:
+            await client.delete(f"api_key_meta:{key_id}")
+            # Find and delete lookup entry
+            api_key_hash = None
+            async for lookup_key in client.scan_iter(match="api_key_lookup:*"):
+                stored_key_id = await client.get(lookup_key)
+                if isinstance(stored_key_id, bytes):
+                    stored_key_id = stored_key_id.decode("utf-8")
+                if stored_key_id == key_id:
+                    api_key_hash = lookup_key.replace("api_key_lookup:", "")
+                    await client.delete(lookup_key)
+                    break
+            if api_key_hash:
+                await client.delete(f"api_key:{api_key_hash}")
+        else:
+            memory_lookup = getattr(api_key_service, "_memory_lookup", {})
+            api_key_hash = None
+            for key_hash, stored_key_id in memory_lookup.items():
+                if stored_key_id == key_id:
+                    api_key_hash = key_hash
+                    break
+            if api_key_hash:
+                getattr(api_key_service, "_memory_meta", {}).pop(key_id, None)
+                memory_lookup.pop(api_key_hash, None)
+                getattr(api_key_service, "_memory_keys", {}).pop(api_key_hash, None)
+
+        return True
+
+    # Fall back to Redis/memory for backwards compatibility
     client = await api_key_service._get_redis()
     api_key_hash = None
 
@@ -308,10 +477,12 @@ async def _revoke_api_key_by_id(key_id: str) -> bool:
         if client:
             await client.delete(f"api_key_meta:{key_id}")
             await client.delete(f"api_key_lookup:{api_key_hash}")
+            await client.delete(f"api_key:{api_key_hash}")
         else:
             # Fallback to memory
             getattr(api_key_service, "_memory_meta", {}).pop(key_id, None)
             getattr(api_key_service, "_memory_lookup", {}).pop(api_key_hash, None)
+            getattr(api_key_service, "_memory_keys", {}).pop(api_key_hash, None)
 
     return success
 
@@ -340,6 +511,7 @@ if not hasattr(api_key_service, "_serialize"):
 async def create_api_key(
     request: APIKeyCreateRequest,
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> APIKeyCreateResponse:
     """Create a new API key."""
     try:
@@ -351,7 +523,9 @@ async def create_api_key(
             expires_at=request.expires_at,
             description=request.description,
             tenant_id=current_user.tenant_id,  # SECURITY: Enforce tenant binding
+            session=session,
         )
+        await session.commit()
 
         return APIKeyCreateResponse(
             id=key_id,
@@ -366,11 +540,13 @@ async def create_api_key(
             api_key=api_key,
         )
     except RuntimeError as exc:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create API key: {str(e)}",
@@ -382,12 +558,13 @@ async def list_api_keys(
     page: int = 1,
     limit: int = 50,
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> APIKeyListResponse:
     """List user's API keys."""
     try:
-        keys_data = await _list_user_api_keys(current_user.user_id)
+        keys_data = await _list_user_api_keys(current_user.user_id, session=session)
 
-        # Sort by creation date (newest first)
+        # Sort by creation date (newest first) - already sorted in DB query but ensure consistency
         keys_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
         # Apply pagination
@@ -415,7 +592,7 @@ async def list_api_keys(
                         else None
                     ),
                     is_active=key_data.get("is_active", True),
-                    key_preview=f"sk_****{key_data['id'][-4:]}",
+                    key_preview=f"{key_data.get('prefix', 'sk_')}****",
                 )
             )
 
@@ -436,10 +613,11 @@ async def list_api_keys(
 async def get_api_key(
     key_id: str,
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> APIKeyResponse:
     """Get API key details."""
     try:
-        key_data = await _get_api_key_by_id(key_id)
+        key_data = await _get_api_key_by_id(key_id, session=session)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
@@ -461,7 +639,7 @@ async def get_api_key(
                 else None
             ),
             is_active=key_data.get("is_active", True),
-            key_preview=f"sk_****{key_data['id'][-4:]}",
+            key_preview=f"{key_data.get('prefix', 'sk_')}****",
         )
     except HTTPException:
         raise
@@ -477,10 +655,11 @@ async def update_api_key(
     key_id: str,
     request: APIKeyUpdateRequest,
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> APIKeyResponse:
     """Update API key."""
     try:
-        key_data = await _get_api_key_by_id(key_id)
+        key_data = await _get_api_key_by_id(key_id, session=session)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
@@ -497,15 +676,16 @@ async def update_api_key(
             updates["is_active"] = request.is_active
 
         if updates:
-            success = await _update_api_key_metadata(key_id, updates)
+            success = await _update_api_key_metadata(key_id, updates, session=session)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update API key",
                 )
+            await session.commit()
 
         # Get updated data
-        updated_data = await _get_api_key_by_id(key_id)
+        updated_data = await _get_api_key_by_id(key_id, session=session)
         if not updated_data:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -530,11 +710,12 @@ async def update_api_key(
                 else None
             ),
             is_active=bool(updated_data.get("is_active", True)),
-            key_preview=f"sk_****{updated_id[-4:]}",
+            key_preview=f"{updated_data.get('prefix', 'sk_')}****",
         )
     except HTTPException:
         raise
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update API key: {str(e)}",
@@ -545,22 +726,25 @@ async def update_api_key(
 async def revoke_api_key(
     key_id: str,
     current_user: UserInfo = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """Revoke API key."""
     try:
-        key_data = await _get_api_key_by_id(key_id)
+        key_data = await _get_api_key_by_id(key_id, session=session)
 
         if not key_data or key_data.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
-        success = await _revoke_api_key_by_id(key_id)
+        success = await _revoke_api_key_by_id(key_id, session=session)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to revoke API key"
             )
+        await session.commit()
     except HTTPException:
         raise
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to revoke API key: {str(e)}",
@@ -572,10 +756,10 @@ async def revoke_api_key(
 # ============================================
 
 
-@router.get("/scopes/available", response_model=dict)
+@router.get("/scopes/available", response_model=AvailableScopesResponse)
 async def get_available_scopes(
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> AvailableScopesResponse:
     """Get available API key scopes."""
     # Define available scopes based on your application's permissions
     scopes = {
@@ -583,19 +767,9 @@ async def get_available_scopes(
         "read": {"name": "Read Access", "description": "Read-only access to resources"},
         "write": {"name": "Write Access", "description": "Create and update resources"},
         "delete": {"name": "Delete Access", "description": "Delete resources"},
-        # Customer & CRM
-        "customers:read": {"name": "Read Customers", "description": "View customer information"},
-        "customers:write": {
-            "name": "Manage Customers",
-            "description": "Create and update customers",
-        },
-        "crm:leads:read": {"name": "Read Leads", "description": "View CRM leads"},
-        "crm:leads:write": {"name": "Manage Leads", "description": "Create and manage leads"},
-        "crm:contacts:read": {"name": "Read Contacts", "description": "View contacts"},
-        "crm:contacts:write": {
-            "name": "Manage Contacts",
-            "description": "Create and manage contacts",
-        },
+        # Contacts
+        "contacts:read": {"name": "Read Contacts", "description": "View contacts"},
+        "contacts:write": {"name": "Manage Contacts", "description": "Create and manage contacts"},
         # Billing & Revenue
         "billing:read": {"name": "Read Billing", "description": "View invoices and billing data"},
         "billing:write": {
@@ -686,4 +860,4 @@ async def get_available_scopes(
         },
     }
 
-    return {"scopes": scopes}
+    return AvailableScopesResponse(scopes=scopes)

@@ -43,6 +43,7 @@ from .exceptions import (
     TokenExpired,
     get_http_status,
 )
+from .keys import KeyManager, get_key_manager, reset_key_manager
 
 __all__ = [
     # Services
@@ -76,4 +77,8 @@ __all__ = [
     "TokenExpired",
     "InvalidToken",
     "get_http_status",
+    # JWKS/OIDC
+    "KeyManager",
+    "get_key_manager",
+    "reset_key_manager",
 ]

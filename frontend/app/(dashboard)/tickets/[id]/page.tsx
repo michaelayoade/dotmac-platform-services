@@ -197,7 +197,7 @@ export default function TicketDetailPage({ params }: TicketDetailPageProps) {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-text-primary">{ticket.customer?.name || "Customer"}</span>
+                  <span className="font-medium text-text-primary">{ticket.customer?.name || "Tenant"}</span>
                   <span className="text-sm text-text-muted">
                     {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true })}
                   </span>
@@ -216,7 +216,7 @@ export default function TicketDetailPage({ params }: TicketDetailPageProps) {
                     key={message.id}
                     className={cn(
                       "flex items-start gap-4 p-4 rounded-lg",
-                      message.isInternal ? "bg-status-warning/10" : "bg-surface-overlay"
+                      message.isInternal ? "bg-status-warning/15" : "bg-surface-overlay"
                     )}
                   >
                     <div
@@ -240,7 +240,7 @@ export default function TicketDetailPage({ params }: TicketDetailPageProps) {
                               ? "Agent"
                               : message.author.type === "system"
                               ? "System"
-                              : ticket.customer?.name || "Customer")}
+                              : ticket.customer?.name || "Tenant")}
                         </span>
                         {message.isInternal && (
                           <span className="flex items-center gap-1 text-xs text-status-warning">
@@ -309,7 +309,7 @@ export default function TicketDetailPage({ params }: TicketDetailPageProps) {
             <h3 className="text-lg font-semibold text-text-primary mb-4">Details</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-text-muted mb-1">Customer</p>
+                <p className="text-sm text-text-muted mb-1">Tenant</p>
                 <p className="text-text-primary">{ticket.customer?.name || ticket.customer?.id}</p>
               </div>
               <div>

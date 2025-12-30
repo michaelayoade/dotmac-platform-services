@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID, uuid4
 
 from dotmac.platform.billing.core.entities import (
     InvoiceEntity,
@@ -19,17 +18,7 @@ from dotmac.platform.billing.core.models import Invoice as InvoiceModel
 from dotmac.platform.billing.core.models import Payment as PaymentModel
 from dotmac.platform.billing.subscriptions.models import Subscription as SubscriptionModel
 from dotmac.platform.core import Money
-from dotmac.platform.customer_management.models import (
-    CommunicationChannel,
-    CustomerStatus,
-    CustomerTier,
-    CustomerType,
-)
-from dotmac.platform.customer_management.models import (
-    Customer as CustomerEntity,
-)
-
-from .aggregates import Customer, Invoice, InvoiceLineItem, Payment, Subscription
+from .aggregates import Invoice, InvoiceLineItem, Payment, Subscription
 
 # Note: CustomerModel Pydantic model will be created when needed
 # For now, CustomerEntity (SQLAlchemy) is used
@@ -357,90 +346,4 @@ class SubscriptionMapper:
             canceled_at=None,
             ended_at=None,
             custom_price=None,
-        )
-
-
-# ============================================================================
-# Customer Mapper
-# ============================================================================
-
-
-class CustomerMapper:
-    """Map between Customer aggregate and CustomerEntity."""
-
-    @staticmethod
-    def to_entity(customer: Customer) -> CustomerEntity:
-        """Convert Customer aggregate to CustomerEntity."""
-        # Split name into first/last for required fields
-        display_name = customer.name or (
-            customer.email.split("@", 1)[0] if customer.email else "Customer"
-        )
-        name_parts = display_name.strip().split()
-        first_name = name_parts[0] if name_parts else "Customer"
-        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else first_name
-
-        status = (
-            CustomerStatus(customer.status)
-            if isinstance(customer.status, str)
-            else customer.status
-            if customer.status
-            else CustomerStatus.ACTIVE
-        )
-
-        # Ensure we have UUID for primary key
-        try:
-            entity_id = UUID(customer.id)
-        except (TypeError, ValueError):
-            entity_id = uuid4()
-
-        return CustomerEntity(
-            id=entity_id,
-            tenant_id=customer.tenant_id,
-            customer_number=customer.customer_id,
-            first_name=first_name,
-            last_name=last_name or first_name,
-            display_name=display_name,
-            company_name=customer.company,
-            status=status,
-            customer_type=CustomerType.INDIVIDUAL,
-            tier=CustomerTier.FREE,
-            email=customer.email,
-            email_verified=False,
-            phone=customer.phone,
-            phone_verified=False,
-            preferred_channel=CommunicationChannel.EMAIL,
-            preferred_language="en",
-            timezone="UTC",
-            opt_in_marketing=False,
-            opt_in_updates=True,
-            metadata_=customer.metadata or {},
-            deleted_at=customer.deleted_at,
-            is_deleted=customer.is_deleted,
-        )
-
-    @staticmethod
-    def to_aggregate(entity: CustomerEntity) -> Customer:
-        """Convert CustomerEntity to Customer aggregate."""
-        # CustomerEntity uses first_name/last_name, not name
-        name = getattr(entity, "display_name", None)
-        if not name:
-            first_name = getattr(entity, "first_name", "")
-            last_name = getattr(entity, "last_name", "")
-            name = f"{first_name} {last_name}".strip()
-
-        status_value = entity.status.value if hasattr(entity.status, "value") else entity.status
-
-        return Customer(
-            id=str(entity.id),
-            tenant_id=entity.tenant_id or "",
-            customer_id=entity.customer_number,
-            email=getattr(entity, "email", ""),
-            name=name,
-            company=getattr(entity, "company_name", None),
-            phone=getattr(entity, "phone", None),
-            status=status_value or "active",
-            is_deleted=getattr(entity, "is_deleted", False),
-            metadata=getattr(entity, "metadata_", {}) or {},
-            deleted_at=getattr(entity, "deleted_at", None),
-            version=1,
         )

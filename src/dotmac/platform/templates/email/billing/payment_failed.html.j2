@@ -1,0 +1,40 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #dc2626; font-size: 20px;">Payment Failed</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">We were unable to process your payment for {{ amount_formatted }}.</p>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Details:</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Amount:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ amount_formatted }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Payment Method:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ payment_method }}</td>
+    </tr>
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Failure Reason:</td>
+        <td style="padding: 12px; text-align: right; color: #dc2626;">{{ failure_reason }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Retry Date:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ retry_date }}</td>
+    </tr>
+</table>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">What happens next?</h3>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 16px;">
+    We'll automatically retry the payment {{ retry_date }}. To avoid service interruption, please:
+</p>
+<ul style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; padding-left: 24px;">
+    <li>Verify your payment method details are up to date</li>
+    <li>Ensure sufficient funds are available</li>
+    <li>Update your payment method if needed</li>
+</ul>
+
+<p style="text-align: center; margin: 0;">
+    <a href="{{ update_payment_url }}" class="button button-danger">Update Payment Method</a>
+</p>
+{% endblock %}

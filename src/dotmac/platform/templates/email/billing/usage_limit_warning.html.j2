@@ -1,0 +1,39 @@
+{% extends "base/email_base.html.j2" %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px; color: #f59e0b; font-size: 20px;">Usage Limit Warning</h2>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px;">You're approaching your {{ metric_name }} limit for the current billing period.</p>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">Current Usage:</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">{{ metric_name }}:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ current_usage }} of {{ limit }} ({{ percentage }}% used)</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Billing Period:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ period_start | format_date }} - {{ period_end | format_date }}</td>
+    </tr>
+    <tr style="background-color: #f9fafb;">
+        <td style="padding: 12px; font-weight: 600; color: #374151;">Remaining:</td>
+        <td style="padding: 12px; text-align: right; color: #111827;">{{ remaining }} {{ unit }}</td>
+    </tr>
+</table>
+
+<!-- Progress bar -->
+<div style="background-color: #e5e7eb; border-radius: 9999px; height: 8px; margin: 0 0 24px; overflow: hidden;">
+    <div style="background-color: {% if percentage >= 90 %}#dc2626{% elif percentage >= 75 %}#f59e0b{% else %}#10b981{% endif %}; height: 100%; width: {{ percentage }}%; border-radius: 9999px;"></div>
+</div>
+
+<h3 style="margin: 0 0 12px; color: #374151; font-size: 16px;">What happens if I exceed my limit?</h3>
+<p style="color: #4b5563; line-height: 1.6; margin: 0 0 8px;">Depending on your plan:</p>
+<ul style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; padding-left: 24px;">
+    <li>Service may be temporarily paused</li>
+    <li>Overage charges may apply</li>
+    <li>You may be prompted to upgrade</li>
+</ul>
+
+<p style="text-align: center; margin: 0;">
+    <a href="{{ upgrade_url }}" class="button">Upgrade Plan</a>
+</p>
+{% endblock %}

@@ -256,7 +256,7 @@ export default function CatalogPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="data-table" aria-label="Product catalog"><caption className="sr-only">Product catalog</caption>
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="text-left text-sm font-medium text-text-muted px-4 py-3">Product</th>

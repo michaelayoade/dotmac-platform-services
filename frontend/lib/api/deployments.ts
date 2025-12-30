@@ -7,6 +7,37 @@
 
 import { api, normalizePaginatedResponse } from "./client";
 
+// ============================================================================
+// Backend API Response Types
+// ============================================================================
+
+interface DeploymentApiResponse {
+  id: string;
+  tenantId: string;
+  templateId?: number;
+  environment: string;
+  state: string;
+  stateReason?: string;
+  version: string;
+  name?: string;
+  replicas?: number;
+  region?: string;
+  availabilityZone?: string;
+  endpoints?: Record<string, string>;
+  allocatedCpu?: number;
+  allocatedMemoryGb?: number;
+  allocatedStorageGb?: number;
+  healthStatus?: string;
+  healthDetails?: Record<string, unknown>;
+  lastHealthCheck?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================================
+// Frontend Types
+// ============================================================================
+
 export interface Deployment {
   id: string;
   name: string;
@@ -45,6 +76,80 @@ export interface DeploymentMetrics {
   uptime: number;
 }
 
+// ============================================================================
+// Transformer Functions
+// ============================================================================
+
+const STATE_TO_STATUS: Record<string, Deployment["status"]> = {
+  provisioned: "running",
+  running: "running",
+  active: "running",
+  provisioning: "provisioning",
+  pending: "pending",
+  suspended: "stopped",
+  stopped: "stopped",
+  failed: "failed",
+  error: "failed",
+  scaling: "scaling",
+};
+
+const ENVIRONMENT_MAP: Record<string, Deployment["environment"]> = {
+  prod: "production",
+  production: "production",
+  staging: "staging",
+  stage: "staging",
+  dev: "development",
+  development: "development",
+  test: "development",
+};
+
+function toDeployment(api: DeploymentApiResponse): Deployment {
+  const status = STATE_TO_STATUS[api.state?.toLowerCase()] || "pending";
+  const environment = ENVIRONMENT_MAP[api.environment?.toLowerCase()] || "development";
+
+  // Parse health checks from health details if available
+  const healthChecks: Deployment["health"]["checks"] = [];
+  if (api.healthDetails && typeof api.healthDetails === "object") {
+    const details = api.healthDetails as Record<string, unknown>;
+    if (Array.isArray(details.checks)) {
+      for (const check of details.checks) {
+        if (typeof check === "object" && check !== null) {
+          const c = check as Record<string, unknown>;
+          healthChecks.push({
+            name: String(c.name || "unknown"),
+            status: (c.status as "passing" | "failing" | "warning") || "warning",
+            message: c.message ? String(c.message) : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    id: api.id,
+    name: api.name || api.id,
+    status,
+    environment,
+    tenantId: api.tenantId,
+    region: api.region || api.availabilityZone || "",
+    version: api.version,
+    replicas: api.replicas || 1,
+    resources: {
+      cpu: api.allocatedCpu ? `${api.allocatedCpu}` : "1",
+      memory: api.allocatedMemoryGb ? `${api.allocatedMemoryGb}GB` : "1GB",
+      storage: api.allocatedStorageGb ? `${api.allocatedStorageGb}GB` : undefined,
+    },
+    health: {
+      status: (api.healthStatus as "healthy" | "unhealthy" | "unknown") || "unknown",
+      lastCheck: api.lastHealthCheck || new Date().toISOString(),
+      checks: healthChecks,
+    },
+    url: api.endpoints ? Object.values(api.endpoints)[0] : undefined,
+    createdAt: api.createdAt,
+    updatedAt: api.updatedAt,
+  };
+}
+
 export interface GetDeploymentsParams {
   page?: number;
   pageSize?: number;
@@ -76,17 +181,18 @@ export async function getDeployments(params: GetDeploymentsParams = {}): Promise
       sort_order: sortOrder,
     },
   });
-  const normalized = normalizePaginatedResponse<Deployment>(response);
+  const normalized = normalizePaginatedResponse<DeploymentApiResponse>(response);
 
   return {
-    deployments: normalized.items,
+    deployments: normalized.items.map(toDeployment),
     totalCount: normalized.total,
     pageCount: normalized.totalPages,
   };
 }
 
 export async function getDeployment(id: string): Promise<Deployment> {
-  return api.get<Deployment>(`/api/v1/deployments/${id}`);
+  const response = await api.get<DeploymentApiResponse>(`/api/v1/deployments/${id}`);
+  return toDeployment(response);
 }
 
 export async function getDeploymentStatus(id: string): Promise<{

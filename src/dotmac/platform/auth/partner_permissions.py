@@ -60,22 +60,6 @@ PARTNER_PERMISSIONS: tuple[tuple[str, str, PermissionCategory], ...] = (
         "Update tickets for managed tenants",
         PermissionCategory.PARTNER,
     ),
-    # Provisioning - customer management across tenants
-    (
-        "partner.provisioning.customers.activate",
-        "Activate customers in managed tenants",
-        PermissionCategory.PARTNER,
-    ),
-    (
-        "partner.provisioning.customers.suspend",
-        "Suspend customers in managed tenants",
-        PermissionCategory.PARTNER,
-    ),
-    (
-        "partner.provisioning.plans.assign",
-        "Assign plans to customers in managed tenants",
-        PermissionCategory.PARTNER,
-    ),
     # Reports - analytics and compliance across tenants
     (
         "partner.reports.usage.read",

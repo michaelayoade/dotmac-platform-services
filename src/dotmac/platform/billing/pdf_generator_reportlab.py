@@ -8,7 +8,7 @@ locale-aware formatting, and support for multiple currencies.
 import io
 import os
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from reportlab.lib import colors
@@ -24,7 +24,8 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import HRFlowable
 
-from .money_models import MoneyField, MoneyInvoice
+from .core.models import Invoice
+from .money_utils import money_handler
 
 logger = structlog.get_logger(__name__)
 
@@ -130,7 +131,7 @@ class ReportLabInvoiceGenerator:
 
     def generate_invoice_pdf(
         self,
-        invoice: MoneyInvoice,
+        invoice: Invoice,
         company_info: dict[str, Any] | None = None,
         customer_info: dict[str, Any] | None = None,
         payment_instructions: str | None = None,
@@ -138,10 +139,10 @@ class ReportLabInvoiceGenerator:
         output_path: str | None = None,
     ) -> bytes:
         """
-        Generate PDF invoice from MoneyInvoice model.
+        Generate PDF invoice from invoice model.
 
         Args:
-            invoice: MoneyInvoice instance with line items
+            invoice: Invoice instance with line items
             company_info: Company details
             customer_info: Customer details
             payment_instructions: Payment instructions text
@@ -210,9 +211,7 @@ class ReportLabInvoiceGenerator:
 
         return pdf_bytes
 
-    def _create_header(
-        self, invoice: MoneyInvoice, company_info: dict[str, Any] | None
-    ) -> list[Any]:
+    def _create_header(self, invoice: Invoice, company_info: dict[str, Any] | None) -> list[Any]:
         """Create invoice header with company info and invoice title."""
         story = []
 
@@ -269,7 +268,7 @@ class ReportLabInvoiceGenerator:
         return story
 
     def _create_billing_section(
-        self, invoice: MoneyInvoice, customer_info: dict[str, Any] | None
+        self, invoice: Invoice, customer_info: dict[str, Any] | None
     ) -> list[Any]:
         """Create billing details section."""
         story = []
@@ -289,7 +288,9 @@ class ReportLabInvoiceGenerator:
 
         # Payment Details
         payment_text = "<b>PAYMENT DETAILS</b><br/>"
-        payment_text += f"<b>{invoice.total_amount.format()}</b><br/>"
+        payment_text += (
+            f"<b>{self._format_minor_units(invoice.total_amount, invoice.currency)}</b><br/>"
+        )
         payment_text += f"Payment Status: {invoice.payment_status}<br/>"
         payment_text += f"Currency: {invoice.currency}"
 
@@ -314,7 +315,7 @@ class ReportLabInvoiceGenerator:
 
         return story
 
-    def _create_dates_section(self, invoice: MoneyInvoice) -> list[Any]:
+    def _create_dates_section(self, invoice: Invoice) -> list[Any]:
         """Create invoice dates section."""
         story = []
 
@@ -355,7 +356,7 @@ class ReportLabInvoiceGenerator:
 
         return story
 
-    def _create_line_items_table(self, invoice: MoneyInvoice, locale: str) -> list[Any]:
+    def _create_line_items_table(self, invoice: Invoice, locale: str) -> list[Any]:
         """Create line items table."""
         story = []
 
@@ -368,9 +369,11 @@ class ReportLabInvoiceGenerator:
                 [
                     item.description,
                     str(item.quantity),
-                    item.unit_price.format(locale),
-                    item.tax_amount.format(locale) if item.tax_amount.amount != "0.00" else "—",
-                    item.total_price.format(locale),
+                    self._format_minor_units(item.unit_price, invoice.currency, locale),
+                    self._format_minor_units(item.tax_amount, invoice.currency, locale)
+                    if item.tax_amount
+                    else "—",
+                    self._format_minor_units(item.total_price, invoice.currency, locale),
                 ]
             )
 
@@ -407,32 +410,48 @@ class ReportLabInvoiceGenerator:
 
         return story
 
-    def _create_totals_section(self, invoice: MoneyInvoice, locale: str) -> list[Any]:
+    def _create_totals_section(self, invoice: Invoice, locale: str) -> list[Any]:
         """Create totals section."""
         story = []
 
         # Totals data
         totals_data = []
 
-        totals_data.append(["Subtotal:", invoice.subtotal.format(locale)])
+        totals_data.append(
+            ["Subtotal:", self._format_minor_units(invoice.subtotal, invoice.currency, locale)]
+        )
 
-        if invoice.discount_amount and invoice.discount_amount.amount != "0.00":
-            totals_data.append(["Discount:", f"-{invoice.discount_amount.format(locale)}"])
-
-        if invoice.tax_amount and invoice.tax_amount.amount != "0.00":
-            totals_data.append(["Tax:", invoice.tax_amount.format(locale)])
-
-        if invoice.total_credits_applied and invoice.total_credits_applied.amount != "0.00":
+        if invoice.discount_amount:
             totals_data.append(
-                ["Credits Applied:", f"-{invoice.total_credits_applied.format(locale)}"]
+                [
+                    "Discount:",
+                    f"-{self._format_minor_units(invoice.discount_amount, invoice.currency, locale)}",
+                ]
+            )
+
+        if invoice.tax_amount:
+            totals_data.append(
+                ["Tax:", self._format_minor_units(invoice.tax_amount, invoice.currency, locale)]
+            )
+
+        if invoice.total_credits_applied:
+            totals_data.append(
+                [
+                    "Credits Applied:",
+                    f"-{self._format_minor_units(invoice.total_credits_applied, invoice.currency, locale)}",
+                ]
             )
 
         # Add separator row
         totals_data.append(["", ""])
 
         # Grand total
-        net_amount_due_field = cast(MoneyField, invoice.net_amount_due)
-        totals_data.append(["TOTAL DUE:", net_amount_due_field.format(locale)])
+        totals_data.append(
+            [
+                "TOTAL DUE:",
+                self._format_minor_units(invoice.net_amount_due, invoice.currency, locale),
+            ]
+        )
 
         # Create table aligned to right
         totals_table = Table(totals_data, colWidths=[100, 100])
@@ -567,7 +586,7 @@ class ReportLabInvoiceGenerator:
 
     def generate_batch_invoices(
         self,
-        invoices: list[MoneyInvoice],
+        invoices: list[Invoice],
         output_dir: str,
         company_info: dict[str, Any] | None = None,
         locale: str = DEFAULT_LOCALE,
@@ -591,6 +610,11 @@ class ReportLabInvoiceGenerator:
         logger.info("Batch invoices generated", count=len(invoices), directory=output_dir)
         return output_paths
 
+    @staticmethod
+    def _format_minor_units(amount: int, currency: str, locale: str = DEFAULT_LOCALE) -> str:
+        money_value = money_handler.money_from_minor_units(int(amount or 0), currency)
+        return money_handler.format_money(money_value, locale)
+
 
 # Default generator instance
 default_reportlab_generator = ReportLabInvoiceGenerator()
@@ -598,7 +622,7 @@ default_reportlab_generator = ReportLabInvoiceGenerator()
 
 # Convenience function
 def generate_invoice_pdf_reportlab(
-    invoice: MoneyInvoice,
+    invoice: Invoice,
     company_info: dict[str, Any] | None = None,
     customer_info: dict[str, Any] | None = None,
     output_path: str | None = None,

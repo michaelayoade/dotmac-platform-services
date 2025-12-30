@@ -9,13 +9,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dotmac.platform.customer_management.models import Customer
+from dotmac.platform.tenant.models import Tenant
 
 from .catalog.service import ProductService
 from .core.enums import InvoiceStatus
@@ -54,6 +53,7 @@ class BillingInvoiceRequest(BaseModel):
     model_config = ConfigDict()
 
     customer_id: str = Field(description="Customer identifier")
+    tenant_id: str | None = Field(default=None, description="Tenant identifier")
     subscription_id: str | None = Field(None, description="Related subscription")
     billing_period_start: datetime = Field(description="Billing period start")
     billing_period_end: datetime = Field(description="Billing period end")
@@ -122,10 +122,11 @@ class BillingIntegrationService:
             base_price = effective_price
 
             # Apply pricing rules for subscription
+            billing_subject_id = subscription.customer_id or tenant_id
             pricing_request = PriceCalculationRequest(
                 product_id=plan.product_id,
                 quantity=1,
-                customer_id=subscription.customer_id,
+                customer_id=billing_subject_id,
                 customer_segments=[],  # Could be enhanced with customer segments
                 calculation_date=datetime.now(UTC),
                 currency=plan.currency,
@@ -185,7 +186,8 @@ class BillingIntegrationService:
 
             # Create invoice request
             invoice_request = BillingInvoiceRequest(
-                customer_id=subscription.customer_id,
+                customer_id=str(subscription.customer_id or tenant_id),
+                tenant_id=tenant_id,
                 subscription_id=subscription_id,
                 billing_period_start=subscription.current_period_start,
                 billing_period_end=subscription.current_period_end,
@@ -286,71 +288,54 @@ class BillingIntegrationService:
         threshold = datetime.now(UTC) - timedelta(days=7)
         return created_at >= threshold
 
-    async def _resolve_customer_billing_details(
-        self, customer_id: str, tenant_id: str
+    async def _resolve_tenant_billing_details(
+        self, tenant_id: str
     ) -> tuple[str, dict[str, str]]:
         """
-        Resolve billing email and address information for the customer.
+        Resolve billing email and address information for the tenant.
 
-        Returns secure defaults when the customer record cannot be found.
+        Returns secure defaults when the tenant record cannot be found.
         """
-        fallback_email = f"{customer_id}@example.com"
+        fallback_email = f"{tenant_id}@example.com"
         fallback_address: dict[str, str] = {"name": fallback_email}
 
-        try:
-            customer_uuid = UUID(customer_id)
-        except (ValueError, TypeError):
-            customer_uuid = None
-
-        if customer_uuid is None:
-            logger.warning(
-                "Unable to resolve customer UUID for billing details",
-                extra={"customer_id": customer_id, "tenant_id": tenant_id},
-            )
-            return fallback_email, fallback_address
-
-        stmt = (
-            select(Customer)
-            .where(
-                Customer.id == customer_uuid,
-                Customer.tenant_id == tenant_id,
-                Customer.deleted_at.is_(None),
-            )
-            .limit(1)
-        )
+        stmt = select(Tenant).where(Tenant.id == tenant_id, Tenant.deleted_at.is_(None)).limit(1)
         result = await self.db.execute(stmt)
-        customer = result.scalar_one_or_none()
+        tenant = result.scalar_one_or_none()
 
-        if customer is None:
+        if tenant is None or not hasattr(tenant, "billing_email"):
             logger.warning(
-                "Customer not found when resolving billing details",
-                extra={"customer_id": customer_id, "tenant_id": tenant_id},
+                "Tenant not found when resolving billing details",
+                extra={"tenant_id": tenant_id},
             )
             return fallback_email, fallback_address
 
-        billing_email = customer.email or fallback_email
-        name = (
-            customer.display_name
-            or customer.company_name
-            or " ".join(filter(None, [customer.first_name, customer.last_name]))
-        ).strip()
+        billing_email = tenant.billing_email or tenant.email or fallback_email
+        name = tenant.name or billing_email
 
         billing_address = {
             "name": name or billing_email,
-            "line1": customer.address_line1,
-            "line2": customer.address_line2,
-            "city": customer.city,
-            "state": customer.state_province,
-            "postal_code": customer.postal_code,
-            "country": customer.country,
-            "email": customer.email,
-            "phone": customer.phone or customer.mobile,
+            "email": billing_email,
+            "phone": tenant.phone,
+            "country": tenant.country,
         }
 
         # Remove empty or None values to avoid polluting downstream logic
         filtered_address = {key: value for key, value in billing_address.items() if value}
 
         return billing_email, filtered_address
+
+    async def _resolve_customer_billing_details(
+        self,
+        customer_id: str,
+        tenant_id: str,
+    ) -> tuple[str, dict[str, str]]:
+        """Resolve billing details for a customer, falling back to tenant defaults."""
+        if not customer_id or customer_id == tenant_id:
+            return await self._resolve_tenant_billing_details(tenant_id)
+
+        # Customer records are tenant-scoped; reuse tenant billing details for now.
+        return await self._resolve_tenant_billing_details(tenant_id)
 
     async def _create_invoice(
         self, invoice_request: BillingInvoiceRequest, tenant_id: str
@@ -374,7 +359,8 @@ class BillingIntegrationService:
                 )
 
             billing_email, billing_address = await self._resolve_customer_billing_details(
-                invoice_request.customer_id, tenant_id
+                customer_id=invoice_request.customer_id,
+                tenant_id=tenant_id,
             )
             resolved_currency = (invoice_request.currency or "USD").upper()
 
@@ -616,7 +602,6 @@ class BillingIntegrationService:
 
     async def generate_usage_invoice(
         self,
-        customer_id: str,
         product_id: str,
         usage_data: dict[str, int],
         tenant_id: str,
@@ -624,7 +609,7 @@ class BillingIntegrationService:
         billing_period_end: datetime | None = None,
     ) -> str | None:
         """
-        Generate usage-based invoice for a customer.
+        Generate usage-based invoice for a tenant.
 
         For usage-based products that are billed separately from subscriptions.
         """
@@ -674,7 +659,7 @@ class BillingIntegrationService:
                         pricing_request = PriceCalculationRequest(
                             product_id=product_id,
                             quantity=usage_count,
-                            customer_id=customer_id,
+                            customer_id=tenant_id,
                             customer_segments=[],
                             calculation_date=billing_period_end,
                             currency=product.currency,
@@ -700,13 +685,14 @@ class BillingIntegrationService:
             if not invoice_items:
                 logger.info(
                     "No usage charges to bill",
-                    extra={"customer_id": customer_id, "product_id": product_id},
+                    extra={"tenant_id": tenant_id, "product_id": product_id},
                 )
                 return None
 
             # Create invoice
             invoice_request = BillingInvoiceRequest(
-                customer_id=customer_id,
+                customer_id=str(tenant_id),
+                tenant_id=tenant_id,
                 subscription_id=None,
                 billing_period_start=billing_period_start,
                 billing_period_end=billing_period_end,
@@ -727,7 +713,7 @@ class BillingIntegrationService:
             logger.info(
                 "Usage invoice created",
                 extra={
-                    "customer_id": customer_id,
+                    "tenant_id": tenant_id,
                     "product_id": product_id,
                     "invoice_id": invoice_id,
                     "amount": str(total_amount),
@@ -739,6 +725,6 @@ class BillingIntegrationService:
         except Exception as e:
             logger.error(
                 "Failed to generate usage invoice",
-                extra={"customer_id": customer_id, "product_id": product_id, "error": str(e)},
+                extra={"tenant_id": tenant_id, "product_id": product_id, "error": str(e)},
             )
             raise

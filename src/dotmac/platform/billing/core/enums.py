@@ -3,9 +3,23 @@ Billing module enumerations
 """
 
 from enum import Enum
+from typing import cast
 
 
-class BillingCycle(str, Enum):
+class CaseInsensitiveEnum(str, Enum):
+    """Enum that matches string values case-insensitively."""
+
+    @classmethod
+    def _missing_(cls, value: object) -> "CaseInsensitiveEnum | None":
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            for member in cls:
+                if isinstance(member.value, str) and member.value.lower() == candidate:
+                    return member
+        return None
+
+
+class BillingCycle(CaseInsensitiveEnum):
     """Billing cycle periods"""
 
     MONTHLY = "monthly"
@@ -15,7 +29,7 @@ class BillingCycle(str, Enum):
     CUSTOM = "custom"
 
 
-class InvoiceStatus(str, Enum):
+class InvoiceStatus(CaseInsensitiveEnum):
     """Invoice status states"""
 
     DRAFT = "draft"
@@ -26,7 +40,7 @@ class InvoiceStatus(str, Enum):
     PARTIALLY_PAID = "partially_paid"
 
 
-class PaymentStatus(str, Enum):
+class PaymentStatus(CaseInsensitiveEnum):
     """Payment status states"""
 
     PENDING = "pending"
@@ -37,8 +51,18 @@ class PaymentStatus(str, Enum):
     PARTIALLY_REFUNDED = "partially_refunded"
     CANCELLED = "cancelled"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "PaymentStatus | None":
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            if candidate == "unpaid":
+                return cls.PENDING
+            if candidate == "paid":
+                return cls.SUCCEEDED
+        return cast("PaymentStatus | None", super()._missing_(value))
 
-class PaymentMethodType(str, Enum):
+
+class PaymentMethodType(CaseInsensitiveEnum):
     """Payment method types"""
 
     CARD = "card"
@@ -50,7 +74,7 @@ class PaymentMethodType(str, Enum):
     CASH = "cash"
 
 
-class TransactionType(str, Enum):
+class TransactionType(CaseInsensitiveEnum):
     """Financial transaction types"""
 
     CHARGE = "charge"  # Money owed by customer
@@ -63,7 +87,7 @@ class TransactionType(str, Enum):
     TAX = "tax"  # Tax transaction
 
 
-class CreditNoteStatus(str, Enum):
+class CreditNoteStatus(CaseInsensitiveEnum):
     """Credit note status states"""
 
     DRAFT = "draft"
@@ -73,7 +97,7 @@ class CreditNoteStatus(str, Enum):
     PARTIALLY_APPLIED = "partially_applied"
 
 
-class CreditType(str, Enum):
+class CreditType(CaseInsensitiveEnum):
     """Credit note types"""
 
     REFUND = "refund"  # Full or partial refund
@@ -85,7 +109,7 @@ class CreditType(str, Enum):
     GOODWILL = "goodwill"  # Customer satisfaction credit
 
 
-class CreditReason(str, Enum):
+class CreditReason(CaseInsensitiveEnum):
     """Credit note reason codes"""
 
     CUSTOMER_REQUEST = "customer_request"
@@ -102,7 +126,7 @@ class CreditReason(str, Enum):
     OTHER = "other"
 
 
-class CreditApplicationType(str, Enum):
+class CreditApplicationType(CaseInsensitiveEnum):
     """Credit application target types"""
 
     INVOICE = "invoice"  # Applied to specific invoice
@@ -110,7 +134,7 @@ class CreditApplicationType(str, Enum):
     REFUND = "refund"  # Refunded to payment method
 
 
-class TaxType(str, Enum):
+class TaxType(CaseInsensitiveEnum):
     """Tax types"""
 
     SALES_TAX = "sales_tax"

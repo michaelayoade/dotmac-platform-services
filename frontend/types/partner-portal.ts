@@ -1,15 +1,19 @@
 // Partner Portal Types
 
 export interface PartnerDashboardStats {
-  totalRevenue: number;
-  revenueChange: number;
+  totalTenants: number;
+  activeTenants: number;
+  totalRevenueGenerated: number;
+  totalCommissionsEarned: number;
+  totalCommissionsPaid: number;
   pendingCommissions: number;
-  paidCommissions: number;
-  activeCustomers: number;
-  customerChange: number;
-  conversionRate: number;
   totalReferrals: number;
   convertedReferrals: number;
+  pendingReferrals: number;
+  conversionRate: number;
+  currentTier: string;
+  commissionModel: string;
+  defaultCommissionRate: number;
 }
 
 export interface PartnerRevenueDataPoint {
@@ -48,7 +52,7 @@ export interface Referral {
   createdAt: string;
   updatedAt: string;
   convertedAt?: string;
-  customerId?: string;
+  tenantId?: string;
 }
 
 export interface CreateReferralRequest {
@@ -67,24 +71,23 @@ export interface ReferralsResponse {
   pageSize: number;
 }
 
-// Customers
-export interface PartnerCustomer {
+// Tenants (managed accounts)
+export interface PartnerTenant {
   id: string;
   tenantId: string;
   tenantName: string;
-  contactName: string;
-  contactEmail: string;
-  status: "ACTIVE" | "CHURNED" | "SUSPENDED";
-  engagementType: "REFERRAL" | "MANAGED" | "RESELLER";
-  monthlyRevenue: number;
+  engagementType: string;
+  customCommissionRate?: number;
   totalRevenue: number;
+  totalCommissions: number;
   commissionRate: number;
   startDate: string;
-  lastActivityAt: string;
+  endDate?: string | null;
+  isActive: boolean;
 }
 
-export interface PartnerCustomersResponse {
-  customers: PartnerCustomer[];
+export interface PartnerTenantsResponse {
+  tenants: PartnerTenant[];
   total: number;
   page: number;
   pageSize: number;
@@ -95,8 +98,8 @@ export type CommissionStatus = "PENDING" | "APPROVED" | "PAID" | "CANCELLED";
 
 export interface Commission {
   id: string;
-  customerId: string;
-  customerName: string;
+  tenantId: string;
+  tenantName: string;
   period: string;
   baseAmount: number;
   commissionRate: number;

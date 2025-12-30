@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   FileText,
   Download,
-  Calendar,
   DollarSign,
   CheckCircle,
   Clock,
@@ -14,6 +13,7 @@ import { PageHeader, StatusBadge, EmptyState } from "@/components/shared";
 import {
   usePartnerStatements,
   useDownloadStatement,
+  useExportStatements,
 } from "@/lib/hooks/api/use-partner-portal";
 import { cn } from "@/lib/utils";
 import type { Statement } from "@/types/partner-portal";
@@ -24,62 +24,6 @@ const statusColors: Record<Statement["status"], "pending" | "info" | "success"> 
   PAID: "success",
 };
 
-// Demo data
-const demoStatements: Statement[] = [
-  {
-    id: "1",
-    period: "December 2024",
-    startDate: "2024-12-01T00:00:00Z",
-    endDate: "2024-12-31T23:59:59Z",
-    totalRevenue: 7300,
-    totalCommissions: 1235,
-    status: "DRAFT" as const,
-    createdAt: "2024-12-01T00:00:00Z",
-  },
-  {
-    id: "2",
-    period: "November 2024",
-    startDate: "2024-11-01T00:00:00Z",
-    endDate: "2024-11-30T23:59:59Z",
-    totalRevenue: 10500,
-    totalCommissions: 1575,
-    status: "FINAL" as const,
-    createdAt: "2024-11-01T00:00:00Z",
-  },
-  {
-    id: "3",
-    period: "October 2024",
-    startDate: "2024-10-01T00:00:00Z",
-    endDate: "2024-10-31T23:59:59Z",
-    totalRevenue: 9800,
-    totalCommissions: 1470,
-    status: "PAID" as const,
-    paidAt: "2024-11-15T14:00:00Z",
-    createdAt: "2024-10-01T00:00:00Z",
-  },
-  {
-    id: "4",
-    period: "September 2024",
-    startDate: "2024-09-01T00:00:00Z",
-    endDate: "2024-09-30T23:59:59Z",
-    totalRevenue: 8500,
-    totalCommissions: 1275,
-    status: "PAID" as const,
-    paidAt: "2024-10-15T14:00:00Z",
-    createdAt: "2024-09-01T00:00:00Z",
-  },
-  {
-    id: "5",
-    period: "August 2024",
-    startDate: "2024-08-01T00:00:00Z",
-    endDate: "2024-08-31T23:59:59Z",
-    totalRevenue: 11200,
-    totalCommissions: 1680,
-    status: "PAID" as const,
-    paidAt: "2024-09-15T14:00:00Z",
-    createdAt: "2024-08-01T00:00:00Z",
-  },
-];
 
 function StatementCard({
   statement,
@@ -118,7 +62,7 @@ function StatementCard({
             <button
               onClick={() => onDownload(statement.id)}
               disabled={isDownloading}
-              className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
+              className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/15 transition-colors disabled:opacity-50"
               title="Download PDF"
             >
               <Download className="w-5 h-5" />
@@ -204,10 +148,14 @@ export default function StatementsPage() {
   const { data, isLoading, error } = usePartnerStatements({
     year: yearFilter,
   });
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Failed to load statements." : null;
 
   const downloadStatement = useDownloadStatement();
+  const exportStatements = useExportStatements();
 
-  const statements = data?.statements || demoStatements;
+  const statements = data?.statements ?? [];
+  const hasStatements = data && statements.length > 0;
 
   const handleDownload = async (id: string) => {
     try {
@@ -225,15 +173,33 @@ export default function StatementsPage() {
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const blob = await exportStatements.mutateAsync({ year: yearFilter, format: "csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `statements-${yearFilter}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export statements:", error);
+    }
+  };
+
   // Calculate totals
-  const totals = statements.reduce(
-    (acc, s) => ({
-      revenue: acc.revenue + s.totalRevenue,
-      commissions: acc.commissions + s.totalCommissions,
-      paid: acc.paid + (s.status === "PAID" ? s.totalCommissions : 0),
-    }),
-    { revenue: 0, commissions: 0, paid: 0 }
-  );
+  const totals = data
+    ? statements.reduce(
+        (acc, s) => ({
+          revenue: acc.revenue + s.totalRevenue,
+          commissions: acc.commissions + s.totalCommissions,
+          paid: acc.paid + (s.status === "PAID" ? s.totalCommissions : 0),
+        }),
+        { revenue: 0, commissions: 0, paid: 0 }
+      )
+    : null;
 
   const years = [2024, 2023, 2022];
 
@@ -242,45 +208,63 @@ export default function StatementsPage() {
       <PageHeader
         title="Statements"
         description="Monthly commission statements and payout history"
+        actions={
+          hasStatements && (
+            <button
+              onClick={handleExportCSV}
+              disabled={exportStatements.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-overlay text-text-secondary hover:text-text-primary hover:bg-surface-overlay/80 transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {exportStatements.isPending ? "Exporting..." : "Export CSV"}
+            </button>
+          )
+        }
       />
+
+      {errorMessage && (
+        <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-accent/10 text-accent">
+            <div className="p-2 rounded-lg bg-accent/15 text-accent">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Total Revenue ({yearFilter})</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${totals.revenue.toLocaleString()}
+                {totals ? `$${totals.revenue.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-highlight/10 text-highlight">
+            <div className="p-2 rounded-lg bg-highlight/15 text-highlight">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Total Commissions</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${totals.commissions.toLocaleString()}
+                {totals ? `$${totals.commissions.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
         </div>
         <div className="bg-surface-elevated rounded-lg border border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-status-success/10 text-status-success">
+            <div className="p-2 rounded-lg bg-status-success/15 text-status-success">
               <CheckCircle className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm text-text-muted">Paid Out</p>
               <p className="text-xl font-semibold text-text-primary">
-                ${totals.paid.toLocaleString()}
+                {totals ? `$${totals.paid.toLocaleString()}` : "—"}
               </p>
             </div>
           </div>
@@ -296,7 +280,7 @@ export default function StatementsPage() {
             className={cn(
               "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
               yearFilter === year
-                ? "bg-accent text-white"
+                ? "bg-accent text-text-inverse"
                 : "bg-surface-overlay text-text-secondary hover:text-text-primary"
             )}
           >

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: dotmac-platform
+description: DotMac platform services (backend, frontend, worker)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+icon: https://dotmac.io/assets/helm-icon.png

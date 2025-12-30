@@ -30,15 +30,15 @@ cp .env.local.example .env.local
 # 2. Load environment
 source .env.local
 
-# 3. Start backend (delegates to scripts/quick-backend-start.sh)
-cd frontend && pnpm dev:backend
+# 3. Start backend
+poetry run uvicorn dotmac.platform.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ---
 
 ## Why This Matters
 
-When running via `pnpm dev:backend`, the backend runs **on your host** (not in a container). This requires different configuration than containerized deployment:
+When running via `./scripts/dev-backend.sh` or `poetry run uvicorn ...`, the backend runs **on your host** (not in a container). This requires different configuration than containerized deployment:
 
 ### Container vs Host Configuration
 
@@ -284,9 +284,8 @@ docker start redis      # If stopped
 
 ## Related Documentation
 
-- **Docker Compose**: `QUICK_START.md`, `DOCKER_COMPOSE_PORT_CORRECTIONS.md`
-- **Linux Compatibility**: `DOCKER_COMPOSE_LINUX_COMPATIBILITY.md`
-- **Production Deployment**: `FINAL_IMPLEMENTATION_SUMMARY.md`
+- **Docker Compose**: `QUICK_START.md`, `docs/architecture/INFRASTRUCTURE.md`
+- **Production Deployment**: `docs/BACKEND_PRODUCTION_GUIDE.md`
 
 ---
 
@@ -303,7 +302,7 @@ docker ps | grep -E "postgres|redis|minio"
 
 # 3. In another terminal, start frontend
 cd frontend
-pnpm dev:admin  # or pnpm dev:isp
+pnpm dev
 
 # 4. Access
 # Backend API: http://localhost:8000

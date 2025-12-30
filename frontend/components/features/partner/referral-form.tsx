@@ -1,12 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useCreateReferral } from "@/lib/hooks/api/use-partner-portal";
+import { useCreateReferral, useUpdateReferral } from "@/lib/hooks/api/use-partner-portal";
+import type { Referral } from "@/types/partner-portal";
 
 const referralSchema = z.object({
   companyName: z.string().min(2, "Company name is required"),
@@ -23,10 +25,15 @@ interface ReferralFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  editReferral?: Referral | null;
 }
 
-export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) {
+export function ReferralForm({ isOpen, onClose, onSuccess, editReferral }: ReferralFormProps) {
   const createReferral = useCreateReferral();
+  const updateReferral = useUpdateReferral();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const isEditMode = !!editReferral;
 
   const {
     register,
@@ -45,29 +52,62 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
     },
   });
 
+  // Populate form when editing
+  useEffect(() => {
+    if (editReferral) {
+      reset({
+        companyName: editReferral.companyName,
+        contactName: editReferral.contactName,
+        contactEmail: editReferral.contactEmail,
+        contactPhone: editReferral.contactPhone || "",
+        estimatedValue: editReferral.estimatedValue || undefined,
+        notes: editReferral.notes || "",
+      });
+    } else {
+      reset({
+        companyName: "",
+        contactName: "",
+        contactEmail: "",
+        contactPhone: "",
+        estimatedValue: undefined,
+        notes: "",
+      });
+    }
+  }, [editReferral, reset]);
+
   const onSubmit = async (data: ReferralFormData) => {
+    setSubmitError(null);
     try {
-      await createReferral.mutateAsync(data);
+      if (isEditMode && editReferral) {
+        await updateReferral.mutateAsync({ id: editReferral.id, data });
+      } else {
+        await createReferral.mutateAsync(data);
+      }
       reset();
       onSuccess?.();
       onClose();
     } catch (error) {
-      console.error("Failed to create referral:", error);
+      const message = error instanceof Error ? error.message : `Failed to ${isEditMode ? "update" : "create"} referral.`;
+      setSubmitError(message);
     }
   };
 
   const handleClose = () => {
     reset();
+    setSubmitError(null);
     onClose();
   };
 
   if (!isOpen) return null;
 
+  const isPending = createReferral.isPending || updateReferral.isPending;
+  const hasError = createReferral.isError || updateReferral.isError;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-overlay/50 backdrop-blur-sm"
         onClick={handleClose}
       />
 
@@ -77,10 +117,10 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold text-text-primary">
-              Submit New Referral
+              {isEditMode ? "Edit Referral" : "Submit New Referral"}
             </h2>
             <p className="text-sm text-text-muted mt-1">
-              Add a potential customer referral
+              {isEditMode ? "Update referral details" : "Add a potential tenant referral"}
             </p>
           </div>
           <button
@@ -93,6 +133,11 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
 
         {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+          {submitError && (
+            <div className="p-3 rounded-md bg-status-error/10 text-status-error text-sm">
+              {submitError}
+            </div>
+          )}
           {/* Company Name */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-secondary">
@@ -104,7 +149,7 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
               placeholder="Acme Corporation"
               className={cn(
                 "w-full px-3 py-2 rounded-md border bg-surface text-text-primary placeholder:text-text-muted",
-                "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                 errors.companyName
                   ? "border-status-error"
                   : "border-border"
@@ -128,7 +173,7 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
               placeholder="John Smith"
               className={cn(
                 "w-full px-3 py-2 rounded-md border bg-surface text-text-primary placeholder:text-text-muted",
-                "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                 errors.contactName
                   ? "border-status-error"
                   : "border-border"
@@ -153,7 +198,7 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
                 placeholder="john@acme.com"
                 className={cn(
                   "w-full px-3 py-2 rounded-md border bg-surface text-text-primary placeholder:text-text-muted",
-                  "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   errors.contactEmail
                     ? "border-status-error"
                     : "border-border"
@@ -174,7 +219,7 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
                 {...register("contactPhone")}
                 type="tel"
                 placeholder="+1 (555) 000-0000"
-                className="w-full px-3 py-2 rounded-md border border-border bg-surface text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+                className="w-full px-3 py-2 rounded-md border border-border bg-surface text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
               />
             </div>
           </div>
@@ -192,7 +237,7 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
                 {...register("estimatedValue")}
                 type="number"
                 placeholder="0"
-                className="w-full pl-7 pr-3 py-2 rounded-md border border-border bg-surface text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+                className="w-full pl-7 pr-3 py-2 rounded-md border border-border bg-surface text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
               />
             </div>
           </div>
@@ -211,9 +256,9 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
           </div>
 
           {/* Error Message */}
-          {createReferral.isError && (
-            <div className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 text-status-error text-sm">
-              Failed to submit referral. Please try again.
+          {hasError && (
+            <div className="p-3 rounded-lg bg-status-error/15 border border-status-error/20 text-status-error text-sm">
+              Failed to {isEditMode ? "update" : "submit"} referral. Please try again.
             </div>
           )}
 
@@ -228,13 +273,13 @@ export function ReferralForm({ isOpen, onClose, onSuccess }: ReferralFormProps) 
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || createReferral.isPending}
-              className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+              disabled={isSubmitting || isPending}
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
             >
-              {(isSubmitting || createReferral.isPending) && (
+              {(isSubmitting || isPending) && (
                 <Loader2 className="w-4 h-4 animate-spin" />
               )}
-              Submit Referral
+              {isEditMode ? "Update Referral" : "Submit Referral"}
             </button>
           </div>
         </form>

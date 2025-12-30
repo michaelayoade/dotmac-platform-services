@@ -12,24 +12,160 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "create_mock_redis",
+    "create_sync_redis",
     "start_infrastructure_patchers",
 ]
+
+
+class _RedisStore:
+    def __init__(self) -> None:
+        self.data: dict[str, Any] = {}
+        self.sets: dict[str, set[str]] = {}
 
 
 def create_mock_redis() -> MagicMock:
     """Create an async-compatible Redis mock."""
     mock_redis = MagicMock()
-    mock_redis.get = AsyncMock(return_value=None)
-    mock_redis.set = AsyncMock(return_value=True)
-    mock_redis.delete = AsyncMock(return_value=True)
-    mock_redis.exists = AsyncMock(return_value=False)
-    mock_redis.expire = AsyncMock(return_value=True)
-    mock_redis.ttl = AsyncMock(return_value=-1)
-    mock_redis.keys = AsyncMock(return_value=[])
-    mock_redis.scan = AsyncMock(return_value=(0, []))
-    mock_redis.ping = AsyncMock(return_value=True)
-    mock_redis.setex = AsyncMock(return_value=True)
-    mock_redis.scan_iter = AsyncMock(return_value=iter(()))
+    store = _RedisStore()
+
+    async def get(key: str) -> Any:
+        return store.data.get(key)
+
+    async def set(key: str, value: Any) -> bool:
+        store.data[key] = value
+        return True
+
+    async def setex(key: str, ttl: int, value: Any) -> bool:
+        store.data[key] = value
+        return True
+
+    async def delete(key: str) -> int:
+        existed = key in store.data
+        store.data.pop(key, None)
+        return 1 if existed else 0
+
+    async def exists(key: str) -> bool:
+        return key in store.data
+
+    async def expire(key: str, ttl: int) -> bool:
+        return True
+
+    async def ttl(key: str) -> int:
+        return -1
+
+    async def keys(pattern: str = "*") -> list[str]:
+        return list(store.data.keys())
+
+    async def scan(cursor: int = 0, match: str | None = None, count: int | None = None):
+        return (0, list(store.data.keys()))
+
+    async def ping() -> bool:
+        return True
+
+    async def scan_iter(match: str | None = None):
+        for key in list(store.data.keys()):
+            yield key
+
+    async def sadd(key: str, value: str) -> int:
+        bucket = store.sets.setdefault(key, set())
+        before = len(bucket)
+        bucket.add(value)
+        return 1 if len(bucket) > before else 0
+
+    async def srem(key: str, value: str) -> int:
+        bucket = store.sets.get(key, set())
+        if value in bucket:
+            bucket.remove(value)
+            return 1
+        return 0
+
+    mock_redis.get = get
+    mock_redis.set = set
+    mock_redis.setex = setex
+    mock_redis.delete = delete
+    mock_redis.exists = exists
+    mock_redis.expire = expire
+    mock_redis.ttl = ttl
+    mock_redis.keys = keys
+    mock_redis.scan = scan
+    mock_redis.ping = ping
+    mock_redis.scan_iter = scan_iter
+    mock_redis.sadd = sadd
+    mock_redis.srem = srem
+    mock_redis._store = store
+    return mock_redis
+
+
+def create_sync_redis(store: _RedisStore | None = None) -> MagicMock:
+    """Create a sync Redis mock backed by the same store."""
+    mock_redis = MagicMock()
+    backing = store or _RedisStore()
+
+    def get(key: str) -> Any:
+        return backing.data.get(key)
+
+    def set(key: str, value: Any) -> bool:
+        backing.data[key] = value
+        return True
+
+    def setex(key: str, ttl: int, value: Any) -> bool:
+        backing.data[key] = value
+        return True
+
+    def delete(key: str) -> int:
+        existed = key in backing.data
+        backing.data.pop(key, None)
+        return 1 if existed else 0
+
+    def exists(key: str) -> bool:
+        return key in backing.data
+
+    def expire(key: str, ttl: int) -> bool:
+        return True
+
+    def ttl(key: str) -> int:
+        return -1
+
+    def keys(pattern: str = "*") -> list[str]:
+        return list(backing.data.keys())
+
+    def scan(cursor: int = 0, match: str | None = None, count: int | None = None):
+        return (0, list(backing.data.keys()))
+
+    def ping() -> bool:
+        return True
+
+    def scan_iter(match: str | None = None):
+        for key in list(backing.data.keys()):
+            yield key
+
+    def sadd(key: str, value: str) -> int:
+        bucket = backing.sets.setdefault(key, set())
+        before = len(bucket)
+        bucket.add(value)
+        return 1 if len(bucket) > before else 0
+
+    def srem(key: str, value: str) -> int:
+        bucket = backing.sets.get(key, set())
+        if value in bucket:
+            bucket.remove(value)
+            return 1
+        return 0
+
+    mock_redis.get = get
+    mock_redis.set = set
+    mock_redis.setex = setex
+    mock_redis.delete = delete
+    mock_redis.exists = exists
+    mock_redis.expire = expire
+    mock_redis.ttl = ttl
+    mock_redis.keys = keys
+    mock_redis.scan = scan
+    mock_redis.ping = ping
+    mock_redis.scan_iter = scan_iter
+    mock_redis.sadd = sadd
+    mock_redis.srem = srem
+    mock_redis._store = backing
     return mock_redis
 
 

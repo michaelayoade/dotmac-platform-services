@@ -1,0 +1,24 @@
+{% extends "base/email_base.txt.j2" %}
+
+{% block content %}
+Payment Reminder
+
+This is a friendly reminder that you have an outstanding invoice.
+
+Invoice Summary:
+- Invoice Number: #{{ invoice_number }}
+- Amount Due: {{ amount_due_formatted }}
+- Due Date: {{ due_date | format_date }}
+- Status: {{ status | upper }}
+
+{% if status | lower == "overdue" %}
+⚠️ This invoice is overdue. Please arrange payment immediately.
+{% endif %}
+
+{% if has_custom_message %}
+Message from billing team:
+{{ custom_message }}
+{% endif %}
+
+View Invoice: {{ invoice_url }}
+{% endblock %}

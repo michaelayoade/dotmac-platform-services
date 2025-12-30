@@ -19,12 +19,28 @@ from dotmac.platform.user_management.service import UserService
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture
+def shared_test_client(test_client, async_session: AsyncSession):
+    """Share the async_session with auth routes so DB writes are visible in assertions."""
+    from dotmac.platform.auth.router import get_auth_session
+
+    async def override_get_auth_session():
+        yield async_session
+
+    app = test_client.app
+    app.dependency_overrides[get_auth_session] = override_get_auth_session
+    try:
+        yield test_client
+    finally:
+        app.dependency_overrides.pop(get_auth_session, None)
+
+
 @pytest.mark.asyncio
 class TestMultiTenantPasswordReset:
     """Test password reset with duplicate emails across tenants."""
 
     async def test_password_reset_with_duplicate_emails_no_tenant(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """
         Regression test: Password reset should handle duplicate emails across tenants gracefully.
@@ -58,7 +74,7 @@ class TestMultiTenantPasswordReset:
 
         # Request password reset WITHOUT tenant context
         # Should not crash, should return success message
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/password-reset",
             json={"email": "john@example.com"},
         )
@@ -67,7 +83,7 @@ class TestMultiTenantPasswordReset:
         assert "password reset link has been sent" in response.json()["message"].lower()
 
     async def test_password_reset_with_duplicate_emails_with_tenant(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """Password reset should work when tenant is specified via header."""
         user_service = UserService(async_session)
@@ -93,7 +109,7 @@ class TestMultiTenantPasswordReset:
 
         # Request password reset WITH tenant context (via header)
         # Should succeed and send to correct tenant's user
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/password-reset",
             json={"email": "jane@example.com"},
             headers={"X-Tenant-ID": "tenant-a"},
@@ -103,7 +119,7 @@ class TestMultiTenantPasswordReset:
         assert "password reset link has been sent" in response.json()["message"].lower()
 
     async def test_password_reset_confirmation_with_duplicate_emails(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """Password reset confirmation should fail gracefully without tenant context."""
         user_service = UserService(async_session)
@@ -136,7 +152,7 @@ class TestMultiTenantPasswordReset:
 
         # Try to confirm password reset without tenant context
         # Should fail with clear error message
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/password-reset/confirm",
             json={
                 "token": "mock-token",  # Would be real token in production
@@ -157,7 +173,7 @@ class TestMultiTenantRegistration:
     """Test registration with duplicate usernames/emails across tenants."""
 
     async def test_registration_duplicate_username_across_tenants(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """
         Regression test: Users in different tenants can use the same username.
@@ -181,7 +197,7 @@ class TestMultiTenantRegistration:
         await async_session.commit()
 
         # Register 'admin' in Tenant B (should succeed)
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/register",
             json={
                 "username": "admin",
@@ -205,7 +221,7 @@ class TestMultiTenantRegistration:
         assert tenant_ids == {"tenant-a", "tenant-b"}
 
     async def test_registration_duplicate_email_across_tenants(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """Users in different tenants can use the same email."""
         user_service = UserService(async_session)
@@ -222,7 +238,7 @@ class TestMultiTenantRegistration:
         await async_session.commit()
 
         # Register same email in Tenant B (should succeed)
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/register",
             json={
                 "username": "user_b",
@@ -246,7 +262,7 @@ class TestMultiTenantRegistration:
         assert tenant_ids == {"tenant-a", "tenant-b"}
 
     async def test_registration_duplicate_username_same_tenant_fails(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """Registration should still fail for duplicate username in SAME tenant."""
         user_service = UserService(async_session)
@@ -263,7 +279,7 @@ class TestMultiTenantRegistration:
         await async_session.commit()
 
         # Try to register 'john' again in Tenant A (should fail)
-        response = await test_client.post(
+        response = await shared_test_client.post(
             "/api/v1/auth/register",
             json={
                 "username": "john",
@@ -286,7 +302,7 @@ class TestMultiTenantProfileUpdate:
     """Test profile updates with duplicate usernames/emails across tenants."""
 
     async def test_profile_update_duplicate_username_across_tenants(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """
         Regression test: Users can update to username used in different tenant.
@@ -319,19 +335,20 @@ class TestMultiTenantProfileUpdate:
         await async_session.commit()
 
         # Login as user_b
-        login_response = await test_client.post(
+        login_response = await shared_test_client.post(
             "/api/v1/auth/login",
             json={
                 "email": "user@tenant-b.com",
                 "password": "SecurePass123!",
             },
+            headers={"X-Tenant-ID": "tenant-b"},
         )
 
         assert login_response.status_code == status.HTTP_200_OK
         access_token = login_response.json()["access_token"]
 
         # Update user_b's username to 'superadmin' (exists in Tenant A, but should work for Tenant B)
-        update_response = await test_client.patch(
+        update_response = await shared_test_client.patch(
             "/api/v1/auth/me",
             json={"username": "superadmin"},
             headers={
@@ -354,7 +371,7 @@ class TestMultiTenantProfileUpdate:
         assert tenant_ids == {"tenant-a", "tenant-b"}
 
     async def test_profile_update_duplicate_username_same_tenant_fails(
-        self, test_client: AsyncClient, async_session: AsyncSession
+        self, shared_test_client: AsyncClient, async_session: AsyncSession
     ):
         """Profile update should still fail for duplicate username in SAME tenant."""
         user_service = UserService(async_session)
@@ -379,19 +396,20 @@ class TestMultiTenantProfileUpdate:
         await async_session.commit()
 
         # Login as bob
-        login_response = await test_client.post(
+        login_response = await shared_test_client.post(
             "/api/v1/auth/login",
             json={
                 "email": "bob@tenant-a.com",
                 "password": "SecurePass123!",
             },
+            headers={"X-Tenant-ID": "tenant-a"},
         )
 
         assert login_response.status_code == status.HTTP_200_OK
         access_token = login_response.json()["access_token"]
 
         # Try to update bob's username to 'alice' (should fail - same tenant)
-        update_response = await test_client.patch(
+        update_response = await shared_test_client.patch(
             "/api/v1/auth/me",
             json={"username": "alice"},
             headers={

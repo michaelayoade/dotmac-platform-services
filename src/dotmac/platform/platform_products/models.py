@@ -46,7 +46,6 @@ class PlatformProduct(Base, TimestampMixin, SoftDeleteMixin):
 
     __tablename__ = "platform_products"
     __table_args__ = (
-        Index("ix_platform_products_slug", "slug", unique=True),
         Index("ix_platform_products_is_active", "is_active"),
         Index("ix_platform_products_is_public", "is_public"),
         Index("ix_platform_products_template_id", "template_id"),

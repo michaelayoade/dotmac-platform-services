@@ -36,7 +36,7 @@ export function StepIndicator({
                 <div
                   className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
-                    isCompleted && "bg-accent text-white",
+                    isCompleted && "bg-accent text-text-inverse",
                     isCurrent && "bg-accent/20 text-accent border-2 border-accent",
                     !isCompleted && !isCurrent && "bg-surface-overlay text-text-muted border border-border"
                   )}
@@ -93,7 +93,7 @@ export function StepIndicator({
               <div
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
-                  isCompleted && "bg-accent text-white shadow-glow-sm",
+                  isCompleted && "bg-accent text-text-inverse shadow-glow-sm",
                   isCurrent && "bg-accent/20 text-accent border-2 border-accent",
                   !isCompleted && !isCurrent && "bg-surface-overlay text-text-muted border border-border"
                 )}

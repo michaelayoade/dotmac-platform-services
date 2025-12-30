@@ -307,7 +307,7 @@ class PlanPricingResponse(BaseModel):
 class SubscriptionCreate(BaseModel):
     """Create a new subscription."""
 
-    tenant_id: UUID
+    tenant_id: str
     plan_id: UUID
     billing_cycle: BillingCycle
     start_trial: bool = False
@@ -315,6 +315,13 @@ class SubscriptionCreate(BaseModel):
     custom_config: dict[str, Any] = Field(default_factory=dict)
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
+
+    @field_validator("billing_cycle", mode="before")
+    @classmethod
+    def normalize_billing_cycle(cls, value: BillingCycle | str) -> BillingCycle | str:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 
 class SubscriptionModuleResponse(BaseModel):

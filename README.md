@@ -137,8 +137,11 @@ poetry run uvicorn dotmac.platform.main:app --reload
 ### Docker
 
 ```bash
-# Build and run with Docker Compose
-docker compose up -d
+# Start shared infrastructure (Postgres, Redis, MinIO, observability)
+./scripts/infra.sh infra start
+
+# Start the platform backend + admin UI
+./scripts/infra.sh platform start
 
 # Or build the image directly
 docker build -t dotmac-platform-services .
@@ -194,7 +197,6 @@ src/dotmac/platform/
 ├── tenant/            # Multi-tenancy
 ├── billing/           # Billing & payments
 ├── partner_management/ # Partner program + portal APIs
-├── customer_management/ # Customer CRM workflows
 ├── user_management/   # User/team management
 ├── licensing/         # License management
 ├── platform_products/ # Platform product catalog (global)

@@ -11,7 +11,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import String, case, cast, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,24 +92,15 @@ async def _get_communication_stats_cached(
     now = datetime.now(UTC)
     period_start = now - timedelta(days=period_days)
 
-    # Query communication stats by status
+    # Query communication stats by status - cast column to String for comparison
+    status_col = cast(CommunicationLog.status, String)
     status_query = select(
         func.count(CommunicationLog.id).label("total"),
-        func.sum(case((CommunicationLog.status == CommunicationStatus.SENT, 1), else_=0)).label(
-            "sent"
-        ),
-        func.sum(
-            case((CommunicationLog.status == CommunicationStatus.DELIVERED, 1), else_=0)
-        ).label("delivered"),
-        func.sum(case((CommunicationLog.status == CommunicationStatus.FAILED, 1), else_=0)).label(
-            "failed"
-        ),
-        func.sum(case((CommunicationLog.status == CommunicationStatus.BOUNCED, 1), else_=0)).label(
-            "bounced"
-        ),
-        func.sum(case((CommunicationLog.status == CommunicationStatus.PENDING, 1), else_=0)).label(
-            "pending"
-        ),
+        func.sum(case((status_col == "sent", 1), else_=0)).label("sent"),
+        func.sum(case((status_col == "delivered", 1), else_=0)).label("delivered"),
+        func.sum(case((status_col == "failed", 1), else_=0)).label("failed"),
+        func.sum(case((status_col == "bounced", 1), else_=0)).label("bounced"),
+        func.sum(case((status_col == "pending", 1), else_=0)).label("pending"),
     ).where(CommunicationLog.created_at >= period_start)
 
     if tenant_id:

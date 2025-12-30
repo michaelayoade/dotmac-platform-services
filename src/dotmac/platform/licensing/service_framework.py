@@ -10,6 +10,7 @@ Provides business logic for:
 """
 
 from datetime import UTC, datetime, timedelta
+import calendar
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -267,38 +268,74 @@ class LicensingFrameworkService:
         self.db.add(plan)
         await self.db.flush()  # Get plan ID
 
-        # Add modules to plan
+        # Add modules to plan (deduplicate dependencies)
+        added_modules: dict[UUID, PlanModule] = {}
+
+        def upsert_plan_module(
+            module_id: UUID,
+            *,
+            included_by_default: bool,
+            is_optional_addon: bool,
+            override_price: float | None,
+            trial_only: bool,
+            promotional_until: datetime | None,
+            config_data: dict[str, Any],
+        ) -> None:
+            existing = added_modules.get(module_id)
+            if existing:
+                existing.included_by_default = (
+                    existing.included_by_default or included_by_default
+                )
+                existing.is_optional_addon = existing.is_optional_addon or is_optional_addon
+                if override_price is not None:
+                    existing.override_price = override_price
+                existing.trial_only = existing.trial_only or trial_only
+                if promotional_until is not None:
+                    existing.promotional_until = promotional_until
+                if config_data:
+                    existing.config = config_data
+                return
+
+            plan_module = PlanModule(
+                id=uuid4(),
+                plan_id=plan.id,
+                module_id=module_id,
+                included_by_default=included_by_default,
+                is_optional_addon=is_optional_addon,
+                override_price=override_price,
+                trial_only=trial_only,
+                promotional_until=promotional_until,
+                config=config_data,
+            )
+            self.db.add(plan_module)
+            added_modules[module_id] = plan_module
+
         for config in module_configs:
             # Validate module exists and resolve dependencies
             module, deps = await self.get_module_with_dependencies(config["module_id"])
 
             # Add main module
-            plan_module = PlanModule(
-                id=uuid4(),
-                plan_id=plan.id,
-                module_id=module.id,
+            upsert_plan_module(
+                module.id,
                 included_by_default=config.get("included", True),
                 is_optional_addon=config.get("addon", False),
                 override_price=config.get("price"),
                 trial_only=config.get("trial_only", False),
                 promotional_until=config.get("promotional_until"),
-                config=config.get("config", {}),
+                config_data=config.get("config", {}),
             )
-            self.db.add(plan_module)
 
             # Auto-add dependencies as included modules
             for dep in deps:
-                dep_module = PlanModule(
-                    id=uuid4(),
-                    plan_id=plan.id,
-                    module_id=dep.id,
+                upsert_plan_module(
+                    dep.id,
                     included_by_default=True,
                     is_optional_addon=False,
                     override_price=None,  # Use base price
                     trial_only=False,
-                    config={},
+                    promotional_until=None,
+                    config_data={},
                 )
-                self.db.add(dep_module)
 
         # Add quotas to plan
         for config in quota_configs:
@@ -512,25 +549,27 @@ class LicensingFrameworkService:
             trial_start=trial_start,
             trial_end=trial_end,
             current_period_start=now,
-            current_period_end=now
-            + timedelta(days=30 if billing_cycle == BillingCycle.MONTHLY else 365),
+            current_period_end=self._calculate_billing_period_end(now, billing_cycle),
             stripe_customer_id=stripe_customer_id,
             stripe_subscription_id=stripe_subscription_id,
-            custom_config=custom_config or {},
+            extra_metadata=custom_config or {},
         )
         self.db.add(subscription)
         await self.db.flush()
 
         # Activate modules
         for pm in plan.included_modules:
-            # Include module if it's default, or if it's trial-only and we're in trial
-            if pm.included_by_default or (pm.trial_only and start_trial):
+            trial_enabled = start_trial and (
+                pm.trial_only or pm.module.module_code in plan.trial_modules
+            )
+            # Include module if it's default or enabled for trial
+            if pm.included_by_default or trial_enabled:
                 sub_module = SubscriptionModule(
                     id=uuid4(),
                     subscription_id=subscription.id,
                     module_id=pm.module_id,
                     is_enabled=True,
-                    source="TRIAL" if start_trial and pm.trial_only else "PLAN",
+                    source="TRIAL" if trial_enabled and not pm.included_by_default else "PLAN",
                     addon_price=None,
                     expires_at=trial_end if pm.trial_only else pm.promotional_until,
                     config=pm.config or {},
@@ -609,13 +648,14 @@ class LicensingFrameworkService:
         if not reset_period:
             return start  # Treat as no-op period; effectively unlimited
 
-        if reset_period == "MONTHLY":
+        normalized = reset_period.strip().upper()
+        if normalized == "MONTHLY":
             # Next month, same day
             if start.month == 12:
                 return start.replace(year=start.year + 1, month=1)
             else:
                 return start.replace(month=start.month + 1)
-        elif reset_period == "QUARTERLY":
+        elif normalized == "QUARTERLY":
             # Add 3 months
             month = start.month + 3
             year = start.year
@@ -623,10 +663,35 @@ class LicensingFrameworkService:
                 month -= 12
                 year += 1
             return start.replace(year=year, month=month)
-        elif reset_period == "ANNUAL":
+        elif normalized in ("ANNUAL", "ANNUALLY"):
             return start.replace(year=start.year + 1)
 
         return start
+
+    def _add_months(self, start: datetime, months: int) -> datetime:
+        """Add months to a datetime, clamping to end-of-month when needed."""
+        month = start.month - 1 + months
+        year = start.year + month // 12
+        month = month % 12 + 1
+        last_day = calendar.monthrange(year, month)[1]
+        day = min(start.day, last_day)
+        return start.replace(year=year, month=month, day=day)
+
+    def _calculate_billing_period_end(
+        self, start: datetime, billing_cycle: BillingCycle
+    ) -> datetime:
+        """Calculate subscription period end based on billing cycle."""
+        if billing_cycle == BillingCycle.MONTHLY:
+            return self._add_months(start, 1)
+        if billing_cycle == BillingCycle.QUARTERLY:
+            return self._add_months(start, 3)
+        if billing_cycle == BillingCycle.ANNUALLY:
+            return self._add_months(start, 12)
+        if billing_cycle == BillingCycle.BIENNIAL:
+            return self._add_months(start, 24)
+        if billing_cycle == BillingCycle.TRIENNIAL:
+            return self._add_months(start, 36)
+        return self._add_months(start, 12)
 
     async def add_addon_to_subscription(
         self,
@@ -1134,14 +1199,23 @@ class LicensingFrameworkService:
             overage_charge = overage * (overage_rate or 0.0)
             usage.overage_charges += overage_charge
 
-        # Log usage
+        # Log usage (quota usage recorded as a feature usage event)
         log = FeatureUsageLog(
             id=uuid4(),
-            subscription_id=subscription.id,
-            module_id=None,  # Could be associated if needed
-            feature_name=quota_code,
-            usage_count=quantity,
-            metadata=metadata or {},
+            tenant_id=str(tenant_id),
+            module_id=quota.id,
+            capability_code=None,
+            user_id=None,
+            action="quota.consume",
+            resource_type="quota",
+            resource_id=quota_code,
+            extra_metadata={
+                "subscription_id": str(subscription.id),
+                "quantity": quantity,
+                "overage": overage,
+                "overage_charge": overage_charge,
+                **(metadata or {}),
+            },
         )
         self.db.add(log)
 

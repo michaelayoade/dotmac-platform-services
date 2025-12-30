@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import type { Session } from "next-auth";
 import type { ElementType } from "react";
 import {
   ChevronLeft,
@@ -11,9 +10,11 @@ import {
   HelpCircle,
   LogOut,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api/client";
+import type { PlatformUser } from "@/types/auth";
 
 export interface PortalNavItem {
   label: string;
@@ -39,18 +40,25 @@ export interface PortalConfig {
 interface PortalSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
-  session: Session;
+  user: PlatformUser;
   config: PortalConfig;
 }
 
 export function PortalSidebar({
   collapsed,
   onToggle,
-  session,
+  user,
   config,
 }: PortalSidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const LogoIcon = config.logoIcon || Zap;
+  const userInitial = (
+    user.fullName?.charAt(0) ||
+    user.username?.charAt(0) ||
+    user.email?.charAt(0) ||
+    "U"
+  ).toUpperCase();
 
   const isActive = (href: string) => {
     // Handle base href (e.g., /partner or /portal)
@@ -60,14 +68,18 @@ export function PortalSidebar({
     return pathname.startsWith(href);
   };
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: `${config.baseHref}/login` });
+  const handleSignOut = async () => {
+    try {
+      await api.post("/api/v1/auth/logout");
+    } finally {
+      router.push(`${config.baseHref}/login`);
+    }
   };
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen",
+        "fixed left-0 top-0 z-20 h-screen",
         "bg-surface-elevated border-r border-border",
         "flex flex-col",
         "transition-all duration-300 ease-in-out",
@@ -122,7 +134,7 @@ export function PortalSidebar({
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 px-2" aria-label="Main navigation">
         {config.navigation.map((section, sectionIdx) => (
           <div key={section.title || sectionIdx} className={cn(sectionIdx > 0 && "mt-6")}>
             {!collapsed && section.title && (
@@ -161,7 +173,7 @@ export function PortalSidebar({
                         <>
                           <span className="text-sm font-medium">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-auto inline-flex items-center justify-center px-2 h-5 text-2xs font-semibold rounded-full bg-accent/10 text-accent">
+                            <span className="ml-auto inline-flex items-center justify-center px-2 h-5 text-2xs font-semibold rounded-full bg-accent/15 text-accent">
                               {item.badge}
                             </span>
                           )}
@@ -169,7 +181,7 @@ export function PortalSidebar({
                       )}
 
                       {collapsed && item.badge && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-accent text-white">
+                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-2xs font-semibold rounded-full bg-accent text-text-inverse">
                           {item.badge}
                         </span>
                       )}
@@ -211,7 +223,7 @@ export function PortalSidebar({
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-highlight flex items-center justify-center text-sm font-semibold text-text-inverse">
-              {session.user?.name?.charAt(0).toUpperCase() || "U"}
+              {userInitial}
             </div>
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-status-success border-2 border-surface-elevated rounded-full" />
           </div>
@@ -219,10 +231,10 @@ export function PortalSidebar({
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">
-                {session.user?.name}
+                {user.fullName || user.username}
               </p>
               <p className="text-2xs text-text-muted truncate">
-                {session.user?.email}
+                {user.email}
               </p>
             </div>
           )}
@@ -233,7 +245,7 @@ export function PortalSidebar({
           onClick={handleSignOut}
           className={cn(
             "w-full flex items-center gap-3 rounded-md px-3 py-2.5 mt-1",
-            "text-text-muted hover:text-status-error hover:bg-status-error/10",
+            "text-text-muted hover:text-status-error hover:bg-status-error/15",
             "transition-colors",
             collapsed && "justify-center px-2"
           )}

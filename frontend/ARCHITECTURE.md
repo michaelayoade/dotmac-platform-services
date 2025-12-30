@@ -20,19 +20,25 @@ frontend/
 │   │   ├── signup/
 │   │   ├── verify-email/
 │   │   └── layout.tsx
-│   ├── (partner)/                # Partner portal routes
-│   │   ├── page.tsx              # Partner dashboard
-│   │   ├── referrals/
-│   │   ├── customers/
-│   │   ├── commissions/
-│   │   ├── statements/
-│   │   └── settings/
-│   ├── (tenant)/                 # Tenant portal routes
-│   │   ├── page.tsx              # Tenant dashboard
-│   │   ├── team/
-│   │   ├── billing/
-│   │   ├── usage/
-│   │   └── settings/
+│   ├── partner/                  # Partner portal routes
+│   │   ├── (private)/            # Partner authenticated pages
+│   │   │   ├── page.tsx          # Partner dashboard
+│   │   │   ├── referrals/
+│   │   │   ├── tenants/          # Managed tenants
+│   │   │   ├── commissions/
+│   │   │   ├── statements/
+│   │   │   └── settings/
+│   │   ├── login/
+│   │   └── layout.tsx
+│   ├── portal/                   # Tenant portal routes
+│   │   ├── (private)/            # Tenant authenticated pages
+│   │   │   ├── page.tsx          # Tenant dashboard
+│   │   │   ├── team/
+│   │   │   ├── billing/
+│   │   │   ├── usage/
+│   │   │   └── settings/
+│   │   ├── login/
+│   │   └── layout.tsx
 │   ├── (dashboard)/              # Protected dashboard routes
 │   │   ├── layout.tsx            # Dashboard shell with sidebar
 │   │   ├── page.tsx              # Home/Overview dashboard
@@ -40,8 +46,9 @@ frontend/
 │   │   ├── tenants/              # Tenant/org management
 │   │   ├── billing/              # Billing dashboard
 │   │   ├── analytics/            # Analytics & reports
-│   │   ├── customers/            # CRM
 │   │   ├── deployments/          # Deployment management
+│   │   ├── workflows/            # Automation workflows
+│   │   ├── monitoring/           # Observability
 │   │   └── settings/             # Configuration
 │   ├── api/                      # API routes (BFF pattern)
 │   │   └── auth/                 # NextAuth route handler
@@ -70,7 +77,7 @@ The frontend extends @dotmac/design-tokens with platform-specific theming:
 @dotmac/design-tokens (base)
   └── platform-theme (extends)
        ├── admin-portal (variant)
-       ├── customer-portal (variant)
+       ├── tenant-portal (variant)
        └── partner-portal (variant)
 ```
 

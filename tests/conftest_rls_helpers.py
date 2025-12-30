@@ -101,6 +101,10 @@ async def auto_bypass_rls_for_all_tests(request):
     if hasattr(request.node, "nodeid") and "tests/e2e/" in request.node.nodeid:
         yield
         return
+    # Skip for partner management tests to avoid fixture recursion with local DB engines
+    if hasattr(request.node, "nodeid") and "tests/partner_management/" in request.node.nodeid:
+        yield
+        return
 
     # Check if test wants RLS enabled
     if request.node.get_closest_marker("rls_enabled"):

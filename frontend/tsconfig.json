@@ -18,7 +18,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@dotmac/design-tokens": ["../packages/design-tokens/src"]
     }
   },
   "include": [

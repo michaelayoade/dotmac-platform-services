@@ -83,7 +83,7 @@ class CreditNoteService:
             tenant_id=tenant_id,
             credit_note_number=credit_note_number,
             invoice_id=invoice_id,
-            customer_id=invoice.customer_id,
+            customer_id=invoice.customer_id or tenant_id,
             issue_date=datetime.now(UTC),
             credit_type=CreditType.REFUND,  # Default to refund type
             reason=reason,

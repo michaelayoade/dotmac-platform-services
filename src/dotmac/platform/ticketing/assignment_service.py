@@ -67,6 +67,8 @@ class TicketAssignmentService:
         agent_workloads: list[tuple[UUID, int, datetime | None]] = []
 
         for agent in available_agents:
+            if agent.user_id is None:
+                continue
             # Count open and in-progress tickets
             workload_query = (
                 select(func.count(Ticket.id))
@@ -88,9 +90,15 @@ class TicketAssignmentService:
             workload_result = await self.session.execute(workload_query)
             workload = workload_result.scalar() or 0
 
-            agent_workloads.append(
-                (agent.user_id, workload, agent.last_activity_at),
+            agent_workloads.append((agent.user_id, workload, agent.last_activity_at))
+
+        if not agent_workloads:
+            logger.warning(
+                "assignment.no_agents_available",
+                ticket_id=str(ticket_id),
+                tenant_id=tenant_id,
             )
+            return None
 
         # Sort by workload (ascending), then by last_activity_at (ascending) for round-robin
         agent_workloads.sort(key=lambda item: (item[1], item[2] or datetime.min))

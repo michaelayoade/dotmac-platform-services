@@ -12,13 +12,16 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dotmac.platform.auth.rbac_dependencies import require_permission
+from dotmac.platform.billing.core.entities import InvoiceEntity, PaymentEntity
 from dotmac.platform.billing.core.enums import InvoiceStatus, PaymentStatus
-from dotmac.platform.billing.core.models import Invoice, Payment
+from dotmac.platform.billing.models import BillingSubscriptionPlanTable, BillingSubscriptionTable
+from dotmac.platform.billing.subscriptions.models import BillingCycle, SubscriptionStatus
 from dotmac.platform.database import get_async_session
+from dotmac.platform.tenant.models import Tenant
 
 logger = structlog.get_logger(__name__)
 
@@ -99,7 +102,6 @@ class PlatformBillingSummary(BaseModel):
 async def list_all_invoices(
     tenant_id: str | None = Query(None, description="Optional tenant filter"),
     status: InvoiceStatus | None = Query(None, description="Filter by invoice status"),
-    customer_id: str | None = Query(None, description="Filter by customer ID"),
     limit: int = Query(100, ge=1, le=1000, description="Max results per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     session: AsyncSession = Depends(get_async_session),
@@ -113,7 +115,7 @@ async def list_all_invoices(
     **Filters:**
     - tenant_id: Drill down to specific tenant
     - status: Filter by invoice status
-    - customer_id: Filter by customer
+    - tenant_id: Filter by tenant
 
     **Returns:** Cross-tenant invoice list with tenant summaries
     """
@@ -122,16 +124,13 @@ async def list_all_invoices(
         filters = []
 
         if tenant_id:
-            filters.append(Invoice.tenant_id == tenant_id)
+            filters.append(InvoiceEntity.tenant_id == tenant_id)
 
         if status:
-            filters.append(Invoice.status == status)
-
-        if customer_id:
-            filters.append(Invoice.customer_id == customer_id)
+            filters.append(InvoiceEntity.status == status)
 
         # Count total
-        count_query = select(func.count(Invoice.id))
+        count_query = select(func.count(InvoiceEntity.invoice_id))
         if filters:
             count_query = count_query.where(and_(*filters))
 
@@ -139,7 +138,12 @@ async def list_all_invoices(
         total_count = count_result.scalar_one()
 
         # Get invoices
-        query = select(Invoice).limit(limit).offset(offset).order_by(Invoice.created_at.desc())
+        query = (
+            select(InvoiceEntity)
+            .limit(limit)
+            .offset(offset)
+            .order_by(InvoiceEntity.created_at.desc())
+        )
 
         if filters:
             query = query.where(and_(*filters))
@@ -148,16 +152,29 @@ async def list_all_invoices(
         invoices = result.scalars().all()
 
         # Convert to dict with tenant_id included
+        tenant_ids = {str(invoice.tenant_id) for invoice in invoices if invoice.tenant_id}
+        tenant_names: dict[str, str] = {}
+        if tenant_ids:
+            tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            tenant_result = await session.execute(tenant_query)
+            tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+
         invoice_dicts = []
         for invoice in invoices:
+            tenant_id_value = str(invoice.tenant_id) if invoice.tenant_id else None
             invoice_dict = {
-                "id": invoice.id,
-                "tenant_id": invoice.tenant_id,  # ✅ Include tenant_id
+                "id": invoice.invoice_id,
+                "tenant_id": tenant_id_value,  # ✅ Include tenant_id
+                "tenant_name": tenant_names.get(tenant_id_value),
                 "customer_id": invoice.customer_id,
                 "status": invoice.status,
-                "amount": invoice.amount_due,
-                "amount_paid": invoice.amount_paid or 0,
-                "amount_remaining": invoice.amount_remaining or invoice.amount_due,
+                "amount": invoice.total_amount,
+                "amount_paid": (invoice.total_amount - invoice.remaining_balance)
+                if invoice.remaining_balance is not None
+                else 0,
+                "amount_remaining": invoice.remaining_balance
+                if invoice.remaining_balance is not None
+                else invoice.total_amount,
                 "currency": invoice.currency,
                 "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
                 "created_at": invoice.created_at.isoformat(),
@@ -169,12 +186,14 @@ async def list_all_invoices(
         tenant_summaries = None
         if not tenant_id:
             summary_query = select(
-                Invoice.tenant_id,
-                Invoice.status,
-                func.count(Invoice.id).label("count"),
-                func.sum(Invoice.amount_due).label("total_amount"),
-                func.sum(Invoice.amount_paid).label("total_paid"),
-            ).group_by(Invoice.tenant_id, Invoice.status)
+                InvoiceEntity.tenant_id,
+                InvoiceEntity.status,
+                func.count(InvoiceEntity.invoice_id).label("count"),
+                func.sum(InvoiceEntity.total_amount).label("total_amount"),
+                func.sum(
+                    InvoiceEntity.total_amount - InvoiceEntity.remaining_balance
+                ).label("total_paid"),
+            ).group_by(InvoiceEntity.tenant_id, InvoiceEntity.status)
 
             summary_result = await session.execute(summary_query)
             summary_rows = summary_result.all()
@@ -186,7 +205,7 @@ async def list_all_invoices(
                 if t_id not in tenant_data:
                     tenant_data[t_id] = {
                         "tenant_id": t_id,
-                        "tenant_name": None,  # TODO: Join with tenant table
+                        "tenant_name": None,  # Populated below after aggregation
                         "total_invoices": 0,
                         "draft_count": 0,
                         "open_count": 0,
@@ -208,7 +227,7 @@ async def list_all_invoices(
                     tenant_data[t_id]["paid_count"] = row.count
                 elif row.status == InvoiceStatus.VOID:
                     tenant_data[t_id]["void_count"] = row.count
-                elif row.status == InvoiceStatus.UNCOLLECTIBLE:
+                elif row.status == InvoiceStatus.OVERDUE:
                     tenant_data[t_id]["uncollectible_count"] = row.count
 
                 tenant_data[t_id]["total_amount"] += row.total_amount or 0
@@ -217,6 +236,15 @@ async def list_all_invoices(
             # Calculate outstanding
             for t_data in tenant_data.values():
                 t_data["total_outstanding"] = t_data["total_amount"] - t_data["total_paid"]
+
+            # Fetch tenant names
+            if tenant_data:
+                tenant_ids = list(tenant_data.keys())
+                tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+                tenant_result = await session.execute(tenant_query)
+                tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+                for t_id, t_data in tenant_data.items():
+                    t_data["tenant_name"] = tenant_names.get(t_id)
 
             tenant_summaries = [TenantInvoiceSummary(**data) for data in tenant_data.values()]
 
@@ -260,13 +288,13 @@ async def list_all_payments(
         filters = []
 
         if tenant_id:
-            filters.append(Payment.tenant_id == tenant_id)
+            filters.append(PaymentEntity.tenant_id == tenant_id)
 
         if status:
-            filters.append(Payment.status == status)
+            filters.append(PaymentEntity.status == status)
 
         # Count total
-        count_query = select(func.count(Payment.id))
+        count_query = select(func.count(PaymentEntity.payment_id))
         if filters:
             count_query = count_query.where(and_(*filters))
 
@@ -274,7 +302,12 @@ async def list_all_payments(
         total_count = count_result.scalar_one()
 
         # Get payments
-        query = select(Payment).limit(limit).offset(offset).order_by(Payment.created_at.desc())
+        query = (
+            select(PaymentEntity)
+            .limit(limit)
+            .offset(offset)
+            .order_by(PaymentEntity.created_at.desc())
+        )
 
         if filters:
             query = query.where(and_(*filters))
@@ -283,16 +316,29 @@ async def list_all_payments(
         payments = result.scalars().all()
 
         # Convert to dict with tenant_id
+        tenant_ids = {str(payment.tenant_id) for payment in payments if payment.tenant_id}
+        tenant_names: dict[str, str] = {}
+        if tenant_ids:
+            tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            tenant_result = await session.execute(tenant_query)
+            tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+
         payment_dicts = []
         for payment in payments:
+            tenant_id_value = str(payment.tenant_id) if payment.tenant_id else None
+            invoice_ids = []
+            if hasattr(payment, "invoices") and payment.invoices:
+                invoice_ids = [str(inv.invoice_id) for inv in payment.invoices]
             payment_dict = {
-                "id": payment.id,
-                "tenant_id": payment.tenant_id,  # ✅ Include tenant_id
-                "invoice_id": payment.invoice_id,
+                "id": payment.payment_id,
+                "tenant_id": tenant_id_value,  # ✅ Include tenant_id
+                "tenant_name": tenant_names.get(tenant_id_value),
+                "invoice_id": invoice_ids[0] if invoice_ids else None,
+                "invoice_ids": invoice_ids,
                 "amount": payment.amount,
                 "currency": payment.currency,
                 "status": payment.status,
-                "payment_method": getattr(payment, "payment_method", None),
+                "payment_method": getattr(payment, "payment_method_type", None),
                 "created_at": payment.created_at.isoformat(),
             }
             payment_dicts.append(payment_dict)
@@ -334,24 +380,26 @@ async def get_platform_billing_summary(
     """
     try:
         # Count unique tenants
-        tenant_count_query = select(func.count(func.distinct(Invoice.tenant_id)))
+        tenant_count_query = select(func.count(func.distinct(InvoiceEntity.tenant_id)))
         tenant_count_result = await session.execute(tenant_count_query)
         total_tenants = tenant_count_result.scalar_one()
 
         # Total invoices
-        invoice_count_query = select(func.count(Invoice.id))
+        invoice_count_query = select(func.count(InvoiceEntity.invoice_id))
         invoice_count_result = await session.execute(invoice_count_query)
         total_invoices = invoice_count_result.scalar_one()
 
         # Total payments
-        payment_count_query = select(func.count(Payment.id))
+        payment_count_query = select(func.count(PaymentEntity.payment_id))
         payment_count_result = await session.execute(payment_count_query)
         total_payments = payment_count_result.scalar_one()
 
         # Revenue metrics
         revenue_query = select(
-            func.sum(Invoice.amount_paid).label("total_revenue"),
-            func.sum(Invoice.amount_remaining).label("total_outstanding"),
+            func.sum(InvoiceEntity.total_amount - InvoiceEntity.remaining_balance).label(
+                "total_revenue"
+            ),
+            func.sum(InvoiceEntity.remaining_balance).label("total_outstanding"),
         )
         revenue_result = await session.execute(revenue_query)
         revenue_row = revenue_result.one()
@@ -360,20 +408,22 @@ async def get_platform_billing_summary(
         total_outstanding = revenue_row.total_outstanding or 0
 
         # Count by status
-        status_query = select(Invoice.status, func.count(Invoice.id).label("count")).group_by(
-            Invoice.status
-        )
+        status_query = select(
+            InvoiceEntity.status, func.count(InvoiceEntity.invoice_id).label("count")
+        ).group_by(InvoiceEntity.status)
         status_result = await session.execute(status_query)
         by_status = {row.status: row.count for row in status_result.all()}
 
         # Tenant summaries (same as in list_all_invoices)
         summary_query = select(
-            Invoice.tenant_id,
-            Invoice.status,
-            func.count(Invoice.id).label("count"),
-            func.sum(Invoice.amount_due).label("total_amount"),
-            func.sum(Invoice.amount_paid).label("total_paid"),
-        ).group_by(Invoice.tenant_id, Invoice.status)
+            InvoiceEntity.tenant_id,
+            InvoiceEntity.status,
+            func.count(InvoiceEntity.invoice_id).label("count"),
+            func.sum(InvoiceEntity.total_amount).label("total_amount"),
+            func.sum(
+                InvoiceEntity.total_amount - InvoiceEntity.remaining_balance
+            ).label("total_paid"),
+        ).group_by(InvoiceEntity.tenant_id, InvoiceEntity.status)
 
         summary_result = await session.execute(summary_query)
         summary_rows = summary_result.all()
@@ -406,7 +456,7 @@ async def get_platform_billing_summary(
                 tenant_data[t_id]["paid_count"] = row.count
             elif row.status == InvoiceStatus.VOID:
                 tenant_data[t_id]["void_count"] = row.count
-            elif row.status == InvoiceStatus.UNCOLLECTIBLE:
+            elif row.status == InvoiceStatus.OVERDUE:
                 tenant_data[t_id]["uncollectible_count"] = row.count
 
             tenant_data[t_id]["total_amount"] += row.total_amount or 0
@@ -415,11 +465,51 @@ async def get_platform_billing_summary(
         for t_data in tenant_data.values():
             t_data["total_outstanding"] = t_data["total_amount"] - t_data["total_paid"]
 
+        if tenant_data:
+            tenant_ids = list(tenant_data.keys())
+            tenant_query = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            tenant_result = await session.execute(tenant_query)
+            tenant_names = {str(row.id): row.name for row in tenant_result.all()}
+            for t_id, t_data in tenant_data.items():
+                t_data["tenant_name"] = tenant_names.get(t_id)
+
         by_tenant = [TenantInvoiceSummary(**data) for data in tenant_data.values()]
 
-        # TODO: Calculate MRR and ARR properly from subscription data
-        mrr = 0  # Placeholder
-        arr = 0  # Placeholder
+        active_statuses = [
+            SubscriptionStatus.ACTIVE.value,
+            SubscriptionStatus.TRIALING.value,
+            SubscriptionStatus.PAST_DUE.value,
+        ]
+        price_expression = func.coalesce(
+            BillingSubscriptionTable.custom_price,
+            BillingSubscriptionPlanTable.price,
+        )
+        mrr_query = select(
+            func.sum(
+                case(
+                    (BillingSubscriptionPlanTable.billing_cycle == BillingCycle.MONTHLY.value, price_expression),
+                    (
+                        BillingSubscriptionPlanTable.billing_cycle == BillingCycle.QUARTERLY.value,
+                        price_expression / 3,
+                    ),
+                    (
+                        BillingSubscriptionPlanTable.billing_cycle == BillingCycle.ANNUAL.value,
+                        price_expression / 12,
+                    ),
+                    else_=0,
+                )
+            ).label("mrr")
+        ).select_from(BillingSubscriptionTable).join(
+            BillingSubscriptionPlanTable,
+            and_(
+                BillingSubscriptionPlanTable.plan_id == BillingSubscriptionTable.plan_id,
+                BillingSubscriptionPlanTable.tenant_id == BillingSubscriptionTable.tenant_id,
+            ),
+        )
+        mrr_query = mrr_query.where(BillingSubscriptionTable.status.in_(active_statuses))
+        mrr_value = await session.scalar(mrr_query)
+        mrr = int(mrr_value or 0)
+        arr = int(mrr * 12)
 
         return PlatformBillingSummary(
             total_tenants=total_tenants,

@@ -1,5 +1,14 @@
+import { fileURLToPath } from "url";
+
+const designTokensPath = fileURLToPath(
+  new URL("../packages/design-tokens/src", import.meta.url)
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable standalone output for Docker builds
+  output: 'standalone',
+
   // Enable React strict mode for better development experience
   reactStrictMode: true,
 
@@ -64,6 +73,30 @@ const nextConfig = {
         ],
       },
     ];
+  },
+
+  // Module aliases for local packages when workspace links are unavailable
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@dotmac/design-tokens": designTokensPath,
+    };
+    // Ensure TypeScript extensions are resolved before .js
+    config.resolve.extensions = [
+      ".tsx",
+      ".ts",
+      ".jsx",
+      ".js",
+      ".mjs",
+      ".json",
+    ];
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias || {}),
+      ".js": [".tsx", ".ts", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
   },
 
   // Experimental features

@@ -54,19 +54,25 @@ frontend/
 │   │   ├── signup/
 │   │   ├── verify-email/
 │   │   └── layout.tsx
-│   ├── (partner)/              # Partner portal routes
-│   │   ├── page.tsx            # Partner dashboard
-│   │   ├── referrals/
-│   │   ├── customers/
-│   │   ├── commissions/
-│   │   ├── statements/
-│   │   └── settings/
-│   ├── (tenant)/               # Tenant portal routes
-│   │   ├── page.tsx            # Tenant dashboard
-│   │   ├── team/
-│   │   ├── billing/
-│   │   ├── usage/
-│   │   └── settings/
+│   ├── partner/                # Partner portal routes
+│   │   ├── (private)/          # Partner authenticated pages
+│   │   │   ├── page.tsx        # Partner dashboard
+│   │   │   ├── referrals/
+│   │   │   ├── tenants/        # Managed tenants
+│   │   │   ├── commissions/
+│   │   │   ├── statements/
+│   │   │   └── settings/
+│   │   ├── login/
+│   │   └── layout.tsx
+│   ├── portal/                 # Tenant portal routes
+│   │   ├── (private)/          # Tenant authenticated pages
+│   │   │   ├── page.tsx        # Tenant dashboard
+│   │   │   ├── team/
+│   │   │   ├── billing/
+│   │   │   ├── usage/
+│   │   │   └── settings/
+│   │   ├── login/
+│   │   └── layout.tsx
 │   ├── (dashboard)/            # Protected dashboard routes
 │   │   ├── layout.tsx          # Dashboard shell
 │   │   ├── page.tsx            # Overview dashboard
@@ -74,8 +80,9 @@ frontend/
 │   │   ├── tenants/            # Tenant management
 │   │   ├── billing/            # Billing & invoices
 │   │   ├── analytics/          # Analytics dashboards
-│   │   ├── customers/          # CRM
 │   │   ├── deployments/        # Deployment management
+│   │   ├── workflows/          # Automation workflows
+│   │   ├── monitoring/         # Observability
 │   │   └── settings/           # Configuration
 │   ├── api/                    # API routes
 │   └── layout.tsx              # Root layout
@@ -150,7 +157,7 @@ frontend/
 ### 9. Partner Portal (`/partner/*`)
 - **Dashboard**: KPIs, revenue/commission trends, activity feed
 - **Referrals**: Create and track referral status
-- **Customers**: Assigned customers with revenue stats
+- **Tenants**: Managed tenants with revenue stats
 - **Commissions**: Commission history and summary
 - **Statements**: Monthly statements and downloads
 - **Settings**: Partner profile, tier, notifications
@@ -240,22 +247,34 @@ const { data, isLoading } = useQuery({
 - [x] Analytics dashboards
 
 ### Phase 3: Secondary Features
-- [x] Customer CRM
+- [x] Contact management
 - [x] Deployment management
 - [x] Settings pages
-- [ ] Notifications
+- [x] Notifications
 
-### Phase 4: Polish
+### Phase 4: Extended Features
+- [x] RBAC roles & permissions management
+- [x] Domain verification UI
+- [x] Branding customization
+- [x] API key management
+- [x] Team invitation modal
+- [x] Full billing suite (subscriptions, payment methods, receipts, usage)
+- [x] Deployment configuration and logs
+- [x] MFA setup/management
+- [x] Session management
+- [x] Password change
+- [x] Forgot/reset password flows
+
+### Phase 5: Portals & Onboarding
+- [x] Public signup and email verification
+- [x] Partner portal (dashboard, referrals, commissions, statements, profile)
+- [x] Tenant portal (dashboard, team, billing, usage, settings)
+
+### Phase 6: Polish
 - [ ] Error boundaries and loading states
 - [ ] Accessibility audit
 - [ ] Performance optimization
 - [ ] E2E testing with Playwright
-- [ ] Documentation
-
-### Phase 5: Portals & Onboarding
-- [x] Public signup and email verification
-- [x] Partner portal
-- [x] Tenant portal
 
 ---
 

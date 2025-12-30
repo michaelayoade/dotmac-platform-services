@@ -18,17 +18,14 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.mark.asyncio
-async def test_customer_factory_transaction_cleanup(async_db_session, customer_factory):
-    """Verify customer factory works with transaction rollback."""
-    # Create customer using factory
-    customer = await customer_factory(
-        email="test@example.com", first_name="Test", last_name="Customer"
-    )
+async def test_tenant_factory_transaction_cleanup(async_db_session, tenant_factory):
+    """Verify tenant factory works with transaction rollback."""
+    # Create tenant using factory
+    tenant = await tenant_factory(name="Rollback Tenant")
 
-    # Verify customer was created
-    assert customer.id is not None
-    assert customer.email == "test@example.com"
-    assert customer.first_name == "Test"
+    # Verify tenant was created
+    assert tenant.id is not None
+    assert tenant.name == "Rollback Tenant"
 
     # Session should still be usable
     await async_db_session.flush()

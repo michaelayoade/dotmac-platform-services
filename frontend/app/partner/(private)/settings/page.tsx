@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,41 +52,40 @@ const notificationSchema = z.object({
 
 type NotificationFormData = z.infer<typeof notificationSchema>;
 
-// Demo data
-const demoProfile = {
-  id: "p1",
-  companyName: "Partner Solutions Inc.",
-  contactName: "John Partner",
-  contactEmail: "john@partnersolutions.com",
-  contactPhone: "+1 (555) 123-4567",
+const emptyProfile = {
+  id: "",
+  companyName: "",
+  contactName: "",
+  contactEmail: "",
+  contactPhone: "",
   address: {
-    street: "123 Partner Street",
-    city: "San Francisco",
-    state: "CA",
-    postalCode: "94102",
-    country: "USA",
+    street: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
   },
   payoutPreferences: {
     method: "BANK_TRANSFER" as const,
-    bankAccountNumber: "****4567",
-    bankRoutingNumber: "****8901",
+    bankAccountNumber: "",
+    bankRoutingNumber: "",
   },
   notificationSettings: {
-    emailNewReferral: true,
-    emailCommissionApproved: true,
-    emailPayoutProcessed: true,
-    emailMonthlyStatement: true,
+    emailNewReferral: false,
+    emailCommissionApproved: false,
+    emailPayoutProcessed: false,
+    emailMonthlyStatement: false,
   },
-  commissionRate: 15,
-  tier: "SILVER" as const,
-  joinedAt: "2024-01-15T00:00:00Z",
+  commissionRate: 0,
+  tier: "BRONZE" as const,
+  joinedAt: "",
 };
 
 const tierColors = {
-  BRONZE: "text-amber-600 bg-amber-100",
-  SILVER: "text-gray-600 bg-gray-100",
-  GOLD: "text-yellow-600 bg-yellow-100",
-  PLATINUM: "text-purple-600 bg-purple-100",
+  BRONZE: "bg-status-warning/15 text-status-warning",
+  SILVER: "bg-surface-overlay text-text-secondary",
+  GOLD: "bg-highlight/15 text-highlight",
+  PLATINUM: "bg-status-info/15 text-status-info",
 };
 
 function ProfileSection() {
@@ -94,11 +93,12 @@ function ProfileSection() {
   const updateProfile = useUpdatePartnerProfile();
   const [isEditing, setIsEditing] = useState(false);
 
-  const currentProfile = profile || demoProfile;
+  const currentProfile = profile ?? emptyProfile;
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -113,6 +113,21 @@ function ProfileSection() {
       country: currentProfile.address?.country || "",
     },
   });
+
+  useEffect(() => {
+    if (profile) {
+      reset({
+        companyName: profile.companyName,
+        contactName: profile.contactName,
+        contactPhone: profile.contactPhone || "",
+        street: profile.address?.street || "",
+        city: profile.address?.city || "",
+        state: profile.address?.state || "",
+        postalCode: profile.address?.postalCode || "",
+        country: profile.address?.country || "",
+      });
+    }
+  }, [profile, reset]);
 
   const onSubmit = async (data: ProfileFormData) => {
     try {
@@ -134,11 +149,22 @@ function ProfileSection() {
     }
   };
 
+  if (!profile) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">Company Profile</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Partner profile details are not available yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent/10 text-accent">
+          <div className="p-2 rounded-lg bg-accent/15 text-accent">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
@@ -149,7 +175,7 @@ function ProfileSection() {
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="px-4 py-2 rounded-md text-sm font-medium text-accent hover:bg-accent/10 transition-colors"
+            className="px-4 py-2 rounded-md text-sm font-medium text-accent hover:bg-accent/15 transition-colors"
           >
             Edit
           </button>
@@ -275,7 +301,7 @@ function ProfileSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 inline-flex items-center gap-2"
+              className="px-4 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-50 inline-flex items-center gap-2"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -293,7 +319,7 @@ function ProfileSection() {
 
 function PartnerTierSection() {
   const { data: profile } = usePartnerProfile();
-  const currentProfile = profile || demoProfile;
+  const currentProfile = profile ?? emptyProfile;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -303,10 +329,21 @@ function PartnerTierSection() {
     });
   };
 
+  if (!profile) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">Partner Status</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Partner status details are not available yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-highlight/10 text-highlight">
+        <div className="p-2 rounded-lg bg-highlight/15 text-highlight">
           <Award className="w-5 h-5" />
         </div>
         <div>
@@ -347,10 +384,16 @@ function PartnerTierSection() {
 function NotificationSection() {
   const { data: profile } = usePartnerProfile();
   const updateProfile = useUpdatePartnerProfile();
-  const currentProfile = profile || demoProfile;
+  const currentProfile = profile ?? emptyProfile;
 
   const [settings, setSettings] = useState(currentProfile.notificationSettings);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setSettings(profile.notificationSettings);
+    }
+  }, [profile]);
 
   const handleToggle = async (key: keyof typeof settings) => {
     const newSettings = { ...settings, [key]: !settings[key] };
@@ -392,10 +435,21 @@ function NotificationSection() {
     },
   ];
 
+  if (!profile) {
+    return (
+      <div className="bg-surface-elevated rounded-lg border border-border p-6">
+        <h2 className="font-semibold text-text-primary">Notifications</h2>
+        <p className="text-sm text-text-muted mt-2">
+          Notification preferences are not available yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-elevated rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-status-success/10 text-status-success">
+        <div className="p-2 rounded-lg bg-status-success/15 text-status-success">
           <Bell className="w-5 h-5" />
         </div>
         <div>
@@ -424,7 +478,7 @@ function NotificationSection() {
             >
               <span
                 className={cn(
-                  "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                  "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow transition-transform",
                   settings[option.key] && "translate-x-5"
                 )}
               />

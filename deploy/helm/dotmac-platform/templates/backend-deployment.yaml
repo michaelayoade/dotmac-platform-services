@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotmac-platform.fullname" . }}-backend
+  labels:
+    {{- include "dotmac-platform.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.backend }}
+  strategy:
+    {{- toYaml .Values.strategy.backend | nindent 4 }}
+  selector:
+    matchLabels:
+      app: dotmac-backend
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.secrets.checksum }}
+        checksum/secret: {{ .Values.secrets.checksum | quote }}
+        {{- end }}
+      labels:
+        app: dotmac-backend
+        {{- include "dotmac-platform.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "dotmac-platform.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds.backend }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      containers:
+        - name: backend
+          image: {{ .Values.image.backend }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.service.backendPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "dotmac-platform.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          resources:
+            {{- toYaml .Values.resources.backend | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.backend.readiness.path }}
+              port: {{ .Values.service.backendPort }}
+            initialDelaySeconds: {{ .Values.probes.backend.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.backend.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.backend.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.backend.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.backend.liveness.path }}
+              port: {{ .Values.service.backendPort }}
+            initialDelaySeconds: {{ .Values.probes.backend.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.backend.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.backend.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.backend.liveness.failureThreshold }}
