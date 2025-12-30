@@ -279,3 +279,4 @@ node_modules
 *.tsbuildinfo
 docker-compose.override.yml
 /.local/
+dotmac-component-library
